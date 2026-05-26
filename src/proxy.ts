@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 
-export const runtime = 'nodejs'
+// export const runtime = 'nodejs'
 
 export function proxy(request: NextRequest) {}
 
