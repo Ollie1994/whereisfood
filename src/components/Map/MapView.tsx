@@ -5,5 +5,5 @@ interface MapViewProps {
 }
 
 export default function MapView({ ref }: MapViewProps) {
-  return <div ref={ref} className="absolute inset-0" />;
+  return <div ref={ref} className="relative h-screen w-full" />;
 }
