@@ -1,36 +1,186 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# WhereIsFood — Gothenburg Food Truck Map
 
-## Getting Started
+A live web map showing where Gothenburg's food trucks are **right now**.
 
-First, run the development server:
+Hungry people open the map (no login) and see active trucks with their location,
+hours, and cuisine. Trucks broadcast their location three ways: posting manually,
+via [Make.com](https://make.com) automations wired to their social posts, or by email.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+It fills a real gap — Gothenburg has had no central live food-truck map since
+Streetkäk shut down in 2017.
+
+> **Status: Phase 1 of 8 complete — early scaffold.**
+> The map renders in the browser, but it draws from hardcoded fake data.
+> There is no backend, database, or ingestion yet. See [Project status](#project-status).
+
+---
+
+## Tech stack
+
+| Concern        | Choice |
+|----------------|--------|
+| Framework      | Next.js 16 (App Router), React 19, TypeScript |
+| Styling        | Tailwind CSS v4 |
+| Map            | MapLibre GL JS + Protomaps PMTiles (local file now, Cloudflare R2 planned) |
+| Database       | Supabase Postgres |
+| Realtime       | Supabase Realtime (WebSocket broadcasts) |
+| Auth           | Supabase Auth (magic links, truck owners only) |
+| Geocoding      | Nominatim (cached in DB forever) |
+| Rate limiting  | Upstash Redis (sliding window) |
+| Time           | date-fns-tz — store UTC, display `Europe/Stockholm` |
+| Automation     | Make.com (per-truck free accounts) + Mailgun inbound email |
+| Testing        | Vitest |
+| Deployment     | Vercel + Vercel Cron |
+
+Consumers are always anonymous — no account, no tracking. All user-facing text is
+in Swedish.
+
+---
+
+## How it's designed to work
+
+### Three ingestion lanes
+
+Each lane carries a **source confidence** weighting:
+
+| Lane      | Endpoint          | Source confidence | Notes |
+|-----------|-------------------|-------------------|-------|
+| Dashboard | `POST /api/locations` | `1.0` — always wins | Authenticated truck owner, structured input, no parser |
+| Webhook   | `POST /api/ingest`    | `0.85`             | Make.com routes a social post caption through the parser |
+| Email     | `POST /api/email`     | `0.55`             | Mailgun inbound, HMAC-verified, parser runs on the body |
+
+Priority: **Dashboard > Webhook > Email**. A manual post always overrides a parsed
+one whose time window overlaps it.
+
+### Confidence & marker colours
+
+Two-axis model: `confidence = parser_confidence × source_confidence`, shown to users
+as human language — never raw percentages.
+
+- 🟢 **Green** — fresh manual post ("Posted by truck today")
+- 🟡 **Yellow** — parsed from a caption ("Based on this morning's post")
+- ⚫ **Grey** — no update today, shown at last known spot (absence is honest, never hidden)
+
+Anything below `0.45` displays as grey rather than a location.
+
+### Swedish NLP parser (pure functions)
+
+Every email/webhook caption runs through a pure, dictionary-based pipeline:
+normalize → detect negation (`inställt`, `stängt`) → extract location → extract date
+(`idag`, `imorgon`, weekdays, always resolving to the nearest *future* day) → extract
+time (`11-14`, `lunchtid`) → score confidence → geocode. No `new Date()` inside the
+parser — `parsedAt` is always passed in, keeping it testable.
+
+### Realtime & expiry
+
+Supabase Realtime broadcasts location changes; the map patches only the affected
+marker and never fully re-renders. Locations expire at `ends_at`, or `posted_at + 8h`,
+capped at midnight. A Vercel cron cleans expired **locations** every 30 min — the
+**posts** table is never purged, as it's the training corpus for a future ML parser
+that will replace the dictionary.
+
+---
+
+## Architecture
+
+Strict layering — never mix layers:
+
+```
+app/api/*/route.ts   → HTTP only, no business logic
+src/lib/services/    → all business logic, no HTTP knowledge
+src/lib/db/          → database access only
+src/lib/parser/      → pure functions, no DB, no HTTP, no side effects
+src/lib/validators/  → input validation
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Route handlers call services. Services call the DB layer. The parser is pure.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Full design reference lives in [`.claude/context/project-context.md`](.claude/context/project-context.md)
+and the working rules in [`CLAUDE.md`](CLAUDE.md).
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## Project status
 
-To learn more about Next.js, take a look at the following resources:
+Build order is 8 phases. **Phase 1 is essentially complete; Phases 2–8 are not started.**
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Phase | Scope | Status |
+|-------|-------|--------|
+| 1 · Foundation      | Map renders (MapLibre + PMTiles + R2) with fake data | ✅ Done |
+| 2 · Ingestion       | Email + webhook endpoints, Supabase schema + seed | ⬜ Not started |
+| 3 · Parser          | Swedish NLP parser, unit tested | ⬜ Not started |
+| 4 · Realtime        | Supabase Realtime, live map updates | ⬜ Not started |
+| 5 · Auth + Dashboard| Truck login, manual posting, admin — **first deploy** | ⬜ Not started |
+| 6 · Cron + Cleanup  | Stale pins expire automatically | ⬜ Not started |
+| 7 · Hardening       | `proxy.ts`, rate limiting, security headers | ⬜ Not started |
+| 8 · Onboarding      | Real trucks, Make.com per-truck guides | ⬜ Not started |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### What actually works today
 
-## Deploy on Vercel
+- Map renders in the browser — MapLibre + Protomaps PMTiles from Cloudflare R2, centred on Gothenburg
+- Custom HTML circle markers (green / yellow / grey), colour derived from confidence
+- Clickable truck popups rendered via React roots into MapLibre popups
+- Client-side merge of trucks + locations into one marker per truck
+- Core TypeScript types (`Truck`, `Location`, `MarkerState`)
+- Root `/` redirects to `/map`
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### What does NOT exist yet
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **It's all fake data** — the map reads from [`src/lib/fake-data.ts`](src/lib/fake-data.ts)
+- **No database** — `supabase/` has no migrations, schema, or seed (the schema is spec, not code)
+- **No API routes** — `/api/ingest`, `/api/email`, `/api/locations`, `/api/cron/cleanup`
+- **No backend layers** — no services, DB layer, parser, or validators
+- **`src/proxy.ts` is a stub** — empty function, no auth / rate limiting / webhook verification
+- **No tests** — Vitest is planned but not wired up
+- No auth, no dashboard, no admin, no realtime, no cron
+
+**Immediate next step (Phase 2):** stand up the Supabase schema + seed data, then build
+the email and webhook ingestion endpoints (with HMAC and `X-Make-Secret` verification).
+
+---
+
+## Getting started
+
+```bash
+npm install
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) — it redirects to `/map`.
+
+The map needs a PMTiles URL to render tiles. Copy the environment template and fill it in:
+
+```bash
+cp .env.example .env.local
+```
+
+Required for the map to draw today:
+
+```bash
+# Currently a local file — public/gothenburg.pmtiles is committed for dev.
+# Cloudflare R2 is the planned production host.
+NEXT_PUBLIC_PMTILES_URL=/gothenburg.pmtiles
+```
+
+The remaining variables (Supabase, Make.com, Mailgun, Nominatim, Upstash) are consumed
+in later phases and not yet needed to run the map:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+MAKE_WEBHOOK_SECRET=
+MAILGUN_WEBHOOK_SIGNING_KEY=
+NOMINATIM_BASE_URL=https://nominatim.openstreetmap.org
+UPSTASH_REDIS_REST_URL=
+UPSTASH_REDIS_REST_TOKEN=
+```
+
+## Scripts
+
+```bash
+npm run dev     # start the dev server
+npm run build   # production build
+npm run start   # serve the production build
+npm run lint    # eslint
+```
