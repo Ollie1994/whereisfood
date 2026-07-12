@@ -117,7 +117,7 @@ Build order is 8 phases. **Phase 1 is essentially complete; Phases 2–8 are not
 
 ### What actually works today
 
-- Map renders in the browser — MapLibre + Protomaps PMTiles from Cloudflare R2, centred on Gothenburg
+- Map renders in the browser — MapLibre + Protomaps PMTiles from a local committed file (`public/gothenburg.pmtiles`; Cloudflare R2 is the planned production host), centred on Gothenburg
 - Custom HTML circle markers (green / yellow / grey), colour derived from confidence
 - Clickable truck popups rendered via React roots into MapLibre popups
 - Client-side merge of trucks + locations into one marker per truck
