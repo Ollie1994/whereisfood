@@ -15,6 +15,9 @@ Streetkäk shut down in 2017.
 
 ---
 
+<img width="1354" height="850" alt="image" src="https://github.com/user-attachments/assets/7d91fa96-509e-49a0-b867-821d1f7079b5" />
+
+
 ## Tech stack
 
 | Concern        | Choice |
