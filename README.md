@@ -109,7 +109,7 @@ Build order is 8 phases. **Phase 1 is essentially complete; Phases 2–8 are not
 
 | Phase | Scope | Status |
 |-------|-------|--------|
-| 1 · Foundation      | Map renders (MapLibre + PMTiles + R2) with fake data | ✅ Done |
+| 1 · Foundation      | Map renders (MapLibre + local PMTiles file) with fake data | ✅ Done |
 | 2 · Ingestion       | Email + webhook endpoints, Supabase schema + seed | ⬜ Not started |
 | 3 · Parser          | Swedish NLP parser, unit tested | ⬜ Not started |
 | 4 · Realtime        | Supabase Realtime, live map updates | ⬜ Not started |
