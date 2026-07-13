@@ -30,6 +30,45 @@ export interface Location {
   updated_at: string;
 }
 
+// Row shape of the `posts` table — raw incoming data, stored before parsing.
+// `source` is the six-value union (distinct from Location.source's three values).
+export interface Post {
+  id: string;
+  truck_id: string;
+  instagram_post_id: string | null;
+  caption: string | null;
+  source: "instagram" | "facebook" | "tiktok" | "email" | "manual" | "webhook";
+  posted_at: string | null;
+  raw_json: Record<string, unknown> | null;
+  parsing_status: "pending" | "parsed" | "failed" | "skipped";
+  created_at: string;
+}
+
+// Webhook lane payload sent by Make.com to POST /api/ingest.
+export interface IngestPayload {
+  truck_id: string;
+  caption: string;
+  instagram_post_id?: string; // omitted when the post is not from Instagram
+  source_platform: "instagram" | "facebook" | "tiktok";
+}
+
+// Mailgun inbound webhook payload fields used by the email lane (POST /api/email).
+// `timestamp`/`token`/`signature` verify the HMAC; `recipient` yields the truck_id.
+export interface EmailPayload {
+  recipient: string;
+  "body-plain": string;
+  timestamp: string;
+  token: string;
+  signature: string;
+}
+
+// Result of the synchronous prepare step (validate + verify truck) before the
+// deferred raw insert. Discriminated on `ok`: the route maps a failure to its
+// status code, or persists `post` inside after().
+export type IngestResult =
+  | { ok: true; post: Post }
+  | { ok: false; status: 400 | 401; error: string };
+
 // Derived client-side, never persisted — one per truck shown on the map.
 export type MarkerColor = "green" | "yellow" | "grey";
 
