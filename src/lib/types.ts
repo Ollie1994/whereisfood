@@ -39,7 +39,7 @@ export interface Post {
   caption: string | null;
   source: "instagram" | "facebook" | "tiktok" | "email" | "manual" | "webhook";
   posted_at: string | null;
-  raw_json: Record<string, unknown> | null;
+  raw_json: Record<string, unknown>;
   parsing_status: "pending" | "parsed" | "failed" | "skipped";
   created_at: string;
 }
