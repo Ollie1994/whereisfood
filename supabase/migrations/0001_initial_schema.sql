@@ -34,8 +34,10 @@ create table geocoding_cache (
 -- posts — raw incoming data, stored BEFORE parsing. Never purged: this is the ML
 -- training corpus for the future parser replacement. raw_json keeps the full payload.
 -- Integrity is enforced at the DB level because this corpus is permanent: source,
--- parsing_status, and raw_json are NOT NULL, and the two enums are CHECK-constrained
--- so a service bug can never silently persist a malformed row.
+-- posted_at, parsing_status, and raw_json are NOT NULL, and the two enums are
+-- CHECK-constrained so a service bug can never silently persist a malformed row.
+-- posted_at is always set by the service (webhook → ingest time; email → Mailgun
+-- timestamp, falling back to ingest time), so NOT NULL both enforces and documents it.
 create table posts (
   id                uuid primary key default gen_random_uuid(),
   truck_id          uuid not null references trucks (id),
@@ -43,7 +45,7 @@ create table posts (
   caption           text,
   source            text not null
                       check (source in ('instagram', 'facebook', 'tiktok', 'email', 'manual', 'webhook')),
-  posted_at         timestamptz,
+  posted_at         timestamptz not null,
   raw_json          jsonb not null, -- never lose raw data
   parsing_status    text not null default 'pending'
                       check (parsing_status in ('pending', 'parsed', 'failed', 'skipped')),

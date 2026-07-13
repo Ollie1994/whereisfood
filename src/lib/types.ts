@@ -38,7 +38,7 @@ export interface Post {
   instagram_post_id: string | null;
   caption: string | null;
   source: "instagram" | "facebook" | "tiktok" | "email" | "manual" | "webhook";
-  posted_at: string | null;
+  posted_at: string;
   raw_json: Record<string, unknown>;
   parsing_status: "pending" | "parsed" | "failed" | "skipped";
   created_at: string;
