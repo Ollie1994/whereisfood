@@ -149,3 +149,24 @@ create policy users_update_own on users
   for update to authenticated using ((select auth.uid()) = id) with check ((select auth.uid()) = id);
 create policy users_insert_service_role on users
   for insert to service_role with check (true);
+
+-- ---------------------------------------------------------------------------
+-- Data API grants
+-- RLS policies filter rows, but a role still needs table-level privileges to
+-- reach a table at all. Modern Supabase does not auto-expose new tables to the
+-- API roles (config `auto_expose_new_tables` unset = "not auto-exposed"), so
+-- without these grants every policy above is unreachable dead code — the REST
+-- API returns 401/403 for anon reads AND service_role writes. Grant to match
+-- the documented access model; RLS still restricts which rows each role sees.
+-- ---------------------------------------------------------------------------
+
+-- service_role: full DML on every table (server-side workhorse for all API
+-- routes / services; bypasses RLS but still requires the grants for the Data API).
+grant select, insert, update, delete on all tables in schema public to service_role;
+
+-- Public read surface — trucks + locations (rows further constrained by the
+-- *_select_public policies; app query filters is_active / expires_at).
+grant select on trucks, locations to anon, authenticated;
+
+-- Truck owners read + update their own user row (RLS restricts to auth.uid() = id).
+grant select, update on users to authenticated;
