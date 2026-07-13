@@ -141,12 +141,15 @@ create policy geocoding_cache_insert_service_role on geocoding_cache
 create policy geocoding_cache_update_service_role on geocoding_cache
   for update to service_role using (true) with check (true);
 
--- users: authenticated read/update own row only; service_role inserts on invite.
+-- users: authenticated reads own row only; service_role inserts on invite.
+-- No owner self-UPDATE: the table has no owner-editable column (id/created_at
+-- immutable, truck_id admin-assigned, is_admin admin-only), and an unrestricted
+-- UPDATE over one's own row would allow self-escalation to is_admin or truck_id
+-- hijack. Re-introduce a COLUMN-SCOPED update (never covering is_admin/truck_id)
+-- if a real profile field is added later.
 alter table users enable row level security;
 create policy users_select_own on users
   for select to authenticated using ((select auth.uid()) = id);
-create policy users_update_own on users
-  for update to authenticated using ((select auth.uid()) = id) with check ((select auth.uid()) = id);
 create policy users_insert_service_role on users
   for insert to service_role with check (true);
 
@@ -168,5 +171,6 @@ grant select, insert, update, delete on all tables in schema public to service_r
 -- *_select_public policies; app query filters is_active / expires_at).
 grant select on trucks, locations to anon, authenticated;
 
--- Truck owners read + update their own user row (RLS restricts to auth.uid() = id).
-grant select, update on users to authenticated;
+-- Truck owners read their own user row only (RLS restricts to auth.uid() = id).
+-- Intentionally no UPDATE grant — see the users RLS note above.
+grant select on users to authenticated;
