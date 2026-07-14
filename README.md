@@ -9,9 +9,11 @@ via [Make.com](https://make.com) automations wired to their social posts, or by 
 It fills a real gap — Gothenburg has had no central live food-truck map since
 Streetkäk shut down in 2017.
 
-> **Status: Phase 1 of 8 complete — early scaffold.**
-> The map renders in the browser, but it draws from hardcoded fake data.
-> There is no backend, database, or ingestion yet. See [Project status](#project-status).
+> **Status: Phases 1–2 of 8 complete.**
+> The map renders in the browser (still from fake data), and both ingestion
+> lanes — webhook (`/api/ingest`) and email (`/api/email`) — are built and
+> verified end-to-end against a local Supabase stack, storing raw posts.
+> The map is not yet wired to live data (Phase 4). See [Project status](#project-status).
 
 ---
 
@@ -105,12 +107,12 @@ and the working rules in [`CLAUDE.md`](CLAUDE.md).
 
 ## Project status
 
-Build order is 8 phases. **Phase 1 is essentially complete; Phases 2–8 are not started.**
+Build order is 8 phases. **Phases 1–2 are complete; Phases 3–8 are not started.**
 
 | Phase | Scope | Status |
 |-------|-------|--------|
 | 1 · Foundation      | Map renders (MapLibre + local PMTiles file) with fake data | ✅ Done |
-| 2 · Ingestion       | Email + webhook endpoints, Supabase schema + seed | ⬜ Not started |
+| 2 · Ingestion       | Email + webhook endpoints, Supabase schema + seed | ✅ Done |
 | 3 · Parser          | Swedish NLP parser, unit tested | ⬜ Not started |
 | 4 · Realtime        | Supabase Realtime, live map updates | ⬜ Not started |
 | 5 · Auth + Dashboard| Truck login, manual posting, admin — **first deploy** | ⬜ Not started |
@@ -120,25 +122,31 @@ Build order is 8 phases. **Phase 1 is essentially complete; Phases 2–8 are not
 
 ### What actually works today
 
+**Phase 1 — map**
 - Map renders in the browser — MapLibre + Protomaps PMTiles from a local committed file (`public/gothenburg.pmtiles`; Cloudflare R2 is the planned production host), centred on Gothenburg
 - Custom HTML circle markers (green / yellow / grey), colour derived from confidence
 - Clickable truck popups rendered via React roots into MapLibre popups
 - Client-side merge of trucks + locations into one marker per truck
-- Core TypeScript types (`Truck`, `Location`, `MarkerState`)
-- Root `/` redirects to `/map`
+- Core TypeScript types (`Truck`, `Location`, `MarkerState`); root `/` redirects to `/map`
+
+**Phase 2 — ingestion**
+- **Supabase Postgres schema** — `supabase/migrations/0001_initial_schema.sql` (trucks, posts, locations, geocoding_cache, users) with indexes, RLS policies, and Data API grants; dev `seed.sql` (2 active + 1 inactive truck, fixed UUIDs)
+- **Webhook lane** — `POST /api/ingest`, constant-time `X-Make-Secret` check, validates the truck, returns 200 and stores the raw post in `after()`
+- **Email lane** — `POST /api/email`, Mailgun `multipart/form-data` + constant-time HMAC-SHA256 verification, truck extracted from the recipient
+- **Layered backend** — pure validators (`src/lib/validators/`), ingestion service (`src/lib/services/ingestion.ts`), and DB layer (`src/lib/db/`), all writing through `supabaseAdmin`
+- **Raw posts stored** as the permanent ML training corpus (never purged)
+- **39 Vitest unit tests** for the validators/security boundary; `scripts/sign-mailgun.mjs` dev helper for signing email-lane requests
 
 ### What does NOT exist yet
 
-- **It's all fake data** — the map reads from [`src/lib/fake-data.ts`](src/lib/fake-data.ts)
-- **No database** — `supabase/` has no migrations, schema, or seed (the schema is spec, not code)
-- **No API routes** — `/api/ingest`, `/api/email`, `/api/locations`, `/api/cron/cleanup`
-- **No backend layers** — no services, DB layer, parser, or validators
-- **`src/proxy.ts` is a stub** — empty function, no auth / rate limiting / webhook verification
-- **No tests** — Vitest is planned but not wired up
+- **The map still shows fake data** — it reads from [`src/lib/fake-data.ts`](src/lib/fake-data.ts) and is not yet wired to the database (Phase 4 · Realtime)
+- **No parser** — ingested captions are stored raw but not yet parsed into locations; the Swedish NLP pipeline (`src/lib/parser/*`), geocoding, and `locations` writes are Phase 3
+- **`src/proxy.ts` is a stub** — no auth / rate limiting / security headers yet (Phase 7)
 - No auth, no dashboard, no admin, no realtime, no cron
 
-**Immediate next step (Phase 2):** stand up the Supabase schema + seed data, then build
-the email and webhook ingestion endpoints (with HMAC and `X-Make-Secret` verification).
+**Immediate next step (Phase 3):** build the Swedish NLP parser (normalize → negation →
+location → date → time → confidence → geocode), then write parsed `locations` off the
+raw posts with the override/priority and dedup logic.
 
 ---
 
