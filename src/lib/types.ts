@@ -44,6 +44,12 @@ export interface Post {
   created_at: string;
 }
 
+// Insertable shape of a posts row: everything the caller supplies, minus the two
+// columns the DB generates (id, created_at). Lives here (not in the db layer) so
+// IngestResult can reference it without types.ts depending on db/ — the ingestion
+// service builds a NewPost and the deferred insert returns the full Post.
+export type NewPost = Omit<Post, "id" | "created_at">;
+
 // Webhook lane payload sent by Make.com to POST /api/ingest.
 export interface IngestPayload {
   truck_id: string;
@@ -64,9 +70,11 @@ export interface EmailPayload {
 
 // Result of the synchronous prepare step (validate + verify truck) before the
 // deferred raw insert. Discriminated on `ok`: the route maps a failure to its
-// status code, or persists `post` inside after().
+// status code, or persists the built `post` (a NewPost — no id/created_at yet)
+// inside after(). The prepare functions only ever return status 400; the 401 is
+// reserved for the route's own X-Make-Secret check.
 export type IngestResult =
-  | { ok: true; post: Post }
+  | { ok: true; post: NewPost }
   | { ok: false; status: 400 | 401; error: string };
 
 // Derived client-side, never persisted — one per truck shown on the map.
