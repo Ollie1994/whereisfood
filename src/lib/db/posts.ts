@@ -1,11 +1,10 @@
 import { supabaseAdmin } from "@/lib/supabase";
-import type { Post } from "@/lib/types";
+import type { NewPost, Post } from "@/lib/types";
 
-// The insertable shape of a posts row: every field the caller supplies, minus the
-// two the DB generates (id, created_at). parsing_status stays required — the
-// ingestion service sets it explicitly (defaulting to 'pending', mirroring the
-// column default) rather than relying on the DB to fill it.
-export type NewPost = Omit<Post, "id" | "created_at">;
+// NewPost (the insertable posts-row shape, minus DB-generated id/created_at) is
+// defined in @/lib/types and re-exported here so db-layer callers can keep
+// importing it from the db module.
+export type { NewPost };
 
 // DB access only — inserts a raw post via the service role and returns the stored
 // row. Propagates any Postgres error unchanged; notably the 23505 unique-violation
