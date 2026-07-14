@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse, after } from "next/server";
+import { withErrorHandling } from "@/lib/http/handler";
 import { persistPost, prepareWebhookIngest } from "@/lib/services/ingestion";
 
 // HTTP entry for the Make.com webhook lane. HTTP only — all business logic lives
@@ -20,7 +21,14 @@ function secretMatches(provided: string, expected: string): boolean {
   return timingSafeEqual(a, b);
 }
 
-export async function POST(request: Request) {
+export function POST(request: Request) {
+  // withErrorHandling maps any unexpected throw (e.g. a DB error in the service)
+  // to a 500 { error }. Expected failures below are RETURNED, so they pass
+  // straight through with their own status codes.
+  return withErrorHandling(() => handleIngest(request));
+}
+
+async function handleIngest(request: Request): Promise<Response> {
   const expectedSecret = process.env.MAKE_WEBHOOK_SECRET;
   if (!expectedSecret) {
     // Misconfiguration, not a client error — the endpoint can't authenticate.
@@ -46,7 +54,7 @@ export async function POST(request: Request) {
     return errorResponse(result.error, result.status);
   }
 
-  // Return 200 immediately; defer the raw insert to after(). Catch here so a
+  // Return 200 immediately; defer the raw insert to after(). Catch there so a
   // post-response failure is logged rather than becoming an unhandled rejection
   // (Make.com won't retry — accepted in Phase 2, per the plan).
   after(async () => {
