@@ -1,10 +1,5 @@
 import type { IngestPayload } from "@/lib/types";
-
-// 8-4-4-4-12 hex — accepts any UUID version. NOT a strict v4 regex: the seed
-// trucks use all-'1' UUIDs (version nibble 1), which a v4-only pattern would
-// reject. Validating truck_id shape here stops a malformed id from reaching the
-// DB layer as a Postgres 22P02 invalid-uuid error (see PR #38 review).
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { isUuid } from "@/lib/validators/uuid";
 
 const SOURCE_PLATFORMS = ["instagram", "facebook", "tiktok"] as const;
 
@@ -20,10 +15,13 @@ export function validateIngestPayload(body: unknown): IngestPayload | null {
 
   const { truck_id, caption, source_platform } = body;
 
-  if (typeof truck_id !== "string" || !UUID_RE.test(truck_id)) return null;
-  // Non-empty after trim: a webhook post with no caption text has nothing to
-  // ingest. The original (untrimmed) caption is kept — the posts corpus stores raw.
-  if (typeof caption !== "string" || caption.trim().length === 0) return null;
+  // truck_id must be a well-formed UUID (stops a malformed id reaching the DB
+  // layer as a Postgres 22P02 invalid-uuid error — see PR #38 review).
+  if (typeof truck_id !== "string" || !isUuid(truck_id)) return null;
+  // caption must be present but may be empty: an image-only post (no caption)
+  // is still valid input and must enter the posts corpus — the parser scores an
+  // empty caption 0, it is not rejected here ("never lose incoming data").
+  if (typeof caption !== "string") return null;
   if (
     typeof source_platform !== "string" ||
     !(SOURCE_PLATFORMS as readonly string[]).includes(source_platform)

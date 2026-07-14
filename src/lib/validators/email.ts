@@ -1,13 +1,11 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { EmailPayload } from "@/lib/types";
+import { isUuid } from "@/lib/validators/uuid";
 
 // Inbound address is {uuid}@in.yourapp.se. Hardcoded per Open Decision #1 (single
 // domain; a one-line change when the real Mailgun inbound domain is registered in
 // Phase 8). Validators must not read process.env, so this is a const, not env.
 const INBOUND_DOMAIN = "in.yourapp.se";
-
-// 8-4-4-4-12 hex, any UUID version (matches the ingest validator — see note there).
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function isNonEmptyString(v: unknown): v is string {
   return typeof v === "string" && v.length > 0;
@@ -71,7 +69,7 @@ export function extractTruckIdFromRecipient(recipient: string): string | null {
   const domain = recipient.slice(at + 1);
 
   if (domain.toLowerCase() !== INBOUND_DOMAIN) return null;
-  if (!UUID_RE.test(local)) return null;
+  if (!isUuid(local)) return null;
 
   return local.toLowerCase();
 }
