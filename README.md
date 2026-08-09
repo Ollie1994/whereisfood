@@ -161,9 +161,28 @@ timestamp means *"we know Mailgun sent this, it's just old"* — a genuine truck
 email that belongs in the permanent corpus. **Freshness governs whether we act on
 a post, not whether we keep it.**
 
-This keeps the security property that matters: a replayed payload is stored but
-never parsed, so it cannot create or override a live location. Replay was never an
-auth bypass, only an authenticated duplicate.
+This keeps the security property that matters: a replayed payload can never create
+or override a live location. Replay was never an auth bypass, only an
+authenticated duplicate.
+
+Because accepting stale payloads means a replay would otherwise append rows to a
+corpus that is **never purged**, two further guards ship alongside it:
+
+- **`posts_email_token_unique`** (migration `0004`) — a unique index on
+  `raw_json->>'token'` for the email lane. Mailgun's token is single-use, so a
+  replayed payload collides on insert and raises `23505`, which `persistPost`
+  already swallows as a benign discard. A replay is a silent no-op.
+- **The signature is never stored.** `redactSignature()` strips it before the row
+  is written. Otherwise every row would be a ready-to-replay request, reachable
+  via a leaked service-role key, a DB backup, or the eventual ML export — none of
+  which HTTPS protects against.
+
+`token` and `timestamp` are deliberately retained: replay needs all three fields
+and the signature cannot be recomputed without the signing key, so those two are
+inert on their own. The token is also what the unique index keys on.
+
+The Phase 7 Redis token cache complements these rather than replacing them — a
+cache TTL is a finite protection window, whereas the index never expires.
 
 15 minutes is not arbitrary:
 

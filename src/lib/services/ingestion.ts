@@ -123,7 +123,8 @@ export async function prepareEmailIngest(
     // timestamp already verified above). Fall back to ingest time if it is not a
     // finite number.
     posted_at: unixToIso(payload.timestamp, now),
-    raw_json: obj,
+    // Everything Mailgun sent EXCEPT the signature — see redactSignature.
+    raw_json: redactSignature(obj),
     // 'skipped' means "deliberately not parsed", which is exactly the state a
     // stale-but-authentic email is in: kept in the corpus forever, but never
     // allowed to create or override a live location. The Phase 3 parser MUST
@@ -161,6 +162,36 @@ export async function persistPost(post: NewPost): Promise<void> {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+// Drop `signature` before the payload is persisted.
+//
+// WHY (issue #53 review): `posts` is permanent and never purged, so anything
+// stored here is stored forever. Retaining the full (timestamp, token, signature)
+// tuple turned every row into a ready-to-replay request — a replay armory sitting
+// in our own database, reachable via a leaked service-role key, a DB backup, or
+// the eventual ML training export. HTTPS does nothing about any of those; it only
+// protects the wire.
+//
+// Removing the SIGNATURE alone is sufficient and is why `token` stays. Replaying
+// requires all three fields, and the signature is HMAC-SHA256(timestamp + token)
+// under the signing key. An attacker holding timestamp and token but not the
+// signature cannot compute it without the key, so the tuple is inert.
+//
+// Keeping `token` is deliberate and load-bearing: posts_email_token_unique
+// (migration 0004) indexes it to make replays collide on insert. Strip the token
+// too and that dedup silently stops working. Keeping it costs nothing — a token
+// without its signature has no replay value.
+//
+// `timestamp` also stays: it is posted_at provenance and is likewise inert alone.
+// Nothing else in the codebase reads raw_json.signature after verification, which
+// has already happened by the time this runs.
+function redactSignature(obj: Record<string, string>): Record<string, string> {
+  // Copy rather than delete in place — obj is the caller's object, and mutating a
+  // parameter would surprise anyone reusing it (the route logs it on failure).
+  const copy = { ...obj };
+  delete copy.signature;
+  return copy;
+}
 
 // Mailgun signs a Unix-seconds timestamp. Accept a ±15 min window around the
 // current clock, tolerating skew in both directions (a future-dated timestamp is

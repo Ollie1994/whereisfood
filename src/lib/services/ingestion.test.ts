@@ -315,10 +315,13 @@ describe("prepareEmailIngest", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.post.parsing_status).toBe("skipped");
-    // Still a fully-formed corpus row — nothing about it is degraded.
+    // Still a fully-formed corpus row — nothing about it is degraded beyond the
+    // deliberately redacted signature.
     expect(result.post.truck_id).toBe(TRUCK_ID);
     expect(result.post.caption).toBe("Vi står vid Järntorget 11-14");
-    expect(result.post.raw_json).toEqual(obj);
+    const withoutSignature = { ...obj };
+    delete withoutSignature.signature;
+    expect(result.post.raw_json).toEqual(withoutSignature);
   });
 
   it("marks a future-dated stale payload 'skipped' too", async () => {
@@ -471,6 +474,47 @@ describe("prepareEmailIngest", () => {
     });
   });
 
+  it("strips the signature from raw_json but keeps token and timestamp", async () => {
+    // posts is permanent and never purged, so a stored signature would make every
+    // row a ready-to-replay request. Replay needs all three of timestamp/token/
+    // signature, and the signature cannot be recomputed without the signing key —
+    // so removing it alone renders the stored tuple inert.
+    const obj = signedEmail();
+
+    const result = await prepareEmailIngest(obj, SIGNING_KEY, NOW_MS);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.post.raw_json).not.toHaveProperty("signature");
+    // token MUST survive — posts_email_token_unique (0004) keys the replay guard
+    // on it. Stripping it would silently disable that dedup.
+    expect(result.post.raw_json.token).toBe(obj.token);
+    expect(result.post.raw_json.timestamp).toBe(obj.timestamp);
+  });
+
+  it("does not mutate the caller's payload object when redacting", async () => {
+    const obj = signedEmail();
+    const originalSignature = obj.signature;
+
+    await prepareEmailIngest(obj, SIGNING_KEY, NOW_MS);
+
+    // The route still holds this object; mutating it in place would be a nasty
+    // surprise for any later reader (e.g. failure logging).
+    expect(obj.signature).toBe(originalSignature);
+  });
+
+  it("strips the signature from a stale payload too", async () => {
+    const obj = signedEmail({ timestamp: String(NOW_MS / 1000 - 3600) });
+
+    const result = await prepareEmailIngest(obj, SIGNING_KEY, NOW_MS);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.post.parsing_status).toBe("skipped");
+    expect(result.post.raw_json).not.toHaveProperty("signature");
+    expect(result.post.raw_json.token).toBe(obj.token);
+  });
+
   it("stores every text field in raw_json, not just the typed five", async () => {
     // raw_json is the permanent ML corpus — extra Mailgun fields must survive.
     const obj = signedEmail({
@@ -483,7 +527,10 @@ describe("prepareEmailIngest", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.post.raw_json).toEqual(obj);
+    // Everything Mailgun sent survives except the deliberately redacted signature.
+    const withoutSignature = { ...obj };
+    delete withoutSignature.signature;
+    expect(result.post.raw_json).toEqual(withoutSignature);
     expect(result.post.raw_json.subject).toBe("Dagens plats");
   });
 
