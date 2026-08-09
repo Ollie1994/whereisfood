@@ -1,5 +1,4 @@
-import { Truck, Location } from "@/lib/types";
-
+import type { Truck, Location } from "@/lib/types";
 
 // Phase 1 fake data — hardcoded for the map before Supabase is wired up.
 // Real Gothenburg coordinates so markers land on the map (centre 57.7089, 11.9746).
