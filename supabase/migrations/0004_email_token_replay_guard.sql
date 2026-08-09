@@ -57,12 +57,20 @@ declare
   dupes integer;
 begin
   -- 1. Guard -----------------------------------------------------------------
+  -- Must mirror the index key below exactly, or the guard and the index disagree.
+  --
+  -- `raw_json ? 'token'` is NOT the right null test: it is true for
+  -- {"token": null}, whose ->> yields SQL NULL. GROUP BY collapses all NULLs into
+  -- one group, so two such rows would trip this exception even though a unique
+  -- index accepts unlimited NULL keys — a false positive that would roll back the
+  -- whole migration. Test the extracted value instead.
   select count(*) into dupes
     from (
-      select raw_json ->> 'token' as tok
+      select (raw_json ->> 'timestamp') || (raw_json ->> 'token') as signed_string
         from posts
        where source = 'email'
-         and raw_json ? 'token'
+         and raw_json ->> 'timestamp' is not null
+         and raw_json ->> 'token' is not null
        group by 1
       having count(*) > 1
     ) d;
@@ -71,22 +79,41 @@ begin
     raise exception
       'Cannot create posts_email_token_unique: % duplicate email token(s) exist.', dupes
       using hint =
-        'Inspect with: select raw_json->>''token'', count(*) from posts '
-        'where source=''email'' group by 1 having count(*) > 1; '
-        'These are most likely legitimate pre-dedup Mailgun retries, not an attack. '
-        'To resolve without deleting corpus rows, keep the token on the earliest row '
-        'per group and re-key the later ones, e.g. '
+        'Inspect with: select (raw_json->>''timestamp'')||(raw_json->>''token'') s, '
+        'count(*) from posts where source=''email'' group by 1 having count(*) > 1; '
+        'These are most likely legitimate pre-dedup Mailgun retries, not an attack: '
+        'before this migration there was no dedup, so a retry after a transient 5xx '
+        're-sent the same tuple and was stored again if still inside the freshness '
+        'window. To resolve WITHOUT deleting corpus rows (posts is the permanent '
+        'training corpus and must never be purged), keep the token on the earliest '
+        'row per group and re-key the later ones — no row is lost and no value is '
+        'discarded, the token simply stops participating in the constraint: '
         'update posts p set raw_json = (raw_json - ''token'') || '
         'jsonb_build_object(''token_superseded'', raw_json->>''token'') '
         'where source=''email'' and id <> (select id from posts q where q.source=''email'' '
-        'and q.raw_json->>''token'' = p.raw_json->>''token'' order by q.created_at limit 1);';
+        'and (q.raw_json->>''timestamp'')||(q.raw_json->>''token'') '
+        '= (p.raw_json->>''timestamp'')||(p.raw_json->>''token'') '
+        'order by q.created_at limit 1);';
   end if;
 
   -- 2. Reject replayed tokens ------------------------------------------------
   -- Partial index: only the email lane carries a Mailgun token. Webhook/manual
   -- rows have no `token` key, so indexing them would waste space to no purpose.
+  --
+  -- The key is `timestamp || token`, NOT `token` alone. Mailgun signs those two
+  -- concatenated with no delimiter, so the boundary between them is ambiguous:
+  -- the same signed string can be re-split at any interior index and every split
+  -- verifies under the SAME signature while yielding a DIFFERENT token. Keying on
+  -- token alone lets one captured tuple produce dozens of distinct keys and walk
+  -- straight through this guard (verified: 41 working re-splits for a 10-digit
+  -- timestamp and a 32-char token).
+  --
+  -- The concatenation is exactly the string Mailgun signed, so it is invariant
+  -- under re-splitting — every variant collides here. The validator also pins the
+  -- timestamp to 10 digits, which makes the split unique on the way in; this index
+  -- is the structural backstop that holds even if that check is ever loosened.
   execute 'create unique index posts_email_token_unique '
-          'on posts ((raw_json ->> ''token'')) '
+          'on posts (((raw_json ->> ''timestamp'') || (raw_json ->> ''token''))) '
           'where source = ''email''';
 
   -- 3. Redact signatures already persisted -----------------------------------

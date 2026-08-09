@@ -103,6 +103,28 @@ describe("validateEmailPayload", () => {
     expect(result?.recipient).toBe(`${TRUCK_ID}@in.yourapp.se`);
   });
 
+  it("requires the timestamp to be exactly 10 digits", () => {
+    // This is a SECURITY control, not formatting. Mailgun signs `timestamp +
+    // token` with no delimiter, so a variable-width timestamp makes the boundary
+    // ambiguous: the same signed string can be re-split at any interior index and
+    // every split verifies under the same signature while yielding a different
+    // token. Fixing the width to 10 means length 10 implies split index 10 — the
+    // original boundary, and the only one.
+    for (const bad of [
+      "170000000", // 9 — one short, the classic shift-left re-split
+      "17000000000", // 11 — shift right
+      "1.7e9",
+      "1700000000.5",
+      " 1700000000",
+      "abcdefghij", // right length, not digits
+      "",
+    ]) {
+      expect(validateEmailPayload({ ...validObj(), timestamp: bad })).toBeNull();
+    }
+
+    expect(validateEmailPayload(validObj())).not.toBeNull();
+  });
+
   it("accepts an empty body-plain (HTML-only mail still stores a row)", () => {
     const result = validateEmailPayload({ ...validObj(), "body-plain": "" });
     expect(result).not.toBeNull();

@@ -95,10 +95,10 @@ export async function prepareEmailIngest(
   // Evaluated AFTER the signature so the rule only ever applies to genuinely
   // Mailgun-signed payloads.
   //
-  // Note this is also true for a non-numeric timestamp: isFreshTimestamp fails
-  // closed on those, so they land here as stale rather than being rejected. That
-  // is intended — a garbage timestamp that still carries a valid signature is
-  // exactly the kind of anomaly the corpus should retain for inspection.
+  // Only genuinely OLD payloads reach this branch. A malformed timestamp is
+  // rejected earlier by validateEmailPayload, which pins it to exactly 10 digits —
+  // that width is what makes the signed `timestamp + token` split unambiguous and
+  // is a security control, not cosmetics. See UNIX_SECONDS_10_DIGITS.
   //
   // Rejecting already-seen tokens is the stronger control, and it ships here as
   // posts_email_token_unique (migration 0004) rather than waiting for Phase 7 —
@@ -164,7 +164,20 @@ export async function persistPost(post: NewPost): Promise<void> {
   try {
     await insertPost(post);
   } catch (err) {
-    if (isUniqueViolation(err)) return;
+    if (isUniqueViolation(err)) {
+      // Log rather than return silently. A discard here is invisible by
+      // construction — the 200 has already shipped, so nothing surfaces to the
+      // caller and Mailgun will not retry. The email lane's guard also rests on
+      // Mailgun's token being single-use per delivery, which could not be
+      // confirmed from their docs; if that ever proves wrong, a GENUINE second
+      // email would be dropped here with no trace at all. The constraint name
+      // makes the two cases distinguishable in logs.
+      console.warn(
+        `[ingestion] discarded duplicate post (truck ${post.truck_id}, source ${post.source}):`,
+        constraintName(err) ?? "unknown constraint",
+      );
+      return;
+    }
     throw err;
   }
 }
@@ -266,15 +279,32 @@ export function isFreshTimestamp(timestamp: string, now: number): boolean {
 // time when the value is unusable (blank, non-numeric, or out of the storable
 // range above).
 //
-// The fallback IS reachable from prepareEmailIngest as of #53. It previously was
-// not — an unparseable timestamp used to 400 at the freshness check — but stale
-// and unparseable now both flow through to a stored 'skipped' post, so a garbage
-// timestamp reaches this. `now` is therefore threaded in rather than read from the
-// wall clock, so posted_at stays deterministic under an injected test clock.
+// The fallback is NOT reachable from prepareEmailIngest: validateEmailPayload
+// pins the timestamp to 10 digits, which is always finite and inside the range
+// above. It is kept as defence in depth for any future caller and is tested
+// directly. `now` is threaded in rather than read from the wall clock so that, if
+// the fallback ever does fire, posted_at stays deterministic and consistent with
+// the rest of the request instead of drifting to a second clock reading.
 export function unixToIso(timestamp: string, now: number = Date.now()): string {
   const seconds = toFiniteSeconds(timestamp);
   if (seconds === null) return new Date(now).toISOString();
   return new Date(seconds * 1000).toISOString();
+}
+
+// Which constraint a 23505 came from. PostgREST surfaces it in `details`/`message`
+// rather than as a dedicated field, so match the known index names instead of
+// parsing. Returns null when it cannot be identified — the caller logs that too.
+function constraintName(err: unknown): string | null {
+  if (typeof err !== "object" || err === null) return null;
+  const { details, message } = err as { details?: string; message?: string };
+  const haystack = `${details ?? ""} ${message ?? ""}`;
+  for (const name of [
+    "posts_email_token_unique",
+    "posts_instagram_post_id_unique",
+  ]) {
+    if (haystack.includes(name)) return name;
+  }
+  return null;
 }
 
 function isUniqueViolation(err: unknown): boolean {

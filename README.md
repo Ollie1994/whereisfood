@@ -137,7 +137,7 @@ Build order is 8 phases. **Phases 1–2 are complete; Phases 3–8 are not start
 - **Typed database access** — both Supabase clients are parameterized with generated `Database` types (`src/lib/database.types.ts`), and `Truck` / `Location` / `Post` are derived from them, so schema drift becomes a compile error
 - **Layered backend** — pure validators (`src/lib/validators/`), ingestion service (`src/lib/services/ingestion.ts`), and DB layer (`src/lib/db/`), all writing through `supabaseAdmin`
 - **Raw posts stored** as the permanent ML training corpus (never purged)
-- **86 Vitest unit tests** across the validators/security boundary and the ingestion service; `scripts/sign-mailgun.mjs` dev helper for signing email-lane requests
+- **89 Vitest unit tests** across the validators/security boundary and the ingestion service; `scripts/sign-mailgun.mjs` dev helper for signing email-lane requests
 
 #### Replay window
 
@@ -168,10 +168,19 @@ authenticated duplicate.
 Because accepting stale payloads means a replay would otherwise append rows to a
 corpus that is **never purged**, two further guards ship alongside it:
 
+- **A 10-digit `timestamp` is required.** Mailgun signs `timestamp + token` with
+  **no delimiter**, so a variable-width timestamp makes the boundary ambiguous:
+  the same signed string can be re-split at any interior index, every split
+  verifies under the *same* signature, and each yields a different token — 41
+  working variants from one captured tuple. Fixing the width to 10 makes the split
+  unique, since length 10 implies the original boundary.
 - **`posts_email_token_unique`** (migration `0004`) — a unique index on
-  `raw_json->>'token'` for the email lane. Mailgun's token is single-use, so a
-  replayed payload collides on insert and raises `23505`, which `persistPost`
-  already swallows as a benign discard. A replay is a silent no-op.
+  `(raw_json->>'timestamp') || (raw_json->>'token')` for the email lane. The key is
+  the **concatenation**, not the token alone: that is exactly the string Mailgun
+  signed, so it stays invariant under re-splitting even if the width check is ever
+  loosened. Mailgun's token is single-use, so a replayed payload collides on insert
+  and raises `23505`, which `persistPost` already swallows as a benign discard. A
+  replay is a logged no-op.
 - **The signature is never stored.** `redactSignature()` strips it before the row
   is written. Otherwise every row would be a ready-to-replay request, reachable
   via a leaked service-role key, a DB backup, or the eventual ML export — none of

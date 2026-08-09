@@ -334,44 +334,27 @@ describe("prepareEmailIngest", () => {
     expect(result.post.parsing_status).toBe("skipped");
   });
 
-  it("marks a signed payload with a non-numeric timestamp 'skipped', not rejected", async () => {
-    // isFreshTimestamp fails closed on unparseable input, so it lands in the
-    // stale branch. Retaining it is intended: a garbage timestamp carrying a
-    // VALID signature is exactly the anomaly the corpus should preserve.
-    const obj = signedEmail({ timestamp: "not-a-number" });
-
-    const result = await prepareEmailIngest(obj, SIGNING_KEY, NOW_MS);
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.post.parsing_status).toBe("skipped");
-    // posted_at falls back to the INJECTED clock, not the wall clock. Asserting
-    // the exact value pins determinism — a `new Date()` fallback here would make
-    // the field untestable and drift from the rest of the request.
-    expect(result.post.posted_at).toBe(new Date(NOW_MS).toISOString());
-  });
-
-  it("stores an out-of-range timestamp as 'skipped' with a storable posted_at", async () => {
-    // Guards a silent-loss path: a posted_at outside Postgres timestamptz range
-    // produces a valid ISO string that the INSERT rejects — and because the
-    // insert runs inside after(), that error lands after the 200 has shipped, so
-    // Mailgun never retries and the mail vanishes.
-    for (const bad of ["-8640000000000", "1e30", "99999999999999"]) {
+  it("rejects a malformed timestamp rather than storing it", async () => {
+    // Deliberately NOT stored as 'skipped'. A non-10-digit timestamp carrying a
+    // valid signature is the re-split vector, not a curiosity worth keeping — so
+    // the validator refuses it up front. A genuine Mailgun email always carries
+    // 10-digit Unix seconds, and a format change would fail loudly (every mail
+    // 400s) rather than silently, which is the failure mode we can actually see.
+    for (const bad of ["not-a-number", "-8640000000000", "1e30", "99999999999999"]) {
       const result = await prepareEmailIngest(
         signedEmail({ timestamp: bad }),
         SIGNING_KEY,
         NOW_MS,
       );
 
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-      expect(result.post.parsing_status).toBe("skipped");
-      expect(result.post.posted_at).toBe(new Date(NOW_MS).toISOString());
-
-      const year = new Date(result.post.posted_at).getUTCFullYear();
-      expect(year).toBeGreaterThan(1970);
-      expect(year).toBeLessThan(9999);
+      expect(result).toEqual({
+        ok: false,
+        status: 400,
+        error: "Invalid email payload",
+      });
     }
+    // Nothing reached the DB.
+    expect(getActiveTruckByIdMock).not.toHaveBeenCalled();
   });
 
   it("preserves the signed timestamp as posted_at even when stale", async () => {
@@ -399,6 +382,45 @@ describe("prepareEmailIngest", () => {
       status: 400,
       error: "Unknown or inactive truck",
     });
+  });
+
+  it("rejects a re-split of the signed string (HMAC boundary ambiguity)", async () => {
+    // Mailgun signs `timestamp + token` with NO delimiter, so the same signed
+    // string can be re-split at any interior index and EVERY split verifies under
+    // the SAME signature while producing a different token. Without a fixed-width
+    // timestamp, one captured tuple yields dozens of distinct dedup keys and walks
+    // straight past the replay guard. Pinning the timestamp to 10 digits makes the
+    // split unique, so every shifted variant now fails validation outright.
+    const real = signedEmail();
+    const joined = real.timestamp + real.token;
+
+    for (const splitAt of [9, 11, 5]) {
+      const shifted = {
+        ...real,
+        timestamp: joined.slice(0, splitAt),
+        token: joined.slice(splitAt),
+        signature: real.signature, // unchanged — and it still verifies
+      };
+
+      const result = await prepareEmailIngest(shifted, SIGNING_KEY, NOW_MS);
+
+      expect(result).toEqual({
+        ok: false,
+        status: 400,
+        error: "Invalid email payload",
+      });
+    }
+  });
+
+  it("rejects a non-10-digit timestamp outright", async () => {
+    for (const bad of ["178628700", "17862870099", "1.76e9", "abc", ""]) {
+      const result = await prepareEmailIngest(
+        { ...signedEmail(), timestamp: bad },
+        SIGNING_KEY,
+        NOW_MS,
+      );
+      expect(result.ok).toBe(false);
+    }
   });
 
   it("rejects a stale payload whose signature is invalid", async () => {
@@ -584,12 +606,44 @@ describe("persistPost", () => {
     expect(insertPostMock).toHaveBeenCalledWith(post);
   });
 
-  it("swallows a duplicate instagram_post_id (Postgres 23505)", async () => {
+  it("swallows a duplicate instagram_post_id (Postgres 23505) and logs it", async () => {
     // Dedup by instagram_post_id resolves as a benign discard — the route has
-    // already sent its 200, so there is nothing to report to the caller.
-    insertPostMock.mockRejectedValue({ code: "23505", message: "duplicate key" });
+    // already sent its 200, so there is nothing to report to the caller. It is
+    // logged because that makes it the ONLY visible trace: nothing surfaces to
+    // Mailgun and no retry follows.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    insertPostMock.mockRejectedValue({
+      code: "23505",
+      message: 'duplicate key value violates unique constraint "posts_instagram_post_id_unique"',
+    });
 
     await expect(persistPost(post)).resolves.toBeUndefined();
+
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("discarded duplicate post"),
+      "posts_instagram_post_id_unique",
+    );
+    warn.mockRestore();
+  });
+
+  it("names the email token constraint when a replay is discarded", async () => {
+    // The two constraints must be distinguishable in logs: one is a benign
+    // Instagram crosspost, the other is a replayed Mailgun token — or, if the
+    // single-use-token assumption is ever wrong, a genuine email being dropped.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    insertPostMock.mockRejectedValue({
+      code: "23505",
+      details: 'Key ((raw_json ->> \'timestamp\'::text) || ...) already exists.',
+      message: 'duplicate key value violates unique constraint "posts_email_token_unique"',
+    });
+
+    await expect(persistPost(post)).resolves.toBeUndefined();
+
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("discarded duplicate post"),
+      "posts_email_token_unique",
+    );
+    warn.mockRestore();
   });
 
   it("rethrows any other Postgres error", async () => {
