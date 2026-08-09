@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/database.types";
 
 // Two Supabase clients with different permission levels.
 //
@@ -18,13 +19,17 @@ if (!supabaseServiceRoleKey) throw new Error("Missing env: SUPABASE_SERVICE_ROLE
 
 // Server only — bypasses RLS via the service role. Used in API routes, services,
 // and cron. Never import this into a client component.
-export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
+export const supabaseAdmin = createClient<Database>(
+  supabaseUrl,
+  supabaseServiceRoleKey,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
   },
-});
+);
 
 // Browser safe — respects RLS via the anon key. Used in components, hooks, auth,
 // and realtime. Created now but unused until Phase 4.
-export const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+export const supabaseClient = createClient<Database>(supabaseUrl, supabaseAnonKey);

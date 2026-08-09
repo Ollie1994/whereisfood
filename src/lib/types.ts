@@ -1,48 +1,40 @@
-export interface Truck {
-  id: string;
-  name: string;
-  instagram_handle: string | null;
-  cuisine_type: string | null;
-  description: string | null;
-  is_active: boolean;
-  last_known_latitude: number | null;
-  last_known_longitude: number | null;
-  created_at: string;
-}
+import type { Database } from "@/lib/database.types";
 
-export interface Location {
-  id: string;
-  truck_id: string;
-  post_id: string | null;
-  latitude: number;
-  longitude: number;
-  address_raw: string | null;
-  address_geocoded: string | null;
-  starts_at: string;
-  ends_at: string | null;
+// The three row types are DERIVED from the generated Database types rather than
+// hand-written (issue #48). Regenerate with:
+//   npx supabase gen types typescript --local > src/lib/database.types.ts
+//
+// Consequence: a migration that adds, drops, renames, or re-nullables a column
+// changes these types automatically, and every stale usage becomes a compile
+// error. That is the whole point — the previous hand-written interfaces silently
+// disagreed with the schema on six `locations` columns (#49) and three others.
+//
+// The only fields overridden below are text columns whose allowed values are
+// pinned by a CHECK constraint. Postgres CHECK constraints carry no type
+// information into the generated types (only real PG enum types do), so they
+// arrive as plain `string` and are narrowed here to the unions the app relies on.
+type TruckRow = Database["public"]["Tables"]["trucks"]["Row"];
+type LocationRow = Database["public"]["Tables"]["locations"]["Row"];
+type PostRow = Database["public"]["Tables"]["posts"]["Row"];
+
+// Exact match — no CHECK-constrained columns, so no narrowing needed.
+export type Truck = TruckRow;
+
+// `source` is the three-value LANE (locations_source_check), distinct from
+// Post["source"]'s six-value platform union.
+export type Location = Omit<LocationRow, "source"> & {
   source: "manual" | "webhook" | "email";
-  confidence: number;
-  parser_confidence: number;
-  source_confidence: number;
-  is_negation: boolean;
-  expires_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
+};
 
 // Row shape of the `posts` table — raw incoming data, stored before parsing.
-// `source` is the six-value union (distinct from Location.source's three values).
-export interface Post {
-  id: string;
-  truck_id: string;
-  instagram_post_id: string | null;
-  caption: string | null;
+// `raw_json` is narrowed from the generated `Json` to a plain object: the column
+// always holds the incoming payload object (never a bare scalar or array), and
+// `Record<string, unknown>` keeps property access ergonomic for the parser.
+export type Post = Omit<PostRow, "source" | "parsing_status" | "raw_json"> & {
   source: "instagram" | "facebook" | "tiktok" | "email" | "manual" | "webhook";
-  posted_at: string;
-  raw_json: Record<string, unknown>;
   parsing_status: "pending" | "parsed" | "failed" | "skipped";
-  created_at: string;
-}
+  raw_json: Record<string, unknown>;
+};
 
 // Insertable shape of a posts row: everything the caller supplies, minus the two
 // columns the DB generates (id, created_at). Lives here (not in the db layer) so

@@ -14,5 +14,7 @@ export async function getActiveTruckById(id: string): Promise<Truck | null> {
     .maybeSingle();
 
   if (error) throw error;
-  return data as Truck | null;
+  // No cast: with the client parameterized by the generated Database types, the
+  // trucks Row type IS Truck (issue #48).
+  return data;
 }
