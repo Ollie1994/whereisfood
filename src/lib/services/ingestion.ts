@@ -155,9 +155,16 @@ export async function persistPost(post: NewPost): Promise<void> {
 // It also matters operationally: Mailgun retries a failed POST at 10, 20, 35, 65,
 // 125, 245 and 485 min (cumulative). This route returns 200 before the DB write,
 // so the only 5xx paths are a missing signing key or Supabase being unreachable
-// during the truck lookup — and on those, a window under 10 min would reject the
-// very first retry and permanently drop the message, violating "never lose
-// incoming data". 15 min covers that first retry.
+// during the truck lookup — and on those, a window under 10 min would reject even
+// the very first retry. 15 min keeps that one alive.
+//
+// ⚠ KNOWN LIMITATION — this does NOT fully satisfy "never lose incoming data".
+// A stale payload is rejected 400 with no posts row, so an outage that outlives
+// the window still loses the mail: 500 at T=0, 500 at the T+10 retry, then 400 at
+// T+20 and every retry through T+485. Retries 2-7 are unconditionally lost.
+// Issue #53 fixes this by storing stale-but-signed payloads as
+// parsing_status='skipped' and returning 200 — keep the data, just never parse it.
+// Do not paper over this by widening the window; the layering is the bug.
 //
 // Note this window is deliberately NOT the primary replay defence — Mailgun's
 // recommended control is caching the single-use `token` and rejecting repeats,

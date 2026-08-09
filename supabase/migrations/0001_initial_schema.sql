@@ -2,6 +2,9 @@
 -- Foodtruck Map Gothenburg — authoritative initial schema.
 -- Tables: trucks, geocoding_cache, posts, locations, users.
 -- Matches .claude/context/project-context.md "Database Schema", "Indexes", "Row Level Security".
+-- ⚠ SUPERSEDED IN PART: migrations 0002 and 0003 tighten column nullability and add
+-- locations_source_check. This file is NOT the current schema — read 0002/0003 too,
+-- or generate the truth with `npx supabase gen types typescript --local`.
 -- RLS is enabled + policies authored here, but not exercised until Phase 4 (all Phase 2
 -- writes use the service role, which bypasses RLS).
 

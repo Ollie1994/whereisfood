@@ -152,8 +152,18 @@ The email lane rejects a correctly signed payload whose timestamp is more than
 - Mailgun **retries a failed POST** at 10, 20, 35, 65, 125, 245 and 485 minutes
   (cumulative). `/api/email` returns 200 before the DB write, so the only 5xx paths are
   a missing signing key or Supabase being unreachable during the truck lookup. A window
-  under 10 minutes would reject the *first retry* and permanently drop that email,
-  breaking the project's "never lose incoming data" rule. 15 minutes covers it.
+  under 10 minutes would reject even the *first* retry; 15 minutes keeps that one alive.
+
+> **Known limitation — this does not fully satisfy "never lose incoming data".**
+> A stale payload is rejected with 400 and no `posts` row is written. So an outage
+> that outlives the window still loses the email: Supabase down for 30 min means
+> 500 at T=0, 500 at the T+10 retry, then **400 at T+20 and every retry through
+> T+485** — the message never reaches the corpus even after recovery. 15 minutes
+> covers outages under ~10 min, not retries 2–7.
+>
+> [#53](https://github.com/Ollie1994/whereisfood/issues/53) fixes this properly by
+> storing stale-but-validly-signed payloads with `parsing_status = 'skipped'` and
+> returning 200, so the data is always kept and simply never parsed.
 - The window is **defence in depth, not the primary control**. Mailgun's recommended
   replay defence is caching the single-use `token` and rejecting repeats — that arrives
   in Phase 7 alongside Upstash Redis.
