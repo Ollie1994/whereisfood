@@ -149,20 +149,29 @@ describe("unixToIso", () => {
     expect(parsed).toBeLessThanOrEqual(after);
   });
 
-  it("falls back for a finite but out-of-range timestamp instead of throwing", () => {
-    // JS Date spans ±8.64e15 ms, so these are finite yet unrepresentable and
-    // `new Date(s * 1000).toISOString()` throws RangeError. Regression guard:
-    // unixToIso is exported and documents itself as safe for any caller.
-    for (const huge of ["99999999999999", "1e30", "-1e30"]) {
-      expect(() => unixToIso(huge)).not.toThrow();
-      const parsed = Date.parse(unixToIso(huge));
-      expect(parsed).toBeGreaterThan(Date.parse("2020-01-01T00:00:00.000Z"));
+  it("falls back for an out-of-range timestamp instead of throwing", () => {
+    // Two distinct failure modes: overflowing the JS Date range (RangeError on
+    // toISOString) and underflowing Postgres timestamptz (valid ISO, rejected
+    // INSERT). Both must fall back, not propagate.
+    for (const bad of ["99999999999999", "1e30", "-1e30", "-8640000000000", "-1"]) {
+      expect(() => unixToIso(bad, NOW_MS)).not.toThrow();
+      expect(unixToIso(bad, NOW_MS)).toBe(new Date(NOW_MS).toISOString());
     }
+  });
+
+  it("uses the injected clock for the fallback, not the wall clock", () => {
+    const injected = 1_600_000_000_000;
+    expect(unixToIso("garbage", injected)).toBe(new Date(injected).toISOString());
   });
 
   it("still accepts a representable far-future timestamp", () => {
     // Guards the range check against being too aggressive.
     expect(unixToIso("8640000000")).toBe("2243-10-17T00:00:00.000Z");
+  });
+
+  it("accepts the exact range boundaries", () => {
+    expect(unixToIso("0")).toBe("1970-01-01T00:00:00.000Z");
+    expect(unixToIso("253402300799")).toBe("9999-12-31T23:59:59.000Z");
   });
 
   it("falls back for a blank timestamp rather than yielding the epoch", () => {
@@ -333,10 +342,33 @@ describe("prepareEmailIngest", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.post.parsing_status).toBe("skipped");
-    // posted_at falls back to ingest time rather than throwing or hitting 1970.
-    expect(Date.parse(result.post.posted_at)).toBeGreaterThan(
-      Date.parse("2020-01-01T00:00:00.000Z"),
-    );
+    // posted_at falls back to the INJECTED clock, not the wall clock. Asserting
+    // the exact value pins determinism — a `new Date()` fallback here would make
+    // the field untestable and drift from the rest of the request.
+    expect(result.post.posted_at).toBe(new Date(NOW_MS).toISOString());
+  });
+
+  it("stores an out-of-range timestamp as 'skipped' with a storable posted_at", async () => {
+    // Guards a silent-loss path: a posted_at outside Postgres timestamptz range
+    // produces a valid ISO string that the INSERT rejects — and because the
+    // insert runs inside after(), that error lands after the 200 has shipped, so
+    // Mailgun never retries and the mail vanishes.
+    for (const bad of ["-8640000000000", "1e30", "99999999999999"]) {
+      const result = await prepareEmailIngest(
+        signedEmail({ timestamp: bad }),
+        SIGNING_KEY,
+        NOW_MS,
+      );
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.post.parsing_status).toBe("skipped");
+      expect(result.post.posted_at).toBe(new Date(NOW_MS).toISOString());
+
+      const year = new Date(result.post.posted_at).getUTCFullYear();
+      expect(year).toBeGreaterThan(1970);
+      expect(year).toBeLessThan(9999);
+    }
   });
 
   it("preserves the signed timestamp as posted_at even when stale", async () => {

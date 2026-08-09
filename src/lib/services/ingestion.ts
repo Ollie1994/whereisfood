@@ -122,7 +122,7 @@ export async function prepareEmailIngest(
     // Email posted_at ≈ when Mailgun relayed the message (the signed Unix
     // timestamp already verified above). Fall back to ingest time if it is not a
     // finite number.
-    posted_at: unixToIso(payload.timestamp),
+    posted_at: unixToIso(payload.timestamp, now),
     raw_json: obj,
     // 'skipped' means "deliberately not parsed", which is exactly the state a
     // stale-but-authentic email is in: kept in the corpus forever, but never
@@ -189,19 +189,29 @@ const REPLAY_WINDOW_SECONDS = 15 * 60;
 // so a bare Number.isFinite check silently accepts a blank timestamp as the Unix
 // epoch. Reject blanks explicitly and return null for anything non-numeric, so
 // both callers below fail closed instead of quietly landing on 1970-01-01.
-// Largest absolute Unix-seconds value that `new Date(s * 1000)` can represent.
-// The JS Date range is ±8.64e15 ms, so anything beyond ±8.64e12 s makes
-// .toISOString() throw RangeError rather than produce a date.
-const MAX_REPRESENTABLE_SECONDS = 8.64e12;
+// Accepted Unix-seconds range: the epoch through year 9999.
+//
+// Bounding to the JS Date range (±8.64e12 s) is NOT enough. That keeps
+// .toISOString() from throwing, but the JS floor (year -271821) sits before what
+// Postgres `timestamptz` can store (4713 BC), so a value in that gap produces a
+// perfectly valid ISO string that the INSERT then rejects. Because the raw insert
+// runs inside after(), that error surfaces only after the 200 has shipped — it is
+// swallowed and logged, Mailgun never retries, and the mail is silently lost:
+// exactly the failure mode this issue exists to remove.
+//
+// So bound to what is both storable AND plausible. An email cannot predate the
+// Unix epoch, and year 9999 is comfortably inside timestamptz.
+const MIN_ACCEPTED_SECONDS = 0; // 1970-01-01T00:00:00Z
+const MAX_ACCEPTED_SECONDS = 253_402_300_799; // 9999-12-31T23:59:59Z
 
 function toFiniteSeconds(timestamp: string): number | null {
   if (typeof timestamp !== "string" || timestamp.trim() === "") return null;
   const seconds = Number(timestamp);
   if (!Number.isFinite(seconds)) return null;
-  // Finite is not sufficient: "1e30" and "99999999999999" are both finite but
-  // outside the Date range, and would throw RangeError on conversion instead of
-  // falling back. Same class of trap as Number("") being a finite 0.
-  if (Math.abs(seconds) > MAX_REPRESENTABLE_SECONDS) return null;
+  // Finite is not sufficient: "1e30" and "-8640000000000" are both finite but
+  // unusable — the first overflows Date, the second underflows timestamptz.
+  // Same class of trap as Number("") being a finite 0.
+  if (seconds < MIN_ACCEPTED_SECONDS || seconds > MAX_ACCEPTED_SECONDS) return null;
   return seconds;
 }
 
@@ -211,14 +221,18 @@ export function isFreshTimestamp(timestamp: string, now: number): boolean {
   return Math.abs(now / 1000 - seconds) <= REPLAY_WINDOW_SECONDS;
 }
 
-// Defense in depth: prepareEmailIngest only reaches this after isFreshTimestamp
-// has already proven the timestamp numeric, so the fallback is unreachable on that
-// path — it stays so the helper is safe for any future caller. Exported solely so
-// that fallback branch stays directly testable (issue #47) now that no lane can
-// reach it.
-export function unixToIso(timestamp: string): string {
+// Converts Mailgun's signed Unix-seconds timestamp to ISO, falling back to ingest
+// time when the value is unusable (blank, non-numeric, or out of the storable
+// range above).
+//
+// The fallback IS reachable from prepareEmailIngest as of #53. It previously was
+// not — an unparseable timestamp used to 400 at the freshness check — but stale
+// and unparseable now both flow through to a stored 'skipped' post, so a garbage
+// timestamp reaches this. `now` is therefore threaded in rather than read from the
+// wall clock, so posted_at stays deterministic under an injected test clock.
+export function unixToIso(timestamp: string, now: number = Date.now()): string {
   const seconds = toFiniteSeconds(timestamp);
-  if (seconds === null) return new Date().toISOString();
+  if (seconds === null) return new Date(now).toISOString();
   return new Date(seconds * 1000).toISOString();
 }
 
