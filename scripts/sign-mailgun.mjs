@@ -18,6 +18,11 @@
 //   --body <text>        body-plain contents                     (default "")
 //   --key <key>          signing key      (default $MAILGUN_WEBHOOK_SIGNING_KEY)
 //   --timestamp <unix>   Unix seconds                            (default now)
+//                        Pass an old value (e.g. now - 1200) to exercise the
+//                        ±15 min replay guard — a correctly signed but stale
+//                        payload must be rejected with 400. Note now - 600 is
+//                        still ACCEPTED: that is Mailgun's first retry interval
+//                        and must survive (see REPLAY_WINDOW_SECONDS).
 //   --token <token>      random token                (default 16 random bytes)
 //   --url <url>          endpoint     (default http://localhost:3000/api/email)
 

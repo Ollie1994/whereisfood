@@ -58,13 +58,19 @@ export async function prepareWebhookIngest(body: unknown): Promise<IngestResult>
 // Email lane (Mailgun inbound → POST /api/email)
 // ---------------------------------------------------------------------------
 
-// Validate the payload, verify the HMAC signature, extract the truck_id from the
-// recipient, and confirm the truck is active — then build the posts row. Every
-// failure maps to 400 (invalid payload, bad signature, bad recipient, unknown
-// truck). Signature is checked before any DB lookup.
+// Validate the payload, verify the HMAC signature, check the timestamp is fresh,
+// extract the truck_id from the recipient, and confirm the truck is active — then
+// build the posts row. Every failure maps to 400 (invalid payload, bad signature,
+// stale timestamp, bad recipient, unknown truck). Signature and freshness are both
+// checked before any DB lookup.
+//
+// `now` is injected (defaulting to wall clock) so the freshness rule stays
+// unit-testable without faking timers — the purity rule is parser-only, but a
+// clock parameter is cheap here.
 export async function prepareEmailIngest(
   obj: Record<string, string>,
   signingKey: string,
+  now: number = Date.now(),
 ): Promise<IngestResult> {
   const payload = validateEmailPayload(obj);
   if (!payload) {
@@ -73,6 +79,17 @@ export async function prepareEmailIngest(
 
   if (!verifyMailgunSignature(payload, signingKey)) {
     return { ok: false, status: 400, error: "Invalid signature" };
+  }
+
+  // Replay guard. A valid signature proves the payload was signed with our key,
+  // but a captured (timestamp, token, signature) tuple stays valid forever without
+  // this — so reject anything outside the ±15 min window (REPLAY_WINDOW_SECONDS;
+  // see there for why 15 and why it must not go below 10). Checked AFTER the
+  // signature so the rule only ever applies to genuinely Mailgun-signed payloads.
+  // Rejecting already-seen tokens (a token cache) is the stronger control and is
+  // deferred to Phase 7, where Upstash Redis is already being introduced.
+  if (!isFreshTimestamp(payload.timestamp, now)) {
+    return { ok: false, status: 400, error: "Stale or invalid timestamp" };
   }
 
   const truckId = extractTruckIdFromRecipient(payload.recipient);
@@ -106,8 +123,16 @@ export async function prepareEmailIngest(
 // ---------------------------------------------------------------------------
 
 // Persist the raw post. Swallows a duplicate instagram_post_id (Postgres 23505,
-// enforced by the posts_instagram_post_id_unique index) as a benign discard —
-// consistent with returning 200 immediately. Any other error propagates.
+// enforced by the posts_instagram_post_id_unique index) as a benign discard.
+// Any other error propagates.
+//
+// ERROR-CONTRACT NOTE (issue #51): the documented API Error Format lists 409 for
+// "discarded duplicate", but that status is UNREACHABLE for this lane and always
+// will be. The route sends its 200 before after() runs, so by the time the unique
+// violation surfaces here the response has already been committed — a duplicate
+// therefore resolves as **200 + silent discard**, never 409. This is deliberate
+// (webhook endpoints must ack immediately), not an oversight. 409 stays reserved
+// for a future synchronous caller that can still influence its own response.
 export async function persistPost(post: NewPost): Promise<void> {
   try {
     await insertPost(post);
@@ -121,9 +146,66 @@ export async function persistPost(post: NewPost): Promise<void> {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function unixToIso(timestamp: string): string {
+// Mailgun signs a Unix-seconds timestamp. Accept a ±15 min window around the
+// current clock, tolerating skew in both directions (a future-dated timestamp is
+// as suspect as an old one). A non-numeric timestamp is not fresh.
+//
+// 15 min is Mailgun's OWN documented tolerance, and they explicitly warn against
+// being more aggressive because delivery delays outside their control are normal.
+// It also matters operationally: Mailgun retries a failed POST at 10, 20, 35, 65,
+// 125, 245 and 485 min (cumulative). This route returns 200 before the DB write,
+// so the only 5xx paths are a missing signing key or Supabase being unreachable
+// during the truck lookup — and on those, a window under 10 min would reject even
+// the very first retry. 15 min keeps that one alive.
+//
+// ⚠ KNOWN LIMITATION — this does NOT fully satisfy "never lose incoming data".
+// A stale payload is rejected 400 with no posts row, so an outage that outlives
+// the window still loses the mail: 500 at T=0, 500 at the T+10 retry, then 400 at
+// T+20 and every retry through T+485. Retries 2-7 are unconditionally lost.
+// Issue #53 fixes this by storing stale-but-signed payloads as
+// parsing_status='skipped' and returning 200 — keep the data, just never parse it.
+// Do not paper over this by widening the window; the layering is the bug.
+//
+// Note this window is deliberately NOT the primary replay defence — Mailgun's
+// recommended control is caching the single-use `token` and rejecting repeats,
+// which lands in Phase 7 alongside Upstash Redis. Issue #46 originally specified
+// ~5 min; that was tightened past the vendor guidance and widened here on review.
+const REPLAY_WINDOW_SECONDS = 15 * 60;
+
+// Strict numeric parse. Number("") and Number("   ") are BOTH 0 — and 0 is finite —
+// so a bare Number.isFinite check silently accepts a blank timestamp as the Unix
+// epoch. Reject blanks explicitly and return null for anything non-numeric, so
+// both callers below fail closed instead of quietly landing on 1970-01-01.
+// Largest absolute Unix-seconds value that `new Date(s * 1000)` can represent.
+// The JS Date range is ±8.64e15 ms, so anything beyond ±8.64e12 s makes
+// .toISOString() throw RangeError rather than produce a date.
+const MAX_REPRESENTABLE_SECONDS = 8.64e12;
+
+function toFiniteSeconds(timestamp: string): number | null {
+  if (typeof timestamp !== "string" || timestamp.trim() === "") return null;
   const seconds = Number(timestamp);
-  if (!Number.isFinite(seconds)) return new Date().toISOString();
+  if (!Number.isFinite(seconds)) return null;
+  // Finite is not sufficient: "1e30" and "99999999999999" are both finite but
+  // outside the Date range, and would throw RangeError on conversion instead of
+  // falling back. Same class of trap as Number("") being a finite 0.
+  if (Math.abs(seconds) > MAX_REPRESENTABLE_SECONDS) return null;
+  return seconds;
+}
+
+export function isFreshTimestamp(timestamp: string, now: number): boolean {
+  const seconds = toFiniteSeconds(timestamp);
+  if (seconds === null) return false;
+  return Math.abs(now / 1000 - seconds) <= REPLAY_WINDOW_SECONDS;
+}
+
+// Defense in depth: prepareEmailIngest only reaches this after isFreshTimestamp
+// has already proven the timestamp numeric, so the fallback is unreachable on that
+// path — it stays so the helper is safe for any future caller. Exported solely so
+// that fallback branch stays directly testable (issue #47) now that no lane can
+// reach it.
+export function unixToIso(timestamp: string): string {
+  const seconds = toFiniteSeconds(timestamp);
+  if (seconds === null) return new Date().toISOString();
   return new Date(seconds * 1000).toISOString();
 }
 

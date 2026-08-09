@@ -28,7 +28,7 @@ export default function TruckPopup({ marker, onClose }: TruckPopupProps) {
   const handle = truck.instagram_handle?.replace(/^@/, "");
 
   return (
-    <div className="w-64 rounded-lg bg-white p-4 text-gray-900 shadow-lg">
+    <div className="relative w-64 rounded-lg bg-white p-4 text-gray-900 shadow-lg">
       <button
         onClick={onClose}
         aria-label="Stäng"
