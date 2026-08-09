@@ -130,14 +130,14 @@ Build order is 8 phases. **Phases 1–2 are complete; Phases 3–8 are not start
 - Core TypeScript types (`Truck`, `Location`, `MarkerState`); root `/` redirects to `/map`
 
 **Phase 2 — ingestion**
-- **Supabase Postgres schema** — `supabase/migrations/0001_initial_schema.sql` (trucks, posts, locations, geocoding_cache, users) with indexes, RLS policies, and Data API grants; `0002`/`0003` tighten column nullability so the schema and the TypeScript types agree; dev `seed.sql` (2 active + 1 inactive truck, fixed UUIDs)
+- **Supabase Postgres schema** — `supabase/migrations/0001_initial_schema.sql` (trucks, posts, locations, geocoding_cache, users) with indexes, RLS policies, and Data API grants; `0002`/`0003` tighten column nullability so the schema and the TypeScript types agree; `0004` adds the email replay guard; dev `seed.sql` (2 active + 1 inactive truck, fixed UUIDs)
 - **Webhook lane** — `POST /api/ingest`, constant-time `X-Make-Secret` check, validates the truck, returns 200 and stores the raw post in `after()`
 - **Email lane** — `POST /api/email`, Mailgun `multipart/form-data` + constant-time HMAC-SHA256 verification, truck extracted from the recipient
 - **Replay protection** — a correctly signed payload older than **±15 minutes** is still stored, but marked `parsing_status = 'skipped'` so it can never become a live location. See [Replay window](#replay-window)
 - **Typed database access** — both Supabase clients are parameterized with generated `Database` types (`src/lib/database.types.ts`), and `Truck` / `Location` / `Post` are derived from them, so schema drift becomes a compile error
 - **Layered backend** — pure validators (`src/lib/validators/`), ingestion service (`src/lib/services/ingestion.ts`), and DB layer (`src/lib/db/`), all writing through `supabaseAdmin`
 - **Raw posts stored** as the permanent ML training corpus (never purged)
-- **75 Vitest unit tests** across the validators/security boundary and the ingestion service; `scripts/sign-mailgun.mjs` dev helper for signing email-lane requests
+- **86 Vitest unit tests** across the validators/security boundary and the ingestion service; `scripts/sign-mailgun.mjs` dev helper for signing email-lane requests
 
 #### Replay window
 
