@@ -7,8 +7,7 @@
 -- (parsing_status 'skipped') rather than rejected with a 400. That fixed real data
 -- loss, but it also removed the only thing that stopped a replayed payload from
 -- writing a row. Since `posts` is the permanent ML corpus and is never purged, an
--- attacker holding one captured tuple could previously have appended rows without
--- limit — permanent corpus poisoning.
+-- attacker holding one captured tuple could otherwise append rows without limit.
 --
 -- WHY NOT JUST WAIT FOR PHASE 7
 -- Neither planned control actually closes this:
@@ -25,33 +24,84 @@
 -- token we have already stored. The insert then raises 23505 — which persistPost
 -- ALREADY swallows as a benign discard (the same path that handles a duplicate
 -- instagram_post_id). No new error handling is needed; the replay simply no-ops.
+--
+-- WHY THIS IS ONE DO BLOCK — DO NOT SPLIT IT INTO SEPARATE STATEMENTS.
+-- It must be all-or-nothing, and a DO block is a single statement, so it is
+-- atomic under every runner regardless of whether that runner wraps migrations in
+-- a transaction or sets ON_ERROR_STOP.
+--
+-- This was verified the hard way. An earlier draft used three top-level
+-- statements (UPDATE, then CREATE INDEX). Applied to a database containing
+-- duplicate tokens it reported `UPDATE 2` — committed — and only then failed on
+-- the index, leaving the signatures permanently stripped, no index, and the
+-- migration unrecorded so every later migration was blocked. Reordering alone did
+-- not fix it either: psql's autocommit continues past a failed statement, so the
+-- irreversible UPDATE still ran after the guard had already raised.
 
 -- ---------------------------------------------------------------------------
--- 1. Redact signatures already persisted
+-- 1. Guard: refuse to run if duplicate email tokens already exist
 -- ---------------------------------------------------------------------------
--- The index below stops NEW replays; this removes the ability to replay what is
--- already stored. Without it, existing rows stay exploitable against any future
--- system that does not share this index.
+-- Duplicate tokens are NOT necessarily evidence of an attack. Before this
+-- migration there was no dedup, so an ordinary Mailgun retry after a transient
+-- 5xx re-sent the same tuple; if it landed inside the old 15-minute freshness
+-- window it was accepted and stored a second time. Re-running scripts/
+-- sign-mailgun.mjs with a fixed --token on a dev database does the same.
 --
--- Only `signature` is removed. Replay needs all three of timestamp/token/
--- signature, and the signature is HMAC-SHA256(timestamp + token) under the
--- signing key — so timestamp and token are inert without it. `token` MUST be
--- retained or the unique index below has nothing to key on.
-update posts
-   set raw_json = raw_json - 'signature'
- where source = 'email'
-   and raw_json ? 'signature';
+-- Resolution is a judgement call for a human, not something a migration should do
+-- silently: `posts` is the permanent training corpus and must never be purged, so
+-- this refuses rather than deleting anything. The suggested fix below re-keys the
+-- later duplicates instead of removing them — no row is lost and no value is
+-- discarded, the token simply stops participating in the uniqueness constraint.
+do $$
+declare
+  dupes integer;
+begin
+  -- 1. Guard -----------------------------------------------------------------
+  select count(*) into dupes
+    from (
+      select raw_json ->> 'token' as tok
+        from posts
+       where source = 'email'
+         and raw_json ? 'token'
+       group by 1
+      having count(*) > 1
+    ) d;
 
--- ---------------------------------------------------------------------------
--- 2. Reject replayed tokens
--- ---------------------------------------------------------------------------
--- Partial index: only the email lane carries a Mailgun token. Webhook/manual rows
--- have no `token` key, and indexing them would waste space to no purpose.
---
--- NOTE: this can fail if duplicate email tokens already exist. That would itself
--- be evidence of a past replay, so investigate rather than dropping the index —
--- `select raw_json->>'token', count(*) from posts where source='email'
---  group by 1 having count(*) > 1;`
-create unique index posts_email_token_unique
-  on posts ((raw_json ->> 'token'))
-  where source = 'email';
+  if dupes > 0 then
+    raise exception
+      'Cannot create posts_email_token_unique: % duplicate email token(s) exist.', dupes
+      using hint =
+        'Inspect with: select raw_json->>''token'', count(*) from posts '
+        'where source=''email'' group by 1 having count(*) > 1; '
+        'These are most likely legitimate pre-dedup Mailgun retries, not an attack. '
+        'To resolve without deleting corpus rows, keep the token on the earliest row '
+        'per group and re-key the later ones, e.g. '
+        'update posts p set raw_json = (raw_json - ''token'') || '
+        'jsonb_build_object(''token_superseded'', raw_json->>''token'') '
+        'where source=''email'' and id <> (select id from posts q where q.source=''email'' '
+        'and q.raw_json->>''token'' = p.raw_json->>''token'' order by q.created_at limit 1);';
+  end if;
+
+  -- 2. Reject replayed tokens ------------------------------------------------
+  -- Partial index: only the email lane carries a Mailgun token. Webhook/manual
+  -- rows have no `token` key, so indexing them would waste space to no purpose.
+  execute 'create unique index posts_email_token_unique '
+          'on posts ((raw_json ->> ''token'')) '
+          'where source = ''email''';
+
+  -- 3. Redact signatures already persisted -----------------------------------
+  -- The index above stops NEW replays; this removes the ability to replay what is
+  -- already stored. Without it, existing rows stay exploitable against any future
+  -- system that does not share that index.
+  --
+  -- Only `signature` is removed. Replay needs all three of timestamp/token/
+  -- signature, and the signature is HMAC-SHA256(timestamp + token) under the
+  -- signing key — so timestamp and token are inert without it. `token` MUST be
+  -- retained or the unique index above has nothing to key on.
+  --
+  -- Runs last precisely because it cannot be undone.
+  update posts
+     set raw_json = raw_json - 'signature'
+   where source = 'email'
+     and raw_json ? 'signature';
+end $$;

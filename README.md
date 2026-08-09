@@ -184,6 +184,13 @@ inert on their own. The token is also what the unique index keys on.
 The Phase 7 Redis token cache complements these rather than replacing them — a
 cache TTL is a finite protection window, whereas the index never expires.
 
+**These guards protect the corpus, not the database.** A replayed tuple no longer
+stores a row, but it still costs a `trucks` lookup and a failed insert, and
+`/api/email` has no rate limit until Phase 7. Short-circuiting a replay *before*
+the DB round trip needs a cache in front of the query — that remains Phase 7 work.
+Worth revisiting whether a per-IP limit is the right shape there, since every
+legitimate request to this endpoint arrives from Mailgun's own IP pool.
+
 15 minutes is not arbitrary:
 
 - It is **Mailgun's own documented tolerance**, and they explicitly warn against being
@@ -196,15 +203,15 @@ cache TTL is a finite protection window, whereas the index never expires.
 - Exceeding the window **is not data loss**. An outage that outlives it costs you
   the *location*, never the *post* — so the exact value is no longer load-bearing.
   It decides parsed-vs-skipped, not kept-vs-lost.
+- The window is **defence in depth, not the primary control**. Mailgun's recommended
+  replay defence is rejecting repeated tokens, which ships as the
+  `posts_email_token_unique` index described above.
+
+Do not tighten it below 10 minutes.
 
 > **Phase 3 dependency:** the parser must exclude `parsing_status = 'skipped'` rows
 > when writing `locations`. Otherwise stale posts create locations anyway and this
 > whole guard is defeated.
-- The window is **defence in depth, not the primary control**. Mailgun's recommended
-  replay defence is caching the single-use `token` and rejecting repeats — that arrives
-  in Phase 7 alongside Upstash Redis.
-
-Do not tighten it below 10 minutes before the token cache exists.
 
 ### What does NOT exist yet
 

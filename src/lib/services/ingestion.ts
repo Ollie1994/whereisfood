@@ -100,8 +100,16 @@ export async function prepareEmailIngest(
   // is intended — a garbage timestamp that still carries a valid signature is
   // exactly the kind of anomaly the corpus should retain for inspection.
   //
-  // Rejecting already-seen tokens (a token cache) is the stronger control and is
-  // deferred to Phase 7, where Upstash Redis is already being introduced.
+  // Rejecting already-seen tokens is the stronger control, and it ships here as
+  // posts_email_token_unique (migration 0004) rather than waiting for Phase 7 —
+  // accepting stale payloads is precisely what made it necessary. Phase 7's Redis
+  // token cache complements that index; it does not replace it (a cache TTL is a
+  // finite protection window, the index never expires).
+  //
+  // ⚠ Note the index protects the CORPUS, not the database. A replayed tuple no
+  // longer stores a row, but it still costs a trucks lookup plus a failed insert,
+  // and /api/email has no rate limit until Phase 7. Short-circuiting replays
+  // before the DB round trip needs a cache in front — that is the Phase 7 job.
   const isStale = !isFreshTimestamp(payload.timestamp, now);
 
   const truckId = extractTruckIdFromRecipient(payload.recipient);
@@ -139,8 +147,10 @@ export async function prepareEmailIngest(
 // Deferred raw insert — run by the route inside after(), the first op after 200.
 // ---------------------------------------------------------------------------
 
-// Persist the raw post. Swallows a duplicate instagram_post_id (Postgres 23505,
-// enforced by the posts_instagram_post_id_unique index) as a benign discard.
+// Persist the raw post. Swallows a Postgres 23505 unique violation as a benign
+// discard. TWO indexes can raise it, and both mean "we already have this":
+//   * posts_instagram_post_id_unique — the same Instagram post seen twice
+//   * posts_email_token_unique       — a replayed Mailgun token (migration 0004)
 // Any other error propagates.
 //
 // ERROR-CONTRACT NOTE (issue #51): the documented API Error Format lists 409 for
