@@ -83,10 +83,11 @@ export async function prepareEmailIngest(
 
   // Replay guard. A valid signature proves the payload was signed with our key,
   // but a captured (timestamp, token, signature) tuple stays valid forever without
-  // this — so reject anything outside a ±5 min window. Checked AFTER the signature
-  // so the rule only ever applies to genuinely Mailgun-signed payloads. Rejecting
-  // already-seen tokens (a token cache) is the stronger control and is deferred to
-  // Phase 7, where Upstash Redis is already being introduced for rate limiting.
+  // this — so reject anything outside the ±15 min window (REPLAY_WINDOW_SECONDS;
+  // see there for why 15 and why it must not go below 10). Checked AFTER the
+  // signature so the rule only ever applies to genuinely Mailgun-signed payloads.
+  // Rejecting already-seen tokens (a token cache) is the stronger control and is
+  // deferred to Phase 7, where Upstash Redis is already being introduced.
   if (!isFreshTimestamp(payload.timestamp, now)) {
     return { ok: false, status: 400, error: "Stale or invalid timestamp" };
   }
@@ -168,10 +169,20 @@ const REPLAY_WINDOW_SECONDS = 15 * 60;
 // so a bare Number.isFinite check silently accepts a blank timestamp as the Unix
 // epoch. Reject blanks explicitly and return null for anything non-numeric, so
 // both callers below fail closed instead of quietly landing on 1970-01-01.
+// Largest absolute Unix-seconds value that `new Date(s * 1000)` can represent.
+// The JS Date range is ±8.64e15 ms, so anything beyond ±8.64e12 s makes
+// .toISOString() throw RangeError rather than produce a date.
+const MAX_REPRESENTABLE_SECONDS = 8.64e12;
+
 function toFiniteSeconds(timestamp: string): number | null {
   if (typeof timestamp !== "string" || timestamp.trim() === "") return null;
   const seconds = Number(timestamp);
-  return Number.isFinite(seconds) ? seconds : null;
+  if (!Number.isFinite(seconds)) return null;
+  // Finite is not sufficient: "1e30" and "99999999999999" are both finite but
+  // outside the Date range, and would throw RangeError on conversion instead of
+  // falling back. Same class of trap as Number("") being a finite 0.
+  if (Math.abs(seconds) > MAX_REPRESENTABLE_SECONDS) return null;
+  return seconds;
 }
 
 export function isFreshTimestamp(timestamp: string, now: number): boolean {

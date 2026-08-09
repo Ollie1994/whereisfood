@@ -107,6 +107,12 @@ describe("isFreshTimestamp", () => {
     expect(isFreshTimestamp("Infinity", NOW_MS)).toBe(false);
   });
 
+  it("rejects a finite but unrepresentable timestamp without throwing", () => {
+    expect(() => isFreshTimestamp("1e30", NOW_MS)).not.toThrow();
+    expect(isFreshTimestamp("1e30", NOW_MS)).toBe(false);
+    expect(isFreshTimestamp("99999999999999", NOW_MS)).toBe(false);
+  });
+
   it("rejects a blank timestamp (Number(\"\") is a finite 0)", () => {
     // Without the explicit blank check these parse as the epoch, which is far
     // outside the window — correct outcome, but only by accident. Pinned so a
@@ -141,6 +147,22 @@ describe("unixToIso", () => {
     expect(Number.isNaN(parsed)).toBe(false);
     expect(parsed).toBeGreaterThanOrEqual(before);
     expect(parsed).toBeLessThanOrEqual(after);
+  });
+
+  it("falls back for a finite but out-of-range timestamp instead of throwing", () => {
+    // JS Date spans ±8.64e15 ms, so these are finite yet unrepresentable and
+    // `new Date(s * 1000).toISOString()` throws RangeError. Regression guard:
+    // unixToIso is exported and documents itself as safe for any caller.
+    for (const huge of ["99999999999999", "1e30", "-1e30"]) {
+      expect(() => unixToIso(huge)).not.toThrow();
+      const parsed = Date.parse(unixToIso(huge));
+      expect(parsed).toBeGreaterThan(Date.parse("2020-01-01T00:00:00.000Z"));
+    }
+  });
+
+  it("still accepts a representable far-future timestamp", () => {
+    // Guards the range check against being too aggressive.
+    expect(unixToIso("8640000000")).toBe("2243-10-17T00:00:00.000Z");
   });
 
   it("falls back for a blank timestamp rather than yielding the epoch", () => {
