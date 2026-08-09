@@ -103,6 +103,20 @@ describe("validateEmailPayload", () => {
     expect(result?.recipient).toBe(`${TRUCK_ID}@in.yourapp.se`);
   });
 
+  it("accepts any non-empty timestamp, including odd widths", () => {
+    // Deliberately loose. An earlier revision pinned this to exactly 10 digits to
+    // disambiguate the signed `timestamp + token` boundary, but that rejected
+    // validly-signed payloads outright and reintroduced permanent data loss.
+    // The replay index keys on the concatenation instead, which is invariant
+    // across every re-split — a structural defence that costs no mail.
+    for (const odd of ["170000000", "17000000000", "1700000000.5", "abcdefghij"]) {
+      expect(validateEmailPayload({ ...validObj(), timestamp: odd })).not.toBeNull();
+    }
+
+    // Still required to be present and non-empty.
+    expect(validateEmailPayload({ ...validObj(), timestamp: "" })).toBeNull();
+  });
+
   it("accepts an empty body-plain (HTML-only mail still stores a row)", () => {
     const result = validateEmailPayload({ ...validObj(), "body-plain": "" });
     expect(result).not.toBeNull();

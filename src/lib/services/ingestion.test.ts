@@ -149,20 +149,29 @@ describe("unixToIso", () => {
     expect(parsed).toBeLessThanOrEqual(after);
   });
 
-  it("falls back for a finite but out-of-range timestamp instead of throwing", () => {
-    // JS Date spans ±8.64e15 ms, so these are finite yet unrepresentable and
-    // `new Date(s * 1000).toISOString()` throws RangeError. Regression guard:
-    // unixToIso is exported and documents itself as safe for any caller.
-    for (const huge of ["99999999999999", "1e30", "-1e30"]) {
-      expect(() => unixToIso(huge)).not.toThrow();
-      const parsed = Date.parse(unixToIso(huge));
-      expect(parsed).toBeGreaterThan(Date.parse("2020-01-01T00:00:00.000Z"));
+  it("falls back for an out-of-range timestamp instead of throwing", () => {
+    // Two distinct failure modes: overflowing the JS Date range (RangeError on
+    // toISOString) and underflowing Postgres timestamptz (valid ISO, rejected
+    // INSERT). Both must fall back, not propagate.
+    for (const bad of ["99999999999999", "1e30", "-1e30", "-8640000000000", "-1"]) {
+      expect(() => unixToIso(bad, NOW_MS)).not.toThrow();
+      expect(unixToIso(bad, NOW_MS)).toBe(new Date(NOW_MS).toISOString());
     }
+  });
+
+  it("uses the injected clock for the fallback, not the wall clock", () => {
+    const injected = 1_600_000_000_000;
+    expect(unixToIso("garbage", injected)).toBe(new Date(injected).toISOString());
   });
 
   it("still accepts a representable far-future timestamp", () => {
     // Guards the range check against being too aggressive.
     expect(unixToIso("8640000000")).toBe("2243-10-17T00:00:00.000Z");
+  });
+
+  it("accepts the exact range boundaries", () => {
+    expect(unixToIso("0")).toBe("1970-01-01T00:00:00.000Z");
+    expect(unixToIso("253402300799")).toBe("9999-12-31T23:59:59.000Z");
   });
 
   it("falls back for a blank timestamp rather than yielding the epoch", () => {
@@ -296,8 +305,73 @@ describe("prepareEmailIngest", () => {
     });
   });
 
-  it("rejects a correctly signed but stale payload (replay guard)", async () => {
-    // Signature is genuinely valid — only the age is wrong.
+  it("ACCEPTS a correctly signed but stale payload, marked 'skipped'", async () => {
+    // Issue #53: a stale payload is authentic (the signature verifies), just old.
+    // It must be kept in the corpus — never discarded — but must not be parsed.
+    const obj = signedEmail({ timestamp: String(NOW_MS / 1000 - 3600) });
+
+    const result = await prepareEmailIngest(obj, SIGNING_KEY, NOW_MS);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.post.parsing_status).toBe("skipped");
+    // Still a fully-formed corpus row — nothing about it is degraded beyond the
+    // deliberately redacted signature.
+    expect(result.post.truck_id).toBe(TRUCK_ID);
+    expect(result.post.caption).toBe("Vi står vid Järntorget 11-14");
+    const withoutSignature = { ...obj };
+    delete withoutSignature.signature;
+    expect(result.post.raw_json).toEqual(withoutSignature);
+  });
+
+  it("marks a future-dated stale payload 'skipped' too", async () => {
+    const obj = signedEmail({ timestamp: String(NOW_MS / 1000 + 3600) });
+
+    const result = await prepareEmailIngest(obj, SIGNING_KEY, NOW_MS);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.post.parsing_status).toBe("skipped");
+  });
+
+  it("stores a malformed timestamp as 'skipped' rather than rejecting it", async () => {
+    // A validly-signed payload is NEVER thrown away, whatever its timestamp says.
+    // An earlier revision rejected non-10-digit timestamps to disambiguate the
+    // HMAC boundary; that reintroduced the permanent data loss #53 removed, and
+    // bought nothing — posts_email_token_unique keys on `timestamp || token`,
+    // which is identical across every re-split, so variants collide anyway.
+    for (const odd of ["not-a-number", "-8640000000000", "1e30", "99999999999999"]) {
+      const result = await prepareEmailIngest(
+        signedEmail({ timestamp: odd }),
+        SIGNING_KEY,
+        NOW_MS,
+      );
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      // Unparseable => not fresh => never parsed into a location.
+      expect(result.post.parsing_status).toBe("skipped");
+      // posted_at falls back to the INJECTED clock, deterministically.
+      expect(result.post.posted_at).toBe(new Date(NOW_MS).toISOString());
+    }
+  });
+
+  it("preserves the signed timestamp as posted_at even when stale", async () => {
+    const staleSeconds = NOW_MS / 1000 - 3600;
+    const obj = signedEmail({ timestamp: String(staleSeconds) });
+
+    const result = await prepareEmailIngest(obj, SIGNING_KEY, NOW_MS);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // The email really was sent an hour ago — posted_at must reflect that, not
+    // ingest time, or the corpus loses when the truck actually posted.
+    expect(result.post.posted_at).toBe(new Date(staleSeconds * 1000).toISOString());
+  });
+
+  it("still validates the truck for a stale payload", async () => {
+    // Staleness must not become a bypass around truck validation.
+    getActiveTruckByIdMock.mockResolvedValue(null);
     const obj = signedEmail({ timestamp: String(NOW_MS / 1000 - 3600) });
 
     const result = await prepareEmailIngest(obj, SIGNING_KEY, NOW_MS);
@@ -305,7 +379,58 @@ describe("prepareEmailIngest", () => {
     expect(result).toEqual({
       ok: false,
       status: 400,
-      error: "Stale or invalid timestamp",
+      error: "Unknown or inactive truck",
+    });
+  });
+
+  it("neutralises an HMAC boundary re-split (same dedup key, never fresh)", async () => {
+    // Mailgun signs `timestamp + token` with NO delimiter, so the same signed
+    // string re-splits at any interior index and EVERY split verifies under the
+    // SAME signature while producing a different token. The defence is structural,
+    // not validation: posts_email_token_unique keys on the CONCATENATION, which is
+    // byte-identical across all splits, so they collide at one stored row.
+    //
+    // This pins the two properties that make that work.
+    const real = signedEmail();
+    const joined = real.timestamp + real.token;
+
+    for (const splitAt of [9, 11, 5]) {
+      const shifted = {
+        ...real,
+        timestamp: joined.slice(0, splitAt),
+        token: joined.slice(splitAt),
+        signature: real.signature, // unchanged — and it still verifies
+      };
+
+      const result = await prepareEmailIngest(shifted, SIGNING_KEY, NOW_MS);
+
+      // Accepted (never discarded) …
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      // … but never actionable: no re-split can land inside the freshness window,
+      // so it can never become a live location.
+      expect(result.post.parsing_status).toBe("skipped");
+      // … and the dedup key is invariant, so the DB collapses them to one row.
+      const key =
+        `${result.post.raw_json.timestamp}${result.post.raw_json.token}`;
+      expect(key).toBe(joined);
+    }
+  });
+
+  it("rejects a stale payload whose signature is invalid", async () => {
+    // Order matters: an unsigned payload is rejected regardless of age. Staleness
+    // must never soften the authenticity check.
+    const obj = signedEmail({
+      timestamp: String(NOW_MS / 1000 - 3600),
+      signature: "deadbeef".repeat(8),
+    });
+
+    const result = await prepareEmailIngest(obj, SIGNING_KEY, NOW_MS);
+
+    expect(result).toEqual({
+      ok: false,
+      status: 400,
+      error: "Invalid signature",
     });
     expect(getActiveTruckByIdMock).not.toHaveBeenCalled();
   });
@@ -365,6 +490,47 @@ describe("prepareEmailIngest", () => {
     });
   });
 
+  it("strips the signature from raw_json but keeps token and timestamp", async () => {
+    // posts is permanent and never purged, so a stored signature would make every
+    // row a ready-to-replay request. Replay needs all three of timestamp/token/
+    // signature, and the signature cannot be recomputed without the signing key —
+    // so removing it alone renders the stored tuple inert.
+    const obj = signedEmail();
+
+    const result = await prepareEmailIngest(obj, SIGNING_KEY, NOW_MS);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.post.raw_json).not.toHaveProperty("signature");
+    // token MUST survive — posts_email_token_unique (0004) keys the replay guard
+    // on it. Stripping it would silently disable that dedup.
+    expect(result.post.raw_json.token).toBe(obj.token);
+    expect(result.post.raw_json.timestamp).toBe(obj.timestamp);
+  });
+
+  it("does not mutate the caller's payload object when redacting", async () => {
+    const obj = signedEmail();
+    const originalSignature = obj.signature;
+
+    await prepareEmailIngest(obj, SIGNING_KEY, NOW_MS);
+
+    // The route still holds this object; mutating it in place would be a nasty
+    // surprise for any later reader (e.g. failure logging).
+    expect(obj.signature).toBe(originalSignature);
+  });
+
+  it("strips the signature from a stale payload too", async () => {
+    const obj = signedEmail({ timestamp: String(NOW_MS / 1000 - 3600) });
+
+    const result = await prepareEmailIngest(obj, SIGNING_KEY, NOW_MS);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.post.parsing_status).toBe("skipped");
+    expect(result.post.raw_json).not.toHaveProperty("signature");
+    expect(result.post.raw_json.token).toBe(obj.token);
+  });
+
   it("stores every text field in raw_json, not just the typed five", async () => {
     // raw_json is the permanent ML corpus — extra Mailgun fields must survive.
     const obj = signedEmail({
@@ -377,7 +543,10 @@ describe("prepareEmailIngest", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.post.raw_json).toEqual(obj);
+    // Everything Mailgun sent survives except the deliberately redacted signature.
+    const withoutSignature = { ...obj };
+    delete withoutSignature.signature;
+    expect(result.post.raw_json).toEqual(withoutSignature);
     expect(result.post.raw_json.subject).toBe("Dagens plats");
   });
 
@@ -431,12 +600,44 @@ describe("persistPost", () => {
     expect(insertPostMock).toHaveBeenCalledWith(post);
   });
 
-  it("swallows a duplicate instagram_post_id (Postgres 23505)", async () => {
+  it("swallows a duplicate instagram_post_id (Postgres 23505) and logs it", async () => {
     // Dedup by instagram_post_id resolves as a benign discard — the route has
-    // already sent its 200, so there is nothing to report to the caller.
-    insertPostMock.mockRejectedValue({ code: "23505", message: "duplicate key" });
+    // already sent its 200, so there is nothing to report to the caller. It is
+    // logged because that makes it the ONLY visible trace: nothing surfaces to
+    // Mailgun and no retry follows.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    insertPostMock.mockRejectedValue({
+      code: "23505",
+      message: 'duplicate key value violates unique constraint "posts_instagram_post_id_unique"',
+    });
 
     await expect(persistPost(post)).resolves.toBeUndefined();
+
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("discarded duplicate post"),
+      "posts_instagram_post_id_unique",
+    );
+    warn.mockRestore();
+  });
+
+  it("names the email token constraint when a replay is discarded", async () => {
+    // The two constraints must be distinguishable in logs: one is a benign
+    // Instagram crosspost, the other is a replayed Mailgun token — or, if the
+    // single-use-token assumption is ever wrong, a genuine email being dropped.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    insertPostMock.mockRejectedValue({
+      code: "23505",
+      details: 'Key ((raw_json ->> \'timestamp\'::text) || ...) already exists.',
+      message: 'duplicate key value violates unique constraint "posts_email_token_unique"',
+    });
+
+    await expect(persistPost(post)).resolves.toBeUndefined();
+
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("discarded duplicate post"),
+      "posts_email_token_unique",
+    );
+    warn.mockRestore();
   });
 
   it("rethrows any other Postgres error", async () => {

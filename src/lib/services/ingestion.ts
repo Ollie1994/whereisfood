@@ -58,11 +58,28 @@ export async function prepareWebhookIngest(body: unknown): Promise<IngestResult>
 // Email lane (Mailgun inbound → POST /api/email)
 // ---------------------------------------------------------------------------
 
-// Validate the payload, verify the HMAC signature, check the timestamp is fresh,
-// extract the truck_id from the recipient, and confirm the truck is active — then
-// build the posts row. Every failure maps to 400 (invalid payload, bad signature,
-// stale timestamp, bad recipient, unknown truck). Signature and freshness are both
-// checked before any DB lookup.
+// Validate the payload, verify the HMAC signature, extract the truck_id from the
+// recipient, confirm the truck is active — then build the posts row. Rejections
+// (all 400) are: invalid payload, bad signature, bad recipient, unknown truck.
+// The signature is checked before any DB lookup.
+//
+// A STALE timestamp is deliberately NOT a rejection (issue #53). Signature
+// verification and freshness answer different questions: an invalid signature
+// means "this did not come through Mailgun" (reject), whereas a valid signature
+// with an old timestamp means "Mailgun relayed this, it is just old" — most likely
+// a genuine truck email, and it belongs in the permanent corpus either way.
+// Freshness therefore governs whether we ACT on a post, not whether we KEEP it,
+// and a stale payload is stored with parsing_status 'skipped'.
+//
+// ⚠ PRECISION ABOUT WHAT THE SIGNATURE PROVES. Mailgun's HMAC covers only
+// `timestamp + token` — NOT `recipient` and NOT `body-plain`. So a valid signature
+// authenticates the RELAY, not the CONTENT: anyone holding one captured tuple can
+// present an arbitrary recipient and body under it. This is inherent to Mailgun's
+// scheme, not something we can verify away. Two things bound the damage:
+// posts_email_token_unique caps it at one row per captured tuple (tokens are
+// single-use), and a tuple only yields a LIVE location while still inside the
+// 15-minute window — after that the row is 'skipped' and never parsed. Do not
+// restate this anywhere as "the signature proves the truck sent it".
 //
 // `now` is injected (defaulting to wall clock) so the freshness rule stays
 // unit-testable without faking timers — the purity rule is parser-only, but a
@@ -82,15 +99,29 @@ export async function prepareEmailIngest(
   }
 
   // Replay guard. A valid signature proves the payload was signed with our key,
-  // but a captured (timestamp, token, signature) tuple stays valid forever without
-  // this — so reject anything outside the ±15 min window (REPLAY_WINDOW_SECONDS;
-  // see there for why 15 and why it must not go below 10). Checked AFTER the
-  // signature so the rule only ever applies to genuinely Mailgun-signed payloads.
-  // Rejecting already-seen tokens (a token cache) is the stronger control and is
-  // deferred to Phase 7, where Upstash Redis is already being introduced.
-  if (!isFreshTimestamp(payload.timestamp, now)) {
-    return { ok: false, status: 400, error: "Stale or invalid timestamp" };
-  }
+  // but a captured (timestamp, token, signature) tuple stays valid forever, so
+  // anything outside the ±15 min window (REPLAY_WINDOW_SECONDS — see there for why
+  // 15 and why it must not go below 10) is treated as untrustworthy TO ACT ON.
+  // Evaluated AFTER the signature so the rule only ever applies to genuinely
+  // Mailgun-signed payloads.
+  //
+  // An unparseable timestamp lands here too — isFreshTimestamp fails closed — and
+  // is likewise stored as 'skipped' rather than rejected. That is intentional: a
+  // validly-signed payload is never discarded, whatever its timestamp claims. See
+  // the HMAC boundary note in validators/email.ts for why the format is NOT
+  // constrained, and why the replay index is the control instead.
+  //
+  // Rejecting already-seen tokens is the stronger control, and it ships here as
+  // posts_email_token_unique (migration 0004) rather than waiting for Phase 7 —
+  // accepting stale payloads is precisely what made it necessary. Phase 7's Redis
+  // token cache complements that index; it does not replace it (a cache TTL is a
+  // finite protection window, the index never expires).
+  //
+  // ⚠ Note the index protects the CORPUS, not the database. A replayed tuple no
+  // longer stores a row, but it still costs a trucks lookup plus a failed insert,
+  // and /api/email has no rate limit until Phase 7. Short-circuiting replays
+  // before the DB round trip needs a cache in front — that is the Phase 7 job.
+  const isStale = !isFreshTimestamp(payload.timestamp, now);
 
   const truckId = extractTruckIdFromRecipient(payload.recipient);
   if (!truckId) {
@@ -110,9 +141,14 @@ export async function prepareEmailIngest(
     // Email posted_at ≈ when Mailgun relayed the message (the signed Unix
     // timestamp already verified above). Fall back to ingest time if it is not a
     // finite number.
-    posted_at: unixToIso(payload.timestamp),
-    raw_json: obj,
-    parsing_status: "pending",
+    posted_at: unixToIso(payload.timestamp, now),
+    // Everything Mailgun sent EXCEPT the signature — see redactSignature.
+    raw_json: redactSignature(obj),
+    // 'skipped' means "deliberately not parsed", which is exactly the state a
+    // stale-but-authentic email is in: kept in the corpus forever, but never
+    // allowed to create or override a live location. The Phase 3 parser MUST
+    // filter these out when writing `locations`, or this whole guard is moot.
+    parsing_status: isStale ? "skipped" : "pending",
   };
 
   return { ok: true, post };
@@ -122,8 +158,10 @@ export async function prepareEmailIngest(
 // Deferred raw insert — run by the route inside after(), the first op after 200.
 // ---------------------------------------------------------------------------
 
-// Persist the raw post. Swallows a duplicate instagram_post_id (Postgres 23505,
-// enforced by the posts_instagram_post_id_unique index) as a benign discard.
+// Persist the raw post. Swallows a Postgres 23505 unique violation as a benign
+// discard. TWO indexes can raise it, and both mean "we already have this":
+//   * posts_instagram_post_id_unique — the same Instagram post seen twice
+//   * posts_email_token_unique       — a replayed Mailgun token (migration 0004)
 // Any other error propagates.
 //
 // ERROR-CONTRACT NOTE (issue #51): the documented API Error Format lists 409 for
@@ -137,7 +175,26 @@ export async function persistPost(post: NewPost): Promise<void> {
   try {
     await insertPost(post);
   } catch (err) {
-    if (isUniqueViolation(err)) return;
+    if (isUniqueViolation(err)) {
+      // Log rather than return silently. A discard here is invisible by
+      // construction — the 200 has already shipped, so nothing surfaces to the
+      // caller and Mailgun will not retry. The email lane's guard also rests on
+      // Mailgun's token being single-use per delivery, which could not be
+      // confirmed from their docs; if that ever proves wrong, a GENUINE second
+      // email would be dropped here with no trace at all. The constraint name
+      // makes the two cases distinguishable in logs.
+      // Include posted_at and the token prefix so the "Mailgun tokens are
+      // single-use" premise is falsifiable from logs alone — if genuine mail ever
+      // collides, these identify which delivery was lost. Deliberately NOT the
+      // caption or raw_json: those are the email body, and logs are the wrong
+      // place for user content.
+      const token = typeof post.raw_json.token === "string" ? post.raw_json.token : null;
+      console.warn(
+        `[ingestion] discarded duplicate post (truck ${post.truck_id}, source ${post.source}, posted_at ${post.posted_at}, token ${token ? `${token.slice(0, 8)}…` : "n/a"}):`,
+        constraintName(err) ?? "unknown constraint",
+      );
+      return;
+    }
     throw err;
   }
 }
@@ -145,6 +202,36 @@ export async function persistPost(post: NewPost): Promise<void> {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+// Drop `signature` before the payload is persisted.
+//
+// WHY (issue #53 review): `posts` is permanent and never purged, so anything
+// stored here is stored forever. Retaining the full (timestamp, token, signature)
+// tuple turned every row into a ready-to-replay request — a replay armory sitting
+// in our own database, reachable via a leaked service-role key, a DB backup, or
+// the eventual ML training export. HTTPS does nothing about any of those; it only
+// protects the wire.
+//
+// Removing the SIGNATURE alone is sufficient and is why `token` stays. Replaying
+// requires all three fields, and the signature is HMAC-SHA256(timestamp + token)
+// under the signing key. An attacker holding timestamp and token but not the
+// signature cannot compute it without the key, so the tuple is inert.
+//
+// Keeping `token` is deliberate and load-bearing: posts_email_token_unique
+// (migration 0004) indexes it to make replays collide on insert. Strip the token
+// too and that dedup silently stops working. Keeping it costs nothing — a token
+// without its signature has no replay value.
+//
+// `timestamp` also stays: it is posted_at provenance and is likewise inert alone.
+// Nothing else in the codebase reads raw_json.signature after verification, which
+// has already happened by the time this runs.
+function redactSignature(obj: Record<string, string>): Record<string, string> {
+  // Copy rather than delete in place — obj is the caller's object, and mutating a
+  // parameter would surprise anyone reusing it (the route logs it on failure).
+  const copy = { ...obj };
+  delete copy.signature;
+  return copy;
+}
 
 // Mailgun signs a Unix-seconds timestamp. Accept a ±15 min window around the
 // current clock, tolerating skew in both directions (a future-dated timestamp is
@@ -155,16 +242,13 @@ export async function persistPost(post: NewPost): Promise<void> {
 // It also matters operationally: Mailgun retries a failed POST at 10, 20, 35, 65,
 // 125, 245 and 485 min (cumulative). This route returns 200 before the DB write,
 // so the only 5xx paths are a missing signing key or Supabase being unreachable
-// during the truck lookup — and on those, a window under 10 min would reject even
-// the very first retry. 15 min keeps that one alive.
+// during the truck lookup — and on those, a window under 10 min would mark even
+// the very first retry unparseable. 15 min keeps that one actionable.
 //
-// ⚠ KNOWN LIMITATION — this does NOT fully satisfy "never lose incoming data".
-// A stale payload is rejected 400 with no posts row, so an outage that outlives
-// the window still loses the mail: 500 at T=0, 500 at the T+10 retry, then 400 at
-// T+20 and every retry through T+485. Retries 2-7 are unconditionally lost.
-// Issue #53 fixes this by storing stale-but-signed payloads as
-// parsing_status='skipped' and returning 200 — keep the data, just never parse it.
-// Do not paper over this by widening the window; the layering is the bug.
+// Crucially, exceeding the window is NOT data loss (issue #53): a stale payload is
+// still stored, just with parsing_status 'skipped'. So an outage outliving the
+// window costs us the LOCATION, never the post. That is why the exact value is no
+// longer load-bearing — it decides parsed-vs-skipped, not kept-vs-lost.
 //
 // Note this window is deliberately NOT the primary replay defence — Mailgun's
 // recommended control is caching the single-use `token` and rejecting repeats,
@@ -176,19 +260,29 @@ const REPLAY_WINDOW_SECONDS = 15 * 60;
 // so a bare Number.isFinite check silently accepts a blank timestamp as the Unix
 // epoch. Reject blanks explicitly and return null for anything non-numeric, so
 // both callers below fail closed instead of quietly landing on 1970-01-01.
-// Largest absolute Unix-seconds value that `new Date(s * 1000)` can represent.
-// The JS Date range is ±8.64e15 ms, so anything beyond ±8.64e12 s makes
-// .toISOString() throw RangeError rather than produce a date.
-const MAX_REPRESENTABLE_SECONDS = 8.64e12;
+// Accepted Unix-seconds range: the epoch through year 9999.
+//
+// Bounding to the JS Date range (±8.64e12 s) is NOT enough. That keeps
+// .toISOString() from throwing, but the JS floor (year -271821) sits before what
+// Postgres `timestamptz` can store (4713 BC), so a value in that gap produces a
+// perfectly valid ISO string that the INSERT then rejects. Because the raw insert
+// runs inside after(), that error surfaces only after the 200 has shipped — it is
+// swallowed and logged, Mailgun never retries, and the mail is silently lost:
+// exactly the failure mode this issue exists to remove.
+//
+// So bound to what is both storable AND plausible. An email cannot predate the
+// Unix epoch, and year 9999 is comfortably inside timestamptz.
+const MIN_ACCEPTED_SECONDS = 0; // 1970-01-01T00:00:00Z
+const MAX_ACCEPTED_SECONDS = 253_402_300_799; // 9999-12-31T23:59:59Z
 
 function toFiniteSeconds(timestamp: string): number | null {
   if (typeof timestamp !== "string" || timestamp.trim() === "") return null;
   const seconds = Number(timestamp);
   if (!Number.isFinite(seconds)) return null;
-  // Finite is not sufficient: "1e30" and "99999999999999" are both finite but
-  // outside the Date range, and would throw RangeError on conversion instead of
-  // falling back. Same class of trap as Number("") being a finite 0.
-  if (Math.abs(seconds) > MAX_REPRESENTABLE_SECONDS) return null;
+  // Finite is not sufficient: "1e30" and "-8640000000000" are both finite but
+  // unusable — the first overflows Date, the second underflows timestamptz.
+  // Same class of trap as Number("") being a finite 0.
+  if (seconds < MIN_ACCEPTED_SECONDS || seconds > MAX_ACCEPTED_SECONDS) return null;
   return seconds;
 }
 
@@ -198,15 +292,41 @@ export function isFreshTimestamp(timestamp: string, now: number): boolean {
   return Math.abs(now / 1000 - seconds) <= REPLAY_WINDOW_SECONDS;
 }
 
-// Defense in depth: prepareEmailIngest only reaches this after isFreshTimestamp
-// has already proven the timestamp numeric, so the fallback is unreachable on that
-// path — it stays so the helper is safe for any future caller. Exported solely so
-// that fallback branch stays directly testable (issue #47) now that no lane can
-// reach it.
-export function unixToIso(timestamp: string): string {
+// Converts Mailgun's signed Unix-seconds timestamp to ISO, falling back to ingest
+// time when the value is unusable (blank, non-numeric, or out of the storable
+// range above).
+//
+// The fallback is NOT reachable from prepareEmailIngest: validateEmailPayload
+// pins the timestamp to 10 digits, which is always finite and inside the range
+// above. It is kept as defence in depth for any future caller and is tested
+// directly. `now` is threaded in rather than read from the wall clock so that, if
+// the fallback ever does fire, posted_at stays deterministic and consistent with
+// the rest of the request instead of drifting to a second clock reading.
+export function unixToIso(timestamp: string, now: number = Date.now()): string {
   const seconds = toFiniteSeconds(timestamp);
-  if (seconds === null) return new Date().toISOString();
+  // Guard the fallback itself: new Date(NaN).toISOString() throws, so an injected
+  // non-finite `now` would break this helper's never-throws contract — which the
+  // plain `new Date()` it replaced could not do.
+  if (seconds === null) {
+    return new Date(Number.isFinite(now) ? now : Date.now()).toISOString();
+  }
   return new Date(seconds * 1000).toISOString();
+}
+
+// Which constraint a 23505 came from. PostgREST surfaces it in `details`/`message`
+// rather than as a dedicated field, so match the known index names instead of
+// parsing. Returns null when it cannot be identified — the caller logs that too.
+function constraintName(err: unknown): string | null {
+  if (typeof err !== "object" || err === null) return null;
+  const { details, message } = err as { details?: string; message?: string };
+  const haystack = `${details ?? ""} ${message ?? ""}`;
+  for (const name of [
+    "posts_email_token_unique",
+    "posts_instagram_post_id_unique",
+  ]) {
+    if (haystack.includes(name)) return name;
+  }
+  return null;
 }
 
 function isUniqueViolation(err: unknown): boolean {

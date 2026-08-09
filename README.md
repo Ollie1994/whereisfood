@@ -130,20 +130,87 @@ Build order is 8 phases. **Phases 1–2 are complete; Phases 3–8 are not start
 - Core TypeScript types (`Truck`, `Location`, `MarkerState`); root `/` redirects to `/map`
 
 **Phase 2 — ingestion**
-- **Supabase Postgres schema** — `supabase/migrations/0001_initial_schema.sql` (trucks, posts, locations, geocoding_cache, users) with indexes, RLS policies, and Data API grants; `0002`/`0003` tighten column nullability so the schema and the TypeScript types agree; dev `seed.sql` (2 active + 1 inactive truck, fixed UUIDs)
+- **Supabase Postgres schema** — `supabase/migrations/0001_initial_schema.sql` (trucks, posts, locations, geocoding_cache, users) with indexes, RLS policies, and Data API grants; `0002`/`0003` tighten column nullability so the schema and the TypeScript types agree; `0004` adds the email replay guard; dev `seed.sql` (2 active + 1 inactive truck, fixed UUIDs)
 - **Webhook lane** — `POST /api/ingest`, constant-time `X-Make-Secret` check, validates the truck, returns 200 and stores the raw post in `after()`
 - **Email lane** — `POST /api/email`, Mailgun `multipart/form-data` + constant-time HMAC-SHA256 verification, truck extracted from the recipient
-- **Replay protection** — a correctly signed payload is also rejected (400) unless its timestamp is within **±15 minutes**. See [Replay window](#replay-window) for why that number
+- **Replay protection** — a correctly signed payload older than **±15 minutes** is still stored, but marked `parsing_status = 'skipped'` so it can never become a live location. See [Replay window](#replay-window)
 - **Typed database access** — both Supabase clients are parameterized with generated `Database` types (`src/lib/database.types.ts`), and `Truck` / `Location` / `Post` are derived from them, so schema drift becomes a compile error
 - **Layered backend** — pure validators (`src/lib/validators/`), ingestion service (`src/lib/services/ingestion.ts`), and DB layer (`src/lib/db/`), all writing through `supabaseAdmin`
 - **Raw posts stored** as the permanent ML training corpus (never purged)
-- **75 Vitest unit tests** across the validators/security boundary and the ingestion service; `scripts/sign-mailgun.mjs` dev helper for signing email-lane requests
+- **88 Vitest unit tests** across the validators/security boundary and the ingestion service; `scripts/sign-mailgun.mjs` dev helper for signing email-lane requests
 
 #### Replay window
 
-The email lane rejects a correctly signed payload whose timestamp is more than
-**15 minutes** from now, in either direction. Without it, a captured
-`(timestamp, token, signature)` tuple would stay valid forever.
+The email lane treats a correctly signed payload whose timestamp is more than
+**15 minutes** from now, in either direction, as untrustworthy *to act on*.
+Without this, a captured `(timestamp, token, signature)` tuple would stay valid
+forever.
+
+Crucially, a stale payload is **not rejected** — it is stored with
+`parsing_status = 'skipped'` and the endpoint returns 200:
+
+| Case | Response | `posts` row |
+|---|---|---|
+| Invalid signature | `400` | none — we don't know who sent it |
+| Valid signature, **stale** | `200` | stored, `parsing_status = 'skipped'` |
+| Valid signature, fresh | `200` | stored, `parsing_status = 'pending'` |
+
+Signature verification and freshness answer different questions. A bad signature
+means *"this did not come through Mailgun"* — reject it. A valid signature with an
+old timestamp means *"Mailgun relayed this, it's just old"* — most likely a genuine
+truck email, and it belongs in the permanent corpus either way. **Freshness governs
+whether we act on a post, not whether we keep it.**
+
+This keeps the security property that matters: a replayed payload can never create
+or override a live location.
+
+> **What the signature actually proves.** Mailgun's HMAC covers only
+> `timestamp + token` — **not** `recipient` and **not** `body-plain`. So it
+> authenticates the *relay*, not the *content*: anyone holding one captured tuple
+> could present an arbitrary recipient and body under it. That's inherent to
+> Mailgun's scheme, not something verification can fix. Two things bound it: the
+> replay index caps it at one row per captured tuple (tokens are single-use), and a
+> tuple only yields a live location while still inside the 15-minute window — after
+> that the row is `skipped` and never parsed.
+
+Because accepting stale payloads means a replay would otherwise append rows to a
+corpus that is **never purged**, two further guards ship alongside it:
+
+- **The HMAC boundary is ambiguous — handled structurally.** Mailgun signs
+  `timestamp + token` with **no delimiter**, so the same signed string can be
+  re-split at any interior index; every split verifies under the *same* signature
+  and yields a different token (41 working variants from one captured tuple).
+  Constraining the timestamp format would "fix" this by rejecting validly-signed
+  payloads — reintroducing the very data loss this section exists to prevent.
+  Instead the index below keys on the **concatenation**, which is byte-identical
+  across every split, so all variants collapse to a single stored row. And since
+  only the original split can fall inside the freshness window, no variant ever
+  becomes a live location.
+- **`posts_email_token_unique`** (migration `0004`) — a unique index on
+  `(raw_json->>'timestamp') || (raw_json->>'token')` for the email lane. The key is
+  the **concatenation**, not the token alone: that is exactly the string Mailgun
+  signed, so it stays invariant under re-splitting even if the width check is ever
+  loosened. Mailgun's token is single-use, so a replayed payload collides on insert
+  and raises `23505`, which `persistPost` already swallows as a benign discard. A
+  replay is a logged no-op.
+- **The signature is never stored.** `redactSignature()` strips it before the row
+  is written. Otherwise every row would be a ready-to-replay request, reachable
+  via a leaked service-role key, a DB backup, or the eventual ML export — none of
+  which HTTPS protects against.
+
+`token` and `timestamp` are deliberately retained: replay needs all three fields
+and the signature cannot be recomputed without the signing key, so those two are
+inert on their own. The token is also what the unique index keys on.
+
+The Phase 7 Redis token cache complements these rather than replacing them — a
+cache TTL is a finite protection window, whereas the index never expires.
+
+**These guards protect the corpus, not the database.** A replayed tuple no longer
+stores a row, but it still costs a `trucks` lookup and a failed insert, and
+`/api/email` has no rate limit until Phase 7. Short-circuiting a replay *before*
+the DB round trip needs a cache in front of the query — that remains Phase 7 work.
+Worth revisiting whether a per-IP limit is the right shape there, since every
+legitimate request to this endpoint arrives from Mailgun's own IP pool.
 
 15 minutes is not arbitrary:
 
@@ -152,23 +219,20 @@ The email lane rejects a correctly signed payload whose timestamp is more than
 - Mailgun **retries a failed POST** at 10, 20, 35, 65, 125, 245 and 485 minutes
   (cumulative). `/api/email` returns 200 before the DB write, so the only 5xx paths are
   a missing signing key or Supabase being unreachable during the truck lookup. A window
-  under 10 minutes would reject even the *first* retry; 15 minutes keeps that one alive.
-
-> **Known limitation — this does not fully satisfy "never lose incoming data".**
-> A stale payload is rejected with 400 and no `posts` row is written. So an outage
-> that outlives the window still loses the email: Supabase down for 30 min means
-> 500 at T=0, 500 at the T+10 retry, then **400 at T+20 and every retry through
-> T+485** — the message never reaches the corpus even after recovery. 15 minutes
-> covers outages under ~10 min, not retries 2–7.
->
-> [#53](https://github.com/Ollie1994/whereisfood/issues/53) fixes this properly by
-> storing stale-but-validly-signed payloads with `parsing_status = 'skipped'` and
-> returning 200, so the data is always kept and simply never parsed.
+  under 10 minutes would mark even the *first* retry unparseable; 15 minutes keeps
+  that one actionable.
+- Exceeding the window **is not data loss**. An outage that outlives it costs you
+  the *location*, never the *post* — so the exact value is no longer load-bearing.
+  It decides parsed-vs-skipped, not kept-vs-lost.
 - The window is **defence in depth, not the primary control**. Mailgun's recommended
-  replay defence is caching the single-use `token` and rejecting repeats — that arrives
-  in Phase 7 alongside Upstash Redis.
+  replay defence is rejecting repeated tokens, which ships as the
+  `posts_email_token_unique` index described above.
 
-Do not tighten it below 10 minutes before the token cache exists.
+Do not tighten it below 10 minutes.
+
+> **Phase 3 dependency:** the parser must exclude `parsing_status = 'skipped'` rows
+> when writing `locations`. Otherwise stale posts create locations anyway and this
+> whole guard is defeated.
 
 ### What does NOT exist yet
 

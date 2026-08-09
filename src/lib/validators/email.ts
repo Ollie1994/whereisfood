@@ -11,6 +11,29 @@ function isNonEmptyString(v: unknown): v is string {
   return typeof v === "string" && v.length > 0;
 }
 
+// NOTE ON THE HMAC BOUNDARY — deliberately NOT enforced here.
+//
+// Mailgun signs `timestamp + token` with no delimiter, so the boundary between
+// them is ambiguous: the same signed string can be re-split at any interior index
+// and every split verifies under the SAME signature while yielding a different
+// `token` (41 working variants for a 10-digit timestamp and a 32-char token).
+//
+// An earlier revision rejected any timestamp that was not exactly 10 digits to
+// make the split unique. That was WRONG: it returned 400 with no `posts` row for a
+// validly-signed payload, reintroducing the permanent data loss issue #53 removed
+// (Mailgun retries 7x, all 400, message never reaches the never-purged corpus) and
+// breaking this project's own rule that a signed payload is never rejected.
+//
+// It bought nothing, because posts_email_token_unique (migration 0004) keys on the
+// CONCATENATION `timestamp || token` — which is precisely the signed string, and
+// therefore identical across every re-split. Verified: all 41 variants collide on
+// that key, so they cap out at one stored row exactly like a plain replay. Only
+// the original split can fall inside the freshness window, so every variant is
+// stored as 'skipped' and can never become a live location.
+//
+// Structural invariant beats input validation here. Keep the timestamp check loose
+// and let the index do the work.
+
 // Pure shape validation for the Mailgun inbound payload. The route converts the
 // multipart/form-data fields to a plain object before calling this. Returns a
 // typed EmailPayload or null. body-plain may be empty (HTML-only mail still stores
@@ -26,6 +49,7 @@ export function validateEmailPayload(obj: Record<string, string>): EmailPayload 
 
   if (!isNonEmptyString(recipient)) return null;
   if (typeof bodyPlain !== "string") return null; // present, may be empty
+  // Non-empty only — see the HMAC boundary note above for why this stays loose.
   if (!isNonEmptyString(timestamp)) return null;
   if (!isNonEmptyString(token)) return null;
   if (!isNonEmptyString(signature)) return null;
