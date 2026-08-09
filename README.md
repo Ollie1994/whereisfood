@@ -137,7 +137,7 @@ Build order is 8 phases. **Phases 1–2 are complete; Phases 3–8 are not start
 - **Typed database access** — both Supabase clients are parameterized with generated `Database` types (`src/lib/database.types.ts`), and `Truck` / `Location` / `Post` are derived from them, so schema drift becomes a compile error
 - **Layered backend** — pure validators (`src/lib/validators/`), ingestion service (`src/lib/services/ingestion.ts`), and DB layer (`src/lib/db/`), all writing through `supabaseAdmin`
 - **Raw posts stored** as the permanent ML training corpus (never purged)
-- **89 Vitest unit tests** across the validators/security boundary and the ingestion service; `scripts/sign-mailgun.mjs` dev helper for signing email-lane requests
+- **88 Vitest unit tests** across the validators/security boundary and the ingestion service; `scripts/sign-mailgun.mjs` dev helper for signing email-lane requests
 
 #### Replay window
 
@@ -156,24 +156,36 @@ Crucially, a stale payload is **not rejected** — it is stored with
 | Valid signature, fresh | `200` | stored, `parsing_status = 'pending'` |
 
 Signature verification and freshness answer different questions. A bad signature
-means *"we don't know who sent this"* — reject it. A valid signature with an old
-timestamp means *"we know Mailgun sent this, it's just old"* — a genuine truck
-email that belongs in the permanent corpus. **Freshness governs whether we act on
-a post, not whether we keep it.**
+means *"this did not come through Mailgun"* — reject it. A valid signature with an
+old timestamp means *"Mailgun relayed this, it's just old"* — most likely a genuine
+truck email, and it belongs in the permanent corpus either way. **Freshness governs
+whether we act on a post, not whether we keep it.**
 
 This keeps the security property that matters: a replayed payload can never create
-or override a live location. Replay was never an auth bypass, only an
-authenticated duplicate.
+or override a live location.
+
+> **What the signature actually proves.** Mailgun's HMAC covers only
+> `timestamp + token` — **not** `recipient` and **not** `body-plain`. So it
+> authenticates the *relay*, not the *content*: anyone holding one captured tuple
+> could present an arbitrary recipient and body under it. That's inherent to
+> Mailgun's scheme, not something verification can fix. Two things bound it: the
+> replay index caps it at one row per captured tuple (tokens are single-use), and a
+> tuple only yields a live location while still inside the 15-minute window — after
+> that the row is `skipped` and never parsed.
 
 Because accepting stale payloads means a replay would otherwise append rows to a
 corpus that is **never purged**, two further guards ship alongside it:
 
-- **A 10-digit `timestamp` is required.** Mailgun signs `timestamp + token` with
-  **no delimiter**, so a variable-width timestamp makes the boundary ambiguous:
-  the same signed string can be re-split at any interior index, every split
-  verifies under the *same* signature, and each yields a different token — 41
-  working variants from one captured tuple. Fixing the width to 10 makes the split
-  unique, since length 10 implies the original boundary.
+- **The HMAC boundary is ambiguous — handled structurally.** Mailgun signs
+  `timestamp + token` with **no delimiter**, so the same signed string can be
+  re-split at any interior index; every split verifies under the *same* signature
+  and yields a different token (41 working variants from one captured tuple).
+  Constraining the timestamp format would "fix" this by rejecting validly-signed
+  payloads — reintroducing the very data loss this section exists to prevent.
+  Instead the index below keys on the **concatenation**, which is byte-identical
+  across every split, so all variants collapse to a single stored row. And since
+  only the original split can fall inside the freshness window, no variant ever
+  becomes a live location.
 - **`posts_email_token_unique`** (migration `0004`) — a unique index on
   `(raw_json->>'timestamp') || (raw_json->>'token')` for the email lane. The key is
   the **concatenation**, not the token alone: that is exactly the string Mailgun

@@ -334,27 +334,26 @@ describe("prepareEmailIngest", () => {
     expect(result.post.parsing_status).toBe("skipped");
   });
 
-  it("rejects a malformed timestamp rather than storing it", async () => {
-    // Deliberately NOT stored as 'skipped'. A non-10-digit timestamp carrying a
-    // valid signature is the re-split vector, not a curiosity worth keeping — so
-    // the validator refuses it up front. A genuine Mailgun email always carries
-    // 10-digit Unix seconds, and a format change would fail loudly (every mail
-    // 400s) rather than silently, which is the failure mode we can actually see.
-    for (const bad of ["not-a-number", "-8640000000000", "1e30", "99999999999999"]) {
+  it("stores a malformed timestamp as 'skipped' rather than rejecting it", async () => {
+    // A validly-signed payload is NEVER thrown away, whatever its timestamp says.
+    // An earlier revision rejected non-10-digit timestamps to disambiguate the
+    // HMAC boundary; that reintroduced the permanent data loss #53 removed, and
+    // bought nothing — posts_email_token_unique keys on `timestamp || token`,
+    // which is identical across every re-split, so variants collide anyway.
+    for (const odd of ["not-a-number", "-8640000000000", "1e30", "99999999999999"]) {
       const result = await prepareEmailIngest(
-        signedEmail({ timestamp: bad }),
+        signedEmail({ timestamp: odd }),
         SIGNING_KEY,
         NOW_MS,
       );
 
-      expect(result).toEqual({
-        ok: false,
-        status: 400,
-        error: "Invalid email payload",
-      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      // Unparseable => not fresh => never parsed into a location.
+      expect(result.post.parsing_status).toBe("skipped");
+      // posted_at falls back to the INJECTED clock, deterministically.
+      expect(result.post.posted_at).toBe(new Date(NOW_MS).toISOString());
     }
-    // Nothing reached the DB.
-    expect(getActiveTruckByIdMock).not.toHaveBeenCalled();
   });
 
   it("preserves the signed timestamp as posted_at even when stale", async () => {
@@ -384,13 +383,14 @@ describe("prepareEmailIngest", () => {
     });
   });
 
-  it("rejects a re-split of the signed string (HMAC boundary ambiguity)", async () => {
+  it("neutralises an HMAC boundary re-split (same dedup key, never fresh)", async () => {
     // Mailgun signs `timestamp + token` with NO delimiter, so the same signed
-    // string can be re-split at any interior index and EVERY split verifies under
-    // the SAME signature while producing a different token. Without a fixed-width
-    // timestamp, one captured tuple yields dozens of distinct dedup keys and walks
-    // straight past the replay guard. Pinning the timestamp to 10 digits makes the
-    // split unique, so every shifted variant now fails validation outright.
+    // string re-splits at any interior index and EVERY split verifies under the
+    // SAME signature while producing a different token. The defence is structural,
+    // not validation: posts_email_token_unique keys on the CONCATENATION, which is
+    // byte-identical across all splits, so they collide at one stored row.
+    //
+    // This pins the two properties that make that work.
     const real = signedEmail();
     const joined = real.timestamp + real.token;
 
@@ -404,22 +404,16 @@ describe("prepareEmailIngest", () => {
 
       const result = await prepareEmailIngest(shifted, SIGNING_KEY, NOW_MS);
 
-      expect(result).toEqual({
-        ok: false,
-        status: 400,
-        error: "Invalid email payload",
-      });
-    }
-  });
-
-  it("rejects a non-10-digit timestamp outright", async () => {
-    for (const bad of ["178628700", "17862870099", "1.76e9", "abc", ""]) {
-      const result = await prepareEmailIngest(
-        { ...signedEmail(), timestamp: bad },
-        SIGNING_KEY,
-        NOW_MS,
-      );
-      expect(result.ok).toBe(false);
+      // Accepted (never discarded) …
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      // … but never actionable: no re-split can land inside the freshness window,
+      // so it can never become a live location.
+      expect(result.post.parsing_status).toBe("skipped");
+      // … and the dedup key is invariant, so the DB collapses them to one row.
+      const key =
+        `${result.post.raw_json.timestamp}${result.post.raw_json.token}`;
+      expect(key).toBe(joined);
     }
   });
 

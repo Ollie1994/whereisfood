@@ -65,11 +65,21 @@ export async function prepareWebhookIngest(body: unknown): Promise<IngestResult>
 //
 // A STALE timestamp is deliberately NOT a rejection (issue #53). Signature
 // verification and freshness answer different questions: an invalid signature
-// means "we don't know who sent this" (reject), whereas a valid signature with an
-// old timestamp means "we know Mailgun sent this, it is just old" — a genuine
-// truck email that belongs in the permanent corpus. Freshness therefore governs
-// whether we ACT on a post, not whether we KEEP it, and a stale payload is stored
-// with parsing_status 'skipped' instead of being thrown away.
+// means "this did not come through Mailgun" (reject), whereas a valid signature
+// with an old timestamp means "Mailgun relayed this, it is just old" — most likely
+// a genuine truck email, and it belongs in the permanent corpus either way.
+// Freshness therefore governs whether we ACT on a post, not whether we KEEP it,
+// and a stale payload is stored with parsing_status 'skipped'.
+//
+// ⚠ PRECISION ABOUT WHAT THE SIGNATURE PROVES. Mailgun's HMAC covers only
+// `timestamp + token` — NOT `recipient` and NOT `body-plain`. So a valid signature
+// authenticates the RELAY, not the CONTENT: anyone holding one captured tuple can
+// present an arbitrary recipient and body under it. This is inherent to Mailgun's
+// scheme, not something we can verify away. Two things bound the damage:
+// posts_email_token_unique caps it at one row per captured tuple (tokens are
+// single-use), and a tuple only yields a LIVE location while still inside the
+// 15-minute window — after that the row is 'skipped' and never parsed. Do not
+// restate this anywhere as "the signature proves the truck sent it".
 //
 // `now` is injected (defaulting to wall clock) so the freshness rule stays
 // unit-testable without faking timers — the purity rule is parser-only, but a
@@ -95,10 +105,11 @@ export async function prepareEmailIngest(
   // Evaluated AFTER the signature so the rule only ever applies to genuinely
   // Mailgun-signed payloads.
   //
-  // Only genuinely OLD payloads reach this branch. A malformed timestamp is
-  // rejected earlier by validateEmailPayload, which pins it to exactly 10 digits —
-  // that width is what makes the signed `timestamp + token` split unambiguous and
-  // is a security control, not cosmetics. See UNIX_SECONDS_10_DIGITS.
+  // An unparseable timestamp lands here too — isFreshTimestamp fails closed — and
+  // is likewise stored as 'skipped' rather than rejected. That is intentional: a
+  // validly-signed payload is never discarded, whatever its timestamp claims. See
+  // the HMAC boundary note in validators/email.ts for why the format is NOT
+  // constrained, and why the replay index is the control instead.
   //
   // Rejecting already-seen tokens is the stronger control, and it ships here as
   // posts_email_token_unique (migration 0004) rather than waiting for Phase 7 —
@@ -172,8 +183,14 @@ export async function persistPost(post: NewPost): Promise<void> {
       // confirmed from their docs; if that ever proves wrong, a GENUINE second
       // email would be dropped here with no trace at all. The constraint name
       // makes the two cases distinguishable in logs.
+      // Include posted_at and the token prefix so the "Mailgun tokens are
+      // single-use" premise is falsifiable from logs alone — if genuine mail ever
+      // collides, these identify which delivery was lost. Deliberately NOT the
+      // caption or raw_json: those are the email body, and logs are the wrong
+      // place for user content.
+      const token = typeof post.raw_json.token === "string" ? post.raw_json.token : null;
       console.warn(
-        `[ingestion] discarded duplicate post (truck ${post.truck_id}, source ${post.source}):`,
+        `[ingestion] discarded duplicate post (truck ${post.truck_id}, source ${post.source}, posted_at ${post.posted_at}, token ${token ? `${token.slice(0, 8)}…` : "n/a"}):`,
         constraintName(err) ?? "unknown constraint",
       );
       return;
@@ -287,7 +304,12 @@ export function isFreshTimestamp(timestamp: string, now: number): boolean {
 // the rest of the request instead of drifting to a second clock reading.
 export function unixToIso(timestamp: string, now: number = Date.now()): string {
   const seconds = toFiniteSeconds(timestamp);
-  if (seconds === null) return new Date(now).toISOString();
+  // Guard the fallback itself: new Date(NaN).toISOString() throws, so an injected
+  // non-finite `now` would break this helper's never-throws contract — which the
+  // plain `new Date()` it replaced could not do.
+  if (seconds === null) {
+    return new Date(Number.isFinite(now) ? now : Date.now()).toISOString();
+  }
   return new Date(seconds * 1000).toISOString();
 }
 

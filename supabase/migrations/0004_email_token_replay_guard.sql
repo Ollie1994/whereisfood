@@ -112,7 +112,9 @@ begin
   -- under re-splitting — every variant collides here. The validator also pins the
   -- timestamp to 10 digits, which makes the split unique on the way in; this index
   -- is the structural backstop that holds even if that check is ever loosened.
-  execute 'create unique index posts_email_token_unique '
+  -- `if not exists` so a re-run after resolving duplicates is safe even if the
+  -- index was created by hand in the meantime.
+  execute 'create unique index if not exists posts_email_token_unique '
           'on posts (((raw_json ->> ''timestamp'') || (raw_json ->> ''token''))) '
           'where source = ''email''';
 
