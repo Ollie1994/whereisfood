@@ -133,7 +133,7 @@ Build order is 8 phases. **Phases 1–2 are complete; Phases 3–8 are not start
 - **Supabase Postgres schema** — `supabase/migrations/0001_initial_schema.sql` (trucks, posts, locations, geocoding_cache, users) with indexes, RLS policies, and Data API grants; `0002`/`0003` tighten column nullability so the schema and the TypeScript types agree; dev `seed.sql` (2 active + 1 inactive truck, fixed UUIDs)
 - **Webhook lane** — `POST /api/ingest`, constant-time `X-Make-Secret` check, validates the truck, returns 200 and stores the raw post in `after()`
 - **Email lane** — `POST /api/email`, Mailgun `multipart/form-data` + constant-time HMAC-SHA256 verification, truck extracted from the recipient
-- **Replay protection** — a correctly signed payload is also rejected (400) unless its timestamp is within **±15 minutes**. See [Replay window](#replay-window) for why that number
+- **Replay protection** — a correctly signed payload older than **±15 minutes** is still stored, but marked `parsing_status = 'skipped'` so it can never become a live location. See [Replay window](#replay-window)
 - **Typed database access** — both Supabase clients are parameterized with generated `Database` types (`src/lib/database.types.ts`), and `Truck` / `Location` / `Post` are derived from them, so schema drift becomes a compile error
 - **Layered backend** — pure validators (`src/lib/validators/`), ingestion service (`src/lib/services/ingestion.ts`), and DB layer (`src/lib/db/`), all writing through `supabaseAdmin`
 - **Raw posts stored** as the permanent ML training corpus (never purged)
@@ -141,9 +141,29 @@ Build order is 8 phases. **Phases 1–2 are complete; Phases 3–8 are not start
 
 #### Replay window
 
-The email lane rejects a correctly signed payload whose timestamp is more than
-**15 minutes** from now, in either direction. Without it, a captured
-`(timestamp, token, signature)` tuple would stay valid forever.
+The email lane treats a correctly signed payload whose timestamp is more than
+**15 minutes** from now, in either direction, as untrustworthy *to act on*.
+Without this, a captured `(timestamp, token, signature)` tuple would stay valid
+forever.
+
+Crucially, a stale payload is **not rejected** — it is stored with
+`parsing_status = 'skipped'` and the endpoint returns 200:
+
+| Case | Response | `posts` row |
+|---|---|---|
+| Invalid signature | `400` | none — we don't know who sent it |
+| Valid signature, **stale** | `200` | stored, `parsing_status = 'skipped'` |
+| Valid signature, fresh | `200` | stored, `parsing_status = 'pending'` |
+
+Signature verification and freshness answer different questions. A bad signature
+means *"we don't know who sent this"* — reject it. A valid signature with an old
+timestamp means *"we know Mailgun sent this, it's just old"* — a genuine truck
+email that belongs in the permanent corpus. **Freshness governs whether we act on
+a post, not whether we keep it.**
+
+This keeps the security property that matters: a replayed payload is stored but
+never parsed, so it cannot create or override a live location. Replay was never an
+auth bypass, only an authenticated duplicate.
 
 15 minutes is not arbitrary:
 
@@ -152,18 +172,15 @@ The email lane rejects a correctly signed payload whose timestamp is more than
 - Mailgun **retries a failed POST** at 10, 20, 35, 65, 125, 245 and 485 minutes
   (cumulative). `/api/email` returns 200 before the DB write, so the only 5xx paths are
   a missing signing key or Supabase being unreachable during the truck lookup. A window
-  under 10 minutes would reject even the *first* retry; 15 minutes keeps that one alive.
+  under 10 minutes would mark even the *first* retry unparseable; 15 minutes keeps
+  that one actionable.
+- Exceeding the window **is not data loss**. An outage that outlives it costs you
+  the *location*, never the *post* — so the exact value is no longer load-bearing.
+  It decides parsed-vs-skipped, not kept-vs-lost.
 
-> **Known limitation — this does not fully satisfy "never lose incoming data".**
-> A stale payload is rejected with 400 and no `posts` row is written. So an outage
-> that outlives the window still loses the email: Supabase down for 30 min means
-> 500 at T=0, 500 at the T+10 retry, then **400 at T+20 and every retry through
-> T+485** — the message never reaches the corpus even after recovery. 15 minutes
-> covers outages under ~10 min, not retries 2–7.
->
-> [#53](https://github.com/Ollie1994/whereisfood/issues/53) fixes this properly by
-> storing stale-but-validly-signed payloads with `parsing_status = 'skipped'` and
-> returning 200, so the data is always kept and simply never parsed.
+> **Phase 3 dependency:** the parser must exclude `parsing_status = 'skipped'` rows
+> when writing `locations`. Otherwise stale posts create locations anyway and this
+> whole guard is defeated.
 - The window is **defence in depth, not the primary control**. Mailgun's recommended
   replay defence is caching the single-use `token` and rejecting repeats — that arrives
   in Phase 7 alongside Upstash Redis.

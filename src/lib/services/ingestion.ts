@@ -58,11 +58,18 @@ export async function prepareWebhookIngest(body: unknown): Promise<IngestResult>
 // Email lane (Mailgun inbound → POST /api/email)
 // ---------------------------------------------------------------------------
 
-// Validate the payload, verify the HMAC signature, check the timestamp is fresh,
-// extract the truck_id from the recipient, and confirm the truck is active — then
-// build the posts row. Every failure maps to 400 (invalid payload, bad signature,
-// stale timestamp, bad recipient, unknown truck). Signature and freshness are both
-// checked before any DB lookup.
+// Validate the payload, verify the HMAC signature, extract the truck_id from the
+// recipient, confirm the truck is active — then build the posts row. Rejections
+// (all 400) are: invalid payload, bad signature, bad recipient, unknown truck.
+// The signature is checked before any DB lookup.
+//
+// A STALE timestamp is deliberately NOT a rejection (issue #53). Signature
+// verification and freshness answer different questions: an invalid signature
+// means "we don't know who sent this" (reject), whereas a valid signature with an
+// old timestamp means "we know Mailgun sent this, it is just old" — a genuine
+// truck email that belongs in the permanent corpus. Freshness therefore governs
+// whether we ACT on a post, not whether we KEEP it, and a stale payload is stored
+// with parsing_status 'skipped' instead of being thrown away.
 //
 // `now` is injected (defaulting to wall clock) so the freshness rule stays
 // unit-testable without faking timers — the purity rule is parser-only, but a
@@ -82,15 +89,20 @@ export async function prepareEmailIngest(
   }
 
   // Replay guard. A valid signature proves the payload was signed with our key,
-  // but a captured (timestamp, token, signature) tuple stays valid forever without
-  // this — so reject anything outside the ±15 min window (REPLAY_WINDOW_SECONDS;
-  // see there for why 15 and why it must not go below 10). Checked AFTER the
-  // signature so the rule only ever applies to genuinely Mailgun-signed payloads.
+  // but a captured (timestamp, token, signature) tuple stays valid forever, so
+  // anything outside the ±15 min window (REPLAY_WINDOW_SECONDS — see there for why
+  // 15 and why it must not go below 10) is treated as untrustworthy TO ACT ON.
+  // Evaluated AFTER the signature so the rule only ever applies to genuinely
+  // Mailgun-signed payloads.
+  //
+  // Note this is also true for a non-numeric timestamp: isFreshTimestamp fails
+  // closed on those, so they land here as stale rather than being rejected. That
+  // is intended — a garbage timestamp that still carries a valid signature is
+  // exactly the kind of anomaly the corpus should retain for inspection.
+  //
   // Rejecting already-seen tokens (a token cache) is the stronger control and is
   // deferred to Phase 7, where Upstash Redis is already being introduced.
-  if (!isFreshTimestamp(payload.timestamp, now)) {
-    return { ok: false, status: 400, error: "Stale or invalid timestamp" };
-  }
+  const isStale = !isFreshTimestamp(payload.timestamp, now);
 
   const truckId = extractTruckIdFromRecipient(payload.recipient);
   if (!truckId) {
@@ -112,7 +124,11 @@ export async function prepareEmailIngest(
     // finite number.
     posted_at: unixToIso(payload.timestamp),
     raw_json: obj,
-    parsing_status: "pending",
+    // 'skipped' means "deliberately not parsed", which is exactly the state a
+    // stale-but-authentic email is in: kept in the corpus forever, but never
+    // allowed to create or override a live location. The Phase 3 parser MUST
+    // filter these out when writing `locations`, or this whole guard is moot.
+    parsing_status: isStale ? "skipped" : "pending",
   };
 
   return { ok: true, post };
@@ -155,16 +171,13 @@ export async function persistPost(post: NewPost): Promise<void> {
 // It also matters operationally: Mailgun retries a failed POST at 10, 20, 35, 65,
 // 125, 245 and 485 min (cumulative). This route returns 200 before the DB write,
 // so the only 5xx paths are a missing signing key or Supabase being unreachable
-// during the truck lookup — and on those, a window under 10 min would reject even
-// the very first retry. 15 min keeps that one alive.
+// during the truck lookup — and on those, a window under 10 min would mark even
+// the very first retry unparseable. 15 min keeps that one actionable.
 //
-// ⚠ KNOWN LIMITATION — this does NOT fully satisfy "never lose incoming data".
-// A stale payload is rejected 400 with no posts row, so an outage that outlives
-// the window still loses the mail: 500 at T=0, 500 at the T+10 retry, then 400 at
-// T+20 and every retry through T+485. Retries 2-7 are unconditionally lost.
-// Issue #53 fixes this by storing stale-but-signed payloads as
-// parsing_status='skipped' and returning 200 — keep the data, just never parse it.
-// Do not paper over this by widening the window; the layering is the bug.
+// Crucially, exceeding the window is NOT data loss (issue #53): a stale payload is
+// still stored, just with parsing_status 'skipped'. So an outage outliving the
+// window costs us the LOCATION, never the post. That is why the exact value is no
+// longer load-bearing — it decides parsed-vs-skipped, not kept-vs-lost.
 //
 // Note this window is deliberately NOT the primary replay defence — Mailgun's
 // recommended control is caching the single-use `token` and rejecting repeats,

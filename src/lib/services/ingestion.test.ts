@@ -296,8 +296,65 @@ describe("prepareEmailIngest", () => {
     });
   });
 
-  it("rejects a correctly signed but stale payload (replay guard)", async () => {
-    // Signature is genuinely valid — only the age is wrong.
+  it("ACCEPTS a correctly signed but stale payload, marked 'skipped'", async () => {
+    // Issue #53: a stale payload is authentic (the signature verifies), just old.
+    // It must be kept in the corpus — never discarded — but must not be parsed.
+    const obj = signedEmail({ timestamp: String(NOW_MS / 1000 - 3600) });
+
+    const result = await prepareEmailIngest(obj, SIGNING_KEY, NOW_MS);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.post.parsing_status).toBe("skipped");
+    // Still a fully-formed corpus row — nothing about it is degraded.
+    expect(result.post.truck_id).toBe(TRUCK_ID);
+    expect(result.post.caption).toBe("Vi står vid Järntorget 11-14");
+    expect(result.post.raw_json).toEqual(obj);
+  });
+
+  it("marks a future-dated stale payload 'skipped' too", async () => {
+    const obj = signedEmail({ timestamp: String(NOW_MS / 1000 + 3600) });
+
+    const result = await prepareEmailIngest(obj, SIGNING_KEY, NOW_MS);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.post.parsing_status).toBe("skipped");
+  });
+
+  it("marks a signed payload with a non-numeric timestamp 'skipped', not rejected", async () => {
+    // isFreshTimestamp fails closed on unparseable input, so it lands in the
+    // stale branch. Retaining it is intended: a garbage timestamp carrying a
+    // VALID signature is exactly the anomaly the corpus should preserve.
+    const obj = signedEmail({ timestamp: "not-a-number" });
+
+    const result = await prepareEmailIngest(obj, SIGNING_KEY, NOW_MS);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.post.parsing_status).toBe("skipped");
+    // posted_at falls back to ingest time rather than throwing or hitting 1970.
+    expect(Date.parse(result.post.posted_at)).toBeGreaterThan(
+      Date.parse("2020-01-01T00:00:00.000Z"),
+    );
+  });
+
+  it("preserves the signed timestamp as posted_at even when stale", async () => {
+    const staleSeconds = NOW_MS / 1000 - 3600;
+    const obj = signedEmail({ timestamp: String(staleSeconds) });
+
+    const result = await prepareEmailIngest(obj, SIGNING_KEY, NOW_MS);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // The email really was sent an hour ago — posted_at must reflect that, not
+    // ingest time, or the corpus loses when the truck actually posted.
+    expect(result.post.posted_at).toBe(new Date(staleSeconds * 1000).toISOString());
+  });
+
+  it("still validates the truck for a stale payload", async () => {
+    // Staleness must not become a bypass around truck validation.
+    getActiveTruckByIdMock.mockResolvedValue(null);
     const obj = signedEmail({ timestamp: String(NOW_MS / 1000 - 3600) });
 
     const result = await prepareEmailIngest(obj, SIGNING_KEY, NOW_MS);
@@ -305,7 +362,24 @@ describe("prepareEmailIngest", () => {
     expect(result).toEqual({
       ok: false,
       status: 400,
-      error: "Stale or invalid timestamp",
+      error: "Unknown or inactive truck",
+    });
+  });
+
+  it("rejects a stale payload whose signature is invalid", async () => {
+    // Order matters: an unsigned payload is rejected regardless of age. Staleness
+    // must never soften the authenticity check.
+    const obj = signedEmail({
+      timestamp: String(NOW_MS / 1000 - 3600),
+      signature: "deadbeef".repeat(8),
+    });
+
+    const result = await prepareEmailIngest(obj, SIGNING_KEY, NOW_MS);
+
+    expect(result).toEqual({
+      ok: false,
+      status: 400,
+      error: "Invalid signature",
     });
     expect(getActiveTruckByIdMock).not.toHaveBeenCalled();
   });
