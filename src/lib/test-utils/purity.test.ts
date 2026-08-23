@@ -1,3 +1,4 @@
+import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import {
   allowOnly,
@@ -39,6 +40,11 @@ describe("findImpurities — import forms", () => {
     ["type-only import", `import type { Post } from "${DB}";`],
     ["require()", `const db = require("${DB}");`],
     ["multi-line import", `import {\n  supabaseAdmin,\n} from "${DB}";`],
+    // A TYPE-position import. Missed until review round 4 because the walk covered
+    // declaration kinds and this is a type node — the gap that moved the
+    // completeness claim out of prose and into the SyntaxKind test below.
+    ["import type node", `type P = import("${DB}").Post;`],
+    ["globalThis.require()", `const db = globalThis.require("${DB}");`],
   ];
 
   it.each(IMPORT_FORMS)("catches a %s", (_label, source) => {
@@ -176,6 +182,42 @@ describe("findImpurities — globals", () => {
     expect(findImpurities(source, FORBID_ALL_IMPORTS)).toContain(expected);
   });
 
+  // Reached through element access, or behind a wrapper TypeScript erases. The
+  // previous version resolved only Identifier and PropertyAccess, so it never
+  // judged `globalThis["fetch"]` at all — and, worse, judged the bare `Date` inside
+  // `Date["parse"]` on its own, reporting a clock read for a deterministic call.
+  // The last three here were never reported by review; they fall out of unwrapping
+  // rather than being enumerated.
+  it.each([
+    ["element access on a namespace", `const r = globalThis["fetch"]("u");`, FETCH],
+    ["element access then member", "const t = window['Date'].now();", CLOCK],
+    ["non-null assertion", `const r = globalThis!.fetch("u");`, FETCH],
+    ["parenthesised namespace", "const f = (globalThis).fetch;", FETCH],
+    ["non-null then element access", "const D = globalThis!['Date'];", CLOCK],
+    ["parenthesised base, element access", `const t = (Date)["now"]();`, CLOCK],
+    ["as-cast then member", "const f = (fetch as never).bind(null);", FETCH],
+    ["parenthesised constructor", "const t = new (Date)();", CLOCK],
+  ])("catches %s", (_label, source, expected) => {
+    expect(findImpurities(source, FORBID_ALL_IMPORTS)).toContain(expected);
+  });
+
+  it("resolves element access for the deterministic members too", () => {
+    // The mirror: if element access is resolved for catching, it must also be
+    // resolved for allowing, or `Date["parse"]` reports a spurious clock read.
+    expect(findImpurities(`const t = Date["parse"]("2026-01-01");`, FORBID_ALL_IMPORTS)).toEqual([]);
+  });
+
+  it.each([
+    ["export * as Date", 'export * as Date from "./x";'],
+    ["interface Date", "interface Date { x: number }"],
+    ["type Date alias", "type Date = string;"],
+    ["class implements Date", "class C implements Date {}"],
+  ])("does not report a clock read for %s", (_label, source) => {
+    // Declaring or re-exporting something named Date reads no clock. `export * as
+    // Date` is still an import violation — just not two violations.
+    expect(findImpurities(source, FORBID_ALL_IMPORTS)).not.toContain(CLOCK);
+  });
+
   it("does not fire on a same-named member of an unrelated object", () => {
     // The mirror of the above: `client.fetch` and `config.Date` are not the
     // globals, and resolution has to tell them apart from `globalThis.fetch`.
@@ -262,6 +304,62 @@ describe("findImpurities — globals", () => {
     expect(findImpurities("const t = Date.now();", clockOk)).toEqual([]);
     // Absent the explicit false, the clock is forbidden — the default is strict.
     expect(findImpurities("const t = Date.now();", { forbidImport: () => true })).toEqual([CLOCK]);
+  });
+});
+
+describe("import-form completeness is checked, not claimed", () => {
+  // Four review rounds each closed the import form that had just been reported,
+  // and the header each time claimed the set was now closed. It was not: round 4
+  // found `ImportType` (`type P = import("x").T`), a TYPE node that the walk over
+  // declaration kinds never reached.
+  //
+  // Prose cannot carry that claim, so this test does. `ts.SyntaxKind` IS a closed
+  // set — enumerable at runtime — so every import-related kind is accounted for
+  // either as one the guard handles, or as one explicitly reviewed and recorded as
+  // carrying no module specifier of its own. A TypeScript upgrade that introduces
+  // a new form fails here rather than silently opening a hole.
+
+  // Kinds that carry a specifier, each covered by a fixture in this file.
+  const HANDLED = [
+    "ImportDeclaration", // import x from "y"
+    "ImportEqualsDeclaration", // import x = require("y")
+    "ImportType", // type P = import("y").T
+    "ImportKeyword", // await import("y")
+    "RequireKeyword", // require("y")
+    "ExternalModuleReference", // the require(...) inside import-equals
+  ];
+
+  // Kinds reviewed and confirmed to carry no specifier of their own — they are
+  // children of a handled kind, or unrelated to module resolution.
+  const NO_SPECIFIER_OF_ITS_OWN = [
+    "ImportClause", // the bindings of an ImportDeclaration
+    "NamespaceImport", // `* as ns` within an ImportClause
+    "NamedImports", // `{ a, b }` within an ImportClause
+    "ImportSpecifier", // one name within NamedImports
+    "ImportAttributes", // `with { type: "json" }` on a handled declaration
+    "ImportAttribute", // one entry within ImportAttributes
+    "ImportTypeAssertionContainer", // deprecated assertion wrapper on ImportType
+    "JSDocImportTag", // `@import` in JSDoc; .ts sources use real imports
+  ];
+
+  it("accounts for every import-related SyntaxKind", () => {
+    const all = Object.keys(ts.SyntaxKind)
+      .filter((key) => Number.isNaN(Number(key)))
+      .filter((key) => /Import|Require|ExternalModule/.test(key));
+
+    const accounted = new Set([...HANDLED, ...NO_SPECIFIER_OF_ITS_OWN]);
+    const unaccounted = all.filter((kind) => !accounted.has(kind));
+
+    // A failure here means TypeScript grew an import form. Decide which list it
+    // belongs in, and add a fixture if it carries a specifier.
+    expect(unaccounted).toEqual([]);
+  });
+
+  it("has no stale entries — every listed kind still exists in this TypeScript", () => {
+    // The mirror direction: a list that outlives the thing it describes is the
+    // manual-drift this project keeps logging.
+    const existing = new Set(Object.keys(ts.SyntaxKind));
+    expect([...HANDLED, ...NO_SPECIFIER_OF_ITS_OWN].filter((k) => !existing.has(k))).toEqual([]);
   });
 });
 
