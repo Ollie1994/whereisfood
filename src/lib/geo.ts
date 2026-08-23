@@ -2,7 +2,9 @@
 //
 //   1. `dictionary.test.ts` asserts every hand-entered entry falls inside it,
 //      which catches typos and the lat/lng transposition that would otherwise
-//      land a pin in the Gulf of Guinea.
+//      land a pin in the Indian Ocean — transposed Järntorget is 11.95 N /
+//      57.70 E, in the Arabian Sea. (Null island, 0/0, is a different failure
+//      and has its own test.)
 //   2. `geocoding.ts` re-validates Nominatim responses against it. `bounded=1`
 //      is a request parameter, not a guarantee worth trusting blindly, so the
 //      returned coordinates are checked before they are accepted.
@@ -37,12 +39,21 @@ export const GOTHENBURG_BBOX = {
 // no less plausible than a point just inside it — and rejecting it would make the
 // outcome depend on float representation rather than on anything meaningful.
 //
-// NaN and Infinity return false, falling out of the comparisons rather than being
-// special-cased: every comparison against NaN is false, and an infinite ordinate
-// is outside any finite box. Both are covered by tests so the behaviour is pinned
-// rather than incidental.
+// The `Number.isFinite` prefix is a RUNTIME guard, not a restatement of the type
+// signature. Nominatim returns `lat` and `lon` as JSON **strings**, and `res.json()`
+// is `any` — so `isInGothenburg(hit.lat, hit.lon)` type-checks in the geocoding
+// consumer and, through relational coercion, `"57.6997" >= 57.5` is `true`. Without
+// this the box would wave a string coordinate through into `locations.latitude`,
+// which is the exact class of wrong-but-plausible value it exists to stop. The
+// caller should still convert; this makes forgetting to a miss rather than a pin.
+//
+// It also subsumes NaN and Infinity, which previously fell out of the comparisons
+// on their own. That behaviour is unchanged and still pinned by tests — the guard
+// makes it explicit rather than incidental.
 export function isInGothenburg(lat: number, lng: number): boolean {
   return (
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
     lat >= GOTHENBURG_BBOX.south &&
     lat <= GOTHENBURG_BBOX.north &&
     lng >= GOTHENBURG_BBOX.west &&

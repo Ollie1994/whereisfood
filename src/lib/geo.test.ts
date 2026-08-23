@@ -101,20 +101,60 @@ describe("isInGothenburg", () => {
       expect(isInGothenburg(lat, lng)).toBe(false);
     });
   });
+
+  describe("non-numeric ordinates", () => {
+    // The type signature says `number`, but the guard's job starts where the type
+    // system stops: `res.json()` is `any`, and Nominatim returns lat/lon as JSON
+    // STRINGS, so a consumer that forgets to convert type-checks fine. Relational
+    // coercion then makes `"57.6997" >= 57.5` true, and a string coordinate would
+    // be waved through into `locations.latitude`.
+    //
+    // Cast through `unknown` deliberately — this is exactly the unsound call the
+    // guard exists to catch, so the test has to be able to make it.
+    const loose = isInGothenburg as unknown as (lat: unknown, lng: unknown) => boolean;
+
+    it("rejects Nominatim's string coordinates even though they coerce in range", () => {
+      expect(loose("57.6997", "11.9515")).toBe(false);
+      // Proof the strings really are in-range once converted — the rejection is
+      // the guard firing, not the coordinates being wrong.
+      expect(isInGothenburg(Number("57.6997"), Number("11.9515"))).toBe(true);
+    });
+
+    it.each([
+      ["null", null, null],
+      ["undefined", undefined, undefined],
+      ["empty string", "", ""],
+      ["a numeric string latitude only", "57.6997", 11.9515],
+      ["an object", { lat: 57.6997 }, { lng: 11.9515 }],
+      ["an array", [57.6997], [11.9515]],
+    ])("rejects %s", (_label, lat, lng) => {
+      expect(loose(lat, lng)).toBe(false);
+    });
+  });
 });
 
 describe("geo.ts purity", () => {
-  // Verified by reading the source, not by inspection (the plan's rule): the
-  // module is consumed by a pure parser test AND by an impure geocoding path, so
-  // it must be safe for the stricter of the two.
+  // Verified by test, not by inspection (the plan's rule): the module is consumed
+  // by a pure parser test AND by an impure geocoding path, so it must be safe for
+  // the stricter of the two.
   //
-  // Comments are stripped before matching. geo.ts carries long prose explaining
-  // *why* it has no imports and makes no network calls, so a substring search
-  // over the raw file would eventually fail on its own documentation.
+  // Comment lines are dropped before matching, because geo.ts carries long prose
+  // explaining *why* it has no imports and makes no network calls — a substring
+  // search over the raw file would eventually trip on its own documentation.
+  //
+  // Only lines that BEGIN with a comment marker are dropped, which is deliberately
+  // cruder than a real stripper. A regex stripper is string-literal-unaware: a
+  // `/*` inside a string swallows everything to the next `*/`, and it will happily
+  // eat a real `import { supabaseAdmin }` sitting between them, leaving the test
+  // green and guarding nothing (verified). Dropping whole comment lines cannot
+  // remove code, so the failure direction is inverted — a trailing comment
+  // containing the word "import" trips the test, which is a loud false positive
+  // rather than a silent false negative. geo.ts's comments are all full-line.
   function geoSourceCode(): string {
     return readFileSync(fileURLToPath(new URL("./geo.ts", import.meta.url)), "utf8")
-      .replace(/\/\*[\s\S]*?\*\//g, "")
-      .replace(/\/\/.*$/gm, "");
+      .split("\n")
+      .filter((line) => !/^\s*(\/\/|\/\*|\*)/.test(line))
+      .join("\n");
   }
 
   it("imports nothing at all — static, dynamic, type-only or CJS", () => {
