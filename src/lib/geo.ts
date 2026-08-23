@@ -1,11 +1,13 @@
-// The Gothenburg bounding box — ONE definition, two unrelated consumers:
+// The Gothenburg bounding box — ONE definition, for two unrelated consumers that
+// do not exist yet. This module ships ahead of both, deliberately (issue #55), so
+// everything below is what they WILL do, not what anything does today:
 //
-//   1. `dictionary.test.ts` asserts every hand-entered entry falls inside it,
+//   1. `dictionary.test.ts` (#62) will assert every hand-entered entry falls inside it,
 //      which catches typos and the lat/lng transposition that would otherwise
 //      land a pin in the Indian Ocean — transposed Järntorget is 11.95 N /
 //      57.70 E, in the Arabian Sea. (Null island, 0/0, is a different failure
 //      and has its own test.)
-//   2. `geocoding.ts` re-validates Nominatim responses against it. `bounded=1`
+//   2. `geocoding.ts` (#63) will re-validate Nominatim responses against it. `bounded=1`
 //      is a request parameter, not a guarantee worth trusting blindly, so the
 //      returned coordinates are checked before they are accepted.
 //

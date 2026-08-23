@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import { GOTHENBURG_BBOX, isInGothenburg } from "@/lib/geo";
 
@@ -89,8 +90,12 @@ describe("isInGothenburg", () => {
   });
 
   describe("non-finite ordinates", () => {
-    // Falls out of the comparisons rather than being special-cased; pinned here
-    // so the behaviour is deliberate and survives a refactor of the predicate.
+    // Rejected explicitly by the `Number.isFinite` prefix in `isInGothenburg`.
+    // These once fell out of the comparisons on their own, and an earlier version
+    // of this comment still said so — which argued the guard was incidental and
+    // would have invited its removal, reopening the string-coordinate hole the
+    // same guard closes. The behaviour is identical either way; the point of
+    // saying it correctly is that the prefix is load-bearing, not redundant.
     it.each([
       ["NaN latitude", NaN, 11.9515],
       ["NaN longitude", 57.6997, NaN],
@@ -137,50 +142,50 @@ describe("geo.ts purity", () => {
   // Verified by test, not by inspection (the plan's rule): the module is consumed
   // by a pure parser test AND by an impure geocoding path, so it must be safe for
   // the stricter of the two.
-  //
-  // Comment lines are dropped before matching, because geo.ts carries long prose
-  // explaining *why* it has no imports and makes no network calls — a substring
-  // search over the raw file would eventually trip on its own documentation.
-  //
-  // Only lines that BEGIN with a comment marker are dropped, which is deliberately
-  // cruder than a real stripper. A regex stripper is string-literal-unaware: a
-  // `/*` inside a string swallows everything to the next `*/`, and it will happily
-  // eat a real `import { supabaseAdmin }` sitting between them, leaving the test
-  // green and guarding nothing (verified). Dropping whole comment lines cannot
-  // remove code, so the failure direction is inverted — a trailing comment
-  // containing the word "import" trips the test, which is a loud false positive
-  // rather than a silent false negative. geo.ts's comments are all full-line.
-  function geoSourceCode(): string {
-    return readFileSync(fileURLToPath(new URL("./geo.ts", import.meta.url)), "utf8")
-      .split("\n")
-      .filter((line) => !/^\s*(\/\/|\/\*|\*)/.test(line))
-      .join("\n");
+  function geoSource(): string {
+    return readFileSync(fileURLToPath(new URL("./geo.ts", import.meta.url)), "utf8");
   }
 
-  it("imports nothing at all — static, dynamic, type-only or CJS", () => {
-    // Zero imports is the strongest form of the guarantee and needs no brittle
-    // allowlist. The bare `\bimport\b` is deliberate and covers every syntactic
-    // form: `import{x}from"y"` with no space, and `await import("@/lib/db")`,
-    // which a line-anchored pattern misses entirely — and a dynamic db import is
-    // exactly the impurity this test exists to prevent.
+  it("imports nothing at all — every syntactic form, per the compiler's own scanner", () => {
+    // WHY the compiler and not a regex. Three review rounds produced three
+    // different holes in three hand-written matchers:
     //
-    // It also rejects `import type`, which is erased at compile time and would
-    // be harmless. That is intended, not an oversight: this module needs nothing,
-    // so anything arriving here deserves a deliberate decision rather than a
-    // silent pass. Relaxing it is one line, if a real need ever appears.
-    expect(geoSourceCode()).not.toMatch(/\bimport\b/);
-    expect(geoSourceCode()).not.toMatch(/\brequire\s*\(/);
+    //   `/^\s*import\s/m`        missed `import{x}from"y"` and `await import(…)`
+    //   `\bimport\b` + stripper  the stripper ate a real import between a `/*`
+    //                            inside a string and the next `*/`
+    //   line-anchored stripper   dropped `/* c */ import { supabaseAdmin } …`
+    //                            whole, code and all
+    //
+    // Each fix closed the reported hole and opened another, because matching a
+    // grammar with regexes does not converge — there is always one more form.
+    // `ts.preProcessFile` is the scanner the compiler itself uses to answer
+    // exactly this question, so the guard now inherits TypeScript's definition of
+    // "an import" instead of competing with it. Verified to catch all eight forms
+    // above plus `export {x} from`, `export * from`, `require()` and type-only
+    // imports, while ignoring strings and comments that merely look like imports.
+    //
+    // Type-only imports are reported and therefore rejected. Intended: this module
+    // needs nothing, so anything arriving deserves a deliberate decision rather
+    // than a silent pass. Relaxing it is a filter on the returned list.
+    const imported = ts
+      .preProcessFile(geoSource(), /* readImportFiles */ true, /* detectJavaScriptImports */ true)
+      .importedFiles.map((f) => f.fileName);
+
+    expect(imported).toEqual([]);
   });
 
+  // `fetch` and `Date` are GLOBALS — they need no import, so the scanner above
+  // says nothing about them and these need their own assertions. Matched against
+  // the raw source with no comment stripping: requiring the call parenthesis is
+  // what keeps geo.ts's prose from tripping them, and if prose ever does trip one
+  // the result is a visible failure rather than a guard that silently stopped
+  // guarding. That is the direction to fail in, and it is why no stripper is worth
+  // reintroducing here.
   it("never reaches the network", () => {
-    // The module header promises "no HTTP", and `fetch` is a global that needs
-    // no import — so the import assertion above does not imply this one. Same
-    // reasoning that earned the clock its own test; it was simply not applied
-    // here until review caught the asymmetry.
-    expect(geoSourceCode()).not.toMatch(/\bfetch\s*\(/);
+    expect(geoSource()).not.toMatch(/\bfetch\s*\(/);
   });
 
   it("never reads the clock", () => {
-    expect(geoSourceCode()).not.toMatch(/new Date\(|Date\.now\(/);
+    expect(geoSource()).not.toMatch(/new Date\(|Date\.now\(/);
   });
 });
