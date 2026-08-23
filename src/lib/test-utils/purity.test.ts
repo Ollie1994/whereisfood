@@ -154,6 +154,35 @@ describe("findImpurities — globals", () => {
     expect(findImpurities(source, FORBID_ALL_IMPORTS)).toContain(expected);
   });
 
+  // The forms that broke the previous version, which excluded property accesses
+  // outright and re-added only three call shapes. It therefore caught
+  // `globalThis.fetch(u)` but not `const f = globalThis.fetch`, and `Date.now()`
+  // but not `const n = Date.now` — the same read either way.
+  //
+  // These are pinned as a group because they share one cause: enumerating the
+  // positions a value can appear in is open-ended. Resolving what an expression
+  // DENOTES and denying unless it is deterministic is not, which is why the last
+  // three below were never enumerated anywhere and are caught anyway.
+  it.each([
+    ["a namespaced fetch aliased", `const f = globalThis.fetch; await f("u");`, FETCH],
+    ["a namespaced Date aliased", "const D = globalThis.Date; const t = new D();", CLOCK],
+    ["Date.now aliased without calling", "const n = Date.now; const t = n();", CLOCK],
+    ["fetch.call()", `fetch.call(null, "u");`, FETCH],
+    ["fetch.bind()", "const f = fetch.bind(null);", FETCH],
+    ["Date reached by element access", `const t = Date["now"]();`, CLOCK],
+    ["Date destructured", "const { now } = Date;", CLOCK],
+    ["fetch passed to another function", "register(globalThis.fetch);", FETCH],
+  ])("catches %s", (_label, source, expected) => {
+    expect(findImpurities(source, FORBID_ALL_IMPORTS)).toContain(expected);
+  });
+
+  it("does not fire on a same-named member of an unrelated object", () => {
+    // The mirror of the above: `client.fetch` and `config.Date` are not the
+    // globals, and resolution has to tell them apart from `globalThis.fetch`.
+    expect(findImpurities(`await client.fetch("u");`, FORBID_ALL_IMPORTS)).toEqual([]);
+    expect(findImpurities("const y = config.Date.now();", FORBID_ALL_IMPORTS)).toEqual([]);
+  });
+
   // The distinction that keeps this guard usable by the six parser modules.
   // `new Date(parsedAt)` is deterministic string parsing — exactly what a parser
   // does with the `parsedAt` it is handed — while `new Date()` reads the clock.
@@ -166,6 +195,20 @@ describe("findImpurities — globals", () => {
     ["Date.UTC(...)", "const t = Date.UTC(2026, 0, 1);"],
   ])("does not fire on %s — deterministic, not a clock read", (_label, source) => {
     expect(findImpurities(source, FORBID_ALL_IMPORTS)).toEqual([]);
+  });
+
+  it("treats new Date(...spread) as a clock read", () => {
+    // An empty spread makes it `new Date()`. Nothing here can prove the array is
+    // non-empty, and the deny-by-default direction is the safe one.
+    expect(findImpurities("const t = new Date(...args);", FORBID_ALL_IMPORTS)).toEqual([CLOCK]);
+  });
+
+  it("does not report a Date import twice", () => {
+    // `import Date from "./x"` is an import violation, not additionally a clock
+    // read — the binding shadows the global rather than using it.
+    expect(findImpurities('import Date from "./x";', FORBID_ALL_IMPORTS)).toEqual([
+      "forbidden import: ./x",
+    ]);
   });
 
   it("does not fire on a Date TYPE annotation", () => {

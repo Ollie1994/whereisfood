@@ -86,66 +86,80 @@ export function readModuleSource(fileUrl: string): string {
 // swallowed the identifier whenever a global was reached through a namespace.
 const GLOBAL_NAMESPACES = new Set(["globalThis", "window", "self", "global"]);
 
-// Resolve an expression to the global identifier it denotes, or null.
-// `Date` → "Date"; `globalThis.Date` → "Date"; `config.Date` → null.
-function globalNameOf(expr: ts.Expression): string | null {
-  if (ts.isIdentifier(expr)) return expr.text;
-  if (
-    ts.isPropertyAccessExpression(expr) &&
-    ts.isIdentifier(expr.expression) &&
-    GLOBAL_NAMESPACES.has(expr.expression.text)
-  ) {
-    return expr.name.text;
+// The globals we care about. Anything reached FROM one of these is reached from
+// the network or the clock, whatever syntax gets you there.
+const WATCHED_GLOBALS = new Set(["fetch", "Date"]);
+
+// Resolve an expression to the global entity it denotes, or null. This is the
+// whole globals mechanism, and it replaced an enumeration of usage shapes.
+//
+//   fetch                 → "fetch"        globalThis.fetch → "fetch"
+//   Date                  → "Date"         window.Date      → "Date"
+//   Date.now              → "Date.now"     fetch.bind       → "fetch.bind"
+//   config.Date           → null           obj.fetch        → null
+//
+// WHY RESOLUTION RATHER THAN EXCLUSION. The previous version excluded property
+// accesses outright and then re-added three specific call shapes, so it caught
+// `globalThis.fetch(u)` but not `const f = globalThis.fetch`, and `Date.now()` but
+// not `const n = Date.now`. Both are the same read. Enumerating the shapes a value
+// can be used in is an open-ended list — call, new, alias, `.call`, `.bind`,
+// destructure, pass as an argument — and every version of this guard that tried to
+// enumerate something eventually missed a member of it.
+//
+// So the default is inverted. Resolve what an expression DENOTES, then deny unless
+// it is on the deterministic allowlist below. That list is closed because the Date
+// API is closed: `Date.parse` and `Date.UTC` are the only static members that do
+// not read the clock. New syntax for reaching a global needs no change here.
+function denotedGlobal(expr: ts.Expression): string | null {
+  if (ts.isIdentifier(expr)) {
+    return WATCHED_GLOBALS.has(expr.text) ? expr.text : null;
   }
+
+  if (ts.isPropertyAccessExpression(expr)) {
+    // `globalThis.fetch`, `window.Date` — the namespace object is transparent.
+    if (ts.isIdentifier(expr.expression) && GLOBAL_NAMESPACES.has(expr.expression.text)) {
+      return WATCHED_GLOBALS.has(expr.name.text) ? expr.name.text : null;
+    }
+    // A member of something that already denotes a global: `Date.now`,
+    // `fetch.bind`, `globalThis.Date.now`.
+    const base = denotedGlobal(expr.expression);
+    return base ? `${base}.${expr.name.text}` : null;
+  }
+
   return null;
 }
 
-// Does this node read the CLOCK, as opposed to merely mentioning `Date`?
-//
-// The distinction is load-bearing and an earlier version got it wrong. `new
-// Date(parsedAt)` is deterministic string parsing — it is precisely what the parser
-// modules will do, since they receive `parsedAt` and must convert it — while `new
-// Date()` with no arguments reads the current time. Flagging both left one escape,
-// `forbidClock: false`, which also permits `Date.now()`; the first parser module to
-// land would have disabled clock detection wholesale to get its own legitimate
-// conversion through. A guard that forces its own disabling is worse than none.
-//
-//   new Date()      → clock      new Date(x)   → deterministic
-//   Date()          → clock, ALWAYS: called as a function, Date ignores its
-//                     arguments and returns the current time string
-//   Date.now()      → clock      Date.parse(x) → deterministic
-//                                Date.UTC(...) → deterministic
-function isClockRead(node: ts.Node): boolean {
-  // `new Date()` — no arguments. `new Date(x)` is deterministic.
-  if (ts.isNewExpression(node)) {
-    return globalNameOf(node.expression) === "Date" && (node.arguments?.length ?? 0) === 0;
+// Is this callee `require`, however it was reached? `require(...)`,
+// `module.require(...)`, `globalThis.require(...)`. Same resolution idea as
+// `denotedGlobal`, kept separate because require is an import concern, not a
+// watched global.
+function isRequireCallee(expr: ts.Expression): boolean {
+  if (ts.isIdentifier(expr)) return expr.text === "require";
+  if (ts.isPropertyAccessExpression(expr) && expr.name.text === "require") {
+    return (
+      ts.isIdentifier(expr.expression) &&
+      (GLOBAL_NAMESPACES.has(expr.expression.text) || expr.expression.text === "module")
+    );
   }
-
-  if (ts.isCallExpression(node)) {
-    // `Date(...)` as a plain call returns the current time whatever it is passed.
-    if (globalNameOf(node.expression) === "Date") return true;
-    // `Date.now()`, but not `Date.parse` / `Date.UTC`.
-    if (
-      ts.isPropertyAccessExpression(node.expression) &&
-      node.expression.name.text === "now" &&
-      globalNameOf(node.expression.expression) === "Date"
-    ) {
-      return true;
-    }
-  }
-
   return false;
 }
 
-// Is this identifier used as a VALUE, rather than as a type or as a name that
-// merely happens to match? Types are erased and cannot read a clock; `obj.Date`
-// and `{ Date: x }` are unrelated properties.
-//
-// This catches the ALIASING forms that no call-shape pattern can — `const f =
-// fetch; f()`, `const D = Date; new D()`, `register(fetch)` — because there the
-// identifier stands alone in value position. Call and constructor positions are
-// excluded here and handled by `isClockRead` instead, which is what lets `new
-// Date(parsedAt)` through while still catching `new Date()`.
+// The only Date members that do not read the clock. Closed set — this is the whole
+// deterministic surface of the Date constructor object.
+const DETERMINISTIC_DATE_MEMBERS = new Set(["Date.parse", "Date.UTC"]);
+
+// `new Date(x)` is deterministic parsing; `new Date()` reads the clock. A spread
+// argument is treated as a clock read because an empty spread makes it one and
+// nothing here can prove otherwise.
+function isDeterministicConstruction(node: ts.NewExpression): boolean {
+  const args = node.arguments;
+  if (!args || args.length === 0) return false;
+  return !args.some((arg) => ts.isSpreadElement(arg));
+}
+
+// Is this node in a position where it denotes a runtime VALUE, rather than a type
+// or a name that merely happens to match? Types are erased and cannot read a clock;
+// `obj.Date` and `{ Date: x }` are unrelated properties.
 //
 // KNOWN LIMIT, accepted deliberately: this is name matching, not symbol
 // resolution. A module that declares its own `fetch` or `Date` and USES it will be
@@ -153,25 +167,23 @@ function isClockRead(node: ts.Node): boolean {
 // The failure is loud and the message names the identifier, and no pure parser
 // module has reason to bind either name — so the cost is a rename, and the
 // alternative (a Program and lib resolution per file) is not worth it here.
-function isValueReference(id: ts.Identifier): boolean {
-  const parent = id.parent;
+function isValuePosition(node: ts.Node): boolean {
+  const parent = node.parent;
   if (!parent) return false;
 
   // Type positions: `d: Date`, `typeof Date`, and `A.B` inside a type.
   if (ts.isTypeReferenceNode(parent) || ts.isQualifiedName(parent)) return false;
   if (ts.isTypeQueryNode(parent)) return false;
-  // Property NAMES: `obj.Date`, `{ Date: x }`, `interface { Date: T }`.
-  if (ts.isPropertyAccessExpression(parent) && parent.name === id) return false;
-  if (ts.isPropertyAssignment(parent) && parent.name === id) return false;
-  if (ts.isPropertySignature(parent) && parent.name === id) return false;
-  // Import/export clause names: `import { Date } from ...` is an import violation,
-  // reported by the import walk — not separately as a clock read.
+  // Property NAMES: `obj.Date`, `{ Date: x }`, `interface { Date: T }`. The
+  // property ACCESS itself is resolved by `denotedGlobal`; the bare name node is
+  // never the thing to judge.
+  if (ts.isPropertyAccessExpression(parent) && parent.name === node) return false;
+  if (ts.isPropertyAssignment(parent) && parent.name === node) return false;
+  if (ts.isPropertySignature(parent) && parent.name === node) return false;
+  // Import/export names: `import Date from "./x"` is an import violation, reported
+  // by the import walk — not additionally as a clock read.
   if (ts.isImportSpecifier(parent) || ts.isExportSpecifier(parent)) return false;
-  // Call and constructor positions — `isClockRead` owns these, because whether
-  // they read the clock depends on the arguments.
-  if (ts.isCallExpression(parent) && parent.expression === id) return false;
-  if (ts.isNewExpression(parent) && parent.expression === id) return false;
-  if (ts.isPropertyAccessExpression(parent) && parent.expression === id) return false;
+  if (ts.isImportClause(parent) || ts.isNamespaceImport(parent)) return false;
   // Declaration names: `const Date = ...`, `function fetch() {}`, `get Date()`,
   // `enum E { Date }`, `interface I { fetch(): void }`.
   if (
@@ -186,11 +198,35 @@ function isValueReference(id: ts.Identifier): boolean {
       ts.isSetAccessorDeclaration(parent) ||
       ts.isEnumMember(parent) ||
       ts.isPropertyDeclaration(parent)) &&
-    parent.name === id
+    parent.name === node
   ) {
     return false;
   }
   return true;
+}
+
+// Classify one expression that denotes a watched global. Deny by default: the
+// caller has already established this expression IS the global, so the only
+// question is whether this particular use is one of the deterministic exceptions.
+function classifyGlobalUse(node: ts.Expression, denoted: string): "fetch" | "clock" | null {
+  // Anything reached from `fetch` is the network: the bare value, a call,
+  // `fetch.bind(...)`, `fetch.call(...)`, an alias, an argument.
+  if (denoted === "fetch" || denoted.startsWith("fetch.")) return "fetch";
+
+  if (denoted === "Date") {
+    const parent = node.parent;
+    // `new Date(x)` — deterministic parsing, and precisely what the parser
+    // modules do with the `parsedAt` they are handed. `new Date()` is a clock read.
+    if (parent && ts.isNewExpression(parent) && parent.expression === node) {
+      return isDeterministicConstruction(parent) ? null : "clock";
+    }
+    // Everything else — `Date()` (which ignores its arguments and returns the
+    // current time), a bare alias, an argument, a destructure — is a clock read.
+    return "clock";
+  }
+
+  // A member of Date: allowed only if it is one of the two deterministic ones.
+  return DETERMINISTIC_DATE_MEMBERS.has(denoted) ? null : "clock";
 }
 
 // A specifier we cannot read statically — `await import(someVar)`. It is a real
@@ -254,33 +290,33 @@ export function findImpurities(source: string, policy: PurityPolicy): string[] {
       const isDynamicImport = node.expression.kind === ts.SyntaxKind.ImportKeyword;
       // `require(...)`, and also `module.require(...)` / `globalThis.require(...)`,
       // which the bare-identifier check missed.
-      const isRequire =
-        globalNameOf(node.expression) === "require" ||
-        (ts.isPropertyAccessExpression(node.expression) &&
-          node.expression.name.text === "require" &&
-          ts.isIdentifier(node.expression.expression) &&
-          node.expression.expression.text === "module");
+      const isRequire = isRequireCallee(node.expression);
       if (isDynamicImport || isRequire) {
         recordImport(specifierOf(node.arguments[0]));
       }
-
-      if (policy.forbidFetch !== false && globalNameOf(node.expression) === "fetch") {
-        violations.push("uses fetch");
-      }
     }
 
-    if (policy.forbidClock !== false && isClockRead(node)) {
-      violations.push("uses Date (clock read)");
-    }
+    // Globals. Every expression that RESOLVES to a watched global is judged, in
+    // whatever position it appears — no enumeration of call shapes.
+    if (ts.isIdentifier(node) || ts.isPropertyAccessExpression(node)) {
+      const parent = node.parent;
+      // Judge only the outermost expression that denotes the global, so
+      // `Date.now` is judged once as `Date.now` and not also as a bare `Date`.
+      const insideLargerDenotation =
+        parent !== undefined &&
+        ts.isPropertyAccessExpression(parent) &&
+        parent.expression === node &&
+        denotedGlobal(parent) !== null;
 
-    // Standalone value references — the aliasing forms. Call and constructor
-    // positions are excluded by `isValueReference` and handled above.
-    if (ts.isIdentifier(node) && isValueReference(node)) {
-      if (policy.forbidFetch !== false && node.text === "fetch") {
-        violations.push("uses fetch");
-      }
-      if (policy.forbidClock !== false && node.text === "Date") {
-        violations.push("uses Date (clock read)");
+      if (!insideLargerDenotation && isValuePosition(node)) {
+        const denoted = denotedGlobal(node);
+        const use = denoted ? classifyGlobalUse(node, denoted) : null;
+        if (use === "fetch" && policy.forbidFetch !== false) {
+          violations.push("uses fetch");
+        }
+        if (use === "clock" && policy.forbidClock !== false) {
+          violations.push("uses Date (clock read)");
+        }
       }
     }
 
