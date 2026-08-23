@@ -1,8 +1,10 @@
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import { GOTHENBURG_BBOX, isInGothenburg } from "@/lib/geo";
+import {
+  findImpurities,
+  FORBID_ALL_IMPORTS,
+  readModuleSource,
+} from "@/lib/test-utils/purity";
 
 // Real coordinates for spots the dictionary will seed (#4). If the box is ever
 // retuned, these are the cases that must keep passing — they are the reason it
@@ -142,50 +144,23 @@ describe("geo.ts purity", () => {
   // Verified by test, not by inspection (the plan's rule): the module is consumed
   // by a pure parser test AND by an impure geocoding path, so it must be safe for
   // the stricter of the two.
-  function geoSource(): string {
-    return readFileSync(fileURLToPath(new URL("./geo.ts", import.meta.url)), "utf8");
-  }
+  //
+  // The mechanism lives in `test-utils/purity` and is verified adversarially
+  // there, against every import form that defeated a previous version of this
+  // guard (issue #75). It is shared rather than restated because the six parser
+  // issues need the same check under a DIFFERENT policy, and re-deriving it is
+  // precisely what cost PR #74 three review rounds.
+  //
+  // `FORBID_ALL_IMPORTS` is the strictest policy and the right one here: geo.ts
+  // needs nothing, so anything arriving — including a type-only import, erased at
+  // compile time and harmless — deserves a deliberate decision rather than a
+  // silent pass.
+  it("is pure: no imports of any kind, no network, no clock", () => {
+    const violations = findImpurities(
+      readModuleSource(new URL("./geo.ts", import.meta.url).href),
+      FORBID_ALL_IMPORTS,
+    );
 
-  it("imports nothing at all — every syntactic form, per the compiler's own scanner", () => {
-    // WHY the compiler and not a regex. Three review rounds produced three
-    // different holes in three hand-written matchers:
-    //
-    //   `/^\s*import\s/m`        missed `import{x}from"y"` and `await import(…)`
-    //   `\bimport\b` + stripper  the stripper ate a real import between a `/*`
-    //                            inside a string and the next `*/`
-    //   line-anchored stripper   dropped `/* c */ import { supabaseAdmin } …`
-    //                            whole, code and all
-    //
-    // Each fix closed the reported hole and opened another, because matching a
-    // grammar with regexes does not converge — there is always one more form.
-    // `ts.preProcessFile` is the scanner the compiler itself uses to answer
-    // exactly this question, so the guard now inherits TypeScript's definition of
-    // "an import" instead of competing with it. Verified to catch all eight forms
-    // above plus `export {x} from`, `export * from`, `require()` and type-only
-    // imports, while ignoring strings and comments that merely look like imports.
-    //
-    // Type-only imports are reported and therefore rejected. Intended: this module
-    // needs nothing, so anything arriving deserves a deliberate decision rather
-    // than a silent pass. Relaxing it is a filter on the returned list.
-    const imported = ts
-      .preProcessFile(geoSource(), /* readImportFiles */ true, /* detectJavaScriptImports */ true)
-      .importedFiles.map((f) => f.fileName);
-
-    expect(imported).toEqual([]);
-  });
-
-  // `fetch` and `Date` are GLOBALS — they need no import, so the scanner above
-  // says nothing about them and these need their own assertions. Matched against
-  // the raw source with no comment stripping: requiring the call parenthesis is
-  // what keeps geo.ts's prose from tripping them, and if prose ever does trip one
-  // the result is a visible failure rather than a guard that silently stopped
-  // guarding. That is the direction to fail in, and it is why no stripper is worth
-  // reintroducing here.
-  it("never reaches the network", () => {
-    expect(geoSource()).not.toMatch(/\bfetch\s*\(/);
-  });
-
-  it("never reads the clock", () => {
-    expect(geoSource()).not.toMatch(/new Date\(|Date\.now\(/);
+    expect(violations).toEqual([]);
   });
 });
