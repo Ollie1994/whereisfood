@@ -21,8 +21,14 @@ describe("GOTHENBURG_BBOX", () => {
   });
 
   it("holds latitudes and longitudes in their valid global ranges", () => {
-    // Guards against the box itself being written transposed — the same mistake
-    // it exists to catch in its consumers.
+    // Catches a fat-fingered ordinate (157.85) or a sign error (-57.5), NOT a
+    // transposed box: Gothenburg's latitude range is a subset of the valid
+    // longitude range and vice versa, so a fully transposed box satisfies every
+    // assertion here. Transposition is caught by the REAL_SPOTS cases below —
+    // a transposed box rejects Järntorget — and that is the only thing that
+    // catches it. Said explicitly because the first version of this comment
+    // claimed the coverage lived here, which would have left the real gate
+    // looking redundant to whoever refactored next.
     expect(GOTHENBURG_BBOX.south).toBeGreaterThanOrEqual(-90);
     expect(GOTHENBURG_BBOX.north).toBeLessThanOrEqual(90);
     expect(GOTHENBURG_BBOX.west).toBeGreaterThanOrEqual(-180);
@@ -98,25 +104,43 @@ describe("isInGothenburg", () => {
 });
 
 describe("geo.ts purity", () => {
-  it("imports nothing at all — no db, no supabase, no node builtins", () => {
-    // Verified by reading the source, not by inspection (the plan's rule): the
-    // module is consumed by a pure parser test AND by an impure geocoding path,
-    // so it must be safe for the stricter of the two. It currently has zero
-    // imports, which is the strongest form of that guarantee and the easiest to
-    // assert without a brittle allowlist.
-    const source = readFileSync(
-      fileURLToPath(new URL("./geo.ts", import.meta.url)),
-      "utf8",
-    );
-    expect(source).not.toMatch(/^\s*import\s/m);
-    expect(source).not.toMatch(/\brequire\s*\(/);
+  // Verified by reading the source, not by inspection (the plan's rule): the
+  // module is consumed by a pure parser test AND by an impure geocoding path, so
+  // it must be safe for the stricter of the two.
+  //
+  // Comments are stripped before matching. geo.ts carries long prose explaining
+  // *why* it has no imports and makes no network calls, so a substring search
+  // over the raw file would eventually fail on its own documentation.
+  function geoSourceCode(): string {
+    return readFileSync(fileURLToPath(new URL("./geo.ts", import.meta.url)), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/\/\/.*$/gm, "");
+  }
+
+  it("imports nothing at all — static, dynamic, type-only or CJS", () => {
+    // Zero imports is the strongest form of the guarantee and needs no brittle
+    // allowlist. The bare `\bimport\b` is deliberate and covers every syntactic
+    // form: `import{x}from"y"` with no space, and `await import("@/lib/db")`,
+    // which a line-anchored pattern misses entirely — and a dynamic db import is
+    // exactly the impurity this test exists to prevent.
+    //
+    // It also rejects `import type`, which is erased at compile time and would
+    // be harmless. That is intended, not an oversight: this module needs nothing,
+    // so anything arriving here deserves a deliberate decision rather than a
+    // silent pass. Relaxing it is one line, if a real need ever appears.
+    expect(geoSourceCode()).not.toMatch(/\bimport\b/);
+    expect(geoSourceCode()).not.toMatch(/\brequire\s*\(/);
+  });
+
+  it("never reaches the network", () => {
+    // The module header promises "no HTTP", and `fetch` is a global that needs
+    // no import — so the import assertion above does not imply this one. Same
+    // reasoning that earned the clock its own test; it was simply not applied
+    // here until review caught the asymmetry.
+    expect(geoSourceCode()).not.toMatch(/\bfetch\s*\(/);
   });
 
   it("never reads the clock", () => {
-    const source = readFileSync(
-      fileURLToPath(new URL("./geo.ts", import.meta.url)),
-      "utf8",
-    );
-    expect(source).not.toMatch(/new Date\(|Date\.now\(/);
+    expect(geoSourceCode()).not.toMatch(/new Date\(|Date\.now\(/);
   });
 });
