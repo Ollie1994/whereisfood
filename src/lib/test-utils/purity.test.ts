@@ -132,7 +132,6 @@ describe("findImpurities — globals", () => {
 
   const FETCH_FORMS: ReadonlyArray<[label: string, source: string]> = [
     ["a direct call", `await fetch("https://x");`],
-    ["a call with no space", `await fetch("https://x");`],
     // Missed by every call-shaped pattern.
     ["fetch aliased to a variable", `const f = fetch; await f("https://x");`],
     ["fetch passed as an argument", "register(fetch);"],
@@ -140,6 +139,33 @@ describe("findImpurities — globals", () => {
 
   it.each(FETCH_FORMS)("catches %s", (_label, source) => {
     expect(findImpurities(source, FORBID_ALL_IMPORTS)).toContain(FETCH);
+  });
+
+  // Reached through a global namespace object rather than bare. An earlier version
+  // missed every one of these: the property-name exclusion added so `config.Date`
+  // would not fire also swallowed `globalThis.Date`.
+  it.each([
+    ["globalThis.fetch()", `await globalThis.fetch("https://x");`, FETCH],
+    ["window.fetch()", `await window.fetch("https://x");`, FETCH],
+    ["self.fetch()", `await self.fetch("https://x");`, FETCH],
+    ["globalThis.Date.now()", "const t = globalThis.Date.now();", CLOCK],
+    ["new globalThis.Date()", "const t = new globalThis.Date();", CLOCK],
+  ])("catches %s", (_label, source, expected) => {
+    expect(findImpurities(source, FORBID_ALL_IMPORTS)).toContain(expected);
+  });
+
+  // The distinction that keeps this guard usable by the six parser modules.
+  // `new Date(parsedAt)` is deterministic string parsing — exactly what a parser
+  // does with the `parsedAt` it is handed — while `new Date()` reads the clock.
+  // Flagging both left `forbidClock: false` as the only escape, which also permits
+  // `Date.now()`, so the first parser module would have disabled clock detection
+  // wholesale to get its own legitimate conversion through.
+  it.each([
+    ["new Date(parsedAt)", 'export function f(p: string) { return new Date(p); }'],
+    ["Date.parse(x)", 'const t = Date.parse("2026-01-01");'],
+    ["Date.UTC(...)", "const t = Date.UTC(2026, 0, 1);"],
+  ])("does not fire on %s — deterministic, not a clock read", (_label, source) => {
+    expect(findImpurities(source, FORBID_ALL_IMPORTS)).toEqual([]);
   });
 
   it("does not fire on a Date TYPE annotation", () => {
@@ -155,10 +181,32 @@ describe("findImpurities — globals", () => {
     ["a property named Date", "const y = config.Date;"],
     ["an object key named Date", "const o = { Date: 1 };"],
     ["an interface member named Date", "interface Row { Date: string }"],
-    ["a local variable shadowing Date", "const Date = 1;"],
-    ["a parameter named fetch", "function f(fetch) { return 1; }"],
+    ["a typeof Date type query", "type T = typeof Date;"],
+    ["a getter named Date", "class C { get Date() { return 1; } }"],
+    ["a setter named Date", "class C { set Date(v: number) {} }"],
+    ["an enum member named Date", "enum E { Date }"],
+    ["a method signature named fetch", "interface I { fetch(): void }"],
+    ["a declaration named Date", "const Date = 1;"],
+    ["a parameter declaration named fetch", "function f(fetch: number) { return 1; }"],
   ])("does not fire on %s", (_label, source) => {
     expect(findImpurities(source, FORBID_ALL_IMPORTS)).toEqual([]);
+  });
+
+  it("DOES fire on a shadow that is used — a known, accepted false positive", () => {
+    // Distinguishing a local binding from the global needs a TypeChecker, which is
+    // not worth a Program and lib resolution per file here. The bias is deliberate:
+    // a spurious failure names the identifier and costs a rename, while a silent
+    // miss is what this whole file exists to prevent. Pinned so the limit is
+    // documented behaviour rather than a surprise to whoever hits it.
+    expect(
+      findImpurities("function f(fetch: (n: number) => void) { return fetch(1); }", FORBID_ALL_IMPORTS),
+    ).toEqual([FETCH]);
+  });
+
+  it("reports one violation per distinct problem, not one per occurrence", () => {
+    expect(findImpurities("const a = Date.now(); const b = Date.now();", FORBID_ALL_IMPORTS)).toEqual(
+      [CLOCK],
+    );
   });
 
   it("reports every violation at once rather than stopping at the first", () => {
@@ -171,6 +219,37 @@ describe("findImpurities — globals", () => {
     expect(findImpurities("const t = Date.now();", clockOk)).toEqual([]);
     // Absent the explicit false, the clock is forbidden — the default is strict.
     expect(findImpurities("const t = Date.now();", { forbidImport: () => true })).toEqual([CLOCK]);
+  });
+});
+
+describe("findImpurities — source that does not parse", () => {
+  // `createSourceFile` does not throw on a broken file; it returns an empty tree.
+  // Before this check, one stray backtick made the guard return [] for a module
+  // containing a real import AND a clock read — it silently stopped guarding,
+  // which is the precise failure this file exists to prevent.
+  const BROKEN = 'const s = `oops; import { supabaseAdmin } from "@/lib/supabase"; const t = Date.now();';
+
+  it("reports a parse failure rather than reporting nothing", () => {
+    const violations = findImpurities(BROKEN, FORBID_ALL_IMPORTS);
+    expect(violations).not.toEqual([]);
+    expect(violations[0]).toMatch(/^source does not parse/);
+  });
+
+  it("names the parse error so the cause is visible without a rerun", () => {
+    expect(findImpurities(BROKEN, FORBID_ALL_IMPORTS)[0]).toContain("Unterminated template literal");
+  });
+
+  it("accepts valid TypeScript-only syntax without reporting a parse error", () => {
+    // Guards the ScriptKind choice: generics, decorators-free TS, satisfies, and
+    // type-only constructs must all parse cleanly or every parser module would
+    // report a spurious parse failure.
+    const source = `
+      type A<T extends string> = { readonly [K in T]?: number };
+      export const x = { a: 1 } satisfies Record<string, number>;
+      export function f<T>(v: T): T | null { return v as T | null; }
+      export enum E { A = "a" }
+    `;
+    expect(findImpurities(source, FORBID_ALL_IMPORTS)).toEqual([]);
   });
 });
 
