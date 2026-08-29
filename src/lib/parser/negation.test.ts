@@ -312,6 +312,82 @@ describe("detectNegation", () => {
     });
   });
 
+  describe("a delayed opening is checked over the clause, not at one offset", () => {
+    // The first guard looked only at the token directly after the open-state, so any
+    // word in between walked around it — and the verb rule had no guard at all. Two
+    // rules, two ways around one lookahead. Asking the question of the CLAUSE covers
+    // every word order without listing what may sit between.
+    it.each([
+      ["a time between state and förrän", "Vi har inte öppet idag förrän 13"],
+      ["the same with 'är'", "Vi är inte öppna idag förrän 12"],
+      ["förrän directly after the state", "Vi är inte öppna förrän 12"],
+      ["via the verb rule with öppnar", "Vi öppnar inte idag förrän 13"],
+      ["via the verb rule with kommer", "Vi kommer inte imorgon förrän 13"],
+      ["innan instead of förrän", "Vi har inte öppet innan 12"],
+    ])("does not cancel — %s", (_label, caption) => {
+      expect(detectNegation(normalizeCaption(caption))).toBe(false);
+    });
+
+    it("does not suppress across a sentence boundary", () => {
+      // The clause check must stop at a strong terminator, or an unrelated later
+      // sentence mentioning "förrän" would silence a real cancellation.
+      expect(detectNegation(normalizeCaption("Ej öppet idag. Vi ses inte förrän imorgon"))).toBe(
+        true,
+      );
+    });
+  });
+
+  describe("recall the trailing constraint had cost", () => {
+    // Requiring a time or terminator after the open-state killed this entire family.
+    // They are ordinary cancellations, and the left-hand allowlist already rejects
+    // the imperative cases on its own — so the broad constraint was paying for
+    // something it was not needed for.
+    it.each([
+      ["a reason", "Ej öppet pga sjukdom"],
+      ["a bare 'tyvärr'", "Ej öppet tyvärr"],
+      ["a following clause", "Ej öppet, vi ses imorgon"],
+      ["a dash and a reason", "Ej öppet - vi är sjuka"],
+      ["a place before the time", "Ej öppet på Heden idag"],
+      ["a reason after a copula", "Vi är inte öppna pga sjukdom"],
+    ])("still cancels with %s", (_label, caption) => {
+      expect(detectNegation(normalizeCaption(caption))).toBe(true);
+    });
+
+    it("keeps the restriction guard the constraint was there for", () => {
+      // `för` names whom the truck is open TO, not when — except when it introduces
+      // a time, which is why "för dagen" is exempt.
+      expect(detectNegation(normalizeCaption("Vi har inte öppet för barn"))).toBe(false);
+      expect(detectNegation(normalizeCaption("Vi är inte öppna för grupper"))).toBe(false);
+      expect(detectNegation(normalizeCaption("Ej öppet för dagen"))).toBe(true);
+    });
+  });
+
+  describe("word forms and slots", () => {
+    it("accepts an adverb between the particle and the state", () => {
+      // `längre` follows the particle in Swedish. Listing it in the PRE-particle slot
+      // licensed only word orders the language does not use, while the real one
+      // stayed missed — a list in the wrong slot looks like coverage and gives none.
+      expect(detectNegation(normalizeCaption("Vi har inte längre öppet på söndagar"))).toBe(true);
+    });
+
+    it("accepts a bare emphatic quantifier with no time after it", () => {
+      expect(detectNegation(normalizeCaption("Vi kör inte alls"))).toBe(true);
+      expect(detectNegation(normalizeCaption("Vi kör inte alls."))).toBe(true);
+    });
+
+    it.each([
+      ["indefinite", "Vi kör inte på söndag"],
+      ["definite", "Vi kör inte på söndagen"],
+      ["plural", "Vi kör inte på söndagar"],
+      ["definite plural", "Vi kör inte på söndagarna"],
+      ["another weekday, definite", "Vi kör inte på fredagen"],
+    ])("accepts a weekday in its %s form", (_label, caption) => {
+      // Listing only the stem made "på söndag" match while "på söndagen" did not —
+      // an inconsistency inside one list rather than a considered boundary.
+      expect(detectNegation(normalizeCaption(caption))).toBe(true);
+    });
+  });
+
   describe("double negatives", () => {
     // The one construction that means the opposite of the word it contains. A
     // marker with a particle immediately in front of it is suppressed entirely.

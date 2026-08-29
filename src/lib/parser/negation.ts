@@ -71,6 +71,7 @@ export const OPEN_STATES = ["öppet", "öppen", "öppna", "på plats", "ute"] as
 export const TEMPORAL_WORDS = [
   "idag",
   "dag",
+  "dagen",
   "imorgon",
   "morgon",
   "ikväll",
@@ -81,8 +82,16 @@ export const TEMPORAL_WORDS = [
   "morse",
   "helgen",
   "helg",
+  "helgerna",
   "veckan",
   "vecka",
+] as const;
+
+// Kept apart from the list above because Swedish inflects them and the definite and
+// plural forms are ordinary in a caption: "på söndagen", "på söndagarna". Listing
+// only the indefinite stem made `"på söndag"` match while `"på söndagen"` did not —
+// an inconsistency inside one list rather than a considered boundary.
+export const WEEKDAYS = [
   "måndag",
   "tisdag",
   "onsdag",
@@ -113,10 +122,14 @@ export const PARTICLE_FILLERS = [
   "ni",
   "dessvärre",
   "tyvärr",
-  "längre",
-  "riktigt",
   "just",
 ] as const;
+
+// Adverbs that follow the particle rather than precede it. "Vi har inte LÄNGRE
+// öppet." Putting these in the list above licensed only word orders Swedish does not
+// use, while the real ones stayed missed — a list in the wrong slot looks like
+// coverage and provides none.
+export const POST_PARTICLE_FILLERS = ["längre", "riktigt", "alls", "direkt"] as const;
 
 // Words that may sit between the particle and the time it applies to.
 // "Vi kör inte ALLS idag", "Vi kör inte HELA veckan".
@@ -208,7 +221,7 @@ const NEGATED_MARKER = new RegExp(
 //   `expires_at` clears within hours. Same information, inverted, and only this
 //   direction is safe to leave incomplete. It is the same reasoning that makes
 //   OPERATING_VERBS acceptable above.
-const TEMPORAL = `(?:(?:på|i)\\s+)?${alt(TEMPORAL_WORDS)}`;
+const TEMPORAL = `(?:(?:på|i)\\s+)?(?:${alt(TEMPORAL_WORDS)}|${alt(WEEKDAYS)}(?:en|ar|arna)?)`;
 
 // Clause boundaries. Captions are punctuated loosely and often written one clause per
 // line with a leading dash or bullet, so those count as much as a full stop does.
@@ -232,9 +245,28 @@ const CLAUSE_END = "\\s*(?:[.!?]|$)";
 // follows the particle in the false positives is an object — "pizza" — and an object
 // is what tells you the particle negated something other than being there. A
 // quantifier may intervene: "inte alls idag", "inte hela veckan".
+// A DELAYED OPENING IS NOT A CANCELLATION, and this is checked over the whole clause
+// rather than at one offset — which is the correction that matters here.
+//
+// The first version looked only at the token directly after the open-state, so any
+// word in between walked around it: "Vi har inte öppet IDAG förrän 13" fired and
+// deleted the pin of a truck opening at 13. And `VERB_THEN_NEGATOR` had no guard at
+// all, so "Vi öppnar inte idag förrän 13" fired too — `öppnar` and `kommer` are both
+// operating verbs. Two rules, two ways around one guard.
+//
+// Both are the same mistake: a token-adjacent lookahead answers "what is next", when
+// the question is "what does this clause say". Asking it of the clause — a particle,
+// then anything short of a sentence-ending terminator, then `förrän` — covers every
+// word order at once and needs no list of what may sit between.
+const DELAYED_OPENING_CLAUSE = new RegExp(
+  `${BEFORE}${alt(NEGATORS)}${AFTER}[^.!?]*?${BEFORE}${alt(DELAYED_OPENING)}${AFTER}`,
+  FLAGS,
+);
+
 const VERB_THEN_NEGATOR = new RegExp(
   `${BEFORE}${alt(OPERATING_VERBS)}\\s+${alt(NEGATORS)}${AFTER}` +
-    `(?:\\s+(?:${alt(TEMPORAL_QUANTIFIERS)}\\s+)*${TEMPORAL}${AFTER}|${CLAUSE_END})`,
+    `(?:\\s+(?:${alt(TEMPORAL_QUANTIFIERS)}\\s+)*${TEMPORAL}${AFTER}` +
+    `|(?:\\s+${alt([...TEMPORAL_QUANTIFIERS, ...POST_PARTICLE_FILLERS])})*${CLAUSE_END})`,
   FLAGS,
 );
 
@@ -245,17 +277,22 @@ const VERB_THEN_NEGATOR = new RegExp(
 //
 // The trailing guard rejects a delayed opening: "inte öppna FÖRRÄN 12" says they open
 // at 12.
-// The state must also land on a TIME or end the clause, symmetrically with the rule
-// above. Without it the particle negates whoever the truck is open TO rather than
-// whether it is open at all: "Vi har inte öppet för barn" and "Vi är inte öppna för
-// grupper" are restrictions, the same class as "Vi tar ej kort". This subsumes the
-// `förrän` guard — a delayed opening is just another non-temporal continuation — but
-// that list is kept, because it names the construction and makes the intent legible.
+// The state carries only ONE trailing constraint, and it is narrow on purpose.
+//
+// Requiring a time or a terminator after it — the previous attempt — cost the entire
+// "Ej öppet <reason>" family: "Ej öppet pga sjukdom", "Ej öppet tyvärr", "Ej öppet,
+// vi ses imorgon", "Ej öppet på Heden idag". Those are ordinary cancellations, and
+// the constraint bought only the "öppet för barn" restriction at that price. The
+// left-hand allowlist already rejects the imperative cases on its own, so the broad
+// version was paying for something it was not needed for.
+//
+// What remains is the restriction itself: `för` names whom the truck is open TO, not
+// when. "för dagen" is exempt because there `för` introduces a time rather than a
+// recipient.
 const NEGATOR_THEN_STATE = new RegExp(
   `(?:${CLAUSE_START}|${BEFORE}${TEMPORAL}\\s+)(?:${alt(PARTICLE_FILLERS)}\\s+)*` +
-    `${alt(NEGATORS)}\\s+${alt(OPEN_STATES)}${AFTER}` +
-    `(?!\\s+${alt(DELAYED_OPENING)}${AFTER})` +
-    `(?:\\s+(?:${alt(TEMPORAL_QUANTIFIERS)}\\s+)*${TEMPORAL}${AFTER}|${CLAUSE_END})`,
+    `${alt(NEGATORS)}\\s+(?:${alt(POST_PARTICLE_FILLERS)}\\s+)*${alt(OPEN_STATES)}${AFTER}` +
+    `(?!\\s+för\\s+(?!${TEMPORAL}${AFTER}))`,
   FLAGS,
 );
 
@@ -288,13 +325,33 @@ const NEGATOR_THEN_STATE = new RegExp(
 // Still bounded by the override matrix (#1, #6): a low-confidence lane cannot cancel
 // a higher-confidence location regardless.
 export function detectNegation(normalized: string): boolean {
-  // A double negative wins over everything: it is the one construction that means
-  // the opposite of the word it contains.
-  if (NEGATED_MARKER.test(normalized)) return false;
+  return splitClauses(normalized).some(cancelsInClause);
+}
 
-  return (
-    MARKER.test(normalized) ||
-    VERB_THEN_NEGATOR.test(normalized) ||
-    NEGATOR_THEN_STATE.test(normalized)
-  );
+// Sentence-level split. Both suppressors below INVERT a meaning rather than merely
+// failing to match one, so applied to a whole caption a single suppressed sentence
+// silenced every other sentence in it: "Ej öppet idag. Vi ses inte förrän imorgon"
+// returned false, because the second sentence is a delayed opening and the first is
+// a real cancellation nobody got to look at.
+//
+// Splitting first makes each sentence answer for itself. It also sharpens the
+// anchors for free — `^` and `$` in the rules above now mean "this sentence" rather
+// than "this caption", which is what they were always meant to mean. Commas
+// deliberately do NOT split: a comma continues a sentence, and `CLAUSE_END` relies
+// on that to keep "Vi kör inte, pizza idag" quiet.
+function splitClauses(text: string): string[] {
+  return text
+    .split(/[.!?]+/)
+    .map((clause) => clause.trim())
+    .filter((clause) => clause.length > 0);
+}
+
+function cancelsInClause(clause: string): boolean {
+  // A double negative is the one construction that means the opposite of the word it
+  // contains. A delayed opening says the truck IS coming, later — checked across the
+  // whole clause rather than at one offset, so no word order walks around it.
+  if (NEGATED_MARKER.test(clause)) return false;
+  if (DELAYED_OPENING_CLAUSE.test(clause)) return false;
+
+  return MARKER.test(clause) || VERB_THEN_NEGATOR.test(clause) || NEGATOR_THEN_STATE.test(clause);
 }
