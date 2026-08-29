@@ -66,6 +66,82 @@ export const OPERATING_VERBS = [
 // "Ej öppet idag", "Inte öppna idag."
 export const OPEN_STATES = ["öppet", "öppen", "öppna", "på plats", "ute"] as const;
 
+// Temporal expressions — what a cancellation attaches itself to. "Vi kör inte IDAG."
+// Used by both rules below, in opposite positions, which is why it is one list.
+export const TEMPORAL_WORDS = [
+  "idag",
+  "dag",
+  "dagen",
+  "imorgon",
+  "morgon",
+  "ikväll",
+  "kväll",
+  "inatt",
+  "natt",
+  "imorse",
+  "morse",
+  "helgen",
+  "helg",
+  "helgerna",
+  "veckan",
+  "vecka",
+] as const;
+
+// Kept apart from the list above because Swedish inflects them and the definite and
+// plural forms are ordinary in a caption: "på söndagen", "på söndagarna". Listing
+// only the indefinite stem made `"på söndag"` match while `"på söndagen"` did not —
+// an inconsistency inside one list rather than a considered boundary.
+export const WEEKDAYS = [
+  "måndag",
+  "tisdag",
+  "onsdag",
+  "torsdag",
+  "fredag",
+  "lördag",
+  "söndag",
+] as const;
+
+// What may stand before a particle in a genuine cancellation: a copula or auxiliary.
+// "Vi HAR inte öppet", "Vi ÄR inte öppna".
+export const AUXILIARIES = ["har", "hade", "är", "var", "blir", "blev", "kommer"] as const;
+
+// Words that may sit BETWEEN the licensing context and the particle. Swedish is a
+// V2 language, so a fronted time inverts the subject: "Idag ÄR VI inte öppna" is the
+// most idiomatic way to say it, and requiring the auxiliary to touch the particle
+// missed that entire family. Pronouns and a few sentence adverbs are all that
+// realistically appear there.
+// Subject pronouns. A cancellation is about US: "VI kör inte idag". When the subject
+// is a noun instead, the particle is negating that noun rather than the truck being
+// there — "Tacos finns inte idag, men pizza gör det" describes a sold-out item, not a
+// closed truck, and is the same class as "Vi kör inte pizza idag" with the object
+// fronted. Constraining only the right of the particle left that half open.
+export const SUBJECT_PRONOUNS = ["vi", "jag", "man", "det", "de", "dom", "den", "ni"] as const;
+
+export const PARTICLE_FILLERS = [
+  ...AUXILIARIES,
+  ...SUBJECT_PRONOUNS,
+  "dessvärre",
+  "tyvärr",
+  "just",
+] as const;
+
+// Adverbs that follow the particle rather than precede it. "Vi har inte LÄNGRE
+// öppet." Putting these in the list above licensed only word orders Swedish does not
+// use, while the real ones stayed missed — a list in the wrong slot looks like
+// coverage and provides none.
+export const POST_PARTICLE_FILLERS = ["längre", "riktigt", "alls", "direkt"] as const;
+
+// Words that may sit between the particle and the time it applies to.
+// "Vi kör inte ALLS idag", "Vi kör inte HELA veckan".
+export const TEMPORAL_QUANTIFIERS = ["alls", "hela", "nästa", "denna", "kommande"] as const;
+
+// "Inte öppet FÖRRÄN 12" means the truck opens at 12 — it is a delayed opening, not
+// a cancellation, and firing on it deletes the pin of a truck that is about to be
+// there. The module already excludes the verb form of this ("Vi stänger inte förrän
+// 15") by keeping `stänger` out of OPERATING_VERBS; the copula form needs its own
+// guard because `är` and `har` are legitimately in AUXILIARIES.
+export const DELAYED_OPENING = ["förrän", "innan", "före"] as const;
+
 // ⚠ THESE TWO LISTS ARE INCOMPLETE, AND THAT IS SAFE. A verb or state we failed to
 // think of means a cancellation is MISSED — a stale pin, cleared by `expires_at`
 // within hours. It never means a false deletion. That asymmetry is why an
@@ -123,13 +199,110 @@ const NEGATED_MARKER = new RegExp(
 // would still fire on "Glöm inte att vi står på Heden", where the particle and the
 // verb sit three tokens apart and negate different things. Requiring them to be
 // neighbours is what separates "kör inte" from "inte ... står".
-const VERB_THEN_NEGATOR = new RegExp(
-  `${BEFORE}${alt(OPERATING_VERBS)}\\s+${alt(NEGATORS)}${AFTER}`,
+//
+// ⚠ ADJACENCY ALONE WAS NOT ENOUGH (#81). These fired on captions describing a truck
+// that is OPEN, each of which deletes its location:
+//
+//   "Glöm inte öppet idag"              the particle negates the imperative
+//   "Missa inte öppet hus på Heden"     — an invitation, not a cancellation
+//   "Vi kör inte pizza idag men tacos"  the particle negates the MENU ITEM
+//
+// So each rule now also constrains its other side. The decision the issue left open
+// was HOW, and the choice is about failure direction rather than coverage:
+//
+//   REJECTED — a denylist of imperatives (`glöm`, `missa`, …). It reads as the
+//   obvious fix and fails in the wrong direction: an imperative nobody listed means
+//   the guard FIRES and deletes a present truck's pin. A list whose gaps delete data
+//   cannot be trusted to be complete, and this one cannot be completed — Swedish has
+//   no closed set of verbs that can be used this way.
+//
+//   CHOSEN — an allowlist of the contexts a real cancellation appears in. A context
+//   nobody listed means the guard STAYS QUIET, which costs a stale pin that
+//   `expires_at` clears within hours. Same information, inverted, and only this
+//   direction is safe to leave incomplete. It is the same reasoning that makes
+//   OPERATING_VERBS acceptable above.
+const TEMPORAL = `(?:(?:på|i)\\s+)?(?:${alt(TEMPORAL_WORDS)}|${alt(WEEKDAYS)}(?:en|ar|arna)?)`;
+
+// Clause boundaries. Captions are punctuated loosely and often written one clause per
+// line with a leading dash or bullet, so those count as much as a full stop does.
+// `normalizeCaption` has already collapsed newlines to spaces by the time this runs,
+// which is why the visible markers have to carry the whole job — see KNOWN LIMIT on
+// `detectNegation`.
+const CLAUSE_START = "(?:^|[.,!?:;()\\[\\]\"'•*–—-]\\s*)";
+
+// Ending a clause is NOT symmetric with starting one, and treating it as such
+// reintroduced the bug this module exists to prevent. A comma or a dash CONTINUES a
+// sentence, so what follows may be the object the particle actually negated —
+// "Vi kör inte - pizza idag men tacos" and "Vi kör inte, pizza idag" both describe a
+// truck that is there. Only a full stop, exclamation, question mark or the end of
+// the caption prove the verb took no object.
+//
+// The cost is real and accepted: "Vi kör inte - vi vilar idag" is now missed. That is
+// a stale pin cleared within hours, against a false delete of a truck standing there.
+const CLAUSE_END = "\\s*(?:[.!?]|$)";
+
+// A cancellation names WHEN, or stops. "Vi kör inte idag", "Vi kör inte." What
+// follows the particle in the false positives is an object — "pizza" — and an object
+// is what tells you the particle negated something other than being there. A
+// quantifier may intervene: "inte alls idag", "inte hela veckan".
+// A DELAYED OPENING IS NOT A CANCELLATION, and this is checked over the whole clause
+// rather than at one offset — which is the correction that matters here.
+//
+// The first version looked only at the token directly after the open-state, so any
+// word in between walked around it: "Vi har inte öppet IDAG förrän 13" fired and
+// deleted the pin of a truck opening at 13. And `VERB_THEN_NEGATOR` had no guard at
+// all, so "Vi öppnar inte idag förrän 13" fired too — `öppnar` and `kommer` are both
+// operating verbs. Two rules, two ways around one guard.
+//
+// Both are the same mistake: a token-adjacent lookahead answers "what is next", when
+// the question is "what does this clause say". Asking it of the clause — a particle,
+// then anything short of a sentence-ending terminator, then `förrän` — covers every
+// word order at once and needs no list of what may sit between.
+// The span stops at a COMMA as well as at a sentence terminator. `innan` and `före`
+// are ordinary prepositions, so a caption routinely states a cancellation and then,
+// after a comma, says something unrelated containing one: "Ej öppet idag, vi ses
+// innan helgen" is a cancellation plus a farewell, and a veto spanning the comma
+// swallowed the cancellation. The delayed-opening reading only holds when the
+// preposition modifies the negated verb itself, which puts them in one sub-clause.
+const DELAYED_OPENING_CLAUSE = new RegExp(
+  `${BEFORE}${alt(NEGATORS)}${AFTER}[^.!?,]*?${BEFORE}${alt(DELAYED_OPENING)}${AFTER}`,
   FLAGS,
 );
 
+const VERB_THEN_NEGATOR = new RegExp(
+  `(?:${CLAUSE_START}|${BEFORE}${TEMPORAL}\\s+)(?:${alt(SUBJECT_PRONOUNS)}\\s+)*` +
+    `${alt(OPERATING_VERBS)}\\s+${alt(NEGATORS)}${AFTER}` +
+    `(?:\\s+(?:${alt(TEMPORAL_QUANTIFIERS)}\\s+)*${TEMPORAL}${AFTER}` +
+    `|(?:\\s+${alt([...TEMPORAL_QUANTIFIERS, ...POST_PARTICLE_FILLERS])})*${CLAUSE_END})`,
+  FLAGS,
+);
+
+// A cancellation starts its clause or follows the date it applies to, with only
+// pronouns, auxiliaries and sentence adverbs allowed in between: "Ej öppet", "Vi har
+// inte öppet", "Idag är vi inte öppna". An imperative in front — "glöm inte öppet" —
+// is none of those, and is excluded by not being listed rather than by being named.
+//
+// The trailing guard rejects a delayed opening: "inte öppna FÖRRÄN 12" says they open
+// at 12.
+// The state carries only ONE trailing constraint, and it is narrow on purpose.
+//
+// Requiring a time or a terminator after it — the previous attempt — cost the entire
+// "Ej öppet <reason>" family: "Ej öppet pga sjukdom", "Ej öppet tyvärr", "Ej öppet,
+// vi ses imorgon", "Ej öppet på Heden idag". Those are ordinary cancellations, and
+// the constraint bought only the "öppet för barn" restriction at that price. The
+// left-hand allowlist already rejects the imperative cases on its own, so the broad
+// version was paying for something it was not needed for.
+//
+// What remains is the restriction itself: `för` names whom the truck is open TO, not
+// when. "för dagen" is exempt because there `för` introduces a time rather than a
+// recipient.
 const NEGATOR_THEN_STATE = new RegExp(
-  `${BEFORE}${alt(NEGATORS)}\\s+${alt(OPEN_STATES)}${AFTER}`,
+  `(?:${CLAUSE_START}|${BEFORE}${TEMPORAL}\\s+)(?:${alt(PARTICLE_FILLERS)}\\s+)*` +
+    `${alt(NEGATORS)}\\s+(?:${alt(POST_PARTICLE_FILLERS)}\\s+)*${alt(OPEN_STATES)}${AFTER}` +
+    // "Öppet hus" is a fixed expression — an event — not the state of being open.
+    // "Vi har inte öppet hus idag men vi kör som vanligt" says they are there.
+    `(?!\\s+hus${AFTER})` +
+    `(?!\\s+för\\s+(?!${TEMPORAL}${AFTER}))`,
   FLAGS,
 );
 
@@ -137,21 +310,78 @@ const NEGATOR_THEN_STATE = new RegExp(
 // output, which is NFC. Passing raw text risks decomposed "ä", against which every
 // pattern here silently fails to match.
 //
-// KNOWN LIMIT, accepted for this phase: "Vi står inte vid Järntorget utan på Heden"
-// is a RELOCATION and reads as a cancellation, because "står inte" is exactly the
-// collocation that signals one. It deletes the day rather than moving it. This is
-// the narrowest remaining case — the imperative and restriction forms that used to
-// fire no longer do — and it is bounded by the override matrix (#1, #6), which stops
-// a low-confidence lane cancelling a higher-confidence location. First place to look
-// if trucks report pins vanishing.
+// RESOLVED, and no longer a known limit: "Vi står inte vid Järntorget utan på Heden"
+// no longer cancels. Requiring a temporal expression after the particle settles the
+// relocation/cancellation ambiguity toward "not a cancellation", because what follows
+// is a PLACE rather than a time. That was not the change's goal — it fell out of the
+// same constraint added for "kör inte pizza", which is the sign the rule is about the
+// grammar rather than about the reported cases.
+//
+// THE COST, stated plainly: "Vi står inte på Heden idag" is now missed, and it may
+// well be a genuine cancellation. Both readings are live and nothing here can tell
+// them apart, so the ambiguity is resolved the only way it safely can be — a missed
+// cancellation is a stale pin that `expires_at` clears within hours, while the other
+// reading deletes a truck that is standing somewhere else.
+//
+// KNOWN LIMIT — A LINE BREAK IS NOT A CLAUSE BOUNDARY HERE. `normalizeCaption`
+// collapses newlines to spaces before this runs, so "Vi hörs snart\nEj öppet idag"
+// arrives with nothing marking where one clause ends. A dash or bullet starting the
+// line survives and does license the particle, which covers the common
+// "- Ej öppet idag" shape, but a bare line break does not. Fixing it means having
+// step 0 preserve some clause marker, which changes its contract and belongs in its
+// own issue rather than being smuggled in here. Fail-safe: the cost is a missed
+// cancellation, cleared by `expires_at`.
+//
+// Still bounded by the override matrix (#1, #6): a low-confidence lane cannot cancel
+// a higher-confidence location regardless.
 export function detectNegation(normalized: string): boolean {
-  // A double negative wins over everything: it is the one construction that means
-  // the opposite of the word it contains.
+  // SCOPE IS PER SUPPRESSOR, not one setting for both. Splitting evaluation by
+  // sentence was right for the delayed-opening veto and wrong for this one, and
+  // applying it uniformly silently changed behaviour that had nothing to do with the
+  // problem being fixed.
+  //
+  // A double negative DENIES A CLAIM, and the claim it denies is routinely in an
+  // earlier sentence: "Många frågar om vi har stängt. Vi har inte stängt." Scoped to
+  // a sentence, the first one matches `MARKER` on its own and deletes the pin of a
+  // truck that is explicitly saying it is open. So this one reads the whole caption.
+  //
+  // The cost, unchanged from before and accepted: a denial anywhere silences a
+  // genuine cancellation elsewhere in the same caption. That is the safe direction.
   if (NEGATED_MARKER.test(normalized)) return false;
 
-  return (
-    MARKER.test(normalized) ||
-    VERB_THEN_NEGATOR.test(normalized) ||
-    NEGATOR_THEN_STATE.test(normalized)
-  );
+  return splitClauses(normalized).some(cancelsInClause);
+}
+
+// Sentence-level split. Both suppressors below INVERT a meaning rather than merely
+// failing to match one, so applied to a whole caption a single suppressed sentence
+// silenced every other sentence in it: "Ej öppet idag. Vi ses inte förrän imorgon"
+// returned false, because the second sentence is a delayed opening and the first is
+// a real cancellation nobody got to look at.
+//
+// Splitting first makes each sentence answer for itself. It also sharpens the
+// anchors for free — `^` and `$` in the rules above now mean "this sentence" rather
+// than "this caption", which is what they were always meant to mean. Commas
+// deliberately do NOT split: a comma continues a sentence, and `CLAUSE_END` relies
+// on that to keep "Vi kör inte, pizza idag" quiet.
+function splitClauses(text: string): string[] {
+  return text
+    .split(/[.!?]+/)
+    .map((clause) => clause.trim())
+    .filter((clause) => clause.length > 0);
+}
+
+function cancelsInClause(clause: string): boolean {
+  // A self-sufficient marker is judged on its own. The delayed-opening veto below
+  // must NOT reach it: "Stängt idag, vi öppnar inte förrän måndag" states a
+  // cancellation and then says when they return, and vetoing the whole clause
+  // discarded the cancellation along with the delayed opening. `innan` and `före`
+  // are ordinary prepositions, so that combination is common rather than contrived.
+  if (MARKER.test(clause)) return true;
+
+  // The veto applies only to the particle rules, which are the ones a delayed
+  // opening can actually masquerade as: "Vi öppnar inte förrän 13" reads as
+  // "operating verb + particle" and means the opposite.
+  if (DELAYED_OPENING_CLAUSE.test(clause)) return false;
+
+  return VERB_THEN_NEGATOR.test(clause) || NEGATOR_THEN_STATE.test(clause);
 }

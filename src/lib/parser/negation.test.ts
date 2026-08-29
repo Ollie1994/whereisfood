@@ -151,11 +151,297 @@ describe("detectNegation", () => {
     });
 
     it("requires adjacency, not mere proximity", () => {
-      // The distinction the whole design rests on. "Glöm inte att vi står" has the
-      // particle and an operating verb three tokens apart, negating different
-      // things; a proximity window would fire on it. Neighbours only.
+      // "Glöm inte att vi står" has the particle and an operating verb three tokens
+      // apart, negating different things; a proximity window would fire on it.
       expect(detectNegation("Glöm inte att vi står på Heden")).toBe(false);
-      expect(detectNegation("Vi står inte på Heden")).toBe(true);
+      // Adjacency alone is still not sufficient — see the block below — but it
+      // remains necessary: with a time directly after it, the collocation cancels.
+      expect(detectNegation("Vi står inte idag")).toBe(true);
+      // The time must be directly after. "Vi står inte där idag" is missed, because
+      // nothing lexical separates the intervening "där" from the "pizza" in
+      // "Vi kör inte pizza idag" — and that one must not fire. Fail-safe direction.
+      expect(detectNegation("Vi står inte där idag")).toBe(false);
+    });
+  });
+
+  describe("adjacency alone is not sufficient — each rule constrains its other side", () => {
+    // #81. These fired on adjacency alone, and each describes a truck that is OPEN,
+    // so each deleted its location. The fix is an allowlist of the contexts a real
+    // cancellation appears in, NOT a denylist of imperatives: a context nobody
+    // listed leaves the guard quiet, whereas an imperative nobody listed would make
+    // it delete. Only one of those directions is safe to leave incomplete.
+    it.each([
+      ["an imperative invitation", "Glöm inte öppet idag"],
+      ["another imperative invitation", "Missa inte öppet hus på Heden"],
+      ["an invitation after a location", "Lunch på Heden 11-14, glöm inte öppet till 15"],
+      ["a negated menu item", "Vi kör inte pizza idag men tacos"],
+      ["a negated menu item, other order", "Vi serverar inte tacos idag, bara burgare"],
+    ])("stays quiet for %s", (_label, caption) => {
+      expect(detectNegation(normalizeCaption(caption))).toBe(false);
+    });
+
+    it.each([
+      ["a particle after a copula", "Vi har inte öppet idag"],
+      ["a particle after 'är'", "Vi är inte öppna idag"],
+      ["a particle opening the caption", "Ej öppet idag"],
+      ["a particle after the date it applies to", "Idag ej öppet"],
+      ["a particle after a clause break", "Lunch imorgon, ej öppet idag"],
+      ["a verb, particle and time", "Vi kör inte idag"],
+      ["a verb and particle ending the clause", "Vi kör inte."],
+      ["a weekday with a preposition", "Vi kör inte på måndag"],
+    ])("still cancels for %s", (_label, caption) => {
+      expect(detectNegation(normalizeCaption(caption))).toBe(true);
+    });
+
+    it.each([
+      ["är", "Vi är inte öppna förrän 12"],
+      ["har, with a following time", "Vi har inte öppet förrän 13 idag, då kör vi"],
+      ["kommer", "Vi kommer inte öppna förrän 12 idag"],
+      ["innan", "Vi har inte öppet innan 12"],
+    ])("does not fire on a delayed opening via %s", (_label, caption) => {
+      // "Inte öppet FÖRRÄN 12" says they open at 12. The verb form of this is
+      // already excluded by keeping `stänger` out of OPERATING_VERBS; the copula
+      // form needed its own guard, because `är` and `har` belong in AUXILIARIES.
+      // This is the one wrong-direction failure the allowlist did not cover.
+      expect(detectNegation(normalizeCaption(caption))).toBe(false);
+    });
+
+    it.each([
+      ["a fronted time inverting the subject", "Idag är vi inte öppna"],
+      ["the same with 'har'", "Idag har vi inte öppet"],
+      ["a fronted 'imorgon'", "Imorgon har vi inte öppet"],
+      ["a sentence adverb before the particle", "Vi är dessvärre inte öppna idag"],
+    ])("still cancels with V2 inversion — %s", (_label, caption) => {
+      // Swedish is a V2 language: fronting the time inverts the subject, so the
+      // auxiliary no longer touches the particle. Requiring adjacency there missed
+      // the most idiomatic phrasing of a cancellation entirely.
+      expect(detectNegation(normalizeCaption(caption))).toBe(true);
+    });
+
+    it.each([
+      ["a leading dash", "- Ej öppet idag"],
+      ["a leading bullet", "• Ej öppet idag"],
+      ["parentheses", "(Ej öppet idag)"],
+    ])("treats %s as a clause boundary", (_label, caption) => {
+      // Captions are punctuated loosely and often written one clause per line with
+      // a leading marker. Only `.` and `,` would miss the dominant shape.
+      expect(detectNegation(normalizeCaption(caption))).toBe(true);
+    });
+
+    it.each([
+      ["alls", "Vi kör inte alls idag"],
+      ["hela", "Vi kör inte hela veckan"],
+      ["nästa", "Vi kör inte nästa vecka"],
+    ])("allows the quantifier %s between the particle and the time", (_label, caption) => {
+      expect(detectNegation(normalizeCaption(caption))).toBe(true);
+    });
+
+    it.each([
+      ["a full stop", "Vi kör inte."],
+      ["an exclamation mark", "Vi kör inte!"],
+      ["the end of the caption", "Vi kör inte"],
+    ])("treats %s as the end of the clause", (_label, caption) => {
+      expect(detectNegation(normalizeCaption(caption))).toBe(true);
+    });
+
+    it.each([
+      ["a dash", "Vi kör inte - pizza idag men tacos"],
+      ["an en dash", "Vi kör inte – tacos istället"],
+      ["a comma", "Vi kör inte, pizza idag"],
+    ])("does NOT treat %s as the end of the clause", (_label, caption) => {
+      // Ending a clause is not symmetric with starting one. A comma or dash
+      // CONTINUES the sentence, so what follows may be the object the particle
+      // actually negated — which is the bug this whole issue exists to fix,
+      // reintroduced through different punctuation. Only a strong terminator proves
+      // the verb took no object.
+      expect(detectNegation(normalizeCaption(caption))).toBe(false);
+    });
+
+    it("accepts the cost of that: a weak terminator before a real clause is missed", () => {
+      // "Vi kör inte - vi vilar idag" is a genuine cancellation and is now quiet.
+      // Nothing lexical separates "vi vilar" from "pizza", and a missed cancellation
+      // expires within hours where a false one deletes a truck standing there.
+      expect(detectNegation(normalizeCaption("Vi kör inte - vi vilar idag"))).toBe(false);
+    });
+
+    it.each([
+      ["open to children", "Vi har inte öppet för barn"],
+      ["open to groups", "Vi är inte öppna för grupper"],
+    ])("does not fire on a restriction — %s", (_label, caption) => {
+      // The particle negates whom the truck is open TO, not whether it is open.
+      // Same class as "Vi tar ej kort": the state must land on a time or end the
+      // clause, symmetrically with the verb rule.
+      expect(detectNegation(normalizeCaption(caption))).toBe(false);
+    });
+
+    it("misses a bare line break as a clause boundary — a known limit", () => {
+      // normalizeCaption collapses newlines to spaces, so nothing marks where the
+      // clause ended. Fixing it means step 0 preserving a clause marker, which
+      // changes its contract. Pinned so the limit is documented behaviour.
+      expect(detectNegation(normalizeCaption("Vi hörs snart\nEj öppet idag"))).toBe(false);
+    });
+
+    it("resolves the relocation ambiguity toward NOT cancelling", () => {
+      // This was a documented limit and is now settled, because what follows the
+      // particle is a PLACE rather than a time. It fell out of the constraint added
+      // for "kör inte pizza" rather than being aimed at — which is the sign the rule
+      // is about the grammar and not about the reported cases.
+      expect(detectNegation("Vi står inte vid Järntorget utan på Heden")).toBe(false);
+      // The accepted cost, pinned so it is a decision rather than a surprise: a
+      // genuine "we are not at X today" is missed. Both readings are live, and a
+      // missed cancellation expires within hours while a false one deletes a truck
+      // standing somewhere else.
+      expect(detectNegation("Vi står inte på Heden idag")).toBe(false);
+    });
+
+    it("behaves identically whether the words came from prose or from a tag", () => {
+      // #78 preserved hashtag text, which erased `#` as a syntactic boundary and let
+      // a prose particle bind to a tag-supplied word. Fixing the prose rule closes
+      // the tag form too — that it needed no separate handling is the point.
+      const pairs: ReadonlyArray<[prose: string, tagged: string]> = [
+        ["Glöm inte öppet idag", "Glöm inte #ÖppetIdag"],
+        ["Missa inte öppet hus, vi står på Heden", "Missa inte #ÖppetHus vi står på Heden"],
+        ["Vi kör inte pizza idag men tacos", "Vi kör #IntePizzaIdag men tacos"],
+      ];
+      for (const [prose, tagged] of pairs) {
+        expect(detectNegation(normalizeCaption(tagged))).toBe(
+          detectNegation(normalizeCaption(prose)),
+        );
+        expect(detectNegation(normalizeCaption(tagged))).toBe(false);
+      }
+    });
+  });
+
+  describe("a delayed opening is checked over the clause, not at one offset", () => {
+    // The first guard looked only at the token directly after the open-state, so any
+    // word in between walked around it — and the verb rule had no guard at all. Two
+    // rules, two ways around one lookahead. Asking the question of the CLAUSE covers
+    // every word order without listing what may sit between.
+    it.each([
+      ["a time between state and förrän", "Vi har inte öppet idag förrän 13"],
+      ["the same with 'är'", "Vi är inte öppna idag förrän 12"],
+      ["förrän directly after the state", "Vi är inte öppna förrän 12"],
+      ["via the verb rule with öppnar", "Vi öppnar inte idag förrän 13"],
+      ["via the verb rule with kommer", "Vi kommer inte imorgon förrän 13"],
+      ["innan instead of förrän", "Vi har inte öppet innan 12"],
+    ])("does not cancel — %s", (_label, caption) => {
+      expect(detectNegation(normalizeCaption(caption))).toBe(false);
+    });
+
+    it("does not suppress across a sentence boundary", () => {
+      // The clause check must stop at a strong terminator, or an unrelated later
+      // sentence mentioning "förrän" would silence a real cancellation.
+      expect(detectNegation(normalizeCaption("Ej öppet idag. Vi ses inte förrän imorgon"))).toBe(
+        true,
+      );
+    });
+  });
+
+  describe("suppressor scope is chosen per suppressor", () => {
+    // Splitting evaluation by sentence was right for the delayed-opening veto and
+    // wrong for the double negative, and applying it uniformly silently changed
+    // behaviour that had nothing to do with the problem being fixed.
+    it.each([
+      ["a question answered in the next sentence", "Många frågar om vi har stängt. Vi har inte stängt, vi står på Heden"],
+      ["a rhetorical question", "Stängt idag? Nej! Vi har inte stängt"],
+      ["a topic sentence then the denial", "Frågor om stängt? Vi har inte stängt"],
+    ])("reads a double negative across sentences — %s", (_label, caption) => {
+      // The claim a denial refutes is routinely in an earlier sentence. Scoped to a
+      // sentence, the first one matches MARKER alone and deletes the pin of a truck
+      // explicitly saying it is open.
+      expect(detectNegation(normalizeCaption(caption))).toBe(false);
+    });
+
+    it.each([
+      ["a marker then a return time", "Stängt idag, vi öppnar inte förrän måndag"],
+      ["a marker then a farewell", "Inställt idag, kom inte före 12"],
+    ])("does not let the delayed-opening veto swallow a marker — %s", (_label, caption) => {
+      // A self-sufficient marker is judged on its own; the veto applies only to the
+      // particle rules, which are what a delayed opening can masquerade as.
+      expect(detectNegation(normalizeCaption(caption))).toBe(true);
+    });
+
+    it.each([
+      ["a farewell after a comma", "Ej öppet idag, vi ses innan helgen"],
+      ["an invitation after a comma", "Vi kör inte idag, kom igen innan helgen"],
+    ])("bounds that veto at a comma — %s", (_label, caption) => {
+      // `innan` and `före` are ordinary prepositions, so a caption routinely states a
+      // cancellation and then something unrelated containing one. The delayed-opening
+      // reading only holds when the preposition modifies the negated verb itself.
+      expect(detectNegation(normalizeCaption(caption))).toBe(true);
+    });
+  });
+
+  describe("the subject side of the verb rule", () => {
+    it("does not fire when the subject is a noun rather than the truck", () => {
+      // "Tacos finns inte idag" is a sold-out item — the same class as "Vi kör inte
+      // pizza idag" with the object fronted. Constraining only the right of the
+      // particle left that half open.
+      expect(detectNegation(normalizeCaption("Tacos finns inte idag, men pizza gör det"))).toBe(
+        false,
+      );
+    });
+
+    it("still fires for the truck as subject, and after a clause break", () => {
+      expect(detectNegation(normalizeCaption("Vi kör inte idag"))).toBe(true);
+      expect(detectNegation(normalizeCaption("Lunch imorgon, vi kör inte idag"))).toBe(true);
+    });
+
+    it("does not treat the fixed expression 'öppet hus' as the state of being open", () => {
+      expect(
+        detectNegation(normalizeCaption("Vi har inte öppet hus idag men vi kör som vanligt")),
+      ).toBe(false);
+    });
+  });
+
+  describe("recall the trailing constraint had cost", () => {
+    // Requiring a time or terminator after the open-state killed this entire family.
+    // They are ordinary cancellations, and the left-hand allowlist already rejects
+    // the imperative cases on its own — so the broad constraint was paying for
+    // something it was not needed for.
+    it.each([
+      ["a reason", "Ej öppet pga sjukdom"],
+      ["a bare 'tyvärr'", "Ej öppet tyvärr"],
+      ["a following clause", "Ej öppet, vi ses imorgon"],
+      ["a dash and a reason", "Ej öppet - vi är sjuka"],
+      ["a place before the time", "Ej öppet på Heden idag"],
+      ["a reason after a copula", "Vi är inte öppna pga sjukdom"],
+    ])("still cancels with %s", (_label, caption) => {
+      expect(detectNegation(normalizeCaption(caption))).toBe(true);
+    });
+
+    it("keeps the restriction guard the constraint was there for", () => {
+      // `för` names whom the truck is open TO, not when — except when it introduces
+      // a time, which is why "för dagen" is exempt.
+      expect(detectNegation(normalizeCaption("Vi har inte öppet för barn"))).toBe(false);
+      expect(detectNegation(normalizeCaption("Vi är inte öppna för grupper"))).toBe(false);
+      expect(detectNegation(normalizeCaption("Ej öppet för dagen"))).toBe(true);
+    });
+  });
+
+  describe("word forms and slots", () => {
+    it("accepts an adverb between the particle and the state", () => {
+      // `längre` follows the particle in Swedish. Listing it in the PRE-particle slot
+      // licensed only word orders the language does not use, while the real one
+      // stayed missed — a list in the wrong slot looks like coverage and gives none.
+      expect(detectNegation(normalizeCaption("Vi har inte längre öppet på söndagar"))).toBe(true);
+    });
+
+    it("accepts a bare emphatic quantifier with no time after it", () => {
+      expect(detectNegation(normalizeCaption("Vi kör inte alls"))).toBe(true);
+      expect(detectNegation(normalizeCaption("Vi kör inte alls."))).toBe(true);
+    });
+
+    it.each([
+      ["indefinite", "Vi kör inte på söndag"],
+      ["definite", "Vi kör inte på söndagen"],
+      ["plural", "Vi kör inte på söndagar"],
+      ["definite plural", "Vi kör inte på söndagarna"],
+      ["another weekday, definite", "Vi kör inte på fredagen"],
+    ])("accepts a weekday in its %s form", (_label, caption) => {
+      // Listing only the stem made "på söndag" match while "på söndagen" did not —
+      // an inconsistency inside one list rather than a considered boundary.
+      expect(detectNegation(normalizeCaption(caption))).toBe(true);
     });
   });
 
