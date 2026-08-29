@@ -30,26 +30,77 @@
 // Swedish letters and digits are untouched: none of these classes contain them.
 const EMOJI = /[\p{Extended_Pictographic}\p{Emoji_Modifier}\p{Regional_Indicator}\u{FE0F}\u{200D}\u{20E3}]/gu;
 
+// The body of a tag or handle: word characters, with `.` and `-` allowed only
+// BETWEEN them. Instagram handles routinely contain dots (`@gbg.foodtruck`), and a
+// tag written `#food-truck` is meant as one tag — but requiring a word character
+// after the separator keeps a sentence-ending period out of it, so "Tack @truck."
+// loses the handle and keeps the full stop.
+const TAG_BODY = "[\\p{L}\\p{N}_]+(?:[-.][\\p{L}\\p{N}_]+)*";
+
 // `#gbg` and `@truck` — the whole token, not just the sigil, since neither the tag
 // text nor the handle says anything about where the truck is.
 //
-// The lookbehind is what keeps `info@foodtruck.se` intact: an `@` preceded by a
-// letter or digit is part of an address, not a mention. Without it, normalizing a
-// caption that lists a contact email would silently produce `info.se`.
+// THE TWO SIGILS NEED DIFFERENT RULES, because they collide with ordinary text
+// differently:
+//
+//   `#` never appears inside a word, so it is stripped unconditionally. It also
+//   accepts a run of them, since `##gbg` otherwise leaves a stray `#` behind. This
+//   matters more than it looks: `#gbg#foodtruck#lunch` with no spaces is a normal
+//   way to write Instagram tags.
+//
+//   `@` appears inside every email address, so it keeps the lookbehind — an `@`
+//   preceded by a word character, dot or underscore is part of an address, not a
+//   mention. Without it, a caption listing a contact address silently produces
+//   `info.se`.
 //
 // `\p{L}` rather than `[a-z]` so `#göteborg` is removed whole rather than leaving a
 // dangling `öteborg`.
-const TAG_OR_MENTION = /(?<![\p{L}\p{N}])[#@][\p{L}\p{N}_]+/gu;
+const HASHTAG = new RegExp(`#+${TAG_BODY}`, "gu");
+const MENTION = new RegExp(`(?<![\\p{L}\\p{N}._])@${TAG_BODY}`, "gu");
 
 // Newlines, tabs, non-breaking spaces and runs of ordinary spaces all collapse to
 // one space. JS `\s` already covers the Unicode space separators, so NBSP — which
 // Instagram captions are full of — is handled without listing it.
 const WHITESPACE = /\s+/gu;
 
+// Strip tags to a FIXPOINT rather than in one pass.
+//
+// `String.replace` scans the original string, so a lookbehind still sees the
+// characters that an earlier match removed: in "Tack @a@b" the second `@` is judged
+// against the `a` that is already gone, and survives. Iterating until nothing more
+// is removed closes that whole class rather than the one case, and it makes
+// `normalizeCaption` idempotent by construction instead of by luck.
+//
+// Terminating: each pass either shortens the string or changes nothing, and the
+// latter exits the loop.
+function stripTags(text: string): string {
+  for (;;) {
+    const stripped = text.replace(HASHTAG, "").replace(MENTION, "");
+    if (stripped === text) return text;
+    text = stripped;
+  }
+}
+
 // Strip emoji, hashtags and mentions; collapse whitespace; trim.
 //
-// Order matters: the strips leave holes, and collapsing afterwards closes them, so
-// "Järntorget 🌮 #gbg idag" does not become "Järntorget   idag".
+// UNICODE NORMALISATION COMES FIRST, and it is not cosmetic. "ä" has two encodings:
+// a single codepoint (NFC) and "a" plus a combining diaeresis (NFD). Text from
+// Apple devices — and therefore much of the Mailgun lane — arrives NFD, where every
+// regex here fails on it: the combining mark is `\p{M}`, outside the tag body class,
+// so "#göteborg" strips to a stray diaeresis plus "teborg". Worse, it reaches
+// `detectNegation`, and nine of that module's eleven tokens contain "ä" — so a real
+// cancellation returns false and the truck's pin is never removed. Step 0 is the one
+// place to fix this for every later step, which is why it is here and not repeated
+// downstream.
+//
+// EMOJI BECOME A SPACE, NOT NOTHING. An emoji is frequently used as a separator:
+// "Järntorget🌮11-14" is one token if the emoji is deleted, and neither the
+// dictionary match nor the time extractor can see anything in it. A space is always
+// safe because the whitespace collapse below closes the gap.
+//
+// Order matters throughout: the strips leave holes, and collapsing afterwards closes
+// them, so "Järntorget 🌮 #gbg idag" does not become "Järntorget   idag".
 export function normalizeCaption(raw: string): string {
-  return raw.replace(EMOJI, "").replace(TAG_OR_MENTION, "").replace(WHITESPACE, " ").trim();
+  const composed = raw.normalize("NFC");
+  return stripTags(composed.replace(EMOJI, " ")).replace(WHITESPACE, " ").trim();
 }

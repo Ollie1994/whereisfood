@@ -29,9 +29,20 @@ const PARSER_DIR = fileURLToPath(new URL(".", import.meta.url));
 // Each addition should be a deliberate edit, not a surprise.
 const PARSER_POLICY = allowOnly([]);
 
-function parserModules(): string[] {
-  return readdirSync(PARSER_DIR)
-    .filter((name) => name.endsWith(".ts") && !name.endsWith(".test.ts"))
+// RECURSIVE, deliberately. A flat `readdirSync` would let a module in a
+// subdirectory — `dictionary/index.ts`, `rules/time.ts` — escape the guard entirely
+// while this suite stayed green, which is the same silent-pass failure the
+// non-vacuity assertion below exists to prevent, just one directory down. Paths are
+// returned relative to PARSER_DIR so the test name says where the module lives.
+function parserModules(dir = PARSER_DIR, prefix = ""): string[] {
+  return readdirSync(dir, { withFileTypes: true })
+    .flatMap((entry) => {
+      const relative = `${prefix}${entry.name}`;
+      if (entry.isDirectory()) {
+        return parserModules(`${dir}${entry.name}/`, `${relative}/`);
+      }
+      return entry.name.endsWith(".ts") && !entry.name.endsWith(".test.ts") ? [relative] : [];
+    })
     .sort();
 }
 

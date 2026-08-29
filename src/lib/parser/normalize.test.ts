@@ -30,6 +30,13 @@ describe("normalizeCaption", () => {
       expect(normalizeCaption(input)).toBe(expected);
     });
 
+    it("becomes a space, so an emoji used as a separator does not glue words", () => {
+      // Deleting the emoji outright yields "Järntorget11-14" — one token that
+      // neither the dictionary match nor the time extractor can see anything in,
+      // so a perfectly good caption scores zero.
+      expect(normalizeCaption("Vi står vid Järntorget🌮11-14")).toBe("Vi står vid Järntorget 11-14");
+    });
+
     it("leaves no stray joiner or selector behind", () => {
       // The failure this guards: stripping the pictograph but not the invisible
       // characters that assembled it leaves codepoints that are invisible in a
@@ -62,6 +69,51 @@ describe("normalizeCaption", () => {
       // The lookbehind must not require a preceding character; start-of-string is
       // a valid boundary.
       expect(normalizeCaption("@foodtruckgbg står vid Heden")).toBe("står vid Heden");
+    });
+
+    it.each([
+      ["run-together hashtags", "Lunch #gbg#foodtruck#lunch idag", "Lunch idag"],
+      ["repeated sigils", "Lunch ##gbg idag", "Lunch idag"],
+      ["run-together mentions", "Tack @a@b", "Tack"],
+    ])("strips %s", (_label, input, expected) => {
+      // `String.replace` scans the ORIGINAL string, so a lookbehind still sees the
+      // characters an earlier match removed — leaving the second tag behind. These
+      // are the fixpoint cases. `#gbg#foodtruck#lunch` is a normal way to write
+      // Instagram tags, not an edge case.
+      expect(normalizeCaption(input)).toBe(expected);
+    });
+
+    it("handles the dots and hyphens that appear inside real handles and tags", () => {
+      // Instagram handles routinely contain dots.
+      expect(normalizeCaption("Idag med @gbg.foodtruck vid Heden 11-14")).toBe(
+        "Idag med vid Heden 11-14",
+      );
+      expect(normalizeCaption("Lunch #food-truck idag")).toBe("Lunch idag");
+    });
+
+    it("does not eat a sentence-ending full stop after a mention", () => {
+      // The separator must be followed by a word character to count as part of the
+      // handle, or "Tack @truck." loses its punctuation too.
+      expect(normalizeCaption("Tack @truck.")).toBe("Tack .");
+    });
+  });
+
+  describe("Unicode normalisation", () => {
+    // "ä" has two encodings: one codepoint (NFC) or "a" plus a combining diaeresis
+    // (NFD). Apple devices emit NFD, so much of the Mailgun lane arrives that way,
+    // and every regex in the pipeline fails on it. This is the one place to fix it.
+    it("composes NFD input so the tag class can see Swedish letters", () => {
+      // Without NFC the combining mark is `\p{M}` — outside the tag body — so the
+      // tag strips to a stray diaeresis plus "teborg".
+      expect(normalizeCaption("Vi står i #göteborg idag".normalize("NFD"))).toBe(
+        "Vi står i idag",
+      );
+    });
+
+    it("produces NFC output regardless of input form", () => {
+      const fromNfd = normalizeCaption("Järntorget".normalize("NFD"));
+      expect(fromNfd).toBe("Järntorget");
+      expect(fromNfd).toBe(fromNfd.normalize("NFC"));
     });
   });
 
@@ -107,8 +159,14 @@ describe("normalizeCaption", () => {
     });
   });
 
-  it("is idempotent — normalizing twice changes nothing", () => {
-    const once = normalizeCaption("Idag lunch vid Järntorget 11-14 🌮 #gbg @truck");
+  it.each([
+    ["the acceptance-criteria caption", "Idag lunch vid Järntorget 11-14 🌮 #gbg @truck"],
+    ["run-together tags and mentions", "Tack @a@b #x#y 🌮  idag"],
+    ["NFD input", "Vi står vid Järntorget 11-14 #göteborg".normalize("NFD")],
+  ])("is idempotent for %s", (_label, input) => {
+    // Now true by construction rather than by luck: before the fixpoint, a second
+    // pass stripped tags the first pass had left behind.
+    const once = normalizeCaption(input);
     expect(normalizeCaption(once)).toBe(once);
   });
 });

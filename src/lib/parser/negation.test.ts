@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { detectNegation, NEGATION_PHRASES, NEGATION_WORDS } from "@/lib/parser/negation";
+import { normalizeCaption } from "@/lib/parser/normalize";
 
 describe("detectNegation", () => {
   describe("fires on a cancellation", () => {
@@ -105,6 +106,26 @@ describe("detectNegation", () => {
     it("does not fire on 'tyvärr' alone", () => {
       // Modifies anything — including a caption that means they are present.
       expect(detectNegation("Tyvärr slut på tacos, men vi står kvar")).toBe(false);
+    });
+  });
+
+  describe("composed with normalizeCaption, as the pipeline runs it", () => {
+    // detectNegation's precondition is normalized (therefore NFC) text. These
+    // assert the composition, because the failure they guard is invisible in
+    // either module alone: nine of the eleven tokens contain "ä", so NFD input
+    // silently returns false for a genuine cancellation — a truck's pin would
+    // never be removed, with nothing anywhere reporting a problem.
+    it.each([
+      ["Inställt idag", true],
+      ["Vi har stängt idag", true],
+      ["Vi står vid Järntorget 11-14", false],
+    ])("agrees between NFC and NFD input for %s", (caption, expected) => {
+      expect(detectNegation(normalizeCaption(caption))).toBe(expected);
+      expect(detectNegation(normalizeCaption(caption.normalize("NFD")))).toBe(expected);
+    });
+
+    it("still fires when the caption is dressed up the way a real post is", () => {
+      expect(detectNegation(normalizeCaption("😢 INSTÄLLT idag! #gbg @foodtruckgbg"))).toBe(true);
     });
   });
 
