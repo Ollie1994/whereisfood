@@ -44,43 +44,114 @@ const EMOJI = /[\p{Extended_Pictographic}\p{Emoji_Modifier}\p{Regional_Indicator
 const HASHTAG_BODY = "[\\p{L}\\p{N}_]+(?:-[\\p{L}\\p{N}_]+)*";
 const MENTION_BODY = "[\\p{L}\\p{N}_]+(?:[-.][\\p{L}\\p{N}_]+)*";
 
-// `#gbg` and `@truck` — the whole token, not just the sigil.
+// HASHTAGS KEEP THEIR TEXT; MENTIONS DO NOT. The two carry different things: a tag
+// is written by the truck to say something, a handle names an account.
 //
-// ⚠ KNOWN COST, spec-mandated: a location written AS a tag is destroyed here.
-// "Idag står vi på #Järntorget 11-14" normalizes to "Idag står vi på 11-14", and
-// `extractLocation()` then has nothing to match, dropping the post below the 0.45
-// display threshold. Stripping only the sigil would preserve it — but the issue's
-// acceptance criteria require `#gbg` to be gone from the output, and doing that for
-// generic tags while keeping location tags needs the dictionary, which step 0 must
-// not depend on. Kept as specified; flagged for #65, which is where a caller could
-// reasonably match against the pre-strip text as well.
+// ⚠ SUPERSEDES #56's acceptance criterion, which required `#gbg` to be absent from
+// the output. That criterion was wrong (#78): it optimised for a clean-looking
+// string over a parseable one. "Idag står vi på #Järntorget 11-14" normalized to
+// "Idag står vi på 11-14", `extractLocation()` had nothing to match, and a truck
+// that told us exactly where it was rendered as a grey marker. The sigil goes, the
+// words stay.
 //
-// (An earlier version of this comment claimed tag text "says nothing about where the
-// truck is". That is simply false for Instagram captions, and the false premise made
-// the cost above look like no cost at all.)
+// A tag can carry ANY of the three signals the parser looks for — a location
+// (`#Järntorget`), a date (`#idag`, `#måndag`), a time (`#11-14`, `#lunchtid`), or
+// several at once (`#Lunch11-14Heden`) — which is why the text is segmented rather
+// than merely unwrapped. Removing the sigil alone rescues only single-word tags.
+//
+// ⚠ `detectNegation` READS THIS SAME STRING, and preserving tag text widens its
+// exposure: "#StängtPåSöndag" now segments to "Stängt På Söndag", the marker gets
+// clean word boundaries, and a truck posting "Heden 11-14 idag! #StängtPåSöndag"
+// has today's location deleted over a note about Sunday.
+//
+// This is a WIDENING, not a new failure: the prose form "Vi står på Heden 11-14
+// idag, stängt på söndag" already does the same thing, because a cancellation marker
+// carries no notion of WHICH day it cancels. Verified against `dev`. The real fix is
+// to scope a negation to the date it names, which needs `extractDate` and therefore
+// belongs downstream (#67) — tracked separately rather than papered over here, since
+// narrowing it in step 0 would mean teaching the normalizer the negation vocabulary
+// and inverting the layering.
 //
 // THE TWO SIGILS NEED DIFFERENT RULES, because they collide with ordinary text
 // differently:
 //
-//   `#` never appears inside a word, so it is stripped unconditionally. It also
-//   accepts a run of them, since `##gbg` otherwise leaves a stray `#` behind. This
-//   matters more than it looks: `#gbg#foodtruck#lunch` with no spaces is a normal
-//   way to write Instagram tags.
+//   BOTH require a non-word character in front, because neither sigil starts a
+//   token mid-word. For `@` this protects email addresses — without it, a caption
+//   listing a contact address silently produces `info.se`. For `#` it protects the
+//   same addresses from the other side: `info#1@foodtruck.se` would otherwise be
+//   read as a tag, and the trailing space emitted before the `@` would then let the
+//   mention rule eat the domain, leaving `info 1`.
 //
-//   `@` appears inside every email address, so it keeps the lookbehind — an `@`
-//   preceded by a word character, dot or underscore is part of an address, not a
-//   mention. Without it, a caption listing a contact address silently produces
-//   `info.se`.
+//   Run-together tags still work, via the trailing space plus the FIXPOINT. In
+//   `#gbg#foodtruck` the second `#` is preceded by a letter and is skipped on the
+//   first pass; the replacement emits a trailing space because a sigil follows, so
+//   the next pass sees the `#` preceded by a space and takes it. Both parts are
+//   needed — the fixpoint alone does not help, because without that space the
+//   replaced text leaves a letter in front of the next `#` and the input is already
+//   at a fixpoint, wrong.
+//
+//   A run of sigils is consumed at once (`#+`), since `##gbg` would otherwise leave
+//   a stray `#` behind.
 //
 // `\p{L}` rather than `[a-z]` so `#göteborg` is removed whole rather than leaving a
 // dangling `öteborg`.
-const HASHTAG = new RegExp(`#+${HASHTAG_BODY}`, "gu");
+const HASHTAG = new RegExp(`(?<![\\p{L}\\p{N}])#+(${HASHTAG_BODY})`, "gu");
 const MENTION = new RegExp(`(?<![\\p{L}\\p{N}._])@${MENTION_BODY}`, "gu");
 
 // Newlines, tabs, non-breaking spaces and runs of ordinary spaces all collapse to
 // one space. JS `\s` already covers the Unicode space separators, so NBSP — which
 // Instagram captions are full of — is handled without listing it.
 const WHITESPACE = /\s+/gu;
+
+// Segment a tag's text at the boundaries its own formatting marks.
+//
+// A multi-word tag is written without spaces, so unwrapping "#LunchJärntorget" to
+// "LunchJärntorget" leaves one token no extractor can read — the fix would rescue
+// only single-word tags. These three rules recover the boundaries that ARE marked:
+//
+//   lowercase → uppercase   "#LunchJärntorget" → "Lunch Järntorget"
+//   letter → digit          "#lunch11-14"      → "lunch 11-14"
+//   digit → letter          "#11-14Heden"      → "11-14 Heden"
+//
+// Two things must survive, and both are asserted by test because the obvious
+// implementations break them:
+//
+//   `#GBG` must not shred into "G B G" — hence lowercase→uppercase specifically,
+//   rather than splitting before every capital. Uppercase runs stay whole.
+//
+//   `#11-14` must keep its hyphen, or the fix meant to EXPOSE a time range is what
+//   destroys it. Nothing here touches a separator between two digits.
+//
+// Applied only inside tag text, never to the caption at large: splitting camelCase
+// across prose would break ordinary sentences and proper nouns.
+//
+// KNOWN LIMIT: an all-lowercase run-together tag (`#järntorgetidag`) has no marked
+// boundary and stays glued. Finding one needs a wordlist, and step 0 must not depend
+// on the dictionary. `extractLocation` (#65) is where that could be recovered, by
+// matching dictionary entries as substrings rather than on word boundaries.
+function segmentTagText(text: string): string {
+  return (
+    text
+      // `_` is the one boundary a tag can state outright, and it is allowed in the
+      // tag body — so `#lunch_järntorget` must not stay glued. Unlike the
+      // all-lowercase limit below, this boundary is marked and needs no wordlist.
+      .replace(/_/gu, " ")
+      // An uppercase RUN followed by a capitalised word: "#GBGJärntorget" →
+      // "GBG Järntorget". Must run before the lowercase→uppercase rule, which
+      // cannot see this boundary — there is no lowercase letter at it. Without it
+      // the documented limit was wider than stated: not just all-lowercase tags,
+      // but any acronym glued to a word, which is an ordinary way to write one.
+      .replace(/(\p{Lu}+)(\p{Lu}\p{Ll})/gu, "$1 $2")
+      .replace(/(\p{Ll})(\p{Lu})/gu, "$1 $2")
+      .replace(/(\p{L})(\p{N})/gu, "$1 $2")
+      // Digit → letter, but only when a WORD follows, not a single letter.
+      // Swedish street addresses carry an entrance letter — "Nordostpassagen 61B" —
+      // and splitting it gives "61 B", so the same address would parse differently
+      // written as prose than written as a tag. Two letters is the shortest thing
+      // that is a word rather than a suffix.
+      .replace(/(\p{N})(?=\p{L}{2})/gu, "$1 ")
+  );
+}
 
 // Strip tags to a FIXPOINT rather than in one pass.
 //
@@ -90,11 +161,40 @@ const WHITESPACE = /\s+/gu;
 // is removed closes that whole class rather than the one case, and it makes
 // `normalizeCaption` idempotent by construction instead of by luck.
 //
-// Terminating: each pass either shortens the string or changes nothing, and the
-// latter exits the loop.
+// A hashtag becomes its segmented text SURROUNDED BY SPACES; a mention is removed
+// outright. Both spaces are load-bearing, and the whitespace collapse afterwards
+// makes a spare one free:
+//
+//   leading   "#gbg#foodtruck" must not fuse into "gbgfoodtruck".
+//   trailing  ONLY before an `@`. "#gbg@foodtruckgbg" — a run-together tag block
+//             ending in a handle is ordinary Instagram style — otherwise puts the
+//             tag's text directly before the `@`, where MENTION's email lookbehind
+//             sees a letter and refuses to match, leaving the handle in the caption.
+//             The fixpoint cannot recover it, because the blocking character is real
+//             text rather than something a later pass removes.
+//
+// The trailing space is CONDITIONAL because emitting it always costs more than it
+// fixes. A hashtag body stops at a dot, so "#11.30-13.00" is the tag `#11` followed
+// by ".30-13.00"; an unconditional trailing space turns that into "11 .30-13.00" and
+// splits a time range in half. Leaving a handle in the caption is noise; destroying
+// a time is data loss, so the space goes only where the `@` needs it.
+//
+// TERMINATING, but no longer for the reason first written here. The original argument
+// was "each pass shortens the string or changes nothing" — false once a hashtag is
+// replaced by its SEGMENTED text, which is longer than the tag it came from
+// ("#LunchJärntorget" → " Lunch Järntorget"). The real invariant is that every pass
+// consumes at least one sigil and no rule can introduce one: segmentation inserts
+// only spaces, and mention removal deletes. So the sigil count strictly decreases
+// and the loop cannot run more times than the caption has `#` and `@` characters.
 function stripTags(text: string): string {
   for (;;) {
-    const stripped = text.replace(HASHTAG, "").replace(MENTION, "");
+    const stripped = text
+      .replace(HASHTAG, (match: string, body: string, offset: number, whole: string) => {
+        const next = whole[offset + match.length];
+        const followedBySigil = next === "@" || next === "#";
+        return ` ${segmentTagText(body)}${followedBySigil ? " " : ""}`;
+      })
+      .replace(MENTION, "");
     if (stripped === text) return text;
     text = stripped;
   }

@@ -3,8 +3,12 @@ import { normalizeCaption } from "@/lib/parser/normalize";
 
 describe("normalizeCaption", () => {
   it("handles the acceptance-criteria caption end to end", () => {
+    // ⚠ SUPERSEDES #56's criterion, which expected "#gbg" to leave nothing behind.
+    // That was wrong (#78): a tag can carry the location, the date or the time, so
+    // the sigil goes and the word stays. Generic tags like "gbg" become harmless
+    // words — the dictionary holds specific squares, which they do not match.
     expect(normalizeCaption("Idag lunch vid Järntorget 11-14 🌮 #gbg @truck")).toBe(
-      "Idag lunch vid Järntorget 11-14",
+      "Idag lunch vid Järntorget 11-14 gbg",
     );
   });
 
@@ -49,11 +53,11 @@ describe("normalizeCaption", () => {
 
   describe("hashtags and mentions", () => {
     it.each([
-      ["a hashtag", "Järntorget idag #gbg", "Järntorget idag"],
-      ["several hashtags", "Lunch #gbg #foodtruck #tacos", "Lunch"],
+      ["a hashtag", "Järntorget idag #gbg", "Järntorget idag gbg"],
+      ["several hashtags", "Lunch #gbg #foodtruck #tacos", "Lunch gbg foodtruck tacos"],
       ["a mention", "Tack @foodtruckgbg", "Tack"],
-      ["a hashtag with Swedish letters", "Vi står i #göteborg idag", "Vi står i idag"],
-      ["a hashtag with digits", "Lunch #gbg2026", "Lunch"],
+      ["a hashtag with Swedish letters", "Vi står i #göteborg idag", "Vi står i göteborg idag"],
+      ["a hashtag with digits", "Lunch #gbg2026", "Lunch gbg 2026"],
       ["an underscore handle", "Tack @food_truck_gbg", "Tack"],
     ])("strips %s", (_label, input, expected) => {
       expect(normalizeCaption(input)).toBe(expected);
@@ -72,8 +76,8 @@ describe("normalizeCaption", () => {
     });
 
     it.each([
-      ["run-together hashtags", "Lunch #gbg#foodtruck#lunch idag", "Lunch idag"],
-      ["repeated sigils", "Lunch ##gbg idag", "Lunch idag"],
+      ["run-together hashtags", "Lunch #gbg#foodtruck#lunch idag", "Lunch gbg foodtruck lunch idag"],
+      ["repeated sigils", "Lunch ##gbg idag", "Lunch gbg idag"],
       ["run-together mentions", "Tack @a@b", "Tack"],
     ])("strips %s", (_label, input, expected) => {
       // `String.replace` scans the ORIGINAL string, so a lookbehind still sees the
@@ -88,7 +92,7 @@ describe("normalizeCaption", () => {
       expect(normalizeCaption("Idag med @gbg.foodtruck vid Heden 11-14")).toBe(
         "Idag med vid Heden 11-14",
       );
-      expect(normalizeCaption("Lunch #food-truck idag")).toBe("Lunch idag");
+      expect(normalizeCaption("Lunch #food-truck idag")).toBe("Lunch food-truck idag");
     });
 
     it("does not let a hashtag swallow the word after a full stop", () => {
@@ -100,10 +104,92 @@ describe("normalizeCaption", () => {
       // letting the tag reach past the dot again, which is the swallow. A leading
       // dot is cosmetic — the word is still a separate token to any boundary-aware
       // matcher — whereas a deleted location name is not recoverable.
-      expect(normalizeCaption("#gbg.Heden idag 11-14")).toBe(".Heden idag 11-14");
+      expect(normalizeCaption("#gbg.Heden idag 11-14")).toBe("gbg.Heden idag 11-14");
       expect(normalizeCaption("Lunch #foodtruck.Järntorget 11-14")).toBe(
-        "Lunch .Järntorget 11-14",
+        "Lunch foodtruck.Järntorget 11-14",
       );
+    });
+
+    it("keeps a location written as a tag — the reason tag text is preserved", () => {
+      // The failure this whole behaviour exists to prevent: extractLocation had
+      // nothing to match, the post scored 0.2, and a truck that told us exactly
+      // where it was rendered as a grey marker.
+      expect(normalizeCaption("Idag står vi på #Järntorget 11-14")).toBe(
+        "Idag står vi på Järntorget 11-14",
+      );
+    });
+
+    describe("tag text is segmented, not merely unwrapped", () => {
+      // A multi-word tag is written without spaces, so removing the sigil alone
+      // leaves one token no extractor can read. These recover the boundaries the
+      // tag's own formatting marks.
+      it.each([
+        ["lowercase to uppercase", "#LunchJärntorget", "Lunch Järntorget"],
+        ["letter to digit", "#lunch11-14", "lunch 11-14"],
+        ["digit to letter", "#11-14Heden", "11-14 Heden"],
+        ["all three at once", "#Lunch11-14Heden", "Lunch 11-14 Heden"],
+        ["a date as a tag", "#Imorgon", "Imorgon"],
+        ["a time word as a tag", "#lunchtid", "lunchtid"],
+      ])("splits %s", (_label, input, expected) => {
+        expect(normalizeCaption(input)).toBe(expected);
+      });
+
+      it("does not shred an uppercase run", () => {
+        // Splitting before every capital would give "G B G". The rule is
+        // lowercase→uppercase specifically, so acronyms survive.
+        expect(normalizeCaption("#GBG")).toBe("GBG");
+        expect(normalizeCaption("#FoodTruckGBG")).toBe("Food Truck GBG");
+      });
+
+      it("does not break a time range while exposing it", () => {
+        // The hyphen sits between two digits, which no rule touches. Getting this
+        // wrong would mean the fix meant to expose a time is what destroys it.
+        expect(normalizeCaption("#11-14")).toBe("11-14");
+        expect(normalizeCaption("#11.30-13.00")).toBe("11.30-13.00");
+      });
+
+      it("splits on an underscore, which the tag body allows", () => {
+        // The one boundary a tag can state outright. Unlike the all-lowercase case
+        // below, it needs no wordlist — leaving it glued would be the same
+        // grey-marker failure this behaviour exists to prevent.
+        expect(normalizeCaption("Idag står vi på #lunch_järntorget 11-14")).toBe(
+          "Idag står vi på lunch järntorget 11-14",
+        );
+      });
+
+      it("does not detach a Swedish street entrance letter", () => {
+        // "Nordostpassagen 61B" is an address. Splitting the trailing letter gives
+        // "61 B", so the same address would parse differently written as a tag than
+        // written as prose. A digit is followed by a WORD, not by a suffix.
+        expect(normalizeCaption("Nordostpassagen 61B, #Nordostpassagen61B")).toBe(
+          "Nordostpassagen 61B, Nordostpassagen 61B",
+        );
+        // ...while a real word after digits still splits.
+        expect(normalizeCaption("#5Heden")).toBe("5 Heden");
+      });
+
+      it("splits an uppercase run from a following word", () => {
+        // "#GBGJärntorget" has no lowercase letter at the boundary, so the
+        // lowercase→uppercase rule cannot see it. Without a rule for an acronym
+        // followed by a word, the documented limit was wider than stated: not just
+        // all-lowercase tags, but any acronym glued to a word.
+        expect(normalizeCaption("#GBGJärntorget")).toBe("GBG Järntorget");
+        expect(normalizeCaption("#GBGLunch")).toBe("GBG Lunch");
+        // ...and an acronym at the END must still not be split.
+        expect(normalizeCaption("#FoodTruckGBG")).toBe("Food Truck GBG");
+      });
+
+      it("leaves an all-lowercase run-together tag glued — a known limit", () => {
+        // No marked boundary to find. Recovering this needs a wordlist, and step 0
+        // must not depend on the dictionary; #65 is where it could be matched as a
+        // substring instead. Pinned so the limit is documented behaviour.
+        expect(normalizeCaption("#järntorgetidag")).toBe("järntorgetidag");
+      });
+
+      it("preserves Swedish letters through segmentation", () => {
+        expect(normalizeCaption("#MatPåHeden")).toBe("Mat På Heden");
+        expect(normalizeCaption("#göteborg")).toBe("göteborg");
+      });
     });
 
     it("keeps the location name when a caption writes it after a tag", () => {
@@ -111,6 +197,41 @@ describe("normalizeCaption", () => {
       // the word survives.
       expect(normalizeCaption("#gbg.Heden idag 11-14")).toContain("Heden");
       expect(normalizeCaption("Lunch #foodtruck.Järntorget 11-14")).toContain("Järntorget");
+    });
+
+    it("still strips a mention that runs directly on from a hashtag", () => {
+      // Ordinary Instagram style. Preserving the tag's text puts a letter directly
+      // before the `@`, where the email lookbehind refuses to match — so the handle
+      // survived into the caption. The fixpoint cannot recover it, because the
+      // blocking character is real text rather than something a later pass removes.
+      expect(normalizeCaption("Lunch #gbg@foodtruckgbg")).toBe("Lunch gbg");
+    });
+
+    it("does not treat a mid-word sigil as a tag", () => {
+      // Neither sigil starts a token mid-word. Without the lookbehind on `#`,
+      // "info#1@foodtruck.se" was read as a tag, and the trailing space emitted
+      // before the `@` then let the mention rule eat the domain, leaving "info 1".
+      expect(normalizeCaption("Boka: info#1@foodtruck.se")).toBe("Boka: info#1@foodtruck.se");
+      expect(normalizeCaption("Boka: info#hash")).toBe("Boka: info#hash");
+    });
+
+    it("still separates run-together tags despite that lookbehind", () => {
+      // The lookbehind blocks the second `#` in "#gbg#foodtruck", so the trailing
+      // space is what lets a later pass reach it. The fixpoint alone does NOT
+      // recover this: without the space the replaced text leaves a letter in front
+      // of the next `#`, and the string is already at a fixpoint — a wrong one.
+      expect(normalizeCaption("Lunch #gbg#foodtruck#lunch idag")).toBe(
+        "Lunch gbg foodtruck lunch idag",
+      );
+    });
+
+    it("does not split a dotted time range while separating a mention", () => {
+      // The fix for the case above must be conditional. A hashtag body stops at a
+      // dot, so "#11.30-13.00" is `#11` plus ".30-13.00"; an unconditional trailing
+      // space yields "11 .30-13.00" and cuts a time range in half. A leftover
+      // handle is noise; a destroyed time is data loss.
+      expect(normalizeCaption("#11.30-13.00")).toBe("11.30-13.00");
+      expect(normalizeCaption("Lunch 11.30-13.00 #gbg")).toBe("Lunch 11.30-13.00 gbg");
     });
 
     it("does not eat a sentence-ending full stop after a mention", () => {
@@ -128,7 +249,7 @@ describe("normalizeCaption", () => {
       // Without NFC the combining mark is `\p{M}` — outside the tag body — so the
       // tag strips to a stray diaeresis plus "teborg".
       expect(normalizeCaption("Vi står i #göteborg idag".normalize("NFD"))).toBe(
-        "Vi står i idag",
+        "Vi står i göteborg idag",
       );
     });
 
@@ -154,7 +275,7 @@ describe("normalizeCaption", () => {
     it("closes the gaps left by stripping, rather than leaving a run of spaces", () => {
       // Order dependency: strip first, collapse second. Reversing them leaves
       // "Järntorget   idag".
-      expect(normalizeCaption("Järntorget 🌮 #gbg idag")).toBe("Järntorget idag");
+      expect(normalizeCaption("Järntorget 🌮 #gbg idag")).toBe("Järntorget gbg idag");
     });
   });
 
@@ -166,7 +287,7 @@ describe("normalizeCaption", () => {
     });
 
     it("preserves the time range, which every later extractor depends on", () => {
-      expect(normalizeCaption("🌮 Järntorget 11.30-13.00 #lunch")).toBe("Järntorget 11.30-13.00");
+      expect(normalizeCaption("🌮 Järntorget 11.30-13.00 #lunch")).toBe("Järntorget 11.30-13.00 lunch");
     });
 
     it("preserves ordinary punctuation", () => {
