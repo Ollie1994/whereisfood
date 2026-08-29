@@ -92,9 +92,42 @@ export const TEMPORAL_WORDS = [
   "söndag",
 ] as const;
 
-// What may stand immediately before a particle in a genuine cancellation: a copula
-// or auxiliary. "Vi HAR inte öppet", "Vi ÄR inte öppna".
+// What may stand before a particle in a genuine cancellation: a copula or auxiliary.
+// "Vi HAR inte öppet", "Vi ÄR inte öppna".
 export const AUXILIARIES = ["har", "hade", "är", "var", "blir", "blev", "kommer"] as const;
+
+// Words that may sit BETWEEN the licensing context and the particle. Swedish is a
+// V2 language, so a fronted time inverts the subject: "Idag ÄR VI inte öppna" is the
+// most idiomatic way to say it, and requiring the auxiliary to touch the particle
+// missed that entire family. Pronouns and a few sentence adverbs are all that
+// realistically appear there.
+export const PARTICLE_FILLERS = [
+  ...AUXILIARIES,
+  "vi",
+  "jag",
+  "man",
+  "det",
+  "de",
+  "dom",
+  "den",
+  "ni",
+  "dessvärre",
+  "tyvärr",
+  "längre",
+  "riktigt",
+  "just",
+] as const;
+
+// Words that may sit between the particle and the time it applies to.
+// "Vi kör inte ALLS idag", "Vi kör inte HELA veckan".
+export const TEMPORAL_QUANTIFIERS = ["alls", "hela", "nästa", "denna", "kommande"] as const;
+
+// "Inte öppet FÖRRÄN 12" means the truck opens at 12 — it is a delayed opening, not
+// a cancellation, and firing on it deletes the pin of a truck that is about to be
+// there. The module already excludes the verb form of this ("Vi stänger inte förrän
+// 15") by keeping `stänger` out of OPERATING_VERBS; the copula form needs its own
+// guard because `är` and `har` are legitimately in AUXILIARIES.
+export const DELAYED_OPENING = ["förrän", "innan", "före"] as const;
 
 // ⚠ THESE TWO LISTS ARE INCOMPLETE, AND THAT IS SAFE. A verb or state we failed to
 // think of means a cancellation is MISSED — a stale pin, cleared by `expires_at`
@@ -177,24 +210,34 @@ const NEGATED_MARKER = new RegExp(
 //   OPERATING_VERBS acceptable above.
 const TEMPORAL = `(?:(?:på|i)\\s+)?${alt(TEMPORAL_WORDS)}`;
 
-// End of the clause the particle sits in: punctuation, or the end of the caption.
-const CLAUSE_END = "\\s*(?:[.,!?:;]|$)";
+// Clause boundaries. Captions are punctuated loosely and often written one clause per
+// line with a leading dash or bullet, so those count as much as a full stop does.
+// `normalizeCaption` has already collapsed newlines to spaces by the time this runs,
+// which is why the visible markers have to carry the whole job — see KNOWN LIMIT on
+// `detectNegation`.
+const CLAUSE_START = "(?:^|[.,!?:;()\\[\\]\"'•*–—-]\\s*)";
+const CLAUSE_END = "\\s*(?:[.,!?:;•*–—…-]|$)";
 
 // A cancellation names WHEN, or stops. "Vi kör inte idag", "Vi kör inte." What
 // follows the particle in the false positives is an object — "pizza" — and an object
-// is what tells you the particle negated something other than being there.
+// is what tells you the particle negated something other than being there. A
+// quantifier may intervene: "inte alls idag", "inte hela veckan".
 const VERB_THEN_NEGATOR = new RegExp(
-  `${BEFORE}${alt(OPERATING_VERBS)}\\s+${alt(NEGATORS)}${AFTER}(?:\\s+${TEMPORAL}${AFTER}|${CLAUSE_END})`,
+  `${BEFORE}${alt(OPERATING_VERBS)}\\s+${alt(NEGATORS)}${AFTER}` +
+    `(?:\\s+(?:${alt(TEMPORAL_QUANTIFIERS)}\\s+)*${TEMPORAL}${AFTER}|${CLAUSE_END})`,
   FLAGS,
 );
 
-// A cancellation starts its clause, or follows a copula, or follows the date it
-// applies to: "Ej öppet", "Vi har inte öppet", "Idag ej öppet". An imperative in
-// front — "glöm inte öppet" — is none of those, and is excluded by not being listed
-// rather than by being named.
+// A cancellation starts its clause or follows the date it applies to, with only
+// pronouns, auxiliaries and sentence adverbs allowed in between: "Ej öppet", "Vi har
+// inte öppet", "Idag är vi inte öppna". An imperative in front — "glöm inte öppet" —
+// is none of those, and is excluded by not being listed rather than by being named.
+//
+// The trailing guard rejects a delayed opening: "inte öppna FÖRRÄN 12" says they open
+// at 12.
 const NEGATOR_THEN_STATE = new RegExp(
-  `(?:^|[.,!?:;]\\s*|${BEFORE}${alt(AUXILIARIES)}\\s+|${BEFORE}${TEMPORAL}\\s+)` +
-    `${alt(NEGATORS)}\\s+${alt(OPEN_STATES)}${AFTER}`,
+  `(?:${CLAUSE_START}|${BEFORE}${TEMPORAL}\\s+)(?:${alt(PARTICLE_FILLERS)}\\s+)*` +
+    `${alt(NEGATORS)}\\s+${alt(OPEN_STATES)}${AFTER}(?!\\s+${alt(DELAYED_OPENING)}${AFTER})`,
   FLAGS,
 );
 
@@ -214,6 +257,15 @@ const NEGATOR_THEN_STATE = new RegExp(
 // them apart, so the ambiguity is resolved the only way it safely can be — a missed
 // cancellation is a stale pin that `expires_at` clears within hours, while the other
 // reading deletes a truck that is standing somewhere else.
+//
+// KNOWN LIMIT — A LINE BREAK IS NOT A CLAUSE BOUNDARY HERE. `normalizeCaption`
+// collapses newlines to spaces before this runs, so "Vi hörs snart\nEj öppet idag"
+// arrives with nothing marking where one clause ends. A dash or bullet starting the
+// line survives and does license the particle, which covers the common
+// "- Ej öppet idag" shape, but a bare line break does not. Fixing it means having
+// step 0 preserve some clause marker, which changes its contract and belongs in its
+// own issue rather than being smuggled in here. Fail-safe: the cost is a missed
+// cancellation, cleared by `expires_at`.
 //
 // Still bounded by the override matrix (#1, #6): a low-confidence lane cannot cancel
 // a higher-confidence location regardless.

@@ -193,6 +193,64 @@ describe("detectNegation", () => {
       expect(detectNegation(normalizeCaption(caption))).toBe(true);
     });
 
+    it.each([
+      ["är", "Vi är inte öppna förrän 12"],
+      ["har, with a following time", "Vi har inte öppet förrän 13 idag, då kör vi"],
+      ["kommer", "Vi kommer inte öppna förrän 12 idag"],
+      ["innan", "Vi har inte öppet innan 12"],
+    ])("does not fire on a delayed opening via %s", (_label, caption) => {
+      // "Inte öppet FÖRRÄN 12" says they open at 12. The verb form of this is
+      // already excluded by keeping `stänger` out of OPERATING_VERBS; the copula
+      // form needed its own guard, because `är` and `har` belong in AUXILIARIES.
+      // This is the one wrong-direction failure the allowlist did not cover.
+      expect(detectNegation(normalizeCaption(caption))).toBe(false);
+    });
+
+    it.each([
+      ["a fronted time inverting the subject", "Idag är vi inte öppna"],
+      ["the same with 'har'", "Idag har vi inte öppet"],
+      ["a fronted 'imorgon'", "Imorgon har vi inte öppet"],
+      ["a sentence adverb before the particle", "Vi är dessvärre inte öppna idag"],
+    ])("still cancels with V2 inversion — %s", (_label, caption) => {
+      // Swedish is a V2 language: fronting the time inverts the subject, so the
+      // auxiliary no longer touches the particle. Requiring adjacency there missed
+      // the most idiomatic phrasing of a cancellation entirely.
+      expect(detectNegation(normalizeCaption(caption))).toBe(true);
+    });
+
+    it.each([
+      ["a leading dash", "- Ej öppet idag"],
+      ["a leading bullet", "• Ej öppet idag"],
+      ["parentheses", "(Ej öppet idag)"],
+    ])("treats %s as a clause boundary", (_label, caption) => {
+      // Captions are punctuated loosely and often written one clause per line with
+      // a leading marker. Only `.` and `,` would miss the dominant shape.
+      expect(detectNegation(normalizeCaption(caption))).toBe(true);
+    });
+
+    it.each([
+      ["alls", "Vi kör inte alls idag"],
+      ["hela", "Vi kör inte hela veckan"],
+      ["nästa", "Vi kör inte nästa vecka"],
+    ])("allows the quantifier %s between the particle and the time", (_label, caption) => {
+      expect(detectNegation(normalizeCaption(caption))).toBe(true);
+    });
+
+    it.each([
+      ["a hyphen", "Vi kör inte - vi vilar idag"],
+      ["an en dash", "Vi kör inte – sjuk"],
+      ["an ellipsis", "Vi kör inte …"],
+    ])("treats %s as the end of the clause", (_label, caption) => {
+      expect(detectNegation(normalizeCaption(caption))).toBe(true);
+    });
+
+    it("misses a bare line break as a clause boundary — a known limit", () => {
+      // normalizeCaption collapses newlines to spaces, so nothing marks where the
+      // clause ended. Fixing it means step 0 preserving a clause marker, which
+      // changes its contract. Pinned so the limit is documented behaviour.
+      expect(detectNegation(normalizeCaption("Vi hörs snart\nEj öppet idag"))).toBe(false);
+    });
+
     it("resolves the relocation ambiguity toward NOT cancelling", () => {
       // This was a documented limit and is now settled, because what follows the
       // particle is a PLACE rather than a time. It fell out of the constraint added
