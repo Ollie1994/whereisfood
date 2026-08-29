@@ -44,20 +44,20 @@ const EMOJI = /[\p{Extended_Pictographic}\p{Emoji_Modifier}\p{Regional_Indicator
 const HASHTAG_BODY = "[\\p{L}\\p{N}_]+(?:-[\\p{L}\\p{N}_]+)*";
 const MENTION_BODY = "[\\p{L}\\p{N}_]+(?:[-.][\\p{L}\\p{N}_]+)*";
 
-// `#gbg` and `@truck` — the whole token, not just the sigil.
+// HASHTAGS KEEP THEIR TEXT; MENTIONS DO NOT. The two carry different things: a tag
+// is written by the truck to say something, a handle names an account.
 //
-// ⚠ KNOWN COST, spec-mandated: a location written AS a tag is destroyed here.
-// "Idag står vi på #Järntorget 11-14" normalizes to "Idag står vi på 11-14", and
-// `extractLocation()` then has nothing to match, dropping the post below the 0.45
-// display threshold. Stripping only the sigil would preserve it — but the issue's
-// acceptance criteria require `#gbg` to be gone from the output, and doing that for
-// generic tags while keeping location tags needs the dictionary, which step 0 must
-// not depend on. Kept as specified; flagged for #65, which is where a caller could
-// reasonably match against the pre-strip text as well.
+// ⚠ SUPERSEDES #56's acceptance criterion, which required `#gbg` to be absent from
+// the output. That criterion was wrong (#78): it optimised for a clean-looking
+// string over a parseable one. "Idag står vi på #Järntorget 11-14" normalized to
+// "Idag står vi på 11-14", `extractLocation()` had nothing to match, and a truck
+// that told us exactly where it was rendered as a grey marker. The sigil goes, the
+// words stay.
 //
-// (An earlier version of this comment claimed tag text "says nothing about where the
-// truck is". That is simply false for Instagram captions, and the false premise made
-// the cost above look like no cost at all.)
+// A tag can carry ANY of the three signals the parser looks for — a location
+// (`#Järntorget`), a date (`#idag`, `#måndag`), a time (`#11-14`, `#lunchtid`), or
+// several at once (`#Lunch11-14Heden`) — which is why the text is segmented rather
+// than merely unwrapped. Removing the sigil alone rescues only single-word tags.
 //
 // THE TWO SIGILS NEED DIFFERENT RULES, because they collide with ordinary text
 // differently:
@@ -74,13 +74,46 @@ const MENTION_BODY = "[\\p{L}\\p{N}_]+(?:[-.][\\p{L}\\p{N}_]+)*";
 //
 // `\p{L}` rather than `[a-z]` so `#göteborg` is removed whole rather than leaving a
 // dangling `öteborg`.
-const HASHTAG = new RegExp(`#+${HASHTAG_BODY}`, "gu");
+const HASHTAG = new RegExp(`#+(${HASHTAG_BODY})`, "gu");
 const MENTION = new RegExp(`(?<![\\p{L}\\p{N}._])@${MENTION_BODY}`, "gu");
 
 // Newlines, tabs, non-breaking spaces and runs of ordinary spaces all collapse to
 // one space. JS `\s` already covers the Unicode space separators, so NBSP — which
 // Instagram captions are full of — is handled without listing it.
 const WHITESPACE = /\s+/gu;
+
+// Segment a tag's text at the boundaries its own formatting marks.
+//
+// A multi-word tag is written without spaces, so unwrapping "#LunchJärntorget" to
+// "LunchJärntorget" leaves one token no extractor can read — the fix would rescue
+// only single-word tags. These three rules recover the boundaries that ARE marked:
+//
+//   lowercase → uppercase   "#LunchJärntorget" → "Lunch Järntorget"
+//   letter → digit          "#lunch11-14"      → "lunch 11-14"
+//   digit → letter          "#11-14Heden"      → "11-14 Heden"
+//
+// Two things must survive, and both are asserted by test because the obvious
+// implementations break them:
+//
+//   `#GBG` must not shred into "G B G" — hence lowercase→uppercase specifically,
+//   rather than splitting before every capital. Uppercase runs stay whole.
+//
+//   `#11-14` must keep its hyphen, or the fix meant to EXPOSE a time range is what
+//   destroys it. Nothing here touches a separator between two digits.
+//
+// Applied only inside tag text, never to the caption at large: splitting camelCase
+// across prose would break ordinary sentences and proper nouns.
+//
+// KNOWN LIMIT: an all-lowercase run-together tag (`#järntorgetidag`) has no marked
+// boundary and stays glued. Finding one needs a wordlist, and step 0 must not depend
+// on the dictionary. `extractLocation` (#65) is where that could be recovered, by
+// matching dictionary entries as substrings rather than on word boundaries.
+function segmentTagText(text: string): string {
+  return text
+    .replace(/(\p{Ll})(\p{Lu})/gu, "$1 $2")
+    .replace(/(\p{L})(\p{N})/gu, "$1 $2")
+    .replace(/(\p{N})(\p{L})/gu, "$1 $2");
+}
 
 // Strip tags to a FIXPOINT rather than in one pass.
 //
@@ -90,11 +123,22 @@ const WHITESPACE = /\s+/gu;
 // is removed closes that whole class rather than the one case, and it makes
 // `normalizeCaption` idempotent by construction instead of by luck.
 //
-// Terminating: each pass either shortens the string or changes nothing, and the
-// latter exits the loop.
+// A hashtag becomes a space plus its segmented text; a mention is removed outright.
+// The leading space matters: "#gbg#foodtruck" must not fuse into "gbgfoodtruck", and
+// the whitespace collapse afterwards makes a spare space free.
+//
+// TERMINATING, but no longer for the reason first written here. The original argument
+// was "each pass shortens the string or changes nothing" — false once a hashtag is
+// replaced by its SEGMENTED text, which is longer than the tag it came from
+// ("#LunchJärntorget" → " Lunch Järntorget"). The real invariant is that every pass
+// consumes at least one sigil and no rule can introduce one: segmentation inserts
+// only spaces, and mention removal deletes. So the sigil count strictly decreases
+// and the loop cannot run more times than the caption has `#` and `@` characters.
 function stripTags(text: string): string {
   for (;;) {
-    const stripped = text.replace(HASHTAG, "").replace(MENTION, "");
+    const stripped = text
+      .replace(HASHTAG, (_match, body: string) => ` ${segmentTagText(body)}`)
+      .replace(MENTION, "");
     if (stripped === text) return text;
     text = stripped;
   }
