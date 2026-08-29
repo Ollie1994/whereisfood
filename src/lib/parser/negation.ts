@@ -66,6 +66,36 @@ export const OPERATING_VERBS = [
 // "Ej öppet idag", "Inte öppna idag."
 export const OPEN_STATES = ["öppet", "öppen", "öppna", "på plats", "ute"] as const;
 
+// Temporal expressions — what a cancellation attaches itself to. "Vi kör inte IDAG."
+// Used by both rules below, in opposite positions, which is why it is one list.
+export const TEMPORAL_WORDS = [
+  "idag",
+  "dag",
+  "imorgon",
+  "morgon",
+  "ikväll",
+  "kväll",
+  "inatt",
+  "natt",
+  "imorse",
+  "morse",
+  "helgen",
+  "helg",
+  "veckan",
+  "vecka",
+  "måndag",
+  "tisdag",
+  "onsdag",
+  "torsdag",
+  "fredag",
+  "lördag",
+  "söndag",
+] as const;
+
+// What may stand immediately before a particle in a genuine cancellation: a copula
+// or auxiliary. "Vi HAR inte öppet", "Vi ÄR inte öppna".
+export const AUXILIARIES = ["har", "hade", "är", "var", "blir", "blev", "kommer"] as const;
+
 // ⚠ THESE TWO LISTS ARE INCOMPLETE, AND THAT IS SAFE. A verb or state we failed to
 // think of means a cancellation is MISSED — a stale pin, cleared by `expires_at`
 // within hours. It never means a false deletion. That asymmetry is why an
@@ -123,13 +153,48 @@ const NEGATED_MARKER = new RegExp(
 // would still fire on "Glöm inte att vi står på Heden", where the particle and the
 // verb sit three tokens apart and negate different things. Requiring them to be
 // neighbours is what separates "kör inte" from "inte ... står".
+//
+// ⚠ ADJACENCY ALONE WAS NOT ENOUGH (#81). These fired on captions describing a truck
+// that is OPEN, each of which deletes its location:
+//
+//   "Glöm inte öppet idag"              the particle negates the imperative
+//   "Missa inte öppet hus på Heden"     — an invitation, not a cancellation
+//   "Vi kör inte pizza idag men tacos"  the particle negates the MENU ITEM
+//
+// So each rule now also constrains its other side. The decision the issue left open
+// was HOW, and the choice is about failure direction rather than coverage:
+//
+//   REJECTED — a denylist of imperatives (`glöm`, `missa`, …). It reads as the
+//   obvious fix and fails in the wrong direction: an imperative nobody listed means
+//   the guard FIRES and deletes a present truck's pin. A list whose gaps delete data
+//   cannot be trusted to be complete, and this one cannot be completed — Swedish has
+//   no closed set of verbs that can be used this way.
+//
+//   CHOSEN — an allowlist of the contexts a real cancellation appears in. A context
+//   nobody listed means the guard STAYS QUIET, which costs a stale pin that
+//   `expires_at` clears within hours. Same information, inverted, and only this
+//   direction is safe to leave incomplete. It is the same reasoning that makes
+//   OPERATING_VERBS acceptable above.
+const TEMPORAL = `(?:(?:på|i)\\s+)?${alt(TEMPORAL_WORDS)}`;
+
+// End of the clause the particle sits in: punctuation, or the end of the caption.
+const CLAUSE_END = "\\s*(?:[.,!?:;]|$)";
+
+// A cancellation names WHEN, or stops. "Vi kör inte idag", "Vi kör inte." What
+// follows the particle in the false positives is an object — "pizza" — and an object
+// is what tells you the particle negated something other than being there.
 const VERB_THEN_NEGATOR = new RegExp(
-  `${BEFORE}${alt(OPERATING_VERBS)}\\s+${alt(NEGATORS)}${AFTER}`,
+  `${BEFORE}${alt(OPERATING_VERBS)}\\s+${alt(NEGATORS)}${AFTER}(?:\\s+${TEMPORAL}${AFTER}|${CLAUSE_END})`,
   FLAGS,
 );
 
+// A cancellation starts its clause, or follows a copula, or follows the date it
+// applies to: "Ej öppet", "Vi har inte öppet", "Idag ej öppet". An imperative in
+// front — "glöm inte öppet" — is none of those, and is excluded by not being listed
+// rather than by being named.
 const NEGATOR_THEN_STATE = new RegExp(
-  `${BEFORE}${alt(NEGATORS)}\\s+${alt(OPEN_STATES)}${AFTER}`,
+  `(?:^|[.,!?:;]\\s*|${BEFORE}${alt(AUXILIARIES)}\\s+|${BEFORE}${TEMPORAL}\\s+)` +
+    `${alt(NEGATORS)}\\s+${alt(OPEN_STATES)}${AFTER}`,
   FLAGS,
 );
 
@@ -137,13 +202,21 @@ const NEGATOR_THEN_STATE = new RegExp(
 // output, which is NFC. Passing raw text risks decomposed "ä", against which every
 // pattern here silently fails to match.
 //
-// KNOWN LIMIT, accepted for this phase: "Vi står inte vid Järntorget utan på Heden"
-// is a RELOCATION and reads as a cancellation, because "står inte" is exactly the
-// collocation that signals one. It deletes the day rather than moving it. This is
-// the narrowest remaining case — the imperative and restriction forms that used to
-// fire no longer do — and it is bounded by the override matrix (#1, #6), which stops
-// a low-confidence lane cancelling a higher-confidence location. First place to look
-// if trucks report pins vanishing.
+// RESOLVED, and no longer a known limit: "Vi står inte vid Järntorget utan på Heden"
+// no longer cancels. Requiring a temporal expression after the particle settles the
+// relocation/cancellation ambiguity toward "not a cancellation", because what follows
+// is a PLACE rather than a time. That was not the change's goal — it fell out of the
+// same constraint added for "kör inte pizza", which is the sign the rule is about the
+// grammar rather than about the reported cases.
+//
+// THE COST, stated plainly: "Vi står inte på Heden idag" is now missed, and it may
+// well be a genuine cancellation. Both readings are live and nothing here can tell
+// them apart, so the ambiguity is resolved the only way it safely can be — a missed
+// cancellation is a stale pin that `expires_at` clears within hours, while the other
+// reading deletes a truck that is standing somewhere else.
+//
+// Still bounded by the override matrix (#1, #6): a low-confidence lane cannot cancel
+// a higher-confidence location regardless.
 export function detectNegation(normalized: string): boolean {
   // A double negative wins over everything: it is the one construction that means
   // the opposite of the word it contains.

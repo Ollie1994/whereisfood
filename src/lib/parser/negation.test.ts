@@ -151,11 +151,76 @@ describe("detectNegation", () => {
     });
 
     it("requires adjacency, not mere proximity", () => {
-      // The distinction the whole design rests on. "Glöm inte att vi står" has the
-      // particle and an operating verb three tokens apart, negating different
-      // things; a proximity window would fire on it. Neighbours only.
+      // "Glöm inte att vi står" has the particle and an operating verb three tokens
+      // apart, negating different things; a proximity window would fire on it.
       expect(detectNegation("Glöm inte att vi står på Heden")).toBe(false);
-      expect(detectNegation("Vi står inte på Heden")).toBe(true);
+      // Adjacency alone is still not sufficient — see the block below — but it
+      // remains necessary: with a time directly after it, the collocation cancels.
+      expect(detectNegation("Vi står inte idag")).toBe(true);
+      // The time must be directly after. "Vi står inte där idag" is missed, because
+      // nothing lexical separates the intervening "där" from the "pizza" in
+      // "Vi kör inte pizza idag" — and that one must not fire. Fail-safe direction.
+      expect(detectNegation("Vi står inte där idag")).toBe(false);
+    });
+  });
+
+  describe("adjacency alone is not sufficient — each rule constrains its other side", () => {
+    // #81. These fired on adjacency alone, and each describes a truck that is OPEN,
+    // so each deleted its location. The fix is an allowlist of the contexts a real
+    // cancellation appears in, NOT a denylist of imperatives: a context nobody
+    // listed leaves the guard quiet, whereas an imperative nobody listed would make
+    // it delete. Only one of those directions is safe to leave incomplete.
+    it.each([
+      ["an imperative invitation", "Glöm inte öppet idag"],
+      ["another imperative invitation", "Missa inte öppet hus på Heden"],
+      ["an invitation after a location", "Lunch på Heden 11-14, glöm inte öppet till 15"],
+      ["a negated menu item", "Vi kör inte pizza idag men tacos"],
+      ["a negated menu item, other order", "Vi serverar inte tacos idag, bara burgare"],
+    ])("stays quiet for %s", (_label, caption) => {
+      expect(detectNegation(normalizeCaption(caption))).toBe(false);
+    });
+
+    it.each([
+      ["a particle after a copula", "Vi har inte öppet idag"],
+      ["a particle after 'är'", "Vi är inte öppna idag"],
+      ["a particle opening the caption", "Ej öppet idag"],
+      ["a particle after the date it applies to", "Idag ej öppet"],
+      ["a particle after a clause break", "Lunch imorgon, ej öppet idag"],
+      ["a verb, particle and time", "Vi kör inte idag"],
+      ["a verb and particle ending the clause", "Vi kör inte."],
+      ["a weekday with a preposition", "Vi kör inte på måndag"],
+    ])("still cancels for %s", (_label, caption) => {
+      expect(detectNegation(normalizeCaption(caption))).toBe(true);
+    });
+
+    it("resolves the relocation ambiguity toward NOT cancelling", () => {
+      // This was a documented limit and is now settled, because what follows the
+      // particle is a PLACE rather than a time. It fell out of the constraint added
+      // for "kör inte pizza" rather than being aimed at — which is the sign the rule
+      // is about the grammar and not about the reported cases.
+      expect(detectNegation("Vi står inte vid Järntorget utan på Heden")).toBe(false);
+      // The accepted cost, pinned so it is a decision rather than a surprise: a
+      // genuine "we are not at X today" is missed. Both readings are live, and a
+      // missed cancellation expires within hours while a false one deletes a truck
+      // standing somewhere else.
+      expect(detectNegation("Vi står inte på Heden idag")).toBe(false);
+    });
+
+    it("behaves identically whether the words came from prose or from a tag", () => {
+      // #78 preserved hashtag text, which erased `#` as a syntactic boundary and let
+      // a prose particle bind to a tag-supplied word. Fixing the prose rule closes
+      // the tag form too — that it needed no separate handling is the point.
+      const pairs: ReadonlyArray<[prose: string, tagged: string]> = [
+        ["Glöm inte öppet idag", "Glöm inte #ÖppetIdag"],
+        ["Missa inte öppet hus, vi står på Heden", "Missa inte #ÖppetHus vi står på Heden"],
+        ["Vi kör inte pizza idag men tacos", "Vi kör #IntePizzaIdag men tacos"],
+      ];
+      for (const [prose, tagged] of pairs) {
+        expect(detectNegation(normalizeCaption(tagged))).toBe(
+          detectNegation(normalizeCaption(prose)),
+        );
+        expect(detectNegation(normalizeCaption(tagged))).toBe(false);
+      }
     });
   });
 
