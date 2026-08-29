@@ -337,6 +337,63 @@ describe("detectNegation", () => {
     });
   });
 
+  describe("suppressor scope is chosen per suppressor", () => {
+    // Splitting evaluation by sentence was right for the delayed-opening veto and
+    // wrong for the double negative, and applying it uniformly silently changed
+    // behaviour that had nothing to do with the problem being fixed.
+    it.each([
+      ["a question answered in the next sentence", "Många frågar om vi har stängt. Vi har inte stängt, vi står på Heden"],
+      ["a rhetorical question", "Stängt idag? Nej! Vi har inte stängt"],
+      ["a topic sentence then the denial", "Frågor om stängt? Vi har inte stängt"],
+    ])("reads a double negative across sentences — %s", (_label, caption) => {
+      // The claim a denial refutes is routinely in an earlier sentence. Scoped to a
+      // sentence, the first one matches MARKER alone and deletes the pin of a truck
+      // explicitly saying it is open.
+      expect(detectNegation(normalizeCaption(caption))).toBe(false);
+    });
+
+    it.each([
+      ["a marker then a return time", "Stängt idag, vi öppnar inte förrän måndag"],
+      ["a marker then a farewell", "Inställt idag, kom inte före 12"],
+    ])("does not let the delayed-opening veto swallow a marker — %s", (_label, caption) => {
+      // A self-sufficient marker is judged on its own; the veto applies only to the
+      // particle rules, which are what a delayed opening can masquerade as.
+      expect(detectNegation(normalizeCaption(caption))).toBe(true);
+    });
+
+    it.each([
+      ["a farewell after a comma", "Ej öppet idag, vi ses innan helgen"],
+      ["an invitation after a comma", "Vi kör inte idag, kom igen innan helgen"],
+    ])("bounds that veto at a comma — %s", (_label, caption) => {
+      // `innan` and `före` are ordinary prepositions, so a caption routinely states a
+      // cancellation and then something unrelated containing one. The delayed-opening
+      // reading only holds when the preposition modifies the negated verb itself.
+      expect(detectNegation(normalizeCaption(caption))).toBe(true);
+    });
+  });
+
+  describe("the subject side of the verb rule", () => {
+    it("does not fire when the subject is a noun rather than the truck", () => {
+      // "Tacos finns inte idag" is a sold-out item — the same class as "Vi kör inte
+      // pizza idag" with the object fronted. Constraining only the right of the
+      // particle left that half open.
+      expect(detectNegation(normalizeCaption("Tacos finns inte idag, men pizza gör det"))).toBe(
+        false,
+      );
+    });
+
+    it("still fires for the truck as subject, and after a clause break", () => {
+      expect(detectNegation(normalizeCaption("Vi kör inte idag"))).toBe(true);
+      expect(detectNegation(normalizeCaption("Lunch imorgon, vi kör inte idag"))).toBe(true);
+    });
+
+    it("does not treat the fixed expression 'öppet hus' as the state of being open", () => {
+      expect(
+        detectNegation(normalizeCaption("Vi har inte öppet hus idag men vi kör som vanligt")),
+      ).toBe(false);
+    });
+  });
+
   describe("recall the trailing constraint had cost", () => {
     // Requiring a time or terminator after the open-state killed this entire family.
     // They are ordinary cancellations, and the left-hand allowlist already rejects

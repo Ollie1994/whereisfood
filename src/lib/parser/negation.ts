@@ -110,16 +110,16 @@ export const AUXILIARIES = ["har", "hade", "är", "var", "blir", "blev", "kommer
 // most idiomatic way to say it, and requiring the auxiliary to touch the particle
 // missed that entire family. Pronouns and a few sentence adverbs are all that
 // realistically appear there.
+// Subject pronouns. A cancellation is about US: "VI kör inte idag". When the subject
+// is a noun instead, the particle is negating that noun rather than the truck being
+// there — "Tacos finns inte idag, men pizza gör det" describes a sold-out item, not a
+// closed truck, and is the same class as "Vi kör inte pizza idag" with the object
+// fronted. Constraining only the right of the particle left that half open.
+export const SUBJECT_PRONOUNS = ["vi", "jag", "man", "det", "de", "dom", "den", "ni"] as const;
+
 export const PARTICLE_FILLERS = [
   ...AUXILIARIES,
-  "vi",
-  "jag",
-  "man",
-  "det",
-  "de",
-  "dom",
-  "den",
-  "ni",
+  ...SUBJECT_PRONOUNS,
   "dessvärre",
   "tyvärr",
   "just",
@@ -258,13 +258,20 @@ const CLAUSE_END = "\\s*(?:[.!?]|$)";
 // the question is "what does this clause say". Asking it of the clause — a particle,
 // then anything short of a sentence-ending terminator, then `förrän` — covers every
 // word order at once and needs no list of what may sit between.
+// The span stops at a COMMA as well as at a sentence terminator. `innan` and `före`
+// are ordinary prepositions, so a caption routinely states a cancellation and then,
+// after a comma, says something unrelated containing one: "Ej öppet idag, vi ses
+// innan helgen" is a cancellation plus a farewell, and a veto spanning the comma
+// swallowed the cancellation. The delayed-opening reading only holds when the
+// preposition modifies the negated verb itself, which puts them in one sub-clause.
 const DELAYED_OPENING_CLAUSE = new RegExp(
-  `${BEFORE}${alt(NEGATORS)}${AFTER}[^.!?]*?${BEFORE}${alt(DELAYED_OPENING)}${AFTER}`,
+  `${BEFORE}${alt(NEGATORS)}${AFTER}[^.!?,]*?${BEFORE}${alt(DELAYED_OPENING)}${AFTER}`,
   FLAGS,
 );
 
 const VERB_THEN_NEGATOR = new RegExp(
-  `${BEFORE}${alt(OPERATING_VERBS)}\\s+${alt(NEGATORS)}${AFTER}` +
+  `(?:${CLAUSE_START}|${BEFORE}${TEMPORAL}\\s+)(?:${alt(SUBJECT_PRONOUNS)}\\s+)*` +
+    `${alt(OPERATING_VERBS)}\\s+${alt(NEGATORS)}${AFTER}` +
     `(?:\\s+(?:${alt(TEMPORAL_QUANTIFIERS)}\\s+)*${TEMPORAL}${AFTER}` +
     `|(?:\\s+${alt([...TEMPORAL_QUANTIFIERS, ...POST_PARTICLE_FILLERS])})*${CLAUSE_END})`,
   FLAGS,
@@ -292,6 +299,9 @@ const VERB_THEN_NEGATOR = new RegExp(
 const NEGATOR_THEN_STATE = new RegExp(
   `(?:${CLAUSE_START}|${BEFORE}${TEMPORAL}\\s+)(?:${alt(PARTICLE_FILLERS)}\\s+)*` +
     `${alt(NEGATORS)}\\s+(?:${alt(POST_PARTICLE_FILLERS)}\\s+)*${alt(OPEN_STATES)}${AFTER}` +
+    // "Öppet hus" is a fixed expression — an event — not the state of being open.
+    // "Vi har inte öppet hus idag men vi kör som vanligt" says they are there.
+    `(?!\\s+hus${AFTER})` +
     `(?!\\s+för\\s+(?!${TEMPORAL}${AFTER}))`,
   FLAGS,
 );
@@ -325,6 +335,20 @@ const NEGATOR_THEN_STATE = new RegExp(
 // Still bounded by the override matrix (#1, #6): a low-confidence lane cannot cancel
 // a higher-confidence location regardless.
 export function detectNegation(normalized: string): boolean {
+  // SCOPE IS PER SUPPRESSOR, not one setting for both. Splitting evaluation by
+  // sentence was right for the delayed-opening veto and wrong for this one, and
+  // applying it uniformly silently changed behaviour that had nothing to do with the
+  // problem being fixed.
+  //
+  // A double negative DENIES A CLAIM, and the claim it denies is routinely in an
+  // earlier sentence: "Många frågar om vi har stängt. Vi har inte stängt." Scoped to
+  // a sentence, the first one matches `MARKER` on its own and deletes the pin of a
+  // truck that is explicitly saying it is open. So this one reads the whole caption.
+  //
+  // The cost, unchanged from before and accepted: a denial anywhere silences a
+  // genuine cancellation elsewhere in the same caption. That is the safe direction.
+  if (NEGATED_MARKER.test(normalized)) return false;
+
   return splitClauses(normalized).some(cancelsInClause);
 }
 
@@ -347,11 +371,17 @@ function splitClauses(text: string): string[] {
 }
 
 function cancelsInClause(clause: string): boolean {
-  // A double negative is the one construction that means the opposite of the word it
-  // contains. A delayed opening says the truck IS coming, later — checked across the
-  // whole clause rather than at one offset, so no word order walks around it.
-  if (NEGATED_MARKER.test(clause)) return false;
+  // A self-sufficient marker is judged on its own. The delayed-opening veto below
+  // must NOT reach it: "Stängt idag, vi öppnar inte förrän måndag" states a
+  // cancellation and then says when they return, and vetoing the whole clause
+  // discarded the cancellation along with the delayed opening. `innan` and `före`
+  // are ordinary prepositions, so that combination is common rather than contrived.
+  if (MARKER.test(clause)) return true;
+
+  // The veto applies only to the particle rules, which are the ones a delayed
+  // opening can actually masquerade as: "Vi öppnar inte förrän 13" reads as
+  // "operating verb + particle" and means the opposite.
   if (DELAYED_OPENING_CLAUSE.test(clause)) return false;
 
-  return MARKER.test(clause) || VERB_THEN_NEGATOR.test(clause) || NEGATOR_THEN_STATE.test(clause);
+  return VERB_THEN_NEGATOR.test(clause) || NEGATOR_THEN_STATE.test(clause);
 }
