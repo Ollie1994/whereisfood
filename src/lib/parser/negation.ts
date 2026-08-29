@@ -216,7 +216,17 @@ const TEMPORAL = `(?:(?:på|i)\\s+)?${alt(TEMPORAL_WORDS)}`;
 // which is why the visible markers have to carry the whole job — see KNOWN LIMIT on
 // `detectNegation`.
 const CLAUSE_START = "(?:^|[.,!?:;()\\[\\]\"'•*–—-]\\s*)";
-const CLAUSE_END = "\\s*(?:[.,!?:;•*–—…-]|$)";
+
+// Ending a clause is NOT symmetric with starting one, and treating it as such
+// reintroduced the bug this module exists to prevent. A comma or a dash CONTINUES a
+// sentence, so what follows may be the object the particle actually negated —
+// "Vi kör inte - pizza idag men tacos" and "Vi kör inte, pizza idag" both describe a
+// truck that is there. Only a full stop, exclamation, question mark or the end of
+// the caption prove the verb took no object.
+//
+// The cost is real and accepted: "Vi kör inte - vi vilar idag" is now missed. That is
+// a stale pin cleared within hours, against a false delete of a truck standing there.
+const CLAUSE_END = "\\s*(?:[.!?]|$)";
 
 // A cancellation names WHEN, or stops. "Vi kör inte idag", "Vi kör inte." What
 // follows the particle in the false positives is an object — "pizza" — and an object
@@ -235,9 +245,17 @@ const VERB_THEN_NEGATOR = new RegExp(
 //
 // The trailing guard rejects a delayed opening: "inte öppna FÖRRÄN 12" says they open
 // at 12.
+// The state must also land on a TIME or end the clause, symmetrically with the rule
+// above. Without it the particle negates whoever the truck is open TO rather than
+// whether it is open at all: "Vi har inte öppet för barn" and "Vi är inte öppna för
+// grupper" are restrictions, the same class as "Vi tar ej kort". This subsumes the
+// `förrän` guard — a delayed opening is just another non-temporal continuation — but
+// that list is kept, because it names the construction and makes the intent legible.
 const NEGATOR_THEN_STATE = new RegExp(
   `(?:${CLAUSE_START}|${BEFORE}${TEMPORAL}\\s+)(?:${alt(PARTICLE_FILLERS)}\\s+)*` +
-    `${alt(NEGATORS)}\\s+${alt(OPEN_STATES)}${AFTER}(?!\\s+${alt(DELAYED_OPENING)}${AFTER})`,
+    `${alt(NEGATORS)}\\s+${alt(OPEN_STATES)}${AFTER}` +
+    `(?!\\s+${alt(DELAYED_OPENING)}${AFTER})` +
+    `(?:\\s+(?:${alt(TEMPORAL_QUANTIFIERS)}\\s+)*${TEMPORAL}${AFTER}|${CLAUSE_END})`,
   FLAGS,
 );
 

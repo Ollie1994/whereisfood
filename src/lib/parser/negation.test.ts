@@ -237,11 +237,41 @@ describe("detectNegation", () => {
     });
 
     it.each([
-      ["a hyphen", "Vi kör inte - vi vilar idag"],
-      ["an en dash", "Vi kör inte – sjuk"],
-      ["an ellipsis", "Vi kör inte …"],
+      ["a full stop", "Vi kör inte."],
+      ["an exclamation mark", "Vi kör inte!"],
+      ["the end of the caption", "Vi kör inte"],
     ])("treats %s as the end of the clause", (_label, caption) => {
       expect(detectNegation(normalizeCaption(caption))).toBe(true);
+    });
+
+    it.each([
+      ["a dash", "Vi kör inte - pizza idag men tacos"],
+      ["an en dash", "Vi kör inte – tacos istället"],
+      ["a comma", "Vi kör inte, pizza idag"],
+    ])("does NOT treat %s as the end of the clause", (_label, caption) => {
+      // Ending a clause is not symmetric with starting one. A comma or dash
+      // CONTINUES the sentence, so what follows may be the object the particle
+      // actually negated — which is the bug this whole issue exists to fix,
+      // reintroduced through different punctuation. Only a strong terminator proves
+      // the verb took no object.
+      expect(detectNegation(normalizeCaption(caption))).toBe(false);
+    });
+
+    it("accepts the cost of that: a weak terminator before a real clause is missed", () => {
+      // "Vi kör inte - vi vilar idag" is a genuine cancellation and is now quiet.
+      // Nothing lexical separates "vi vilar" from "pizza", and a missed cancellation
+      // expires within hours where a false one deletes a truck standing there.
+      expect(detectNegation(normalizeCaption("Vi kör inte - vi vilar idag"))).toBe(false);
+    });
+
+    it.each([
+      ["open to children", "Vi har inte öppet för barn"],
+      ["open to groups", "Vi är inte öppna för grupper"],
+    ])("does not fire on a restriction — %s", (_label, caption) => {
+      // The particle negates whom the truck is open TO, not whether it is open.
+      // Same class as "Vi tar ej kort": the state must land on a time or end the
+      // clause, symmetrically with the verb rule.
+      expect(detectNegation(normalizeCaption(caption))).toBe(false);
     });
 
     it("misses a bare line break as a clause boundary — a known limit", () => {
