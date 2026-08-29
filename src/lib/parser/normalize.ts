@@ -30,15 +30,34 @@
 // Swedish letters and digits are untouched: none of these classes contain them.
 const EMOJI = /[\p{Extended_Pictographic}\p{Emoji_Modifier}\p{Regional_Indicator}\u{FE0F}\u{200D}\u{20E3}]/gu;
 
-// The body of a tag or handle: word characters, with `.` and `-` allowed only
-// BETWEEN them. Instagram handles routinely contain dots (`@gbg.foodtruck`), and a
-// tag written `#food-truck` is meant as one tag — but requiring a word character
-// after the separator keeps a sentence-ending period out of it, so "Tack @truck."
-// loses the handle and keeps the full stop.
-const TAG_BODY = "[\\p{L}\\p{N}_]+(?:[-.][\\p{L}\\p{N}_]+)*";
+// The body of a tag or a handle. Word characters, plus separators that are allowed
+// only BETWEEN them — requiring a word character after the separator keeps a
+// sentence-ending period out of the match, so "Tack @truck." loses the handle and
+// keeps the full stop.
+//
+// THE TWO TAKE DIFFERENT SEPARATORS, and getting this wrong destroys caption text.
+// A hashtag terminates at a dot — Instagram's own rule — so "#gbg.Heden" is the tag
+// `#gbg` followed by the word "Heden". Allowing `.` in the hashtag body swallowed
+// that word whole, turning "#gbg.Heden idag 11-14" into "idag 11-14" and deleting
+// the location the caption was about. Handles genuinely do contain dots
+// (`@gbg.foodtruck`), so the mention body keeps it.
+const HASHTAG_BODY = "[\\p{L}\\p{N}_]+(?:-[\\p{L}\\p{N}_]+)*";
+const MENTION_BODY = "[\\p{L}\\p{N}_]+(?:[-.][\\p{L}\\p{N}_]+)*";
 
-// `#gbg` and `@truck` — the whole token, not just the sigil, since neither the tag
-// text nor the handle says anything about where the truck is.
+// `#gbg` and `@truck` — the whole token, not just the sigil.
+//
+// ⚠ KNOWN COST, spec-mandated: a location written AS a tag is destroyed here.
+// "Idag står vi på #Järntorget 11-14" normalizes to "Idag står vi på 11-14", and
+// `extractLocation()` then has nothing to match, dropping the post below the 0.45
+// display threshold. Stripping only the sigil would preserve it — but the issue's
+// acceptance criteria require `#gbg` to be gone from the output, and doing that for
+// generic tags while keeping location tags needs the dictionary, which step 0 must
+// not depend on. Kept as specified; flagged for #65, which is where a caller could
+// reasonably match against the pre-strip text as well.
+//
+// (An earlier version of this comment claimed tag text "says nothing about where the
+// truck is". That is simply false for Instagram captions, and the false premise made
+// the cost above look like no cost at all.)
 //
 // THE TWO SIGILS NEED DIFFERENT RULES, because they collide with ordinary text
 // differently:
@@ -55,8 +74,8 @@ const TAG_BODY = "[\\p{L}\\p{N}_]+(?:[-.][\\p{L}\\p{N}_]+)*";
 //
 // `\p{L}` rather than `[a-z]` so `#göteborg` is removed whole rather than leaving a
 // dangling `öteborg`.
-const HASHTAG = new RegExp(`#+${TAG_BODY}`, "gu");
-const MENTION = new RegExp(`(?<![\\p{L}\\p{N}._])@${TAG_BODY}`, "gu");
+const HASHTAG = new RegExp(`#+${HASHTAG_BODY}`, "gu");
+const MENTION = new RegExp(`(?<![\\p{L}\\p{N}._])@${MENTION_BODY}`, "gu");
 
 // Newlines, tabs, non-breaking spaces and runs of ordinary spaces all collapse to
 // one space. JS `\s` already covers the Unicode space separators, so NBSP — which

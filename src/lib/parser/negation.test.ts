@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { detectNegation, NEGATION_PHRASES, NEGATION_WORDS } from "@/lib/parser/negation";
+import {
+  CANCELLATION_MARKERS,
+  CANCELLATION_PHRASES,
+  detectNegation,
+  NEGATORS,
+  OPEN_STATES,
+  OPERATING_VERBS,
+} from "@/lib/parser/negation";
 import { normalizeCaption } from "@/lib/parser/normalize";
 
 describe("detectNegation", () => {
@@ -38,11 +45,29 @@ describe("detectNegation", () => {
       expect(detectNegation("Tyvärr: inställt.")).toBe(true);
     });
 
-    it("covers every token in the exported vocabulary", () => {
-      // Ties the list to the tests: a token added to negation.ts without a case
-      // here still has to pass this, and a token removed makes it fail.
-      for (const token of [...NEGATION_WORDS, ...NEGATION_PHRASES]) {
+    it("covers every self-sufficient marker in the exported vocabulary", () => {
+      // Ties the list to the tests: a marker added to negation.ts without a case
+      // here still has to pass this, and a marker removed makes it fail.
+      for (const token of [...CANCELLATION_MARKERS, ...CANCELLATION_PHRASES]) {
         expect(detectNegation(`Idag ${token} tyvärr`)).toBe(true);
+      }
+    });
+
+    it("covers every negator paired with every operating verb", () => {
+      // The particle FOLLOWS the finite verb in Swedish: "Vi kör inte idag".
+      for (const verb of OPERATING_VERBS) {
+        for (const negator of NEGATORS) {
+          expect(detectNegation(`Vi ${verb} ${negator} idag`)).toBe(true);
+        }
+      }
+    });
+
+    it("covers every negator paired with every open state", () => {
+      // Here the particle PRECEDES: "Ej öppet idag".
+      for (const state of OPEN_STATES) {
+        for (const negator of NEGATORS) {
+          expect(detectNegation(`Idag ${negator} ${state}`)).toBe(true);
+        }
       }
     });
   });
@@ -106,6 +131,49 @@ describe("detectNegation", () => {
     it("does not fire on 'tyvärr' alone", () => {
       // Modifies anything — including a caption that means they are present.
       expect(detectNegation("Tyvärr slut på tacos, men vi står kvar")).toBe(false);
+    });
+  });
+
+  describe("a bare particle is not a cancellation", () => {
+    // `inte` and `ej` negate whatever they attach to. Matching them lexically says
+    // nothing about whether the truck is operating, and every caption below
+    // describes a truck that is OPEN — each one would have deleted its pin.
+    it.each([
+      ["ej negating a payment method", "Vi tar ej kort, endast Swish. Heden 11-14"],
+      ["ej negating booking", "Ej bokning, först till kvarn! Järntorget 11-14"],
+      ["ej negating a menu item", "Ej vegetariskt idag tyvärr, Heden 11-14"],
+      ["inte in an imperative invitation", "Glöm inte att vi står på Heden 11-14!"],
+      ["inte in a call to action", "Missa inte dagens lunch, Järntorget 11-14"],
+      ["inte negating a closing time", "Vi stänger inte förrän 15 idag"],
+      ["inte negating a queue", "Det är inte långa köer idag"],
+    ])("stays quiet for %s", (_label, caption) => {
+      expect(detectNegation(normalizeCaption(caption))).toBe(false);
+    });
+
+    it("requires adjacency, not mere proximity", () => {
+      // The distinction the whole design rests on. "Glöm inte att vi står" has the
+      // particle and an operating verb three tokens apart, negating different
+      // things; a proximity window would fire on it. Neighbours only.
+      expect(detectNegation("Glöm inte att vi står på Heden")).toBe(false);
+      expect(detectNegation("Vi står inte på Heden")).toBe(true);
+    });
+  });
+
+  describe("double negatives", () => {
+    // The one construction that means the opposite of the word it contains. A
+    // marker with a particle immediately in front of it is suppressed entirely.
+    it.each([
+      ["inte stängt", "Vi har inte stängt, vi står på Heden 11-14"],
+      ["ej stängt", "Ej stängt idag, välkomna!"],
+      ["inte inställt", "Det är inte inställt, vi kör som vanligt"],
+    ])("does not fire on %s", (_label, caption) => {
+      expect(detectNegation(normalizeCaption(caption))).toBe(false);
+    });
+
+    it("still fires on the marker when no particle precedes it", () => {
+      // The suppression must not swallow the ordinary case.
+      expect(detectNegation("Vi har stängt idag")).toBe(true);
+      expect(detectNegation("Det är inställt idag")).toBe(true);
     });
   });
 

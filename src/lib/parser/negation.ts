@@ -4,88 +4,154 @@
 //
 // Pure — no DB, no HTTP, no clock. Enforced by `purity.test.ts` in this directory.
 //
-// THE COST OF BEING WRONG IS ASYMMETRIC, and it shapes the vocabulary below.
+// THE COST OF BEING WRONG IS ASYMMETRIC, and it decides the whole design below.
 // Per the phase plan (#1), a detected negation DELETES the truck's overlapping
-// locations and writes no row. A missed cancellation leaves a stale pin, which
-// `expires_at` eventually clears. A FALSE cancellation removes a pin for a truck
-// that is standing there right now, and nothing signals that it happened. So this
-// list is tuned for precision, and stays small on purpose — the same reasoning the
-// plan applies to the location dictionary (#4): we have zero real caption data, so
-// every entry beyond the obvious is a guess, and a guess here deletes data.
+// locations and writes no row. A missed cancellation leaves a stale pin that
+// `expires_at` clears within hours. A FALSE cancellation removes the pin of a truck
+// standing there right now, and nothing signals that it happened. So every rule
+// here is built to fail toward "not a cancellation".
+//
+// WHY THIS IS NOT ONE WORD LIST. The first version matched a flat vocabulary and
+// fired on all of these, each of which describes a truck that is OPEN:
+//
+//   "Vi tar ej kort, endast Swish"        ej negates the payment method
+//   "Ej bokning, först till kvarn!"       ej negates booking
+//   "Glöm inte att vi står på Heden!"     inte negates "forget" — an invitation
+//   "Missa inte dagens lunch"             same, and extremely common phrasing
+//   "Vi stänger inte förrän 15 idag"      inte negates the closing time
+//   "Vi har inte stängt, vi står här"     a double negative
+//
+// `inte` and `ej` are general negation PARTICLES: they negate whatever they attach
+// to, and on their own say nothing about whether the truck is operating. Treating
+// them as cancellation words means deleting pins for ordinary marketing copy. So
+// the two kinds of token are separated and given different rules.
 
-// Single words. Every one of these is also asserted by name in the tests, so a
-// token cannot be added here without a case covering it.
-export const NEGATION_WORDS = [
-  // "not" — required by the issue's acceptance criteria. See the ambiguity note
-  // under KNOWN LIMITS: this is the least precise entry in the list.
-  "inte",
-  // "not" in the clipped register of signs and notices: "Ej öppet idag".
-  "ej",
+// SELF-SUFFICIENT MARKERS. These name the state directly — the word alone means
+// "not operating today" with no other context required.
+export const CANCELLATION_MARKERS = [
   // "cancelled", across the inflections a caption realistically uses.
   "inställt",
   "inställd",
   "inställda",
   "inställs",
-  // "closed" — the STATE. `stänger` ("closes") is deliberately absent; see below.
+  // "closed" — the STATE. `stänger` ("closes") is deliberately absent; see the
+  // exclusions below.
   "stängt",
   "stängd",
   "stängda",
 ] as const;
 
-// Multi-word forms of "to cancel". The boundary rules below apply to the phrase as
-// a whole, so the space is matched literally and "ställerin" does not count.
-export const NEGATION_PHRASES = ["ställer in", "ställs in"] as const;
+// Multi-word forms of "to cancel", matched as whole phrases so "ställerin" and a
+// stray "in" do not count.
+export const CANCELLATION_PHRASES = ["ställer in", "ställs in"] as const;
 
-// DELIBERATE EXCLUSIONS — each of these looks like it belongs and does not:
+// GENERAL NEGATION PARTICLES. Never sufficient alone — only meaningful when they
+// negate the truck actually operating.
+export const NEGATORS = ["inte", "ej"] as const;
+
+// Verbs describing a truck operating, in the position Swedish puts them: the
+// particle FOLLOWS the finite verb. "Vi kör inte idag", "Vi står inte här."
+export const OPERATING_VERBS = [
+  "kör",
+  "står",
+  "kommer",
+  "öppnar",
+  "säljer",
+  "serverar",
+  "finns",
+  "hittar",
+] as const;
+
+// States of being open, in the position where the particle PRECEDES them.
+// "Ej öppet idag", "Inte öppna idag."
+export const OPEN_STATES = ["öppet", "öppen", "öppna", "på plats", "ute"] as const;
+
+// ⚠ THESE TWO LISTS ARE INCOMPLETE, AND THAT IS SAFE. A verb or state we failed to
+// think of means a cancellation is MISSED — a stale pin, cleared by `expires_at`
+// within hours. It never means a false deletion. That asymmetry is why an
+// enumeration is acceptable here when it would not be for a guard whose gaps fail
+// the other way: the incompleteness costs freshness, not correctness.
 //
-//   `stänger`  "Vi stänger 14" is an END TIME, not a cancellation. Including it
-//              would delete the location of every truck that posts its closing
-//              hour, which is the single most ordinary thing a truck posts.
-//   `ingen`    "Ingen kö idag!" — no queue today — is an INVITATION. The word is
-//   `inget`    at least as common in positive captions as in cancellations, and it
-//   `inga`     cannot be told apart without reading the object.
-//   `nej`      Rare in captions, and usually answers a comment rather than
-//              cancelling a day.
-//   `tyvärr`   "Unfortunately" — modifies anything, including "tyvärr slut på
-//              tacos", which means they are there and sold out of one item.
+// DELIBERATE EXCLUSIONS — each looks like it belongs and does not. Each is pinned
+// by a test asserting it does NOT fire, so re-adding one means deleting the
+// assertion that records why:
 //
-// Each is covered by a test asserting it does NOT fire, so re-adding one requires
-// deleting an assertion that says why it was left out.
+//   `stänger`  "Vi stänger 14" is an END TIME, not a cancellation — the single most
+//              ordinary thing a truck posts.
+//   `ingen`    "Ingen kö idag!" is an INVITATION. As common in positive captions as
+//   `inget`    in cancellations, and they cannot be told apart without reading the
+//   `inga`     object.
+//   `nej`      Usually answers a comment rather than cancelling a day.
+//   `tyvärr`   Modifies anything, including "tyvärr slut på tacos" — they are there.
 
 // Word boundaries WITHOUT `\b`, which is ASCII-only and therefore wrong for Swedish.
 //
-// `\b` sits between a `\w` and a non-`\w` character, and `\w` is `[A-Za-z0-9_]` —
-// so å, ä and ö count as NON-word characters and manufacture boundaries inside
-// words. `/\bstängt\b/` matches inside "snöstängt", because the "ö" before the "s"
-// reads as a boundary. Swedish compounds are formed by exactly that kind of
-// concatenation, so this is a live failure mode rather than a hypothetical.
-//
-// Lookarounds over `\p{L}\p{N}` treat every letter as a letter, in any language.
-function boundedPattern(tokens: readonly string[]): RegExp {
-  return new RegExp(`(?<![\\p{L}\\p{N}])(?:${tokens.join("|")})(?![\\p{L}\\p{N}])`, "iu");
+// `\b` sits between a `\w` and a non-`\w` character, and `\w` is `[A-Za-z0-9_]` — so
+// å, ä and ö count as NON-word characters and manufacture boundaries inside words.
+// `/\bstängt\b/` matches inside "snöstängt", because the "ö" before the "s" reads as
+// a boundary. Swedish compounds are formed by exactly that concatenation, so this is
+// a live failure mode rather than a hypothetical.
+const BEFORE = "(?<![\\p{L}\\p{N}])";
+const AFTER = "(?![\\p{L}\\p{N}])";
+
+function alt(tokens: readonly string[]): string {
+  return `(?:${tokens.join("|")})`;
 }
 
-// Built once at module load rather than per call. The `i` flag is what lets
-// `normalizeCaption` leave casing alone: matching is this module's concern, so
-// "Inställt" and "inställt" are handled here rather than by flattening the caption
-// for every other consumer.
-const NEGATION = boundedPattern([...NEGATION_WORDS, ...NEGATION_PHRASES]);
+// Built once at module load. No `g` flag, deliberately: a global regex carries
+// `lastIndex` across `.test()` calls, so a shared instance alternates true and false
+// on the same input — a bug that passes any single-call test.
+//
+// The `i` flag is what lets `normalizeCaption` leave casing alone. Matching is this
+// module's concern, so it is handled here rather than by flattening the caption for
+// every other consumer.
+const FLAGS = "iu";
 
-// True when the caption cancels. Expects normalized text.
+const MARKER = new RegExp(
+  `${BEFORE}${alt([...CANCELLATION_MARKERS, ...CANCELLATION_PHRASES])}${AFTER}`,
+  FLAGS,
+);
+
+// A marker with a particle immediately in front of it is a DOUBLE NEGATIVE:
+// "Vi har inte stängt" says they are open. Suppresses the marker entirely.
+const NEGATED_MARKER = new RegExp(
+  `${BEFORE}${alt(NEGATORS)}\\s+${alt([...CANCELLATION_MARKERS, ...CANCELLATION_PHRASES])}${AFTER}`,
+  FLAGS,
+);
+
+// ADJACENCY, not proximity, is what makes these rules work. A window of a few words
+// would still fire on "Glöm inte att vi står på Heden", where the particle and the
+// verb sit three tokens apart and negate different things. Requiring them to be
+// neighbours is what separates "kör inte" from "inte ... står".
+const VERB_THEN_NEGATOR = new RegExp(
+  `${BEFORE}${alt(OPERATING_VERBS)}\\s+${alt(NEGATORS)}${AFTER}`,
+  FLAGS,
+);
+
+const NEGATOR_THEN_STATE = new RegExp(
+  `${BEFORE}${alt(NEGATORS)}\\s+${alt(OPEN_STATES)}${AFTER}`,
+  FLAGS,
+);
+
+// True when the caption cancels. Expects normalized text — `normalizeCaption`
+// output, which is NFC. Passing raw text risks decomposed "ä", against which every
+// pattern here silently fails to match.
 //
-// KNOWN LIMITS, accepted for this phase:
-//
-//   `inte` is genuinely ambiguous. "Vi kör inte idag" cancels; "Vi står inte vid
-//   Järntorget utan på Heden" is a RELOCATION and will be read as a cancellation,
-//   deleting the day rather than moving it. The issue's acceptance criteria require
-//   `inte`, so it ships — but it is the entry most likely to need revisiting once
-//   real captions exist, and the first place to look if trucks report vanishing.
-//
-//   `ställer in` also means "to adjust/tune". Implausible in a food-truck caption,
-//   and kept for that reason alone.
-//
-//   Bounded, not unbounded: a negation still passes through the override matrix
-//   (#1, #6), so a low-confidence lane cannot cancel a higher-confidence location.
+// KNOWN LIMIT, accepted for this phase: "Vi står inte vid Järntorget utan på Heden"
+// is a RELOCATION and reads as a cancellation, because "står inte" is exactly the
+// collocation that signals one. It deletes the day rather than moving it. This is
+// the narrowest remaining case — the imperative and restriction forms that used to
+// fire no longer do — and it is bounded by the override matrix (#1, #6), which stops
+// a low-confidence lane cancelling a higher-confidence location. First place to look
+// if trucks report pins vanishing.
 export function detectNegation(normalized: string): boolean {
-  return NEGATION.test(normalized);
+  // A double negative wins over everything: it is the one construction that means
+  // the opposite of the word it contains.
+  if (NEGATED_MARKER.test(normalized)) return false;
+
+  return (
+    MARKER.test(normalized) ||
+    VERB_THEN_NEGATOR.test(normalized) ||
+    NEGATOR_THEN_STATE.test(normalized)
+  );
 }

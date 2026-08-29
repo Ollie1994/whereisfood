@@ -91,6 +91,28 @@ describe("normalizeCaption", () => {
       expect(normalizeCaption("Lunch #food-truck idag")).toBe("Lunch idag");
     });
 
+    it("does not let a hashtag swallow the word after a full stop", () => {
+      // A hashtag terminates at a dot — Instagram's own rule — so "#gbg.Heden" is
+      // the tag `#gbg` plus the word "Heden". Allowing `.` in the hashtag body
+      // deleted the location the caption was about.
+      //
+      // The orphaned "." is left behind, and left deliberately: consuming it means
+      // letting the tag reach past the dot again, which is the swallow. A leading
+      // dot is cosmetic — the word is still a separate token to any boundary-aware
+      // matcher — whereas a deleted location name is not recoverable.
+      expect(normalizeCaption("#gbg.Heden idag 11-14")).toBe(".Heden idag 11-14");
+      expect(normalizeCaption("Lunch #foodtruck.Järntorget 11-14")).toBe(
+        "Lunch .Järntorget 11-14",
+      );
+    });
+
+    it("keeps the location name when a caption writes it after a tag", () => {
+      // The property that matters, stated independently of the stray punctuation:
+      // the word survives.
+      expect(normalizeCaption("#gbg.Heden idag 11-14")).toContain("Heden");
+      expect(normalizeCaption("Lunch #foodtruck.Järntorget 11-14")).toContain("Järntorget");
+    });
+
     it("does not eat a sentence-ending full stop after a mention", () => {
       // The separator must be followed by a word character to count as part of the
       // handle, or "Tack @truck." loses its punctuation too.
