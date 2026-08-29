@@ -75,19 +75,27 @@ const MENTION_BODY = "[\\p{L}\\p{N}_]+(?:[-.][\\p{L}\\p{N}_]+)*";
 // THE TWO SIGILS NEED DIFFERENT RULES, because they collide with ordinary text
 // differently:
 //
-//   `#` never appears inside a word, so it is stripped unconditionally. It also
-//   accepts a run of them, since `##gbg` otherwise leaves a stray `#` behind. This
-//   matters more than it looks: `#gbg#foodtruck#lunch` with no spaces is a normal
-//   way to write Instagram tags.
+//   BOTH require a non-word character in front, because neither sigil starts a
+//   token mid-word. For `@` this protects email addresses — without it, a caption
+//   listing a contact address silently produces `info.se`. For `#` it protects the
+//   same addresses from the other side: `info#1@foodtruck.se` would otherwise be
+//   read as a tag, and the trailing space emitted before the `@` would then let the
+//   mention rule eat the domain, leaving `info 1`.
 //
-//   `@` appears inside every email address, so it keeps the lookbehind — an `@`
-//   preceded by a word character, dot or underscore is part of an address, not a
-//   mention. Without it, a caption listing a contact address silently produces
-//   `info.se`.
+//   Run-together tags still work, via the trailing space plus the FIXPOINT. In
+//   `#gbg#foodtruck` the second `#` is preceded by a letter and is skipped on the
+//   first pass; the replacement emits a trailing space because a sigil follows, so
+//   the next pass sees the `#` preceded by a space and takes it. Both parts are
+//   needed — the fixpoint alone does not help, because without that space the
+//   replaced text leaves a letter in front of the next `#` and the input is already
+//   at a fixpoint, wrong.
+//
+//   A run of sigils is consumed at once (`#+`), since `##gbg` would otherwise leave
+//   a stray `#` behind.
 //
 // `\p{L}` rather than `[a-z]` so `#göteborg` is removed whole rather than leaving a
 // dangling `öteborg`.
-const HASHTAG = new RegExp(`#+(${HASHTAG_BODY})`, "gu");
+const HASHTAG = new RegExp(`(?<![\\p{L}\\p{N}])#+(${HASHTAG_BODY})`, "gu");
 const MENTION = new RegExp(`(?<![\\p{L}\\p{N}._])@${MENTION_BODY}`, "gu");
 
 // Newlines, tabs, non-breaking spaces and runs of ordinary spaces all collapse to
@@ -128,6 +136,12 @@ function segmentTagText(text: string): string {
       // tag body — so `#lunch_järntorget` must not stay glued. Unlike the
       // all-lowercase limit below, this boundary is marked and needs no wordlist.
       .replace(/_/gu, " ")
+      // An uppercase RUN followed by a capitalised word: "#GBGJärntorget" →
+      // "GBG Järntorget". Must run before the lowercase→uppercase rule, which
+      // cannot see this boundary — there is no lowercase letter at it. Without it
+      // the documented limit was wider than stated: not just all-lowercase tags,
+      // but any acronym glued to a word, which is an ordinary way to write one.
+      .replace(/(\p{Lu}+)(\p{Lu}\p{Ll})/gu, "$1 $2")
       .replace(/(\p{Ll})(\p{Lu})/gu, "$1 $2")
       .replace(/(\p{L})(\p{N})/gu, "$1 $2")
       // Digit → letter, but only when a WORD follows, not a single letter.
@@ -176,8 +190,9 @@ function stripTags(text: string): string {
   for (;;) {
     const stripped = text
       .replace(HASHTAG, (match: string, body: string, offset: number, whole: string) => {
-        const followedByMention = whole[offset + match.length] === "@";
-        return ` ${segmentTagText(body)}${followedByMention ? " " : ""}`;
+        const next = whole[offset + match.length];
+        const followedBySigil = next === "@" || next === "#";
+        return ` ${segmentTagText(body)}${followedBySigil ? " " : ""}`;
       })
       .replace(MENTION, "");
     if (stripped === text) return text;

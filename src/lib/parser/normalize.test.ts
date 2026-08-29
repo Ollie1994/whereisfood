@@ -168,6 +168,17 @@ describe("normalizeCaption", () => {
         expect(normalizeCaption("#5Heden")).toBe("5 Heden");
       });
 
+      it("splits an uppercase run from a following word", () => {
+        // "#GBGJärntorget" has no lowercase letter at the boundary, so the
+        // lowercase→uppercase rule cannot see it. Without a rule for an acronym
+        // followed by a word, the documented limit was wider than stated: not just
+        // all-lowercase tags, but any acronym glued to a word.
+        expect(normalizeCaption("#GBGJärntorget")).toBe("GBG Järntorget");
+        expect(normalizeCaption("#GBGLunch")).toBe("GBG Lunch");
+        // ...and an acronym at the END must still not be split.
+        expect(normalizeCaption("#FoodTruckGBG")).toBe("Food Truck GBG");
+      });
+
       it("leaves an all-lowercase run-together tag glued — a known limit", () => {
         // No marked boundary to find. Recovering this needs a wordlist, and step 0
         // must not depend on the dictionary; #65 is where it could be matched as a
@@ -194,6 +205,24 @@ describe("normalizeCaption", () => {
       // survived into the caption. The fixpoint cannot recover it, because the
       // blocking character is real text rather than something a later pass removes.
       expect(normalizeCaption("Lunch #gbg@foodtruckgbg")).toBe("Lunch gbg");
+    });
+
+    it("does not treat a mid-word sigil as a tag", () => {
+      // Neither sigil starts a token mid-word. Without the lookbehind on `#`,
+      // "info#1@foodtruck.se" was read as a tag, and the trailing space emitted
+      // before the `@` then let the mention rule eat the domain, leaving "info 1".
+      expect(normalizeCaption("Boka: info#1@foodtruck.se")).toBe("Boka: info#1@foodtruck.se");
+      expect(normalizeCaption("Boka: info#hash")).toBe("Boka: info#hash");
+    });
+
+    it("still separates run-together tags despite that lookbehind", () => {
+      // The lookbehind blocks the second `#` in "#gbg#foodtruck", so the trailing
+      // space is what lets a later pass reach it. The fixpoint alone does NOT
+      // recover this: without the space the replaced text leaves a letter in front
+      // of the next `#`, and the string is already at a fixpoint — a wrong one.
+      expect(normalizeCaption("Lunch #gbg#foodtruck#lunch idag")).toBe(
+        "Lunch gbg foodtruck lunch idag",
+      );
     });
 
     it("does not split a dotted time range while separating a mention", () => {
