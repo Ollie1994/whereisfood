@@ -59,6 +59,19 @@ const MENTION_BODY = "[\\p{L}\\p{N}_]+(?:[-.][\\p{L}\\p{N}_]+)*";
 // several at once (`#Lunch11-14Heden`) — which is why the text is segmented rather
 // than merely unwrapped. Removing the sigil alone rescues only single-word tags.
 //
+// ⚠ `detectNegation` READS THIS SAME STRING, and preserving tag text widens its
+// exposure: "#StängtPåSöndag" now segments to "Stängt På Söndag", the marker gets
+// clean word boundaries, and a truck posting "Heden 11-14 idag! #StängtPåSöndag"
+// has today's location deleted over a note about Sunday.
+//
+// This is a WIDENING, not a new failure: the prose form "Vi står på Heden 11-14
+// idag, stängt på söndag" already does the same thing, because a cancellation marker
+// carries no notion of WHICH day it cancels. Verified against `dev`. The real fix is
+// to scope a negation to the date it names, which needs `extractDate` and therefore
+// belongs downstream (#67) — tracked separately rather than papered over here, since
+// narrowing it in step 0 would mean teaching the normalizer the negation vocabulary
+// and inverting the layering.
+//
 // THE TWO SIGILS NEED DIFFERENT RULES, because they collide with ordinary text
 // differently:
 //
@@ -109,10 +122,21 @@ const WHITESPACE = /\s+/gu;
 // on the dictionary. `extractLocation` (#65) is where that could be recovered, by
 // matching dictionary entries as substrings rather than on word boundaries.
 function segmentTagText(text: string): string {
-  return text
-    .replace(/(\p{Ll})(\p{Lu})/gu, "$1 $2")
-    .replace(/(\p{L})(\p{N})/gu, "$1 $2")
-    .replace(/(\p{N})(\p{L})/gu, "$1 $2");
+  return (
+    text
+      // `_` is the one boundary a tag can state outright, and it is allowed in the
+      // tag body — so `#lunch_järntorget` must not stay glued. Unlike the
+      // all-lowercase limit below, this boundary is marked and needs no wordlist.
+      .replace(/_/gu, " ")
+      .replace(/(\p{Ll})(\p{Lu})/gu, "$1 $2")
+      .replace(/(\p{L})(\p{N})/gu, "$1 $2")
+      // Digit → letter, but only when a WORD follows, not a single letter.
+      // Swedish street addresses carry an entrance letter — "Nordostpassagen 61B" —
+      // and splitting it gives "61 B", so the same address would parse differently
+      // written as prose than written as a tag. Two letters is the shortest thing
+      // that is a word rather than a suffix.
+      .replace(/(\p{N})(?=\p{L}{2})/gu, "$1 ")
+  );
 }
 
 // Strip tags to a FIXPOINT rather than in one pass.
@@ -123,9 +147,23 @@ function segmentTagText(text: string): string {
 // is removed closes that whole class rather than the one case, and it makes
 // `normalizeCaption` idempotent by construction instead of by luck.
 //
-// A hashtag becomes a space plus its segmented text; a mention is removed outright.
-// The leading space matters: "#gbg#foodtruck" must not fuse into "gbgfoodtruck", and
-// the whitespace collapse afterwards makes a spare space free.
+// A hashtag becomes its segmented text SURROUNDED BY SPACES; a mention is removed
+// outright. Both spaces are load-bearing, and the whitespace collapse afterwards
+// makes a spare one free:
+//
+//   leading   "#gbg#foodtruck" must not fuse into "gbgfoodtruck".
+//   trailing  ONLY before an `@`. "#gbg@foodtruckgbg" — a run-together tag block
+//             ending in a handle is ordinary Instagram style — otherwise puts the
+//             tag's text directly before the `@`, where MENTION's email lookbehind
+//             sees a letter and refuses to match, leaving the handle in the caption.
+//             The fixpoint cannot recover it, because the blocking character is real
+//             text rather than something a later pass removes.
+//
+// The trailing space is CONDITIONAL because emitting it always costs more than it
+// fixes. A hashtag body stops at a dot, so "#11.30-13.00" is the tag `#11` followed
+// by ".30-13.00"; an unconditional trailing space turns that into "11 .30-13.00" and
+// splits a time range in half. Leaving a handle in the caption is noise; destroying
+// a time is data loss, so the space goes only where the `@` needs it.
 //
 // TERMINATING, but no longer for the reason first written here. The original argument
 // was "each pass shortens the string or changes nothing" — false once a hashtag is
@@ -137,7 +175,10 @@ function segmentTagText(text: string): string {
 function stripTags(text: string): string {
   for (;;) {
     const stripped = text
-      .replace(HASHTAG, (_match, body: string) => ` ${segmentTagText(body)}`)
+      .replace(HASHTAG, (match: string, body: string, offset: number, whole: string) => {
+        const followedByMention = whole[offset + match.length] === "@";
+        return ` ${segmentTagText(body)}${followedByMention ? " " : ""}`;
+      })
       .replace(MENTION, "");
     if (stripped === text) return text;
     text = stripped;

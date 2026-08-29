@@ -148,6 +148,26 @@ describe("normalizeCaption", () => {
         expect(normalizeCaption("#11.30-13.00")).toBe("11.30-13.00");
       });
 
+      it("splits on an underscore, which the tag body allows", () => {
+        // The one boundary a tag can state outright. Unlike the all-lowercase case
+        // below, it needs no wordlist — leaving it glued would be the same
+        // grey-marker failure this behaviour exists to prevent.
+        expect(normalizeCaption("Idag står vi på #lunch_järntorget 11-14")).toBe(
+          "Idag står vi på lunch järntorget 11-14",
+        );
+      });
+
+      it("does not detach a Swedish street entrance letter", () => {
+        // "Nordostpassagen 61B" is an address. Splitting the trailing letter gives
+        // "61 B", so the same address would parse differently written as a tag than
+        // written as prose. A digit is followed by a WORD, not by a suffix.
+        expect(normalizeCaption("Nordostpassagen 61B, #Nordostpassagen61B")).toBe(
+          "Nordostpassagen 61B, Nordostpassagen 61B",
+        );
+        // ...while a real word after digits still splits.
+        expect(normalizeCaption("#5Heden")).toBe("5 Heden");
+      });
+
       it("leaves an all-lowercase run-together tag glued — a known limit", () => {
         // No marked boundary to find. Recovering this needs a wordlist, and step 0
         // must not depend on the dictionary; #65 is where it could be matched as a
@@ -166,6 +186,23 @@ describe("normalizeCaption", () => {
       // the word survives.
       expect(normalizeCaption("#gbg.Heden idag 11-14")).toContain("Heden");
       expect(normalizeCaption("Lunch #foodtruck.Järntorget 11-14")).toContain("Järntorget");
+    });
+
+    it("still strips a mention that runs directly on from a hashtag", () => {
+      // Ordinary Instagram style. Preserving the tag's text puts a letter directly
+      // before the `@`, where the email lookbehind refuses to match — so the handle
+      // survived into the caption. The fixpoint cannot recover it, because the
+      // blocking character is real text rather than something a later pass removes.
+      expect(normalizeCaption("Lunch #gbg@foodtruckgbg")).toBe("Lunch gbg");
+    });
+
+    it("does not split a dotted time range while separating a mention", () => {
+      // The fix for the case above must be conditional. A hashtag body stops at a
+      // dot, so "#11.30-13.00" is `#11` plus ".30-13.00"; an unconditional trailing
+      // space yields "11 .30-13.00" and cuts a time range in half. A leftover
+      // handle is noise; a destroyed time is data loss.
+      expect(normalizeCaption("#11.30-13.00")).toBe("11.30-13.00");
+      expect(normalizeCaption("Lunch 11.30-13.00 #gbg")).toBe("Lunch 11.30-13.00 gbg");
     });
 
     it("does not eat a sentence-ending full stop after a mention", () => {
