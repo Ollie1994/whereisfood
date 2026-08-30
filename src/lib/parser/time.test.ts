@@ -88,6 +88,56 @@ describe("extractTime", () => {
       });
     });
 
+    it.each([
+      ["till", "Öppet 11 till 14"],
+      ["från … till", "Vi kör från 11 till 14"],
+      ["mellan … och", "Öppet mellan 11 och 14"],
+      ["a repeated kl", "Öppet kl 11 - kl 14"],
+      ["a repeated klockan", "Öppet klockan 11 - klockan 14"],
+      ["till with minutes", "Öppet 11:30 till 14:00"],
+    ])("reads the %s form as a full range", (_label, caption) => {
+      // ⚠ ALL FOUR OF THESE PREVIOUSLY LOST THE CLOSE, and two of them did it
+      // SILENTLY — the range failed to match, `MARKED_START` picked up the opening
+      // time, and the caption returned a confident start with the stated 14:00
+      // discarded. Downstream that pins the truck until the fallback expiry instead
+      // of 14:00. Found by sweeping realistic caption shapes rather than by adding
+      // cases to the range regex's own frame (PR #84 r2).
+      const result = extractTime(caption, SUMMER);
+
+      expect(result?.endsAt).not.toBeNull();
+      expect(result?.kind).toBe("range");
+      expect(result?.startsAt).toBe(
+        caption.includes("11:30") ? "2026-08-22T09:30:00.000Z" : "2026-08-22T09:00:00.000Z",
+      );
+      expect(result?.endsAt).toBe("2026-08-22T12:00:00.000Z");
+    });
+
+    it("does not treat a bare 'och' as a range separator", () => {
+      // ⚠ WHY `mellan … och` IS ITS OWN PATTERN rather than `och` joining the
+      // separator list. Two numbers joined by "and" are not a range — this is an
+      // ordinary sentence about the menu, and it would otherwise become a window.
+      //
+      // THE FIXTURE MATTERS AS MUCH AS THE ASSERTION. The first version of this test
+      // used "…14 sorters korv", and "sorters" is itself in TRAILING_UNITS — so the
+      // units guard rescued it and the test passed with `och` fully enabled as a
+      // separator. Mutation-verified: this fixture ends in a word no other guard
+      // knows, so only the missing separator can make it null.
+      expect(extractTime("Vi har 11 och 14 olika toppings", SUMMER)).toBeNull();
+    });
+
+    it("requires whitespace around 'till', so it cannot fuse two numbers", () => {
+      // ⚠ WHAT ACTUALLY BOUNDS THE WORD, stated precisely because the comment on
+      // RANGE_SEPARATOR originally claimed more than the code does. "tillbaka" is
+      // rejected by CLOCK needing a digit after the separator, NOT by the spacing —
+      // that fixture passes with `\s*` too and proves nothing about it.
+      //
+      // The run-together form is the case the `\s+` actually decides, so it is the
+      // one asserted. Mutation-verified: relaxing to `\s*` makes this a window.
+      expect(extractTime("11till14", SUMMER)).toBeNull();
+      // Still rejected, just for a different reason than the spacing.
+      expect(extractTime("Vi har 11 tillbaka 14 kvar", SUMMER)).toBeNull();
+    });
+
     it("reads a range with no minutes on one side", () => {
       expect(extractTime("Öppet 11-14.30", SUMMER)).toEqual({
         startsAt: "2026-08-22T09:00:00.000Z",
@@ -368,6 +418,40 @@ describe("extractTime", () => {
     it("returns null for a unit range with no real time after it", () => {
       expect(extractTime("Burgare 10-20 kr", SUMMER)).toBeNull();
       expect(extractTime("Vi har 2-3 rätter", SUMMER)).toBeNull();
+    });
+
+    it.each([
+      ["a price with a comma, no unit word", "Burgare 10-20, öppet 11-14"],
+      ["a price before an opening line", "Tacos 12-18, vi kör 11-14"],
+      ["a count before a time", "Vi har 5-10 kvar, öppet 11-14"],
+    ])("prefers the range introduced by a time word — %s", (_label, caption) => {
+      // ⚠ A PREFERENCE, NOT A FILTER, and that is what makes it safe: it never
+      // removes a candidate, only decides which valid one wins. With no time word
+      // anywhere, behaviour is unchanged — first valid wins.
+      //
+      // It exists because `TRAILING_UNITS` only catches a price that NAMES its unit,
+      // and the sweep showed the comma form is just as common: "Burgare 10-20, öppet
+      // 11-14" fabricated 08:00–18:00 on position alone.
+      expect(extractTime(caption, SUMMER)).toEqual({
+        startsAt: "2026-08-22T09:00:00.000Z",
+        endsAt: "2026-08-22T12:00:00.000Z",
+        kind: "range",
+      });
+    });
+
+    it("falls back to first-valid when no candidate is introduced by a time word", () => {
+      // The preference must not change anything when it does not apply.
+      expect(extractTime("11-14", SUMMER)?.startsAt).toBe("2026-08-22T09:00:00.000Z");
+      expect(extractTime("Heden 17-21", SUMMER)?.startsAt).toBe("2026-08-22T15:00:00.000Z");
+    });
+
+    it("keeps the first window when BOTH are introduced by a time word", () => {
+      // "Lunch 11-14, middag 17-21" — both marked, so the preference is a no-op and
+      // first-match-wins still decides. Pairing two windows correctly is #67's
+      // problem, not this module's.
+      expect(extractTime("Lunch 11-14, middag 17-21", SUMMER)?.startsAt).toBe(
+        "2026-08-22T09:00:00.000Z",
+      );
     });
 
     it("KNOWN LIMIT: a bare house-number range still fabricates a window", () => {

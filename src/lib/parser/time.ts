@@ -90,7 +90,28 @@ const CLOCK = "(\\d{1,2})(?:[.:]([0-5]\\d))?";
 // A range separator. The three dashes are the same character typographically —
 // captions copy-paste en and em dashes freely — so this is one token written three
 // ways, not three pieces of vocabulary.
-const DASH = "\\s*[-\u2013\u2014]\\s*";
+//
+// `till` joins them, because "11 till 14" is the same range said in words and is
+// ordinary Swedish rather than a variant spelling. It was listed as a known limit for
+// one round, and a sweep of realistic captions showed the cost is not a missed window
+// but a WRONG one: "Vi kör från 11 till 14" matched no range, `MARKED_START` picked
+// up "från 11", and the caption returned a confident start with the stated 14:00
+// close discarded (PR #84 r2).
+//
+// ⚠ WHAT THE `\s+` ACTUALLY DOES, stated precisely because the first version of this
+// comment claimed more. It is NOT what stops "tillbaka" joining two numbers — that is
+// `CLOCK` requiring a digit immediately after the separator, and "11 tillbaka 14" is
+// rejected with `\s*` just as well. The spacing decides exactly one thing: the
+// run-together form "11till14", which is not how anyone writes a range and is
+// therefore not accepted as one. Both facts are pinned by test, and the distinction
+// surfaced only because a mutation that relaxed this survived (PR #84 r2).
+const RANGE_SEPARATOR = "(?:\\s*[-–—]\\s*|\\s+till\\s+)";
+
+// An optional `kl` before the SECOND time. "Öppet kl 11 - kl 14" repeats the marker,
+// which is ordinary, and without this the range stopped at the dash and degraded to
+// the same silent start-only as above. A marker before the FIRST time needs no
+// handling — it simply sits outside the match.
+const REPEATED_MARKER = "(?:(?:kl|klockan)\\.?\\s*)?";
 
 // DIGIT-ADJACENCY GUARDS, not word guards. A time is bounded by things that are not
 // part of a number: these stop "61" being read out of the house number in
@@ -189,8 +210,59 @@ const LUNCHTID = new RegExp(`${BEFORE_WORD}lunchtid${AFTER_WORD}`, "iu");
 // one, and taking the first MATCH would reject the caption while taking the first
 // VALID match reads it correctly.
 const RANGE = new RegExp(
-  `${NOT_IN_NUMBER_BEFORE}${CLOCK}${DASH}${CLOCK}${NOT_IN_NUMBER_AFTER}`,
+  `${NOT_IN_NUMBER_BEFORE}${CLOCK}${RANGE_SEPARATOR}${REPEATED_MARKER}${CLOCK}${NOT_IN_NUMBER_AFTER}`,
   "giu",
+);
+
+// "mellan 11 och 14" — the other ordinary way Swedish states a range.
+//
+// KEPT AS ITS OWN PATTERN rather than adding `och` to `RANGE_SEPARATOR`, and that is
+// the point of the separation: a bare "och" between two numbers is NOT a range.
+// "Vi har 11 och 14 sorters korv" would become a serving window. `och` only joins a
+// range when `mellan` announced one, so the prefix is required and the two forms
+// cannot be collapsed into one separator list.
+const MELLAN_RANGE = new RegExp(
+  `${BEFORE_WORD}mellan\\s+${CLOCK}\\s+och\\s+${CLOCK}${NOT_IN_NUMBER_AFTER}`,
+  "giu",
+);
+
+// Words that mark a range as being about TIME rather than about money or quantity.
+//
+// ⚠ THIS IS A PREFERENCE, NOT A FILTER, and that distinction is what makes it safe.
+// It never removes a candidate; it only decides which of several valid ones wins. If
+// no candidate is preceded by one of these, behaviour is exactly what it was — first
+// valid wins — so the rule cannot make any caption worse than it already was.
+//
+// It exists because `TRAILING_UNITS` only catches a price that names its unit, and
+// the sweep showed the unmarked form is just as common: "Burgare 10-20, öppet 11-14"
+// has a comma after the price, so nothing trailing identifies it, and the fabricated
+// 08:00–18:00 window won on position alone. A range introduced by "öppet" is
+// overwhelmingly more likely to be the serving window than one that is not.
+const TIME_CONTEXT = [
+  "öppet",
+  "öppnar",
+  "öppna",
+  "öppettider",
+  "tider",
+  "tid",
+  "kl",
+  "klockan",
+  "serverar",
+  "säljer",
+  "står",
+  "kör",
+  "lunch",
+  "lunchen",
+  "middag",
+  "frukost",
+  "fika",
+] as const;
+
+// The candidate is introduced by a time word, allowing the punctuation and spacing
+// that normally sits between: "öppet 11-14", "Tider: 11-14", "öppet, 11-14".
+const PRECEDED_BY_TIME_CONTEXT = new RegExp(
+  `(?:${TIME_CONTEXT.join("|")})${AFTER_WORD}[\\s:,.\\-–—]{0,3}$`,
+  "iu",
 );
 
 const MARKED_START = new RegExp(
@@ -285,20 +357,43 @@ function toWindow(
 // A unit immediately after the range, allowing the space that normally precedes it.
 const TRAILING_UNIT = new RegExp(`^\\s*(?:${TRAILING_UNITS.join("|")})${AFTER_WORD}`, "iu");
 
-// The first candidate that VALIDATES, not the first that matches. See RANGE above.
+// Every range-shaped candidate from both patterns, in the order they appear in the
+// caption. Two patterns rather than one alternation because the group numbering has
+// to stay stable, and because `mellan … och` is a different construction rather than
+// another separator — see MELLAN_RANGE.
+function rangeCandidates(normalized: string): Array<{ index: number; length: number; groups: RegExpMatchArray }> {
+  const found = [
+    ...normalized.matchAll(RANGE),
+    ...normalized.matchAll(MELLAN_RANGE),
+  ].map((match) => ({ index: match.index, length: match[0].length, groups: match }));
+
+  return found.sort((a, b) => a.index - b.index);
+}
+
+// The first candidate that VALIDATES — and, among those, the first INTRODUCED BY A
+// TIME WORD if there is one. See TIME_CONTEXT for why the preference is separate
+// from the validation.
 //
-// Validation is three things, and skipping a candidate is what lets the scan reach a
-// real time further along the caption: the hours must be in range, and the range must
-// not be followed by a unit that proves it was a price or a count.
+// Validation skips a candidate rather than rejecting the caption, which is what lets
+// the scan reach a real time further along: the hours must be in range, and the range
+// must not be followed by a unit that proves it was a price or a count.
 function firstValidRange(normalized: string): { start: WallClock; end: WallClock } | null {
-  for (const match of normalized.matchAll(RANGE)) {
-    const start = toWallClock(match[1], match[2]);
-    const end = toWallClock(match[3], match[4]);
+  const valid: Array<{ start: WallClock; end: WallClock; introduced: boolean }> = [];
+
+  for (const candidate of rangeCandidates(normalized)) {
+    const start = toWallClock(candidate.groups[1], candidate.groups[2]);
+    const end = toWallClock(candidate.groups[3], candidate.groups[4]);
     if (start === null || end === null) continue;
-    if (TRAILING_UNIT.test(normalized.slice(match.index + match[0].length))) continue;
-    return { start, end };
+    if (TRAILING_UNIT.test(normalized.slice(candidate.index + candidate.length))) continue;
+
+    valid.push({
+      start,
+      end,
+      introduced: PRECEDED_BY_TIME_CONTEXT.test(normalized.slice(0, candidate.index)),
+    });
   }
-  return null;
+
+  return valid.find((candidate) => candidate.introduced) ?? valid[0] ?? null;
 }
 
 function firstValidMarkedStart(normalized: string): WallClock | null {
@@ -335,11 +430,28 @@ function firstValidMarkedStart(normalized: string): WallClock | null {
 // KNOWN LIMITS, each costing a missed window rather than a wrong one — the module
 // stays quiet instead of inventing:
 //
-//   "11 till 14"     "till" as a range separator. Ordinary Swedish, and the natural
-//                    next addition if real captions show it; left out because the
-//                    issue enumerates the dash forms and vocabulary added without
-//                    captions to check against is what this phase keeps paying for.
 //   "öppnar 11"      a start announced by a verb rather than `kl`/`klockan`/`från`.
+//   "elva till fjorton"
+//                    times spelled as words. Genuinely a different problem — it needs
+//                    a number-word table, not a separator.
+//   "Burgare 10-20, öppet 11-14"
+//                    RESOLVED by the TIME_CONTEXT preference, but only because a time
+//                    word introduces the real window. A price range with a comma
+//                    after it and no time word anywhere still wins on position.
+//
+// ⚠ THE SHAPE TO WATCH, rather than any single missing form: when a range form is not
+// recognised, `MARKED_START` can still match the opening time, and the result is a
+// confident-looking start with the stated close DISCARDED — worse than returning
+// nothing, because nothing signals the loss. Three separate causes produced it (a
+// trailing full stop, `till`, a repeated `kl`) and all three are fixed, but the shape
+// is structural: it recurs for any range form added later and not recognised here.
+//
+// A blunt guard for it was considered and rejected: refusing a marked start whenever
+// another clock-shaped number appears in the same clause also kills legitimate cases
+// ("Öppet kl 11, 14 sorters korv"), trading a silent truncation for a silent miss.
+// The real defence is that an unrecognised range form is a MISSING SEPARATOR, and the
+// fix is to recognise it — which is why `till` and `mellan … och` are now in rather
+// than listed here.
 //   "11-"            a dangling range. Reads as a start with an open end, but the
 //                    trailing dash is also how captions punctuate, so it is not
 //                    self-identifying the way a full range is.
