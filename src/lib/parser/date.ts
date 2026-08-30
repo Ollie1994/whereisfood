@@ -88,10 +88,27 @@ export const WEEKDAY_INFLECTION = "(?:en|ar|arna)?";
 // or `imorgon`, which take no such modifier — "förra imorgon" is not Swedish, and a
 // guard that reached them would be modelling a construction that does not exist.
 //
-// Fails toward NO MATCH, which falls back to `parsedAt`. That is the safe direction:
-// a caption looking backwards is not telling us where the truck will be, so the day
-// it was posted is a better guess than a day it explicitly did not name.
-export const BACKWARD_MODIFIERS = ["förra", "senaste", "sista", "föregående"] as const;
+// Fails toward NO MATCH, which falls back to `parsedAt`. That direction is safe only
+// for a modifier that is genuinely backward-looking — see the exclusion below, which
+// is the whole reason this list is short.
+//
+// ⚠ `sista` IS EXCLUDED, and it was in this list for one review round before being
+// taken out (PR #83 r2). It looks like it belongs — "sista fredagen" can mean the
+// most recent Friday — but its ordinary use in a caption is FORWARD-looking:
+//
+//   "Sista fredagen i månaden kör vi på Heden"   the monthly recurring slot
+//   "Sista söndagen i månaden är det marknad"    the standard phrasing for a market
+//   "Vår sista lördag för säsongen"              a closing date, announced ahead
+//
+// Suppressing those cost a real future date and returned the posting day instead —
+// a wrong pin TODAY, which is worse than the wrong future day the guard was added to
+// prevent. "Fails toward no match" is only the safe direction when the thing being
+// suppressed was wrong to begin with; for `sista` it usually was not.
+//
+// The three that remain are unambiguous: `förra` and `föregående` mean the preceding
+// one, `senaste` the most recent. None has a forward reading. THAT is the bar for
+// this list — not "could point backwards", but "cannot point forwards".
+export const BACKWARD_MODIFIERS = ["förra", "senaste", "föregående"] as const;
 
 // Word boundaries WITHOUT `\b`, which is ASCII-only and therefore wrong for Swedish:
 // `\w` excludes å, ä and ö, so `\b` manufactures boundaries INSIDE words and
@@ -139,9 +156,19 @@ const TOMORROW = "(?:imorgon|i\\s+morgon)";
 //
 // No prefix is required before a weekday. "På söndag 11-14" and "Söndag 11-14" are
 // both ordinary, and leading with the day is the common caption shape.
+// The backward-modifier guard, applied to the weekday branch ONLY.
+//
+// ⚠ THE INNER `BEFORE` IS NOT REDUNDANT — it is what makes the modifier a WORD.
+// Without it the lookbehind matches the SUFFIX of a longer word, which is the exact
+// unbounded-token class `BEFORE` and `AFTER` exist to prevent everywhere else in this
+// module: "Nästsista fredagen" ends in "sista ", so the tail of one word silently
+// suppressed the date behind it (PR #83 r2). Every other token here is anchored on
+// both sides; this one was not, while its comment claimed it spanned one word.
+const NOT_BACKWARD = `(?<!${BEFORE}${alt(BACKWARD_MODIFIERS)}\\s+)`;
+
 const DATE_EXPRESSION = new RegExp(
   `${BEFORE}(?:(?<today>${TODAY})|(?<tomorrow>${TOMORROW})|` +
-    `(?<!${alt(BACKWARD_MODIFIERS)}\\s+)(?<weekday>${alt(WEEKDAYS)})${WEEKDAY_INFLECTION})${AFTER}`,
+    `${NOT_BACKWARD}(?<weekday>${alt(WEEKDAYS)})${WEEKDAY_INFLECTION})${AFTER}`,
   "iu",
 );
 

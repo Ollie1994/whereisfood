@@ -152,7 +152,7 @@ describe("extractDate", () => {
       expect(extractDate("Tack alla som kom i söndags", SATURDAY)).toBe(SATURDAY);
     });
 
-    it.each(["Förra", "Senaste", "Sista", "Föregående"])(
+    it.each(["Förra", "Senaste", "Föregående"])(
       "does not resolve '%s fredagen' forward to the coming Friday",
       (modifier) => {
         // ⚠ THE OTHER HALF OF THE BACKWARD-REFERENCE GUARD, and the half the `s`
@@ -164,17 +164,61 @@ describe("extractDate", () => {
       },
     );
 
-    it("scopes the backward guard to weekdays only, and to one word", () => {
-      // Span and rules, stated as assertions rather than intent — four scoping
-      // errors in this project's parser came from a guard reaching further than the
-      // construction it models (process-log #87–90).
+    it.each([
+      ["Sista fredagen i månaden kör vi på Heden", FRIDAY],
+      ["Sista söndagen i månaden är det marknad", SUNDAY],
+    ])("resolves the forward-looking 'sista' in %s", (caption, expected) => {
+      // ⚠ THE r1 OVERCORRECTION, pinned so it cannot come back. `sista` was in
+      // BACKWARD_MODIFIERS for one round, and it is the one member with an ordinary
+      // FORWARD reading — "the last Friday of the month" is a recurring slot, and
+      // "sista söndagen i månaden" is the standard phrasing for a monthly market.
+      // Suppressing them returned the posting day: a wrong pin TODAY, worse than the
+      // wrong future day the guard was added to prevent (PR #83 r2).
+      expect(extractDate(caption, SATURDAY)).toBe(expected);
+    });
+
+    it("requires the backward modifier to be a whole word, not a word ending", () => {
+      // ⚠ The lookbehind had no left boundary for one round, so it matched the
+      // SUFFIX of a longer word and silently suppressed the date behind it — the
+      // unbounded-token class `BEFORE` and `AFTER` prevent everywhere else in this
+      // module, while the guard's own comment claimed it spanned one word (PR #83 r2).
       //
-      // The modifier must be ADJACENT: an unrelated earlier "förra" must not
-      // silence a weekday in the rest of the caption.
+      // "allrasenaste" ends in "senaste" and is a probe, not a caption anyone is
+      // likely to post. It has to be: the case that ORIGINALLY exposed this was
+      // "Nästsista fredagen", and removing `sista` from the list in the same round
+      // made that fixture stop engaging the guard at all — it passed against the
+      // unbounded version too, which is the vacuous-fixture trap twice in one file.
+      // Mutation-verified: dropping the inner boundary fails this.
+      //
+      // FRIDAY rather than a nearer weekday on purpose — "lördagen" would resolve to
+      // SATURDAY, which is also `parsedAt`, so a suppressed match and a successful
+      // one would give the same answer and the assertion would prove nothing.
+      expect(extractDate("Allrasenaste fredagen var kul, vi ses snart", SATURDAY)).toBe(FRIDAY);
+    });
+
+    it("suppresses only the position it guards, not the rest of the caption", () => {
+      // The modifier must be ADJACENT: an earlier "förra" must not silence a
+      // weekday later in the caption.
       expect(extractDate("Förra veckan var lugn, på fredag kör vi", SATURDAY)).toBe(FRIDAY);
-      // And it governs the weekday branch only — "idag" and "imorgon" take no such
-      // modifier, so nothing about them changes.
-      expect(extractDate("Förra gången var kul, imorgon kör vi", SATURDAY)).toBe(SUNDAY);
+      expect(extractDate("Vi minns förra lördagen. På söndag kör vi", SATURDAY)).toBe(SUNDAY);
+      // And a suppressed weekday does not consume the match — a later, unguarded
+      // one still wins.
+      expect(extractDate("Förra fredagen var kul, på måndag kör vi", SATURDAY)).toBe(MONDAY);
+    });
+
+    it("governs the weekday branch only, and nothing else in the alternation", () => {
+      // ⚠ A SYNTHETIC PROBE, not a caption anyone would write — and that is the
+      // point. The previous version of this test claimed this scope and could not
+      // detect losing it: both its fixtures put an intervening clause between the
+      // modifier and the date word, so hoisting the lookbehind to cover `today` and
+      // `tomorrow` left them green. It tested non-adjacency twice and named it
+      // scope — the vacuous-fixture failure this project logged as row 43.
+      //
+      // Placing the modifier DIRECTLY before each branch is the only way to tell the
+      // two scopes apart. "förra imorgon" is not Swedish, which is precisely why no
+      // realistic caption can pin this and a probe has to.
+      expect(extractDate("förra imorgon", SATURDAY)).toBe(SUNDAY);
+      expect(extractDate("förra i morgon", SATURDAY)).toBe(SUNDAY);
     });
 
     it("falls back rather than guessing when case folding matches a word it cannot identify", () => {
