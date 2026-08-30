@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { extractDate, WEEKDAYS } from "@/lib/parser/date";
+import { detectNegation } from "@/lib/parser/negation";
 import { normalizeCaption } from "@/lib/parser/normalize";
 
 // Every fixture resolves against a FIXED `parsedAt`, never the clock — which is the
@@ -124,14 +125,23 @@ describe("extractDate", () => {
       }
     });
 
-    it("does not match a weekday inside a Swedish compound", () => {
+    it("uses \\p{L} boundaries, so a weekday stem inside a longer word is not a match", () => {
       // ⚠ WHY `\b` IS WRONG HERE. `\w` excludes å, ä and ö, so `/\bsöndag\b/`
       // matches inside "söndagsöppet" — the "ö" reads as a word boundary. Swedish
       // compounds are built by exactly this concatenation, so the lookarounds have
       // to be `\p{L}`-based. This assertion is what makes the copy of that idiom in
       // `date.ts` trustworthy rather than merely intended.
+      //
+      // ⚠ THIS PINS THE MECHANISM AND THE CURRENT BEHAVIOUR — it does NOT assert
+      // that not matching is the right answer. An earlier version of this test ran
+      // those two claims together, and they are separate: `\b` is wrong for Swedish
+      // regardless, while whether "söndagsöppet" SHOULD resolve to Sunday is an open
+      // question listed under KNOWN LIMITS in `date.ts`. These compounds do name
+      // their day, so today's answer can be a day early. If that limit is ever
+      // closed, this test changes on purpose rather than looking like a regression.
       expect(extractDate("Söndagsöppet som vanligt", SATURDAY)).toBe(SATURDAY);
       expect(extractDate("Vi har fredagsmys ikväll", SATURDAY)).toBe(SATURDAY);
+      expect(extractDate("Lördagsöppet 11-14 på Heden", "2026-08-20")).toBe("2026-08-20");
     });
 
     it("does not resolve the past form 'i fredags' to the coming Friday", () => {
@@ -140,6 +150,41 @@ describe("extractDate", () => {
       // direction the module must never take a backward-looking caption.
       expect(extractDate("Som vi sa i fredags kör vi vidare", SATURDAY)).toBe(SATURDAY);
       expect(extractDate("Tack alla som kom i söndags", SATURDAY)).toBe(SATURDAY);
+    });
+
+    it.each(["Förra", "Senaste", "Sista", "Föregående"])(
+      "does not resolve '%s fredagen' forward to the coming Friday",
+      (modifier) => {
+        // ⚠ THE OTHER HALF OF THE BACKWARD-REFERENCE GUARD, and the half the `s`
+        // omission does not cover: these take the ordinary definite inflection, so
+        // the stem matches cleanly. Before `BACKWARD_MODIFIERS` existed, "Förra
+        // fredagen var kul" resolved to 2026-08-28 — six days FORWARD, in the one
+        // direction the module documents that it never goes (PR #83 review).
+        expect(extractDate(`${modifier} fredagen var kul`, SATURDAY)).toBe(SATURDAY);
+      },
+    );
+
+    it("scopes the backward guard to weekdays only, and to one word", () => {
+      // Span and rules, stated as assertions rather than intent — four scoping
+      // errors in this project's parser came from a guard reaching further than the
+      // construction it models (process-log #87–90).
+      //
+      // The modifier must be ADJACENT: an unrelated earlier "förra" must not
+      // silence a weekday in the rest of the caption.
+      expect(extractDate("Förra veckan var lugn, på fredag kör vi", SATURDAY)).toBe(FRIDAY);
+      // And it governs the weekday branch only — "idag" and "imorgon" take no such
+      // modifier, so nothing about them changes.
+      expect(extractDate("Förra gången var kul, imorgon kör vi", SATURDAY)).toBe(SUNDAY);
+    });
+
+    it("falls back rather than guessing when case folding matches a word it cannot identify", () => {
+      // The `iu` regex matches by Unicode CASE FOLDING while the weekday lookup is
+      // exact equality, and folding is the wider relation: U+017F (ſ, long s) folds
+      // to "s", so "tiſdag" matches the pattern and then fails the lookup. Behind
+      // the `as` cast this module used to carry, `indexOf` returned -1 and the
+      // modulo turned it into a plausible WRONG day — Sunday for a caption naming
+      // Tuesday (PR #83 review). A silent wrong date is the failure worth pinning.
+      expect(extractDate("Vi kör på tiſdag", SATURDAY)).toBe(SATURDAY);
     });
   });
 
@@ -174,6 +219,26 @@ describe("extractDate", () => {
       // Documents the cost of the rule rather than hiding it: a caption leading with
       // a future day resolves to that day.
       expect(extractDate("På måndag Lindholmen, idag är vi på Heden", SATURDAY)).toBe(MONDAY);
+    });
+
+    it("takes the date from a LEADING cancellation tag — #80's case, pinned here", () => {
+      // ⚠ ASSERTS A KNOWN WRONG ANSWER ON PURPOSE. Since #78 stopped deleting tag
+      // text, a leading "#StängtPåSöndag" puts the day the truck is CLOSED first, so
+      // first-match-wins returns Sunday for a post about today.
+      //
+      // Nothing is mis-pinned today: `detectNegation` fires on this caption and
+      // `parseCaption` bails before the date is used. It goes live exactly when #80
+      // stops the negation cancelling today — so this is the regression test for a
+      // defect that does not exist yet, and #80 should flip it rather than meet it.
+      // Fixing it here would mean teaching this module the negation vocabulary,
+      // which is the layering inversion `normalize.ts` refuses for the same reason.
+      const leading = normalizeCaption("#StängtPåSöndag Heden 11-14 idag!");
+      expect(extractDate(leading, SATURDAY)).toBe(SUNDAY);
+      expect(detectNegation(leading)).toBe(true);
+
+      // The trailing form, which the PR body originally claimed for both, is fine.
+      const trailing = normalizeCaption("Heden 11-14 idag! #StängtPåSöndag");
+      expect(extractDate(trailing, SATURDAY)).toBe(SATURDAY);
     });
   });
 

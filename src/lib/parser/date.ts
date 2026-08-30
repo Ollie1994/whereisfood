@@ -69,7 +69,29 @@ export const WEEKDAYS = [
 // resolve it to the COMING Friday, which is the one direction this module must never
 // go. Without it the expression matches nothing and falls back to `parsedAt`, which
 // is the safe reading of a caption looking backwards. Pinned by test.
+//
+// ⚠ AND IT IS NOT THE WHOLE GUARD AGAINST BACKWARD REFERENCES — `BACKWARD_MODIFIERS`
+// below is the other half. Omitting `s` covers only the shapes that carry one;
+// "förra fredagen" is a past reference with an ordinary inflection, and it resolved
+// six days FORWARD until that guard existed (review finding on PR #83).
 export const WEEKDAY_INFLECTION = "(?:en|ar|arna)?";
+
+// Modifiers that point a weekday BACKWARD. "Förra fredagen var kul" is a note about
+// last Friday, and without this it matched `fredagen` and resolved to the COMING
+// Friday — six days ahead, in the one direction this module states it never goes.
+// Omitting `s` from the inflections does not cover these: they take the ordinary
+// definite form, so the stem matches cleanly.
+//
+// SCOPE, stated because four scoping errors in this project's parser came from not
+// stating it (process-log #87–90): this guard governs the WEEKDAY BRANCH ONLY, and
+// spans exactly one word immediately before the weekday. It does not apply to `idag`
+// or `imorgon`, which take no such modifier — "förra imorgon" is not Swedish, and a
+// guard that reached them would be modelling a construction that does not exist.
+//
+// Fails toward NO MATCH, which falls back to `parsedAt`. That is the safe direction:
+// a caption looking backwards is not telling us where the truck will be, so the day
+// it was posted is a better guess than a day it explicitly did not name.
+export const BACKWARD_MODIFIERS = ["förra", "senaste", "sista", "föregående"] as const;
 
 // Word boundaries WITHOUT `\b`, which is ASCII-only and therefore wrong for Swedish:
 // `\w` excludes å, ä and ö, so `\b` manufactures boundaries INSIDE words and
@@ -119,7 +141,7 @@ const TOMORROW = "(?:imorgon|i\\s+morgon)";
 // both ordinary, and leading with the day is the common caption shape.
 const DATE_EXPRESSION = new RegExp(
   `${BEFORE}(?:(?<today>${TODAY})|(?<tomorrow>${TOMORROW})|` +
-    `(?<weekday>${alt(WEEKDAYS)})${WEEKDAY_INFLECTION})${AFTER}`,
+    `(?<!${alt(BACKWARD_MODIFIERS)}\\s+)(?<weekday>${alt(WEEKDAYS)})${WEEKDAY_INFLECTION})${AFTER}`,
   "iu",
 );
 
@@ -188,6 +210,18 @@ function weekdayOf(millis: number): number {
 // a future day resolves to that day, which is this rule's cost and is bounded the
 // same way every wrong date is.
 //
+// ⚠ A LEADING CANCELLATION TAG IS THE SHARP EDGE OF THAT RULE, and it is #80's
+// problem rather than this module's. Since #78 stopped deleting tag text,
+// "#StängtPåSöndag Heden 11-14 idag!" normalizes to "Stängt På Söndag Heden 11-14
+// idag" — so the FIRST date word is the one the caption says the truck is CLOSED on,
+// and this returns Sunday for a post about today. (Today `detectNegation` fires on
+// that caption and `parseCaption` bails before the date is used, so nothing is
+// mis-pinned yet; it becomes live exactly when #80 stops the negation cancelling
+// today.) Fixing it here would mean teaching this module which clauses are
+// cancellations — the same layering inversion `normalize.ts` refuses for the same
+// reason, and precisely the comparison #80 exists to make at the `parseCaption` seam.
+// Recorded so #80 treats it as a case to cover rather than discovering it again.
+//
 // NO EXPRESSION FOUND → `parsedAt`. The overwhelmingly common caption says where the
 // truck is without saying that it means today, because that is obvious to a human
 // reading it on the day it was posted.
@@ -209,6 +243,24 @@ function weekdayOf(millis: number): number {
 //                   captions show otherwise.
 //   "lör", "sön"    abbreviated weekdays. Three letters is short enough to collide
 //                   with ordinary words, and "sön" is a prefix of "söndag" already.
+//   "lördagsöppet"  a weekday as the FIRST ELEMENT OF A COMPOUND — "söndagsbrunch",
+//   "måndagskvällen"
+//                   "på måndagskvällen". These do name the day, so resolving to
+//                   `parsedAt` can be a day or more early. Reaching them is not a
+//                   matter of adding `s` to the inflections: `AFTER` rejects them
+//                   because a letter follows, so `s` would leave every case here
+//                   unmatched while breaking "i fredags" — verified, not assumed.
+//                   It needs a separate rule matching a weekday as a compound
+//                   PREFIX, which is a real change to what counts as a match and
+//                   wants real captions behind it rather than a guess.
+//
+//                   ⚠ `date.test.ts` asserts these do not match. That assertion pins
+//                   CURRENT behaviour and the `\p{L}`-boundary mechanism — it is not
+//                   a claim that not matching is correct. The two questions are
+//                   separate and an earlier version of that test ran them together:
+//                   `\b` is wrong for Swedish regardless (it splits inside "söndags"
+//                   at the "ö"), while whether a compound SHOULD resolve to its
+//                   weekday is undecided and listed here.
 //   "11-14imorgon"  a date word glued directly to a DIGIT in prose, which `BEFORE`
 //                   rejects along with letters. The realistic route for that shape
 //                   is a hashtag, and `normalizeCaption` splits it on the digit /
@@ -227,6 +279,19 @@ export function extractDate(normalized: string, parsedAt: string): string {
   // rather than degrading: `new Date(NaN).toISOString()` is a RangeError, and this
   // module runs inside `after()`, where a throw becomes an unhandled rejection that
   // loses the post rather than storing it with a bad date.
+  //
+  // ⚠ WHAT THIS DOES NOT DO, stated because the guard reads like more than it is:
+  // it does not make the return type safe to trust blindly. Every OTHER path returns
+  // `yyyy-MM-dd`; this one returns whatever it was given, so `extractDate("imorgon",
+  // "2026-13-01")` is `"2026-13-01"`. The bad value moves downstream rather than
+  // being neutralised, and a `locations` insert is where it would surface instead
+  // (review finding on PR #83).
+  //
+  // Returning `null` so the caller could set `parsing_status = 'failed'` is the
+  // better shape and is deliberately NOT done here: #57 fixes the signature as
+  // `: string`, and widening it is a change to the contract #66 and #67 are being
+  // written against. This is a guard against a throw, not a validation layer —
+  // `parsedAt` is validated where it is derived.
   if (origin === null) return parsedAt;
 
   const match = DATE_EXPRESSION.exec(normalized);
@@ -237,11 +302,22 @@ export function extractDate(normalized: string, parsedAt: string): string {
 
   // `toLowerCase` because the `i` flag matched case-insensitively while the lookup is
   // exact, and `normalizeCaption` deliberately preserves the caption's own casing.
-  const weekday = match.groups.weekday.toLowerCase() as (typeof WEEKDAYS)[number];
+  //
+  // ⚠ THE TWO ARE NOT THE SAME COMPARISON, which is why the `-1` is checked rather
+  // than assumed away with a cast. The `iu` regex matches by Unicode CASE FOLDING
+  // while `indexOf` is exact equality, and folding is the wider relation: U+017F
+  // (ſ, long s) folds to "s", so "tiſdag" matches the pattern and then fails the
+  // lookup. Behind the cast this module previously had, that returned index `-1`,
+  // which the modulo below silently turned into a plausible WRONG weekday — Sunday
+  // for a caption naming Tuesday (review finding on PR #83). Falling back to
+  // `parsedAt` is the honest answer for a word we matched but cannot identify.
+  const weekday = match.groups.weekday.toLowerCase();
+  const target = (WEEKDAYS as readonly string[]).indexOf(weekday);
+  if (target === -1) return parsedAt;
 
   // The nearest upcoming occurrence, where a day that IS today resolves to today
   // rather than a week out — a truck posting "Lördag 11-14" on a Saturday means this
   // Saturday. The modulo keeps the result in 0–6, so it is never in the past.
-  const delta = (WEEKDAYS.indexOf(weekday) - weekdayOf(origin) + 7) % 7;
+  const delta = (target - weekdayOf(origin) + 7) % 7;
   return formatUtc(origin + delta * DAY_MS);
 }
