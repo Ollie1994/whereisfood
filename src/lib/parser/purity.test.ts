@@ -32,17 +32,18 @@ const PARSER_DIR = fileURLToPath(new URL(".", import.meta.url));
 //                        hand-maintained lists of Swedish weekdays drift, and a
 //                        drifted one fails silently.
 //
-//   `date-fns-tz`        NOT added, though #57 predicted it would be. `date.ts`
-//                        turned out to need no date library: it converts between two
+//   `date-fns-tz`        Added by #58, at the seam #57 predicted it would belong to
+//                        rather than the one it was originally written against.
+//                        `date.ts` needs no date library — it converts between two
 //                        calendar dates, never between an instant and a wall clock,
 //                        and every operation it performs has the same answer in
-//                        every timezone. Anchoring a date to an invented time of day
-//                        purely to satisfy the prediction would have ADDED the DST
-//                        edge cases it was meant to avoid. The reasoning is in
-//                        `date.ts`'s header. #58 and #67 are where it genuinely
-//                        belongs, since those turn a date plus a time into an
-//                        instant — expect this line to change then.
-const PARSER_POLICY = allowOnly(["@/lib/parser/date"]);
+//                        every timezone. `time.ts` is the opposite case: "11:00 in
+//                        Gothenburg" is 09:00Z in August and 10:00Z in January, so
+//                        the offset is the whole problem and `fromZonedTime` is what
+//                        solves it. Same package, one layer down, and the layer is
+//                        what the allowlist is for. #67 composes the two and should
+//                        need nothing new.
+const PARSER_POLICY = allowOnly(["@/lib/parser/date", "date-fns-tz"]);
 
 // RECURSIVE, deliberately. A flat `readdirSync` would let a module in a
 // subdirectory — `dictionary/index.ts`, `rules/time.ts` — escape the guard entirely

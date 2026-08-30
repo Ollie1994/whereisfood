@@ -210,6 +210,24 @@ function weekdayOf(millis: number): number {
   return (new Date(millis).getUTCDay() + 6) % 7;
 }
 
+// Calendar-date arithmetic, exported for `time.ts` (#58) rather than reimplemented
+// there. `extractTime` needs exactly this for the midnight roll: "22-01" ends on the
+// FOLLOWING calendar day, and the end instant has to be built from that day's wall
+// clock rather than by adding 24 hours to the start instant — those differ by an
+// hour across a DST boundary.
+//
+// Shared for the reason `WEEKDAYS` is: this is one piece of knowledge — that a
+// calendar date has no timezone, so its arithmetic is exact in UTC and nowhere else
+// — and the header above is where the argument for it lives. A second copy in
+// `time.ts` would be a second place for that argument to rot.
+//
+// Returns null on a date this module cannot read, so callers keep the same
+// fail-closed shape rather than propagating an Invalid Date.
+export function addCalendarDays(date: string, days: number): string | null {
+  const millis = toUtcMillis(date);
+  return millis === null ? null : formatUtc(millis + days * DAY_MS);
+}
+
 // Resolve a Swedish date expression against the day the post was made.
 //
 // Expects normalized text — `normalizeCaption` output, which is NFC. Passing raw
