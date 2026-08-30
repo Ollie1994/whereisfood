@@ -1,0 +1,247 @@
+// Resolves a Swedish date expression to a concrete Stockholm calendar date.
+//
+// Pure — no DB, no HTTP, no clock. Enforced by `purity.test.ts` in this directory.
+// `parsedAt` is always passed in, never read from the clock, because
+// `scripts/reparse.mjs` (#71) replays old posts and must resolve their dates against
+// the day each post was made rather than the day the script runs.
+//
+// ─────────────────────────────────────────────────────────────────────────────
+// WHY THIS MODULE IMPORTS NO DATE LIBRARY — a deliberate divergence from #57
+//
+// The issue says "timezone handling via `date-fns-tz`", and its handoff comment
+// instructs adding that package to the purity allowlist. Neither is done, because
+// THIS MODULE PERFORMS NO TIMEZONE CONVERSION, and adding one would make it less
+// correct rather than more.
+//
+// A timezone converts between an INSTANT and a wall clock. Nothing here is an
+// instant: `parsedAt` is a calendar date, the return value is a calendar date, and
+// the operations between them — what weekday is this date, what is this date plus
+// N days — have the same answer in every timezone on earth. #57 says as much in its
+// own non-goals: "does not convert to UTC instants; that happens once time is known."
+//
+// Converting anyway would mean inventing a time of day to anchor the date to, and
+// that invention is where the DST bugs live: anchored at Stockholm midnight, adding
+// 24 hours lands on 01:00 the NEXT day on 2026-03-29, and on 23:00 the SAME day on
+// 2026-10-25. Every one of those is a bug this module can simply not have.
+//
+// So the arithmetic runs in UTC, which has no DST and no offset and is therefore
+// exact calendar arithmetic. Verified by test across both 2026 Stockholm DST
+// boundaries, a year rollover and a leap day.
+//
+// `date-fns-tz` remains the right tool at the seam where a date and a time become a
+// UTC instant — `extractTime` (#58) and `parseCaption` (#67). It is the wrong tool
+// here. The purity allowlist is meant to be where a dependency is ARGUED for; this
+// is the argument, and its conclusion is that the dependency is not needed.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Swedish weekdays, Monday-first. THIS MODULE OWNS THEM; `negation.ts` imports them.
+//
+// The list existed there first, because a cancellation names a day. #57 asked whether
+// to share it or keep a second copy, and sharing wins for the reason this project
+// keeps logging: two hand-maintained lists of Swedish weekdays drift, and a drifted
+// one fails silently. The DIRECTION is the part worth stating — a date module owning
+// a weekday table is the natural layering, whereas a date extractor importing from a
+// negation detector would invert it. So the constant moved here rather than being
+// imported from there, and `negation.ts` re-exports it so its consumers are
+// unaffected.
+//
+// Order is load-bearing: the index into this array IS the Monday-based weekday
+// number that `weekdayOf` returns.
+export const WEEKDAYS = [
+  "måndag",
+  "tisdag",
+  "onsdag",
+  "torsdag",
+  "fredag",
+  "lördag",
+  "söndag",
+] as const;
+
+// Swedish weekdays inflect, and captions use every form: "på söndag", "på söndagen",
+// "på söndagar", "på söndagarna". Listing only the stem made the first match while
+// the rest missed — a review finding on `negation.ts` (process-log #86), which
+// `extractDate` would have hit identically. Shared with `negation.ts` for the same
+// reason the list itself is: the stems and their endings are one piece of knowledge,
+// and splitting them across two files is how one of them gets updated alone.
+//
+// ⚠ `s` IS DELIBERATELY ABSENT, and that is a correctness rule rather than an
+// oversight. "i fredags" means LAST Friday — a past reference. Adding `s` here would
+// resolve it to the COMING Friday, which is the one direction this module must never
+// go. Without it the expression matches nothing and falls back to `parsedAt`, which
+// is the safe reading of a caption looking backwards. Pinned by test.
+export const WEEKDAY_INFLECTION = "(?:en|ar|arna)?";
+
+// Word boundaries WITHOUT `\b`, which is ASCII-only and therefore wrong for Swedish:
+// `\w` excludes å, ä and ö, so `\b` manufactures boundaries INSIDE words and
+// `/\bsöndag\b/` matches inside "söndagsöppet". Swedish compounds are formed by
+// exactly that concatenation, so this is a live failure mode rather than a
+// hypothetical one.
+//
+// Duplicated from `negation.ts` rather than shared: it is a two-token regex idiom
+// with no natural owner, and a third exported constant to carry it would cost more
+// coupling than the duplication does. What is NOT duplicated is the trust — the
+// behaviour these produce is asserted directly in `date.test.ts` ("söndagsöppet"
+// must not match), so a wrong copy fails loudly here instead of silently matching
+// inside a compound.
+const BEFORE = "(?<![\\p{L}\\p{N}])";
+const AFTER = "(?![\\p{L}\\p{N}])";
+
+function alt(tokens: readonly string[]): string {
+  return `(?:${tokens.join("|")})`;
+}
+
+// BOTH SPELLINGS OF EACH WORD. "idag" and "i dag" are both current Swedish — SAOL
+// prefers the two-word form — and a caption uses whichever spelling its writer
+// learned. The same holds for "imorgon" / "i morgon". Matching only the closed-up
+// form would miss the spelling the language authority actually recommends.
+//
+// ⚠ THE "i" IS REQUIRED, NOT OPTIONAL. Writing `(?:i\s+)?morgon` instead would be a
+// real defect: bare "morgon" is the noun "morning", so "God morgon!" — an ordinary
+// caption greeting — would resolve to TOMORROW and pin the truck on the wrong day.
+// The `i` is what makes the word temporal. Pinned by test.
+//
+// `\s+` rather than `\s*` because the no-space case is already the first branch, so
+// allowing both inside one branch would only add a second way to match one string.
+const TODAY = "(?:idag|i\\s+dag)";
+const TOMORROW = "(?:imorgon|i\\s+morgon)";
+
+// One regex, one pass, FIRST MATCH WINS — see `extractDate` for why the first.
+//
+// No `g` flag, deliberately: a global regex carries `lastIndex` across calls, so a
+// module-level instance alternates between finding and not finding on identical
+// input. `negation.ts` documents the same trap, which passes any single-call test.
+//
+// The `i` flag is what lets `normalizeCaption` leave casing alone — matching is each
+// extractor's own concern, and step 0 preserving case is what keeps `address_raw`
+// readable for every other consumer.
+//
+// No prefix is required before a weekday. "På söndag 11-14" and "Söndag 11-14" are
+// both ordinary, and leading with the day is the common caption shape.
+const DATE_EXPRESSION = new RegExp(
+  `${BEFORE}(?:(?<today>${TODAY})|(?<tomorrow>${TOMORROW})|` +
+    `(?<weekday>${alt(WEEKDAYS)})${WEEKDAY_INFLECTION})${AFTER}`,
+  "iu",
+);
+
+const DAY_MS = 86_400_000;
+
+// A calendar date as UTC midnight, or null when the string is not one.
+//
+// THE ROUND TRIP IS THE VALIDATION, and it does three jobs at once that three
+// separate checks would each do worse. `Date.UTC` silently accepts what it should
+// reject: `Date.UTC(2026, 1, 31)` rolls February 31st forward to March 3rd, and a
+// two-digit year maps into the 1900s (`Date.UTC(26, 0, 1)` is 1926). Formatting the
+// result back and requiring it to equal the input rejects both, plus anything the
+// regex let through, without enumerating the ways a date can be impossible.
+function toUtcMillis(date: string): number | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!match) return null;
+  const millis = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return formatUtc(millis) === date ? millis : null;
+}
+
+// Built from the UTC field getters rather than `toISOString().slice(0, 10)`.
+//
+// `toISOString` switches to the expanded-year form outside 0000–9999 — year 10000 is
+// "+010000-01-06T…", where a 10-character slice yields "+010000-0" — so the obvious
+// one-liner is correct only across the range it would never be tested at. Reading the
+// fields has no such edge, and it costs two lines.
+function formatUtc(millis: number): string {
+  const date = new Date(millis);
+  return [
+    String(date.getUTCFullYear()).padStart(4, "0"),
+    String(date.getUTCMonth() + 1).padStart(2, "0"),
+    String(date.getUTCDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+// Monday-based weekday index, matching the position in `WEEKDAYS`.
+// `getUTCDay` is Sunday-based (0 = Sunday), so the shift realigns the two.
+function weekdayOf(millis: number): number {
+  return (new Date(millis).getUTCDay() + 6) % 7;
+}
+
+// Resolve a Swedish date expression against the day the post was made.
+//
+// Expects normalized text — `normalizeCaption` output, which is NFC. Passing raw
+// text risks decomposed "ä", against which every pattern here silently fails to
+// match; that bug (#56) was invisible in both modules' own tests and lived only in
+// the handoff between them, which is why the composition is asserted in this
+// module's tests rather than assumed.
+//
+// ⚠ THE FAILURE DIRECTION HERE IS NOT `negation.ts`'s, and this module should not
+// inherit that one's caution by imitation. Every guard there is tuned to fail toward
+// "do nothing", because a false positive DELETES the pin of a truck standing there
+// right now. A wrong date produces a wrong PIN — bounded by `confidence`, by the
+// override matrix and by `expires_at`. So this module is allowed to guess where that
+// one was not, and the fallback below guesses rather than refusing.
+//
+// ALWAYS RESOLVES FORWARD, never into the past. A truck posts about where it will
+// be; a caption naming a day that has already passed is either a retrospective or a
+// spelling this module does not know, and in both cases yesterday's date is useless.
+//
+// FIRST MATCH WINS when a caption names several days. "Idag Heden 11-14, imorgon
+// Lindholmen" is the ordinary two-day shape, and the day a post is ABOUT is the one
+// it leads with — the rest is a preview. The alternative, preferring the most
+// specific expression, would pick "imorgon" out of that caption and move today's
+// truck to tomorrow. Stated as a choice because it is one: a caption that leads with
+// a future day resolves to that day, which is this rule's cost and is bounded the
+// same way every wrong date is.
+//
+// NO EXPRESSION FOUND → `parsedAt`. The overwhelmingly common caption says where the
+// truck is without saying that it means today, because that is obvious to a human
+// reading it on the day it was posted.
+//
+// That fallback also makes the vocabulary gaps below harmless rather than merely
+// unhandled. "ikväll", "inatt" and "i eftermiddag" all name a time on the day of the
+// post, so falling through to `parsedAt` gives them the RIGHT date — they need no
+// entry here, and `extractTime` (#58) is what reads them.
+//
+// KNOWN LIMITS, each costing a wrong or unhelpful date and never a deletion:
+//
+//   "i övermorgon"  the day after tomorrow — resolves to `parsedAt`, two days early.
+//   "nästa fredag"  genuinely ambiguous in Swedish between the coming Friday and the
+//                   one after it; resolves to the coming Friday, which is what the
+//                   bare weekday rule gives and what many speakers mean by it.
+//   "22/8", "22 augusti"
+//                   explicit calendar dates are not read at all. They are rare in a
+//                   caption about today, and are the natural next issue if real
+//                   captions show otherwise.
+//   "lör", "sön"    abbreviated weekdays. Three letters is short enough to collide
+//                   with ordinary words, and "sön" is a prefix of "söndag" already.
+//   "11-14imorgon"  a date word glued directly to a DIGIT in prose, which `BEFORE`
+//                   rejects along with letters. The realistic route for that shape
+//                   is a hashtag, and `normalizeCaption` splits it on the digit /
+//                   letter boundary first — "#11-14imorgon" resolves correctly. The
+//                   bare-prose form is what stays unmatched, and relaxing `BEFORE`
+//                   to letters only would diverge from `negation.ts`'s boundary for
+//                   one unlikely caption.
+//
+// None is guessed at now. There are zero real captions to calibrate against, and the
+// phase's most expensive module is the one that modelled Swedish without them.
+export function extractDate(normalized: string, parsedAt: string): string {
+  const origin = toUtcMillis(parsedAt);
+
+  // A `parsedAt` we cannot read is returned untouched. The caller owns that value
+  // (#67 derives it), so this should be unreachable — but the unguarded path THROWS
+  // rather than degrading: `new Date(NaN).toISOString()` is a RangeError, and this
+  // module runs inside `after()`, where a throw becomes an unhandled rejection that
+  // loses the post rather than storing it with a bad date.
+  if (origin === null) return parsedAt;
+
+  const match = DATE_EXPRESSION.exec(normalized);
+  if (match?.groups === undefined) return parsedAt;
+
+  if (match.groups.today !== undefined) return parsedAt;
+  if (match.groups.tomorrow !== undefined) return formatUtc(origin + DAY_MS);
+
+  // `toLowerCase` because the `i` flag matched case-insensitively while the lookup is
+  // exact, and `normalizeCaption` deliberately preserves the caption's own casing.
+  const weekday = match.groups.weekday.toLowerCase() as (typeof WEEKDAYS)[number];
+
+  // The nearest upcoming occurrence, where a day that IS today resolves to today
+  // rather than a week out — a truck posting "Lördag 11-14" on a Saturday means this
+  // Saturday. The modulo keeps the result in 0–6, so it is never in the past.
+  const delta = (WEEKDAYS.indexOf(weekday) - weekdayOf(origin) + 7) % 7;
+  return formatUtc(origin + delta * DAY_MS);
+}

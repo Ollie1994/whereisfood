@@ -26,6 +26,10 @@
 // them as cancellation words means deleting pins for ordinary marketing copy. So
 // the two kinds of token are separated and given different rules.
 
+// The weekday vocabulary is shared with `extractDate`, which owns it — see the
+// re-export below for why the table moved rather than being copied.
+import { WEEKDAYS, WEEKDAY_INFLECTION } from "@/lib/parser/date";
+
 // SELF-SUFFICIENT MARKERS. These name the state directly — the word alone means
 // "not operating today" with no other context required.
 export const CANCELLATION_MARKERS = [
@@ -87,19 +91,19 @@ export const TEMPORAL_WORDS = [
   "vecka",
 ] as const;
 
-// Kept apart from the list above because Swedish inflects them and the definite and
+// Kept apart from TEMPORAL_WORDS because Swedish inflects them and the definite and
 // plural forms are ordinary in a caption: "på söndagen", "på söndagarna". Listing
 // only the indefinite stem made `"på söndag"` match while `"på söndagen"` did not —
 // an inconsistency inside one list rather than a considered boundary.
-export const WEEKDAYS = [
-  "måndag",
-  "tisdag",
-  "onsdag",
-  "torsdag",
-  "fredag",
-  "lördag",
-  "söndag",
-] as const;
+//
+// THE TABLE ITSELF NOW LIVES IN `date.ts`, which owns it (#57). It was written here
+// first because a cancellation names a day, but a weekday table is a date module's
+// property and `extractDate` needs the identical list plus the identical inflections.
+// Two hand-maintained copies drift, and a drifted one fails silently — so there is
+// one, imported. Re-exported because this module's name for it is already the public
+// one, and moving a constant should not break a consumer that never cared where it
+// lived.
+export { WEEKDAYS };
 
 // What may stand before a particle in a genuine cancellation: a copula or auxiliary.
 // "Vi HAR inte öppet", "Vi ÄR inte öppna".
@@ -221,7 +225,10 @@ const NEGATED_MARKER = new RegExp(
 //   `expires_at` clears within hours. Same information, inverted, and only this
 //   direction is safe to leave incomplete. It is the same reasoning that makes
 //   OPERATING_VERBS acceptable above.
-const TEMPORAL = `(?:(?:på|i)\\s+)?(?:${alt(TEMPORAL_WORDS)}|${alt(WEEKDAYS)}(?:en|ar|arna)?)`;
+// The inflection suffixes come from `date.ts` alongside the stems. They were written
+// here as a literal, and a literal in one file and a list in another is the drift the
+// move exists to prevent — the endings are part of knowing what a weekday looks like.
+const TEMPORAL = `(?:(?:på|i)\\s+)?(?:${alt(TEMPORAL_WORDS)}|${alt(WEEKDAYS)}${WEEKDAY_INFLECTION})`;
 
 // Clause boundaries. Captions are punctuated loosely and often written one clause per
 // line with a leading dash or bullet, so those count as much as a full stop does.

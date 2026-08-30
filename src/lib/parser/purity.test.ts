@@ -24,10 +24,25 @@ const PARSER_DIR = fileURLToPath(new URL(".", import.meta.url));
 // where that decision should be visible and argued, rather than in an import
 // statement nobody reads again.
 //
-// Empty today because `normalize.ts` and `negation.ts` need nothing at all. It grows
-// as modules land: `date-fns-tz` for #57/#58, `@/lib/parser/dictionary` for #65.
-// Each addition should be a deliberate edit, not a surprise.
-const PARSER_POLICY = allowOnly([]);
+// It grows as modules land, and each addition should be a deliberate edit rather
+// than a surprise. What is on it now, and one thing that is deliberately NOT:
+//
+//   `@/lib/parser/date`  `negation.ts` imports the weekday table and its inflection
+//                        suffixes from `date.ts` (#57), which owns them. Two
+//                        hand-maintained lists of Swedish weekdays drift, and a
+//                        drifted one fails silently.
+//
+//   `date-fns-tz`        NOT added, though #57 predicted it would be. `date.ts`
+//                        turned out to need no date library: it converts between two
+//                        calendar dates, never between an instant and a wall clock,
+//                        and every operation it performs has the same answer in
+//                        every timezone. Anchoring a date to an invented time of day
+//                        purely to satisfy the prediction would have ADDED the DST
+//                        edge cases it was meant to avoid. The reasoning is in
+//                        `date.ts`'s header. #58 and #67 are where it genuinely
+//                        belongs, since those turn a date plus a time into an
+//                        instant — expect this line to change then.
+const PARSER_POLICY = allowOnly(["@/lib/parser/date"]);
 
 // RECURSIVE, deliberately. A flat `readdirSync` would let a module in a
 // subdirectory — `dictionary/index.ts`, `rules/time.ts` — escape the guard entirely
