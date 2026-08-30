@@ -52,6 +52,42 @@ describe("extractTime", () => {
       });
     });
 
+    it.each([
+      ["a full stop", "Öppet 11-14. Välkomna!"],
+      ["a full stop with minutes", "Öppet 11:00-14:00."],
+      ["end of caption", "Vi står på Heden 11-14."],
+      ["a comma", "Öppet 11-14, välkomna"],
+      ["an exclamation", "Öppet 11-14! Kom förbi"],
+      ["a closing paren", "Vi står på Heden (11-14)"],
+      // The LEADING half of the same bug: an abbreviation's full stop sits directly
+      // against the digits, and the strict guard treated it as part of the number.
+      // "kl.11-14" degraded to a marked start at 11:00, silently losing the close.
+      // Mutation-verified separately — reverting only the leading guard fails here.
+      ["a period directly before the digits", "Öppet kl.11-14"],
+      ["that period plus a trailing one", "Öppet kl.11-14. Välkomna"],
+    ])("reads a range preceded or followed by %s", (_label, caption) => {
+      // ⚠ THE GAP 47 TESTS MISSED: not one of them put punctuation after a time.
+      // The trailing guard rejected any `.` or `:`, so an ordinary Swedish sentence
+      // ending made the whole range unmatchable and the caption returned null
+      // (PR #84 review). A period after a time is the common shape, not an edge.
+      expect(extractTime(caption, SUMMER)).toEqual({
+        startsAt: "2026-08-22T09:00:00.000Z",
+        endsAt: "2026-08-22T12:00:00.000Z",
+        kind: "range",
+      });
+    });
+
+    it("does not silently degrade a punctuated range to a marked start", () => {
+      // The worst form of the bug above, because it LOOKED like it worked: the range
+      // failed on the full stop, `MARKED_START` then matched "kl 11", and the stated
+      // 14:00 close disappeared with nothing to signal it.
+      expect(extractTime("Öppet kl 11-14. Välkomna", SUMMER)).toEqual({
+        startsAt: "2026-08-22T09:00:00.000Z",
+        endsAt: "2026-08-22T12:00:00.000Z",
+        kind: "range",
+      });
+    });
+
     it("reads a range with no minutes on one side", () => {
       expect(extractTime("Öppet 11-14.30", SUMMER)).toEqual({
         startsAt: "2026-08-22T09:00:00.000Z",
@@ -270,6 +306,27 @@ describe("extractTime", () => {
       },
     );
 
+    it("tags a marked start as 'start', not 'range'", () => {
+      // ⚠ A SCORING BUG, not a naming preference. The confidence matrix scores
+      // "location + explicit time range" at 1.0, so tagging an opening time as
+      // `range` made "Heden kl 11" outrank a caption giving a complete window
+      // (PR #84 review). Widens the type #58 specified, deliberately — nothing
+      // consumes `kind` yet, and #66 would otherwise inherit the defect.
+      expect(extractTime("Heden kl 11", SUMMER)?.kind).toBe("start");
+    });
+
+    it("is distinguishable from a range whose end the DST gap dropped", () => {
+      // The reason `endsAt === null` cannot serve as the discriminator: a range with
+      // its end dropped is identical to a marked start in every other field.
+      const droppedEnd = extractTime("01:59-02:00", DST_START);
+      const markedStart = extractTime("kl 11", SUMMER);
+
+      expect(droppedEnd?.endsAt).toBeNull();
+      expect(markedStart?.endsAt).toBeNull();
+      expect(droppedEnd?.kind).toBe("range");
+      expect(markedStart?.kind).toBe("start");
+    });
+
     it("does not read a bare number as a start", () => {
       // ⚠ THE GUARD THAT KEEPS THE MODULE FROM INVENTING WINDOWS. Captions are full
       // of numbers that are not clock times, and every one of these would otherwise
@@ -284,6 +341,44 @@ describe("extractTime", () => {
     it("returns null rather than a fabricated window", () => {
       expect(extractTime("Vi står på Järntorget idag", SUMMER)).toBeNull();
       expect(extractTime("", SUMMER)).toBeNull();
+    });
+
+    it.each([
+      ["a price", "Burgare 10-20 kr, öppet 11-14"],
+      ["a spaced price", "Vi har 5 - 10 kr rabatt, öppet 11-14"],
+      ["a seat count", "Vi har 5 - 10 platser kvar, öppet 11-14"],
+      ["a portion count", "Meny 2-3 rätter, Heden 11-14"],
+      ["a kronor spelling", "Korv 15-20 kronor, öppet 11-14"],
+    ])("skips %s and finds the real window after it", (_label, caption) => {
+      // ⚠ THE MODULE'S CLAIM THAT A RANGE IS SELF-IDENTIFYING WAS FALSE, and the
+      // original fixtures only passed because their numbers exceeded 23. Two
+      // dash-joined numbers under 24 are ordinary in a food caption, and each of
+      // these produced a fabricated serving window (PR #84 review).
+      //
+      // The trailing-unit guard is MONOTONE: a unit it does not know leaves the
+      // status quo, while one it knows removes a fabrication and lets the scan
+      // continue. None of the listed words can follow a clock time in Swedish.
+      expect(extractTime(caption, SUMMER)).toEqual({
+        startsAt: "2026-08-22T09:00:00.000Z",
+        endsAt: "2026-08-22T12:00:00.000Z",
+        kind: "range",
+      });
+    });
+
+    it("returns null for a unit range with no real time after it", () => {
+      expect(extractTime("Burgare 10-20 kr", SUMMER)).toBeNull();
+      expect(extractTime("Vi har 2-3 rätter", SUMMER)).toBeNull();
+    });
+
+    it("KNOWN LIMIT: a bare house-number range still fabricates a window", () => {
+      // Pinned rather than fixed. "Första Långgatan 12-14" is a Gothenburg street
+      // with a house-number range and no trailing unit to catch it. Separating that
+      // from a time needs the address recognition #65 builds, and guessing at it
+      // here would be the vocabulary churn this phase keeps paying for.
+      //
+      // Asserted so the limit is visible and so closing it is a deliberate change to
+      // this test rather than something that looks like a regression.
+      expect(extractTime("Första Långgatan 12-14", SUMMER)).not.toBeNull();
     });
 
     it("rejects numbers that cannot be clock times", () => {

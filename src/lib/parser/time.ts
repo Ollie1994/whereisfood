@@ -36,7 +36,23 @@ const LUNCHTID_END = { hour: 14, minute: 0 };
 // (#66) cannot tell them apart. It records WHAT THE CAPTION SAID, not what the
 // window turned out to be — "lunchtid" and "11-14" yield the same instants and must
 // still score differently.
-export type TimeKind = "range" | "lunchtid";
+//
+// ⚠ `start` WIDENS THE TYPE #58 SPECIFIED, which gave `'range' | 'lunchtid'` only.
+// Deliberate, and the reason is a scoring bug rather than tidiness: a marked start
+// ("Heden kl 11") was tagged `range`, so the matrix would score a caption giving
+// only an opening time at 1.0 — above `lunchtid`, which gives a complete window.
+// That is the opposite of the ordering the matrix intends.
+//
+// `endsAt === null` CANNOT be used to tell them apart instead, which is the obvious
+// alternative and does not work: a range whose end falls in the spring-forward gap
+// also has its end dropped, so the two are identical in every field but this one
+// (PR #84 review).
+//
+// Nothing consumes `kind` yet — #66 is unwritten — so widening it now costs nothing
+// and removes a defect that would otherwise be introduced there and blamed on the
+// matrix. The intended mapping is `range` 1.0, `lunchtid` 0.85, and `start` no
+// higher than `lunchtid`, since it carries strictly less information than either.
+export type TimeKind = "range" | "lunchtid" | "start";
 
 export interface ExtractedTime {
   // UTC ISO instants.
@@ -77,12 +93,70 @@ const CLOCK = "(\\d{1,2})(?:[.:]([0-5]\\d))?";
 const DASH = "\\s*[-\u2013\u2014]\\s*";
 
 // DIGIT-ADJACENCY GUARDS, not word guards. A time is bounded by things that are not
-// part of a number: `(?<![\d.:])` stops "61" being read out of the house number in
-// "Nordostpassagen 61-63", and the trailing form stops a partial match leaving a
-// stray fragment. `\p{L}` is deliberately NOT excluded here — "kl11-14" and
-// "Lunch 11-14" both need the digits to be reachable.
-const NOT_IN_NUMBER_BEFORE = "(?<![\\d.:])";
-const NOT_IN_NUMBER_AFTER = "(?![\\d.:])";
+// part of a number: these stop "61" being read out of the house number in
+// "Nordostpassagen 61-63" and stop a partial match leaving a stray fragment.
+// `\p{L}` is deliberately NOT excluded — "kl11-14" and "Lunch 11-14" both need the
+// digits to be reachable.
+//
+// ⚠ THEY MUST REJECT A SEPARATOR ONLY WHEN A DIGIT FOLLOWS IT, and the first version
+// rejected the separator outright. That made an ordinary full stop part of the
+// number, so a time at the end of a sentence matched nothing at all:
+//
+//   "Öppet 11-14. Välkomna!"    → null
+//   "Vi står på Heden 11-14."   → null
+//   "Öppet kl 11-14. Välkomna"  → worse: the range failed, `kl 11` was picked up as
+//                                 a marked start, and the stated 14:00 close was
+//                                 silently dropped
+//
+// A trailing period is how Swedish sentences end, so this was not an edge case — it
+// was the common shape, and 47 tests missed it because not one of them put
+// punctuation after a time (PR #84 review).
+//
+// `[.:]?\d` keeps every rejection the strict form bought: "11-14.5" still fails
+// (`.` then a digit), and "89-119" still fails (the second clock matches "11" and is
+// followed by "9"). What it no longer does is treat "." as a digit.
+const NOT_IN_NUMBER_BEFORE = "(?<!\\d[.:]?)";
+const NOT_IN_NUMBER_AFTER = "(?![.:]?\\d)";
+
+// Units that follow a NUMBER RANGE and prove it was never a clock time. A price, a
+// head count, a portion count — captions are full of them, and every one otherwise
+// becomes a serving window.
+//
+// ⚠ THE MODULE'S ORIGINAL CLAIM THAT A RANGE IS SELF-IDENTIFYING WAS FALSE. It said
+// two valid hours joined by a dash are a shape "prose numbers essentially never
+// form"; they form it constantly, and the existing fixtures only passed because
+// their numbers happened to exceed 23:
+//
+//   "Burgare 10-20 kr, öppet 11-14"            → 08:00–18:00
+//   "Vi har 5 - 10 platser kvar, öppet 11-14"  → 03:00–08:00
+//   "Meny 2-3 rätter, Heden 11-14"             → 00:00–01:00
+//
+// WHY A DENYLIST IS THE SAFE DIRECTION HERE, when `negation.ts` argues the opposite.
+// There, a gap in a denylist DELETES a location. Here, a gap leaves the status quo —
+// the candidate is taken exactly as it is today — while a hit removes a fabricated
+// window and lets the scan continue to the next candidate. The guard is therefore
+// MONOTONE: it can only ever turn a wrong window into a right one or into none. The
+// single way it could cost something is if a real time were followed by one of these
+// words, and none of them can follow a clock time in Swedish.
+//
+// `min` is deliberately absent despite meaning "minute": it is also the possessive
+// "my", which is an ordinary word to find after anything.
+const TRAILING_UNITS = [
+  "kr",
+  "kronor",
+  ":-",
+  "st",
+  "styck",
+  "kg",
+  "platser",
+  "personer",
+  "rätter",
+  "sorter",
+  "sorters",
+  "minuter",
+  "grader",
+  "år",
+] as const;
 
 // Markers that make a SINGLE time a time. Required, and this is the guard that keeps
 // the module from inventing windows out of ordinary numbers.
@@ -208,12 +282,21 @@ function toWindow(
   return { startsAt, endsAt, kind };
 }
 
+// A unit immediately after the range, allowing the space that normally precedes it.
+const TRAILING_UNIT = new RegExp(`^\\s*(?:${TRAILING_UNITS.join("|")})${AFTER_WORD}`, "iu");
+
 // The first candidate that VALIDATES, not the first that matches. See RANGE above.
+//
+// Validation is three things, and skipping a candidate is what lets the scan reach a
+// real time further along the caption: the hours must be in range, and the range must
+// not be followed by a unit that proves it was a price or a count.
 function firstValidRange(normalized: string): { start: WallClock; end: WallClock } | null {
   for (const match of normalized.matchAll(RANGE)) {
     const start = toWallClock(match[1], match[2]);
     const end = toWallClock(match[3], match[4]);
-    if (start !== null && end !== null) return { start, end };
+    if (start === null || end === null) continue;
+    if (TRAILING_UNIT.test(normalized.slice(match.index + match[0].length))) continue;
+    return { start, end };
   }
   return null;
 }
@@ -294,7 +377,7 @@ export function extractTime(normalized: string, date: string): ExtractedTime | n
   }
 
   const start = firstValidMarkedStart(normalized);
-  if (start !== null) return toWindow(date, start, null, "range");
+  if (start !== null) return toWindow(date, start, null, "start");
 
   return null;
 }
