@@ -432,8 +432,11 @@ function firstValidMarkedStart(normalized: string): WallClock | null {
 //
 //   "öppnar 11"      a start announced by a verb rather than `kl`/`klockan`/`från`.
 //   "elva till fjorton"
-//                    times spelled as words. Genuinely a different problem — it needs
-//                    a number-word table, not a separator.
+//                    times spelled as words — tracked as #85. Genuinely a different
+//                    problem: it needs a number-word table, not a separator, and it
+//                    is deliberately unscheduled until real captions show the form
+//                    occurs. Returns null, so the cost is a missed window rather
+//                    than a wrong one.
 //   "Burgare 10-20, öppet 11-14"
 //                    RESOLVED by the TIME_CONTEXT preference, but only because a time
 //                    word introduces the real window. A price range with a comma
