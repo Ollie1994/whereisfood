@@ -41,9 +41,49 @@ const PARSER_DIR = fileURLToPath(new URL(".", import.meta.url));
 //                        Gothenburg" is 09:00Z in August and 10:00Z in January, so
 //                        the offset is the whole problem and `fromZonedTime` is what
 //                        solves it. Same package, one layer down, and the layer is
-//                        what the allowlist is for. #67 composes the two and should
-//                        need nothing new.
-const PARSER_POLICY = allowOnly(["@/lib/parser/date", "date-fns-tz"]);
+//                        what the allowlist is for.
+//
+//   `@/lib/types`        Added by #62. `dictionary.ts` is typed against
+//                        `DictionaryEntry`, which the plan's Files table places in
+//                        `types.ts` alongside `ParseResult` and `NewLocation`.
+//
+//                        WHY THIS IS SAFE, stated rather than assumed: `types.ts`
+//                        exports only types and interfaces and its own single
+//                        import is `import type { Database }`, so the whole module
+//                        is erased at compile time and the emitted JS imports
+//                        nothing. It cannot reach a database or a clock because it
+//                        contains no runtime code to do so with.
+//
+//                        WHY IT IS STILL LISTED HERE. The guard is syntactic — it
+//                        rejects `import type` and `import("x").T` exactly like a
+//                        value import, on the argument that a dependency only a
+//                        type refers to is still a dependency in the source. That
+//                        is the right default, and the cost of it is this entry:
+//                        one deliberate line, which is where the decision is
+//                        visible. `geo.test.ts` makes the same call for the
+//                        stricter FORBID_ALL_IMPORTS policy.
+//
+//                        NOTE for #67: an earlier version of this comment predicted
+//                        that composing the parser "should need nothing new". That
+//                        was wrong — `parseCaption()` returns `ParseResult`, which
+//                        lives in the same module, so #67 needed this entry too and
+//                        #62 merely got here first.
+//
+// ⚠ THIS GUARD IS NOT TRANSITIVE, and `@/lib/types` is the first entry where that
+// matters. The glob below covers `src/lib/parser/`; an allowlisted module OUTSIDE
+// that directory is checked by nothing here, so the parser's purity claim is only
+// as strong as whatever guards the far end. Appending `Date.now()` to `types.ts`
+// leaves this suite green at 6/6 — verified, not assumed.
+//
+// `src/lib/types.test.ts` closes it, asserting `types.ts` and the generated
+// `database.types.ts` it imports. Making the guard itself follow imports would mean
+// module resolution and a `ts.Program` per file, which is the weight #75 chose not
+// to take on and which two files do not justify.
+//
+// SO: ADDING AN OUTWARD EDGE TO THIS LIST INCURS AN OBLIGATION. If a parser module
+// ever needs a third external import, either assert that module's purity too or
+// accept — in writing, here — that the claim now stops at it.
+const PARSER_POLICY = allowOnly(["@/lib/parser/date", "@/lib/types", "date-fns-tz"]);
 
 // RECURSIVE, deliberately. A flat `readdirSync` would let a module in a
 // subdirectory — `dictionary/index.ts`, `rules/time.ts` — escape the guard entirely

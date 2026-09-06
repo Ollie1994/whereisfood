@@ -79,3 +79,50 @@ export interface MarkerState {
   latitude: number; // resolved from location, or truck's last_known
   longitude: number;
 }
+
+// One seeded Gothenburg location. NOT a database row — the dictionary is a
+// compiled-in data module (`src/lib/parser/dictionary.ts`), which is the whole
+// point of the design: a dictionary hit resolves to coordinates with no network
+// call and no query, and Nominatim is only the fallback for addresses the
+// dictionary does not know.
+//
+// `match` holds every surface form a caption might use for this place — aliases,
+// and the diacritic-free spellings Swedes routinely type. Matching is
+// `extractLocation()`'s job (#65); this type only promises the strings exist.
+//
+// PROVENANCE, and why it is two fields rather than one. They answer different
+// questions and collapsing them would lose the one that matters later:
+//
+//   `source`    where the COORDINATE came from. `nominatim` = produced by
+//               `scripts/seed-dictionary.mjs` and reproducible by re-running it.
+//               `manual` = a human typed or moved this pin, so re-running the
+//               script will NOT reproduce it and must not clobber it.
+//   `verified`  whether anyone has confirmed a truck actually parks here. Every
+//               seeded entry starts `false` and stays there until real caption
+//               data exists (Phase 8) — an accurate coordinate for a square is
+//               still a guess about truck behaviour.
+// EVERY field is `readonly`, and so is `DICTIONARY` itself. This is a module-level
+// constant in a long-lived server process, so a mutation is not scoped to one
+// request — it is permanent for that instance, and presents as a caption resolving
+// differently depending on what the server happened to handle earlier.
+//
+// The realistic mistake is not malice but a matcher doing the obvious thing:
+// `extractLocation()` (#65) wanting longest-alias-first reaches for
+// `entry.match.sort(...)`, which sorts IN PLACE. Making that a compile error is far
+// cheaper than the bug.
+//
+// It is EVERY field rather than the two obvious ones because a partial `readonly`
+// is worse than none: it reads as "this is protected" while leaving
+// `DICTIONARY[0].lat = 0` and `.verified = true` compiling clean. A first pass here
+// marked only `id` and `match`, and the comment above it claimed the whole
+// interface was covered — caught in review, and the reason the guarantee is now
+// stated per-field rather than in prose.
+export interface DictionaryEntry {
+  readonly id: string;
+  readonly match: readonly string[];
+  readonly address: string;
+  readonly lat: number;
+  readonly lng: number;
+  readonly source: "manual" | "nominatim";
+  readonly verified: boolean;
+}
