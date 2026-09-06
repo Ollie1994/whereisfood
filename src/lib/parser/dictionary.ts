@@ -27,7 +27,28 @@ import type { DictionaryEntry } from "@/lib/types";
 //
 // Every entry below came from `scripts/seed-dictionary.mjs`, which queries
 // Nominatim once per location, throttled, with an identifying User-Agent. So every
-// one is `source: "nominatim"` and re-running that script reproduces it.
+// one is `source: "nominatim"` and re-running that script reproduces it — the
+// coordinates AND the address, verbatim. That is a checkable claim rather than a
+// reassuring one: re-run the script and diff.
+//
+// WHY `address` IS THE FULL OSM STRING AND NOT SOMETHING READABLE
+//
+// It is Nominatim's `display_name`, untouched — long, comma-heavy, occasionally
+// odd. `Nordstan` carries "Nordstans lastgata" because that is the address OSM
+// files the mall node under, and `garda` names Stampen. Shortening these to
+// "Gårda, Göteborg" reads far better and is wrong twice over.
+//
+// The plan settles it: `address_geocoded` holds the canonical string — "the
+// dictionary entry's `address` on a hit, Nominatim's `display_name` on a fallback".
+// One column, filled from two branches, so the branches have to agree on what kind
+// of string it is. A hand-shortened dictionary address would render one truck as
+// "Järntorget, Göteborg" and the truck next to it — pinned by the geocode fallback
+// — as a full OSM string, in the same field on the same screen.
+//
+// The second reason is that a hand-written address is unreproducible by
+// construction, which quietly falsifies the `source: "nominatim"` contract above.
+// Prettifying is a DISPLAY concern and belongs wherever the UI decides how much of
+// an address to show; it does not belong in the stored canonical value.
 //
 // That is a deliberate reading of decision #4's "anything a human adjusts flips to
 // `manual`". Four pins WERE adjusted during review — Lindholmen, Chalmers,
@@ -47,12 +68,12 @@ import type { DictionaryEntry } from "@/lib/types";
 // coarse pin in the right neighbourhood beats no pin at all, but they are the
 // first entries to revisit once real captions show where trucks actually stand.
 // Recorded here rather than discovered later from a map that looks subtly wrong.
-export const DICTIONARY: DictionaryEntry[] = [
+export const DICTIONARY: readonly DictionaryEntry[] = [
   // --- Central squares ---
   {
     id: "jarntorget",
     match: ["Järntorget", "Jarntorget"],
-    address: "Järntorget, Göteborg",
+    address: "Järntorget, Pustervik, Olivedal, Centrum, Göteborg, Göteborgs Stad, Västra Götalands län, 413 03, Sverige",
     lat: 57.6998935,
     lng: 11.952503,
     source: "nominatim",
@@ -61,7 +82,7 @@ export const DICTIONARY: DictionaryEntry[] = [
   {
     id: "masthuggstorget",
     match: ["Masthuggstorget", "Masthugget"],
-    address: "Masthuggstorget, Göteborg",
+    address: "Masthuggstorget, Masthugget, Centrum, Göteborg, Göteborgs Stad, Västra Götalands län, Sverige",
     lat: 57.6989475,
     lng: 11.9431712,
     source: "nominatim",
@@ -72,7 +93,7 @@ export const DICTIONARY: DictionaryEntry[] = [
     // arrange to meet at — a caption saying it means this place, not a monument.
     id: "kungsportsplatsen",
     match: ["Kungsportsplatsen", "Kopparmärra", "Kopparmarra"],
-    address: "Kungsportsplatsen, Göteborg",
+    address: "Kungsportsplatsen, Nordstaden, Inom Vallgraven, Centrum, Göteborg, Göteborgs Stad, Västra Götalands län, 404 22, Sverige",
     lat: 57.7043702,
     lng: 11.9697598,
     source: "nominatim",
@@ -81,7 +102,7 @@ export const DICTIONARY: DictionaryEntry[] = [
   {
     id: "linneplatsen",
     match: ["Linnéplatsen", "Linneplatsen"],
-    address: "Linnéplatsen, Göteborg",
+    address: "Linnéplatsen, Medicinareberget, Änggården, Centrum, Göteborg, Göteborgs Stad, Västra Götalands län, Sverige",
     lat: 57.6896696,
     lng: 11.9527459,
     source: "nominatim",
@@ -90,7 +111,7 @@ export const DICTIONARY: DictionaryEntry[] = [
   {
     id: "brunnsparken",
     match: ["Brunnsparken"],
-    address: "Brunnsparken, Göteborg",
+    address: "Brunnsparken, Nordstaden, Inom Vallgraven, Centrum, Göteborg, Göteborgs Stad, Västra Götalands län, Sverige",
     lat: 57.7068093,
     lng: 11.9691756,
     source: "nominatim",
@@ -101,7 +122,7 @@ export const DICTIONARY: DictionaryEntry[] = [
     // but "Gustav" is at least as common in casual writing.
     id: "gustaf-adolfs-torg",
     match: ["Gustaf Adolfs torg", "Gustav Adolfs torg"],
-    address: "Gustaf Adolfs torg, Göteborg",
+    address: "Gustaf Adolfs Torg, Nordstaden, Inom Vallgraven, Centrum, Göteborg, Göteborgs Stad, Västra Götalands län, 411 10, Sverige",
     lat: 57.7071709,
     lng: 11.9667895,
     source: "nominatim",
@@ -114,7 +135,7 @@ export const DICTIONARY: DictionaryEntry[] = [
     // and the food-truck demand are on the pier, ~300 m from the centroid.
     id: "lindholmen",
     match: ["Lindholmen", "Lindholmspiren"],
-    address: "Lindholmspiren, Göteborg",
+    address: "Lindholmspiren, Lindholmshamnen, Lindholmen, Hisingen, Göteborg, Göteborgs Stad, Västra Götalands län, 402 78, Sverige",
     lat: 57.7066083,
     lng: 11.9409449,
     source: "nominatim",
@@ -125,7 +146,7 @@ export const DICTIONARY: DictionaryEntry[] = [
     // university by name returns a node addressed in Masthugget instead.
     id: "chalmers",
     match: ["Chalmers", "Johanneberg"],
-    address: "Chalmers, Johanneberg, Göteborg",
+    address: "Chalmers, Guldhedsgatan, Johanneberg, Centrum, Göteborg, Göteborgs Stad, Västra Götalands län, 413 21, Sverige",
     lat: 57.6900225,
     lng: 11.9730927,
     source: "nominatim",
@@ -134,7 +155,7 @@ export const DICTIONARY: DictionaryEntry[] = [
   {
     id: "garda",
     match: ["Gårda", "Garda"],
-    address: "Gårda, Göteborg",
+    address: "Gårda, Stampen, Centrum, Göteborg, Göteborgs Stad, Västra Götalands län, 402 24, Sverige",
     lat: 57.7076306,
     lng: 11.9919384,
     source: "nominatim",
@@ -143,7 +164,7 @@ export const DICTIONARY: DictionaryEntry[] = [
   {
     id: "heden",
     match: ["Heden"],
-    address: "Heden, Göteborg",
+    address: "Heden, Centrum, Göteborg, Göteborgs Stad, Västra Götalands län, Sverige",
     lat: 57.7024223,
     lng: 11.9789581,
     source: "nominatim",
@@ -152,7 +173,7 @@ export const DICTIONARY: DictionaryEntry[] = [
   {
     id: "sahlgrenska",
     match: ["Sahlgrenska"],
-    address: "Sahlgrenska universitetssjukhuset, Göteborg",
+    address: "Sahlgrenska Universitetssjukhuset, Ehrenströmsgatan, Guldheden, Centrum, Göteborg, Göteborgs Stad, Västra Götalands län, 413 45, Sverige",
     lat: 57.6816542,
     lng: 11.9609871,
     source: "nominatim",
@@ -163,7 +184,7 @@ export const DICTIONARY: DictionaryEntry[] = [
     // it is contiguous with the city and inside the bounding box by design.
     id: "molndal",
     match: ["Mölndal", "Molndal"],
-    address: "Mölndal",
+    address: "Mölndal, Mölndals kommun, Västra Götalands län, 431 30, Sverige",
     lat: 57.6564918,
     lng: 12.0153085,
     source: "nominatim",
@@ -174,7 +195,7 @@ export const DICTIONARY: DictionaryEntry[] = [
   {
     id: "korsvagen",
     match: ["Korsvägen", "Korsvagen"],
-    address: "Korsvägen, Göteborg",
+    address: "Korsvägen, Heden, Centrum, Göteborg, Göteborgs Stad, Västra Götalands län, 412 55, Sverige",
     lat: 57.696839,
     lng: 11.9868284,
     source: "nominatim",
@@ -183,7 +204,7 @@ export const DICTIONARY: DictionaryEntry[] = [
   {
     id: "nordstan",
     match: ["Nordstan"],
-    address: "Nordstan, Göteborg",
+    address: "Nordstan, 1, Nordstans lastgata, Gullbergsvass, Inom Vallgraven, Centrum, Göteborg, Göteborgs Stad, Västra Götalands län, 411 05, Sverige",
     lat: 57.708627,
     lng: 11.9690951,
     source: "nominatim",
@@ -192,7 +213,7 @@ export const DICTIONARY: DictionaryEntry[] = [
   {
     id: "backaplan",
     match: ["Backaplan"],
-    address: "Backaplan, Göteborg",
+    address: "Backaplan, Kvillebäcken, Hisingen, Göteborg, Göteborgs Stad, Västra Götalands län, 417 22, Sverige",
     lat: 57.7234183,
     lng: 11.9524242,
     source: "nominatim",
@@ -203,7 +224,7 @@ export const DICTIONARY: DictionaryEntry[] = [
     // Lindholmen.
     id: "eriksberg",
     match: ["Eriksberg", "Eriksbergstorget"],
-    address: "Eriksbergstorget, Göteborg",
+    address: "Eriksbergstorget, Färjenäs, Sannegården, Eriksberg, Hisingen, Göteborg, Göteborgs Stad, Västra Götalands län, 417 64, Sverige",
     lat: 57.7002168,
     lng: 11.913744,
     source: "nominatim",

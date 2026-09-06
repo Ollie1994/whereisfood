@@ -101,9 +101,17 @@ export interface MarkerState {
 //               seeded entry starts `false` and stays there until real caption
 //               data exists (Phase 8) — an accurate coordinate for a square is
 //               still a guess about truck behaviour.
+// `readonly` on both the interface and `DICTIONARY` itself is not stylistic. This
+// is a module-level constant in a long-lived server process, so a mutation is not
+// scoped to one request — it is permanent for that instance. The realistic mistake
+// is not malice but a matcher doing the obvious thing: `extractLocation()` (#65)
+// wanting longest-alias-first would reach for `entry.match.sort(...)`, which sorts
+// IN PLACE and silently reorders the shared array for every request afterwards.
+// Making it a compile error is cheaper than the bug, which would present as a
+// caption resolving differently depending on what the server handled earlier.
 export interface DictionaryEntry {
-  id: string;
-  match: string[];
+  readonly id: string;
+  readonly match: readonly string[];
   address: string;
   lat: number;
   lng: number;

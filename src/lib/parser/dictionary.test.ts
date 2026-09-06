@@ -47,17 +47,30 @@ describe("DICTIONARY", () => {
     // they are distinct strings, and a case-sensitive check here would wave it
     // through and leave #65 resolving a caption to whichever entry it happened to
     // scan first.
-    const seen = new Map<string, string>();
+    // CONTAINMENT, not just equality. `extractLocation` will look for an alias
+    // INSIDE a caption, so two entries collide whenever one alias contains
+    // another — "Heden" in one entry and "Hedenplatsen" in a second means every
+    // caption naming the second also matches the first, and which one wins comes
+    // down to iteration order. Exact equality would call that pair distinct and
+    // pass. No such pair exists today, which is precisely why this is the moment
+    // to assert it: the check is free now and becomes a puzzling #65 bug later.
+    //
+    // Containment WITHIN one entry is fine and deliberately not flagged —
+    // "Eriksberg" and "Eriksbergstorget" are two ways of naming one place, which
+    // is what a `match` list is for. The failure only exists across entries.
+    const aliases = DICTIONARY.flatMap((entry) =>
+      entry.match.map((match) => ({ id: entry.id, match, key: match.toLowerCase() })),
+    );
     const collisions: string[] = [];
 
-    for (const entry of DICTIONARY) {
-      for (const match of entry.match) {
-        const key = match.toLowerCase();
-        const owner = seen.get(key);
-        if (owner !== undefined) {
-          collisions.push(`"${match}" is claimed by both ${owner} and ${entry.id}`);
-        } else {
-          seen.set(key, entry.id);
+    for (const a of aliases) {
+      for (const b of aliases) {
+        if (a.id === b.id) continue;
+        if (a.key === b.key && a.id > b.id) continue; // report an exact pair once
+        if (b.key.includes(a.key)) {
+          collisions.push(
+            `"${a.match}" (${a.id}) is contained in "${b.match}" (${b.id})`,
+          );
         }
       }
     }

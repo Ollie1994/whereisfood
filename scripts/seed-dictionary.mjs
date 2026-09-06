@@ -116,8 +116,21 @@ const SEEDS = [
 function parseArgs(argv) {
   const args = { only: null, json: false };
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === "--only") args.only = argv[++i];
-    else if (argv[i] === "--json") args.json = true;
+    if (argv[i] === "--only") {
+      // A trailing `--only` reads `undefined` off the end of argv. Left
+      // unchecked that is falsy, so the filter below is skipped, the
+      // "no seed matches" guard never fires, and asking for ONE lookup
+      // quietly runs all sixteen against Nominatim — the opposite of what
+      // the flag was reached for, and rude to a free service.
+      const value = argv[i + 1];
+      if (value === undefined || value.startsWith("--")) {
+        throw new Error("--only needs a seed id (e.g. --only heden)");
+      }
+      args.only = value;
+      i++;
+    } else if (argv[i] === "--json") {
+      args.json = true;
+    }
   }
   return args;
 }
@@ -161,7 +174,17 @@ function printEntry(seed, hit) {
 }
 
 async function main() {
-  const args = parseArgs(process.argv.slice(2));
+  let args;
+  try {
+    args = parseArgs(process.argv.slice(2));
+  } catch (error) {
+    // A usage mistake deserves the one line that fixes it, not a stack trace
+    // through node's ESM loader.
+    console.error(error.message);
+    process.exitCode = 1;
+    return;
+  }
+
   const seeds = args.only
     ? SEEDS.filter((seed) => seed.id.includes(args.only.toLowerCase()))
     : SEEDS;
