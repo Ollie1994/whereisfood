@@ -41,9 +41,34 @@ const PARSER_DIR = fileURLToPath(new URL(".", import.meta.url));
 //                        Gothenburg" is 09:00Z in August and 10:00Z in January, so
 //                        the offset is the whole problem and `fromZonedTime` is what
 //                        solves it. Same package, one layer down, and the layer is
-//                        what the allowlist is for. #67 composes the two and should
-//                        need nothing new.
-const PARSER_POLICY = allowOnly(["@/lib/parser/date", "date-fns-tz"]);
+//                        what the allowlist is for.
+//
+//   `@/lib/types`        Added by #62. `dictionary.ts` is typed against
+//                        `DictionaryEntry`, which the plan's Files table places in
+//                        `types.ts` alongside `ParseResult` and `NewLocation`.
+//
+//                        WHY THIS IS SAFE, stated rather than assumed: `types.ts`
+//                        exports only types and interfaces and its own single
+//                        import is `import type { Database }`, so the whole module
+//                        is erased at compile time and the emitted JS imports
+//                        nothing. It cannot reach a database or a clock because it
+//                        contains no runtime code to do so with.
+//
+//                        WHY IT IS STILL LISTED HERE. The guard is syntactic — it
+//                        rejects `import type` and `import("x").T` exactly like a
+//                        value import, on the argument that a dependency only a
+//                        type refers to is still a dependency in the source. That
+//                        is the right default, and the cost of it is this entry:
+//                        one deliberate line, which is where the decision is
+//                        visible. `geo.test.ts` makes the same call for the
+//                        stricter FORBID_ALL_IMPORTS policy.
+//
+//                        NOTE for #67: an earlier version of this comment predicted
+//                        that composing the parser "should need nothing new". That
+//                        was wrong — `parseCaption()` returns `ParseResult`, which
+//                        lives in the same module, so #67 needed this entry too and
+//                        #62 merely got here first.
+const PARSER_POLICY = allowOnly(["@/lib/parser/date", "@/lib/types", "date-fns-tz"]);
 
 // RECURSIVE, deliberately. A flat `readdirSync` would let a module in a
 // subdirectory — `dictionary/index.ts`, `rules/time.ts` — escape the guard entirely
