@@ -68,6 +68,21 @@ const PARSER_DIR = fileURLToPath(new URL(".", import.meta.url));
 //                        was wrong — `parseCaption()` returns `ParseResult`, which
 //                        lives in the same module, so #67 needed this entry too and
 //                        #62 merely got here first.
+//
+// ⚠ THIS GUARD IS NOT TRANSITIVE, and `@/lib/types` is the first entry where that
+// matters. The glob below covers `src/lib/parser/`; an allowlisted module OUTSIDE
+// that directory is checked by nothing here, so the parser's purity claim is only
+// as strong as whatever guards the far end. Appending `Date.now()` to `types.ts`
+// leaves this suite green at 6/6 — verified, not assumed.
+//
+// `src/lib/types.test.ts` closes it, asserting `types.ts` and the generated
+// `database.types.ts` it imports. Making the guard itself follow imports would mean
+// module resolution and a `ts.Program` per file, which is the weight #75 chose not
+// to take on and which two files do not justify.
+//
+// SO: ADDING AN OUTWARD EDGE TO THIS LIST INCURS AN OBLIGATION. If a parser module
+// ever needs a third external import, either assert that module's purity too or
+// accept — in writing, here — that the claim now stops at it.
 const PARSER_POLICY = allowOnly(["@/lib/parser/date", "@/lib/types", "date-fns-tz"]);
 
 // RECURSIVE, deliberately. A flat `readdirSync` would let a module in a

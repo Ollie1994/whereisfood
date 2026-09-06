@@ -113,6 +113,24 @@ describe("DICTIONARY", () => {
       }
     });
 
+    it("stores every match string in NFC", () => {
+      // `normalizeCaption` NFC-composes every caption before any extractor sees it,
+      // precisely because Apple devices send NFD and much of the Mailgun lane comes
+      // from phones. So a caption's "å" is always one codepoint by the time
+      // `extractLocation` runs.
+      //
+      // An alias pasted in NFD — "a" plus a combining ring, which renders
+      // IDENTICALLY in every editor and in this file — could therefore never match
+      // anything, and every other assertion in this suite would still pass: it is
+      // non-empty, trimmed, unique, and inside the bounding box. Ten of the sixteen
+      // entries have a diacritic in at least one alias, so the exposure is most of
+      // the dictionary, and the symptom would be "Gårda just never matches" with
+      // nothing in the source to look at.
+      for (const match of entry.match) {
+        expect(match).toBe(match.normalize("NFC"));
+      }
+    });
+
     it("does not repeat a match string within its own list", () => {
       const folded = entry.match.map((match) => match.toLowerCase());
 

@@ -101,20 +101,28 @@ export interface MarkerState {
 //               seeded entry starts `false` and stays there until real caption
 //               data exists (Phase 8) — an accurate coordinate for a square is
 //               still a guess about truck behaviour.
-// `readonly` on both the interface and `DICTIONARY` itself is not stylistic. This
-// is a module-level constant in a long-lived server process, so a mutation is not
-// scoped to one request — it is permanent for that instance. The realistic mistake
-// is not malice but a matcher doing the obvious thing: `extractLocation()` (#65)
-// wanting longest-alias-first would reach for `entry.match.sort(...)`, which sorts
-// IN PLACE and silently reorders the shared array for every request afterwards.
-// Making it a compile error is cheaper than the bug, which would present as a
-// caption resolving differently depending on what the server handled earlier.
+// EVERY field is `readonly`, and so is `DICTIONARY` itself. This is a module-level
+// constant in a long-lived server process, so a mutation is not scoped to one
+// request — it is permanent for that instance, and presents as a caption resolving
+// differently depending on what the server happened to handle earlier.
+//
+// The realistic mistake is not malice but a matcher doing the obvious thing:
+// `extractLocation()` (#65) wanting longest-alias-first reaches for
+// `entry.match.sort(...)`, which sorts IN PLACE. Making that a compile error is far
+// cheaper than the bug.
+//
+// It is EVERY field rather than the two obvious ones because a partial `readonly`
+// is worse than none: it reads as "this is protected" while leaving
+// `DICTIONARY[0].lat = 0` and `.verified = true` compiling clean. A first pass here
+// marked only `id` and `match`, and the comment above it claimed the whole
+// interface was covered — caught in review, and the reason the guarantee is now
+// stated per-field rather than in prose.
 export interface DictionaryEntry {
   readonly id: string;
   readonly match: readonly string[];
-  address: string;
-  lat: number;
-  lng: number;
-  source: "manual" | "nominatim";
-  verified: boolean;
+  readonly address: string;
+  readonly lat: number;
+  readonly lng: number;
+  readonly source: "manual" | "nominatim";
+  readonly verified: boolean;
 }
