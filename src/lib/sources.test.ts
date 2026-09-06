@@ -3,59 +3,74 @@ import { allowOnly, findImpurities, readModuleSource } from "@/lib/test-utils/pu
 import type { Location, Post } from "@/lib/types";
 import { postSourceToLane, sourceConfidence } from "./sources";
 
-// The six platform values, written out LITERALLY rather than derived from the map
-// under test. Deriving them would make every assertion below a tautology — the map
-// would be checked against itself and a wrong lane would agree with itself
-// perfectly. This project has logged that failure seven times under various
-// disguises; here it would be the obvious one.
-const ALL_PLATFORMS = [
-  "instagram",
-  "facebook",
-  "tiktok",
-  "email",
-  "manual",
-  "webhook",
-] as const satisfies readonly Post["source"][];
-
-const ALL_LANES = ["manual", "webhook", "email"] as const satisfies readonly Location["source"][];
-
-// `satisfies` above catches a TYPO in either list — "instgram" stops compiling.
-// It does not catch an OMISSION, which is the failure that matters: adding a
-// seventh platform breaks the `Record` in sources.ts (good) while this suite
-// silently keeps testing six and still reports green.
+// THE EXPECTED MAPPINGS, written out literally and never derived from the modules
+// under test. Deriving them would make every assertion below a tautology — each
+// map checked against itself, where a wrong lane agrees with itself perfectly.
 //
-// These two lines close that. `Exclude<Union, listed>` is `never` exactly when the
-// list covers the union, so a missing member becomes a compile error naming it.
-// The runtime suite cannot express this — by the time the test runs, the union is
-// erased.
-// `AssertCovered<T>` rather than a conditional type, so the error NAMES the gap.
-// The obvious spelling — `UncoveredPlatform extends never ? true : never` — fails
-// with "Type 'true' is not assignable to type 'never'", which is true, unhelpful,
-// and leaves you diffing two lists by eye. Constraining instead reports
-// `Type '"webhook"' does not satisfy the constraint 'never'` and hands you the
-// missing member directly.
+// These two tables are the ONLY lists in this file. An earlier version also kept
+// separate `ALL_PLATFORMS` / `ALL_LANES` arrays for the iterating tests, which made
+// three parallel lists and opened the gap described below; the iteration lists are
+// now projected from these, so there is one place to update and it is the one the
+// compiler checks.
+const LANE_BY_PLATFORM = [
+  ["instagram", "webhook"],
+  ["facebook", "webhook"],
+  ["tiktok", "webhook"],
+  ["email", "email"],
+  ["manual", "manual"],
+  ["webhook", "webhook"],
+] as const satisfies readonly (readonly [Post["source"], Location["source"]])[];
+
+const CONFIDENCE_BY_LANE = [
+  ["manual", 1.0],
+  ["webhook", 0.85],
+  ["email", 0.55],
+] as const satisfies readonly (readonly [Location["source"], number])[];
+
+// `satisfies` catches a TYPO — "instgram" stops compiling. It does not catch an
+// OMISSION, which is the failure that actually matters here, and the omission has
+// two distinct shapes:
+//
+//   1. A seventh platform missing from the table entirely. The `Record` in
+//      sources.ts would already fail to compile, so this is a second line.
+//   2. A seventh platform present everywhere BUT the expectation table — added to
+//      the union, added to the `Record`, mapped to a wrong-but-valid lane. Every
+//      structural check passes: the `Record` is complete, the range check sees a
+//      legal lane, nothing returns undefined. Verified before fixing — `bluesky`
+//      mapped to `manual` compiled clean and left this suite green at 15/15, which
+//      would have given a Bluesky post source confidence 1.0, scoring it as though
+//      a human had typed it into the dashboard.
+//
+// Anchoring the assertion to the TABLE rather than to a separate list closes both:
+// the expectation table is now the thing required to be exhaustive.
+//
+// `AssertCovered<T>` rather than the obvious conditional spelling
+// (`Exclude<...> extends never ? true : never`), because the error message is the
+// entire point. The conditional reports "Type 'true' is not assignable to type
+// 'never'" — true, unhelpful, and it leaves you diffing lists by eye. Constraining
+// reports `Type '"bluesky"' does not satisfy the constraint 'never'` and hands you
+// the missing member.
+//
 // Bound to a `void`-ed const rather than left as a bare `type` alias: an unused
-// type alias is an unused-vars warning, and silencing that would mean loosening
-// the rule project-wide for a need local to this file.
+// type alias is an unused-vars warning, and silencing that would mean loosening the
+// rule project-wide for a need local to this file.
 type AssertCovered<T extends never> = T;
 const _platformsCovered: AssertCovered<
-  Exclude<Post["source"], (typeof ALL_PLATFORMS)[number]>
+  Exclude<Post["source"], (typeof LANE_BY_PLATFORM)[number][0]>
 >[] = [];
 const _lanesCovered: AssertCovered<
-  Exclude<Location["source"], (typeof ALL_LANES)[number]>
+  Exclude<Location["source"], (typeof CONFIDENCE_BY_LANE)[number][0]>
 >[] = [];
 void _platformsCovered;
 void _lanesCovered;
 
+// Projected from the tables above, so they cannot drift from them. Still
+// independent of the implementation, which is what keeps the assertions honest.
+const ALL_PLATFORMS = LANE_BY_PLATFORM.map(([platform]) => platform);
+const ALL_LANES = CONFIDENCE_BY_LANE.map(([lane]) => lane);
+
 describe("postSourceToLane", () => {
-  it.each([
-    ["instagram", "webhook"],
-    ["facebook", "webhook"],
-    ["tiktok", "webhook"],
-    ["email", "email"],
-    ["manual", "manual"],
-    ["webhook", "webhook"],
-  ] as const)("maps %s to the %s lane", (platform, lane) => {
+  it.each(LANE_BY_PLATFORM)("maps %s to the %s lane", (platform, lane) => {
     expect(postSourceToLane(platform)).toBe(lane);
   });
 
@@ -80,11 +95,7 @@ describe("postSourceToLane", () => {
 });
 
 describe("sourceConfidence", () => {
-  it.each([
-    ["manual", 1.0],
-    ["webhook", 0.85],
-    ["email", 0.55],
-  ] as const)("scores the %s lane at %s", (lane, expected) => {
+  it.each(CONFIDENCE_BY_LANE)("scores the %s lane at %s", (lane, expected) => {
     expect(sourceConfidence(lane)).toBe(expected);
   });
 
