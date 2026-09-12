@@ -63,36 +63,63 @@ export interface ConfidenceInput {
 //
 // So both columns are typed out. The relationship is still worth knowing and is
 // asserted in the tests; it is just not worth computing.
-const DICTIONARY_SCORES: Record<TimeKindOrNone, number> = {
-  // The caption stated a place and a full window. Nothing more to want.
-  range: 1.0,
-  // A complete window, but one this system INFERRED from a word rather than one the
-  // truck wrote. Same instants as "11-14", less certainty about intent.
-  lunchtid: 0.85,
-  // An opening time with no close — "Heden kl 11". More than a bare location, less
-  // than either complete window. `time.ts` fixed the constraint ("no higher than
-  // lunchtid") and this picks the value inside it.
-  //
-  // ⚠ NOT IN THE DOCUMENTED MATRIX. `project-context.md` has six rows and this is a
-  // seventh, arriving with `TimeKind`'s third value. Reconciling that doc is #73's
-  // job; recorded here so the gap is a known one rather than a discrepancy someone
-  // finds later and resolves by guessing.
-  start: 0.7,
-  // Location only. The caption said where but not when, which is an ordinary thing to
-  // post — the locations service supplies the `posted_at + 8h` expiry.
-  none: 0.6,
-};
-
-const FALLBACK_SCORES: Record<TimeKindOrNone, number> = {
-  range: 0.85,
-  lunchtid: 0.7,
-  // 0.7 - 0.15. Sits where a dictionary lunchtid's penalised score also sits, which is
-  // a coincidence of the ladder rather than a claim that the two are equivalent.
-  start: 0.55,
-  // Exactly the display threshold, by design (#3): a fallback location with no time is
-  // the weakest thing still worth showing, and only from a lane trusted enough to
-  // carry it there.
-  none: 0.45,
+// ⚠ KEYED ON BOTH AXES, so neither can drift silently. An earlier version dispatched
+// with `location === "dictionary" ? DICTIONARY : FALLBACK`, which is not exhaustive: a
+// third way of resolving a location — a cache hit, a paid provider — would have scored
+// as a geocode fallback, quietly, while this file claimed such drift becomes a compile
+// error. That claim was true of the `time` axis (a `Record` over `TimeKind`) and false
+// of the `location` axis, which is exactly the kind of half-true guarantee this PR
+// series has been punished for. Now both axes are `Record` keys and a new variant on
+// either fails the build.
+const SCORES: Record<ResolvedLocation, Record<TimeKindOrNone, number>> = {
+  dictionary: {
+    // The caption stated a place and a full window. Nothing more to want.
+    range: 1.0,
+    // A complete window, but one this system INFERRED from a word rather than one the
+    // truck wrote. Same instants as "11-14", less certainty about intent.
+    lunchtid: 0.85,
+    // An opening time with no close — "Heden kl 11". More than a bare location, less
+    // than either complete window. `time.ts` fixed the constraint ("no higher than
+    // lunchtid") and this picks the value inside it.
+    //
+    // ⚠ NOT IN THE DOCUMENTED MATRIX. `project-context.md` has six rows and this is a
+    // seventh, arriving with `TimeKind`'s third value. Reconciling that doc is #73's
+    // job; recorded here so the gap is a known one rather than a discrepancy someone
+    // finds later and resolves by guessing.
+    start: 0.7,
+    // Location only. The caption said where but not when, which is an ordinary thing
+    // to post — the locations service supplies the `posted_at + 8h` expiry.
+    none: 0.6,
+  },
+  fallback: {
+    range: 0.85,
+    lunchtid: 0.7,
+    // 0.7 - 0.15. Sits where a dictionary lunchtid's penalised score also sits, which
+    // is a coincidence of the ladder rather than a claim that the two are equivalent.
+    start: 0.55,
+    // Exactly the display threshold, by design (#3): a fallback location with no time
+    // is the weakest thing still worth showing, and only from a lane trusted enough to
+    // carry it there.
+    //
+    // ⚠ THIS EXACT VALUE HAS A HAZARD ONE LAYER DOWN, and it is the same class of bug
+    // as the one this file's header avoids — caught in review rather than by design.
+    //
+    // `locations.confidence` is `float4` (migration 0001:70), and float32 cannot
+    // represent 0.45: it stores 0.44999998807907104. So a SERVER-SIDE filter written
+    // the obvious way drops exactly the pin this row exists to preserve:
+    //
+    //   .gte("confidence", 0.45)      →  excludes a manual location-only fallback
+    //
+    // Safe today only because nothing queries it yet. It is NOT safe by construction,
+    // and it will be written in #64/#68 or in the Phase 4 map query. Tracked as #92,
+    // and pinned by a test here so the hazard is checkable from the place the 0.45
+    // decision is made rather than only from the query that trips over it.
+    //
+    // The header's IEEE-754 argument covers double arithmetic in this module. It does
+    // not cover the float32 narrowing at persistence, which is a second, independent
+    // narrowing of the same constant.
+    none: 0.45,
+  },
 };
 
 // A caption that named no place scores on what little is left, and the fallback
@@ -106,9 +133,13 @@ const NOTHING = 0.0;
 const NEGATION = 0.0;
 
 // `TimeKind | null` as a key, since `null` cannot index a `Record`. Keeping the four
-// cases in one union is what makes the two tables above exhaustively checked: adding
-// a kind to `time.ts` fails the build here instead of falling through.
+// cases in one union is what makes the tables above exhaustively checked: adding a
+// kind to `time.ts` fails the build here instead of falling through.
 type TimeKindOrNone = TimeKind | "none";
+
+// The location axis minus `null`, which is handled before the tables are reached.
+// Derived from `ConfidenceInput` rather than written out, so the two cannot disagree.
+type ResolvedLocation = Exclude<ConfidenceInput["location"], null>;
 
 export function scoreConfidence(input: ConfidenceInput): number {
   // FIRST, AND UNCONDITIONALLY. `parseCaption` already bails on a negation before
@@ -124,5 +155,8 @@ export function scoreConfidence(input: ConfidenceInput): number {
     return time === "none" ? NOTHING : TIME_ONLY;
   }
 
-  return input.location === "dictionary" ? DICTIONARY_SCORES[time] : FALLBACK_SCORES[time];
+  // Indexed rather than branched, which is what makes the location axis exhaustive:
+  // `input.location` is narrowed to `ResolvedLocation` here, and a variant added to
+  // that union leaves `SCORES` missing a key and fails the build.
+  return SCORES[input.location][time];
 }

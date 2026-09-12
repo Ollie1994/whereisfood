@@ -9,61 +9,90 @@ import type { TimeKind } from "./time";
 const score = (input: Partial<ConfidenceInput> = {}) =>
   scoreConfidence({ location: null, time: null, isNegation: false, ...input });
 
-// Every value of every field, so the tables below can be checked for coverage rather
-// than trusted to be complete. Projected from the union, not typed out beside it —
-// a parallel list is what process-log row 126 was about.
-const LOCATIONS = ["dictionary", "fallback", null] as const satisfies readonly ConfidenceInput["location"][];
-const TIMES = ["range", "lunchtid", "start", null] as const satisfies readonly (TimeKind | null)[];
+// ⚠ THE TABLE IS THE SPEC, and it is the thing required to be exhaustive.
+//
+// An earlier version of this file declared `LOCATIONS` and `TIMES` beside the union
+// with `as const satisfies readonly T[]` and a comment claiming they were "projected
+// from the union". **They were not.** `satisfies` is a SUBSET check: it catches a typo
+// and does not catch an omission, which is the failure that matters. Verified — adding
+// a `"cached"` location, or an `"allday"` TimeKind scored 0.9 (above `lunchtid`,
+// inverting the ordering this file claims to enforce), left `tsc` clean and all 48
+// tests green.
+//
+// That is the identical omission PR #88 closed two commits earlier, and this file
+// carried a comment citing that very lesson while reproducing it. The machinery below
+// is #88's, used the way #88 concluded it should be: anchored to the EXPECTATION
+// TABLE, not to a list sitting next to it.
+const MATRIX = [
+  // Dictionary hit — the documented matrix.
+  ["dictionary", "range", 1.0],
+  ["dictionary", "lunchtid", 0.85],
+  ["dictionary", "start", 0.7],
+  ["dictionary", null, 0.6],
+  // Geocode fallback — one notch lower at every row (plan decision #3).
+  ["fallback", "range", 0.85],
+  ["fallback", "lunchtid", 0.7],
+  ["fallback", "start", 0.55],
+  ["fallback", null, 0.45],
+  // No location at all. The fallback penalty has nothing to apply to.
+  [null, "range", 0.2],
+  [null, "lunchtid", 0.2],
+  [null, "start", 0.2],
+  [null, null, 0.0],
+] as const satisfies readonly (readonly [ConfidenceInput["location"], TimeKind | null, number])[];
+
+// `AssertCovered<T>` rather than the conditional spelling, because the error message
+// is the point: constraining reports `Type '"cached"' does not satisfy the constraint
+// 'never'` and names the missing member, where a conditional reports "Type 'true' is
+// not assignable to type 'never'" and leaves you diffing by eye. Bound to a `void`-ed
+// const so an unused type alias is not an unused-vars warning. All of this is #88's —
+// see `sources.test.ts` for the full reasoning rather than a second copy of it.
+type AssertCovered<T extends never> = T;
+const _locationsCovered: AssertCovered<
+  Exclude<ConfidenceInput["location"], (typeof MATRIX)[number][0]>
+>[] = [];
+const _timesCovered: AssertCovered<
+  Exclude<ConfidenceInput["time"], (typeof MATRIX)[number][1]>
+>[] = [];
+void _locationsCovered;
+void _timesCovered;
+
+// Projected from the table, so they cannot drift from it.
+const LOCATIONS = [...new Set(MATRIX.map(([location]) => location))];
+const TIMES = [...new Set(MATRIX.map(([, time]) => time))];
 
 describe("scoreConfidence", () => {
-  // ⚠ THE TABLE IS THE SPEC. Every (location, time) pair appears exactly once, and
-  // the exhaustiveness test below is anchored to THIS table rather than to a
-  // separate list — so a pair that is added to the union and forgotten here fails,
-  // instead of leaving a row nobody notices is missing.
-  const MATRIX: ReadonlyArray<[ConfidenceInput["location"], TimeKind | null, number]> = [
-    // Dictionary hit — the documented matrix.
-    ["dictionary", "range", 1.0],
-    ["dictionary", "lunchtid", 0.85],
-    ["dictionary", "start", 0.7],
-    ["dictionary", null, 0.6],
-    // Geocode fallback — one notch lower at every row (plan decision #3).
-    ["fallback", "range", 0.85],
-    ["fallback", "lunchtid", 0.7],
-    ["fallback", "start", 0.55],
-    ["fallback", null, 0.45],
-    // No location at all. The fallback penalty has nothing to apply to.
-    [null, "range", 0.2],
-    [null, "lunchtid", 0.2],
-    [null, "start", 0.2],
-    [null, null, 0.0],
-  ];
-
   it.each(MATRIX)("location=%s time=%s → %s", (location, time, expected) => {
     expect(score({ location, time })).toBe(expected);
   });
 
-  it("covers every combination the input type allows", () => {
-    // Non-vacuity plus completeness in one assertion. `it.each([])` registers zero
-    // tests and reports green (process-log row 43), and a table missing a row looks
-    // identical to a table that is complete — this catches both.
-    const covered = new Set(MATRIX.map(([location, time]) => `${location}/${time}`));
+  it("names every pair exactly once", () => {
+    // `AssertCovered` above proves every union MEMBER appears somewhere in the table;
+    // it says nothing about the pairs. This closes the other half — the full cross
+    // product, each row once — and doubles as the non-vacuity assertion, since
+    // `it.each([])` registers zero tests and reports green (process-log row 43).
+    const pairs = MATRIX.map(([location, time]) => `${location}/${time}`);
     const required = LOCATIONS.flatMap((location) => TIMES.map((time) => `${location}/${time}`));
 
-    expect(MATRIX.length).toBe(required.length);
-    expect(required.filter((pair) => !covered.has(pair))).toEqual([]);
+    expect(new Set(pairs).size).toBe(pairs.length);
+    expect(pairs.length).toBe(required.length);
+    expect(required.filter((pair) => !pairs.includes(pair))).toEqual([]);
   });
 
   describe("the six rows project-context.md documents", () => {
     // Named against the document's own wording, so a reader comparing the two does
     // not have to infer which table row is which sentence.
+    // Expected value SECOND, so the printf-style title prints the row name and the
+    // score. With the input object in that slot the title rendered the object and the
+    // block could not be read against the document it exists to mirror.
     it.each([
-      ["location + explicit time range", { location: "dictionary", time: "range" }, 1.0],
-      ["location + lunchtid", { location: "dictionary", time: "lunchtid" }, 0.85],
-      ["location only (no time)", { location: "dictionary", time: null }, 0.6],
-      ["time only (no location)", { location: null, time: "range" }, 0.2],
-      ["negation detected", { location: "dictionary", time: "range", isNegation: true }, 0.0],
-      ["nothing extracted", { location: null, time: null }, 0.0],
-    ] as const)("%s → %s", (_row, input, expected) => {
+      ["location + explicit time range", 1.0, { location: "dictionary", time: "range" }],
+      ["location + lunchtid", 0.85, { location: "dictionary", time: "lunchtid" }],
+      ["location only (no time)", 0.6, { location: "dictionary", time: null }],
+      ["time only (no location)", 0.2, { location: null, time: "range" }],
+      ["negation detected", 0.0, { location: "dictionary", time: "range", isNegation: true }],
+      ["nothing extracted", 0.0, { location: null, time: null }],
+    ] as const)("%s → %s", (_row, expected, input) => {
       expect(score(input)).toBe(expected);
     });
 
@@ -109,6 +138,36 @@ describe("scoreConfidence", () => {
       // fall a hairsbreadth under and vanish from the map with no error anywhere.
       expect(0.6 - 0.15).toBeLessThan(0.45);
       expect(score({ location: "fallback", time: null })).toBeGreaterThanOrEqual(0.45);
+    });
+
+    it("⚠ and 0.45 does not survive float4 either — the same bug one layer down (#92)", () => {
+      // `locations.confidence` is `float4` (migration 0001:70). float32 cannot
+      // represent 0.45, so the value that goes in at exactly the threshold comes back
+      // BELOW it:
+      expect(Math.fround(0.45)).toBeLessThan(0.45); // 0.44999998807907104
+
+      // Which means a server-side filter written the obvious way drops exactly the pin
+      // plan decision #3 designed to sit on the line:
+      //
+      //   .gte("confidence", 0.45)   →  excludes a manual location-only fallback
+      //
+      // Nothing queries the column yet, so this is a hazard rather than a live defect —
+      // but it is NOT safe by construction, and #64/#68 or the Phase 4 map query is
+      // where it gets written. Pinned here, at the place the 0.45 decision is made,
+      // rather than only in the query that would trip over it. Tracked as #92.
+      const atThreshold = score({ location: "fallback", time: null });
+
+      expect(atThreshold).toBe(0.45);
+      expect(Math.fround(atThreshold)).toBeLessThan(0.45);
+
+      // Every other reachable score clears the threshold with room to spare, so this
+      // is a one-cell hazard rather than a general one — asserted so the scope of #92
+      // is a checked claim.
+      const narrowedAndAbove = MATRIX.map(([, , value]) => value)
+        .filter((value) => value > 0.45)
+        .every((value) => Math.fround(value) > 0.45);
+
+      expect(narrowedAndAbove).toBe(true);
     });
   });
 
