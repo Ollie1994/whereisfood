@@ -80,6 +80,29 @@ describe("extractAddressCandidate", () => {
     ])("rejects the bare common noun %s", (_noun, caption) => {
       expect(extract(caption)).toBeNull();
     });
+
+    it.each([
+      ["torget 5", "Vi står på torget 5 minuter från Kungsgatan 12"],
+      ["vägen 2", "Vi står vid vägen 2 kvarter från Kungsgatan 12"],
+      ["berget 2", "Vi står på berget 2 min bort, Kungsgatan 12"],
+    ])("rejects %s — a bare suffix stays bare even with a number", (_case, caption) => {
+      // ⚠ THE ROW THAT WAS MISSING IN r2, and its absence is exactly why r2's
+      // simplification regressed. Every "rejects the bare common noun" case above
+      // uses the UN-numbered form, so flattening the pattern's two branches into one
+      // optional stem left all of them green while a numbered bare noun became a
+      // candidate — and, being leftmost, discarded the real address behind it.
+      //
+      // When a guard has a parameter, test the parameter's other value.
+      expect(extract(caption)).toBe("Kungsgatan 12");
+    });
+
+    it("still accepts a bare suffix when a modifier names it", () => {
+      // The one reason the bare-suffix form exists at all. Without this the rule
+      // above could be satisfied by deleting the form entirely, and "Södra Vägen"
+      // and "Nya Allén" would stop resolving.
+      expect(extract("Vi står på Södra Vägen 12 idag")).toBe("Södra Vägen 12");
+      expect(extract("Vi står på Nya Allén 3 idag")).toBe("Nya Allén 3");
+    });
   });
 
   // ⚠ A MODIFIER NAMES; IT DOES NOT LICENSE. r1 accepted a candidate corroborated by
@@ -203,6 +226,28 @@ describe("extractAddressCandidate", () => {
       expect(extractAddressCandidate(normalized)).toBeNull();
     });
 
+    it.each([
+      ["a portion count", "Vi står på Kungsgatan 12 - 45 portioner kvar"],
+      ["a guest count after till", "Vi står på Kungsgatan 12 till 100 gäster"],
+      ["a price", "Vi står på Kungsgatan 12 - 45 kr"],
+    ])("KNOWN COST: %s is range-SHAPED, so the address is lost too", (_case, caption) => {
+      // `extractTime` rejects these via `TRAILING_UNIT` — a unit after a range means
+      // it was never a clock. This module only mirrors the range SHAPE, so it drops
+      // the number and then has nothing licensing the street, and both extractors
+      // decline.
+      //
+      // Asserted as current behaviour rather than described, because "the guard
+      // matches what extractTime claims" is precisely the overclaim that r0 and r1
+      // both shipped. Mirroring `TRAILING_UNIT` here means replicating more of
+      // another module's grammar — the thing that has now failed three times. The
+      // real fix is #67 resolving the overlap from both results; the direction here
+      // is safe meanwhile, since the cost is a missed address, not a wrong one.
+      const normalized = normalizeCaption(caption);
+
+      expect(extractTime(normalized, "2026-09-12")).toBeNull();
+      expect(extractAddressCandidate(normalized)).toBeNull();
+    });
+
     it("still takes a number when no range follows it", () => {
       // The other half: the guard must not be so broad that a real house number is
       // dropped. Without this, "reject everything" would pass every case above.
@@ -218,7 +263,7 @@ describe("extractAddressCandidate", () => {
       ["a street with no number", "Vi står på Kungsgatan idag"],
       ["a two-word street with no number", "Vi står på Södra Vägen idag"],
       ["a named point that has no number to give", "Vi står på Ramberget 11-14"],
-      ["a street in the genitive", "Vi ses vid Kungsgatans korsning"],
+      ["a genitive with no number, which the rule rejects like any other", "Vi ses vid Kungsgatans korsning"],
     ])("misses %s", (_case, caption) => {
       // Pinned rather than described, so relaxing the rule means deleting an
       // assertion that says what it buys. Every one of these is real and every one
@@ -227,6 +272,26 @@ describe("extractAddressCandidate", () => {
       //
       // The remedy for all four is the same: add the place to the dictionary.
       expect(extract(caption)).toBeNull();
+    });
+  });
+
+  describe("a genitive case ending never reaches the geocoder", () => {
+    it.each([
+      ["Vi står på Kungsgatans 12", "Kungsgatan 12"],
+      ["Vi står på Södra Vägens 12 idag", "Södra Vägen 12"],
+      ["Vi står vid gågatans 5", "gågatan 5"],
+    ])("%s", (caption, expected) => {
+      // ⚠ THIS IS THE ASSERTION r2 DID NOT HAVE, and its absence is why r2 deleted
+      // the `s?` on the argument that nothing could reach it. Four inputs reach it,
+      // and without the `s?` every one of them returned null. The claim was about
+      // every possible input and was made by reading the pattern, which is not
+      // something reading a pattern can establish.
+      //
+      // These captions are UNGRAMMATICAL — Swedish does not put a house number after
+      // a genitive — so this is robustness to a malformed caption, not a supported
+      // form. It is kept because decoding one into a correct pin costs one character
+      // and neither direction risks a wrong pin.
+      expect(extract(caption)).toBe(expected);
     });
   });
 
@@ -245,12 +310,15 @@ describe("extractAddressCandidate", () => {
       expect(extract("Vi står på Andra   Långgatan 12")).toBe("Andra Långgatan 12");
     });
 
-    it("KNOWN LIMIT: loses a first word that is not on the modifier list", () => {
-      // "Danska Vägen" is a real Gothenburg street and only "Vägen 12" survives.
-      // Widening the list is safe now that it no longer licenses anything — it is
-      // left narrow because a wrong first word is worse than a missing one, and
-      // Phase 8 captions should decide which words to add.
-      expect(extract("Vi står på Danska Vägen 12 idag")).toBe("Vägen 12");
+    it("KNOWN LIMIT: misses a two-word name whose first word is not a modifier", () => {
+      // "Danska Vägen" is a real Gothenburg street and returns null: "Vägen" is a
+      // bare suffix and "Danska" is not on the list, so nothing names it.
+      //
+      // r2 returned "Vägen 12" here, which was worse than the miss — a geocoder
+      // query for "Vägen 12" inside a Gothenburg viewbox answers confidently and at
+      // random. The bare-suffix rule fixed that as a side effect, which is the
+      // direction a fix should have.
+      expect(extract("Vi står på Danska Vägen 12 idag")).toBeNull();
     });
   });
 
