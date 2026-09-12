@@ -111,14 +111,23 @@ const SCORES: Record<ResolvedLocation, Record<TimeKindOrNone, number>> = {
     // spare. Both facts are asserted in the tests, over the products rather than over
     // these parser scores, since the products are what the column holds.
     //
-    // ⚠ NOT VERIFIED, and deliberately not asserted here: whether any given query
-    // actually drops the row. That depends on how the comparison is typed, and the
-    // paths differ —
+    // ⚠ NOT VERIFIED, and deliberately not asserted here: whether any given comparison
+    // actually drops the row. There are three paths and they need not agree —
     //
     //   PostgREST sends an untyped literal, which Postgres resolves against the
     //   column's own type; both sides would narrow identically and the row comes back.
     //   Raw SQL, a `float8` RPC parameter or a view can keep 0.45 as a double, where
     //   it would not.
+    //   CLIENT-SIDE, in JavaScript, on a value read back out of the column. This one
+    //   exists TODAY — `useMapLibre.tsx` filters `l.confidence >= DISPLAY_THRESHOLD`,
+    //   with 0.45 written out a second time there. No query typing protects it: it
+    //   depends entirely on what text Postgres emits for the stored float4 and how JS
+    //   parses it.
+    //
+    // An earlier version of this comment said "safe today only because nothing queries
+    // it yet". That was wrong twice over — a consumer already exists, and I asserted
+    // its absence without grepping for one. It reads `fake-data.ts` until Phase 4, so
+    // the path is unexercised rather than absent, which is not the same claim.
     //
     // An earlier version of this comment stated flatly that `.gte("confidence", 0.45)`
     // drops the pin. That was reasoning about Postgres presented as a checked fact —

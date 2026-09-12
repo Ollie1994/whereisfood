@@ -76,6 +76,38 @@ const RESOLVED_LOCATIONS = LOCATIONS.filter(
   (location): location is NonNullable<ConfidenceInput["location"]> => location !== null,
 );
 
+// ⚠ THE TWO RANKS, and they are DECLARED rather than derived because the order IS the
+// claim — `MATRIX` is a set of rows with no inherent order, so nothing can be read off
+// it. Strongest first.
+//
+// This is the third round of the same defect and the reason it is now solved on both
+// axes at once. r1 fixed exhaustiveness in the `Record`s and the table. r2 found the
+// ordering tests still hardcoding the LOCATION list and derived it. r3 found them
+// still hardcoding the TIME literals — verified, an `"allday"` TimeKind scored 0.9
+// (above `lunchtid`) with all three `MATRIX` rows that `_timesCovered` forces left
+// `tsc`, `eslint` and 884 tests green, because the ordering assertions named
+// `"range"`, `"lunchtid"` and `"start"` and never saw it.
+//
+// A rank closes it in a way a derived iteration list cannot: a new member does not
+// merely get iterated, it CANNOT COMPILE until someone places it, and placing it is
+// the decision that was being skipped.
+const TIME_RANK = ["range", "lunchtid", "start", null] as const satisfies readonly (TimeKind | null)[];
+const LOCATION_RANK = ["dictionary", "fallback"] as const satisfies readonly NonNullable<
+  ConfidenceInput["location"]
+>[];
+
+type AssertRanked<T extends never> = T;
+const _timesRanked: AssertRanked<Exclude<ConfidenceInput["time"], (typeof TIME_RANK)[number]>>[] = [];
+const _locationsRanked: AssertRanked<
+  Exclude<NonNullable<ConfidenceInput["location"]>, (typeof LOCATION_RANK)[number]>
+>[] = [];
+void _timesRanked;
+void _locationsRanked;
+
+// Consecutive pairs of a rank, which is what the monotonicity assertions walk.
+const consecutive = <T,>(rank: readonly T[]) =>
+  rank.slice(0, -1).map((stronger, index) => [stronger, rank[index + 1]] as const);
+
 describe("scoreConfidence", () => {
   it.each(MATRIX)("location=%s time=%s → %s", (location, time, expected) => {
     expect(score({ location, time })).toBe(expected);
@@ -189,8 +221,11 @@ describe("scoreConfidence", () => {
         LANES.map((lane) => ({ parser, lane, stored: parser * sourceConfidence(lane) })),
       );
 
-      // Non-vacuity: `.every()` on an empty list is true, which is how a filter that
-      // matches nothing passes as a guarantee.
+      // Non-vacuity, and the reason is the CROSS PRODUCT rather than the assertion
+      // below: `toEqual(["0.45/manual"])` already fails on an empty `straddles`, so it
+      // needs no help there. What it cannot see is a `flatMap` that silently produced
+      // fewer pairs than there are (parser score × lane) combinations, which would
+      // leave the straddling set correct for the wrong reason.
       expect(products.length).toBe(MATRIX.length * LANES.length);
 
       // The straddling set — a value the map would show as a double and hide as a
@@ -209,38 +244,50 @@ describe("scoreConfidence", () => {
   // relationships instead, and they are what would catch `start` being scored above
   // `lunchtid` — the one constraint `time.ts` states in prose and no literal enforces.
   describe("the ordering the numbers encode", () => {
-    it.each(RESOLVED_LOCATIONS)(
-      "more information scores higher, for a %s location",
-      (location) => {
-        // A stated window beats an inferred one beats an opening time beats no time.
-        expect(score({ location, time: "range" })).toBeGreaterThan(score({ location, time: "lunchtid" }));
-        expect(score({ location, time: "lunchtid" })).toBeGreaterThanOrEqual(score({ location, time: "start" }));
-        expect(score({ location, time: "start" })).toBeGreaterThan(score({ location, time: null }));
-      },
-    );
+    it.each(RESOLVED_LOCATIONS)("more information scores higher, for a %s location", (location) => {
+      // Walked over TIME_RANK rather than over named kinds. A stated window beats an
+      // inferred one beats an opening time beats no time, and `>=` between each pair
+      // because two kinds MAY tie — `time.ts` says `start` must be "no higher than"
+      // `lunchtid`, not strictly below it.
+      for (const [stronger, weaker] of consecutive(TIME_RANK)) {
+        expect(score({ location, time: stronger })).toBeGreaterThanOrEqual(
+          score({ location, time: weaker }),
+        );
+      }
+
+      // Pairwise `>=` alone is satisfied by every kind scoring the same, which would
+      // make the rank meaningless while the suite stayed green. The ends must differ.
+      expect(score({ location, time: TIME_RANK[0] })).toBeGreaterThan(
+        score({ location, time: TIME_RANK[TIME_RANK.length - 1] }),
+      );
+    });
 
     it("`start` never outranks `lunchtid` — time.ts states this and nothing else enforces it", () => {
-      // `time.ts`: "the intended mapping is `range` 1.0, `lunchtid` 0.85, and `start`
-      // no higher than `lunchtid`, since it carries strictly less information than
-      // either." A marked start gives an opening with no close; lunchtid gives a
-      // complete window. Scoring the lesser one higher would rank a half-stated
-      // caption above a fully-inferred one.
+      // Kept as its own named assertion even though the walk above subsumes it.
+      // `time.ts` states this constraint in prose only — "the intended mapping is
+      // `range` 1.0, `lunchtid` 0.85, and `start` no higher than `lunchtid`, since it
+      // carries strictly less information than either" — and a named test is what a
+      // reader of that comment can search for. A marked start gives an opening with no
+      // close; lunchtid gives a complete window.
       for (const location of RESOLVED_LOCATIONS) {
         expect(score({ location, time: "start" })).toBeLessThanOrEqual(score({ location, time: "lunchtid" }));
       }
     });
 
-    it("a dictionary hit always outranks the same caption geocoded", () => {
-      for (const time of TIMES) {
-        expect(score({ location: "dictionary", time })).toBeGreaterThan(score({ location: "fallback", time }));
+    it("a stronger resolution always outranks a weaker one, at every time kind", () => {
+      // Walked over LOCATION_RANK for the same reason as above: hardcoding
+      // `dictionary` vs `fallback` here is what r2 fixed on the iteration list and
+      // left in place on the comparison.
+      for (const [stronger, weaker] of consecutive(LOCATION_RANK)) {
+        for (const time of TIMES) {
+          expect(score({ location: stronger, time })).toBeGreaterThan(score({ location: weaker, time }));
+        }
       }
     });
 
     it("any resolved location outranks time-only, which outranks nothing", () => {
       const weakestLocation = Math.min(
-        ...LOCATIONS.filter((location) => location !== null).flatMap((location) =>
-          TIMES.map((time) => score({ location, time })),
-        ),
+        ...RESOLVED_LOCATIONS.flatMap((location) => TIMES.map((time) => score({ location, time }))),
       );
 
       expect(weakestLocation).toBeGreaterThan(score({ location: null, time: "range" }));
