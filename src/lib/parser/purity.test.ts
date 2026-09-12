@@ -60,14 +60,23 @@ const PARSER_DIR = fileURLToPath(new URL(".", import.meta.url));
 //                        Added by #65. `location.ts` matches against `DICTIONARY`;
 //                        that IS the module's job. Also inside the directory.
 //
-//   `@/lib/parser/time`  Added by #65 review. `address.ts` imports `RANGE_SEPARATOR`
-//                        and `NOT_IN_NUMBER_AFTER` because the digits after a street
-//                        name are CONTESTED between the two modules — "Kungsgatan
-//                        11-14" is a street and a time window, and whichever module
-//                        takes those digits, the other must not. `address.ts` shipped
-//                        its own separator class and it had already drifted (no em
-//                        dash, no `till`), so the guard failed on exactly the inputs
-//                        it named. Also inside the directory.
+//   `@/lib/parser/time`  Added by #65 review. `address.ts` imports `CLOCK_JOINER` and
+//                        `NOT_IN_NUMBER_AFTER` because the digits after a street name
+//                        are CONTESTED between the two modules — "Kungsgatan 11-14"
+//                        is a street and a time window, and whichever module takes
+//                        those digits, the other must not.
+//
+//                        This edge was earned twice. `address.ts` first hand-wrote
+//                        its own separator class, already drifted (no em dash, no
+//                        `till`). The fix imported `RANGE_SEPARATOR` and reassembled
+//                        the guard locally, WITHOUT `REPEATED_MARKER` — so "Kungsgatan
+//                        11 - kl 14" was claimed by both modules, by the very fix for
+//                        that class. `CLOCK_JOINER` is now the composition rather than
+//                        its parts, which is what ended it: importing the pieces of a
+//                        construction is not sharing the construction.
+//
+//                        Also inside the directory, so it is one more module checked
+//                        rather than an outward edge.
 //
 //   `@/lib/types`        Added by #62. `dictionary.ts` is typed against
 //                        `DictionaryEntry`, which the plan's Files table places in

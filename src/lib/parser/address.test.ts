@@ -13,8 +13,9 @@ const extract = (caption: string) => extractAddressCandidate(normalizeCaption(ca
 describe("extractAddressCandidate", () => {
   it("has suffixes and modifiers to match with", () => {
     // Non-vacuity. An empty suffix list builds `(?:)`, an alternation matching the
-    // empty string; an empty modifier list would quietly disable half the
-    // corroboration rule and nothing below would say so.
+    // empty string, which would make every `toBeNull()` below pass for the wrong
+    // reason; an empty modifier list would silently drop the first word of every
+    // two-word street name and only one assertion would notice.
     expect(STREET_SUFFIXES.length).toBeGreaterThan(0);
     expect(STREET_MODIFIERS.length).toBeGreaterThan(0);
   });
@@ -45,13 +46,14 @@ describe("extractAddressCandidate", () => {
     });
   });
 
-  // ⚠ THE CENTRAL RULE OF THIS MODULE, and the one the first version got wrong.
+  // ⚠ THE CENTRAL RULE, and it took two review rounds to state correctly.
   //
-  // A street suffix is not evidence of a street: Swedish builds common nouns by the
-  // same compounding, so `\p{L}{2,}` in front of a suffix admits "hållplatsen" as
-  // readily as "Kungsgatan". A candidate must be corroborated by a house number or a
-  // modifier.
-  describe("a bare compound is not an address", () => {
+  // Swedish street names and Swedish common nouns are built the same way — a stem
+  // plus a definite suffix — so no morphological rule separates them. Each earlier
+  // version added one more condition and found the same class again a round later.
+  // The rule is now one sentence: a candidate is a suffix-compound followed by a
+  // house number.
+  describe("a suffix alone is not an address", () => {
     it.each([
       ["hållplatsen", "Vi står vid hållplatsen idag"],
       ["parkeringsplatsen", "Parkering på parkeringsplatsen"],
@@ -63,9 +65,10 @@ describe("extractAddressCandidate", () => {
       ["hemvägen", "På väg hem, hemvägen"],
       ["gågatan", "Vi står på gågatan idag"],
     ])("rejects the common noun %s", (_noun, caption) => {
-      // Every one of these was returned as a street address before the corroboration
-      // rule, and each would have been geocoded inside a Gothenburg viewbox — which
-      // answers confidently and at random.
+      // r0 admitted every one of these. The guard then was `\p{L}{2,}` in front of
+      // the suffix, which excludes only the BARE nouns — and Swedish forms compounds
+      // by exactly that shape, so the guard excluded the case that was not the
+      // problem.
       expect(extract(caption)).toBeNull();
     });
 
@@ -77,26 +80,73 @@ describe("extractAddressCandidate", () => {
     ])("rejects the bare common noun %s", (_noun, caption) => {
       expect(extract(caption)).toBeNull();
     });
+  });
 
-    it("prefers a corroborated candidate further right over an uncorroborated one", () => {
-      // The failure that made this more than a false positive: leftmost matching
-      // returned "hållplatsen" and threw away an address the caption stated outright.
-      expect(extract("vi står vid hållplatsen på Kungsgatan 12")).toBe("Kungsgatan 12");
+  // ⚠ A MODIFIER NAMES; IT DOES NOT LICENSE. r1 accepted a candidate corroborated by
+  // "a house number OR a modifier", and the modifier half was the same mistake in new
+  // clothes — `stora`, `nya`, `lilla`, `nedre`, `andra` are ordinary adjectives.
+  describe("a modifier is not evidence of a street", () => {
+    it.each([
+      ["stora torget", "Vi tar stora torget idag"],
+      ["lilla vägen", "Vi kör lilla vägen idag"],
+      ["nya vägen", "Vi tar nya vägen idag"],
+      ["nedre vägen", "Nedre vägen är avstängd"],
+      ["andra platsen", "Vi står på andra platsen från vänster"],
+    ])("rejects the ordinary phrase %s", (_phrase, caption) => {
+      expect(extract(caption)).toBeNull();
     });
 
-    it("THE COST: a real street with neither a number nor a modifier is missed", () => {
-      // Stated as a test rather than as prose, because it is the price of the rule
-      // above and reversing it should mean deleting an assertion. Both of these are
-      // ordinary captions and both now degrade to no pin. The answer for a named
-      // place is to add it to the dictionary, where a human looks at the coordinate.
-      expect(extract("Vi står på Kungsgatan idag")).toBeNull();
-      expect(extract("Vi står på Ramberget 11-14")).toBeNull();
+    it.each([
+      ["an uncorroborated compound", "vi står vid hållplatsen på Kungsgatan 12"],
+      ["a modifier phrase", "vi står vid stora torget på Kungsgatan 12"],
+      ["a modifier phrase with a verb", "Vi kör lilla vägen till Kungsgatan 12"],
+      ["a counting phrase", "Vi står på andra platsen från vänster, Kungsgatan 12"],
+    ])("does not let %s mask a real address behind it", (_case, caption) => {
+      // This is what made r0 and r1 worse than false positives: being leftmost, an
+      // invented place DISCARDED an address the caption stated outright. `ADDRESS` is
+      // global and the first CORROBORATED match wins, so a rejected candidate is
+      // skipped rather than ending the search.
+      expect(extract(caption)).toBe("Kungsgatan 12");
+    });
+
+    it("still captures a modifier that belongs to a corroborated street's name", () => {
+      // The naming job the list is actually for. Dropping "Fjärde" would pin the
+      // truck on one of three other Långgatan.
+      expect(extract("Lunch på Fjärde Långgatan 3 idag")).toBe("Fjärde Långgatan 3");
+      expect(extract("Vi står på Södra Vägen 12 idag")).toBe("Södra Vägen 12");
+    });
+  });
+
+  // ⚠ THE LIMIT THAT CANNOT BE CLOSED HERE, asserted rather than described. A numbered
+  // common noun is indistinguishable from a numbered street by morphology, so these
+  // are what the module DOES, and a comment claiming otherwise is what produced both
+  // earlier rounds. The defences are downstream: a bounded, re-validated Nominatim
+  // query (#3) and the fallback confidence penalty.
+  describe("KNOWN LIMIT: a numbered common noun still matches", () => {
+    it.each([
+      ["gågatan 5", "Vi står vid gågatan 5"],
+      ["spårvägen 3", "Vi står vid spårvägen 3"],
+      ["hållplatsen 5", "Vi står vid hållplatsen 5"],
+    ])("%s", (expected, caption) => {
+      expect(extract(caption)).toBe(expected);
+    });
+
+    it("STOP RULE: closing this needs real captions, not another condition", () => {
+      // Recorded as an executable note. Every remaining candidate signal —
+      // capitalisation, a preposition in front, a longer compound — is a heuristic
+      // whose gaps produce WRONG pins, and there is no caption data to calibrate one
+      // against before Phase 8. A third corroborator would be the r1 mistake again.
+      //
+      // The remedy for a named place that this module misses is to add it to the
+      // dictionary, which is reviewed by a human. That direction moves coverage
+      // toward evidence; another regex condition moves it away.
+      expect(extract("Vi står vid gågatan 5")).not.toBeNull();
     });
   });
 
   describe("the house number", () => {
-    it("is what corroborates an otherwise bare compound", () => {
-      expect(extract("vi står på långgatan 12 idag 11-14")).toBe("långgatan 12");
+    it("is what licenses a candidate", () => {
+      expect(extract("vi står på långgatan 12 idag")).toBe("långgatan 12");
     });
 
     it("keeps an attached entrance letter", () => {
@@ -118,15 +168,17 @@ describe("extractAddressCandidate", () => {
     });
   });
 
-  // ⚠ THE DIGITS AFTER A STREET NAME ARE CONTESTED between this module and
-  // `time.ts`. "Kungsgatan 11-14" is a street and a time window, and whichever module
-  // takes those digits, the other must not — so these assertions run BOTH extractors
-  // over the same caption rather than asserting one in isolation.
+  // ⚠ THE DIGITS AFTER A STREET NAME ARE CONTESTED between this module and `time.ts`.
+  // "Kungsgatan 11-14" is a street and a time window, and whichever module takes those
+  // digits, the other must not — so these assertions run BOTH extractors over the same
+  // caption rather than asserting one in isolation.
   //
-  // The first version of the guard wrote its own separator class and had already
-  // drifted from `RANGE_SEPARATOR` by the time it shipped: no em dash, no `till`. A
-  // test that only checked `extractAddressCandidate` passed anyway, because it was
-  // written against the same wrong list.
+  // Sharing the guard has gone wrong twice, each time more subtly: r0 hand-wrote a
+  // separator class that had already drifted (no em dash, no `till`); r1 imported
+  // `RANGE_SEPARATOR` and reassembled the guard locally WITHOUT `REPEATED_MARKER`, so
+  // "Kungsgatan 11 - kl 14" was claimed twice. `CLOCK_JOINER` is now the whole of what
+  // may sit between two clocks, exported as one string and used verbatim by `RANGE` —
+  // there is no assembly left here to get wrong.
   describe("a time range is not a house number", () => {
     it.each([
       ["a hyphen", "11-14"],
@@ -135,6 +187,10 @@ describe("extractAddressCandidate", () => {
       ["the word till", "11 till 14"],
       ["a dotted clock", "11.30-13.00"],
       ["a colon clock", "11:00-14:00"],
+      ["a repeated kl marker", "11 - kl 14"],
+      ["a repeated klockan marker", "11 - klockan 14"],
+      ["till with a repeated marker", "11 till kl 14"],
+      ["an abbreviated marker with a full stop", "11-kl.14"],
     ])("%s", (_case, range) => {
       const caption = `Vi står på Kungsgatan ${range}`;
       const normalized = normalizeCaption(caption);
@@ -143,7 +199,7 @@ describe("extractAddressCandidate", () => {
       expect(extractTime(normalized, "2026-09-12")).not.toBeNull();
 
       // ...so `extractAddressCandidate` must not, and with no number left there is
-      // nothing corroborating "Kungsgatan" either.
+      // nothing licensing "Kungsgatan" either.
       expect(extractAddressCandidate(normalized)).toBeNull();
     });
 
@@ -157,11 +213,24 @@ describe("extractAddressCandidate", () => {
     });
   });
 
-  describe("two-word street names", () => {
-    it("is corroborated by the modifier alone, with no number", () => {
-      expect(extract("Vi står på Södra Vägen idag")).toBe("Södra Vägen");
+  describe("what the rule costs", () => {
+    it.each([
+      ["a street with no number", "Vi står på Kungsgatan idag"],
+      ["a two-word street with no number", "Vi står på Södra Vägen idag"],
+      ["a named point that has no number to give", "Vi står på Ramberget 11-14"],
+      ["a street in the genitive", "Vi ses vid Kungsgatans korsning"],
+    ])("misses %s", (_case, caption) => {
+      // Pinned rather than described, so relaxing the rule means deleting an
+      // assertion that says what it buys. Every one of these is real and every one
+      // degrades to no pin — visible and self-correcting — where the alternative
+      // is a confident pin to somewhere the truck is not.
+      //
+      // The remedy for all four is the same: add the place to the dictionary.
+      expect(extract(caption)).toBeNull();
     });
+  });
 
+  describe("two-word street names", () => {
     it("keeps the ordinal that disambiguates the street", () => {
       // "Långgatan 12" is ambiguous between Första, Andra, Tredje and Fjärde
       // Långgatan — four different streets. The geocoder answers anyway.
@@ -169,30 +238,19 @@ describe("extractAddressCandidate", () => {
     });
 
     it("never takes the preposition in front of the street", () => {
-      expect(extract("Vi står på Nya Allén idag")).toBe("Nya Allén");
-    });
-
-    it("takes only the modifier, not the word before it", () => {
-      expect(extract("Ses vid gamla Kungsgatan idag")).toBe("gamla Kungsgatan");
+      expect(extract("Vi står på Kungsgatan 12 idag")).toBe("Kungsgatan 12");
     });
 
     it("collapses whitespace inside the candidate", () => {
       expect(extract("Vi står på Andra   Långgatan 12")).toBe("Andra Långgatan 12");
     });
 
-    it("KNOWN LIMIT: misses a two-word name whose first word is not a modifier", () => {
-      // "Danska Vägen" is a real Gothenburg street and this returns null for it.
-      // The alternative — taking whatever word precedes a bare suffix — turns "vid
-      // vägen" and "på torget" into addresses, and casing cannot tell them apart
-      // because captions are routinely written all-lowercase. So the list stays
-      // closed and covers the words that create the ambiguity worth resolving: the
-      // ordinals and compass directions that distinguish four different Långgatan
-      // and two different Vägen from each other.
-      //
-      // Pinned by a test rather than left in prose, so widening the list means
-      // deleting an assertion that says why it is narrow. Fail-safe either way: the
-      // cost is no pin, which is visible, not a wrong pin, which is not.
-      expect(extract("Vi står på Danska Vägen idag")).toBeNull();
+    it("KNOWN LIMIT: loses a first word that is not on the modifier list", () => {
+      // "Danska Vägen" is a real Gothenburg street and only "Vägen 12" survives.
+      // Widening the list is safe now that it no longer licenses anything — it is
+      // left narrow because a wrong first word is worse than a missing one, and
+      // Phase 8 captions should decide which words to add.
+      expect(extract("Vi står på Danska Vägen 12 idag")).toBe("Vägen 12");
     });
   });
 
@@ -200,7 +258,7 @@ describe("extractAddressCandidate", () => {
     it.each([
       ["a caption with no address", "god lunch idag!"],
       ["an empty caption", ""],
-      ["a place name with no street suffix", "Vi står på Backaplan idag"],
+      ["a place name with no street suffix", "Vi står på Backaplan 12 idag"],
       ["a time but no place", "Öppet 11-14 idag"],
     ])("for %s", (_case, caption) => {
       // This is the acceptance criterion that suppresses the network call entirely.
@@ -213,18 +271,6 @@ describe("extractAddressCandidate", () => {
     });
   });
 
-  describe("the genitive is stripped from the query", () => {
-    it("returns the street in its own form, not the case ending", () => {
-      // Reachable only alongside a modifier now: a genitive and a house number do
-      // not co-occur, so a bare "Kungsgatans" is uncorroborated and rejected before
-      // the `s` matters.
-      expect(extract("Vi ses vid Södra Vägens korsning")).toBe("Södra Vägen");
-    });
-
-    it("still rejects any other trailing letter", () => {
-      expect(extract("Vi står på Södra Vägenx idag")).toBeNull();
-    });
-  });
 
   it("finds an address written inside a hashtag", () => {
     // #78 preserves and segments tag text, so this reaches the matcher as

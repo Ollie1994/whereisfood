@@ -1,5 +1,5 @@
 import { AFTER, alt, BEFORE, FLAGS } from "@/lib/parser/boundary";
-import { NOT_IN_NUMBER_AFTER, RANGE_SEPARATOR } from "@/lib/parser/time";
+import { CLOCK_JOINER, NOT_IN_NUMBER_AFTER } from "@/lib/parser/time";
 
 // The fallback half of step 3. Runs ONLY when `extractLocation` missed, and its job
 // is to hand the geocoder a query rather than a sentence: Nominatim asked for "vi
@@ -39,21 +39,29 @@ export const STREET_SUFFIXES = [
   "berget",
 ] as const;
 
-// Words that form the FIRST half of a two-word street name. A closed list, because
-// the alternative — "take the preceding word" — takes the preposition instead and
-// sends "på Långgatan" to the geocoder as "på långgatan".
+// Words that form the FIRST half of a two-word street name.
 //
-// This list is not decoration. "Långgatan 12" is ambiguous in Gothenburg between
-// Första, Andra, Tredje and Fjärde Långgatan, which are four different streets; the
-// geocoder answers anyway, confidently, and that is the exact failure this module is
-// built to avoid. The ordinals are what disambiguate them.
+// ⚠ WHAT THIS LIST IS FOR, stated precisely because r1 got it wrong. It NAMES; it
+// does not LICENSE. A modifier in front of a matched street is captured as part of
+// the street's name, and that is its entire job — it is never evidence that the thing
+// it precedes is a street at all. See the rule below for what happened when it was
+// promoted to evidence.
+//
+// The naming job is not decoration. "Långgatan 12" is ambiguous in Gothenburg between
+// Första, Andra, Tredje and Fjärde Långgatan, which are four different streets, and
+// the geocoder answers anyway, confidently. The ordinals are what disambiguate them,
+// so dropping "Andra" from "Andra Långgatan 12" would pin a truck on one of three
+// wrong streets.
+//
+// A closed list, because the alternative — "take the preceding word" — takes the
+// preposition instead and sends "på Långgatan 12" to the geocoder as "på långgatan
+// 12".
 //
 // KNOWN LIMIT, pinned by a test: a two-word street whose first word is NOT on this
-// list is missed entirely — "Danska Vägen" is a real street and returns null. It
-// stays closed because the only rule that would catch it is "take the preceding
-// word", which turns "vid vägen" and "på torget" into addresses; casing cannot
-// separate them, since captions are routinely written all-lowercase. The cost is a
-// missed address, which degrades to no pin. The alternative cost is a wrong pin.
+// list loses that first word — "Danska Vägen 12" geocodes as "Vägen 12". Widening it
+// is safe now in a way it was not in r1, since the list no longer licenses anything;
+// it is left narrow because a wrong first word is worse than a missing one, and Phase
+// 8 captions are what should decide which words to add.
 export const STREET_MODIFIERS = [
   "norra",
   "södra",
@@ -75,74 +83,104 @@ export const STREET_MODIFIERS = [
 const SUFFIX = alt(STREET_SUFFIXES);
 const MODIFIER = alt(STREET_MODIFIERS);
 
-// ⚠ A SUFFIX IS NOT EVIDENCE OF A STREET. This is the correction that matters most
-// in this module, and the first version got it wrong in the expensive direction.
+// ⚠ A SUFFIX IS NOT EVIDENCE OF A STREET, AND NEITHER IS A MODIFIER. This is the
+// rule the module is built around, and it took two review rounds to state correctly
+// because both wrong versions were argued rather than tried.
 //
-// That version required two letters in front of the suffix and argued the rule
-// "keeps the bare common nouns out". It keeps out the bare ones — "torget",
-// "berget" — and nothing else, because Swedish forms common nouns by exactly the
-// compounding the rule permits. Verified against the shipped pattern, every one of
-// these came back as a street address:
+// Swedish street names and Swedish common nouns are built the same way — a stem plus
+// a definite suffix — so **no morphological rule separates them**. That is a fact
+// about the language, not a gap in the pattern, and it is why each attempt to add
+// one more condition found the same class again one round later:
 //
-//   hållplatsen · parkeringsplatsen · lekplatsen · idrottsplatsen · arbetsplatsen
-//   spårvägen · motorvägen · hemvägen · gågatan
+//   r0  `\p{L}{2,}` in front of the suffix, "to keep the bare common nouns out".
+//       It keeps out the bare ones and nothing else: hållplatsen, parkeringsplatsen,
+//       lekplatsen, idrottsplatsen, arbetsplatsen, spårvägen, motorvägen, hemvägen
+//       and gågatan all came back as street addresses.
 //
-// And because matching was leftmost, "vi står vid hållplatsen på Kungsgatan 12"
-// returned "hållplatsen" and threw the real address away. The caption said exactly
-// where the truck was and the parser preferred a bus stop.
+//   r1  corroboration by a house number OR a modifier. The modifier half is the same
+//       mistake in new clothes: `stora`, `nya`, `lilla`, `nedre`, `andra` are
+//       ORDINARY ADJECTIVES, so "vi står vid stora torget på Kungsgatan 12" returned
+//       "stora torget", "Vi kör lilla vägen till Kungsgatan 12" returned "lilla
+//       vägen", and "Vi tar nya vägen idag" returned "nya vägen". Each one not only
+//       invented a place but, being leftmost, discarded the real address behind it.
 //
-// WHY NOT A DENYLIST of those words: `-platsen` and `-vägen` are productive. Any noun
-// plus `plats` yields another one, so the list has no closed form, and every gap in it
-// is a WRONG pin — the failure direction this module exists to avoid. Same argument
-// `negation.ts` makes for preferring an allowlist, with more force here because there
-// is no grammar to lean on.
+// So r2 REMOVES a rule rather than adding a third:
 //
-// SO: A CANDIDATE MUST BE CORROBORATED — a house number, or a modifier from the
-// closed list above. A bare compound on its own is not an address.
+//   **A candidate is a suffix-compound followed by a house number. Nothing else.**
 //
-// Structural, with no list to maintain, and it fails toward "no pin". It also happens
-// to describe what this fallback is FOR: the dictionary already covers the named
-// places where a bare name is precise, and this path exists for the numbered street
-// addresses it does not know.
+// A modifier is a DISAMBIGUATOR — it says which Långgatan, not that this is a street
+// — and r1 promoted it to evidence, which it never was. It keeps that real job below:
+// when a modifier sits in front of a matched street it is captured as part of the
+// name, because "Långgatan 12" is ambiguous between four Gothenburg streets. It just
+// no longer licenses a candidate on its own.
 //
-// REJECTED — accepting a capitalised bare compound ("Kungsgatan" yes, "hållplatsen"
-// no). It would keep more coverage, and it only half-works: captions are routinely
-// written all-lowercase, so it loses real addresses anyway, and it opens a hole for
-// any clause STARTING with one of those nouns. A heuristic that fixes some of a
-// wrong-pin class and leaves the rest is worse than a rule, because it reads as
-// closed.
+// WHY THIS IS THE END OF THE LINE AND NOT ANOTHER NOTCH. The rule is now one sentence
+// with one condition, and that condition is the only signal in a caption that is not
+// also ordinary prose. There is no third corroborator to promote: every remaining
+// candidate signal — capitalisation, a preposition in front, a longer compound — is a
+// heuristic whose gaps produce WRONG pins, and we have zero real caption data to
+// calibrate one against until Phase 8. Adding one would be the r1 mistake a third
+// time.
 //
-// THE COST, stated rather than discovered later: "Vi står på Kungsgatan idag" and
-// "Vi står på Ramberget 11-14" now return null, and both are ordinary captions. They
-// degrade to no pin. The answer for a named place is to add it to the dictionary —
-// the one place a coordinate is looked at by a human before it becomes a pin.
-// Revisit when Phase 8 produces real captions and the frequencies are knowable
-// instead of guessable.
-function isCorroborated(modifier: string | undefined, number: string | undefined): boolean {
-  return modifier !== undefined || number !== undefined;
+// ⚠ THE LIMIT THAT REMAINS, stated because it CANNOT be closed here and a comment
+// claiming otherwise is what caused both earlier rounds. A numbered common noun is
+// indistinguishable from a numbered street:
+//
+//   "gågatan 5" · "spårvägen 3" · "hållplatsen 5"     still match, by design
+//
+// Pinned by a test asserting exactly that, so the claim above stays honest. The
+// defences against it are downstream and real: the Nominatim query is bounded to the
+// Gothenburg viewbox and its result re-validated against it (#3), a fallback
+// resolution scores one confidence notch lower than a dictionary hit, and a
+// location-only fallback lands at 0.45 — under the display threshold for both the
+// webhook and the email lane.
+//
+// THE COST OF THE RULE, also pinned. All of these are real and all now return null:
+//
+//   "Vi står på Kungsgatan idag"        a street with no number
+//   "Vi står på Södra Vägen idag"       a real street the modifier used to license
+//   "Vi står på Ramberget 11-14"        a named point, no number to give
+//
+// Every one has the same remedy, and it is a good one: **add the place to the
+// dictionary.** That is the human-reviewed, bounded, testable half of this design;
+// this regex is the half that handles numbered addresses nobody has reviewed. Pushing
+// coverage into the dictionary moves it toward evidence, and pushing it into the
+// pattern moves it away.
+function isCorroborated(number: string | undefined): boolean {
+  return number !== undefined;
 }
 
 // The house number, and the guards that decide it is one.
 //
-// TWO OF THE GUARDS ARE IMPORTED FROM `time.ts`, which owns them, because the digits
-// after a street name are CONTESTED between two extractors. "Vi står på Kungsgatan
-// 11-14" is a street and a time window; `extractTime` reads 11:00–14:00 from the same
+// THE GUARDS ARE IMPORTED FROM `time.ts`, which owns them, because the digits after a
+// street name are CONTESTED between the two modules. "Vi står på Kungsgatan 11-14" is
+// a street and a time window; `extractTime` reads 11:00–14:00 from the same
 // characters, so taking 11 as a house number lets one pair of digits mean two
 // different things in one parse and geocodes a doorway chosen by accident.
 //
-// The first version wrote its own separator class, `[-–.:]`, and it had already
-// drifted from the real one by the time it shipped: no em dash, no `till`. So
-// "Kungsgatan 11 till 14" and "Kungsgatan 11—14" both yielded house number 11 while
-// `extractTime` read a window from the same digits — the exact failure the guard's own
-// comment claimed to prevent (PR #89 review). Importing is what stops a guard and the
-// thing it guards against being maintained apart.
+// ⚠ IMPORT THE CONSTRUCTION, NOT ITS PIECES. This has now gone wrong twice, each time
+// more subtly:
+//
+//   r0  a hand-written separator class `[-–.:]`, already drifted from `time.ts` on
+//       the day it was typed — no em dash, no `till`, so "Kungsgatan 11 till 14"
+//       yielded house number 11.
+//
+//   r1  imported `RANGE_SEPARATOR` and reassembled the guard locally, WITHOUT
+//       `REPEATED_MARKER`. "Kungsgatan 11 - kl 14" yielded house number 11 while
+//       `extractTime` read 11:00–14:00 — the identical failure, produced by the fix
+//       for it. Importing the pieces of a construction is not sharing the
+//       construction.
+//
+// `CLOCK_JOINER` is now the whole of what may sit between two clocks, exported as one
+// string and used verbatim by `RANGE` in `time.ts`. There is no assembly left here to
+// get wrong, which is the property that ends this class rather than patching it.
 //
 //   NOT_IN_NUMBER_AFTER  "these digits are the whole number" — rejects a clock's
 //                        minutes ("11:00", "11.30") and a longer number. Placed first
 //                        so the digit run cannot backtrack to a shorter prefix and
 //                        slip past the range guard behind it.
-//   RANGE_SEPARATOR      the dash family and `till`, exactly as `extractTime` accepts
-//                        them.
+//   CLOCK_JOINER         everything `extractTime` accepts between two clocks: the
+//                        dash family, `till`, and a repeated `kl`/`klockan` marker.
 //
 // A genuine house range ("61-63") is lost to this, and that trade is deliberate: a
 // truck writing its opening hours is ordinary, a truck writing a building range is
@@ -156,17 +194,22 @@ function isCorroborated(modifier: string | undefined, number: string | undefined
 // costs the letter and keeps the street and the building, which still geocodes to the
 // right door; the alternative corrupts the query. `normalize.ts` protects the attached
 // form from the other side, refusing to split "12B" when it segments a tag.
-const NUMBER = `(?:\\s+(\\d{1,3}${NOT_IN_NUMBER_AFTER}(?!${RANGE_SEPARATOR}\\d)(?:\\p{L}${AFTER})?))?`;
+const NUMBER = `(?:\\s+(\\d{1,3}${NOT_IN_NUMBER_AFTER}(?!${CLOCK_JOINER}\\d)(?:\\p{L}${AFTER})?))?`;
 
 // A street name is a compound ending in one of the suffixes — "Kungsgatan",
-// "Ramberget" — or a bare suffix word that a modifier turns into a name: "Södra
-// Vägen", "Nya Allén", both real Gothenburg streets. Hence `\p{L}{2,}` being optional
-// rather than required: the corroboration rule above, not the compound, is what keeps
-// "på torget" and "vid vägen" out.
+// "Ramberget" — optionally preceded by a modifier that forms part of its name:
+// "Andra Långgatan", "Södra Vägen". `\p{L}{2,}` is optional so that the second of
+// those still matches, and it costs nothing now that the house number is what
+// licenses a candidate.
 //
-// The genitive `s` sits OUTSIDE the captured street group, so "Kungsgatans korsning"
-// yields "Kungsgatan" — the form the geocoder wants — rather than a query ending in a
-// case ending. Same Swedish rule `location.ts` handles for dictionary aliases.
+// NO GENITIVE HANDLING, and its removal is part of the r2 simplification. `location.ts`
+// strips a trailing `s` because a dictionary alias can be genitive and still name the
+// place — "vid Nordstans entré". Here it could never fire: a genitive and a house
+// number do not co-occur in Swedish, and without a number there is no candidate to
+// strip it from. It was carried for one round as an `s?` that no input could reach,
+// which is the kind of thing that costs a later reader a round to rediscover.
+// "Kungsgatans korsning" is rejected, and it is rejected by the rule above rather
+// than by a special case.
 //
 // GLOBAL, unlike every other pattern in this parser, because rejecting a candidate is
 // not the same as failing to find one. "vi står vid hållplatsen på Kungsgatan 12"
@@ -179,7 +222,7 @@ const NUMBER = `(?:\\s+(\\d{1,3}${NOT_IN_NUMBER_AFTER}(?!${RANGE_SEPARATOR}\\d)(
 // this instance's `lastIndex` untouched. That is what makes a module-level global safe
 // here where `negation.ts` warns against one; the stability test pins it.
 const ADDRESS = new RegExp(
-  `${BEFORE}(?:(${MODIFIER})\\s+)?((?:\\p{L}{2,})?${SUFFIX})s?${AFTER}${NUMBER}`,
+  `${BEFORE}(?:(${MODIFIER})\\s+)?((?:\\p{L}{2,})?${SUFFIX})${AFTER}${NUMBER}`,
   `${FLAGS}g`,
 );
 
@@ -189,12 +232,11 @@ const ADDRESS = new RegExp(
 // `allén` and `vägen` exactly as it defeats the negation vocabulary.
 export function extractAddressCandidate(normalized: string): string | null {
   for (const [, modifier, street, number] of normalized.matchAll(ADDRESS)) {
-    if (!isCorroborated(modifier, number)) continue;
+    if (!isCorroborated(number)) continue;
 
-    // Rebuilt from the groups rather than returned as the whole match, which is what
-    // drops the genitive `s`. Whitespace is collapsed because the pattern matches
-    // `\s+` between the modifier and the street — "Andra   Långgatan 12" must reach
-    // the geocoder as one clean query.
+    // Rebuilt from the groups rather than returned as the whole match, so the
+    // whitespace the pattern matched with `\s+` is normalised on the way out —
+    // "Andra   Långgatan 12" must reach the geocoder as one clean query.
     return [modifier, street, number]
       .filter((part) => part !== undefined)
       .join(" ")
