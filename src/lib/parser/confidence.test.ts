@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { type ConfidenceInput, scoreConfidence } from "./confidence";
 import { sourceConfidence } from "@/lib/sources";
+// Explicitly imported: unqualified `Location` resolves to the DOM global, which has no
+// `source` property — so `Location["source"]` compiled to an error rather than to the
+// row type. Worth a word because the failure names the wrong thing.
+import type { Location } from "@/lib/types";
 import type { TimeKind } from "./time";
 
 // Purity is NOT asserted here — `purity.test.ts` globs this directory and already
@@ -60,6 +64,17 @@ void _timesCovered;
 // Projected from the table, so they cannot drift from it.
 const LOCATIONS = [...new Set(MATRIX.map(([location]) => location))];
 const TIMES = [...new Set(MATRIX.map(([, time]) => time))];
+
+// The locations that reach the score tables. Derived too — the ordering tests below
+// are the ONLY enforcement of `start <= lunchtid`, a constraint `time.ts` states in
+// prose alone, and an earlier version iterated a hardcoded `["dictionary", "fallback"]`
+// there. Adding a variant would have failed `tsc` at `SCORES` and `_locationsCovered`,
+// the author would have fixed both, and the one test carrying that constraint would
+// silently never run for the new variant — the same parallel-list bug this file's
+// header was rewritten to describe, left in place two blocks below it.
+const RESOLVED_LOCATIONS = LOCATIONS.filter(
+  (location): location is NonNullable<ConfidenceInput["location"]> => location !== null,
+);
 
 describe("scoreConfidence", () => {
   it.each(MATRIX)("location=%s time=%s → %s", (location, time, expected) => {
@@ -140,34 +155,51 @@ describe("scoreConfidence", () => {
       expect(score({ location: "fallback", time: null })).toBeGreaterThanOrEqual(0.45);
     });
 
-    it("⚠ and 0.45 does not survive float4 either — the same bug one layer down (#92)", () => {
-      // `locations.confidence` is `float4` (migration 0001:70). float32 cannot
-      // represent 0.45, so the value that goes in at exactly the threshold comes back
-      // BELOW it:
-      expect(Math.fround(0.45)).toBeLessThan(0.45); // 0.44999998807907104
+    it("⚠ and 0.45 does not survive float4 either — the second narrowing (#92)", () => {
+      // `locations.confidence` is `float4` (migration 0001:70), and float32 cannot
+      // represent 0.45 — the nearest is 0.44999998807907104.
+      expect(Math.fround(0.45)).toBeLessThan(0.45);
+      expect(Math.fround(score({ location: "fallback", time: null }))).toBeLessThan(0.45);
 
-      // Which means a server-side filter written the obvious way drops exactly the pin
-      // plan decision #3 designed to sit on the line:
+      // ⚠ THIS TEST ASSERTS THE REPRESENTATION, NOT A QUERY RESULT. An earlier version
+      // of the surrounding comments stated that `.gte("confidence", 0.45)` drops the
+      // pin. No Postgres was ever run to check that, and review argues the opposite
+      // for the PostgREST path specifically — an untyped literal resolves against the
+      // column's own type, so both sides narrow identically and the row is returned.
+      // Whether a raw-SQL or `float8`-typed comparison behaves differently is the
+      // question, and it is only decidable against a real database. #92 owns it.
       //
-      //   .gte("confidence", 0.45)   →  excludes a manual location-only fallback
-      //
-      // Nothing queries the column yet, so this is a hazard rather than a live defect —
-      // but it is NOT safe by construction, and #64/#68 or the Phase 4 map query is
-      // where it gets written. Pinned here, at the place the 0.45 decision is made,
-      // rather than only in the query that would trip over it. Tracked as #92.
-      const atThreshold = score({ location: "fallback", time: null });
+      // What IS checkable here is the representation and the scope, so that is all
+      // this asserts.
+    });
 
-      expect(atThreshold).toBe(0.45);
-      expect(Math.fround(atThreshold)).toBeLessThan(0.45);
+    it("⚠ and exactly one STORED value is affected — over the products, not the scores", () => {
+      // ⚠ THE COLUMN HOLDS `parser_confidence × source_confidence`, not the values in
+      // MATRIX. An earlier version of this test `fround`ed the parser scores, which is
+      // the wrong set entirely: none of them is a value the column ever stores, so a
+      // retuned lane constant could put a second cell on the line with the test still
+      // green. Enumerating the real products closes that, and uses `sourceConfidence`
+      // rather than hand-typed lane values so it cannot drift from #59.
+      const LANES = ["manual", "webhook", "email"] as const satisfies readonly Location["source"][];
+      type AssertLanesCovered<T extends never> = T;
+      const _lanesCovered: AssertLanesCovered<Exclude<Location["source"], (typeof LANES)[number]>>[] = [];
+      void _lanesCovered;
 
-      // Every other reachable score clears the threshold with room to spare, so this
-      // is a one-cell hazard rather than a general one — asserted so the scope of #92
-      // is a checked claim.
-      const narrowedAndAbove = MATRIX.map(([, , value]) => value)
-        .filter((value) => value > 0.45)
-        .every((value) => Math.fround(value) > 0.45);
+      const products = MATRIX.flatMap(([, , parser]) =>
+        LANES.map((lane) => ({ parser, lane, stored: parser * sourceConfidence(lane) })),
+      );
 
-      expect(narrowedAndAbove).toBe(true);
+      // Non-vacuity: `.every()` on an empty list is true, which is how a filter that
+      // matches nothing passes as a guarantee.
+      expect(products.length).toBe(MATRIX.length * LANES.length);
+
+      // The straddling set — a value the map would show as a double and hide as a
+      // float4. Enumerated rather than counted, so a second one names itself.
+      const straddles = products.filter(
+        ({ stored }) => stored >= 0.45 && Math.fround(stored) < 0.45,
+      );
+
+      expect(straddles.map(({ parser, lane }) => `${parser}/${lane}`)).toEqual(["0.45/manual"]);
     });
   });
 
@@ -177,7 +209,7 @@ describe("scoreConfidence", () => {
   // relationships instead, and they are what would catch `start` being scored above
   // `lunchtid` — the one constraint `time.ts` states in prose and no literal enforces.
   describe("the ordering the numbers encode", () => {
-    it.each(["dictionary", "fallback"] as const)(
+    it.each(RESOLVED_LOCATIONS)(
       "more information scores higher, for a %s location",
       (location) => {
         // A stated window beats an inferred one beats an opening time beats no time.
@@ -193,7 +225,7 @@ describe("scoreConfidence", () => {
       // either." A marked start gives an opening with no close; lunchtid gives a
       // complete window. Scoring the lesser one higher would rank a half-stated
       // caption above a fully-inferred one.
-      for (const location of ["dictionary", "fallback"] as const) {
+      for (const location of RESOLVED_LOCATIONS) {
         expect(score({ location, time: "start" })).toBeLessThanOrEqual(score({ location, time: "lunchtid" }));
       }
     });

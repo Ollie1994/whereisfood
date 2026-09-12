@@ -101,23 +101,35 @@ const SCORES: Record<ResolvedLocation, Record<TimeKindOrNone, number>> = {
     // is the weakest thing still worth showing, and only from a lane trusted enough to
     // carry it there.
     //
-    // ⚠ THIS EXACT VALUE HAS A HAZARD ONE LAYER DOWN, and it is the same class of bug
-    // as the one this file's header avoids — caught in review rather than by design.
+    // ⚠ THIS EXACT VALUE NARROWS BADLY AT PERSISTENCE, a second and independent
+    // narrowing of the same constant the header defends against.
     //
-    // `locations.confidence` is `float4` (migration 0001:70), and float32 cannot
-    // represent 0.45: it stores 0.44999998807907104. So a SERVER-SIDE filter written
-    // the obvious way drops exactly the pin this row exists to preserve:
+    // VERIFIED: `locations.confidence` is `float4` (migration 0001:70), and float32
+    // cannot represent 0.45 — the nearest float32 is 0.44999998807907104. Combined
+    // with `source_confidence`, exactly one reachable stored value is affected:
+    // `0.45 × manual(1.0)`. Every other product clears the threshold with room to
+    // spare. Both facts are asserted in the tests, over the products rather than over
+    // these parser scores, since the products are what the column holds.
     //
-    //   .gte("confidence", 0.45)      →  excludes a manual location-only fallback
+    // ⚠ NOT VERIFIED, and deliberately not asserted here: whether any given query
+    // actually drops the row. That depends on how the comparison is typed, and the
+    // paths differ —
     //
-    // Safe today only because nothing queries it yet. It is NOT safe by construction,
-    // and it will be written in #64/#68 or in the Phase 4 map query. Tracked as #92,
-    // and pinned by a test here so the hazard is checkable from the place the 0.45
-    // decision is made rather than only from the query that trips over it.
+    //   PostgREST sends an untyped literal, which Postgres resolves against the
+    //   column's own type; both sides would narrow identically and the row comes back.
+    //   Raw SQL, a `float8` RPC parameter or a view can keep 0.45 as a double, where
+    //   it would not.
     //
-    // The header's IEEE-754 argument covers double arithmetic in this module. It does
-    // not cover the float32 narrowing at persistence, which is a second, independent
-    // narrowing of the same constant.
+    // An earlier version of this comment stated flatly that `.gte("confidence", 0.45)`
+    // drops the pin. That was reasoning about Postgres presented as a checked fact —
+    // no Postgres was run, and review argues the opposite for that specific path. The
+    // honest position is that the representation is verified and the comparison is
+    // path-dependent and untested.
+    //
+    // Which way it resolves changes WHAT #92 should do, not whether it is worth doing:
+    // if PostgREST is safe, the risk is a later author "fixing" the one call that was
+    // never broken while a raw-SQL path stays unguarded. #92's first job is to
+    // determine this against a real database, which is the only place it is decidable.
     none: 0.45,
   },
 };
