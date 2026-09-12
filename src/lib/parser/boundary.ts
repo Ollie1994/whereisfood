@@ -39,18 +39,30 @@ export function alt(tokens: readonly string[]): string {
 //
 // `negation.ts` needed none of this: its vocabulary is hand-written lowercase Swedish
 // words with no metacharacters in them. `location.ts` does, because its tokens come
-// from `dictionary.ts` — DATA, which grows by hand and is allowed to contain a dot,
-// a hyphen or a parenthesis. An unescaped `.` is "any character", which turns a
-// missing entry into a silently over-broad matcher rather than into an error anyone
-// would notice.
+// from `dictionary.ts` — DATA, which grows by hand and is allowed to contain a dot
+// or a parenthesis. An unescaped `.` is "any character", which turns a missing entry
+// into a silently over-broad matcher rather than into an error anyone would notice.
 //
-// Escaping everything in the ECMAScript punctuator set rather than the subset that
-// is special today: the cost is a redundant backslash, and the alternative is a list
-// that has to stay correct as the language grows.
+// A hyphen is deliberately NOT in the set below and needs no escape: outside a
+// character class it is already a literal. That is not a detail — see the warning.
+//
+// ⚠ ESCAPE ONLY WHAT MAY BE ESCAPED. "Escape everything punctuation-shaped, the cost
+// is a redundant backslash" was the first version's argument and it is FALSE under
+// the `u` flag, which is the only flag this module's consumers use.
+//
+// In Unicode mode an identity escape is legal for the SyntaxCharacters and for `/`,
+// and for NOTHING else — `\-` outside a character class is a SyntaxError, not a
+// redundant backslash. So the over-broad version threw at module load for the first
+// alias containing a hyphen, taking down every importer of `location.ts` with it.
+// "Hisings-Backa" is an ordinary Gothenburg place name and was one dictionary entry
+// away. Verified: `new RegExp("Hisings\\-Backa", "iu")` throws, and the same pattern
+// without `u` does not, which is why nothing else in the codebase caught it.
+//
+// The set below IS the complete legal one, so it does not need to grow with the
+// language: a character that becomes special later will also become escapable later.
+// Adding to it speculatively is what broke it.
+const NEEDS_ESCAPE = /[$()*+.?[\]^{|}\\/]/gu;
+
 export function escapeRegex(literal: string): string {
-  // The hyphen sits LAST in the class, where it is a literal rather than a range
-  // operator. In the middle it reads as a range — `\\-/` is "from backslash to
-  // slash" — which throws at module load if the endpoints are out of order and,
-  // when they are not, silently escapes a set of characters nobody chose.
-  return literal.replace(/[.*+?^${}()|[\]\\/-]/gu, "\\$&");
+  return literal.replace(NEEDS_ESCAPE, "\\$&");
 }

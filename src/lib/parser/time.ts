@@ -105,7 +105,14 @@ const CLOCK = "(\\d{1,2})(?:[.:]([0-5]\\d))?";
 // run-together form "11till14", which is not how anyone writes a range and is
 // therefore not accepted as one. Both facts are pinned by test, and the distinction
 // surfaced only because a mutation that relaxed this survived (PR #84 r2).
-const RANGE_SEPARATOR = "(?:\\s*[-–—]\\s*|\\s+till\\s+)";
+// EXPORTED because `address.ts` has to reject exactly what this accepts. The digits
+// after a street name are contested between two extractors — "Kungsgatan 11-14" is a
+// street and a time window, not house 11 — so the guard there must be the same shape
+// as the claim made here. Two hand-written separator lists drifted within one PR:
+// `address.ts` shipped `[-–.:]`, missing the em dash and `till` entirely, so
+// "Kungsgatan 11 till 14" yielded house number 11 while this module read 11:00–14:00
+// from the same digits (PR #89 review). One definition, two consumers.
+export const RANGE_SEPARATOR = "(?:\\s*[-–—]\\s*|\\s+till\\s+)";
 
 // An optional `kl` before the SECOND time. "Öppet kl 11 - kl 14" repeats the marker,
 // which is ordinary, and without this the range stopped at the dash and degraded to
@@ -137,7 +144,11 @@ const REPEATED_MARKER = "(?:(?:kl|klockan)\\.?\\s*)?";
 // (`.` then a digit), and "89-119" still fails (the second clock matches "11" and is
 // followed by "9"). What it no longer does is treat "." as a digit.
 const NOT_IN_NUMBER_BEFORE = "(?<!\\d[.:]?)";
-const NOT_IN_NUMBER_AFTER = "(?![.:]?\\d)";
+// `NOT_IN_NUMBER_AFTER` is exported for the same reason as `RANGE_SEPARATOR`: it is
+// the statement "these digits are the whole number", and `address.ts` needs the
+// identical statement about a house number. It covers the clock-minute case there
+// too — "Kungsgatan 11:00-14:00" must not yield house 11.
+export const NOT_IN_NUMBER_AFTER = "(?![.:]?\\d)";
 
 // Units that follow a NUMBER RANGE and prove it was never a clock time. A price, a
 // head count, a portion count — captions are full of them, and every one otherwise

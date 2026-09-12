@@ -60,6 +60,15 @@ const PARSER_DIR = fileURLToPath(new URL(".", import.meta.url));
 //                        Added by #65. `location.ts` matches against `DICTIONARY`;
 //                        that IS the module's job. Also inside the directory.
 //
+//   `@/lib/parser/time`  Added by #65 review. `address.ts` imports `RANGE_SEPARATOR`
+//                        and `NOT_IN_NUMBER_AFTER` because the digits after a street
+//                        name are CONTESTED between the two modules — "Kungsgatan
+//                        11-14" is a street and a time window, and whichever module
+//                        takes those digits, the other must not. `address.ts` shipped
+//                        its own separator class and it had already drifted (no em
+//                        dash, no `till`), so the guard failed on exactly the inputs
+//                        it named. Also inside the directory.
+//
 //   `@/lib/types`        Added by #62. `dictionary.ts` is typed against
 //                        `DictionaryEntry`, which the plan's Files table places in
 //                        `types.ts` alongside `ParseResult` and `NewLocation`.
@@ -104,6 +113,7 @@ const PARSER_POLICY = allowOnly([
   "@/lib/parser/boundary",
   "@/lib/parser/date",
   "@/lib/parser/dictionary",
+  "@/lib/parser/time",
   "@/lib/types",
   "date-fns-tz",
 ]);
