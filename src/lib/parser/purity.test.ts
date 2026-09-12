@@ -43,6 +43,23 @@ const PARSER_DIR = fileURLToPath(new URL(".", import.meta.url));
 //                        solves it. Same package, one layer down, and the layer is
 //                        what the allowlist is for.
 //
+//   `@/lib/parser/boundary`
+//                        Added by #65. `BEFORE`, `AFTER`, `alt` and `escapeRegex`
+//                        were written in `negation.ts` (#56) and moved when
+//                        `location.ts` became the second consumer — the same call
+//                        already made for the weekday table, and made for the same
+//                        reason: two hand-maintained copies of an ASCII-unsafe
+//                        boundary drift, and a drifted one fails silently on exactly
+//                        the Swedish compounds it exists to handle.
+//
+//                        INSIDE this directory, so it inherits the glob rather than
+//                        extending the guard's reach — it is one more module checked,
+//                        not an outward edge. Contrast `@/lib/types` below.
+//
+//   `@/lib/parser/dictionary`
+//                        Added by #65. `location.ts` matches against `DICTIONARY`;
+//                        that IS the module's job. Also inside the directory.
+//
 //   `@/lib/types`        Added by #62. `dictionary.ts` is typed against
 //                        `DictionaryEntry`, which the plan's Files table places in
 //                        `types.ts` alongside `ParseResult` and `NewLocation`.
@@ -83,7 +100,13 @@ const PARSER_DIR = fileURLToPath(new URL(".", import.meta.url));
 // SO: ADDING AN OUTWARD EDGE TO THIS LIST INCURS AN OBLIGATION. If a parser module
 // ever needs a third external import, either assert that module's purity too or
 // accept — in writing, here — that the claim now stops at it.
-const PARSER_POLICY = allowOnly(["@/lib/parser/date", "@/lib/types", "date-fns-tz"]);
+const PARSER_POLICY = allowOnly([
+  "@/lib/parser/boundary",
+  "@/lib/parser/date",
+  "@/lib/parser/dictionary",
+  "@/lib/types",
+  "date-fns-tz",
+]);
 
 // RECURSIVE, deliberately. A flat `readdirSync` would let a module in a
 // subdirectory — `dictionary/index.ts`, `rules/time.ts` — escape the guard entirely

@@ -28,6 +28,7 @@
 
 // The weekday vocabulary is shared with `extractDate`, which owns it — see the
 // re-export below for why the table moved rather than being copied.
+import { AFTER, alt, BEFORE, FLAGS } from "@/lib/parser/boundary";
 import { WEEKDAYS, WEEKDAY_INFLECTION } from "@/lib/parser/date";
 
 // SELF-SUFFICIENT MARKERS. These name the state directly — the word alone means
@@ -164,28 +165,9 @@ export const DELAYED_OPENING = ["förrän", "innan", "före"] as const;
 //   `nej`      Usually answers a comment rather than cancelling a day.
 //   `tyvärr`   Modifies anything, including "tyvärr slut på tacos" — they are there.
 
-// Word boundaries WITHOUT `\b`, which is ASCII-only and therefore wrong for Swedish.
-//
-// `\b` sits between a `\w` and a non-`\w` character, and `\w` is `[A-Za-z0-9_]` — so
-// å, ä and ö count as NON-word characters and manufacture boundaries inside words.
-// `/\bstängt\b/` matches inside "snöstängt", because the "ö" before the "s" reads as
-// a boundary. Swedish compounds are formed by exactly that concatenation, so this is
-// a live failure mode rather than a hypothetical.
-const BEFORE = "(?<![\\p{L}\\p{N}])";
-const AFTER = "(?![\\p{L}\\p{N}])";
-
-function alt(tokens: readonly string[]): string {
-  return `(?:${tokens.join("|")})`;
-}
-
 // Built once at module load. No `g` flag, deliberately: a global regex carries
 // `lastIndex` across `.test()` calls, so a shared instance alternates true and false
 // on the same input — a bug that passes any single-call test.
-//
-// The `i` flag is what lets `normalizeCaption` leave casing alone. Matching is this
-// module's concern, so it is handled here rather than by flattening the caption for
-// every other consumer.
-const FLAGS = "iu";
 
 const MARKER = new RegExp(
   `${BEFORE}${alt([...CANCELLATION_MARKERS, ...CANCELLATION_PHRASES])}${AFTER}`,

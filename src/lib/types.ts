@@ -126,3 +126,27 @@ export interface DictionaryEntry {
   readonly source: "manual" | "nominatim";
   readonly verified: boolean;
 }
+
+// What `extractLocation()` returns on a hit (#65). Two fields, and the second is the
+// reason this is an interface rather than just `DictionaryEntry`:
+//
+//   `entry`    the dictionary entry, which carries the coordinates and the canonical
+//              address. This is what becomes the pin.
+//   `matched`  the caption substring the entry was recognised FROM, spelling, casing
+//              and Swedish genitive `s` intact — "jarntorget", "Nordstans".
+//
+// `matched` exists because the phase plan defines `address_raw` as "the text the
+// location was resolved from (the matched caption substring, or the extracted
+// address candidate)". `entry.match[0]` is not that: it is the canonical alias we
+// recognised, not the text the truck wrote, and the two differ on exactly the rows
+// where knowing the difference is worth something. The span is knowable only at the
+// match, so returning it is the alternative to `services/locations.ts` (#68) redoing
+// the work to recover it.
+//
+// `readonly` for the same reason `DictionaryEntry` is: `entry` aliases a module-level
+// constant in a long-lived process, and a write through this shape would outlive the
+// request that made it.
+export interface LocationMatch {
+  readonly entry: DictionaryEntry;
+  readonly matched: string;
+}
