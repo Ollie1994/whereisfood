@@ -113,6 +113,28 @@ const RANGE_SEPARATOR = "(?:\\s*[-–—]\\s*|\\s+till\\s+)";
 // handling — it simply sits outside the match.
 const REPEATED_MARKER = "(?:(?:kl|klockan)\\.?\\s*)?";
 
+// EVERYTHING THAT MAY SIT BETWEEN TWO CLOCKS, as one constant.
+//
+// `address.ts` has to reject exactly what `RANGE` accepts, because the digits after a
+// street name are contested between the two modules — "Kungsgatan 11-14" is a street
+// and a time window, not house 11 — and whichever module takes those digits, the
+// other must not.
+//
+// ⚠ THIS IS EXPORTED AS THE COMPOSITION, not as its two parts, and that is the whole
+// point of it existing. The first attempt at sharing exported `RANGE_SEPARATOR` and
+// `NOT_IN_NUMBER_AFTER` separately and left `address.ts` to reassemble them; it
+// reassembled them WITHOUT `REPEATED_MARKER`, so "Kungsgatan 11 - kl 14" was read as
+// house number 11 here and as 11:00–14:00 there — the same digits claimed twice, by
+// the very fix that was meant to stop that (PR #89 r1 → r2). Importing the pieces of
+// a construction is not sharing the construction. There is now one string, it is what
+// `RANGE` itself uses, and a consumer cannot get the assembly wrong because there is
+// no assembly left to do.
+//
+// `MELLAN_RANGE` is deliberately NOT folded in: it requires a leading `mellan`, so a
+// number directly after a street name can never be its opening clock, and nothing in
+// `address.ts` needs to guard against it.
+export const CLOCK_JOINER = `${RANGE_SEPARATOR}${REPEATED_MARKER}`;
+
 // DIGIT-ADJACENCY GUARDS, not word guards. A time is bounded by things that are not
 // part of a number: these stop "61" being read out of the house number in
 // "Nordostpassagen 61-63" and stop a partial match leaving a stray fragment.
@@ -137,7 +159,14 @@ const REPEATED_MARKER = "(?:(?:kl|klockan)\\.?\\s*)?";
 // (`.` then a digit), and "89-119" still fails (the second clock matches "11" and is
 // followed by "9"). What it no longer does is treat "." as a digit.
 const NOT_IN_NUMBER_BEFORE = "(?<!\\d[.:]?)";
-const NOT_IN_NUMBER_AFTER = "(?![.:]?\\d)";
+// `NOT_IN_NUMBER_AFTER` is exported for the same reason as `CLOCK_JOINER`: it is the
+// statement "these digits are the whole number", and `address.ts` needs the identical
+// statement about a house number. It covers the clock-minute case there too —
+// "Kungsgatan 11:00-14:00" must not yield house 11.
+//
+// Unlike `CLOCK_JOINER` this one IS a single atom already, so there is nothing a
+// consumer can reassemble incorrectly.
+export const NOT_IN_NUMBER_AFTER = "(?![.:]?\\d)";
 
 // Units that follow a NUMBER RANGE and prove it was never a clock time. A price, a
 // head count, a portion count — captions are full of them, and every one otherwise
@@ -210,7 +239,7 @@ const LUNCHTID = new RegExp(`${BEFORE_WORD}lunchtid${AFTER_WORD}`, "iu");
 // one, and taking the first MATCH would reject the caption while taking the first
 // VALID match reads it correctly.
 const RANGE = new RegExp(
-  `${NOT_IN_NUMBER_BEFORE}${CLOCK}${RANGE_SEPARATOR}${REPEATED_MARKER}${CLOCK}${NOT_IN_NUMBER_AFTER}`,
+  `${NOT_IN_NUMBER_BEFORE}${CLOCK}${CLOCK_JOINER}${CLOCK}${NOT_IN_NUMBER_AFTER}`,
   "giu",
 );
 
