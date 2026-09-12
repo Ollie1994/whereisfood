@@ -57,12 +57,13 @@ export const STREET_SUFFIXES = [
 // preposition instead and sends "på Långgatan 12" to the geocoder as "på långgatan
 // 12".
 //
-// KNOWN LIMIT, pinned by a test: a two-word street whose first word is NOT on this
-// list is missed entirely — "Danska Vägen 12" returns null, because "Vägen" is a bare
-// suffix and nothing on this list names it. r2 returned "Vägen 12" there, which was
-// worse than the miss: that query inside a Gothenburg viewbox answers confidently and
-// at random. The list is left narrow because Phase 8 captions should decide which
-// words to add, and a wrong first word is worse than a missing one.
+// ⚠ THIS LIST NOW ONLY MATTERS IN FRONT OF A COMPOUND. Since r4 there is no
+// bare-suffix form at all, so "Södra Vägen 12" and "Danska Vägen 12" both return null
+// — the list cannot rescue either, because `Vägen` is not a compound. What it still
+// does is keep "Andra" attached to "Andra Långgatan 12".
+//
+// Left narrow for the same reason as ever: a wrong first word is worse than a missing
+// one, and Phase 8 captions should decide which words to add.
 export const STREET_MODIFIERS = [
   "norra",
   "södra",
@@ -105,29 +106,32 @@ const MODIFIER = alt(STREET_MODIFIERS);
 //       vägen", and "Vi tar nya vägen idag" returned "nya vägen". Each one not only
 //       invented a place but, being leftmost, discarded the real address behind it.
 //
-// So r2 REMOVED a rule rather than adding a third, and r3 restored a structural
-// distinction r2 had flattened away. The whole rule, in two parts — see
-// `isCandidate`, which is where both are enforced together:
+//   r3  "a bare suffix needs a modifier". Same mistake a third time, in the numbered
+//       form the r1 tests never covered: "lilla vägen 2 kvarter till Kungsgatan 12"
+//       returned "lilla vägen 2". "Södra Vägen" and "lilla vägen" ARE the same shape.
 //
-//   **A candidate is a street name followed by a house number, where a street name is
-//   a suffix-compound, or a bare suffix that a modifier names.**
+// So every round after r1 has REMOVED a form rather than guarded one, and what is
+// left is one sentence with no exceptions:
+//
+//   **A candidate is a suffix-COMPOUND followed by a house number.**
 //
 // A modifier is a DISAMBIGUATOR — it says which Långgatan, not that this is a street.
-// r1 promoted it to evidence, which it never was. Its two real jobs both survive:
-// naming a bare suffix ("Södra Vägen"), and being captured as part of a compound's
-// name ("Andra Långgatan 12", ambiguous between four streets without it). Neither is
-// a licence on its own.
+// r1 promoted it to evidence and r3 promoted it again for one form; it now has
+// exactly one job, which it can do safely: sitting in front of a compound, it is
+// captured as part of that street's name. "Andra Långgatan 12" is ambiguous between
+// four Gothenburg streets without it.
 //
 // WHY THIS IS THE END OF THE LINE AND NOT ANOTHER NOTCH. The house number is the only
 // signal in a caption that is not also ordinary prose, and there is no third
 // corroborator to promote: every remaining candidate signal — capitalisation, a
 // preposition in front, a longer compound — is a heuristic whose gaps produce WRONG
 // pins, and there is zero real caption data to calibrate one against until Phase 8.
-// Adding one would be the r1 mistake a third time.
 //
-// ⚠ Note what r3's addition was and was NOT. It restored a distinction r1's pattern
-// already made and r2 lost while simplifying — not a new condition on top. That
-// difference is the whole test for whether a round is converging or circling.
+// ⚠ THE TEST FOR WHETHER A ROUND IS CONVERGING OR CIRCLING, learned here the hard
+// way: does the fix REMOVE a form the rule cannot keep safe, or add a condition that
+// tries to keep it? r1 and r3 added conditions and each was refuted one round later
+// by the same class in a form the tests had not covered. r2 and r4 removed forms, and
+// neither has been refuted.
 //
 // ⚠ THE LIMIT THAT REMAINS, stated because it CANNOT be closed here and a comment
 // claiming otherwise is what caused both earlier rounds. A numbered common noun is
@@ -145,48 +149,76 @@ const MODIFIER = alt(STREET_MODIFIERS);
 // THE COST OF THE RULE, also pinned. All of these are real and all now return null:
 //
 //   "Vi står på Kungsgatan idag"        a street with no number
-//   "Vi står på Södra Vägen idag"       a real street the modifier used to license
 //   "Vi står på Ramberget 11-14"        a named point, no number to give
-//   "Vi står på Danska Vägen 12"        a bare suffix no modifier names
+//   "Vi står på Södra Vägen 12"         a bare suffix; no bare-suffix form survives r4
+//   "Vi står på Nya Allén 3"            the same
+//   "Vi ses vid Kungsgatans korsning"   a genitive, and no number either way
 //
 // Every one has the same remedy, and it is a good one: **add the place to the
 // dictionary.** That is the human-reviewed, bounded, testable half of this design;
 // this regex is the half that handles numbered addresses nobody has reviewed. Pushing
 // coverage into the dictionary moves it toward evidence, and pushing it into the
 // pattern moves it away.
-// ⚠ A BARE SUFFIX NEEDS A MODIFIER, and this half was LOST in r2 rather than decided
-// away. r1's pattern had two branches — a compound with an optional modifier, or a
-// bare suffix with a required one — and r2 flattened them into `(?:\p{L}{2,})?SUFFIX`
-// while simplifying the corroboration rule. Once a house number was the only licence,
-// that flattening quietly made every bare definite noun a candidate:
+// ⚠ THERE IS NO BARE-SUFFIX FORM, and r3's attempt to keep one safe is why.
 //
-//   "Vi står på torget 5 minuter från Kungsgatan 12"   →  "torget 5"
-//   "Vi står vid vägen 2 kvarter från Kungsgatan 12"   →  "vägen 2"
-//   "Vi står på berget 2 min bort, Kungsgatan 12"      →  "berget 2"
+// r1's pattern allowed a bare suffix when a modifier named it — "Södra Vägen", "Nya
+// Allén", both real Gothenburg streets. r2 flattened that away by accident. r3
+// restored it as an explicit condition, "a bare suffix needs a modifier", and r4
+// showed the condition cannot work:
 //
-// — the same leftmost-masking the r2 change claimed to have closed, discarding the
-// real address in all three. A simplification is a change of behaviour unless it is
-// checked against the case the structure it removed was carrying.
+//   "Vi kör lilla vägen 2 kvarter till Kungsgatan 12"   →  "lilla vägen 2"
+//   "Vi tar nya vägen 5 minuter till Kungsgatan 12"     →  "nya vägen 5"
+//   "Vi står vid stora torget 5 meter från Kungsgatan 12" → "stora torget 5"
 //
-// The bare-suffix form exists ONLY for "Södra Vägen" and "Nya Allén", where the
-// modifier is what makes the word a name. So that is the condition, stated directly.
+// **"Södra Vägen" and "lilla vägen" are the same shape.** Modifier plus bare suffix,
+// in both cases, and nothing in the string distinguishes a street name from an
+// ordinary adjective phrase. r3 only tested the un-numbered form of those phrases —
+// the exact omission its own comment warned about one paragraph earlier — so the
+// condition looked sound and was not.
 //
-// EXPRESSED HERE RATHER THAN IN THE PATTERN, deliberately. Restoring two regex
-// branches means duplicating the street group and shifting capture indices with it,
-// which is the kind of change that breaks the readout silently. A predicate keeps the
-// whole "is this a candidate" decision in one place and one shape — which is also
-// what makes it obvious that r2's version was only half of it.
-function isCandidate(modifier: string | undefined, street: string, number: string | undefined): boolean {
-  // A number is the only thing that licenses a candidate at all. See the rule above.
-  if (number === undefined) return false;
+// So the form is REMOVED rather than guarded again. `\p{L}{2,}` in front of the suffix
+// is now mandatory, and the rule has no exceptions left:
+//
+//   **A candidate is a suffix-COMPOUND followed by a house number.**
+//
+// COST, pinned: "Södra Vägen 12" and "Nya Allén 3" no longer resolve. That is the
+// whole reason the form existed, and it is a real loss — but it is the same loss this
+// module already takes for every named place it cannot verify, with the same remedy:
+// put them in `dictionary.ts`, where a human looks at the coordinate. Two entries buy
+// back exactly what this deletion costs, and buy it back with evidence.
+//
+// A modifier keeps ONE job, which it can do safely: when it sits in front of a
+// suffix-compound it is captured as part of the name. "Andra Långgatan 12" is
+// ambiguous between four Gothenburg streets without it.
 
-  // `street` excludes the genitive `s`, so "Vägens" arrives here as "Vägen" and is
-  // compared against the suffix list unchanged.
-  const isBareSuffix = STREET_SUFFIXES.some(
-    (suffix) => suffix.toLowerCase() === street.toLowerCase(),
-  );
-
-  return !isBareSuffix || modifier !== undefined;
+// THE GENITIVE `s` IS NOT STRIPPED, and this reverses r3.
+//
+// r2 deleted the `s?` arguing nothing could reach it. That claim was false and r3
+// verified it false — four inputs reach it — so r3 put the `s?` back. **That was the
+// wrong inference.** A justification being false does not make the conclusion false,
+// and evaluating the conclusion on its own merits is a separate step r3 skipped.
+//
+// On the merits, deleting it was right. r3 claimed only UNGRAMMATICAL captions reach
+// the `s?`, so "neither direction risks a wrong pin". Also false: genitive plus
+// numeral is ordinary Swedish whenever the numeral counts what follows, and every one
+// of these invented a place AND discarded the real address behind it —
+// a REGRESSION against the version r3 was correcting:
+//
+//   "Vi tar spårvägens 5 till Kungsgatan 12"      →  "spårvägen 5"
+//   "Motorvägens 3 filer, vi står på Kungsgatan 12" → "Motorvägen 3"
+//   "gågatans 5 bästa mackor, Kungsgatan 12"      →  "gågatan 5"
+//
+// What it bought in exchange was "Kungsgatans 12", which is not how Swedish writes an
+// address at all. A typo rescued against three ordinary phrases invented.
+//
+// `location.ts` strips a genitive and should: there the suffix is a VERIFIED
+// dictionary alias, so "Nordstans" can only mean Nordstan. Here the stem is arbitrary
+// text, so the same rule generates places. The two modules differ in what backs the
+// match, which is the whole difference between them.
+function isCandidate(number: string | undefined): boolean {
+  // The single condition. Everything else that used to live here was a form the rule
+  // could not keep safe, and each was removed rather than guarded a second time.
+  return number !== undefined;
 }
 
 // The house number, and the guards that decide it is one.
@@ -224,13 +256,21 @@ function isCandidate(modifier: string | undefined, street: string, number: strin
 // ⚠ THIS GUARD IS DELIBERATELY BROADER THAN `extractTime`'S ACTUAL DECISION, and
 // saying so is the honest version of a claim two earlier rounds got wrong.
 //
-// `CLOCK_JOINER` is the SHAPE of a range. `extractTime` additionally rejects a
-// range-shaped candidate followed by a unit — `TRAILING_UNIT`, so "12 - 45 portioner"
-// is a portion count, not a serving window. This module does not mirror that, so both
-// extractors decline and the address is lost outright:
+// `CLOCK_JOINER` is the SHAPE of a range. `extractTime` then applies two further
+// rejections this module does not mirror — an hour that is not a valid clock, and
+// `TRAILING_UNIT`, a unit after the range — so both extractors decline and the address
+// is lost outright:
 //
-//   "Kungsgatan 12 - 45 portioner kvar"    time: null   address: null
-//   "Kungsgatan 12 till 100 gäster"        time: null   address: null
+//   "Kungsgatan 12 - 14 kr"                time: null   address: null   (TRAILING_UNIT)
+//   "Kungsgatan 12 - 45 portioner kvar"    time: null   address: null   (45 is no hour)
+//
+// ⚠ THE SECOND ROW DOES NOT EXERCISE `TRAILING_UNIT`, and r3's version of this comment
+// said it did. `firstValidRange` rejects "45" as a clock before the unit filter runs,
+// and "portioner" is not in `TRAILING_UNITS` at all. The tests r3 wrote to pin this
+// used only that shape, so they passed with `TRAILING_UNIT` deleted — verified by
+// mutation. A test that credits the wrong mechanism pins nothing, and it is the fourth
+// time in this PR that a claim about a guard was written without running it. The first
+// row is the one that engages the filter, and it is the one under test.
 //
 // NOT FIXED BY IMPORTING ONE MORE FRAGMENT, and that is the point. `TRAILING_UNIT` is
 // applied by `extractTime` as a POST-FILTER on the text after a match, so mirroring it
@@ -300,7 +340,7 @@ const NUMBER = `(?:\\s+(\\d{1,3}${NOT_IN_NUMBER_AFTER}(?!${CLOCK_JOINER}\\d)(?:\
 // this instance's `lastIndex` untouched. That is what makes a module-level global safe
 // here where `negation.ts` warns against one; the stability test pins it.
 const ADDRESS = new RegExp(
-  `${BEFORE}(?:(${MODIFIER})\\s+)?((?:\\p{L}{2,})?${SUFFIX})s?${AFTER}${NUMBER}`,
+  `${BEFORE}(?:(${MODIFIER})\\s+)?(\\p{L}{2,}${SUFFIX})${AFTER}${NUMBER}`,
   `${FLAGS}g`,
 );
 
@@ -310,7 +350,7 @@ const ADDRESS = new RegExp(
 // `allén` and `vägen` exactly as it defeats the negation vocabulary.
 export function extractAddressCandidate(normalized: string): string | null {
   for (const [, modifier, street, number] of normalized.matchAll(ADDRESS)) {
-    if (!isCandidate(modifier, street, number)) continue;
+    if (!isCandidate(number)) continue;
 
     // Rebuilt from the groups rather than returned as the whole match, so the
     // whitespace the pattern matched with `\s+` is normalised on the way out —

@@ -96,12 +96,30 @@ describe("extractAddressCandidate", () => {
       expect(extract(caption)).toBe("Kungsgatan 12");
     });
 
-    it("still accepts a bare suffix when a modifier names it", () => {
-      // The one reason the bare-suffix form exists at all. Without this the rule
-      // above could be satisfied by deleting the form entirely, and "Södra Vägen"
-      // and "Nya Allén" would stop resolving.
-      expect(extract("Vi står på Södra Vägen 12 idag")).toBe("Södra Vägen 12");
-      expect(extract("Vi står på Nya Allén 3 idag")).toBe("Nya Allén 3");
+    it.each([
+      ["lilla vägen 2", "Vi kör lilla vägen 2 kvarter till Kungsgatan 12"],
+      ["nya vägen 5", "Vi tar nya vägen 5 minuter till Kungsgatan 12"],
+      ["stora torget 5", "Vi står vid stora torget 5 meter från Kungsgatan 12"],
+      ["andra platsen 3", "Vi står på andra platsen 3 kvarter från Kungsgatan 12"],
+    ])("rejects %s — a modifier cannot name a bare suffix either", (_case, caption) => {
+      // ⚠ r3 ALLOWED THESE. It kept a bare-suffix form licensed by a modifier, for
+      // "Södra Vägen" and "Nya Allén" — and "Södra Vägen" and "lilla vägen" are the
+      // same shape, so the condition admitted ordinary adjective phrases in their
+      // NUMBERED form. r3 tested only the un-numbered form, one paragraph after
+      // writing down that a guard's other parameter value must be tested.
+      //
+      // The form is gone rather than guarded a third time. These now fall through to
+      // the address the caption actually states.
+      expect(extract(caption)).toBe("Kungsgatan 12");
+    });
+
+    it("COST: the bare-suffix streets that form existed for are gone too", () => {
+      // "Södra Vägen" and "Nya Allén" are real Gothenburg streets and were the whole
+      // reason for the form. Losing them is the price of a rule with no exceptions,
+      // and the remedy is the same as for every other named place this module cannot
+      // verify: two entries in `dictionary.ts`, where a human looks at the coordinate.
+      expect(extract("Vi står på Södra Vägen 12 idag")).toBeNull();
+      expect(extract("Vi står på Nya Allén 3 idag")).toBeNull();
     });
   });
 
@@ -132,11 +150,12 @@ describe("extractAddressCandidate", () => {
       expect(extract(caption)).toBe("Kungsgatan 12");
     });
 
-    it("still captures a modifier that belongs to a corroborated street's name", () => {
-      // The naming job the list is actually for. Dropping "Fjärde" would pin the
-      // truck on one of three other Långgatan.
+    it("still captures a modifier in front of a COMPOUND, which is its one safe job", () => {
+      // Dropping "Fjärde" would pin the truck on one of three other Långgatan. This
+      // is all the modifier list does now — it never licenses, it only names, and
+      // only where a compound has already licensed the candidate.
       expect(extract("Lunch på Fjärde Långgatan 3 idag")).toBe("Fjärde Långgatan 3");
-      expect(extract("Vi står på Södra Vägen 12 idag")).toBe("Södra Vägen 12");
+      expect(extract("Vi står på Andra Långgatan 12")).toBe("Andra Långgatan 12");
     });
   });
 
@@ -227,21 +246,29 @@ describe("extractAddressCandidate", () => {
     });
 
     it.each([
-      ["a portion count", "Vi står på Kungsgatan 12 - 45 portioner kvar"],
-      ["a guest count after till", "Vi står på Kungsgatan 12 till 100 gäster"],
-      ["a price", "Vi står på Kungsgatan 12 - 45 kr"],
+      ["a price, rejected by TRAILING_UNIT", "Vi står på Kungsgatan 12 - 14 kr"],
+      ["a seat count, rejected by TRAILING_UNIT", "Vi står på Kungsgatan 12 - 14 platser"],
+      ["a dish count, rejected by TRAILING_UNIT", "Vi står på Kungsgatan 10 - 12 rätter"],
+      ["a portion count, rejected as a clock", "Vi står på Kungsgatan 12 - 45 portioner"],
     ])("KNOWN COST: %s is range-SHAPED, so the address is lost too", (_case, caption) => {
-      // `extractTime` rejects these via `TRAILING_UNIT` — a unit after a range means
-      // it was never a clock. This module only mirrors the range SHAPE, so it drops
-      // the number and then has nothing licensing the street, and both extractors
-      // decline.
+      // ⚠ THE FIRST THREE ROWS ARE THE POINT, and r3's version had none of them.
+      // r3 credited `TRAILING_UNIT` while testing only "45 portioner" and "100
+      // gäster" — neither of which reaches that filter, because `firstValidRange`
+      // rejects 45 and 100 as clocks first, and neither word is in `TRAILING_UNITS`.
+      // Those rows passed with `TRAILING_UNIT` deleted; verified by mutation. A test
+      // that credits the wrong mechanism pins nothing.
       //
-      // Asserted as current behaviour rather than described, because "the guard
-      // matches what extractTime claims" is precisely the overclaim that r0 and r1
-      // both shipped. Mirroring `TRAILING_UNIT` here means replicating more of
-      // another module's grammar — the thing that has now failed three times. The
-      // real fix is #67 resolving the overlap from both results; the direction here
-      // is safe meanwhile, since the cost is a missed address, not a wrong one.
+      // The rows above use a valid hour and a real unit, so they engage the filter
+      // this comment names. The last row is kept to cover the other rejection path.
+      //
+      // This module mirrors only the range SHAPE, so it drops the number and then has
+      // nothing licensing the street — both extractors decline. Asserted as current
+      // behaviour rather than described, because "the guard matches what extractTime
+      // claims" is exactly the overclaim r0, r1 and r3 each shipped. Mirroring
+      // `TRAILING_UNIT` here would mean replicating more of another module's grammar,
+      // which is the move that failed all three times; the real fix is #90 resolving
+      // the overlap from both results. The direction meanwhile is safe: the cost is a
+      // missed address, not a wrong one.
       const normalized = normalizeCaption(caption);
 
       expect(extractTime(normalized, "2026-09-12")).toBeNull();
@@ -275,23 +302,37 @@ describe("extractAddressCandidate", () => {
     });
   });
 
-  describe("a genitive case ending never reaches the geocoder", () => {
+  describe("a genitive is not stripped, and that is deliberate", () => {
     it.each([
-      ["Vi står på Kungsgatans 12", "Kungsgatan 12"],
-      ["Vi står på Södra Vägens 12 idag", "Södra Vägen 12"],
-      ["Vi står vid gågatans 5", "gågatan 5"],
-    ])("%s", (caption, expected) => {
-      // ⚠ THIS IS THE ASSERTION r2 DID NOT HAVE, and its absence is why r2 deleted
-      // the `s?` on the argument that nothing could reach it. Four inputs reach it,
-      // and without the `s?` every one of them returned null. The claim was about
-      // every possible input and was made by reading the pattern, which is not
-      // something reading a pattern can establish.
+      ["a counting phrase", "Vi tar spårvägens 5 till Kungsgatan 12"],
+      ["a lane count", "Motorvägens 3 filer, vi står på Kungsgatan 12"],
+      ["a superlative count", "gågatans 5 bästa mackor, Kungsgatan 12"],
+    ])("does not invent a place from %s", (_case, caption) => {
+      // ⚠ THE ROUND-TRIP WORTH REMEMBERING. r2 deleted the genitive `s?` arguing
+      // nothing could reach it — false, and r3 verified it false, so r3 put the `s?`
+      // back. That inference was wrong: **a justification being false does not make
+      // the conclusion false.** Evaluating the conclusion on its own merits is a
+      // separate step, and r3 skipped it.
       //
-      // These captions are UNGRAMMATICAL — Swedish does not put a house number after
-      // a genitive — so this is robustness to a malformed caption, not a supported
-      // form. It is kept because decoding one into a correct pin costs one character
-      // and neither direction risks a wrong pin.
-      expect(extract(caption)).toBe(expected);
+      // On the merits the deletion was right. Genitive plus numeral is ordinary
+      // Swedish whenever the numeral counts what follows, so the restored `s?`
+      // invented a place AND discarded the real address in each of these — a
+      // regression against the very version r3 was correcting.
+      expect(extract(caption)).toBe("Kungsgatan 12");
+    });
+
+    it("COST: an ungrammatical genitive address is not rescued", () => {
+      // What the `s?` bought in exchange, and why it was not worth it: "Kungsgatans
+      // 12" is not how Swedish writes an address at all. One typo rescued against
+      // three ordinary phrases invented.
+      expect(extract("Vi står på Kungsgatans 12")).toBeNull();
+    });
+
+    it("is why `location.ts` may strip one and this module may not", () => {
+      // The two modules differ in what backs the match. There the suffix is a
+      // VERIFIED dictionary alias, so "Nordstans" can only mean Nordstan. Here the
+      // stem is arbitrary text, so the same rule generates places.
+      expect(extract("Vi ses vid Kungsgatans korsning")).toBeNull();
     });
   });
 
