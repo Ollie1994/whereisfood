@@ -1,4 +1,4 @@
-import { defineConfig } from "vitest/config";
+import { defaultExclude, defaultInclude, defineConfig } from "vitest/config";
 import { fileURLToPath } from "node:url";
 
 // TWO PROJECTS, SPLIT BY WHAT THEY NEED TO RUN — not by what they test.
@@ -32,28 +32,36 @@ const alias = {
 // Postgres over HTTP.
 const environment = "node";
 
-// ⚠ VITEST'S OWN DEFAULT SUFFIX, COPIED VERBATIM. The only thing this split should
-// change is WHICH DIRECTORY a project looks in — never which files count as tests.
+// The one directory that needs infrastructure. Everything else is a unit test by
+// definition, and the projects below are written as exactly that statement.
+const INTEGRATION_DIR = "tests/integration";
+
+// ⚠ THE SPLIT SUBTRACTS; IT NEVER ENUMERATES. This file has now twice narrowed what
+// counts as a test as a SIDE EFFECT of deciding where integration tests live, and both
+// times the narrowing failed green:
 //
-// The first version of this file wrote `src/**/*.test.ts`, which narrows the extension
-// set as a side effect of scoping the directory, and the narrowing is SILENT. Verified:
-// with `src/lib/zzprobe.test.tsx` and `src/lib/zzprobe2.spec.ts` both containing
-// `expect(1).toBe(2)`, `npm run test:run` reported `917 passed` and exited 0. Two
-// failing files, never collected, nothing said so.
+//   EXTENSIONS (PR #98 r1). `src/**/*.test.ts` silently dropped `.tsx`, `.spec.*`,
+//   `.mts` and `.cts`. A failing `src/lib/x.test.tsx` and a failing `src/lib/x.spec.ts`
+//   both reported `917 passed`, exit 0, never collected. Phase 4 and 5 add `.tsx` hook
+//   and component tests — `useMapLibre.tsx` is already `.tsx` — so the first UI test
+//   written would have passed by not running.
 //
-// That is a live hazard rather than a tidiness point: Phase 4 and 5 add hook and
-// component tests, which are idiomatically `.tsx` — `useMapLibre.tsx` is already a
-// `.tsx` module — so the first UI test written would have passed by not running.
+//   DIRECTORIES (PR #98 r2). Fixing the extensions left `src/**` as the unit root, so a
+//   test in neither root belonged to no project at all. Verified: failing files at
+//   `tests/helpers/zz.test.ts` and `scripts/zz.test.ts` left BOTH scripts at exit 0.
+//   `scripts/` is not hypothetical — `scripts/reparse.mjs` is #71, this phase.
 //
-// ⚠ AND IT IS NOT FIXED BY WRITING `{ts,tsx}`. That drops `.spec.*`, `.mts`, `.cts`
-// and the `.js` family, which is the same "enumerate a set and miss a member" mistake
-// `test-utils/purity.ts` paid for four times over. The set belongs to vitest; the
-// correct move is to reuse its pattern and prefix a directory, so a future vitest that
-// recognises a new extension is inherited rather than missed.
+// Same class, one axis apart, and the second was introduced by the fix for the first.
+// So the rule is now structural rather than remembered: `unit` is vitest's DEFAULT
+// reach minus one directory, and `integration` is that directory. Neither project
+// states a file pattern of its own, so neither can narrow one.
 //
-// Source: vitest 3.2.7's compiled default, `**/*.{test,spec}.?(c|m)[jt]s?(x)`, read out
-// of `node_modules` — the same place the `workspace` deprecation was confirmed.
-const TEST_FILES = "*.{test,spec}.?(c|m)[jt]s?(x)";
+// `defaultInclude` and `defaultExclude` are imported from `vitest/config` — the real
+// values, not a copy of them. r1 hand-copied the pattern correctly and that was still
+// the weaker move: a copy is right until vitest changes, and nothing would say when it
+// had. Current values, for the reader: include `["**/*.{test,spec}.?(c|m)[jt]s?(x)"]`,
+// exclude `node_modules`, `dist`, `cypress`, dotfile caches and tool configs.
+const INTEGRATION_INCLUDE = defaultInclude.map((pattern) => `${INTEGRATION_DIR}/${pattern}`);
 
 export default defineConfig({
   test: {
@@ -63,15 +71,18 @@ export default defineConfig({
         test: {
           name: "unit",
           environment,
-          // Co-located, per the testing convention: a test file next to its source.
-          // Scoped to `src/` so nothing under `tests/` can drift into the fast suite —
-          // the include is what makes "unit runs with Docker stopped" a property of the
-          // config rather than of where someone happened to put a file.
+          // EVERYTHING VITEST WOULD COLLECT, MINUS the one directory that needs a
+          // database. Not `src/**`: a test is a unit test unless it is an integration
+          // test, and defining it the other way round is what left orphans unrun.
           //
-          // The DIRECTORY is this line's whole contribution; `TEST_FILES` above is
-          // vitest's own pattern, so `.tsx` component tests and `.spec.*` files are
-          // collected here exactly as they would be with no `include` at all.
-          include: [`src/**/${TEST_FILES}`],
+          // Co-location stays the convention — a test file next to its source — but it
+          // is now a convention rather than a thing the runner enforces by ignoring
+          // whatever breaks it.
+          include: defaultInclude,
+          // `exclude` REPLACES vitest's defaults rather than extending them, so the
+          // defaults are spread back in. Dropping them would pull `node_modules` into
+          // the run.
+          exclude: [...defaultExclude, `${INTEGRATION_DIR}/**`],
         },
       },
       {
@@ -79,7 +90,11 @@ export default defineConfig({
         test: {
           name: "integration",
           environment,
-          include: [`tests/integration/**/${TEST_FILES}`],
+          // The mirror of `unit`'s exclusion, derived from the same constant so the two
+          // cannot drift into overlapping or leaving a gap between them. Globstar
+          // matches zero segments, so a file directly in `tests/integration/` is
+          // collected as well as one nested under it.
+          include: INTEGRATION_INCLUDE,
 
           // ⚠ `passWithNoTests` IS NOT HERE EITHER, and for the same reason — it is on
           // the `NonProjectOptions` list, so it belongs to the run rather than to a
