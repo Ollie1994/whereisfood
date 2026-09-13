@@ -28,13 +28,22 @@ import { extractTime } from "@/lib/parser/time";
 // this project has shipped unchecked before. Each mutant was applied to `index.ts`,
 // run, and reverted; each is killed by this suite:
 //
-//   delete the negation bail, keep `isNegation`
+//   stop suppressing `place` on a negation
+//   suppress `time` on a negation again — the r3 regression, see below
+//   force a negation's `date` to `parsedAt` again — the other half of it
+//   drop `isNegation` from the `scoreConfidence` input
 //   check the address fallback before the dictionary
 //   pass `parsedAt` to `extractTime` rather than the resolved date
-//   cross the two `scoreConfidence` axes
 //
 // and two more that are killed by `purity.test.ts` rather than by anything here —
 // appending `Date.now()` to `index.ts`, and appending an `@/lib/supabase` import.
+//
+// ⚠ THE SECOND AND THIRD ROWS ARE NEW AND ARE THE POINT OF THIS TABLE NOW. The
+// suppression used to be a blanket early return that dropped `place`, `date` AND
+// `time`, which contradicts plan decision #1 — the cancellation window IS the
+// extracted range when there is one. Those two mutants restore the old behaviour, so
+// the plan rule is now pinned in the direction it was actually violated, rather than
+// only in the direction the original design happened to get right.
 //
 // ⚠ NO FAILURE COUNTS, AND THE DELETED ONES ARE WHY. A first version of this table
 // gave a count per mutant. Three of the four were wrong within one commit: the
@@ -57,10 +66,21 @@ import { extractTime } from "@/lib/parser/time";
 // the score would have called the mutant correct.
 
 // The Stockholm calendar date every case is read against, unless it says otherwise.
-// A Friday, and in CEST (UTC+2) — so 11:00 local is 09:00Z.
+// A SATURDAY, in CEST (UTC+2) — so 11:00 local is 09:00Z.
+//
+// ⚠ THE WEEKDAY IS LOAD-BEARING, which is why it is stated and why getting it wrong
+// mattered. The `#96` rows resolve "söndag" to 2026-08-23, which is only the next day
+// because this is a Saturday; on any other weekday those assertions would need a
+// different date. An earlier version of this comment called it a Friday — and the
+// `#96` block eight lines down correctly called it a Saturday, so the file
+// contradicted itself. Both were written by reading the constant rather than
+// computing it.
 const SUMMER = "2026-08-22";
-// The same weekday in CET (UTC+1), where 11:00 local is 10:00Z. Used wherever a case
-// would still pass with the offset hard-coded or dropped.
+// A THURSDAY, in CET (UTC+1), where 11:00 local is 10:00Z. The weekday is deliberately
+// NOT matched to SUMMER's — nothing here needs them to agree, and an earlier comment
+// claiming "the same weekday" was both false and a promise no test depends on. What
+// this constant is for is the OFFSET: it is used wherever a case would still pass with
+// +02:00 hard-coded or dropped.
 const WINTER = "2026-01-15";
 
 describe("the worked example", () => {
@@ -98,7 +118,7 @@ describe("the worked example", () => {
   });
 });
 
-describe("a negation bails before every other extractor", () => {
+describe("a negation suppresses the place, and only the place", () => {
   // Chosen so that EVERY later step has something to find. That is the whole design
   // of this case: a caption where the extractors come up empty anyway would let a
   // parser with no short-circuit at all pass these assertions.
@@ -124,30 +144,57 @@ describe("a negation bails before every other extractor", () => {
     expect(result.place).toBeNull();
   });
 
-  it("returns no time, even though the caption states an explicit range", () => {
-    expect(result.time).toBeNull();
+  it("KEEPS the extracted window — it is the cancellation's payload", () => {
+    // ⚠ THE OPPOSITE OF WHAT THIS ASSERTED BEFORE, and the change is a plan
+    // requirement rather than a preference. Decision #1: "Cancellation window: the
+    // extracted time range if there is one, otherwise the full Stockholm day of the
+    // extracted date." #69 cannot scope the delete without it.
+    expect(result.time).toEqual({
+      startsAt: "2026-08-22T09:00:00.000Z",
+      endsAt: "2026-08-22T12:00:00.000Z",
+      kind: "range",
+    });
   });
 
-  it("scores 0.0", () => {
+  it("scopes a partial cancellation to the slot it names", () => {
+    // The failure the line above prevents, stated as the caption that produces it. A
+    // truck cancelling lunch and keeping dinner: with `time: null` this fell through
+    // to the full-day rule and #69 would have deleted the 17–20 pin too.
+    const lunchOnly = parseCaption("Inställt 11-14 idag", SUMMER);
+
+    expect(lunchOnly.isNegation).toBe(true);
+    expect(lunchOnly.time?.startsAt).toBe("2026-08-22T09:00:00.000Z");
+    expect(lunchOnly.time?.endsAt).toBe("2026-08-22T12:00:00.000Z");
+  });
+
+  it("resolves the day the caption names, so the window lands on the right date", () => {
+    // Also reversed. The window is built on the resolved date, so dropping the date
+    // would put a correct time on the wrong day — the two cannot be separated.
+    const tomorrow = "Inställt imorgon vid Järntorget";
+
+    expect(extractDate(normalizeCaption(tomorrow), SUMMER)).toBe("2026-08-23");
+    expect(parseCaption(tomorrow, SUMMER).date).toBe("2026-08-23");
+    // Still no place, which is the half of the suppression that stays.
+    expect(parseCaption(tomorrow, SUMMER).place).toBeNull();
+  });
+
+  it("scores 0.0 even now that a window survives", () => {
+    // The window reaching `scoreConfidence`'s time axis must not score it as a
+    // location. `scoreConfidence` short-circuits on `isNegation` before either axis is
+    // read, which is why narrowing the suppression was safe to do here.
     expect(result.parserConfidence).toBe(0.0);
     expect(result.isNegation).toBe(true);
   });
 
-  it("dates the cancellation to the post's own day, not the day the caption names", () => {
-    // ⚠ PINS A KNOWN GAP, NOT DESIRED BEHAVIOUR. `parseCaption` bails before
-    // `extractDate` runs, so `date` is the `parsedAt` it was handed. For this caption
-    // that is also the right answer — it says "idag" — but for "inställt imorgon" it
-    // is not, and #80 is the issue that fixes it.
-    //
-    // Asserted anyway, with the caption below, so #80 has a test that CHANGES rather
-    // than a behaviour nobody wrote down.
-    expect(result.date).toBe(SUMMER);
+  it("with no time range, states only the day — the full-day fallback is #69's", () => {
+    // The other half of decision #1. The parser reports "a cancellation, on this day,
+    // with no window"; turning that into a full Stockholm day is the service's job,
+    // and #58 deliberately does not compute `expires_at`.
+    const allDay = parseCaption("Inställt idag", SUMMER);
 
-    const tomorrow = "Inställt imorgon vid Järntorget";
-    // `extractDate` resolves the caption's own word correctly when asked directly…
-    expect(extractDate(normalizeCaption(tomorrow), SUMMER)).toBe("2026-08-23");
-    // …and `parseCaption` still reports the post's own day, because it never asks.
-    expect(parseCaption(tomorrow, SUMMER).date).toBe(SUMMER);
+    expect(allDay.isNegation).toBe(true);
+    expect(allDay.date).toBe(SUMMER);
+    expect(allDay.time).toBeNull();
   });
 });
 

@@ -18,15 +18,35 @@ import type { ParseResult, ResolvedPlace } from "@/lib/types";
 // service. Two properties of it are load-bearing and both are asserted by test rather
 // than by reading the code below:
 //
-//   NEGATION BAILS FIRST. "Inställt idag vid Järntorget" names a place, a day and
-//   arguably a window, and every extractor will happily find them. Running them and
-//   then setting `parserConfidence = 0` is NOT equivalent to not running them: #68
-//   branches on `place`, and a cancellation carrying a resolved Järntorget is one
-//   careless `if (result.place)` away from pinning the truck at the spot it just
-//   said it would not be at. `scoreConfidence` short-circuits on negation too, and
-//   says in its own comment that the short-circuit is the guarantee and this order is
-//   the optimisation. Both are true, and they defend different things — that one
-//   defends the SCORE, this one defends the FIELDS.
+//   A NEGATION SUPPRESSES THE PLACE, AND ONLY THE PLACE. "Inställt idag vid
+//   Järntorget" names a place, a day and arguably a window, and every extractor will
+//   happily find all three. The place must not survive: #68 branches on `place`, and
+//   a cancellation carrying a resolved Järntorget is one careless `if (result.place)`
+//   away from pinning the truck at the spot it just said it would not be at. Setting
+//   `parserConfidence = 0` is not equivalent — `scoreConfidence` short-circuits on
+//   negation too, but that defends the SCORE while this defends the FIELDS.
+//
+//   ⚠ THE DATE AND THE WINDOW MUST SURVIVE, AND A BLANKET BAIL DROPPED THEM. The
+//   first version of this file returned early on a negation with `date: parsedAt` and
+//   `time: null`, having argued the case for `place` and then applied it to all three
+//   without noticing. Phase plan decision #1 is explicit about what a cancellation
+//   needs, and it is the opposite:
+//
+//     "Cancellation window: the extracted time range if there is one, otherwise the
+//      full Stockholm day of the extracted date."
+//
+//   So the window IS the payload of a cancellation — the one thing #69 cannot resolve
+//   without. Verified: `parseCaption("Inställt 11-14 idag", …)` returned `time: null`
+//   while `extractTime` on the same caption returned 09:00Z–12:00Z, so a truck
+//   cancelling only its lunch slot would have fallen through to the full-day rule and
+//   had its separate 17–20 pin deleted as well. A cancellation that deletes more than
+//   it names is the asymmetrically expensive failure `negation.ts` warns about,
+//   reached here by discarding data rather than by mis-detecting it.
+//
+//   Two lessons, and the second is the one that generalises: a suppression rule
+//   argued for ONE field must be applied to one field; and the issue's acceptance
+//   criteria said "no attempt to extract location, date or time", which is where the
+//   blanket version came from — CLAUDE.md settles that conflict, THE PLAN WINS.
 //
 //   THE ADDRESS FALLBACK RUNS ONLY ON A DICTIONARY MISS. The plan states this as an
 //   acceptance criterion in its own right, and the reason is one layer down: a
@@ -71,11 +91,12 @@ export function parseCaption(caption: string, parsedAt: string): ParseResult {
   // decomposed "ä" silently defeats their vocabularies.
   const normalized = normalizeCaption(caption);
 
-  // Step 1, and it RETURNS rather than setting a flag. See the order note above.
-  if (detectNegation(normalized)) return negation(parsedAt);
+  // Step 1. See the order note above for what this suppresses, and what it must not.
+  const isNegation = detectNegation(normalized);
 
-  // Step 2. The dictionary first; the address fallback only if it missed.
-  const place = resolvePlace(normalized);
+  // Step 2. The dictionary first; the address fallback only if it missed — and NOT AT
+  // ALL on a negation, which is the one thing the cancellation path must not carry.
+  const place = isNegation ? null : resolvePlace(normalized);
 
   // Step 3. Date before time, because `extractTime` builds its UTC instants on a
   // calendar date and has no way to guess one — "11-14" is a wall clock until
@@ -86,11 +107,26 @@ export function parseCaption(caption: string, parsedAt: string): ParseResult {
   // answers, and for a two-clause caption the pair is a triple neither clause states:
   //
   //   parseCaption("Heden 11-14, imorgon Lindholmen 17-20", "2026-08-22")
-  //     → place Heden (leftmost), date tomorrow (the only date word), time 11-14
-  //       (the first range), scored 1.0
+  //     → place Heden, date tomorrow (the only date word), time 11-14 (the first
+  //       range), scored 1.0
   //
   // Today's place, tomorrow's date, today's window — at MAXIMUM confidence, because
   // the matrix scores what was extracted and every part was extracted successfully.
+  //
+  // ⚠ "HEDEN, LEFTMOST" IS WHAT THIS SAID, AND THE SECOND WORD IS WRONG. `location.ts`
+  // resolves leftmost-longest AMONG DICTIONARY ALIASES; `resolvePlace` below then
+  // prefers any dictionary hit over any address candidate, with no comparison of
+  // position. So the place is leftmost only when both candidates are dictionary hits,
+  // which is true of that caption and not true in general:
+  //
+  //   "Vi står på Kungsgatan 12 idag 11-14, imorgon Heden 17-20"
+  //     → place HEDEN, from the second clause, over an address candidate in the first
+  //     → paired with today's 11-14, at 1.0
+  //
+  // The rule is defensible — a reviewed dictionary coordinate beats an unreviewed
+  // geocode, which is the whole design — but it is a PREFERENCE ORDER, not a position
+  // rule, and calling it leftmost hid a second way the pairing goes wrong. Recorded on
+  // #94, which now covers both.
   // `time.ts` and `location.ts` each record their half of this and both assign the
   // fix here, since it is a change to how the pipeline is composed rather than to any
   // extractor. It is NOT fixed in #67: the cheapest real fix is clause segmentation,
@@ -121,7 +157,7 @@ export function parseCaption(caption: string, parsedAt: string): ParseResult {
   const time = extractTime(normalized, date);
 
   return {
-    isNegation: false,
+    isNegation,
     place,
     date,
     time,
@@ -130,10 +166,14 @@ export function parseCaption(caption: string, parsedAt: string): ParseResult {
     // `time?.kind` is its time axis, which is why `ParseResult` holds those two
     // shapes whole — a hand-written mapping between them is a place they could drift
     // apart, and there is no such mapping here to get wrong.
+    //
+    // `isNegation` still reaches the score, and `scoreConfidence` still short-circuits
+    // on it to 0.0 — that did not change when the bail narrowed. A cancellation's
+    // `time` is now populated and must NOT be allowed to score it as a location.
     parserConfidence: scoreConfidence({
       location: place?.kind ?? null,
       time: time?.kind ?? null,
-      isNegation: false,
+      isNegation,
     }),
   };
 }
@@ -149,56 +189,4 @@ function resolvePlace(normalized: string): ResolvedPlace {
   if (address !== null) return { kind: "fallback", address };
 
   return null;
-}
-
-// ⚠ `date` IS `parsedAt`, NOT THE DAY THE CAPTION NAMES, and that is a known gap
-// tracked as #80 rather than an oversight.
-//
-// It is the same value `extractDate` itself returns for a caption containing no date
-// word, so today it is wrong for exactly one shape: a cancellation that names a day
-// other than the post's own ("inställt imorgon", "stängt på lördag"). #69 resolves
-// the cancellation window from this field, so until #80 lands such a post cancels the
-// day it was SENT.
-//
-// Not fixed here by simply calling `extractDate` before the bail, tempting as that
-// is. `date.ts` records the reason under #80: a leading cancellation tag changes
-// which date expression in the caption is the operative one, so "the day the negation
-// names" is a different question from "the day this caption is about" — and answering
-// the second and labelling it the first is how a cancellation deletes the wrong day's
-// pin. #80 is where that question gets answered, because it needs `negation.ts` to
-// report WHICH span it fired on, which is a change to that module rather than to this
-// composition.
-//
-// ⚠ THIS IS THE EXPENSIVE DIRECTION TO FAIL IN, NOT THE SAFE ONE. An earlier version
-// of this comment called it "the conservative miss — it cancels a day the truck was
-// plausibly talking about, and the truck can post again". That is backwards, and
-// #80's own repro is the counterexample:
-//
-//   parseCaption("Vi står på Heden 11-14 idag, stängt på söndag", "2026-08-22")
-//     → isNegation: true, date: "2026-08-22"
-//
-// A truck saying "we're at Heden 11-14 today, closed on Sunday" gets TODAY deleted —
-// per plan #1 a negation deletes overlapping locations, so #69 removes the pin of a
-// truck standing there right now, with nothing signalling it happened. `negation.ts`
-// and #80 both classify a false cancellation as the asymmetrically expensive failure,
-// and the rule is "fail toward NOT a cancellation": a missed cancellation is a stale
-// pin `expires_at` clears within hours, a false one deletes a present truck.
-//
-// So the gap is deferred because fixing it needs #80's span reporting, NOT because
-// the current direction is the cautious one. The distinction matters: the first
-// framing gets #80 prioritised, the second gets it postponed.
-//
-// Every other field is at its empty value, which is the fields half of the guarantee
-// the order note describes.
-function negation(parsedAt: string): ParseResult {
-  return {
-    isNegation: true,
-    place: null,
-    date: parsedAt,
-    time: null,
-    // Not the literal `0`: routed through `scoreConfidence` so the negation score
-    // lives in exactly one place. If the matrix ever scores a cancellation as
-    // something other than zero, it changes there and this follows.
-    parserConfidence: scoreConfidence({ location: null, time: null, isNegation: true }),
-  };
 }

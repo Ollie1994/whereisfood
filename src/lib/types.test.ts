@@ -56,7 +56,26 @@ describe("types.ts purity", () => {
   //                           nothing from `types.ts` — and the assertion below is
   //                           what keeps the emitted JS empty rather than trusting
   //                           that it stays that way.
-  it("imports only erased types, and never touches the network or clock", () => {
+  // ⚠ THIS CHECKS THE SPECIFIER LIST, NOT THAT THE IMPORTS ARE TYPE-ONLY, and the
+  // assertion used to be named "imports only erased types" — which is a claim the
+  // guard does not make. `findImpurities` is deliberately syntactic and treats
+  // `import type { X }` exactly like `import { X }`; #75 argues that as the right
+  // default, since a dependency only a type refers to is still a dependency.
+  //
+  // The consequence is new with #67 and worth stating rather than leaving implied.
+  // `@/lib/database.types` had nothing behind it — swapping it to a value import
+  // pulls in a module that is almost entirely types. `@/lib/parser/time` is not like
+  // that: it has a real runtime body and imports `date-fns-tz`. And `types.ts` is
+  // imported by `TruckPopup.tsx` and `useMapLibre.tsx`, so a value import here would
+  // drag the parser and a date library into the CLIENT graph — silently, with this
+  // suite still green, because the specifier on the allowlist would not have changed.
+  //
+  // Not closed here. Distinguishing the two needs the import CLAUSE, not the
+  // specifier, which is a capability `purity.ts` does not have and should gain there
+  // rather than be re-derived in this file — the exact re-derivation #75 exists to
+  // prevent. Filed as #97; recorded here so the gap is a documented boundary rather
+  // than one discovered from a bundle that grew.
+  it("imports only the two allowlisted modules, and never touches the network or clock", () => {
     const violations = findImpurities(
       readModuleSource(new URL("./types.ts", import.meta.url).href),
       allowOnly(["@/lib/database.types", "@/lib/parser/time"]),
