@@ -110,6 +110,45 @@ export const WEEKDAY_INFLECTION = "(?:en|ar|arna)?";
 // this list — not "could point backwards", but "cannot point forwards".
 export const BACKWARD_MODIFIERS = ["förra", "senaste", "föregående"] as const;
 
+// Words that EXCLUDE the weekday after them, so it must not become the pin's date
+// (#96). Without this, a truck stating its hours and carving out one day was pinned on
+// exactly the day it ruled out, at confidence 1.0 — the worst available answer rather
+// than a degraded one:
+//
+//   "Heden 11-14 (ej söndag)"      →  Sunday
+//   "Heden 11-14, ej söndag"       →  Sunday
+//   "Heden 11-14 utom söndag"      →  Sunday
+//   "Heden 11-14 förutom söndag"   →  Sunday
+//   "Heden 11-14 (ej söndagar)"    →  Sunday
+//
+// `detectNegation` correctly does NOT fire on these — #82 constrains `ej` to an
+// operating verb or an open state, and a weekday is neither — so the post is a positive
+// statement with a carve-out, not a cancellation. Firing would DELETE the pin instead,
+// which is worse. The defect is only in which date this module picks.
+//
+// ⚠ TWO LISTS, BECAUSE THEY ARE TWO GRAMMATICAL CATEGORIES, and treating them alike is
+// the trap. `utom`/`förutom` are prepositions meaning "except" — they cannot attach to
+// anything but what follows them. `ej`/`inte` are general negators whose scope depends
+// on what PRECEDES them, and when a verb does, they negate the verb and the weekday is
+// still the operative date:
+//
+//   "Glöm ej söndag!"           the truck IS there Sunday
+//   "Glöm inte söndag!"         the truck IS there Sunday
+//   "Missa inte söndag på Heden"  the truck IS there Sunday
+//
+// Verified: all three resolve to Sunday today, and that is correct. A list treating
+// `ej` like `utom` would suppress the weekday and fall back to the POSTING DAY — a
+// wrong pin TODAY, which is exactly the trade that got `sista` removed from
+// `BACKWARD_MODIFIERS` above. Same bar, same outcome: not "could exclude", but
+// "cannot include".
+//
+// So the negators count only when NO WORD PRECEDES THEM — `(?<!\p{L}\s*)` in
+// `NOT_EXCLUDED`. That is one rule rather than a list of punctuation, and it covers
+// start-of-string, `(`, `,` and every separator without enumerating any of them.
+// `normalizeCaption` preserves punctuation, so the signal survives to here (verified).
+export const EXCLUSION_PREPOSITIONS = ["utom", "förutom"] as const;
+export const EXCLUSION_NEGATORS = ["ej", "inte"] as const;
+
 // Word boundaries WITHOUT `\b`, which is ASCII-only and therefore wrong for Swedish:
 // `\w` excludes å, ä and ö, so `\b` manufactures boundaries INSIDE words and
 // `/\bsöndag\b/` matches inside "söndagsöppet". Swedish compounds are formed by
@@ -166,9 +205,35 @@ const TOMORROW = "(?:imorgon|i\\s+morgon)";
 // both sides; this one was not, while its comment claimed it spanned one word.
 const NOT_BACKWARD = `(?<!${BEFORE}${alt(BACKWARD_MODIFIERS)}\\s+)`;
 
+// The exclusion guard (#96), applied to the weekday branch ONLY — same scope as
+// `NOT_BACKWARD`, and it carries the inner `BEFORE` for the same reason: without it the
+// lookbehind would match the SUFFIX of a longer word ("nyutom ", "blinte ") rather than
+// the word itself.
+//
+// The negator alternative additionally requires that no word precedes it, which is what
+// separates an exclusion from a verb negation. See the two lists above.
+//
+// ⚠ SCOPE IS THE WEEKDAY BRANCH, NOT `idag` / `imorgon`, stated because four scoping
+// errors in this parser came from not stating it (process-log #87–90):
+//
+//   `idag`     suppressing it would be a NO-OP. `extractDate` falls back to `parsedAt`
+//              on a miss, and for "idag" that is the same day — nothing changes.
+//   `imorgon`  "varje dag utom imorgon" is grammatical and would resolve differently,
+//              but there is no caption data to say it occurs. Widening on a guess is
+//              what this phase has declined four times, and `sista` is the local proof
+//              that the guess costs a wrong pin TODAY when it is wrong.
+//
+// ⚠ A SUPPRESSED WEEKDAY DOES NOT END THE SEARCH — the engine skips it and takes the
+// next date expression, which is strictly better than bailing. Verified:
+// "Inte söndag, utan lördag" suppresses `söndag` and matches `lördag`, resolving to the
+// day the caption actually names.
+const NOT_EXCLUDED =
+  `(?<!${BEFORE}(?:${alt(EXCLUSION_PREPOSITIONS)}` +
+  `|(?<!\\p{L}\\s*)${alt(EXCLUSION_NEGATORS)})\\s+)`;
+
 const DATE_EXPRESSION = new RegExp(
   `${BEFORE}(?:(?<today>${TODAY})|(?<tomorrow>${TOMORROW})|` +
-    `${NOT_BACKWARD}(?<weekday>${alt(WEEKDAYS)})${WEEKDAY_INFLECTION})${AFTER}`,
+    `${NOT_BACKWARD}${NOT_EXCLUDED}(?<weekday>${alt(WEEKDAYS)})${WEEKDAY_INFLECTION})${AFTER}`,
   "iu",
 );
 

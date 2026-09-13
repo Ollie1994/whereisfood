@@ -232,6 +232,77 @@ describe("extractDate", () => {
     });
   });
 
+  // MUTATION-VERIFIED. Each applied to `date.ts`, run, reverted; each is killed by
+  // this block plus `index.test.ts`'s composed rows. No failure counts recorded —
+  // process-log #160.
+  //
+  //   remove `NOT_EXCLUDED` from `DATE_EXPRESSION` entirely
+  //   treat `ej`/`inte` like `utom` — drop the "no word precedes it" guard
+  //   drop the inner `BEFORE`, so the lookbehind matches a word ENDING
+  //   empty the preposition list
+  //
+  // The second is the one worth re-running if this block is ever edited: it is the
+  // only mutant that keeps every exclusion working and breaks only the verb-negator
+  // rows, which is exactly the mistake a later reader would make by merging the lists.
+  describe("an excluded weekday is not the pin's date (#96)", () => {
+    it.each([
+      "Heden 11-14 (ej söndag)",
+      "Heden 11-14, ej söndag",
+      "Heden 11-14 utom söndag",
+      "Heden 11-14 förutom söndag",
+      "Heden 11-14 (ej söndagar)",
+      "Ej söndag",
+    ])("%s does not resolve to the excluded Sunday", (caption) => {
+      // Before the guard, every one of these returned SUNDAY — the single day the
+      // caption rules out, and at confidence 1.0 through `parseCaption`. Every other
+      // known parser gap loses a day or picks the wrong one of several stated; this
+      // one INVERTS, which is why it is worth a guard rather than a note.
+      expect(extractDate(caption, SATURDAY)).toBe(SATURDAY);
+    });
+
+    it.each([
+      ["Glöm ej söndag!", SUNDAY],
+      ["Glöm inte söndag!", SUNDAY],
+      ["Missa inte söndag på Heden", SUNDAY],
+    ])("still resolves %s — the negator attaches to the verb", (caption, expected) => {
+      // ⚠ THE REASON `ej`/`inte` ARE NOT TREATED LIKE `utom`, pinned so the two lists
+      // are not merged later. These are general negators, and when a VERB precedes
+      // them they negate the verb — the truck IS there on Sunday. Suppressing the
+      // weekday would fall back to the posting day: a wrong pin TODAY, which is the
+      // identical trade that got `sista` removed from BACKWARD_MODIFIERS above.
+      //
+      // Verified against the pre-guard behaviour: all three already resolved to Sunday
+      // and were already correct, so this block pins behaviour the fix must NOT change.
+      expect(extractDate(caption, SATURDAY)).toBe(expected);
+    });
+
+    it("skips the excluded weekday and takes the next one", () => {
+      // A suppressed match does not end the search — the engine moves on. That makes
+      // "not X, but Y" resolve to Y rather than falling back to the posting day, which
+      // is strictly better than bailing at the first exclusion.
+      //
+      // ⚠ `måndag` RATHER THAN `lördag`, and the difference is what makes this test
+      // mean anything. `parsedAt` is a Saturday, and a weekday that IS today resolves
+      // to today — so "utan lördag" would return SATURDAY, which is also the fallback
+      // value, and the assertion would pass whether the engine skipped ahead or gave
+      // up. MONDAY is distinct from both the excluded SUNDAY and the SATURDAY
+      // fallback, so only one behaviour satisfies it.
+      expect(extractDate("Inte söndag, utan måndag", SATURDAY)).toBe(MONDAY);
+    });
+
+    it("requires the excluder to be a whole word, not a word ending", () => {
+      // Same unbounded-token hazard the backward guard was caught by: without the
+      // inner boundary the lookbehind matches the SUFFIX of a longer word and
+      // silently suppresses a real date. "Nyutom" is not Swedish, which is the point —
+      // the pattern must not care.
+      expect(extractDate("Nyutom söndag kör vi", SATURDAY)).toBe(SUNDAY);
+    });
+
+    it("does not suppress an ordinary weekday", () => {
+      expect(extractDate("Heden 11-14 på söndag", SATURDAY)).toBe(SUNDAY);
+    });
+  });
+
   describe("no date expression", () => {
     it("falls back to the day the post was made", () => {
       expect(extractDate("Vi står på Järntorget 11-14", SATURDAY)).toBe(SATURDAY);

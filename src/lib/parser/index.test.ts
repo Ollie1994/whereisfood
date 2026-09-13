@@ -331,23 +331,35 @@ describe("known gaps, pinned so they are recorded rather than merely known", () 
     "Heden 11-14 utom söndag",
     "Heden 11-14 förutom söndag",
     "Heden 11-14 (ej söndagar)",
-  ])("#96 — %s resolves to the excluded day itself", (caption) => {
-    // The worst available answer rather than a degraded one: the caption rules Sunday
-    // out and the parser pins Sunday. SUMMER is a Saturday, so "söndag" resolves to
-    // the next day.
+  ])("#96 FIXED — %s no longer pins the excluded day", (caption) => {
+    // ⚠ THIS BLOCK HAS FLIPPED. It was a known-gap pin: every one of these resolved to
+    // SUNDAY — the single day the caption rules out — with `time.startsAt` on that day
+    // and `parserConfidence` at 1.0, so nothing downstream filtered it. `date.ts` now
+    // carries an exclusion guard and they fall back to the posting day.
+    //
+    // Kept here rather than deleted: this is the composed behaviour, and `date.ts`'s
+    // own suite tests the extractor. Both matter — #96 was only ever visible as a pin.
     const result = parseCaption(caption, SUMMER);
 
     expect(result.isNegation).toBe(false);
-    expect(result.date).toBe("2026-08-23");
-    expect(result.time?.startsAt).toBe("2026-08-23T09:00:00.000Z");
-    // At the maximum, so nothing downstream filters it.
-    expect(result.parserConfidence).toBe(1.0);
+    expect(result.date).toBe(SUMMER);
+    expect(result.time?.startsAt).toBe("2026-08-22T09:00:00.000Z");
   });
 
-  it("#96 — but an exclusion after a real date word does not move the date", () => {
-    // The regression guard #96 must not break. `extractDate` is first-match-wins, so
-    // "idag" already wins here — this row is correct today and must stay correct.
+  it("#96 — an exclusion after a real date word still does not move the date", () => {
+    // Correct before the fix (first-match-wins picks "idag") and must stay correct
+    // after it. This is the row that would catch an exclusion guard written so broadly
+    // that it suppressed a legitimate leading date.
     expect(parseCaption("Heden 11-14 idag (ej söndag)", SUMMER).date).toBe(SUMMER);
+  });
+
+  it("#96 — a verb-negated weekday is still the pin's date", () => {
+    // The composed half of `date.ts`'s two-category rule: "Glöm inte söndag" means the
+    // truck IS there, so suppressing it would pin TODAY — the wrong-pin-now trade that
+    // got `sista` removed from BACKWARD_MODIFIERS.
+    const result = parseCaption("Heden 11-14, glöm inte söndag", SUMMER);
+
+    expect(result.date).toBe("2026-08-23");
   });
 
   it("#80 — a closure named for another day cancels the day the post was sent", () => {
