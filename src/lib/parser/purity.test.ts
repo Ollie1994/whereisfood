@@ -131,31 +131,58 @@ const PARSER_DIR = fileURLToPath(new URL(".", import.meta.url));
 // SO: ADDING AN OUTWARD EDGE TO THIS LIST INCURS AN OBLIGATION. If a parser module
 // ever needs a third external import, either assert that module's purity too or
 // accept — in writing, here — that the claim now stops at it.
-//   `@/lib/parser/address`      All five added by #67, and all for one reason:
-//   `@/lib/parser/confidence`   `index.ts` is the COMPOSITION of this directory, so
-//   `@/lib/parser/location`     it imports every extractor in it. These are the only
-//   `@/lib/parser/negation`     entries on this list that are not an argument about
-//   `@/lib/parser/normalize`    coupling — a module whose job is to call the others
-//                               importing the others is not a dependency decision.
-//
-//                               All inside the directory, so each is one more module
-//                               checked rather than an outward edge. The list is now
-//                               closed over the parser: every remaining module is
-//                               here, so a SIXTH entry would mean a genuinely new
-//                               file and should be argued like the ones above.
-const PARSER_POLICY = allowOnly([
-  "@/lib/parser/address",
+const EXTRACTOR_IMPORTS = [
   "@/lib/parser/boundary",
-  "@/lib/parser/confidence",
   "@/lib/parser/date",
   "@/lib/parser/dictionary",
-  "@/lib/parser/location",
-  "@/lib/parser/negation",
-  "@/lib/parser/normalize",
   "@/lib/parser/time",
   "@/lib/types",
   "date-fns-tz",
-]);
+];
+
+// ⚠ THE COMPOSER GETS ITS OWN LIST, AND THE SPLIT IS THE WHOLE POINT.
+//
+// `index.ts` imports every extractor in this directory, because calling them in order
+// IS its job. A first version of #67 simply appended those five specifiers to the
+// single shared list above — which is not the same statement at all. One list applied
+// to ten modules says "ANY parser module may import any of these", so widening it for
+// the composer silently granted the same permission to every extractor.
+//
+// That was a REAL loss of guard strength, not a theoretical one, and it landed on the
+// exact edge the next issue forbids. #80's body states: *"Step 0 must not be taught
+// the negation vocabulary. Narrowing this in `normalizeCaption` would invert the
+// layering — hence the dependency on `extractDate`."* Verified by mutation, both ways:
+// appending `import { detectNegation } from "@/lib/parser/negation"` to
+// `normalize.ts` FAILS against the list as it stands on `dev` and PASSED against the
+// merged single list. #80 is about to edit `negation.ts` and `index.ts`, so the guard
+// against the wrong fix would have been gone at precisely the moment it was needed.
+//
+// The lesson, which is the one this list's deny-by-default comment already states and
+// which the merged version quietly broke: an allowlist is a record of WHO may depend
+// on WHAT. Answering "may `index.ts` import `negation.ts`?" by editing a list that
+// also answers "may `normalize.ts`?" is not answering the question asked.
+const COMPOSED_EXTRACTORS = [
+  "@/lib/parser/address",
+  "@/lib/parser/confidence",
+  "@/lib/parser/location",
+  "@/lib/parser/negation",
+  "@/lib/parser/normalize",
+];
+
+// The composer, by filename. `parserModules()` returns paths relative to this
+// directory, so this is the exact string that arrives below.
+const COMPOSER = "index.ts";
+
+// ⚠ NO CLOSURE CLAIM HERE, and the deleted one is why. A first version of this
+// comment said the list was "closed over the parser: every remaining module is here".
+// It was not — `index.ts` itself is absent from both lists, correctly, since nothing
+// imports the composer. A tidy-sounding invariant asserted over a list nobody
+// recounted, which is the same shape as the two absence claims logged against #66.
+function policyFor(module: string) {
+  return allowOnly(
+    module === COMPOSER ? [...EXTRACTOR_IMPORTS, ...COMPOSED_EXTRACTORS] : EXTRACTOR_IMPORTS,
+  );
+}
 
 // RECURSIVE, deliberately. A flat `readdirSync` would let a module in a
 // subdirectory — `dictionary/index.ts`, `rules/time.ts` — escape the guard entirely
@@ -186,10 +213,20 @@ describe("every module in src/lib/parser is pure", () => {
     expect(modules.length).toBeGreaterThan(0);
   });
 
+  it("finds the composer, so its carve-out is not applied to a file that moved", () => {
+    // `policyFor` keys on a filename, and a filename is a string that can go stale —
+    // renaming `index.ts` would silently demote it to the extractor policy and fail
+    // every import it legitimately has. That failure is at least loud. The quiet one
+    // is the reverse: if this constant ever named a file that does NOT exist, the
+    // carve-out would apply to nothing while reading as though it applied to
+    // something. Same non-vacuity argument as the assertion above.
+    expect(modules).toContain(COMPOSER);
+  });
+
   it.each(modules)("%s imports nothing forbidden, and never touches the network or clock", (name) => {
     const violations = findImpurities(
       readModuleSource(new URL(name, import.meta.url).href),
-      PARSER_POLICY,
+      policyFor(name),
     );
 
     expect(violations).toEqual([]);

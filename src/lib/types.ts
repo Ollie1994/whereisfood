@@ -215,9 +215,24 @@ export interface ParseResult {
   readonly isNegation: boolean;
   // Three states, one field. See the note above.
   readonly place: ResolvedPlace;
-  // Stockholm calendar date, `"yyyy-MM-dd"`. NEVER null: `extractDate` falls back to
-  // the `parsedAt` it was given, so a caption naming no day resolves to the day the
-  // post was made. That is the correct answer, not a missing one.
+  // NEVER null: `extractDate` falls back to the `parsedAt` it was given, so a caption
+  // naming no day resolves to the day the post was made. That is the correct answer,
+  // not a missing one.
+  //
+  // ⚠ IT IS NOT GUARANTEED TO BE A `"yyyy-MM-dd"` STOCKHOLM DATE, and an earlier
+  // version of this comment said it was. Non-null and well-formed are different
+  // claims, and only the first is enforced. `extractDate` returns `parsedAt`
+  // UNTOUCHED on every non-match path — including one it cannot read — so
+  // `parseCaption("Järntorget 11-14", "not-a-date")` yields `date: "not-a-date"` with
+  // a resolved place and a score of 0.6. Every module in the chain deferred the check
+  // to the next: `date.ts` guards only against a throw and says the value "moves
+  // downstream rather than being neutralised", `index.ts` documents the derivation
+  // (H3) without checking it, and this comment then asserted the format nobody
+  // validates. Tracked as #95, which picks where the check belongs.
+  //
+  // Not reachable from the two real callers, which both derive it from a
+  // `timestamptz`. `scripts/reparse.mjs` (#71) taking post ids from a command line is
+  // where it becomes reachable.
   readonly date: string;
   // The window, or null when the caption stated no time at all. `endsAt` may be null
   // INSIDE this (an opening time with no close), which is why it stays one object —

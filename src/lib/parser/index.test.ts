@@ -238,6 +238,58 @@ describe("parser_confidence maps both extractor outputs onto the matrix", () => 
   });
 });
 
+describe("known gaps, pinned so they are recorded rather than merely known", () => {
+  // ⚠ THESE ASSERT CURRENT BEHAVIOUR, NOT CORRECT BEHAVIOUR. Both are wrong answers
+  // this composition gives today, each deferred to a named issue for a reason stated
+  // there. They are pinned because the alternative — a gap that lives only in a
+  // comment — is how the same defect gets rediscovered and re-argued a phase later.
+  // The issue that fixes each must UPDATE its test, which is what makes the fix
+  // visible in the diff.
+
+  it("#94 — pairs one clause's date with another's place and time, at 1.0", () => {
+    const result = parseCaption("Heden 11-14, imorgon Lindholmen 17-20", SUMMER);
+
+    expect(result.place).toEqual({
+      kind: "dictionary",
+      match: expect.objectContaining({ matched: "Heden" }),
+    });
+    // Tomorrow — from "imorgon", which belongs to the OTHER clause, the one naming
+    // Lindholmen and 17-20.
+    expect(result.date).toBe("2026-08-23");
+    expect(result.time?.startsAt).toBe("2026-08-23T09:00:00.000Z");
+
+    // The part that makes this expensive rather than merely wrong: nothing downstream
+    // filters it. Scoring the maximum means it clears the 0.45 display threshold from
+    // every lane, so the wrong pin is bounded only by `expires_at`.
+    expect(result.parserConfidence).toBe(1.0);
+  });
+
+  it("#80 — a closure named for another day cancels the day the post was sent", () => {
+    // #80's own repro. A truck saying "we're at Heden 11-14 today, closed on Sunday"
+    // parses as a cancellation OF TODAY, so per plan #1 the delete path removes the
+    // pin of a truck standing there right now.
+    const result = parseCaption("Vi står på Heden 11-14 idag, stängt på söndag", SUMMER);
+
+    expect(result.isNegation).toBe(true);
+    expect(result.date).toBe(SUMMER);
+    // And the location the first clause states is gone, per the bail.
+    expect(result.place).toBeNull();
+  });
+
+  it("#95 — a malformed parsedAt still scores and still carries a place", () => {
+    const result = parseCaption("Järntorget 11-14", "not-a-date");
+
+    // The window is dropped — `fromZonedTime` cannot read the date, which `time.ts`
+    // degrades to `null` deliberately…
+    expect(result.time).toBeNull();
+    // …but the result is otherwise an ordinary location-only pin, and `date` is the
+    // unusable string on its way to `locations.starts_at`, which is NOT NULL.
+    expect(result.date).toBe("not-a-date");
+    expect(result.place?.kind).toBe("dictionary");
+    expect(result.parserConfidence).toBe(0.6);
+  });
+});
+
 describe("purity", () => {
   // ⚠ THERE IS NO PURITY CHECK IN THIS FILE, and that is the point rather than an
   // omission. #67's acceptance criteria ask for "a purity check that no file under
