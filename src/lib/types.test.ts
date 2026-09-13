@@ -25,16 +25,60 @@ import { FORBID_ALL_IMPORTS, allowOnly, findImpurities, readModuleSource } from 
 // it — stated so the next person adding one knows the obligation exists.
 
 describe("types.ts purity", () => {
-  // `@/lib/database.types` is the only permitted import, and it is a type-only
-  // one (`import type { Database }`), so nothing survives into the emitted JS.
-  // It is allowlisted rather than forbidden because the row types are DERIVED from
-  // the generated schema on purpose (#48) — that import is the mechanism that
-  // makes a migration break every stale usage, and forbidding it would push the
-  // app back to hand-written interfaces that silently disagree with the schema.
-  it("imports only the generated database types, and never touches the network or clock", () => {
+  // Both permitted imports are type-only, so nothing survives into the emitted JS.
+  //
+  //   `@/lib/database.types`  allowlisted rather than forbidden because the row types
+  //                           are DERIVED from the generated schema on purpose (#48)
+  //                           — that import is the mechanism that makes a migration
+  //                           break every stale usage, and forbidding it would push
+  //                           the app back to hand-written interfaces that silently
+  //                           disagree with the schema.
+  //
+  //   `@/lib/parser/time`     added by #67. `ParseResult` holds `ExtractedTime` whole
+  //                           rather than splitting it into `startsAt`/`endsAt`/`kind`,
+  //                           which would spell three impossible states.
+  //
+  //                           ⚠ THIS IS THE ONLY EDGE HERE THAT POINTS OUTWARD, and
+  //                           it does NOT incur the obligation the header describes.
+  //                           That obligation is about `parser/purity.test.ts`
+  //                           allowlisting a module outside its glob — a claim that
+  //                           stops at an unasserted file. This edge points INTO the
+  //                           parser directory, which that glob already covers in
+  //                           full, so the far end is asserted by the suite that
+  //                           depends on it. Verified, not assumed: appending
+  //                           `Date.now()` to `time.ts` fails
+  //                           `parser/purity.test.ts`, not this file.
+  //
+  //                           It does mean `types.ts` and the parser now import each
+  //                           other at the TYPE level (`location.ts` reads
+  //                           `LocationMatch` from here). There is no runtime cycle —
+  //                           both directions are `import type`, and `time.ts` imports
+  //                           nothing from `types.ts` — and the assertion below is
+  //                           what keeps the emitted JS empty rather than trusting
+  //                           that it stays that way.
+  // ⚠ THIS CHECKS THE SPECIFIER LIST, NOT THAT THE IMPORTS ARE TYPE-ONLY, and the
+  // assertion used to be named "imports only erased types" — which is a claim the
+  // guard does not make. `findImpurities` is deliberately syntactic and treats
+  // `import type { X }` exactly like `import { X }`; #75 argues that as the right
+  // default, since a dependency only a type refers to is still a dependency.
+  //
+  // The consequence is new with #67 and worth stating rather than leaving implied.
+  // `@/lib/database.types` had nothing behind it — swapping it to a value import
+  // pulls in a module that is almost entirely types. `@/lib/parser/time` is not like
+  // that: it has a real runtime body and imports `date-fns-tz`. And `types.ts` is
+  // imported by `TruckPopup.tsx` and `useMapLibre.tsx`, so a value import here would
+  // drag the parser and a date library into the CLIENT graph — silently, with this
+  // suite still green, because the specifier on the allowlist would not have changed.
+  //
+  // Not closed here. Distinguishing the two needs the import CLAUSE, not the
+  // specifier, which is a capability `purity.ts` does not have and should gain there
+  // rather than be re-derived in this file — the exact re-derivation #75 exists to
+  // prevent. Filed as #97; recorded here so the gap is a documented boundary rather
+  // than one discovered from a bundle that grew.
+  it("imports only the two allowlisted modules, and never touches the network or clock", () => {
     const violations = findImpurities(
       readModuleSource(new URL("./types.ts", import.meta.url).href),
-      allowOnly(["@/lib/database.types"]),
+      allowOnly(["@/lib/database.types", "@/lib/parser/time"]),
     );
 
     expect(violations).toEqual([]);
