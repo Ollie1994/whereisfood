@@ -10,10 +10,21 @@ import { CLOCK_JOINER, NOT_IN_NUMBER_AFTER } from "@/lib/parser/time";
 //
 // DICTIONARY-INDEPENDENT BY CONSTRUCTION: nothing here imports `dictionary.ts`, and
 // the two modules are coupled only by the ORDER `parseCaption` runs them in (#67).
-// That matters because `-torget` is one of the suffixes below, so this module would
-// happily match "Järntorget" — which is correct for the unknown squares it exists to
-// catch ("Olskrokstorget"), and never reached for the known ones, because a
-// dictionary hit returns before this is called.
+// That matters because `-torget` is one of the suffixes below, so this module can
+// match a square the dictionary already knows — correct for the unknown ones it
+// exists to catch ("Olskrokstorget"), and never reached for the known ones, because
+// a dictionary hit returns before this is called.
+//
+// ⚠ "WOULD HAPPILY MATCH Järntorget" IS WHAT THIS SAID, AND IT OVERSTATES THE
+// OVERLAP. Since r4 a candidate is a suffix-compound plus a HOUSE NUMBER, with no
+// bare-suffix form left, so the collision needs a number:
+//
+//   "Järntorget" → null   "Järntorget 11-14" → null   "Järntorget 12" → "Järntorget 12"
+//
+// One row, not every mention. The ordering rule is unchanged and still load-bearing —
+// "Järntorget 12" is an ordinary caption shape — but the sentence was written against
+// the pre-r4 pattern and was not revisited when the rule narrowed. Noted here because
+// #67 inherited the wide claim from this header verbatim (PR #93 r2).
 //
 // RETURNING `null` IS THE COMMON CASE AND THE IMPORTANT ONE. Most captions contain
 // no address at all, and `null` is what suppresses the network call entirely — the

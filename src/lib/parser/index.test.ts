@@ -26,16 +26,30 @@ import { extractTime } from "@/lib/parser/time";
 //
 // MUTATION-VERIFIED, because "this test pins the order" is exactly the kind of claim
 // this project has shipped unchecked before. Each mutant was applied to `index.ts`,
-// run, and reverted:
+// run, and reverted; each is killed by this suite:
 //
-//   delete the negation bail, keep `isNegation`     3 failures, all in this file
-//   check the address fallback before the dictionary  1 failure
-//   pass `parsedAt` to `extractTime` not `date`       1 failure
-//   cross the two `scoreConfidence` axes              2 failures
-//   append `Date.now()` to `index.ts`               purity.test.ts, not this file
-//   append an `@/lib/supabase` import               purity.test.ts, not this file
+//   delete the negation bail, keep `isNegation`
+//   check the address fallback before the dictionary
+//   pass `parsedAt` to `extractTime` rather than the resolved date
+//   cross the two `scoreConfidence` axes
 //
-// ⚠ THE FIRST ROW IS THE INTERESTING ONE. With the bail deleted, the negation's
+// and two more that are killed by `purity.test.ts` rather than by anything here —
+// appending `Date.now()` to `index.ts`, and appending an `@/lib/supabase` import.
+//
+// ⚠ NO FAILURE COUNTS, AND THE DELETED ONES ARE WHY. A first version of this table
+// gave a count per mutant. Three of the four were wrong within one commit: the
+// known-gaps block below was added afterwards and catches several of the same
+// mutants, so "3 failures" became 6, "1" became 2, "2" became 3. The numbers were
+// accurate when written and stale before the branch was reviewed.
+//
+// This project already has that rule written down — the phase plan refuses to put a
+// test count beside its acceptance criteria, saying "a hand-maintained number beside
+// a growing table drifted twice … the table is the count" — and I reproduced the
+// exact thing it warns about, in a table whose entire purpose is to be checkable.
+// A count is a claim about a suite that grows; "this mutant is killed" is a claim
+// about the mutant, and re-running it is what confirms it either way.
+//
+// ⚠ THE FIRST ROW IS STILL THE INTERESTING ONE. With the bail deleted, the negation's
 // CONFIDENCE assertion still passed — `scoreConfidence` short-circuits on
 // `isNegation` independently — while the `place` and `time` assertions failed. That
 // is the split both modules' comments claim: the score is defended by
@@ -262,6 +276,31 @@ describe("known gaps, pinned so they are recorded rather than merely known", () 
     // filters it. Scoring the maximum means it clears the 0.45 display threshold from
     // every lane, so the wrong pin is bounded only by `expires_at`.
     expect(result.parserConfidence).toBe(1.0);
+  });
+
+  it.each([
+    "Heden 11-14 (ej söndag)",
+    "Heden 11-14, ej söndag",
+    "Heden 11-14 utom söndag",
+    "Heden 11-14 förutom söndag",
+    "Heden 11-14 (ej söndagar)",
+  ])("#96 — %s resolves to the excluded day itself", (caption) => {
+    // The worst available answer rather than a degraded one: the caption rules Sunday
+    // out and the parser pins Sunday. SUMMER is a Saturday, so "söndag" resolves to
+    // the next day.
+    const result = parseCaption(caption, SUMMER);
+
+    expect(result.isNegation).toBe(false);
+    expect(result.date).toBe("2026-08-23");
+    expect(result.time?.startsAt).toBe("2026-08-23T09:00:00.000Z");
+    // At the maximum, so nothing downstream filters it.
+    expect(result.parserConfidence).toBe(1.0);
+  });
+
+  it("#96 — but an exclusion after a real date word does not move the date", () => {
+    // The regression guard #96 must not break. `extractDate` is first-match-wins, so
+    // "idag" already wins here — this row is correct today and must stay correct.
+    expect(parseCaption("Heden 11-14 idag (ej söndag)", SUMMER).date).toBe(SUMMER);
   });
 
   it("#80 — a closure named for another day cancels the day the post was sent", () => {

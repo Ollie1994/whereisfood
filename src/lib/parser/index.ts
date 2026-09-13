@@ -32,9 +32,24 @@ import type { ParseResult, ResolvedPlace } from "@/lib/types";
 //   acceptance criterion in its own right, and the reason is one layer down: a
 //   `fallback` place is what puts a caption on the wire to Nominatim, so computing
 //   one for a caption we already resolved would spend a network call to re-derive an
-//   answer we hold — and `-torget` is a street suffix, so `extractAddressCandidate`
-//   would cheerfully re-match "Järntorget" as an unknown square. Ordering is the only
-//   thing keeping those two modules apart; `address.ts` imports no dictionary.
+//   answer we hold. `-torget` is a street suffix, so a known square CAN be re-matched
+//   here — ordering is the only thing keeping the two modules apart, and `address.ts`
+//   imports no dictionary by construction.
+//
+//   ⚠ THE OVERLAP IS NARROWER THAN THE OBVIOUS STATEMENT OF IT, and an earlier
+//   version of this comment made the wide one — that `extractAddressCandidate` "would
+//   cheerfully re-match Järntorget". It would not, for most captions naming it:
+//
+//     "Järntorget"             → null      "vid Järntorget idag"  → null
+//     "Järntorget 11-14"       → null      "Järntorget 12"        → "Järntorget 12"
+//
+//   Since PR #89 r4 a candidate is a suffix-compound followed by a HOUSE NUMBER, with
+//   no bare-suffix form left, so the collision needs a number the dictionary name does
+//   not carry. The ordering rule is unchanged and still load-bearing — "Järntorget 12"
+//   is a real caption shape and is exactly what the test below pins — but the failure
+//   it prevents is that row, not every mention of a known square. The wide version was
+//   inherited from `address.ts`'s own header, which states it the same way; worth
+//   correcting there too rather than only here.
 
 // WHAT THE CALLER OWES THIS FUNCTION.
 //
@@ -84,6 +99,24 @@ export function parseCaption(caption: string, parsedAt: string): ParseResult {
   //
   // Tracked as #94 and pinned by a test, so the behaviour is recorded rather than
   // merely known. The wrong pin is bounded only by `expires_at`, not by confidence.
+  //
+  // ⚠ AND A SECOND SHAPE, WHICH INVERTS RATHER THAN MISPAIRS — #96. A caption that
+  // states hours and EXCLUDES a day resolves to the excluded day:
+  //
+  //   parseCaption("Heden 11-14 (ej söndag)", "2026-08-22") → date 2026-08-23, 1.0
+  //
+  // Both halves are individually right, which is what makes it a composition defect
+  // and not an extractor bug. `detectNegation` correctly does not fire — #82
+  // constrains `ej` to an operating verb or an open state, and a weekday is neither,
+  // so the post is a positive statement with a carve-out rather than a cancellation;
+  // firing would DELETE the pin, which is worse. `extractDate` then takes the first
+  // date expression, and with no other date word the excluded weekday is the only one.
+  //
+  // Worse than #94 in kind, not just in degree: every other gap here loses a day or
+  // picks the wrong one of several stated. This one returns the single day the
+  // caption explicitly denies. `date.ts` already has the shape of the fix in
+  // `NOT_BACKWARD` — a lookbehind for words that change what a following weekday
+  // means — which is why #96 lands there rather than in this composition.
   const date = extractDate(normalized, parsedAt);
   const time = extractTime(normalized, date);
 
