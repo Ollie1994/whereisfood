@@ -232,6 +232,187 @@ describe("extractDate", () => {
     });
   });
 
+  // MUTATION-VERIFIED. Each applied to `date.ts`, run, reverted; each is killed by
+  // this block plus `index.test.ts`'s composed rows. No failure counts recorded —
+  // process-log #160.
+  //
+  //   remove `NOT_EXCLUDED` from `DATE_EXPRESSION` entirely
+  //   treat `ej`/`inte` like `utom` — drop the "no word precedes it" guard
+  //   drop the inner `BEFORE`, so the lookbehind matches a word ENDING
+  //   empty the preposition list
+  //   drop the coordination chain, so only the day after the excluder is suppressed
+  //   empty `EXCLUSION_PREP`, so an intervening "på" defeats the guard
+  //   let the chain span any token instead of weekdays only
+  //
+  // Two are worth re-running if this block is ever edited:
+  //
+  //   MERGING THE TWO LISTS keeps every exclusion working and breaks only the
+  //   verb-negator rows — exactly the mistake a later reader makes by deciding `ej`
+  //   and `utom` are the same word class.
+  //
+  //   WIDENING THE CHAIN keeps every exclusion working and breaks only the negative
+  //   controls, where an exclusion must NOT run past ordinary prose. That one is the
+  //   boundary between this guard and the clause segmentation plan decision #8 defers.
+  //
+  // Both mutants are green on the positive rows alone, which is why the negative
+  // controls are not optional here.
+  describe("an excluded weekday is not the pin's date (#96)", () => {
+    it.each([
+      "Heden 11-14 (ej söndag)",
+      "Heden 11-14, ej söndag",
+      "Heden 11-14 utom söndag",
+      "Heden 11-14 förutom söndag",
+      "Heden 11-14 (ej söndagar)",
+      "Ej söndag",
+    ])("%s does not resolve to the excluded Sunday", (caption) => {
+      // Before the guard, every one of these returned SUNDAY — the single day the
+      // caption rules out, and at confidence 1.0 through `parseCaption`. Every other
+      // known parser gap loses a day or picks the wrong one of several stated; this
+      // one INVERTS, which is why it is worth a guard rather than a note.
+      expect(extractDate(caption, SATURDAY)).toBe(SATURDAY);
+    });
+
+    it.each([
+      ["Glöm ej söndag!", SUNDAY],
+      ["Glöm inte söndag!", SUNDAY],
+      ["Missa inte söndag på Heden", SUNDAY],
+    ])("still resolves %s — the negator attaches to the verb", (caption, expected) => {
+      // ⚠ THE REASON `ej`/`inte` ARE NOT TREATED LIKE `utom`, pinned so the two lists
+      // are not merged later. These are general negators, and when a VERB precedes
+      // them they negate the verb — the truck IS there on Sunday. Suppressing the
+      // weekday would fall back to the posting day: a wrong pin TODAY, which is the
+      // identical trade that got `sista` removed from BACKWARD_MODIFIERS above.
+      //
+      // Verified against the pre-guard behaviour: all three already resolved to Sunday
+      // and were already correct, so this block pins behaviour the fix must NOT change.
+      expect(extractDate(caption, SATURDAY)).toBe(expected);
+    });
+
+    it("skips the excluded weekday and takes the next one", () => {
+      // A suppressed match does not end the search — the engine moves on. That makes
+      // "not X, but Y" resolve to Y rather than falling back to the posting day, which
+      // is strictly better than bailing at the first exclusion.
+      //
+      // ⚠ `måndag` RATHER THAN `lördag`, and the difference is what makes this test
+      // mean anything. `parsedAt` is a Saturday, and a weekday that IS today resolves
+      // to today — so "utan lördag" would return SATURDAY, which is also the fallback
+      // value, and the assertion would pass whether the engine skipped ahead or gave
+      // up. MONDAY is distinct from both the excluded SUNDAY and the SATURDAY
+      // fallback, so only one behaviour satisfies it.
+      expect(extractDate("Inte söndag, utan måndag", SATURDAY)).toBe(MONDAY);
+    });
+
+    it("requires the excluder to be a whole word, not a word ending", () => {
+      // Same unbounded-token hazard the backward guard was caught by: without the
+      // inner boundary the lookbehind matches the SUFFIX of a longer word and
+      // silently suppresses a real date. "Nyutom" is not Swedish, which is the point —
+      // the pattern must not care.
+      expect(extractDate("Nyutom söndag kör vi", SATURDAY)).toBe(SUNDAY);
+    });
+
+    it("does not suppress an ordinary weekday", () => {
+      expect(extractDate("Heden 11-14 på söndag", SATURDAY)).toBe(SUNDAY);
+    });
+
+    it.each([
+      "Heden 11-14 utom söndag och måndag",
+      "Heden 11-14 (ej söndag och måndag)",
+      "Heden 11-14 utom söndag, måndag",
+      "Heden 11-14 utom måndag, tisdag och onsdag",
+      "Heden 11-14 förutom på söndag och på måndag",
+    ])("%s excludes the whole coordinated list", (caption) => {
+      // ⚠ THE HALF THE FIRST VERSION MISSED, and the skip-ahead rule is what exposed
+      // it: only the day directly after the excluder was suppressed, so the engine
+      // moved on and pinned the SECOND excluded day. The same #96 inversion, produced
+      // by the behaviour the first version called "strictly better than bailing"
+      // (PR #100 r1).
+      //
+      // ⚠ NOT ONE OF THESE EXCLUDES `lördag`, AND THAT IS THE POINT. `SATURDAY` is a
+      // Saturday, so a row excluding `lördag` asserts the pin lands ON an excluded day
+      // — it passes because the fallback happens to equal one of the excluded days,
+      // not because the guard worked, and it would FAIL a correct fix. The first
+      // version of this block used `"utom lördag och söndag"` and three siblings, all
+      // with that defect (PR #100 r2). The real behaviour is pinned below as #102.
+      //
+      // With every excluded day distinct from the posting day, `toBe(SATURDAY)` means
+      // what it says: the chain suppressed all of them and the fallback is a day the
+      // caption did not exclude.
+      expect(extractDate(caption, SATURDAY)).toBe(SATURDAY);
+    });
+
+    it.each([
+      "Heden utom lördag och vi kör söndag",
+      "Heden utom lördag, vi kör söndag",
+      "Vi kör utom påsk på söndag",
+    ])("stops the chain at a non-weekday: %s still resolves", (caption) => {
+      // ⚠ THE BOUND THAT KEEPS THIS FROM BECOMING CLAUSE SEGMENTATION (plan decision
+      // #8). Each link must be a weekday followed by a conjunction, so an exclusion
+      // cannot run past ordinary prose and swallow a real date behind it. "påsk" is
+      // the near-miss: it follows `på` but is not a weekday, and `(?:på\s+)?` requires
+      // whitespace so it cannot match the "på" inside "påsk" either.
+      expect(extractDate(caption, SATURDAY)).toBe(SUNDAY);
+    });
+
+    it.each([
+      "Heden 11-14 utom på söndag",
+      "Heden 11-14 (ej på söndag)",
+      "Heden 11-14 förutom på söndag",
+    ])("%s — an intervening 'på' does not defeat the guard", (caption) => {
+      // "på söndag" is the ordinary Swedish phrasing and this module's own weekday
+      // tests use it throughout. Requiring the excluder to sit directly on the day
+      // missed every one of these (PR #100 review).
+      expect(extractDate(caption, SATURDAY)).toBe(SATURDAY);
+    });
+
+    it.each([
+      "Heden 11-14 alla dagar utom lördag",
+      "Heden 11-14 utom lördag",
+      "Heden 11-14 (ej lördag)",
+      "Heden 11-14 utom lördag och söndag",
+    ])("#102 — %s still pins the excluded day, because the FALLBACK is excluded", (caption) => {
+      // ⚠ PINS A KNOWN GAP, NOT DESIRED BEHAVIOUR. `SATURDAY` is a Saturday, and every
+      // one of these excludes `lördag`. Suppressing the named day falls back to
+      // `parsedAt` — which is that same excluded day. The #96 inversion verbatim,
+      // relocated from "the excluded day the caption named" to "the excluded day that
+      // happens to be today", and still at confidence 1.0 because `scoreConfidence`
+      // reads only location and time.
+      //
+      // Not fixable in this module: `extractDate` is typed `: string` by #57 and has
+      // no way to say "no usable date". Tracked as #102.
+      expect(extractDate(caption, SATURDAY)).toBe(SATURDAY);
+    });
+
+    it("#102 — the coordination chain can cross a clause boundary into a real claim", () => {
+      // ⚠ ALSO A KNOWN GAP. The chain is bounded to WEEKDAY tokens, which stops it
+      // running past prose — but when the next clause happens to START with a weekday,
+      // the comma carries the exclusion across it and a stated date is lost.
+      //
+      // "Öppet utom lördag, söndag Lindholmen 12-16" states a real Sunday booking, and
+      // it resolves to the posting day instead. The documented bound "cannot run past
+      // ordinary prose" is true and narrower than it sounds — prose stops the chain, a
+      // second clause opening on a weekday does not.
+      expect(extractDate("Öppet utom lördag, söndag Lindholmen 12-16", SATURDAY)).toBe(SATURDAY);
+    });
+
+    it("does NOT fire when a collapsed newline hides the clause break (#101)", () => {
+      // ⚠ PINS A KNOWN GAP, NOT DESIRED BEHAVIOUR. `normalizeCaption` collapses a
+      // newline to a space, so `Heden` abuts `Inte` and the "no word precedes the
+      // negator" rule does not fire. The excluded Sunday is pinned.
+      //
+      // The second row is the tell for why this is arbitrary rather than merely
+      // missing: an identical caption with a time before the newline DOES resolve
+      // correctly, because a digit precedes and `\p{L}` excludes digits.
+      //
+      // Not fixable here — the clause break is destroyed at step 0. #101.
+      expect(extractDate(normalizeCaption("Vi står på Heden\nInte söndag"), SATURDAY)).toBe(
+        SUNDAY,
+      );
+      expect(extractDate(normalizeCaption("Vi står på Heden 11-14\nInte söndag"), SATURDAY)).toBe(
+        SATURDAY,
+      );
+    });
+  });
+
   describe("no date expression", () => {
     it("falls back to the day the post was made", () => {
       expect(extractDate("Vi står på Järntorget 11-14", SATURDAY)).toBe(SATURDAY);

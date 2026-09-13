@@ -136,23 +136,27 @@ export function parseCaption(caption: string, parsedAt: string): ParseResult {
   // Tracked as #94 and pinned by a test, so the behaviour is recorded rather than
   // merely known. The wrong pin is bounded only by `expires_at`, not by confidence.
   //
-  // ⚠ AND A SECOND SHAPE, WHICH INVERTS RATHER THAN MISPAIRS — #96. A caption that
-  // states hours and EXCLUDES a day resolves to the excluded day:
+  // ⚠ A SECOND SHAPE INVERTED RATHER THAN MISPAIRING — #96, now FIXED in `date.ts`.
+  // A caption stating hours and excluding a day resolved to the excluded day:
   //
-  //   parseCaption("Heden 11-14 (ej söndag)", "2026-08-22") → date 2026-08-23, 1.0
+  //   parseCaption("Heden 11-14 (ej söndag)", "2026-08-22")
+  //     was  → date 2026-08-23 (Sunday, the excluded day), 1.0
+  //     now  → date 2026-08-22 (the posting day)
   //
-  // Both halves are individually right, which is what makes it a composition defect
-  // and not an extractor bug. `detectNegation` correctly does not fire — #82
-  // constrains `ej` to an operating verb or an open state, and a weekday is neither,
-  // so the post is a positive statement with a carve-out rather than a cancellation;
-  // firing would DELETE the pin, which is worse. `extractDate` then takes the first
-  // date expression, and with no other date word the excluded weekday is the only one.
+  // It turned out NOT to be a composition defect, which is why it was fixed one layer
+  // down and this comment is a pointer rather than a plan. `detectNegation` is right
+  // not to fire — #82 constrains `ej` to an operating verb or an open state, and a
+  // weekday is neither, so the post is a positive statement with a carve-out and
+  // firing would DELETE the pin. Only `extractDate`'s choice of day was wrong, and it
+  // now carries a `NOT_EXCLUDED` lookbehind alongside the `NOT_BACKWARD` it already
+  // had.
   //
-  // Worse than #94 in kind, not just in degree: every other gap here loses a day or
-  // picks the wrong one of several stated. This one returns the single day the
-  // caption explicitly denies. `date.ts` already has the shape of the fix in
-  // `NOT_BACKWARD` — a lookbehind for words that change what a following weekday
-  // means — which is why #96 lands there rather than in this composition.
+  // ⚠ TWO REMNANTS OF IT ARE STILL LIVE AND REACH THIS LINE, both tracked as #102:
+  // suppressing the named day falls back to `parsedAt`, which can ITSELF be the
+  // excluded day ("alla dagar utom lördag", posted on a Saturday → lördag, at 1.0);
+  // and the exclusion chain can cross a clause boundary that opens on a weekday,
+  // losing a stated date. Both need something this composition does not have — a way
+  // for `extractDate` to say "no usable date", or clause boundaries.
   const date = extractDate(normalized, parsedAt);
   const time = extractTime(normalized, date);
 
