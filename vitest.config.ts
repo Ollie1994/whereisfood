@@ -107,15 +107,32 @@ export default defineConfig({
           // not exist at all (which is what a fresh clone has — git tracks no empty
           // directory, so no `.gitkeep` is needed).
           //
-          // Putting it on the SCRIPT rather than in the root `test` block is what keeps
-          // it scoped: at the root it would also apply to `unit`, where an empty match
-          // means a broken `include` glob and should stay loud.
+          // It is on `test:integration` ONLY. `test:all` does not carry it and does not
+          // need it: vitest's empty-match check is per-RUN, so a run that also collects
+          // the 917 unit tests is never empty. Measured — `npx vitest run` with
+          // `tests/integration/` absent exits 0 with no flag at all.
           //
-          // ⚠ IT STAYS AFTER #72, a trade accepted knowingly: a typo in the glob above
-          // would then pass silently with zero tests. The integration suite is where
-          // that gets closed, with its own non-vacuity assertion in the style
-          // `parser/purity.test.ts` already uses ("finds parser modules to check") —
-          // noted here so #72 inherits the obligation rather than discovering the hole.
+          // ⚠ "PUTTING IT ON THE SCRIPT KEEPS IT SCOPED TO INTEGRATION" IS WHAT THIS
+          // SAID, AND IT IS FALSE. The claim was that at the root the flag would also
+          // mute `unit`, where an empty match means a broken glob and should stay loud.
+          // Vitest never checks per-project emptiness, so the flag's LOCATION changes
+          // nothing about `unit`. Verified by breaking the unit `include` to match
+          // nothing while one real integration test existed:
+          //
+          //   npx vitest run                     → exit 0, "Test Files 1 passed"
+          //   npx vitest run --passWithNoTests   → exit 0, identical
+          //   npx vitest run --project unit      → exit 1
+          //
+          // So `test:all` — the documented MERGE GATE — reports success while running
+          // zero unit tests, and the flag is not what allows it. Only running a project
+          // alone makes its emptiness visible, because then the RUN is empty.
+          //
+          // ⚠ THE OBLIGATION HANDED TO #99 IS THEREFORE BOTH PROJECTS, NOT INTEGRATION.
+          // And it cannot be discharged from inside the project it protects: an
+          // assertion living in `unit` does not run when `unit` collects nothing, so a
+          // vacuity guard inside a vacant project never fires. It needs an external
+          // comparison — collected files against files on disk — which is why #99 is
+          // its own issue rather than a line here.
 
           // ⚠ SEQUENTIAL EXECUTION — the setting this split exists for, and the one
           // whose absence is silent.
