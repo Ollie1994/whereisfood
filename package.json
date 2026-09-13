@@ -7,8 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest",
-    "test:run": "vitest run"
+    "test": "vitest --project unit",
+    "test:run": "vitest run --project unit",
+    "test:integration": "vitest run --project integration --passWithNoTests"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.2",
