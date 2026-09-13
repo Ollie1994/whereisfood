@@ -98,11 +98,24 @@ const PARSER_DIR = fileURLToPath(new URL(".", import.meta.url));
 //                        visible. `geo.test.ts` makes the same call for the
 //                        stricter FORBID_ALL_IMPORTS policy.
 //
-//                        NOTE for #67: an earlier version of this comment predicted
-//                        that composing the parser "should need nothing new". That
-//                        was wrong — `parseCaption()` returns `ParseResult`, which
-//                        lives in the same module, so #67 needed this entry too and
-//                        #62 merely got here first.
+//                        NOTE, now settled by #67: an earlier version of this comment
+//                        predicted that composing the parser "should need nothing
+//                        new". It was wrong twice over. `parseCaption()` returns
+//                        `ParseResult`, which lives in this module — so #67 needed
+//                        this entry and #62 merely got here first — and composing the
+//                        directory meant importing every module in it, which is the
+//                        five entries above.
+//
+//                        ⚠ #67 ALSO ADDED AN EDGE IN THE OTHER DIRECTION, which is
+//                        the part worth reading twice: `types.ts` now carries
+//                        `import type { ExtractedTime } from "@/lib/parser/time"`, so
+//                        the two modules reference each other at the type level. The
+//                        obligation recorded below is unaffected — it is about a claim
+//                        stopping at an UNASSERTED file, and both ends here are
+//                        asserted, this glob covering `time.ts` and `types.test.ts`
+//                        covering `types.ts`. Neither is `import type`-erased out of
+//                        the guard's sight either: this guard rejects `import type`
+//                        exactly like a value import, which is why the entry exists.
 //
 // ⚠ THIS GUARD IS NOT TRANSITIVE, and `@/lib/types` is the first entry where that
 // matters. The glob below covers `src/lib/parser/`; an allowlisted module OUTSIDE
@@ -118,10 +131,27 @@ const PARSER_DIR = fileURLToPath(new URL(".", import.meta.url));
 // SO: ADDING AN OUTWARD EDGE TO THIS LIST INCURS AN OBLIGATION. If a parser module
 // ever needs a third external import, either assert that module's purity too or
 // accept — in writing, here — that the claim now stops at it.
+//   `@/lib/parser/address`      All five added by #67, and all for one reason:
+//   `@/lib/parser/confidence`   `index.ts` is the COMPOSITION of this directory, so
+//   `@/lib/parser/location`     it imports every extractor in it. These are the only
+//   `@/lib/parser/negation`     entries on this list that are not an argument about
+//   `@/lib/parser/normalize`    coupling — a module whose job is to call the others
+//                               importing the others is not a dependency decision.
+//
+//                               All inside the directory, so each is one more module
+//                               checked rather than an outward edge. The list is now
+//                               closed over the parser: every remaining module is
+//                               here, so a SIXTH entry would mean a genuinely new
+//                               file and should be argued like the ones above.
 const PARSER_POLICY = allowOnly([
+  "@/lib/parser/address",
   "@/lib/parser/boundary",
+  "@/lib/parser/confidence",
   "@/lib/parser/date",
   "@/lib/parser/dictionary",
+  "@/lib/parser/location",
+  "@/lib/parser/negation",
+  "@/lib/parser/normalize",
   "@/lib/parser/time",
   "@/lib/types",
   "date-fns-tz",

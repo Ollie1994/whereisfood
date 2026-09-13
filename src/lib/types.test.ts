@@ -25,16 +25,41 @@ import { FORBID_ALL_IMPORTS, allowOnly, findImpurities, readModuleSource } from 
 // it — stated so the next person adding one knows the obligation exists.
 
 describe("types.ts purity", () => {
-  // `@/lib/database.types` is the only permitted import, and it is a type-only
-  // one (`import type { Database }`), so nothing survives into the emitted JS.
-  // It is allowlisted rather than forbidden because the row types are DERIVED from
-  // the generated schema on purpose (#48) — that import is the mechanism that
-  // makes a migration break every stale usage, and forbidding it would push the
-  // app back to hand-written interfaces that silently disagree with the schema.
-  it("imports only the generated database types, and never touches the network or clock", () => {
+  // Both permitted imports are type-only, so nothing survives into the emitted JS.
+  //
+  //   `@/lib/database.types`  allowlisted rather than forbidden because the row types
+  //                           are DERIVED from the generated schema on purpose (#48)
+  //                           — that import is the mechanism that makes a migration
+  //                           break every stale usage, and forbidding it would push
+  //                           the app back to hand-written interfaces that silently
+  //                           disagree with the schema.
+  //
+  //   `@/lib/parser/time`     added by #67. `ParseResult` holds `ExtractedTime` whole
+  //                           rather than splitting it into `startsAt`/`endsAt`/`kind`,
+  //                           which would spell three impossible states.
+  //
+  //                           ⚠ THIS IS THE ONLY EDGE HERE THAT POINTS OUTWARD, and
+  //                           it does NOT incur the obligation the header describes.
+  //                           That obligation is about `parser/purity.test.ts`
+  //                           allowlisting a module outside its glob — a claim that
+  //                           stops at an unasserted file. This edge points INTO the
+  //                           parser directory, which that glob already covers in
+  //                           full, so the far end is asserted by the suite that
+  //                           depends on it. Verified, not assumed: appending
+  //                           `Date.now()` to `time.ts` fails
+  //                           `parser/purity.test.ts`, not this file.
+  //
+  //                           It does mean `types.ts` and the parser now import each
+  //                           other at the TYPE level (`location.ts` reads
+  //                           `LocationMatch` from here). There is no runtime cycle —
+  //                           both directions are `import type`, and `time.ts` imports
+  //                           nothing from `types.ts` — and the assertion below is
+  //                           what keeps the emitted JS empty rather than trusting
+  //                           that it stays that way.
+  it("imports only erased types, and never touches the network or clock", () => {
     const violations = findImpurities(
       readModuleSource(new URL("./types.ts", import.meta.url).href),
-      allowOnly(["@/lib/database.types"]),
+      allowOnly(["@/lib/database.types", "@/lib/parser/time"]),
     );
 
     expect(violations).toEqual([]);
