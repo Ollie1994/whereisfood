@@ -186,8 +186,19 @@ export const EXCLUSION_NEGATORS = ["ej", "inte"] as const;
 //   "Heden utom lördag och vi kör söndag"   →  söndag still matches
 //   "Heden utom lördag, vi kör söndag"      →  söndag still matches
 //
-// `,` is a conjunction here because Swedish lists take it ("utom lördag, söndag"), and
-// it is safe for the same reason: the token after it must be a weekday.
+// `,` is a conjunction here because Swedish lists take it ("utom lördag, söndag").
+//
+// ⚠ AND "CANNOT RUN PAST ORDINARY PROSE" IS NARROWER THAN IT SOUNDS. Prose stops the
+// chain; a SECOND CLAUSE THAT OPENS ON A WEEKDAY does not, because the comma plus the
+// weekday is exactly one more valid link:
+//
+//   "Öppet utom lördag, söndag Lindholmen 12-16"  →  the posting day
+//
+// That caption states a real Sunday booking and loses it. Closing the gap means
+// knowing where a clause ends, which is the segmentation plan decision #8 defers to
+// Phase 8 — so it is pinned as a known-gap test and tracked with #102 rather than
+// guarded by one more condition here. Every round in this parser that ADDED a
+// condition was refuted a round later; the ones that removed a form were not.
 export const EXCLUSION_CONJUNCTIONS = ["och", "eller", ",", "&"] as const;
 
 // Word boundaries WITHOUT `\b`, which is ASCII-only and therefore wrong for Swedish:

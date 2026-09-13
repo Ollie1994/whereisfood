@@ -315,24 +315,29 @@ describe("extractDate", () => {
     });
 
     it.each([
-      "Heden 11-14 utom lördag och söndag",
-      "Heden 11-14 (ej lördag och söndag)",
-      "Heden 11-14 utom lördag, söndag",
+      "Heden 11-14 utom söndag och måndag",
+      "Heden 11-14 (ej söndag och måndag)",
+      "Heden 11-14 utom söndag, måndag",
       "Heden 11-14 utom måndag, tisdag och onsdag",
-      "Heden 11-14 förutom på lördag och på söndag",
+      "Heden 11-14 förutom på söndag och på måndag",
     ])("%s excludes the whole coordinated list", (caption) => {
       // ⚠ THE HALF THE FIRST VERSION MISSED, and the skip-ahead rule is what exposed
       // it: only the day directly after the excluder was suppressed, so the engine
       // moved on and pinned the SECOND excluded day. The same #96 inversion, produced
       // by the behaviour the first version called "strictly better than bailing"
-      // (PR #100 review).
+      // (PR #100 r1).
+      //
+      // ⚠ NOT ONE OF THESE EXCLUDES `lördag`, AND THAT IS THE POINT. `SATURDAY` is a
+      // Saturday, so a row excluding `lördag` asserts the pin lands ON an excluded day
+      // — it passes because the fallback happens to equal one of the excluded days,
+      // not because the guard worked, and it would FAIL a correct fix. The first
+      // version of this block used `"utom lördag och söndag"` and three siblings, all
+      // with that defect (PR #100 r2). The real behaviour is pinned below as #102.
+      //
+      // With every excluded day distinct from the posting day, `toBe(SATURDAY)` means
+      // what it says: the chain suppressed all of them and the fallback is a day the
+      // caption did not exclude.
       expect(extractDate(caption, SATURDAY)).toBe(SATURDAY);
-    });
-
-    it("excludes a day that follows the excluded one alphabetically later in the week", () => {
-      // "utom söndag och måndag" resolved to MONDAY before the chain was followed —
-      // skipping the suppressed Sunday and landing on the other excluded day.
-      expect(extractDate("Heden 11-14 utom söndag och måndag", SATURDAY)).toBe(SATURDAY);
     });
 
     it.each([
@@ -357,6 +362,36 @@ describe("extractDate", () => {
       // tests use it throughout. Requiring the excluder to sit directly on the day
       // missed every one of these (PR #100 review).
       expect(extractDate(caption, SATURDAY)).toBe(SATURDAY);
+    });
+
+    it.each([
+      "Heden 11-14 alla dagar utom lördag",
+      "Heden 11-14 utom lördag",
+      "Heden 11-14 (ej lördag)",
+      "Heden 11-14 utom lördag och söndag",
+    ])("#102 — %s still pins the excluded day, because the FALLBACK is excluded", (caption) => {
+      // ⚠ PINS A KNOWN GAP, NOT DESIRED BEHAVIOUR. `SATURDAY` is a Saturday, and every
+      // one of these excludes `lördag`. Suppressing the named day falls back to
+      // `parsedAt` — which is that same excluded day. The #96 inversion verbatim,
+      // relocated from "the excluded day the caption named" to "the excluded day that
+      // happens to be today", and still at confidence 1.0 because `scoreConfidence`
+      // reads only location and time.
+      //
+      // Not fixable in this module: `extractDate` is typed `: string` by #57 and has
+      // no way to say "no usable date". Tracked as #102.
+      expect(extractDate(caption, SATURDAY)).toBe(SATURDAY);
+    });
+
+    it("#102 — the coordination chain can cross a clause boundary into a real claim", () => {
+      // ⚠ ALSO A KNOWN GAP. The chain is bounded to WEEKDAY tokens, which stops it
+      // running past prose — but when the next clause happens to START with a weekday,
+      // the comma carries the exclusion across it and a stated date is lost.
+      //
+      // "Öppet utom lördag, söndag Lindholmen 12-16" states a real Sunday booking, and
+      // it resolves to the posting day instead. The documented bound "cannot run past
+      // ordinary prose" is true and narrower than it sounds — prose stops the chain, a
+      // second clause opening on a weekday does not.
+      expect(extractDate("Öppet utom lördag, söndag Lindholmen 12-16", SATURDAY)).toBe(SATURDAY);
     });
 
     it("does NOT fire when a collapsed newline hides the clause break (#101)", () => {

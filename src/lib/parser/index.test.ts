@@ -68,13 +68,23 @@ import { extractTime } from "@/lib/parser/time";
 // The Stockholm calendar date every case is read against, unless it says otherwise.
 // A SATURDAY, in CEST (UTC+2) — so 11:00 local is 09:00Z.
 //
-// ⚠ THE WEEKDAY IS LOAD-BEARING, which is why it is stated and why getting it wrong
-// mattered. The `#96` rows resolve "söndag" to 2026-08-23, which is only the next day
-// because this is a Saturday; on any other weekday those assertions would need a
-// different date. An earlier version of this comment called it a Friday — and the
-// `#96` block eight lines down correctly called it a Saturday, so the file
-// contradicted itself. Both were written by reading the constant rather than
-// computing it.
+// ⚠ THE WEEKDAY IS LOAD-BEARING, and it has now been stated wrongly TWICE — once as
+// the wrong day, once about the wrong behaviour.
+//
+//   An earlier version called it a Friday. It is a Saturday, and the `#96` block below
+//   already said so, so the file contradicted itself (PR #93 r3).
+//
+//   A later version said "the `#96` rows resolve söndag to 2026-08-23". They did while
+//   that block pinned the DEFECT; since the fix they resolve to 2026-08-22, the posting
+//   day. The sentence survived the block flipping underneath it (PR #100 r2).
+//
+// Both were written by reading rather than computing, and the second is the sharper
+// lesson: a comment about what a test block asserts goes stale when the block's
+// EXPECTATION changes, not only when its input does.
+//
+// What still depends on this being a Saturday: `söndag` is tomorrow (2026-08-23) and
+// `lördag` is today, which is why the `#102` rows can pin "the fallback is itself an
+// excluded day" at all.
 const SUMMER = "2026-08-22";
 // A THURSDAY, in CET (UTC+1), where 11:00 local is 10:00Z. The weekday is deliberately
 // NOT matched to SUMMER's — nothing here needs them to agree, and an earlier comment
@@ -354,13 +364,31 @@ describe("known gaps, pinned so they are recorded rather than merely known", () 
   });
 
   it("#96 — a coordinated exclusion does not pin its second day either", () => {
-    // The composed half of the review finding: the first version suppressed only the
-    // day directly after the excluder, so the engine skipped ahead and pinned the
-    // SECOND excluded day at 1.0 — the same inversion, one word further along.
-    const result = parseCaption("Heden 11-14 utom lördag och söndag", SUMMER);
+    // The composed half of the r1 finding: the first version suppressed only the day
+    // directly after the excluder, so the engine skipped ahead and pinned the SECOND
+    // excluded day at 1.0 — the same inversion, one word further along.
+    //
+    // ⚠ `söndag och måndag`, NOT `lördag och söndag`. SUMMER is a Saturday, so a row
+    // excluding `lördag` asserts the pin lands ON an excluded day: it passes because
+    // the fallback happens to be one of the excluded days, not because the chain
+    // worked, and it would FAIL a correct fix. The first version of this row had that
+    // defect (PR #100 r2). Neither `söndag` nor `måndag` is the posting day, so
+    // `toBe(SUMMER)` means what it says.
+    const result = parseCaption("Heden 11-14 utom söndag och måndag", SUMMER);
 
     expect(result.date).toBe(SUMMER);
     expect(result.time?.startsAt).toBe("2026-08-22T09:00:00.000Z");
+  });
+
+  it("#102 — but a caption excluding TODAY is still pinned on today, at 1.0", () => {
+    // ⚠ PINS A KNOWN GAP. SUMMER is a Saturday and this caption excludes `lördag`, so
+    // suppressing the named day falls back to `parsedAt` — the excluded day itself.
+    // The #96 inversion relocated, and `scoreConfidence` reads only location and time,
+    // so it still scores the maximum and clears the display threshold in every lane.
+    const result = parseCaption("Heden 11-14 alla dagar utom lördag", SUMMER);
+
+    expect(result.date).toBe(SUMMER);
+    expect(result.parserConfidence).toBe(1.0);
   });
 
   it("#96 — a verb-negated weekday is still the pin's date", () => {
