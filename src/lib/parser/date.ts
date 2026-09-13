@@ -144,10 +144,51 @@ export const BACKWARD_MODIFIERS = ["förra", "senaste", "föregående"] as const
 //
 // So the negators count only when NO WORD PRECEDES THEM — `(?<!\p{L}\s*)` in
 // `NOT_EXCLUDED`. That is one rule rather than a list of punctuation, and it covers
-// start-of-string, `(`, `,` and every separator without enumerating any of them.
-// `normalizeCaption` preserves punctuation, so the signal survives to here (verified).
+// start-of-string, `(` and `,` without enumerating either.
+//
+// ⚠ IT DOES NOT COVER A NEWLINE, AND AN EARLIER VERSION OF THIS COMMENT CLAIMED IT
+// COVERED "EVERY SEPARATOR". `normalizeCaption` collapses newlines to a single space
+// (`normalize.ts`), so by the time the text reaches here the clause break is gone and
+// the preceding word abuts the negator. Verified:
+//
+//   "Vi står på Heden\nInte söndag"        →  Sunday, the excluded day
+//   "Vi står på Heden 11-14\nInte söndag"  →  Saturday, correct — but only because a
+//                                             DIGIT precedes, which `\p{L}` excludes
+//
+// The second row is the tell: whether the guard fires depends on whether the last
+// character of the previous line happens to be a letter or a digit, which is arbitrary.
+// A newline is the most common separator in an Instagram caption, so this is a live gap
+// rather than a curiosity.
+//
+// NOT FIXED HERE, and the reason is structural rather than effort: the information is
+// destroyed at step 0, before this module runs. Recovering it means either teaching
+// `normalizeCaption` to preserve a clause marker — a change to the step every other
+// extractor depends on — or knowing WHERE each match sits, which is the span work #90
+// and #80 need and which plan decision #8 scopes. Tracked as #101.
+//
+// `utom`/`förutom` are unaffected: they are unconditional, so no separator has to
+// survive for them to work.
 export const EXCLUSION_PREPOSITIONS = ["utom", "förutom"] as const;
 export const EXCLUSION_NEGATORS = ["ej", "inte"] as const;
+
+// An exclusion applies to a COORDINATED LIST, not to one day. "Heden 11-14 utom lördag
+// och söndag" excludes both, and the first version of this guard excluded only the day
+// directly after the excluder — so `lördag` was suppressed, the engine skipped ahead,
+// and `söndag` was pinned. The same #96 inversion, produced by the skip-ahead behaviour
+// the first version described as "strictly better than bailing". It is better, and it
+// is also what surfaces the second excluded day when the chain is not followed.
+//
+// ⚠ THE CHAIN IS BOUNDED TO WEEKDAY TOKENS, which is what keeps this from becoming the
+// clause segmentation plan decision #8 defers to Phase 8. Each link must be a weekday
+// followed by a conjunction; anything else ends it. So the exclusion does NOT run past
+// ordinary prose, verified:
+//
+//   "Heden utom lördag och vi kör söndag"   →  söndag still matches
+//   "Heden utom lördag, vi kör söndag"      →  söndag still matches
+//
+// `,` is a conjunction here because Swedish lists take it ("utom lördag, söndag"), and
+// it is safe for the same reason: the token after it must be a weekday.
+export const EXCLUSION_CONJUNCTIONS = ["och", "eller", ",", "&"] as const;
 
 // Word boundaries WITHOUT `\b`, which is ASCII-only and therefore wrong for Swedish:
 // `\w` excludes å, ä and ö, so `\b` manufactures boundaries INSIDE words and
@@ -224,12 +265,33 @@ const NOT_BACKWARD = `(?<!${BEFORE}${alt(BACKWARD_MODIFIERS)}\\s+)`;
 //              that the guess costs a wrong pin TODAY when it is wrong.
 //
 // ⚠ A SUPPRESSED WEEKDAY DOES NOT END THE SEARCH — the engine skips it and takes the
-// next date expression, which is strictly better than bailing. Verified:
-// "Inte söndag, utan lördag" suppresses `söndag` and matches `lördag`, resolving to the
-// day the caption actually names.
+// next date expression. That cuts both ways, and both are verified:
+//
+//   GOOD  "Inte söndag, utan måndag"  suppresses `söndag`, matches `måndag`, and
+//         resolves to the day the caption actually names rather than falling back.
+//   BAD   it is also what pinned the second day of a coordinated exclusion before
+//         `EXCLUSION_CONJUNCTIONS` existed — see that constant.
+//
+// ⚠ `måndag` RATHER THAN `lördag` IN THAT EXAMPLE. An earlier version of this comment
+// cited "Inte söndag, utan lördag" as the verification, while the test added in the
+// same commit argues that exact example proves nothing: `parsedAt` is a Saturday and a
+// weekday that IS today resolves to today, so `lördag` equals the fallback and the
+// claim holds whether the engine skips ahead or gives up. A stated verification that
+// cannot fail is worse than none.
+//
+// An optional `på` may sit between the excluder and the day — "utom PÅ söndag" — which
+// is ordinary Swedish and is the phrasing this module's own weekday tests use.
+// Requiring `\s+` alone missed every one of them.
+const EXCLUSION_PREP = "(?:på\\s+)?";
+
+// One link of a coordinated exclusion: a weekday followed by a conjunction.
+const EXCLUSION_LINK =
+  `${EXCLUSION_PREP}${alt(WEEKDAYS)}${WEEKDAY_INFLECTION}` +
+  `\\s*(?:${alt(EXCLUSION_CONJUNCTIONS)})\\s*`;
+
 const NOT_EXCLUDED =
   `(?<!${BEFORE}(?:${alt(EXCLUSION_PREPOSITIONS)}` +
-  `|(?<!\\p{L}\\s*)${alt(EXCLUSION_NEGATORS)})\\s+)`;
+  `|(?<!\\p{L}\\s*)${alt(EXCLUSION_NEGATORS)})\\s+(?:${EXCLUSION_LINK})*${EXCLUSION_PREP})`;
 
 const DATE_EXPRESSION = new RegExp(
   `${BEFORE}(?:(?<today>${TODAY})|(?<tomorrow>${TOMORROW})|` +

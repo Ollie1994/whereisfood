@@ -353,6 +353,16 @@ describe("known gaps, pinned so they are recorded rather than merely known", () 
     expect(parseCaption("Heden 11-14 idag (ej söndag)", SUMMER).date).toBe(SUMMER);
   });
 
+  it("#96 — a coordinated exclusion does not pin its second day either", () => {
+    // The composed half of the review finding: the first version suppressed only the
+    // day directly after the excluder, so the engine skipped ahead and pinned the
+    // SECOND excluded day at 1.0 — the same inversion, one word further along.
+    const result = parseCaption("Heden 11-14 utom lördag och söndag", SUMMER);
+
+    expect(result.date).toBe(SUMMER);
+    expect(result.time?.startsAt).toBe("2026-08-22T09:00:00.000Z");
+  });
+
   it("#96 — a verb-negated weekday is still the pin's date", () => {
     // The composed half of `date.ts`'s two-category rule: "Glöm inte söndag" means the
     // truck IS there, so suppressing it would pin TODAY — the wrong-pin-now trade that
