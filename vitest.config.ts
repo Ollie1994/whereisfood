@@ -63,6 +63,21 @@ const INTEGRATION_DIR = "tests/integration";
 // exclude `node_modules`, `dist`, `cypress`, dotfile caches and tool configs.
 const INTEGRATION_INCLUDE = defaultInclude.map((pattern) => `${INTEGRATION_DIR}/${pattern}`);
 
+// Generated directories, mirroring `.gitignore`'s `/coverage`, `/.next/`, `/out/` and
+// `/build`. Vitest's `defaultExclude` does not cover any of them — see the note on the
+// unit project's `exclude`.
+//
+// ⚠ ROOT-ANCHORED, matching how `.gitignore` writes them. A first pass used `**/build/**`
+// and `**/out/**`, which reach any depth and would silently swallow a legitimate
+// `src/lib/build/thing.test.ts` — the same class of over-reach as #170 and #172, in the
+// opposite direction: excluding too much rather than including too little, and equally
+// silent. Vitest resolves these relative to the project root, so no leading `**/` is
+// what pins them to the four directories `.gitignore` actually names.
+//
+// Verified both ways: a failing test under `.next/` and `coverage/` is NOT collected,
+// and a failing test under `src/lib/build/` IS.
+const BUILD_OUTPUT = [".next/**", "out/**", "build/**", "coverage/**"];
+
 export default defineConfig({
   test: {
     projects: [
@@ -82,7 +97,24 @@ export default defineConfig({
           // `exclude` REPLACES vitest's defaults rather than extending them, so the
           // defaults are spread back in. Dropping them would pull `node_modules` into
           // the run.
-          exclude: [...defaultExclude, `${INTEGRATION_DIR}/**`],
+          //
+          // ⚠ `defaultExclude` DOES NOT COVER BUILD OUTPUT. It is `node_modules`,
+          // `dist`, `cypress`, the `.{idea,git,cache,output,temp}` dotfiles and tool
+          // configs — no `.next`, no `out`, no `build`, no `coverage`. Verified: a
+          // failing `.next/zz/orphan.test.ts` is collected and fails `test:run`.
+          //
+          // Latent rather than live — nothing emits a `*.test.*` file into `.next`
+          // today — and NOT a regression, since `dev`'s config had the same reach. But
+          // `include: defaultInclude` restored that reach in r2 after r1's `src/**` had
+          // narrowed it away, and widening something back without noticing is how the
+          // r1→r2 overcorrection happened in the first place.
+          //
+          // The list comes from `.gitignore`, which is this project's own declaration
+          // of what is generated: `/coverage`, `/.next/`, `/out/`, `/build`. That makes
+          // it a mirror of an existing statement rather than a set invented here —
+          // which is the distinction that matters after #173, where copying a set
+          // vitest owns was the mistake. This set is ours.
+          exclude: [...defaultExclude, `${INTEGRATION_DIR}/**`, ...BUILD_OUTPUT],
         },
       },
       {
