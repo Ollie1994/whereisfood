@@ -32,6 +32,29 @@ const alias = {
 // Postgres over HTTP.
 const environment = "node";
 
+// ⚠ VITEST'S OWN DEFAULT SUFFIX, COPIED VERBATIM. The only thing this split should
+// change is WHICH DIRECTORY a project looks in — never which files count as tests.
+//
+// The first version of this file wrote `src/**/*.test.ts`, which narrows the extension
+// set as a side effect of scoping the directory, and the narrowing is SILENT. Verified:
+// with `src/lib/zzprobe.test.tsx` and `src/lib/zzprobe2.spec.ts` both containing
+// `expect(1).toBe(2)`, `npm run test:run` reported `917 passed` and exited 0. Two
+// failing files, never collected, nothing said so.
+//
+// That is a live hazard rather than a tidiness point: Phase 4 and 5 add hook and
+// component tests, which are idiomatically `.tsx` — `useMapLibre.tsx` is already a
+// `.tsx` module — so the first UI test written would have passed by not running.
+//
+// ⚠ AND IT IS NOT FIXED BY WRITING `{ts,tsx}`. That drops `.spec.*`, `.mts`, `.cts`
+// and the `.js` family, which is the same "enumerate a set and miss a member" mistake
+// `test-utils/purity.ts` paid for four times over. The set belongs to vitest; the
+// correct move is to reuse its pattern and prefix a directory, so a future vitest that
+// recognises a new extension is inherited rather than missed.
+//
+// Source: vitest 3.2.7's compiled default, `**/*.{test,spec}.?(c|m)[jt]s?(x)`, read out
+// of `node_modules` — the same place the `workspace` deprecation was confirmed.
+const TEST_FILES = "*.{test,spec}.?(c|m)[jt]s?(x)";
+
 export default defineConfig({
   test: {
     projects: [
@@ -40,11 +63,15 @@ export default defineConfig({
         test: {
           name: "unit",
           environment,
-          // Co-located, per the testing convention: `*.test.ts` next to its source.
+          // Co-located, per the testing convention: a test file next to its source.
           // Scoped to `src/` so nothing under `tests/` can drift into the fast suite —
           // the include is what makes "unit runs with Docker stopped" a property of the
           // config rather than of where someone happened to put a file.
-          include: ["src/**/*.test.ts"],
+          //
+          // The DIRECTORY is this line's whole contribution; `TEST_FILES` above is
+          // vitest's own pattern, so `.tsx` component tests and `.spec.*` files are
+          // collected here exactly as they would be with no `include` at all.
+          include: [`src/**/${TEST_FILES}`],
         },
       },
       {
@@ -52,7 +79,7 @@ export default defineConfig({
         test: {
           name: "integration",
           environment,
-          include: ["tests/integration/**/*.test.ts"],
+          include: [`tests/integration/**/${TEST_FILES}`],
 
           // ⚠ `passWithNoTests` IS NOT HERE EITHER, and for the same reason — it is on
           // the `NonProjectOptions` list, so it belongs to the run rather than to a
