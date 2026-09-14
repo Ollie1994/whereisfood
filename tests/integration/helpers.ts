@@ -25,7 +25,38 @@ import { supabaseAdmin } from "@/lib/supabase";
 // this marker" is. The prefix is what turns the first into the second, and it also
 // makes cleanup idempotent across runs — a crashed run's rows are still identifiable
 // next time.
-const FIXTURE_PREFIX = "__itest__";
+//
+// ⚠ NO LIKE METACHARACTERS IN THE PREFIX, AND THE FIRST VERSION HAD FOUR. It was
+// `__itest__`, and `_` is a SINGLE-CHARACTER WILDCARD in SQL LIKE — so `__itest__%` is
+// not a prefix match at all. Verified against the local database: it matched
+// `XXitestYYnot-a-fixture` and `A_itest_B real truck`, arbitrary trucks nobody's test
+// created, and would have deleted them with their posts and locations.
+//
+// That is the r1 finding a second time: a fix for a destructive scoping bug introduced
+// a different destructive scoping bug, and again nothing went red. The guard test could
+// not catch it either, because I had given its bystander a friendly name that happens
+// not to contain "itest" — a guard written for the failure I had in mind rather than
+// the one the predicate allows.
+//
+// Escaping (`\_\_itest\_\_%`) also works and was verified, but a prefix containing no
+// metacharacters is the version with nothing left to get wrong: there is no escaping to
+// remember when someone changes this string. `assertNoLikeMetacharacters` below makes
+// that a checked property rather than a convention.
+const FIXTURE_PREFIX = "itest-fixture-";
+
+// LIKE's only two wildcards. A prefix containing either stops being a prefix.
+const LIKE_METACHARACTERS = /[%_]/;
+
+if (LIKE_METACHARACTERS.test(FIXTURE_PREFIX)) {
+  // Throwing at module load rather than asserting in a test: this file's consumers
+  // DELETE ROWS, and a suite that has already started is too late to find out its
+  // cleanup predicate is wider than intended.
+  throw new Error(
+    `FIXTURE_PREFIX must contain no SQL LIKE metacharacters (% or _); got "${FIXTURE_PREFIX}". ` +
+      "Those are wildcards, so the prefix would match rows this suite never created — " +
+      "and resetTables() deletes what it matches.",
+  );
+}
 
 // Remove every row THIS SUITE created, and nothing else.
 //

@@ -1,36 +1,88 @@
-import { afterAll, expect, it } from "vitest";
+import { afterEach, expect, it } from "vitest";
 import { supabaseAdmin } from "@/lib/supabase";
 import { resetTables, seedTruck } from "./helpers";
 
-// A stand-in for `seed.sql`'s fixed-UUID dev trucks, which `resetTables()` must never
-// touch. Its id is fixed so a crashed run leaves something identifiable rather than a
-// random orphan.
-const BYSTANDER_ID = "99999999-9999-9999-9999-999999999999";
+// ⚠ EVERY BYSTANDER IS ADVERSARIAL, AND THE FIRST VERSION'S WAS NOT. It was named
+// "Seed-like Truck", which stands in for `seed.sql`'s dev trucks — and that is exactly
+// why it could not catch the r2 defect: the prefix was `__itest__`, `_` is a
+// single-character LIKE wildcard, and `__itest__%` matched arbitrary names containing
+// "itest". A bystander with no "itest" in it was never going to notice.
+//
+// So these names are chosen to be matched by the ways this predicate can plausibly be
+// wrong, not by the way it is meant to work:
+//
+//   the seed stand-in           the ordinary case the r1 finding was about
+//   a LIKE-wildcard near-miss   matched by `__itest__%`, not by a real prefix
+//   an unanchored near-miss     contains the marker but does not START with it,
+//                               so it is matched by `%itest-fixture-%`
+const BYSTANDERS = [
+  { id: "99999999-9999-9999-9999-999999999991", name: "Seed-like Truck" },
+  { id: "99999999-9999-9999-9999-999999999992", name: "XXitestYYnot-a-fixture" },
+  { id: "99999999-9999-9999-9999-999999999993", name: "Definitely itest-fixture-adjacent" },
+];
 
-afterAll(async () => {
-  await supabaseAdmin.from("trucks").delete().eq("id", BYSTANDER_ID);
-});
-
-it("⚠ resetTables leaves non-fixture rows alone", async () => {
-  // THE REGRESSION THIS FILE EXISTS FOR. A first version deleted ALL of `locations`,
-  // `posts` and `trucks` — destroying `supabase/seed.sql`'s three fixed-UUID dev trucks,
-  // including the deliberately INACTIVE one Phase 2's rejection tests need. Since
-  // `npm run test:all` is the documented merge gate, running the gate broke every
-  // documented curl flow until someone ran `npx supabase db reset` (PR #106 review).
+// Fixed ids so a crashed run leaves something identifiable rather than random orphans,
+// and `afterEach` rather than `afterAll` so a failure part-way through still cleans up.
+afterEach(async () => {
   await supabaseAdmin
     .from("trucks")
-    .upsert({ id: BYSTANDER_ID, name: "Seed-like Truck", is_active: true });
+    .delete()
+    .in("id", BYSTANDERS.map((truck) => truck.id));
+});
+
+it("⚠ resetTables deletes only what this suite created", async () => {
+  // THE REGRESSION THIS FILE EXISTS FOR, now hit twice. A first version deleted ALL of
+  // `locations`, `posts` and `trucks`, destroying `seed.sql`'s three fixed-UUID dev
+  // trucks — including the deliberately INACTIVE one Phase 2's rejection tests need.
+  // `npm run test:all` is the documented merge gate, so running the gate broke every
+  // documented curl flow (r1). The fix for that then used a prefix containing LIKE
+  // wildcards, which matched unrelated trucks (r2).
+  //
+  // Both times nothing went red. A destructive side effect produces no failure, which
+  // is why the assertion has to be that the bystanders SURVIVE rather than that the
+  // fixtures are gone.
+  await supabaseAdmin
+    .from("trucks")
+    .upsert(BYSTANDERS.map((truck) => ({ ...truck, is_active: true })));
 
   const fixture = await seedTruck();
   await resetTables();
 
-  const survivor = await supabaseAdmin
+  const survivors = await supabaseAdmin
     .from("trucks")
     .select("id")
-    .eq("id", BYSTANDER_ID)
-    .maybeSingle();
+    .in("id", BYSTANDERS.map((truck) => truck.id));
   const removed = await supabaseAdmin.from("trucks").select("id").eq("id", fixture).maybeSingle();
 
-  expect(survivor.data?.id).toBe(BYSTANDER_ID);
+  expect(survivors.data?.map((row) => row.id).sort()).toEqual(
+    BYSTANDERS.map((truck) => truck.id).sort(),
+  );
+  // And it did do its job — the fixture is gone.
   expect(removed.data).toBeNull();
+}, 20_000);
+
+it("removes a fixture's children before the fixture itself", async () => {
+  // `locations` and `posts` reference `trucks`, so a cleanup that deletes trucks first
+  // fails on a foreign key rather than leaving orphans. This passes only if the order
+  // is right, and it is the reason `resetTables` iterates a list rather than running
+  // three statements whose order reads as incidental.
+  const fixture = await seedTruck();
+
+  await supabaseAdmin.from("locations").insert({
+    truck_id: fixture,
+    latitude: 57.6998935,
+    longitude: 11.952503,
+    starts_at: "2026-08-22T09:00:00.000Z",
+    expires_at: "2026-08-22T12:00:00.000Z",
+    source: "webhook",
+    confidence: 0.85,
+    parser_confidence: 1.0,
+    source_confidence: 0.85,
+    is_negation: false,
+  });
+
+  await expect(resetTables()).resolves.toBeUndefined();
+
+  const orphans = await supabaseAdmin.from("locations").select("id").eq("truck_id", fixture);
+  expect(orphans.data).toEqual([]);
 }, 20_000);
