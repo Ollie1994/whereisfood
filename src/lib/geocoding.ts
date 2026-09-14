@@ -142,7 +142,7 @@ function toCoordinate(value: unknown): number {
 // retrying in-request multiplies load against an endpoint that may already be
 // throttling us.
 export async function geocode(address: string): Promise<GeocodeResult | null> {
-  const cached = await getCachedGeocode(address);
+  const cached = await readCache(address);
   if (cached !== null) {
     // No NOMINATIM request on a hit, and the cache lookup precedes the throttle so a
     // hit never waits behind another caller's gate either.
@@ -162,9 +162,33 @@ export async function geocode(address: string): Promise<GeocodeResult | null> {
   // Absent config is a miss, not a throw. This runs inside `after()`, where a throw
   // becomes an unhandled rejection that loses the post — the same reasoning `date.ts`
   // and `time.ts` both carry for their own guards.
-  if (!baseUrl) return null;
+  //
+  // ⚠ LOGGED, because a silent one is the failure shape this module argues against
+  // twenty lines down for the path-prefix bug: a deploy that forgets the variable
+  // geocodes NOTHING, permanently, and presents as poor caption quality rather than as
+  // a missing config. Noisy by design — every fallback geocode warns until it is fixed,
+  // which is proportionate to the deployment being broken.
+  if (!baseUrl) {
+    console.warn("[geocoding] NOMINATIM_BASE_URL is unset; the geocode fallback is disabled");
+    return null;
+  }
 
   await throttle();
+
+  // ⚠ RE-CHECK AFTER THE WAIT, because the queue is where a thundering herd forms.
+  // Concurrent misses on the SAME address all read the cache before any row exists,
+  // then resume one by one straight into a request — N callers, N Nominatim requests
+  // and N upserts for one address, spending the 1 req/s budget this module exists to
+  // protect. Verified before the fix: three concurrent calls for one address produced
+  // three requests and three writes.
+  //
+  // The caller ahead of us in the queue has finished by the time we resume, so its row
+  // is visible. One extra cache read per miss, against a 1.1 s wait and a network call
+  // — the cheapest thing in the sequence.
+  const afterWaiting = await readCache(address);
+  if (afterWaiting !== null) {
+    return { lat: afterWaiting.latitude, lng: afterWaiting.longitude, displayName: null };
+  }
 
   const hit = await fetchFirstHit(baseUrl, address);
   if (hit === null) return null;
@@ -202,6 +226,29 @@ export async function geocode(address: string): Promise<GeocodeResult | null> {
     lng,
     displayName: typeof hit.display_name === "string" ? hit.display_name : null,
   };
+}
+
+// ⚠ THE READ IS AN OPTIMISATION TOO, AND THE FIRST VERSION ONLY GUARDED THE WRITE.
+// `getCachedGeocode` throws on a DB fault, and an unguarded read rejected straight out
+// of `geocode()` — breaking this module's stated contract that `null` covers every
+// failure, and skipping a Nominatim call that would have succeeded. Verified: a
+// rejecting read threw `connection terminated` out of the function.
+//
+// That the write was wrapped and the read was not is the same "guarded the easy half"
+// shape as the base-URL and the 429 findings in this PR, and it slipped past a test
+// block NAMED "the cache is an optimisation, not a dependency" which only exercised the
+// write. A block title is not coverage.
+//
+// Logged rather than silent, for the same reason the write is: a cache that never reads
+// is indistinguishable from a cache that is always cold, and the only symptom would be
+// Nominatim traffic that should not exist.
+async function readCache(address: string) {
+  try {
+    return await getCachedGeocode(address);
+  } catch (error) {
+    console.warn("[geocoding] cache read failed; treating as a miss:", error);
+    return null;
+  }
 }
 
 // The network half, separated so `geocode` reads as the decision sequence it is.
@@ -259,6 +306,15 @@ async function fetchFirstHit(baseUrl: string, address: string): Promise<Nominati
         console.warn(`[geocoding] Nominatim refused the request with ${response.status} — ` +
           "rate-limited or blocked; the fallback path is degraded until this clears");
       }
+      // ⚠ IT IS LOGGED BUT NOT ACTED ON — the throttle keeps firing one request per
+      // interval into a service that just said stop, which on a shared egress IP is
+      // what turns a soft rate limit into a durable block. Tracked as #105.
+      //
+      // Not fixed here because a backoff is new POLICY rather than a bug fix, and
+      // decision #2 rules out RETRY while saying nothing about backoff — inventing the
+      // second while implementing the first is how an unreviewed rule gets in. The
+      // bound on the damage meanwhile is the throttle itself: one request per interval,
+      // per instance.
       return null;
     }
 

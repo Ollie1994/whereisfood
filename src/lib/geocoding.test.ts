@@ -249,12 +249,42 @@ describe("every failure returns null and caches NOTHING", () => {
     vi.stubEnv("NOMINATIM_BASE_URL", value);
     vi.resetModules();
     ({ geocode } = await import("@/lib/geocoding"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     await expect(geocode("Järntorget")).resolves.toBeNull();
+
+    // ⚠ ONLY THE MISSING CASE WARNS, and only it can: a malformed URL is caught inside
+    // `fetchFirstHit`, which cannot distinguish it from a network failure without
+    // replicating `new URL`'s parsing. The missing case is the one worth a log anyway —
+    // it means a deploy forgot the variable, so nothing will EVER geocode, and a silent
+    // null presents as poor caption quality (PR #104 r2).
+    if (value === "") expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
   });
 });
 
 describe("the cache is an optimisation, not a dependency", () => {
+  // ⚠ THIS BLOCK'S NAME USED TO OVER-CLAIM. It covered only the WRITE, while the READ
+  // was unguarded and rejected straight out of `geocode()` — so the block asserted a
+  // general property and tested half of it (PR #104 r2). Both halves are here now, and
+  // the read case is the one that was actually broken.
+  it("returns the geocode even when the cache READ fails", async () => {
+    // A DB fault on the read must not skip a Nominatim call that would have succeeded,
+    // and must not break the module's contract that `null` covers every failure.
+    getCached.mockRejectedValue(new Error("connection terminated"));
+    fetchMock.mockResolvedValue(nominatimOk([IN_BOX]));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await expect(geocode("Järntorget")).resolves.toEqual({
+      lat: 57.6998935,
+      lng: 11.952503,
+      displayName: null,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
   it("returns the geocode even when the cache write fails", async () => {
     // ⚠ A FAILED WRITE MUST NOT DISCARD A GOOD ANSWER. The coordinates are already
     // fetched and already box-validated at that point, so letting a transient Postgres
@@ -334,6 +364,30 @@ describe("the throttle", () => {
     await Promise.all([first, second]);
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("collapses concurrent misses on the SAME address to one request", async () => {
+    // ⚠ THE THUNDERING HERD THE QUEUE CREATES. All three callers read the cache before
+    // any row exists, then resume one by one — so without a re-check after the wait,
+    // three concurrent calls for one address produced THREE Nominatim requests and
+    // three upserts, spending the budget this module exists to protect. Verified at
+    // exactly those numbers before the fix (PR #104 r2).
+    //
+    // The caller ahead has finished by the time the next resumes, so its row is
+    // visible: the second and third see the cache, not the network.
+    vi.useFakeTimers();
+    fetchMock.mockResolvedValue(nominatimOk([IN_BOX]));
+    // The first caller writes; everyone behind it reads that row.
+    putCached.mockImplementation(async () => {
+      getCached.mockResolvedValue({ latitude: 57.6998935, longitude: 11.952503 });
+    });
+
+    const all = [geocode("Samma gatan 1"), geocode("Samma gatan 1"), geocode("Samma gatan 1")];
+    await vi.advanceTimersByTimeAsync(THROTTLE_MS * 4);
+    await Promise.all(all);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(putCached).toHaveBeenCalledTimes(1);
   });
 
   it("⚠ queues UNBOUNDEDLY — the Nth concurrent caller waits N intervals", async () => {
