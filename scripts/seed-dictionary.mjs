@@ -36,9 +36,17 @@ const USER_AGENT = "whereisfood-dictionary-seeder/1.0 (" + CONTACT + ")";
 const THROTTLE_MS = 1100; // > 1s, with headroom for timer granularity.
 const TIMEOUT_MS = 10_000;
 
-// The Gothenburg viewbox as a QUERY HINT. Nominatim wants west,north,east,south,
-// which is a different order from our own box. These numbers are a copy of
+// The Gothenburg viewbox as a QUERY HINT. These numbers are a copy of
 // `GOTHENBURG_BBOX` in `src/lib/geo.ts`, which is the authority.
+//
+// ⚠ THIS USED TO SAY "Nominatim wants west,north,east,south, which is a different order
+// from our own box", implying the order mattered. It does not — the docs are explicit:
+// *"Any two corner points of the box are accepted as long as they make a proper box."*
+// The value below is the NW/SE pair and `src/lib/geocoding.ts` derives the SW/NE pair;
+// both describe the same box and both are correct. Corrected in PR #104, where the same
+// false claim was deleted from the app module and this copy was left behind for one
+// round — which is the copy's real cost, arriving exactly where the comment below says
+// it would not.
 //
 // A copy is tolerable here in a way it would not be in app code, and the reason is
 // worth stating rather than assumed: this is a `.mjs` script and `geo.ts` is

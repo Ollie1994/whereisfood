@@ -43,6 +43,11 @@ export interface CachedGeocode {
 // A manual verification is weaker than a test and this says so rather than implying
 // otherwise. #72 owns the integration suite and should pin this round trip there; noted
 // on that issue so the obligation is not carried only by this comment.
+// Private on purpose. `geocoding.ts` deduplicates concurrent requests on the RAW
+// address rather than importing this, because importing it would force that module's
+// test mock to pull in `supabaseAdmin` at hoist time or re-implement the fold — and a
+// fold duplicated in a mock is exactly the asymmetry warned about above. The cost is
+// stated at that call site.
 function cacheKey(addressRaw: string): string {
   return addressRaw.toLowerCase();
 }

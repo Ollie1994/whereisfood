@@ -78,6 +78,11 @@ export interface GeocodeResult {
 // call was long ago" and firing together.
 let throttleGate: Promise<void> = Promise.resolve();
 
+// In-flight geocodes, keyed by the raw address. Concurrent callers for one share a
+// single request rather than each reserving a throttle slot. Module state, per-instance,
+// with the same caveat as the gate above — and, like it, re-imported per test.
+const inFlight = new Map<string, Promise<GeocodeResult | null>>();
+
 // ⚠ PER-INSTANCE, AND THE COMMENT IS THE POINT RATHER THAN THE MECHANISM. Vercel runs
 // concurrent lambdas, so this bounds one instance and nothing more. Plan decision #2
 // accepts that explicitly and the issue asks for it to be documented rather than
@@ -144,8 +149,8 @@ function toCoordinate(value: unknown): number {
 export async function geocode(address: string): Promise<GeocodeResult | null> {
   const cached = await readCache(address);
   if (cached !== null) {
-    // No NOMINATIM request on a hit, and the cache lookup precedes the throttle so a
-    // hit never waits behind another caller's gate either.
+    // No NOMINATIM request on a hit, and the cache lookup precedes both the in-flight
+    // map and the throttle, so a hit never waits behind another caller's gate either.
     //
     // ⚠ "ZERO NETWORK CALLS" IS HOW #63 STATES THIS AND IT IS NOT LITERALLY TRUE — the
     // cache read is itself an HTTP request to Supabase. That distinction is not
@@ -159,36 +164,78 @@ export async function geocode(address: string): Promise<GeocodeResult | null> {
   }
 
   const baseUrl = process.env.NOMINATIM_BASE_URL;
-  // Absent config is a miss, not a throw. This runs inside `after()`, where a throw
-  // becomes an unhandled rejection that loses the post — the same reasoning `date.ts`
-  // and `time.ts` both carry for their own guards.
+  // Absent or unusable config is a miss, not a throw. This runs inside `after()`, where
+  // a throw becomes an unhandled rejection that loses the post — the same reasoning
+  // `date.ts` and `time.ts` both carry for their own guards.
   //
-  // ⚠ LOGGED, because a silent one is the failure shape this module argues against
-  // twenty lines down for the path-prefix bug: a deploy that forgets the variable
-  // geocodes NOTHING, permanently, and presents as poor caption quality rather than as
-  // a missing config. Noisy by design — every fallback geocode warns until it is fixed,
-  // which is proportionate to the deployment being broken.
+  // ⚠ BOTH HALVES CHECKED HERE, AND THE SECOND WAS MISSING TWICE. r1 moved `new URL`
+  // inside `fetchFirstHit`'s try so a malformed base could not throw — but that try
+  // ends in a bare `catch` returning null, so a malformed base then produced NO
+  // request, NO warning and no way to tell it from a network failure. Verified:
+  // `NOMINATIM_BASE_URL=nominatim.openstreetmap.org` gave null with 0 fetches and
+  // 0 warns, permanently.
+  //
+  // ⚠ AND THE TEST ASSERTED THAT GAP WAS UNFIXABLE. Its comment claimed the malformed
+  // case "cannot be distinguished from a network failure without replicating
+  // `new URL`'s parsing". `URL.canParse` does exactly that, and has since Node 18.17 —
+  // this runs on Node 22. An impossibility asserted without checking, which is the same
+  // move as the viewbox "transposition hazard" r1 deleted.
+  //
+  // Config belongs with config: a bad base URL is a deployment error, so it is detected
+  // where the variable is read and reported the same way an absent one is.
   if (!baseUrl) {
     console.warn("[geocoding] NOMINATIM_BASE_URL is unset; the geocode fallback is disabled");
     return null;
   }
-
-  await throttle();
-
-  // ⚠ RE-CHECK AFTER THE WAIT, because the queue is where a thundering herd forms.
-  // Concurrent misses on the SAME address all read the cache before any row exists,
-  // then resume one by one straight into a request — N callers, N Nominatim requests
-  // and N upserts for one address, spending the 1 req/s budget this module exists to
-  // protect. Verified before the fix: three concurrent calls for one address produced
-  // three requests and three writes.
-  //
-  // The caller ahead of us in the queue has finished by the time we resume, so its row
-  // is visible. One extra cache read per miss, against a 1.1 s wait and a network call
-  // — the cheapest thing in the sequence.
-  const afterWaiting = await readCache(address);
-  if (afterWaiting !== null) {
-    return { lat: afterWaiting.latitude, lng: afterWaiting.longitude, displayName: null };
+  if (!URL.canParse(baseUrl)) {
+    console.warn("[geocoding] NOMINATIM_BASE_URL is not a valid URL; the fallback is disabled");
+    return null;
   }
+
+  // ⚠ DEDUPLICATE BEFORE RESERVING A THROTTLE SLOT. Concurrent callers for the SAME
+  // address share one in-flight request instead of queueing behind each other, so N
+  // callers cost one Nominatim request and one gate slot rather than N of each.
+  //
+  // This replaces a post-throttle cache re-check, which was the r2 fix and was only
+  // correct under a condition I stated as an invariant and never tested: "the caller
+  // ahead has finished by the time we resume". Its gate is scheduled from when it
+  // ENTERED the throttle, and `TIMEOUT_MS` is 3000 against a 1100 ms gate — so a leader
+  // slower than one interval has not written its row yet. Verified: a 1500 ms fetch
+  // gave 2 requests and 2 writes for one address (PR #104 r3).
+  //
+  // ⚠ KEYED ON THE RAW ADDRESS, NOT THE CACHE KEY, so two CONCURRENT callers whose
+  // addresses differ only in case do not deduplicate here and make two requests. That
+  // is a deliberate limit rather than an oversight:
+  //
+  //   the cost is bounded — they share a cache row, so the second write is an upsert
+  //   of identical coordinates, not a duplicate row, and every later call hits the
+  //   cache for both casings;
+  //
+  //   the alternative was importing `cacheKey` from the db layer, which forces the
+  //   test's `vi.mock` factory to either pull in `supabaseAdmin` at hoist time or
+  //   re-implement the fold — and a fold duplicated in a mock is drift this PR has
+  //   already been caught by twice.
+  //
+  // Sequential callers are unaffected: the second reads the cache, where the fold does
+  // apply.
+  //
+  // The entry is removed when the request settles, so the map holds only genuinely
+  // in-flight work and cannot leak on a rejection — `geocodeUncached` returns null
+  // rather than throwing, but `finally` does not depend on that.
+  const key = address;
+  const existing = inFlight.get(key);
+  if (existing !== undefined) return existing;
+
+  const request = geocodeUncached(baseUrl, address).finally(() => inFlight.delete(key));
+  inFlight.set(key, request);
+  return request;
+}
+
+// Everything after the cache miss and the dedup: the throttle wait, the request, the
+// validation and the write. Split out so `geocode` reads as the decision sequence and
+// so the in-flight map wraps exactly one promise.
+async function geocodeUncached(baseUrl: string, address: string): Promise<GeocodeResult | null> {
+  await throttle();
 
   const hit = await fetchFirstHit(baseUrl, address);
   if (hit === null) return null;

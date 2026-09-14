@@ -253,12 +253,16 @@ describe("every failure returns null and caches NOTHING", () => {
 
     await expect(geocode("Järntorget")).resolves.toBeNull();
 
-    // ⚠ ONLY THE MISSING CASE WARNS, and only it can: a malformed URL is caught inside
-    // `fetchFirstHit`, which cannot distinguish it from a network failure without
-    // replicating `new URL`'s parsing. The missing case is the one worth a log anyway —
-    // it means a deploy forgot the variable, so nothing will EVER geocode, and a silent
-    // null presents as poor caption quality (PR #104 r2).
-    if (value === "") expect(warn).toHaveBeenCalled();
+    // ⚠ EVERY ROW WARNS, AND AN EARLIER VERSION OF THIS COMMENT SAID ONLY ONE COULD.
+    // It claimed a malformed URL "cannot [be distinguished] from a network failure
+    // without replicating `new URL`'s parsing". `URL.canParse` does exactly that and
+    // has since Node 18.17; this runs on Node 22. An impossibility asserted without
+    // checking — the same move as the viewbox "transposition hazard" r1 deleted.
+    //
+    // It mattered: with the check absent, a malformed base produced null with ZERO
+    // fetches and ZERO warnings, permanently. Verified before the fix (PR #104 r3).
+    expect(warn).toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
     warn.mockRestore();
   });
 });
@@ -367,20 +371,12 @@ describe("the throttle", () => {
   });
 
   it("collapses concurrent misses on the SAME address to one request", async () => {
-    // ⚠ THE THUNDERING HERD THE QUEUE CREATES. All three callers read the cache before
-    // any row exists, then resume one by one — so without a re-check after the wait,
-    // three concurrent calls for one address produced THREE Nominatim requests and
-    // three upserts, spending the budget this module exists to protect. Verified at
-    // exactly those numbers before the fix (PR #104 r2).
-    //
-    // The caller ahead has finished by the time the next resumes, so its row is
-    // visible: the second and third see the cache, not the network.
+    // ⚠ THE THUNDERING HERD THE QUEUE CREATES. All callers read the cache before any
+    // row exists, then resume one by one — three concurrent calls for one address
+    // produced THREE Nominatim requests and three upserts, spending the budget this
+    // module exists to protect (PR #104 r2).
     vi.useFakeTimers();
     fetchMock.mockResolvedValue(nominatimOk([IN_BOX]));
-    // The first caller writes; everyone behind it reads that row.
-    putCached.mockImplementation(async () => {
-      getCached.mockResolvedValue({ latitude: 57.6998935, longitude: 11.952503 });
-    });
 
     const all = [geocode("Samma gatan 1"), geocode("Samma gatan 1"), geocode("Samma gatan 1")];
     await vi.advanceTimersByTimeAsync(THROTTLE_MS * 4);
@@ -388,6 +384,77 @@ describe("the throttle", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(putCached).toHaveBeenCalledTimes(1);
+  });
+
+  it("collapses them even when the leader is SLOWER than the throttle interval", async () => {
+    // ⚠ THE CONDITION r2's FIX QUIETLY DEPENDED ON. That fix re-checked the cache after
+    // the wait and its comment asserted, as an invariant, that "the caller ahead has
+    // finished by the time we resume". Its gate is scheduled from when it ENTERED the
+    // throttle, and `TIMEOUT_MS` is 3000 against a 1100 ms gate — so a leader slower
+    // than one interval has not written its row yet. Verified: a 1500 ms fetch gave
+    // 2 requests and 2 writes for one address (PR #104 r3).
+    //
+    // The existing row above could never catch it, because `fetchMock` resolves in a
+    // microtask — a test structurally blind to the case it was named for, which is the
+    // second time in this PR (see the different-addresses herd test).
+    //
+    // Deduplicating BEFORE the throttle removes the dependency entirely: joiners share
+    // the leader's promise and never consult the clock.
+    vi.useFakeTimers();
+    fetchMock.mockImplementation(
+      () =>
+        new Promise((resolve) =>
+          setTimeout(() => resolve(nominatimOk([IN_BOX])), THROTTLE_MS + 400),
+        ),
+    );
+
+    const all = [geocode("Långsam gatan 1"), geocode("Långsam gatan 1"), geocode("Långsam gatan 1")];
+    await vi.advanceTimersByTimeAsync(20_000);
+    await Promise.all(all);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(putCached).toHaveBeenCalledTimes(1);
+  });
+
+  it("does NOT deduplicate concurrent callers across casings — a stated limit", async () => {
+    // ⚠ PINS A BOUND, NOT A BUG. The in-flight map keys on the RAW address, so two
+    // concurrent callers differing only in case make two requests. The cost is bounded:
+    // they share a cache ROW, so the second write is an upsert of identical coordinates
+    // rather than a duplicate row, and every later call hits the cache for both casings.
+    //
+    // The alternative was importing the db layer's `cacheKey`, which forces this file's
+    // `vi.mock` factory to pull in `supabaseAdmin` at hoist time or re-implement the
+    // fold — and a fold duplicated in a mock is drift this PR has already been caught by
+    // twice (PR #104 r3).
+    vi.useFakeTimers();
+    fetchMock.mockResolvedValue(nominatimOk([IN_BOX]));
+
+    const all = [geocode("Kungsgatan 12"), geocode("kungsgatan 12")];
+    await vi.advanceTimersByTimeAsync(THROTTLE_MS * 4);
+    await Promise.all(all);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    // Both writes carry the same coordinates and the db layer folds the key, so this is
+    // one row written twice rather than two rows.
+    expect(putCached.mock.calls.map((c) => [c[1], c[2]])).toEqual([
+      [57.6998935, 11.952503],
+      [57.6998935, 11.952503],
+    ]);
+  });
+
+  it("releases the in-flight entry so a later call is not served a stale promise", async () => {
+    // The map must hold only genuinely in-flight work. A leaked entry would pin one
+    // address's answer for the life of the instance — including a `null` from a
+    // transient failure, which is the permanent-negative-cache hazard the write path is
+    // structured to avoid, reintroduced in memory.
+    fetchMock.mockResolvedValue(nominatimOk([IN_BOX]));
+
+    await geocode("Ett ställe 1");
+    await geocode("Ett ställe 1");
+
+    // Two sequential calls: the second is a fresh request, not the first's promise.
+    // (`getCached` stays mocked to null here, so the cache cannot be what serves it.)
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("⚠ queues UNBOUNDEDLY — the Nth concurrent caller waits N intervals", async () => {
