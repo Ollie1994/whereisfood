@@ -122,6 +122,19 @@ export default defineConfig({
         test: {
           name: "integration",
           environment,
+
+          // ⚠ REQUIRED, NOT CONVENIENCE. `src/lib/supabase.ts` reads `process.env` at
+          // MODULE SCOPE and throws when a variable is missing, and vitest does not load
+          // `.env.local` the way `next dev` does — so the environment has to be
+          // populated before any test module imports it. A helper cannot guarantee that
+          // (ESM evaluates imports in declaration order, and a linter may reorder them);
+          // `setupFiles` is the only deterministic seam.
+          //
+          // The same file also refuses to run against a non-local database — not
+          // because the cleanup helper is unscoped (it has been prefix-scoped since
+          // PR #106 r1) but because this suite deletes rows at all, its predicate has
+          // been wrong three times, and no such failure has ever produced a red test.
+          setupFiles: ["tests/integration/setup.ts"],
           // The mirror of `unit`'s exclusion, derived from the same constant so the two
           // cannot drift into overlapping or leaving a gap between them. Globstar
           // matches zero segments, so a file directly in `tests/integration/` is
