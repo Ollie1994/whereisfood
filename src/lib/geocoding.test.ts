@@ -75,6 +75,22 @@ describe("a cache hit", () => {
     expect(putCached).not.toHaveBeenCalled();
   });
 
+  it("is rejected when the CACHED coordinates fall outside the box", async () => {
+    // ⚠ THE CHECK USED TO LIVE ON THE FRESH-GEOCODE PATH ONLY, so a cache hit bypassed
+    // it. `geocoding_cache` is permanent with no sweeper, so if `GOTHENBURG_BBOX` is
+    // ever tightened — which `geo.ts` explicitly anticipates — rows written under the
+    // old box would keep serving out-of-box pins forever, while an identical FRESH
+    // lookup was rejected. Same address, two answers, decided by cache state.
+    //
+    // `toResult` is now the only way a `GeocodeResult` comes into existence, so the
+    // check is unconditional rather than positional and every path inherits it
+    // (PR #104 r4).
+    getCached.mockResolvedValue({ latitude: 59.3293, longitude: 18.0686 }); // Stockholm
+
+    await expect(geocode("Nånstans 1")).resolves.toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("returns displayName null, which is a SCHEMA limit and not a choice (#103)", async () => {
     // ⚠ PINS A KNOWN INCONSISTENCY. `geocoding_cache` has no display-name column —
     // verified against the generated types — so the same address yields Nominatim's
@@ -240,6 +256,18 @@ describe("every failure returns null and caches NOTHING", () => {
     ["missing", ""],
     ["malformed — no scheme", "nominatim.example.test"],
     ["malformed — not a URL at all", "://///"],
+    // ⚠ THE THREE r4 ADDED, and they are why this stopped being a predicate. Every one
+    // of them satisfies `URL.canParse` — the r3 guard — and then `new URL("search", …)`
+    // throws or yields something unfetchable. Verified in Node 22:
+    //   URL.canParse("localhost:8080")  true   → new URL THROWS
+    //   URL.canParse("mailto:x@y.z")    true   → new URL THROWS
+    //   URL.canParse("ftp://host")      true   → resolves, then fetch rejects
+    // A predicate is a claim that an operation will succeed; the operation is the only
+    // claim that cannot be wrong, so the module now builds the URL instead of judging
+    // the string.
+    ["port-only, no scheme", "localhost:8080"],
+    ["a non-network scheme", "mailto:x@y.z"],
+    ["a scheme fetch cannot use", "ftp://host"],
   ])("treats a %s base URL as a miss rather than a throw", async (_label, value) => {
     // ⚠ THE MALFORMED ROWS ARE THE ONES THAT MATTER. `new URL("/search", "no-scheme")`
     // throws `TypeError: Invalid URL`, and a first version built the URL OUTSIDE the
@@ -414,6 +442,31 @@ describe("the throttle", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(putCached).toHaveBeenCalledTimes(1);
+  });
+
+  it("deduplicates the CACHE READ too, not just the request", async () => {
+    // ⚠ THE WINDOW r3's VERSION STILL HAD, and the reason the fix changed METHOD rather
+    // than moving the registration again. r3 registered in-flight after the cache read,
+    // so a caller whose PostgREST read was issued before the leader's write committed,
+    // but resolved after the leader's `finally` removed the entry, missed both and sent
+    // a second request.
+    //
+    // Registering first means every caller for an address joins before anything is
+    // consulted — there is no ordering left to get wrong. Asserted on the CACHE READ
+    // count, which is what r3's version could not have satisfied.
+    fetchMock.mockResolvedValue(nominatimOk([IN_BOX]));
+    let releaseRead: (() => void) | undefined;
+    getCached.mockImplementation(
+      () => new Promise((res) => { releaseRead = () => res(null); }),
+    );
+
+    const all = [geocode("Delad gatan 1"), geocode("Delad gatan 1"), geocode("Delad gatan 1")];
+    await Promise.resolve();
+    releaseRead?.();
+    await Promise.all(all);
+
+    expect(getCached).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("does NOT deduplicate concurrent callers across casings — a stated limit", async () => {

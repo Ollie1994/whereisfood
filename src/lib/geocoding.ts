@@ -147,107 +147,84 @@ function toCoordinate(value: unknown): number {
 // retrying in-request multiplies load against an endpoint that may already be
 // throttling us.
 export async function geocode(address: string): Promise<GeocodeResult | null> {
-  const cached = await readCache(address);
-  if (cached !== null) {
-    // No NOMINATIM request on a hit, and the cache lookup precedes both the in-flight
-    // map and the throttle, so a hit never waits behind another caller's gate either.
-    //
-    // ⚠ "ZERO NETWORK CALLS" IS HOW #63 STATES THIS AND IT IS NOT LITERALLY TRUE — the
-    // cache read is itself an HTTP request to Supabase. That distinction is not
-    // pedantry: the one-off verification for this issue counted `fetch` calls and
-    // reported 1 on a cache hit, which looked like the cache failing and was the
-    // PostgREST request. The claim that matters is about the third-party service under
-    // a usage policy, so it is stated that way here and the unit test asserts it with
-    // the db layer mocked out, where the only possible caller of `fetch` is this
-    // module.
-    return { lat: cached.latitude, lng: cached.longitude, displayName: null };
-  }
-
-  const baseUrl = process.env.NOMINATIM_BASE_URL;
-  // Absent or unusable config is a miss, not a throw. This runs inside `after()`, where
-  // a throw becomes an unhandled rejection that loses the post — the same reasoning
-  // `date.ts` and `time.ts` both carry for their own guards.
+  // ⚠ DEDUP WRAPS THE WHOLE OPERATION, CACHE READ INCLUDED — and that is a change of
+  // METHOD, not another adjustment. Three earlier rounds fixed this module by moving a
+  // call or adding a predicate, and each was correct for the case that prompted it
+  // while encoding an assumption the next fix invalidated:
   //
-  // ⚠ BOTH HALVES CHECKED HERE, AND THE SECOND WAS MISSING TWICE. r1 moved `new URL`
-  // inside `fetchFirstHit`'s try so a malformed base could not throw — but that try
-  // ends in a bare `catch` returning null, so a malformed base then produced NO
-  // request, NO warning and no way to tell it from a network failure. Verified:
-  // `NOMINATIM_BASE_URL=nominatim.openstreetmap.org` gave null with 0 fetches and
-  // 0 warns, permanently.
+  //   r2  re-check the cache AFTER the throttle    broke when the leader was slow
+  //   r3  register in-flight BEFORE the throttle   left the cache read outside
   //
-  // ⚠ AND THE TEST ASSERTED THAT GAP WAS UNFIXABLE. Its comment claimed the malformed
-  // case "cannot be distinguished from a network failure without replicating
-  // `new URL`'s parsing". `URL.canParse` does exactly that, and has since Node 18.17 —
-  // this runs on Node 22. An impossibility asserted without checking, which is the same
-  // move as the viewbox "transposition hazard" r1 deleted.
+  // r3's version still had a window: a caller whose PostgREST read was issued before
+  // the leader's write committed, but resolved after the leader's `finally` removed the
+  // map entry, missed both and sent a second request. Narrowing a window is the same
+  // move again. Registering first removes the ordering entirely — there is no position
+  // left to get wrong, because every caller for an address joins before anything is
+  // consulted.
   //
-  // Config belongs with config: a bad base URL is a deployment error, so it is detected
-  // where the variable is read and reported the same way an absent one is.
-  if (!baseUrl) {
-    console.warn("[geocoding] NOMINATIM_BASE_URL is unset; the geocode fallback is disabled");
-    return null;
-  }
-  if (!URL.canParse(baseUrl)) {
-    console.warn("[geocoding] NOMINATIM_BASE_URL is not a valid URL; the fallback is disabled");
-    return null;
-  }
-
-  // ⚠ DEDUPLICATE BEFORE RESERVING A THROTTLE SLOT. Concurrent callers for the SAME
-  // address share one in-flight request instead of queueing behind each other, so N
-  // callers cost one Nominatim request and one gate slot rather than N of each.
+  // ⚠ KEYED ON THE RAW ADDRESS, so two CONCURRENT callers differing only in case make
+  // two requests. Bounded and deliberate: they share a cache ROW, so the second write
+  // is an upsert of identical coordinates rather than a duplicate row, and every later
+  // call hits the cache for both casings. Importing the db layer's `cacheKey` would
+  // force this module's test mock to pull in `supabaseAdmin` at hoist time or
+  // re-implement the fold, and a fold duplicated in a mock is drift this PR has already
+  // been caught by twice.
   //
-  // This replaces a post-throttle cache re-check, which was the r2 fix and was only
-  // correct under a condition I stated as an invariant and never tested: "the caller
-  // ahead has finished by the time we resume". Its gate is scheduled from when it
-  // ENTERED the throttle, and `TIMEOUT_MS` is 3000 against a 1100 ms gate — so a leader
-  // slower than one interval has not written its row yet. Verified: a 1500 ms fetch
-  // gave 2 requests and 2 writes for one address (PR #104 r3).
-  //
-  // ⚠ KEYED ON THE RAW ADDRESS, NOT THE CACHE KEY, so two CONCURRENT callers whose
-  // addresses differ only in case do not deduplicate here and make two requests. That
-  // is a deliberate limit rather than an oversight:
-  //
-  //   the cost is bounded — they share a cache row, so the second write is an upsert
-  //   of identical coordinates, not a duplicate row, and every later call hits the
-  //   cache for both casings;
-  //
-  //   the alternative was importing `cacheKey` from the db layer, which forces the
-  //   test's `vi.mock` factory to either pull in `supabaseAdmin` at hoist time or
-  //   re-implement the fold — and a fold duplicated in a mock is drift this PR has
-  //   already been caught by twice.
-  //
-  // Sequential callers are unaffected: the second reads the cache, where the fold does
-  // apply.
-  //
-  // The entry is removed when the request settles, so the map holds only genuinely
-  // in-flight work and cannot leak on a rejection — `geocodeUncached` returns null
-  // rather than throwing, but `finally` does not depend on that.
-  const key = address;
-  const existing = inFlight.get(key);
+  // The entry is removed when the promise settles, so the map holds only genuinely
+  // in-flight work. `resolve` returns null rather than throwing, but `finally` does not
+  // depend on that.
+  const existing = inFlight.get(address);
   if (existing !== undefined) return existing;
 
-  const request = geocodeUncached(baseUrl, address).finally(() => inFlight.delete(key));
-  inFlight.set(key, request);
+  const request = resolve(address).finally(() => inFlight.delete(address));
+  inFlight.set(address, request);
   return request;
 }
 
-// Everything after the cache miss and the dedup: the throttle wait, the request, the
-// validation and the write. Split out so `geocode` reads as the decision sequence and
-// so the in-flight map wraps exactly one promise.
-async function geocodeUncached(baseUrl: string, address: string): Promise<GeocodeResult | null> {
+// The whole operation: cache, then network. Everything a caller joining the in-flight
+// map shares.
+async function resolve(address: string): Promise<GeocodeResult | null> {
+  const cached = await readCache(address);
+  if (cached !== null) {
+    // No NOMINATIM request on a hit.
+    //
+    // ⚠ "ZERO NETWORK CALLS" IS HOW #63 STATES THIS AND IT IS NOT LITERALLY TRUE — the
+    // cache read is itself an HTTP request to Supabase. Not pedantry: the one-off
+    // verification for this issue counted `fetch` calls and reported 1 on a cache hit,
+    // which looked like the cache failing and was the PostgREST request. The claim that
+    // matters is about the third-party service under a usage policy, so it is stated
+    // that way here, and the unit test asserts it with the db layer mocked out — the
+    // one context where `fetch` has a single possible caller.
+    return toResult(cached.latitude, cached.longitude, null);
+  }
+
+  // ⚠ BUILT, NOT VALIDATED. Three rounds asked "is this base URL acceptable?" and got
+  // it wrong twice with two different predicates — first `!baseUrl` alone, then
+  // `URL.canParse`, which returns TRUE for `"localhost:8080"` and `"mailto:x@y.z"`
+  // while `new URL("search", …)` on either THROWS. A predicate is a claim that an
+  // operation will succeed; the only claim that cannot be wrong is the operation.
+  //
+  // So this constructs the request URL it will actually send, and a failure to
+  // construct one IS the rejection. There is no longer a validity rule to keep in step
+  // with what `new URL` does.
+  const url = buildSearchUrl(address);
+  if (url === null) return null;
+
   await throttle();
 
-  const hit = await fetchFirstHit(baseUrl, address);
+  const hit = await fetchFirstHit(url);
   if (hit === null) return null;
 
   const lat = toCoordinate(hit.lat);
   const lng = toCoordinate(hit.lon);
 
-  // ⚠ `bounded=1` IS A REQUEST PARAMETER, NOT A GUARANTEE — plan decision #3, and the
-  // reason the box is checked again on the way back. A result outside it is treated as
-  // a miss rather than a coarse answer: the alternative is a confident pin in the
-  // wrong city, which is the failure `isInGothenburg` exists to stop.
-  if (!isInGothenburg(lat, lng)) return null;
+  // ⚠ `bounded=1` re-validated, per plan decision #3 — the docs say it does filter, so
+  // this is not because the parameter is advisory. It is because Nominatim is a third
+  // party we do not control and the cost of trusting it wrongly is a confident pin in
+  // another city. `toResult` is where that check lives now; see its note.
+  const result = toResult(lat, lng, typeof hit.display_name === "string" ? hit.display_name : null);
+  if (result === null) return null;
+
 
   // ⚠ WRITTEN ONLY HERE, AFTER THE BOX CHECK. Every failure path above returns before
   // reaching this line, which is what makes "never cache a negative result" structural
@@ -268,11 +245,63 @@ async function geocodeUncached(baseUrl: string, address: string): Promise<Geocod
     console.warn("[geocoding] cache write failed; returning the geocode anyway:", error);
   }
 
-  return {
-    lat,
-    lng,
-    displayName: typeof hit.display_name === "string" ? hit.display_name : null,
-  };
+  return result;
+}
+
+// ⚠ THE ONLY WAY A `GeocodeResult` COMES INTO EXISTENCE, which is what makes the box
+// check unconditional instead of positional. It used to sit on the fresh-geocode path
+// only, so a CACHE HIT bypassed it — and `geocoding_cache` is permanent with no
+// sweeper, so if `GOTHENBURG_BBOX` is ever tightened (which `geo.ts` explicitly
+// anticipates), rows written under the old box would keep serving out-of-box pins
+// forever while an identical fresh lookup was rejected.
+//
+// Putting the check here means every path inherits it — cache, network, and whatever
+// a later change adds — rather than each one remembering to call it.
+function toResult(lat: number, lng: number, displayName: string | null): GeocodeResult | null {
+  return isInGothenburg(lat, lng) ? { lat, lng, displayName } : null;
+}
+
+// ⚠ CONSTRUCTS THE REQUEST URL, AND THAT CONSTRUCTION IS THE VALIDATION. See the note
+// at the call site for why this replaced a predicate.
+//
+// A protocol check survives, and it is not a predicate about validity — `new URL`
+// succeeds for `ftp://host`, and `fetch` would then reject into `fetchFirstHit`'s
+// catch as an indistinguishable network failure. This is the one case where building
+// the artifact does NOT surface the problem, so it is stated rather than inferred.
+function buildSearchUrl(address: string): URL | null {
+  const raw = process.env.NOMINATIM_BASE_URL;
+  if (!raw) {
+    console.warn("[geocoding] NOMINATIM_BASE_URL is unset; the geocode fallback is disabled");
+    return null;
+  }
+
+  let url: URL;
+  try {
+    // Relative, against a base normalised to end in "/", so a path-prefixed base
+    // (`https://geo.internal/nominatim`) keeps its prefix — a root-absolute "/search"
+    // discards it and 404s every request, invisibly against the public instance.
+    url = new URL("search", raw.endsWith("/") ? raw : `${raw}/`);
+  } catch {
+    console.warn("[geocoding] NOMINATIM_BASE_URL cannot form a request URL; fallback disabled");
+    return null;
+  }
+
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    console.warn(`[geocoding] NOMINATIM_BASE_URL has protocol ${url.protocol}; fallback disabled`);
+    return null;
+  }
+
+  url.searchParams.set("q", address);
+  url.searchParams.set("format", "jsonv2");
+  url.searchParams.set("limit", "1");
+  // Bound the search to Sweden and to Gothenburg. The docs are explicit that
+  // `bounded=1` "turns the viewbox parameter into a filter parameter, excluding any
+  // results outside the viewbox" — so it does filter, and `toResult`'s re-validation is
+  // not because the parameter is advisory.
+  url.searchParams.set("countrycodes", "se");
+  url.searchParams.set("viewbox", VIEWBOX);
+  url.searchParams.set("bounded", "1");
+  return url;
 }
 
 // ⚠ THE READ IS AN OPTIMISATION TOO, AND THE FIRST VERSION ONLY GUARDED THE WRITE.
@@ -298,40 +327,15 @@ async function readCache(address: string) {
   }
 }
 
-// The network half, separated so `geocode` reads as the decision sequence it is.
-// Returns the first hit, or `null` for every kind of failure.
-async function fetchFirstHit(baseUrl: string, address: string): Promise<NominatimHit | null> {
-  // ⚠ INSIDE THE TRY, AND THAT IS THE POINT. `new URL()` THROWS on a malformed base —
-  // `new URL("/search", "nominatim.example.test")` is `TypeError: Invalid URL`, verified
-  // — so constructing it above the try let a misconfigured env var escape `geocode()`
-  // as a rejection. That is precisely the unhandled-rejection-inside-`after()` that
-  // loses a post, and the `!baseUrl` guard at the call site exists to prevent exactly
-  // it. A guard that covers only the empty string covers the easy half.
+// The network half. Takes the URL `buildSearchUrl` produced, so nothing here can fail
+// to construct one — the only failures left are the network's.
+//
+// Returns the first hit, or `null` for every kind of failure. An earlier version built
+// the URL in here, which meant a malformed base was swallowed by the catch below and
+// became indistinguishable from a timeout. Moving construction to its own function is
+// what let that case be reported instead (PR #104 r4).
+async function fetchFirstHit(url: URL): Promise<NominatimHit | null> {
   try {
-    // ⚠ RELATIVE, NOT `"/search"`. A root-absolute path DISCARDS any path prefix on the
-    // base: `new URL("/search", "https://geo.internal/nominatim")` is
-    // `https://geo.internal/search`, verified. The public instance has no prefix so this
-    // is invisible today, and a self-hosted Nominatim behind one would 404 every
-    // request and geocode nothing, permanently, with nothing in the logs saying why.
-    //
-    // The trailing slash on the base is what makes the relative form resolve INTO the
-    // prefix rather than replacing its last segment, so it is added when absent rather
-    // than assumed.
-    const base = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
-    const url = new URL("search", base);
-    url.searchParams.set("q", address);
-    url.searchParams.set("format", "jsonv2");
-    url.searchParams.set("limit", "1");
-    // Bound the search to Sweden and to Gothenburg. The docs are explicit that
-    // `bounded=1` "turns the viewbox parameter into a filter parameter, excluding any
-    // results outside the viewbox" — so it does filter, and the re-validation at the
-    // call site is not because the parameter is advisory. It is because this is a third
-    // party we do not control and the cost of trusting it wrongly is a confident pin in
-    // another city.
-    url.searchParams.set("countrycodes", "se");
-    url.searchParams.set("viewbox", VIEWBOX);
-    url.searchParams.set("bounded", "1");
-
     const response = await fetch(url, {
       headers: { "User-Agent": USER_AGENT, "Accept-Language": "sv" },
       // `AbortSignal.timeout` rejects with a `TimeoutError`, caught below alongside
