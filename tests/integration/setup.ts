@@ -13,6 +13,22 @@ import { readFileSync } from "node:fs";
 // requirement rather than a nicety.
 const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 
+// ⚠ `.env` VALUES MAY BE QUOTED, AND KEEPING THE QUOTES FAILS OPAQUELY. `next dev`
+// accepts `SUPABASE_SERVICE_ROLE_KEY="ey..."`, so a `.env.local` written that way is
+// legal and works everywhere except here — the literal quotes ride along into the
+// header and every request comes back 401 with nothing pointing at the cause.
+//
+// The URL case fails legibly (`new URL('"http://…"')` throws, and `assertLocal` says
+// so), which is what would have masked the key case: the first symptom anyone hits is
+// the one that explains itself.
+//
+// Matching quotes only, and only as a PAIR. A value that legitimately starts with a
+// quote and does not end with one is left alone rather than half-stripped.
+function unquote(value: string): string {
+  const quoted = /^(["'])(.*)\1$/.exec(value);
+  return quoted === null ? value : quoted[2];
+}
+
 function loadEnvLocal(): void {
   let contents: string;
   try {
@@ -30,7 +46,7 @@ function loadEnvLocal(): void {
     // Do not clobber a variable the shell already set — an explicit
     // `NOMINATIM_BASE_URL=… npm run test:integration` should win over the file.
     if (process.env[match[1]] !== undefined) continue;
-    process.env[match[1]] = match[2].trim();
+    process.env[match[1]] = unquote(match[2].trim());
   }
 }
 

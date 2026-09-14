@@ -125,6 +125,25 @@ describe("findOverlapping", () => {
     expect(await findOverlapping(truckId, LUNCH_START, LUNCH_END)).toEqual([]);
   });
 
+  it("⚠ does not find a location starting exactly at the incoming end", async () => {
+    // THE OTHER HALF-OPEN BOUND, and it was unpinned. Mutating `.lt("starts_at", …)` to
+    // `.lte(…)` left all twelve tests passing — measured — while the mirror mutation on
+    // `expires_at` failed one. So "inclusive bounds fail a test" was true only when BOTH
+    // were changed together, which tests neither individually (PR #106 review).
+    //
+    // A location starting exactly when the incoming window ends is the NEXT booking,
+    // not a conflict.
+    await insertLocation(
+      aLocation({
+        starts_at: LUNCH_END,
+        ends_at: "2026-08-22T15:00:00.000Z",
+        expires_at: "2026-08-22T15:00:00.000Z",
+      }),
+    );
+
+    expect(await findOverlapping(truckId, LUNCH_START, LUNCH_END)).toEqual([]);
+  });
+
   it("treats back-to-back windows as not overlapping", async () => {
     // A location expiring exactly when the incoming one starts is adjacent, not in
     // conflict. Half-open on both sides (`lt`/`gt`) is what expresses that, and plan

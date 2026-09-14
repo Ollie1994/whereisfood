@@ -7,28 +7,64 @@ import { supabaseAdmin } from "@/lib/supabase";
 // Safe to import `supabaseAdmin` at module scope because `setup.ts` runs first and has
 // already populated `process.env` and refused any non-local database.
 
-// ⚠ ORDER MATTERS: `locations` and `posts` both reference `trucks`, so trucks must go
-// last or the delete violates a foreign key. Written as a list so the dependency is
-// visible rather than implied by three consecutive statements.
-const TABLES_CHILD_FIRST = ["locations", "posts", "trucks"] as const;
+// ⚠ EVERY FIXTURE TRUCK IS NAME-PREFIXED, AND THAT PREFIX IS THE ONLY THING THAT MAKES
+// CLEANUP SAFE. A first version of `resetTables()` deleted ALL of `locations`, `posts`
+// and `trucks` — which destroyed `supabase/seed.sql`'s three fixed-UUID dev trucks
+// (Burgarbilen, Taco Loco Göteborg, and the deliberately INACTIVE Vintervilan that
+// Phase 2's rejection tests need) along with any local `posts` corpus.
+//
+// That is not a tidiness problem. `npm run test:all` is the documented merge gate, so
+// running the gate broke every documented Phase 2 curl flow until someone thought to
+// run `npx supabase db reset` — and the seed comment explains those UUIDs are fixed
+// precisely so curl commands stay copy-pasteable. Confirmed empirically before the fix:
+// after one run the database held one leftover fixture truck and none of the three seed
+// trucks.
+//
+// ⚠ A DELETE CANNOT BE SCOPED BY INTENT, ONLY BY A PREDICATE. "Clean up after the
+// tests" is not something a query can express; "delete the rows whose name starts with
+// this marker" is. The prefix is what turns the first into the second, and it also
+// makes cleanup idempotent across runs — a crashed run's rows are still identifiable
+// next time.
+const FIXTURE_PREFIX = "__itest__";
 
-// ⚠ NOT `geocoding_cache`. It is keyed on an address rather than on a truck, nothing in
+// Remove every row THIS SUITE created, and nothing else.
+//
+// ⚠ CHILDREN FIRST: `locations` and `posts` both reference `trucks`, so the trucks must
+// go last or the delete violates a foreign key. Written as a list so the dependency is
+// visible rather than implied by consecutive statements.
+//
+// ⚠ NOT `geocoding_cache`. It is keyed on an address rather than a truck, nothing in
 // these tests asserts its contents, and it is expensive to refill — a cleared cache
-// means every later run re-queries Nominatim, which is a live third party under a usage
-// policy. Leaving it alone is the polite default; a test that needs it empty should
-// clear its own key.
+// means every later run re-queries Nominatim, a live third party under a usage policy.
+// A test that needs a specific key absent should clear that key.
 export async function resetTables(): Promise<void> {
-  for (const table of TABLES_CHILD_FIRST) {
-    // PostgREST requires a filter on a delete, so this matches every row by asking for
-    // ids that are not the impossible all-zero UUID. A bare `.delete()` is rejected,
-    // which is a guard against exactly the accident this function performs on purpose.
-    const { error } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin
+    .from("trucks")
+    .select("id")
+    .like("name", `${FIXTURE_PREFIX}%`);
+
+  if (error) throw error;
+
+  const fixtureTruckIds = (data ?? []).map((row) => row.id);
+  // Nothing this suite made, so nothing to remove. Also what keeps the `.in()` calls
+  // below off an empty array.
+  if (fixtureTruckIds.length === 0) return;
+
+  for (const table of ["locations", "posts"] as const) {
+    const { error: childError } = await supabaseAdmin
       .from(table)
       .delete()
-      .neq("id", "00000000-0000-0000-0000-000000000000");
+      .in("truck_id", fixtureTruckIds);
 
-    if (error) throw error;
+    if (childError) throw childError;
   }
+
+  const { error: truckError } = await supabaseAdmin
+    .from("trucks")
+    .delete()
+    .in("id", fixtureTruckIds);
+
+  if (truckError) throw truckError;
 }
 
 // A truck to hang locations off. Returns the id rather than the row: every caller so far
@@ -37,10 +73,17 @@ export async function resetTables(): Promise<void> {
 // The id is generated here rather than left to the column default so the caller has it
 // before the insert resolves, and so a test can create two trucks without a round trip
 // to tell them apart.
-export async function seedTruck(name = "Test Truck"): Promise<string> {
+//
+// ⚠ TESTS MUST USE THIS RATHER THAN INSERTING A TRUCK DIRECTLY. `resetTables()` can only
+// remove what carries the prefix, so a hand-rolled truck leaks — and a location hung off
+// a SEED truck leaks too, because its parent is never collected. That is the trade for
+// not deleting rows this suite did not create.
+export async function seedTruck(name = "Truck"): Promise<string> {
   const id = randomUUID();
 
-  const { error } = await supabaseAdmin.from("trucks").insert({ id, name, is_active: true });
+  const { error } = await supabaseAdmin
+    .from("trucks")
+    .insert({ id, name: `${FIXTURE_PREFIX}${name}`, is_active: true });
 
   if (error) throw error;
   return id;
