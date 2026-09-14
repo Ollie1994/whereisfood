@@ -14,6 +14,39 @@ export interface CachedGeocode {
   longitude: number;
 }
 
+// ⚠ THE KEY IS CASE-FOLDED, AND BOTH SIDES MUST USE THIS ONE FUNCTION. `address_raw` is
+// the primary key, so "Kungsgatan 12" and "kungsgatan 12" would otherwise be two
+// permanent rows and two throttled Nominatim requests for one address — and the table
+// has no expiry, so the duplicate is forever.
+//
+// ⚠ CASE ONLY. Whitespace is already normalised upstream: `extractAddressCandidate`
+// rebuilds its result from the match groups with `.replace(/\s+/gu, " ").trim()`, so
+// "Andra   Långgatan 12" never reaches here as anything but one clean string. Verified
+// rather than assumed, and stated because folding whitespace here too would look
+// harmless and would duplicate a rule that already has an owner.
+//
+// `toLowerCase()` rather than `toLocaleLowerCase("sv")`, matching `location.ts`'s call
+// and its reasoning: Swedish has no casing rule that differs from the default for any
+// letter in these addresses, and a locale-sensitive fold would make cache identity
+// depend on the runtime's ICU data.
+//
+// ⚠ ASYMMETRY HERE IS THE EXPENSIVE FAILURE — fold on write but not on read and EVERY
+// lookup misses, which presents as a cache that silently never works while Nominatim
+// traffic quietly doubles. One function used by both sides is the structural defence.
+//
+// ⚠ AND IT IS NOT PINNED BY A UNIT TEST, because nothing in this repo unit-tests the db
+// layer — `geocoding.test.ts` mocks this module out entirely, so it cannot see the key
+// at all. Verified live against local Supabase instead: `putCachedGeocode("Testgatan
+// 99", …)` followed by reads for `"Testgatan 99"`, `"testgatan 99"` and `"TESTGATAN 99"`
+// all hit, `rowCount` is 1, and the stored key is `"testgatan 99"`.
+//
+// A manual verification is weaker than a test and this says so rather than implying
+// otherwise. #72 owns the integration suite and should pin this round trip there; noted
+// on that issue so the obligation is not carried only by this comment.
+function cacheKey(addressRaw: string): string {
+  return addressRaw.toLowerCase();
+}
+
 // A miss returns null rather than throwing. That is the ordinary case on first
 // sight of an address, not an error — `maybeSingle()` is what expresses it, and a
 // real DB fault still throws through to the caller.
@@ -21,7 +54,7 @@ export async function getCachedGeocode(addressRaw: string): Promise<CachedGeocod
   const { data, error } = await supabaseAdmin
     .from("geocoding_cache")
     .select("latitude, longitude")
-    .eq("address_raw", addressRaw)
+    .eq("address_raw", cacheKey(addressRaw))
     .maybeSingle();
 
   if (error) throw error;
@@ -50,7 +83,10 @@ export async function putCachedGeocode(
 ): Promise<void> {
   const { error } = await supabaseAdmin
     .from("geocoding_cache")
-    .upsert({ address_raw: addressRaw, latitude, longitude }, { onConflict: "address_raw" });
+    .upsert(
+      { address_raw: cacheKey(addressRaw), latitude, longitude },
+      { onConflict: "address_raw" },
+    );
 
   if (error) throw error;
 }

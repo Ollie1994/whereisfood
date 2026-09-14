@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getCachedGeocode, putCachedGeocode } from "@/lib/db/geocoding";
+import { GOTHENBURG_BBOX } from "@/lib/geo";
 
 vi.mock("@/lib/db/geocoding", () => ({
   getCachedGeocode: vi.fn(),
@@ -136,18 +137,53 @@ describe("a successful miss", () => {
     expect(url.searchParams.get("bounded")).toBe("1");
   });
 
-  it("orders the viewbox west,north,east,south — Nominatim's order, not ours", async () => {
-    // ⚠ THE TRANSPOSITION THIS PINS produces a plausible wrong answer rather than an
-    // error, which is why it is worth a test of its own. `GOTHENBURG_BBOX` is declared
-    // west/south/east/north and Nominatim wants west,north,east,south — the two middle
-    // values swap. The module derives the string from the constant rather than copying
-    // it, so widening the box cannot silently reorder it.
+  it("derives the viewbox from GOTHENBURG_BBOX rather than a literal", async () => {
+    // ⚠ THIS PINS THE DERIVATION, NOT AN ORDERING. An earlier version claimed Nominatim
+    // "wants west,north,east,south" and that our declaration order was a transposition
+    // hazard. The docs say otherwise, verbatim: *"Any two corner points of the box are
+    // accepted as long as they make a proper box."* Both orders describe the same box,
+    // so there was never a wrong one (PR #104 review).
+    //
+    // What is still worth pinning is that the string comes from the constant: asserted
+    // against `GOTHENBURG_BBOX` itself, so moving the box moves this test with it and a
+    // stale hand-typed copy would fail.
     fetchMock.mockResolvedValue(nominatimOk([IN_BOX]));
 
     await geocode("Järntorget");
 
     const [url] = fetchMock.mock.calls[0] as [URL];
-    expect(url.searchParams.get("viewbox")).toBe("11.6,57.85,12.2,57.5");
+    const { west, south, east, north } = GOTHENBURG_BBOX;
+    expect(url.searchParams.get("viewbox")).toBe(`${west},${south},${east},${north}`);
+  });
+
+  it("preserves a path prefix on the base URL", async () => {
+    // ⚠ `"/search"` IS ROOT-ABSOLUTE AND DISCARDS THE PREFIX:
+    // `new URL("/search", "https://geo.internal/nominatim")` is
+    // `https://geo.internal/search`, verified. The public instance has no prefix, so a
+    // first version was invisibly wrong — a self-hosted Nominatim behind one would 404
+    // every request and geocode nothing, permanently, with nothing in the logs
+    // (PR #104 review).
+    vi.stubEnv("NOMINATIM_BASE_URL", "https://geo.internal.test/nominatim");
+    vi.resetModules();
+    ({ geocode } = await import("@/lib/geocoding"));
+    fetchMock.mockResolvedValue(nominatimOk([IN_BOX]));
+
+    await geocode("Järntorget");
+
+    const [url] = fetchMock.mock.calls[0] as [URL];
+    expect(url.pathname).toBe("/nominatim/search");
+  });
+
+  it("does not double the slash when the base already ends in one", async () => {
+    vi.stubEnv("NOMINATIM_BASE_URL", "https://geo.internal.test/nominatim/");
+    vi.resetModules();
+    ({ geocode } = await import("@/lib/geocoding"));
+    fetchMock.mockResolvedValue(nominatimOk([IN_BOX]));
+
+    await geocode("Järntorget");
+
+    const [url] = fetchMock.mock.calls[0] as [URL];
+    expect(url.pathname).toBe("/nominatim/search");
   });
 });
 
@@ -200,16 +236,74 @@ describe("every failure returns null and caches NOTHING", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("treats missing config as a miss rather than a throw", async () => {
-    // This runs inside `after()`, where a throw becomes an unhandled rejection that
-    // loses the post — the same reasoning `date.ts` and `time.ts` carry for their own
-    // guards.
-    vi.stubEnv("NOMINATIM_BASE_URL", "");
+  it.each([
+    ["missing", ""],
+    ["malformed — no scheme", "nominatim.example.test"],
+    ["malformed — not a URL at all", "://///"],
+  ])("treats a %s base URL as a miss rather than a throw", async (_label, value) => {
+    // ⚠ THE MALFORMED ROWS ARE THE ONES THAT MATTER. `new URL("/search", "no-scheme")`
+    // throws `TypeError: Invalid URL`, and a first version built the URL OUTSIDE the
+    // try block — so a misconfigured env var escaped `geocode()` as a rejection. This
+    // module runs inside `after()`, where that loses the post, and the empty-string
+    // guard covers only the easy half of the same class (PR #104 review).
+    vi.stubEnv("NOMINATIM_BASE_URL", value);
     vi.resetModules();
     ({ geocode } = await import("@/lib/geocoding"));
 
     await expect(geocode("Järntorget")).resolves.toBeNull();
-    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("the cache is an optimisation, not a dependency", () => {
+  it("returns the geocode even when the cache write fails", async () => {
+    // ⚠ A FAILED WRITE MUST NOT DISCARD A GOOD ANSWER. The coordinates are already
+    // fetched and already box-validated at that point, so letting a transient Postgres
+    // error propagate trades a slow next lookup for a LOST PIN. The next miss simply
+    // geocodes again.
+    fetchMock.mockResolvedValue(nominatimOk([IN_BOX]));
+    putCached.mockRejectedValue(new Error("connection terminated"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await expect(geocode("Järntorget")).resolves.toEqual({
+      lat: 57.6998935,
+      lng: 11.952503,
+      displayName: null,
+    });
+    // Logged rather than swallowed silently: a cache that never writes looks exactly
+    // like a cache that is never hit, and the only visible symptom would be Nominatim
+    // traffic that should not exist.
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+});
+
+describe("being throttled is distinguishable from finding nothing", () => {
+  it.each([429, 403])("logs a warning on %d", async (status) => {
+    // ⚠ COLLAPSING THESE INTO A SILENT NULL IS HOW THIS PATH GOES DARK. Plan decision
+    // #2 states the risk outright — Vercel egresses from a shared IP pool, so another
+    // tenant's traffic can get us rate-limited regardless of our own behaviour. Without
+    // the log, the symptom is a steady trickle of `parsing_status = 'failed'` that
+    // reads as bad caption quality.
+    fetchMock.mockResolvedValue({ ok: false, status, json: async () => [] } as unknown as Response);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await expect(geocode("Järntorget")).resolves.toBeNull();
+
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining(String(status)));
+    warn.mockRestore();
+  });
+
+  it("stays quiet on an ordinary bad day", async () => {
+    // A 404 or a 500 is not "stop, or you are already stopped". Logging those too would
+    // make the warning meaningless, which is the same reason an ordinary miss is not
+    // logged at all.
+    fetchMock.mockResolvedValue({ ok: false, status: 500, json: async () => [] } as unknown as Response);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await expect(geocode("Järntorget")).resolves.toBeNull();
+
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 });
 

@@ -30,18 +30,28 @@ const THROTTLE_MS = 1100;
 // different trade from a request holding a serverless invocation.
 const TIMEOUT_MS = 3000;
 
-// ⚠ DERIVED FROM `GOTHENBURG_BBOX`, NOT COPIED. Nominatim wants
-// `west,north,east,south`, which is a different order from our own box — exactly the
-// kind of transposition that produces a plausible-looking wrong answer. One definition
-// with two consumers is the plan's M6 rule; `seed-dictionary.mjs` copies these numbers
-// instead, and states why it is allowed to (it is `.mjs`, and `dictionary.test.ts`
-// re-validates every committed entry with the real `isInGothenburg`, so drift there
-// costs a re-run rather than a bad pin). No such backstop exists here, so no copy.
+// ⚠ DERIVED FROM `GOTHENBURG_BBOX`, NOT COPIED — one definition with two consumers,
+// the plan's M6 rule. `seed-dictionary.mjs` copies these numbers instead and states why
+// it may: it is `.mjs`, and `dictionary.test.ts` re-validates every committed entry
+// with the real `isInGothenburg`, so drift there costs a re-run rather than a bad pin.
+// No such backstop exists here, so no copy.
+//
+// ⚠ THE ORDER IS NOT A HAZARD, AND AN EARLIER VERSION OF THIS COMMENT SAID IT WAS. It
+// claimed Nominatim "wants west,north,east,south, which is a different order from our
+// own box — exactly the kind of transposition that produces a plausible-looking wrong
+// answer". The docs say otherwise, verbatim: *"Any two corner points of the box are
+// accepted as long as they make a proper box."* `west,south,east,north` and
+// `west,north,east,south` are opposite corners of the SAME box, so both are correct and
+// there is no transposition to get wrong.
+//
+// The derivation is still worth having — it is what keeps this in step if the box moves
+// — but it defends against a stale COPY, not against an ordering mistake. Written in
+// the order the fields are declared, since no other order buys anything.
 const VIEWBOX = [
   GOTHENBURG_BBOX.west,
-  GOTHENBURG_BBOX.north,
-  GOTHENBURG_BBOX.east,
   GOTHENBURG_BBOX.south,
+  GOTHENBURG_BBOX.east,
+  GOTHENBURG_BBOX.north,
 ].join(",");
 
 // What the caller gets. `displayName` is Nominatim's canonical `display_name`, which
@@ -171,7 +181,21 @@ export async function geocode(address: string): Promise<GeocodeResult | null> {
   // ⚠ WRITTEN ONLY HERE, AFTER THE BOX CHECK. Every failure path above returns before
   // reaching this line, which is what makes "never cache a negative result" structural
   // rather than remembered. The table has no expiry, so a cached failure is permanent.
-  await putCachedGeocode(address, lat, lng);
+  //
+  // ⚠ AND A FAILED WRITE MUST NOT DISCARD THE GEOCODE. The coordinates are already
+  // fetched and already box-validated; the cache row is an OPTIMISATION, so letting a
+  // transient Postgres error propagate would throw away a good answer and cost the post
+  // its location — trading a slow next lookup for a lost pin. The next miss simply
+  // geocodes again.
+  //
+  // Logged rather than swallowed silently: a cache that never writes looks exactly like
+  // a cache that is never hit, and the only visible symptom would be Nominatim traffic
+  // that should not exist.
+  try {
+    await putCachedGeocode(address, lat, lng);
+  } catch (error) {
+    console.warn("[geocoding] cache write failed; returning the geocode anyway:", error);
+  }
 
   return {
     lat,
@@ -183,17 +207,37 @@ export async function geocode(address: string): Promise<GeocodeResult | null> {
 // The network half, separated so `geocode` reads as the decision sequence it is.
 // Returns the first hit, or `null` for every kind of failure.
 async function fetchFirstHit(baseUrl: string, address: string): Promise<NominatimHit | null> {
-  const url = new URL("/search", baseUrl);
-  url.searchParams.set("q", address);
-  url.searchParams.set("format", "jsonv2");
-  url.searchParams.set("limit", "1");
-  // Bound the search to Sweden and to Gothenburg. A hint, not a promise — see the
-  // re-validation at the call site.
-  url.searchParams.set("countrycodes", "se");
-  url.searchParams.set("viewbox", VIEWBOX);
-  url.searchParams.set("bounded", "1");
-
+  // ⚠ INSIDE THE TRY, AND THAT IS THE POINT. `new URL()` THROWS on a malformed base —
+  // `new URL("/search", "nominatim.example.test")` is `TypeError: Invalid URL`, verified
+  // — so constructing it above the try let a misconfigured env var escape `geocode()`
+  // as a rejection. That is precisely the unhandled-rejection-inside-`after()` that
+  // loses a post, and the `!baseUrl` guard at the call site exists to prevent exactly
+  // it. A guard that covers only the empty string covers the easy half.
   try {
+    // ⚠ RELATIVE, NOT `"/search"`. A root-absolute path DISCARDS any path prefix on the
+    // base: `new URL("/search", "https://geo.internal/nominatim")` is
+    // `https://geo.internal/search`, verified. The public instance has no prefix so this
+    // is invisible today, and a self-hosted Nominatim behind one would 404 every
+    // request and geocode nothing, permanently, with nothing in the logs saying why.
+    //
+    // The trailing slash on the base is what makes the relative form resolve INTO the
+    // prefix rather than replacing its last segment, so it is added when absent rather
+    // than assumed.
+    const base = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+    const url = new URL("search", base);
+    url.searchParams.set("q", address);
+    url.searchParams.set("format", "jsonv2");
+    url.searchParams.set("limit", "1");
+    // Bound the search to Sweden and to Gothenburg. The docs are explicit that
+    // `bounded=1` "turns the viewbox parameter into a filter parameter, excluding any
+    // results outside the viewbox" — so it does filter, and the re-validation at the
+    // call site is not because the parameter is advisory. It is because this is a third
+    // party we do not control and the cost of trusting it wrongly is a confident pin in
+    // another city.
+    url.searchParams.set("countrycodes", "se");
+    url.searchParams.set("viewbox", VIEWBOX);
+    url.searchParams.set("bounded", "1");
+
     const response = await fetch(url, {
       headers: { "User-Agent": USER_AGENT, "Accept-Language": "sv" },
       // `AbortSignal.timeout` rejects with a `TimeoutError`, caught below alongside
@@ -201,7 +245,22 @@ async function fetchFirstHit(baseUrl: string, address: string): Promise<Nominati
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+      // ⚠ BEING THROTTLED OR BLOCKED IS NOT THE SAME AS "NO SUCH ADDRESS", and
+      // collapsing them is how this path goes dark unnoticed. Plan decision #2 states
+      // the risk outright: Vercel egresses from a SHARED IP POOL, so another tenant's
+      // traffic can get us rate-limited regardless of how well-behaved we are. Without
+      // this line the symptom is a steady trickle of `parsing_status = 'failed'` that
+      // looks like bad caption quality.
+      //
+      // Only these two, deliberately. A 404 or a 500 is an ordinary bad day; 429 and
+      // 403 are the ones that mean "stop, or you are already stopped".
+      if (response.status === 429 || response.status === 403) {
+        console.warn(`[geocoding] Nominatim refused the request with ${response.status} — ` +
+          "rate-limited or blocked; the fallback path is degraded until this clears");
+      }
+      return null;
+    }
 
     const body: unknown = await response.json();
     // `jsonv2` returns an array. An empty one is the ordinary "no such address"
