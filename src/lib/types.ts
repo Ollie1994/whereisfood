@@ -57,6 +57,29 @@ export type Post = Omit<PostRow, "source" | "parsing_status" | "raw_json"> & {
 // service builds a NewPost and the deferred insert returns the full Post.
 export type NewPost = Omit<Post, "id" | "created_at">;
 
+// Insertable shape of a `locations` row: everything the caller supplies, minus the
+// three columns the database generates. Derived from `Location` — itself derived from
+// the generated row type (#48) — so a migration that adds or re-nullables a column
+// makes every stale insert a compile error.
+//
+// ⚠ `updated_at` IS OMITTED ALONGSIDE `id` AND `created_at`, and it is the one worth
+// stating. It has a `now()` default like `created_at`, so an insert need not supply it
+// — but unlike `created_at` it is *meant* to change later, and nothing updates it yet.
+// Omitting it here says "the insert does not set this", not "this never changes"; when
+// an update path exists it will set the column explicitly rather than widen this type.
+//
+// Everything else stays REQUIRED even where the column has a default, and that is
+// deliberate. `is_negation` defaults to false and `confidence`/`parser_confidence`/
+// `source_confidence` are NOT NULL — the phase plan lists "every NOT NULL column on
+// `locations` is set on insert" as an acceptance criterion precisely because a silent
+// default is how a row ends up scored 0 or flagged wrong. Making them required means
+// the service cannot forget one.
+//
+// Defined here rather than in the locations-service issue because `db/locations.ts` is
+// the first module that needs it, and defining it later would make the db layer depend
+// on an issue blocked by the db layer.
+export type NewLocation = Omit<Location, "id" | "created_at" | "updated_at">;
+
 // Webhook lane payload sent by Make.com to POST /api/ingest.
 export interface IngestPayload {
   truck_id: string;
