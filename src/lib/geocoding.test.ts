@@ -18,6 +18,7 @@ const IN_BOX = { lat: "57.6998935", lon: "11.952503" };
 const OUT_OF_BOX = { lat: "59.3293", lon: "18.0686" };
 
 const THROTTLE_MS = 1100;
+const OPERATION_TIMEOUT_MS = 8000;
 
 function nominatimOk(hits: unknown[]) {
   return { ok: true, json: async () => hits } as unknown as Response;
@@ -366,6 +367,69 @@ describe("being throttled is distinguishable from finding nothing", () => {
 
     expect(warn).not.toHaveBeenCalled();
     warn.mockRestore();
+  });
+});
+
+describe("the operation always settles", () => {
+  // ⚠ THE CONTRACT THIS MODULE STATES AND DID NOT HOLD. `geocode` documents that `null`
+  // covers every failure; before the deadline it could also NEVER SETTLE — a third
+  // outcome no caller is written for, and the one the `after()` boundary handles worst:
+  // the post keeps its `'pending'` default rather than becoming `'failed'`, so it is
+  // indistinguishable from a healthy post and invisible to any failure sweep.
+  //
+  // Only the Nominatim fetch was bounded. Neither Supabase call had a deadline, and
+  // `readCache`'s try/catch covers a REJECTION but not a HANG — different failures
+  // (PR #104 r5).
+
+  it.each([
+    ["the cache READ hangs", () => getCached.mockReturnValue(new Promise(() => {}))],
+    ["the cache WRITE hangs", () => putCached.mockReturnValue(new Promise(() => {}))],
+    ["the throttle queue never drains", () => fetchMock.mockReturnValue(new Promise(() => {}))],
+  ])("resolves to null when %s", async (_label, arrange) => {
+    vi.useFakeTimers();
+    fetchMock.mockResolvedValue(nominatimOk([IN_BOX]));
+    arrange();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const pending = geocode("Hängd gatan 1");
+    await vi.advanceTimersByTimeAsync(OPERATION_TIMEOUT_MS + 100);
+
+    await expect(pending).resolves.toBeNull();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("gave up"));
+    warn.mockRestore();
+  });
+
+  it("clears the in-flight entry after a hang, so one address is not poisoned", async () => {
+    // ⚠ WHY THE DEADLINE IS APPLIED BEFORE THE MAP ENTRY IS STORED. The stored promise
+    // is the bounded one, so a hang resolves it, `finally` runs, and the address is
+    // released. Deadlining at each call site instead would leave the map holding the
+    // UNBOUNDED promise — the entry would never be deleted, and every later caller in
+    // the same warm instance would join it and wait a full deadline for a result that
+    // is never coming.
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    getCached.mockReturnValue(new Promise(() => {}));
+
+    const first = geocode("Hängd gatan 1");
+    await vi.advanceTimersByTimeAsync(OPERATION_TIMEOUT_MS + 100);
+    await expect(first).resolves.toBeNull();
+
+    // The entry is gone, so a later caller starts a fresh attempt rather than joining
+    // the dead one — and a recovered database is served immediately.
+    getCached.mockResolvedValue({ latitude: 57.6998935, longitude: 11.952503 });
+    await expect(geocode("Hängd gatan 1")).resolves.toEqual({
+      lat: 57.6998935,
+      lng: 11.952503,
+      displayName: null,
+    });
+    warn.mockRestore();
+  });
+
+  it("does not delay a healthy request", async () => {
+    // The deadline must not become the latency floor: a normal call settles on its own.
+    fetchMock.mockResolvedValue(nominatimOk([IN_BOX]));
+
+    await expect(geocode("Snabb gatan 1")).resolves.not.toBeNull();
   });
 });
 

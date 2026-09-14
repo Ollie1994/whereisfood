@@ -89,7 +89,21 @@ export async function putCachedGeocode(
   const { error } = await supabaseAdmin
     .from("geocoding_cache")
     .upsert(
-      { address_raw: cacheKey(addressRaw), latitude, longitude },
+      {
+        address_raw: cacheKey(addressRaw),
+        latitude,
+        longitude,
+        // ⚠ SET EXPLICITLY, so `cached_at` means LAST WRITTEN rather than first seen.
+        // The column default is `now()`, which only applies on INSERT — an upsert that
+        // updates would otherwise keep the original timestamp, leaving the semantic
+        // implicit and decided by which branch happened to run.
+        //
+        // Migration 0003 records that this column "drives any future cache-invalidation
+        // policy", and last-written is the semantic such a policy needs: an "expire rows
+        // older than X" sweep must not discard a row that was just re-verified against
+        // Nominatim. First-seen would do exactly that.
+        cached_at: new Date().toISOString(),
+      },
       { onConflict: "address_raw" },
     );
 

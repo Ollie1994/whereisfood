@@ -30,6 +30,36 @@ const THROTTLE_MS = 1100;
 // different trade from a request holding a serverless invocation.
 const TIMEOUT_MS = 3000;
 
+// ⚠ THE DEADLINE ON THE WHOLE OPERATION, and it is what makes this module's stated
+// contract true. `geocode` documents that `null` covers every failure; without this it
+// could also NEVER SETTLE, which is a third outcome no caller is written for.
+//
+// Only the Nominatim fetch was bounded. Neither Supabase call had a deadline, and
+// `readCache`'s try/catch covers a REJECTION but not a HANG — different failures.
+// Verified: a cache read that never settles leaves `geocode` pending forever, and a
+// hung cache write strands coordinates that were already fetched and validated.
+//
+// The consequence is worse than one lost post, because of the in-flight map: a pending
+// entry is never deleted, so every later caller for that address in the same warm
+// instance joins a promise that will not settle. One blackholed PostgREST request
+// poisons one address for the life of the instance.
+//
+// It is also what makes the burst behaviour match its own description. The throttle
+// comment says a queued caller degrades to "a null geocode — which the caller handles
+// as `parsing_status = 'failed'`". Untrue while the wait is unbounded: a caller still
+// queued when the invocation is torn down never resolves at all, so the post keeps its
+// `'pending'` default and is indistinguishable from a healthy one — invisible to any
+// failure sweep, which is strictly worse than a recorded failure.
+//
+// ⚠ ONE DEADLINE ON THE OPERATION, NOT A TIMEOUT PER AWAIT. Bounding each call
+// individually is the positional move that failed four rounds running here: it is a
+// claim about the set of calls, and the set changes. Wrapping the operation is a claim
+// about the operation, which is what the caller actually depends on.
+//
+// 8s sits under the ~10s lambda budget and above `TIMEOUT_MS` plus a throttle slot, so
+// an ordinary slow-but-working request still completes.
+const OPERATION_TIMEOUT_MS = 8000;
+
 // ⚠ DERIVED FROM `GOTHENBURG_BBOX`, NOT COPIED — one definition with two consumers,
 // the plan's M6 rule. `seed-dictionary.mjs` copies these numbers instead and states why
 // it may: it is `.mjs`, and `dictionary.test.ts` re-validates every committed entry
@@ -176,9 +206,50 @@ export async function geocode(address: string): Promise<GeocodeResult | null> {
   const existing = inFlight.get(address);
   if (existing !== undefined) return existing;
 
-  const request = resolve(address).finally(() => inFlight.delete(address));
+  // ⚠ THE DEADLINE IS APPLIED BEFORE THE MAP ENTRY IS STORED, so the stored promise is
+  // the bounded one. That is what lets the entry clear itself: on a hang, the deadline
+  // resolves to `null`, `finally` runs, and the address is not poisoned for the life of
+  // the instance. Deadlining at each call site instead would leave the map holding the
+  // unbounded promise — the entry would never be deleted, and later callers would join
+  // it and wait their own full deadline for a result that is never coming.
+  //
+  // The underlying work is not cancelled and may still complete afterwards; a late
+  // cache write is harmless, being the same validated coordinates. There is no
+  // AbortController here because the only genuinely cancellable step, the fetch,
+  // already has its own.
+  const request = withDeadline(resolve(address)).finally(() => inFlight.delete(address));
   inFlight.set(address, request);
   return request;
+}
+
+// Resolve to `null` if the work has not settled in time, so `geocode`'s behaviour set is
+// {result, null} rather than {result, null, never}. See `OPERATION_TIMEOUT_MS`.
+//
+// The timer is cleared when the work settles first. A pending `setTimeout` keeps the
+// event loop alive, which in a serverless invocation delays teardown — the real reason
+// to clear it, since an 8 s timer on every geocode would hold an otherwise-finished
+// lambda open.
+//
+// ⚠ IT IS NOT PINNED BY A TEST, AND AN EARLIER VERSION OF THIS COMMENT CLAIMED IT WOULD
+// "hang the run". Measured, not assumed: deleting `clearTimeout` leaves this suite at
+// 1.74 s against 1.73 s and every test still passing — vitest tears the worker down
+// regardless. That is the third consequence I asserted in this PR without checking
+// (after the viewbox "transposition hazard" and the `canParse` "impossibility"), so it
+// is stated here as unpinned rather than implied to be covered.
+function withDeadline(work: Promise<GeocodeResult | null>): Promise<GeocodeResult | null> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      console.warn(
+        `[geocoding] gave up after ${OPERATION_TIMEOUT_MS}ms; treating as a failed geocode`,
+      );
+      resolve(null);
+    }, OPERATION_TIMEOUT_MS);
+
+    void work.then((result) => {
+      clearTimeout(timer);
+      resolve(result);
+    });
+  });
 }
 
 // The whole operation: cache, then network. Everything a caller joining the in-flight
