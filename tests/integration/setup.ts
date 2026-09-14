@@ -60,7 +60,14 @@ function loadEnvLocal(): void {
   }
 
   for (const line of contents.split(/\r?\n/)) {
-    const match = /^\s*([A-Z0-9_]+)\s*=\s*(.*)$/.exec(line);
+    // ⚠ THE VALUE STOPS AT AN UNQUOTED `#`. A first version captured everything after
+    // `=`, so an inline comment rode into the value — and Next.js's dotenv stops at
+    // `#`, so a `.env.local` written that way works for `next dev` and fails only here.
+    //
+    // Same failure SHAPE as the quoting bug: a service-role key with a trailing
+    // " # note" attached returns an opaque 401 with nothing pointing at the cause.
+    // Quoted values keep their `#`, which is why the quote is matched first.
+    const match = /^\s*([A-Z0-9_]+)\s*=\s*("[^"]*"|'[^']*'|[^#]*)/.exec(line);
     if (match === null) continue;
     // Do not clobber a variable the shell already set — an explicit
     // `NOMINATIM_BASE_URL=… npm run test:integration` should win over the file.
@@ -69,10 +76,11 @@ function loadEnvLocal(): void {
   }
 }
 
-// ⚠ REFUSES TO RUN AGAINST ANYTHING BUT A LOCAL DATABASE. `resetTables()` issues
-// unfiltered deletes, so a `.env.local` pointing at a deployed Supabase project — a
-// copy-paste away, and the exact thing `.env.local` is for — would empty it with no
-// confirmation and no undo.
+// ⚠ REFUSES TO RUN AGAINST ANYTHING BUT A LOCAL DATABASE. This suite deletes rows, its
+// cleanup predicate has now been wrong three times (all-tables, `_` as a LIKE wildcard,
+// `*` as one), and not one of those failures produced a red test. A `.env.local`
+// pointing at a deployed Supabase project — a copy-paste away, and the exact thing
+// `.env.local` is for — would take rows with it, with no confirmation and no undo.
 //
 // Checked on the HOST rather than on a substring of the URL: `https://prod.example.com/
 // ?x=localhost` contains "localhost" and is not local. `new URL` is what makes the

@@ -55,18 +55,27 @@ describe("insertLocation", () => {
     expect(stored.id).toMatch(/^[0-9a-f-]{36}$/);
     expect(stored.truck_id).toBe(truckId);
 
-    // ⚠ COMPARED AS AN INSTANT, NOT AS A STRING, AND THIS IS NOT A TEST DETAIL.
-    // Postgres returns `timestamptz` as `2026-08-22T09:00:00+00:00`; we sent
-    // `2026-08-22T09:00:00.000Z`. Same moment, different text — so a round trip does
-    // NOT preserve the string, verified here rather than assumed.
+    // ⚠ COMPARED AS AN INSTANT, NOT AS A STRING, AND THIS IS NOT A TEST DETAIL. At the
+    // time of writing Postgres returns `timestamptz` as `2026-08-22T09:00:00+00:00`
+    // while we sent `2026-08-22T09:00:00.000Z` — same moment, different text, so a round
+    // trip does not preserve the string.
     //
     // It matters for #68, which compares an incoming location's window against stored
-    // rows: `stored.expires_at === parsed.startsAt` is false for identical instants,
-    // and `<` / `>` between the two formats compares text that only coincidentally
-    // orders correctly. Ordering within ONE format is fine, which is what makes this
-    // easy to get away with until it is not.
+    // rows: `stored.expires_at === parsed.startsAt` is false for identical instants, and
+    // `<` / `>` between the two formats compares text that only coincidentally orders
+    // correctly. Ordering within ONE format is fine, which is what makes this easy to
+    // get away with until it is not.
+    //
+    // ⚠ THE DIFFERENCE IS RECORDED HERE AND NOT ASSERTED, AND AN EARLIER VERSION
+    // ASSERTED IT. `expect(stored.starts_at).not.toBe(LUNCH_START)` pins PostgREST's
+    // text rendering, which is not ours to pin: it can only ever fail when nothing is
+    // wrong — a version emitting `…Z` would go red while behaving identically — and
+    // this suite is gated on three consecutive green runs (PR #106 r3).
+    //
+    // Asserting the instants is the claim the code depends on. A test that would stop
+    // #68 comparing strings belongs in #68, not here; this comment is what carries the
+    // fact across.
     expect(Date.parse(stored.starts_at)).toBe(Date.parse(LUNCH_START));
-    expect(stored.starts_at).not.toBe(LUNCH_START);
   });
 
   it("propagates a Postgres error rather than swallowing it", async () => {

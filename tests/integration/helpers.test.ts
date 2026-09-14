@@ -24,10 +24,17 @@ const BYSTANDERS = [
 // Fixed ids so a crashed run leaves something identifiable rather than random orphans,
 // and `afterEach` rather than `afterAll` so a failure part-way through still cleans up.
 afterEach(async () => {
-  await supabaseAdmin
+  // ⚠ THE ERROR IS CHECKED, AND IT HAS TO BE. These trucks deliberately carry NO fixture
+  // prefix — that is what makes them bystanders — so `resetTables()` can never collect
+  // them. supabase-js returns `{ error }` rather than throwing, so an ignored failure
+  // here leaves rows in the dev database permanently, which is the very thing this file
+  // exists to prevent (PR #106 r3).
+  const { error } = await supabaseAdmin
     .from("trucks")
     .delete()
     .in("id", BYSTANDERS.map((truck) => truck.id));
+
+  if (error) throw error;
 });
 
 it("⚠ resetTables deletes only what this suite created", async () => {
@@ -68,7 +75,11 @@ it("removes a fixture's children before the fixture itself", async () => {
   // three statements whose order reads as incidental.
   const fixture = await seedTruck();
 
-  await supabaseAdmin.from("locations").insert({
+  // ⚠ CHECKED. supabase-js returns `{ error }` rather than throwing, so an unchecked
+  // insert makes this test VACUOUS the moment a migration adds a NOT NULL column: the
+  // insert 400s, there is no child row for `resetTables()` to order around, and the
+  // test passes green while asserting nothing (PR #106 r3).
+  const { error: insertError } = await supabaseAdmin.from("locations").insert({
     truck_id: fixture,
     latitude: 57.6998935,
     longitude: 11.952503,
@@ -80,6 +91,7 @@ it("removes a fixture's children before the fixture itself", async () => {
     source_confidence: 0.85,
     is_negation: false,
   });
+  if (insertError) throw insertError;
 
   await expect(resetTables()).resolves.toBeUndefined();
 

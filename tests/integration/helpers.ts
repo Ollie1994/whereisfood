@@ -40,21 +40,30 @@ import { supabaseAdmin } from "@/lib/supabase";
 //
 // Escaping (`\_\_itest\_\_%`) also works and was verified, but a prefix containing no
 // metacharacters is the version with nothing left to get wrong: there is no escaping to
-// remember when someone changes this string. `assertNoLikeMetacharacters` below makes
-// that a checked property rather than a convention.
+// remember when someone changes this string. The module-load check below makes that a
+// checked property rather than a convention.
 const FIXTURE_PREFIX = "itest-fixture-";
 
-// LIKE's only two wildcards. A prefix containing either stops being a prefix.
-const LIKE_METACHARACTERS = /[%_]/;
+// ⚠ THREE, NOT TWO, AND THE THIRD IS NOT A LIKE WILDCARD AT ALL. SQL LIKE has `%` and
+// `_`. But this prefix does not reach SQL directly — supabase-js appends it verbatim to
+// a PostgREST query string, and **PostgREST translates `*` into `%`** before Postgres
+// ever sees it. Verified: `.like("name", "*anything*")` matched `ZZZanythingZZZ`.
+//
+// So the guard is about the WHOLE PATH the string travels, not about the language at
+// the end of it. A first version checked SQL's two wildcards, which is the right answer
+// to the wrong question — and `*` would have passed it and silently widened a
+// destructive delete, which is the r2 defect one metacharacter over (PR #106 r3).
+const WILDCARDS_ON_THE_PATH_TO_POSTGRES = /[%_*]/;
 
-if (LIKE_METACHARACTERS.test(FIXTURE_PREFIX)) {
+if (WILDCARDS_ON_THE_PATH_TO_POSTGRES.test(FIXTURE_PREFIX)) {
   // Throwing at module load rather than asserting in a test: this file's consumers
   // DELETE ROWS, and a suite that has already started is too late to find out its
   // cleanup predicate is wider than intended.
   throw new Error(
-    `FIXTURE_PREFIX must contain no SQL LIKE metacharacters (% or _); got "${FIXTURE_PREFIX}". ` +
-      "Those are wildcards, so the prefix would match rows this suite never created — " +
-      "and resetTables() deletes what it matches.",
+    `FIXTURE_PREFIX must contain none of % _ * — got "${FIXTURE_PREFIX}". ` +
+      "% and _ are SQL LIKE wildcards; * is one too, because PostgREST rewrites it to %. " +
+      "Any of them makes the prefix match rows this suite never created, and " +
+      "resetTables() deletes what it matches.",
   );
 }
 
