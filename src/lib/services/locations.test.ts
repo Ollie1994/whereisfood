@@ -103,8 +103,15 @@ function makeLocation(overrides: Partial<Location> = {}): Location {
     parser_confidence: 1.0,
     source_confidence: 0.85,
     is_negation: false,
-    created_at: "2026-08-22T09:00:01+00:00",
-    updated_at: "2026-08-22T09:00:01+00:00",
+    // ⚠ EARLIER THAN THE DEFAULT POST'S `posted_at` (09:00:00Z), AND THAT MATTERS SINCE
+    // PR #113. This fixture stands for a location that ALREADY EXISTED when the post
+    // under test arrived — which is what `findOverlapping` returns — so it must predate
+    // it. The first version used 09:00:01, one second AFTER, which is the shape of a
+    // row created BY the post itself; the cancellation path's replay guard reads this
+    // column and correctly refused to cancel rows it was told were newer than the
+    // cancellation.
+    created_at: "2026-08-22T07:00:00+00:00",
+    updated_at: "2026-08-22T07:00:00+00:00",
     ...overrides,
   };
 }
@@ -576,6 +583,18 @@ describe("writeLocationFromPost — the override matrix", () => {
   // ⚠ THE TABLE AND THE PROSE MUST NOT DRIFT. The documented rule is two sentences,
   // and the second test below is the one that matters: the obvious arithmetic
   // implementation disagrees with the first sentence on exactly one cell.
+  //
+  // ⚠ BOTH READ THE `EXPECTED` FIXTURE, NOT THE PRODUCTION `OVERRIDE` TABLE, which is
+  // not exported — so neither can fail on a production change (PR #113 review r1, which
+  // found the same shape in this file's cancellation sibling). They are one link in a
+  // chain, not a guard on their own:
+  //
+  //   the nine parameterized cases above  →  production == EXPECTED
+  //   these two                           →  EXPECTED   == CLAUDE.md's two sentences
+  //
+  // The first link catches a production change; these catch a fixture edited to match
+  // a wrong implementation. Stated because their names read as though they check the
+  // code, and a reader who believed that would over-trust them.
   it("agrees with 'manual always overrides' on every existing lane", () => {
     for (const existing of LANES) {
       expect(EXPECTED.manual[existing]).toBe("replace");
@@ -768,21 +787,40 @@ describe("writeLocationFromPost — cancellations", () => {
     expect(outcome).toEqual({ kind: "cancelled", deleted: ["own-pin"] });
   });
 
-  it("the cancellation table differs from the override table on exactly the diagonal", () => {
-    // Pins the asymmetry as a property rather than as nine separate assertions: the
-    // two rules are `>` and `>=` over the same confidences, so they can only differ
-    // where the two lanes are equal.
+  it("the EXPECTED fixture matches decision #6 — `>=`, differing from `>` on the diagonal", () => {
+    // ⚠ THIS TEST READS THE FIXTURE ABOVE, NOT THE PRODUCTION TABLE, and saying so is
+    // the point (PR #113 review r1). `CANCELLATION` is not exported, so nothing here
+    // can compare against it directly — flipping the production diagonal to `keep`
+    // leaves THIS test green.
+    //
+    // It is not therefore useless, but its value is one link in a chain rather than a
+    // guard on its own:
+    //
+    //   the nine parameterized cases above  →  production == EXPECTED
+    //   this test                           →  EXPECTED   == decision #6
+    //   ∴                                      production == decision #6
+    //
+    // The first link is what fails when production changes; verified by mutation —
+    // flipping the diagonal turns those cells and the named `>=` test red. This link
+    // is what fails when someone edits the fixture to match a wrong implementation,
+    // which is the other way the pair can drift.
     for (const cancelling of LANES) {
       for (const existing of LANES) {
         const cancels = EXPECTED[cancelling][existing] === "cancel";
+        // The INSERT rule, for comparison: manual always, else strictly greater.
         const replaces =
           cancelling === "manual" ||
           sourceConfidence(cancelling) > sourceConfidence(existing);
 
         if (cancelling === existing) {
-          expect(cancels).toBe(true);
+          // The whole of decision #6: equal lanes cancel where they would not replace.
+          expect(cancels, `${cancelling} must be able to retract its own post`).toBe(true);
         } else {
-          expect(cancels).toBe(replaces);
+          // Off the diagonal, `>` and `>=` agree — so any difference here would be a
+          // second, undocumented divergence.
+          expect(cancels, `${cancelling} vs ${existing} must match the insert rule`).toBe(
+            replaces,
+          );
         }
       }
     }
@@ -818,6 +856,80 @@ describe("writeLocationFromPost — cancellations", () => {
     );
 
     expect(outcome).toEqual({ kind: "cancelled", deleted: ["its-own"] });
+  });
+
+  describe("replay safety (plan decision #7)", () => {
+    // ⚠ DECISION #7 SAYS "the priority matrix already covers this". It covers the
+    // INSERT path — `OVERRIDE.webhook.webhook` is `discard` — and INVERTS here, because
+    // `CANCELLATION.webhook.webhook` is `cancel`. #6's `>=` is what makes them differ,
+    // and #7 was written before that table existed.
+    it("does not cancel a location created after the cancellation was posted", async () => {
+      // The #71 scenario: an 08:00 "Inställt idag" replayed after the truck posted a
+      // fresh pin at 12:00. Without the guard the replay deletes the live pin.
+      findOverlappingMock.mockResolvedValue([
+        makeLocation({
+          id: "posted-later",
+          source: "webhook",
+          created_at: "2026-08-22T12:00:00+00:00",
+        }),
+      ]);
+
+      const outcome = await writeLocationFromPost(
+        makePost({ posted_at: "2026-08-22T08:00:00.000Z" }),
+        negation(),
+      );
+
+      expect(outcome).toEqual({ kind: "cancelled", deleted: [] });
+      expect(deleteLocationsMock).toHaveBeenCalledExactlyOnceWith([]);
+    });
+
+    it("still cancels a location created before it", async () => {
+      findOverlappingMock.mockResolvedValue([
+        makeLocation({
+          id: "posted-earlier",
+          source: "webhook",
+          created_at: "2026-08-22T07:00:00+00:00",
+        }),
+      ]);
+
+      const outcome = await writeLocationFromPost(
+        makePost({ posted_at: "2026-08-22T08:00:00.000Z" }),
+        negation(),
+      );
+
+      expect(outcome).toEqual({ kind: "cancelled", deleted: ["posted-earlier"] });
+    });
+
+    it("keeps only the rows that predate it when both are present", async () => {
+      findOverlappingMock.mockResolvedValue([
+        makeLocation({ id: "before", source: "webhook", created_at: "2026-08-22T07:00:00+00:00" }),
+        makeLocation({ id: "after", source: "webhook", created_at: "2026-08-22T12:00:00+00:00" }),
+      ]);
+
+      const outcome = await writeLocationFromPost(
+        makePost({ posted_at: "2026-08-22T08:00:00.000Z" }),
+        negation(),
+      );
+
+      expect(outcome).toEqual({ kind: "cancelled", deleted: ["before"] });
+    });
+
+    it("compares instants, not strings, across the two timestamp formats", async () => {
+      // `created_at` comes back from Postgres as "+00:00"; `posted_at` on the live path
+      // is `toISOString()`'s ".000Z". Ordering them as text is right only by accident.
+      findOverlappingMock.mockResolvedValue([
+        makeLocation({ id: "same-instant", source: "webhook", created_at: "2026-08-22T08:00:00+00:00" }),
+      ]);
+
+      const outcome = await writeLocationFromPost(
+        makePost({ posted_at: "2026-08-22T08:00:00.000Z" }),
+        negation(),
+      );
+
+      // Equal instants are cancellable — the boundary is `<=`, since a row created in
+      // the same instant as the post is not "newer than" it.
+      expect(outcome).toEqual({ kind: "cancelled", deleted: ["same-instant"] });
+    });
   });
 
   it("is a silent no-op when nothing matches", async () => {

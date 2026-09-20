@@ -235,9 +235,47 @@ const CANCELLATION: Record<Lane, Record<Lane, "cancel" | "keep">> = {
 // Deleting the rows it is entitled to delete and leaving the rest produces no
 // conflict; it simply cancels less than the whole window, which is exactly what a
 // lane-limited retraction should do.
-function cancellableIds(cancelling: Lane, existing: readonly Location[]): string[] {
+//
+// ⚠ TWO SEPARATE RULES, AND THE SECOND IS NOT THE MATRIX. Authority decides WHICH
+// lanes a cancellation may retract; recency decides whether a given row was even
+// knowable when the retraction was written. A row failing either is kept.
+function cancellableIds(
+  cancelling: Lane,
+  existing: readonly Location[],
+  cancelledAt: string,
+): string[] {
+  // ⚠ A CANCELLATION MAY ONLY RETRACT INFORMATION THAT EXISTED WHEN IT WAS WRITTEN,
+  // AND WITHOUT THIS A REPLAY DELETES THE FUTURE (PR #113 review r1).
+  //
+  // Plan decision #7 requires that "replaying an old post must not override a newer
+  // location" and states that "the priority matrix already covers this". That is true
+  // of the INSERT path — `OVERRIDE.webhook.webhook` is `discard`, so a replayed post
+  // loses to the row already there — and it INVERTS here, because
+  // `CANCELLATION.webhook.webhook` is `cancel`. Decision #6's `>=` is what makes the
+  // two differ, and decision #7 was written before that table existed.
+  //
+  // So the hazard is concrete and lands the moment `scripts/reparse.mjs` (#71) exists:
+  //
+  //   08:00  "Inställt idag"        → cancels, post marked 'parsed'
+  //   12:00  "Vi står vid Heden"    → a live pin
+  //   later  #71 replays the 08:00 post — `isParseable('parsed')` is true — and the
+  //          full-day window finds the 12:00 pin, which webhook may cancel. Gone.
+  //
+  // `created_at` is when WE learned a location; `posted_at` is when the truck wrote
+  // the retraction. Comparing them asks exactly the right question, and on the live
+  // path it never fires: a row we created after the cancellation was posted cannot be
+  // something that cancellation was about.
+  //
+  // ⚠ IT FAILS TOWARD NOT CANCELLING, which is the direction `negation.ts` argues for
+  // at length: a missed cancellation leaves a stale pin that `expires_at` clears within
+  // hours, while a false one removes the pin of a truck standing there right now. The
+  // narrow case it gets wrong — a location posted before the cancellation but PERSISTED
+  // after it — therefore lands on the safe side.
+  const cancelledAtMs = Date.parse(cancelledAt);
+
   return existing
     .filter((row) => CANCELLATION[cancelling][row.source] === "cancel")
+    .filter((row) => Date.parse(row.created_at) <= cancelledAtMs)
     .map((row) => row.id);
 }
 
@@ -577,6 +615,28 @@ export function computeExpiresAt(
 // fixed: its first version bailed on a negation with `time: null`, so a truck
 // cancelling only its lunch slot would have fallen through to this full-day rule and
 // lost its 17-20 pin as well.
+//
+// ⚠ AND THE RANGE IS CAPTION-WIDE, SO A TWO-CLAUSE CAPTION CANCELS THE PIN IT
+// ANNOUNCES (#80/#94, raised by PR #113 review r1). `detectNegation` fires on the
+// whole caption and `extractTime` reads the whole caption, so neither knows the two
+// answers came from different clauses:
+//
+//   "Inställt lunch idag, men vi står kvar vid Heden 17-20"
+//     → isNegation true, time 17:00–20:00, place suppressed
+//     → cancellation window 17-20 → DELETES the truck's Heden 17-20 pin
+//
+// Verified, not hypothesised. The truck announced an evening and had it cancelled by
+// its own sentence.
+//
+// ⚠ THIS DIFF IS WHAT MADE IT DESTRUCTIVE. While the negation branch was #68's bare
+// return, a mis-scoped window was inert — nothing read it. #80 and #94 were filed as
+// parser-scope wrong-PIN issues; for the cancellation path they are wrong-DELETE, and
+// the two are not equally expensive. Recorded on #80.
+//
+// Not fixable here, and a guard in this service would be the layering inversion the
+// parser modules refuse by construction: nothing in a `ParseResult` says which clause
+// a field came from, which is precisely the span work #80 and #94 need. Adding a
+// heuristic here would be a second place to get clause boundaries wrong.
 function cancellationWindow(parseResult: ParseResult): { from: string; to: string } {
   const dayEnd = stockholmDayEnd(parseResult.date);
 
@@ -613,7 +673,7 @@ async function cancelLocations(post: Post, parseResult: ParseResult): Promise<Wr
   const cancelling = postSourceToLane(post.source);
 
   const overlapping = await findOverlapping(post.truck_id, from, to);
-  const deleted = cancellableIds(cancelling, overlapping);
+  const deleted = cancellableIds(cancelling, overlapping, post.posted_at);
 
   // ⚠ MATCHING NOTHING IS A SILENT NO-OP BY DESIGN, NOT AN ERROR. A truck cancelling a
   // day it had nothing scheduled for is ordinary — it may have posted the cancellation
