@@ -40,6 +40,16 @@ import type { Location, ParseResult, Post, ResolvedPlace } from "@/lib/types";
 // Every wall clock in this system is Stockholm; every stored instant is UTC.
 const TIME_ZONE = "Europe/Stockholm";
 
+// How to infer a live window when the caption stated no closing time.
+//
+//   from-start  the truck is there from `starts_at` — either a stated opening hour, or
+//               a same-day caption whose start IS the post. The 8 h guess applies.
+//   whole-day   the caption named a future day and no time at all. `starts_at` is a
+//               midnight nobody announced, so the window is the day, not 8 h of it.
+//
+// Decided in `resolveStartsAt`, which is the one place that knows which it is.
+type InferredWindow = "from-start" | "whole-day";
+
 // The inferred-window fallback from plan decision #5, used only when the caption
 // stated no closing time.
 const FALLBACK_WINDOW_MS = 8 * 60 * 60 * 1000;
@@ -305,16 +315,35 @@ async function resolveCoordinates(
 //
 // `extractDate` never resolves backwards, so a date BEFORE `parsedAt` is unreachable
 // from either caller; it would land in the day-start branch, which is harmless.
-function resolveStartsAt(post: Post, parseResult: ParseResult, parsedAt: string): string {
-  if (parseResult.time !== null) return parseResult.time.startsAt;
+//
+// ⚠ RETURNS THE WINDOW KIND ALONGSIDE THE INSTANT, because the same branch decides
+// both and two copies of the condition drift. The 8 h guess means "a truck is at a
+// spot about eight hours from when it says it is there" — true when the post IS the
+// start, and meaningless anchored to a midnight nobody announced. See
+// `computeExpiresAt`.
+function resolveStartsAt(
+  post: Post,
+  parseResult: ParseResult,
+  parsedAt: string,
+): { startsAt: string; window: InferredWindow } {
+  // Any stated time — a full range, a lunchtid, or a bare opening hour — anchors the
+  // window to something the truck actually said.
+  if (parseResult.time !== null) {
+    return { startsAt: parseResult.time.startsAt, window: "from-start" };
+  }
 
   // Normalised through `Date` rather than passed through: `posted_at` comes back from
   // Postgres as "+00:00" and every other instant in this module is `toISOString()`'s
   // ".000Z". Same instant, different text — converting once here means nothing
   // downstream compares the two forms as strings.
-  if (parseResult.date === parsedAt) return new Date(post.posted_at).toISOString();
+  if (parseResult.date === parsedAt) {
+    return { startsAt: new Date(post.posted_at).toISOString(), window: "from-start" };
+  }
 
-  return fromZonedTime(`${parseResult.date}T00:00:00`, TIME_ZONE).toISOString();
+  return {
+    startsAt: fromZonedTime(`${parseResult.date}T00:00:00`, TIME_ZONE).toISOString(),
+    window: "whole-day",
+  };
 }
 
 // When the location stops being live — `expires_at`, which is also the effective end
@@ -356,13 +385,62 @@ export function computeExpiresAt(
   startsAt: string,
   endsAt: string | null,
   date: string,
+  window: InferredWindow = "from-start",
 ): string {
   if (endsAt !== null) return endsAt;
 
-  const inferredEnd = Date.parse(startsAt) + FALLBACK_WINDOW_MS;
-  // 23:59:59 rather than the next midnight, per decision #5. DST is not a hazard:
-  // Sweden transitions at 03:00 local, so midnight is never doubled or missing.
-  const dayEnd = fromZonedTime(`${date}T23:59:59`, TIME_ZONE).getTime();
+  // ⚠ THE BOUNDARY IS THE NEXT DAY'S MIDNIGHT, NOT `23:59:59` — and the one-second
+  // difference was a live defect, not a rounding preference (PR #107 review r1).
+  //
+  // `starts_at` carries milliseconds: the webhook lane sets `posted_at` from
+  // `new Date().toISOString()`, and a same-day no-time caption uses that instant
+  // verbatim. A caption posted at 23:59:59.500 local therefore produced
+  //
+  //   starts_at  23:59:59.500
+  //   dayEnd     23:59:59.000   ← the smaller value, so `min` picked it
+  //
+  // a row born 500 ms already expired, invisible for its entire life. VERIFIED before
+  // this change, not reasoned about. It is the third instance this phase of the same
+  // shape — `expires_at` landing before `starts_at` — after decision #5(a)'s and the
+  // `posted_at + 8h` base, and the reason it survived a property test written
+  // specifically to catch the class is that all five of that test's fixtures had
+  // `.000` milliseconds.
+  //
+  // Next-midnight removes the hole rather than narrowing it: every instant within the
+  // day is strictly less than it, at any precision, so no sub-second gap can exist.
+  // "Never show past midnight" is satisfied exactly — the pin dies AT midnight.
+  //
+  // DST-safe via `addCalendarDays` + `fromZonedTime`, never by adding 24 h: a Swedish
+  // day is 23 or 25 hours twice a year, and the transition is at 03:00 local so
+  // midnight itself is never doubled or missing.
+  const nextDay = addCalendarDays(date, 1);
+  // `date` is a validated calendar date by contract — `writeLocationFromPost` rejects
+  // it as `invalid-date` before reaching here. Stated as a thrown precondition rather
+  // than left implicit: the previous `${date}T23:59:59` form produced an Invalid Date,
+  // then `NaN` through `Math.min`, then a `RangeError` from `toISOString` — a failure
+  // three steps from its cause.
+  if (nextDay === null) {
+    throw new Error(`computeExpiresAt: unreadable date ${date}`);
+  }
+  const dayEnd = fromZonedTime(`${nextDay}T00:00:00`, TIME_ZONE).getTime();
+
+  // ⚠ A CAPTION NAMING A FUTURE DAY AND NO TIME GETS THE WHOLE DAY, NOT EIGHT HOURS OF
+  // IT (PR #107 review r1). The 8 h guess encodes "a truck is at a spot about eight
+  // hours from when it says it is there", which is a statement about the POST — true
+  // for "Vi står vid Järntorget", posted while standing there.
+  //
+  // Anchored to a future day it has no such meaning. `starts_at` is then 00:00, a time
+  // nobody announced, so the window ran 00:00–08:00 local: the pin was live only
+  // overnight and gone before anyone looked for lunch. "Vi står vid Järntorget
+  // imorgon" is an ordinary caption and it was never visible during the hours it was
+  // about — the same failure as expiring before `starts_at`, one step subtler because
+  // the row does exist for eight hours.
+  //
+  // The honest reading of that caption is "sometime tomorrow", so the live window is
+  // tomorrow. The cap is unchanged and still does the work it was written for; the
+  // confidence score (0.6 × lane) is what signals that the hours are unknown.
+  const inferredEnd =
+    window === "whole-day" ? dayEnd : Date.parse(startsAt) + FALLBACK_WINDOW_MS;
 
   // Instants, not strings. `Math.min` over epoch milliseconds is the comparison that
   // is correct regardless of which format either side was written in.
@@ -423,9 +501,9 @@ export async function writeLocationFromPost(
   // every time Nominatim had a bad minute.
   if (resolved === null) return noLocation(post, "geocode-failed");
 
-  const startsAt = resolveStartsAt(post, parseResult, parsedAt);
+  const { startsAt, window } = resolveStartsAt(post, parseResult, parsedAt);
   const endsAt = parseResult.time?.endsAt ?? null;
-  const expiresAt = computeExpiresAt(startsAt, endsAt, parseResult.date);
+  const expiresAt = computeExpiresAt(startsAt, endsAt, parseResult.date, window);
 
   const lane = postSourceToLane(post.source);
   const laneConfidence = sourceConfidence(lane);
@@ -476,10 +554,26 @@ export async function writeLocationFromPost(
   // ⚠ INSERT BEFORE DELETE, AND THE ISSUE'S CHECKLIST SAYS "delete-then-insert". The
   // order only matters when the second operation fails, and the two failures are not
   // equally bad: delete-then-insert leaves the truck with NO pin and no record of the
-  // one it had, while insert-then-delete leaves two overlapping pins — visible, and
-  // resolved by the next post through this same matrix. The project's standing bias is
-  // toward keeping data when a step fails, so the recoverable failure is the one to
-  // choose. Flagged in the PR as a deviation rather than made quietly.
+  // one it had, while insert-then-delete leaves two overlapping pins. The project's
+  // standing bias is toward keeping data when a step fails, so the recoverable failure
+  // is the one to choose. Flagged in the PR as a deviation rather than made quietly.
+  //
+  // ⚠ AN EARLIER VERSION OF THIS COMMENT SAID THE DUPLICATE IS "resolved by the next
+  // post through this same matrix". THAT IS FALSE FOR THE LANE IT MATTERS MOST ON, and
+  // the matrix twelve lines above is what makes it false (PR #107 review r1).
+  //
+  // A duplicate pair is two rows on the lane that wrote them — normally `webhook`. The
+  // next webhook post must beat BOTH to clear them, and `OVERRIDE.webhook.webhook` is
+  // `discard`. So the truck's own subsequent posts cannot clean up after it: only a
+  // `manual` post or `expires_at` does, which bounds it at midnight rather than at the
+  // next post. Still recoverable, still bounded, still the better of the two failures
+  // — but hours, not minutes, and not self-healing in the way that was claimed.
+  //
+  // Both this window and the concurrency race that produces the same state without any
+  // failure at all are closed properly by #108 (atomic replace) and #109 (an exclusion
+  // constraint). #109 also settles this ordering in the opposite direction, which is
+  // where it belongs: a consequence of an invariant rather than a choice between two
+  // ways to lose.
   const replaced = existing.map((row) => row.id);
   await deleteLocations(replaced);
 

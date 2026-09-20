@@ -712,8 +712,48 @@ describe("computeExpiresAt", () => {
 
     const expiresAt = computeExpiresAt(startsAt, null, PARSED_AT);
 
-    // 23:59:59 Stockholm on 2026-08-22 (CEST, UTC+2) = 21:59:59Z.
-    expect(expiresAt).toBe("2026-08-22T21:59:59.000Z");
+    // Midnight ENDING 2026-08-22 Stockholm (CEST, UTC+2) = 22:00:00Z.
+    expect(expiresAt).toBe("2026-08-22T22:00:00.000Z");
+  });
+
+  it("does not expire before a start carrying milliseconds (PR #107 r1)", () => {
+    // ⚠ THE REGRESSION. `posted_at` is `new Date().toISOString()` on the webhook lane,
+    // so a same-day no-time caption's `starts_at` carries milliseconds. Against the
+    // old `23:59:59.000` boundary a caption posted in a day's final second produced an
+    // `expires_at` 500 ms BEFORE its own `starts_at` — a row born expired.
+    const startsAt = "2026-08-22T21:59:59.500Z"; // 23:59:59.500 Stockholm
+
+    const expiresAt = computeExpiresAt(startsAt, null, PARSED_AT);
+
+    expect(Date.parse(expiresAt)).toBeGreaterThan(Date.parse(startsAt));
+    expect(expiresAt).toBe("2026-08-22T22:00:00.000Z");
+  });
+
+  it("gives a future-dated caption with no time the whole day (PR #107 r1)", () => {
+    // 00:00 Stockholm on the 23rd. Under the 8h rule this expired at 08:00 local —
+    // live only overnight, gone before anyone looked for lunch.
+    const startsAt = "2026-08-22T22:00:00.000Z";
+
+    const expiresAt = computeExpiresAt(startsAt, null, "2026-08-23", "whole-day");
+
+    // Midnight ending the 23rd, not 08:00 that morning.
+    expect(expiresAt).toBe("2026-08-23T22:00:00.000Z");
+  });
+
+  it("still applies the 8h guess when the caption stated an opening hour", () => {
+    // "imorgon kl 11" — a future day, but a time the truck actually named, so the
+    // window anchors to it rather than to the day.
+    const startsAt = "2026-08-23T09:00:00.000Z"; // 11:00 Stockholm on the 23rd
+
+    expect(computeExpiresAt(startsAt, null, "2026-08-23", "from-start")).toBe(
+      "2026-08-23T17:00:00.000Z",
+    );
+  });
+
+  it("throws on an unreadable date rather than a RangeError three steps later", () => {
+    expect(() => computeExpiresAt("2026-08-22T09:00:00.000Z", null, "not-a-date")).toThrow(
+      /unreadable date/,
+    );
   });
 
   it("uses the 8h window when it lands before midnight", () => {
@@ -726,7 +766,7 @@ describe("computeExpiresAt", () => {
     // Postgres's "+00:00" and the parser's ".000Z" are the same instant in different
     // text. A string comparison orders these correctly only by coincidence.
     expect(computeExpiresAt("2026-08-22T18:00:00+00:00", null, PARSED_AT)).toBe(
-      "2026-08-22T21:59:59.000Z",
+      "2026-08-22T22:00:00.000Z",
     );
   });
 
@@ -741,26 +781,47 @@ describe("computeExpiresAt", () => {
   });
 
   it("never expires before its own starts_at", () => {
-    // The property behind every case above, asserted as a property. This is the shape
-    // that catches a future change to either term.
+    // The property behind every case above, asserted as a property.
+    //
+    // ⚠ EVERY FIXTURE IN THE FIRST VERSION OF THIS TEST HAD `.000` MILLISECONDS, which
+    // is exactly why it passed while the sub-second boundary hole was live (PR #107
+    // r1). A property test whose inputs all share the shape the property is most
+    // fragile against proves less than it appears to. The sub-second and last-instant
+    // rows below are the ones that were missing, and they are deliberately awkward.
     const shapes = [
-      { startsAt: "2026-08-22T09:00:00.000Z", endsAt: null, date: "2026-08-22" },
-      { startsAt: "2026-08-22T18:00:00.000Z", endsAt: null, date: "2026-08-22" },
-      { startsAt: "2026-08-22T21:50:00.000Z", endsAt: null, date: "2026-08-22" },
-      { startsAt: "2026-08-23T00:00:00.000Z", endsAt: null, date: "2026-08-23" },
-      { startsAt: "2026-01-15T10:00:00.000Z", endsAt: null, date: "2026-01-15" },
-    ];
+      { startsAt: "2026-08-22T09:00:00.000Z", date: "2026-08-22", window: "from-start" },
+      { startsAt: "2026-08-22T18:00:00.000Z", date: "2026-08-22", window: "from-start" },
+      { startsAt: "2026-08-22T21:50:00.000Z", date: "2026-08-22", window: "from-start" },
+      { startsAt: "2026-01-15T10:00:00.000Z", date: "2026-01-15", window: "from-start" },
+      // Sub-second, at and either side of the old 23:59:59 boundary.
+      { startsAt: "2026-08-22T21:59:59.001Z", date: "2026-08-22", window: "from-start" },
+      { startsAt: "2026-08-22T21:59:59.500Z", date: "2026-08-22", window: "from-start" },
+      { startsAt: "2026-08-22T21:59:59.999Z", date: "2026-08-22", window: "from-start" },
+      { startsAt: "2026-08-22T21:58:30.250Z", date: "2026-08-22", window: "from-start" },
+      // The future-dated day window, both kinds.
+      { startsAt: "2026-08-22T22:00:00.000Z", date: "2026-08-23", window: "whole-day" },
+      { startsAt: "2026-08-23T09:00:00.000Z", date: "2026-08-23", window: "from-start" },
+      // Winter, and a winter sub-second instant.
+      { startsAt: "2026-01-15T22:59:59.750Z", date: "2026-01-15", window: "from-start" },
+      // The DST transition days themselves — Sweden switches at 03:00 local, so a day
+      // is 23 or 25 hours long and "midnight" must still be computed, never added.
+      { startsAt: "2026-03-29T12:00:00.000Z", date: "2026-03-29", window: "from-start" },
+      { startsAt: "2026-10-25T12:00:00.000Z", date: "2026-10-25", window: "from-start" },
+    ] as const;
 
-    for (const { startsAt, endsAt, date } of shapes) {
-      const expiresAt = computeExpiresAt(startsAt, endsAt, date);
-      expect(Date.parse(expiresAt)).toBeGreaterThan(Date.parse(startsAt));
+    for (const { startsAt, date, window } of shapes) {
+      const expiresAt = computeExpiresAt(startsAt, null, date, window);
+      expect(
+        Date.parse(expiresAt),
+        `${startsAt} (${window}) expired at ${expiresAt}`,
+      ).toBeGreaterThan(Date.parse(startsAt));
     }
   });
 
   it("handles the winter offset", () => {
-    // CET (UTC+1): 23:59:59 Stockholm on 2026-01-15 is 22:59:59Z.
+    // CET (UTC+1): midnight ending 2026-01-15 Stockholm is 23:00:00Z.
     expect(computeExpiresAt("2026-01-15T19:00:00.000Z", null, "2026-01-15")).toBe(
-      "2026-01-15T22:59:59.000Z",
+      "2026-01-15T23:00:00.000Z",
     );
   });
 });
@@ -839,19 +900,31 @@ describe("writeLocationFromPost — real captions", () => {
     expect(row.parser_confidence).toBe(0.6);
   });
 
-  it("starts a future-dated no-time caption at that day, and stays visible", async () => {
+  it("gives a future-dated no-time caption the whole day it names", async () => {
     // ⚠ THE CASE THE PLAN'S LITERAL `posted_at + 8h` GETS WRONG. Posted 11:00 today
     // about tomorrow: `posted_at + 8h` is 19:00 TONIGHT, which is before this
     // location's own starts_at of tomorrow 00:00 — a row that expired before it began
     // and would never be visible for a single second. That is precisely the defect
     // decision #5(a) was written to prevent, reached through the other term.
+    //
+    // ⚠ AND `expires_at > starts_at` IS NOT ENOUGH TO PIN IT, which is what this test
+    // asserted in its first version (PR #107 r1). `starts_at + 8h` satisfies that
+    // while putting the whole window at 00:00–08:00 local — the pin is live only
+    // overnight and gone before anyone looks for lunch. Passing that assertion while
+    // being useless for its entire life is why the window is now asserted end to end.
     const { post, parseResult } = parsed("Vi står vid Järntorget imorgon");
 
     await writeLocationFromPost(post, parseResult);
 
     const row = insertedRow();
-    expect(row.starts_at).toBe("2026-08-22T22:00:00.000Z"); // 00:00 Stockholm on the 23rd
+    expect(row.starts_at).toBe("2026-08-22T22:00:00.000Z"); // 00:00 Stockholm, 23rd
+    expect(row.expires_at).toBe("2026-08-23T22:00:00.000Z"); // midnight ending the 23rd
     expect(Date.parse(row.expires_at)).toBeGreaterThan(Date.parse(row.starts_at));
+
+    // The hours a person would actually look: live across the whole of the 23rd.
+    const lunchtime = Date.parse("2026-08-23T10:00:00.000Z"); // 12:00 Stockholm
+    expect(Date.parse(row.starts_at)).toBeLessThan(lunchtime);
+    expect(Date.parse(row.expires_at)).toBeGreaterThan(lunchtime);
   });
 
   it("writes no location for a cancellation", async () => {
