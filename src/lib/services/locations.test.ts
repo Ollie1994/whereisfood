@@ -232,18 +232,20 @@ describe("writeLocationFromPost — the no-location exits", () => {
     expect(geocodeMock).not.toHaveBeenCalled();
   });
 
-  it("writes nothing and deletes nothing on a negation — the documented #69 stub", async () => {
+  it("never lets an unparseable post cancel anything", async () => {
+    // ⚠ THE SECURITY-RELEVANT ORDERING. A replayed stale Mailgun payload reaching the
+    // cancellation path would DELETE a truck's pins. `isParseable` runs before the
+    // negation branch, so it cannot.
+    isParseableMock.mockReturnValue(false);
+
     const outcome = await writeLocationFromPost(
-      makePost(),
+      makePost({ parsing_status: "skipped", source: "email" }),
       makeParseResult({ isNegation: true, place: null, parserConfidence: 0 }),
     );
 
-    expect(outcome).toEqual({ kind: "no-location", reason: "negation" });
-    expect(insertLocationMock).not.toHaveBeenCalled();
+    expect(outcome).toEqual({ kind: "no-location", reason: "unparseable-post" });
+    expect(findOverlappingMock).not.toHaveBeenCalled();
     expect(deleteLocationsMock).not.toHaveBeenCalled();
-    // Left `'pending'` until #69 lands, which is accurate: nothing has acted on it,
-    // and that is the status #71 selects on to replay it once the delete path exists.
-    expect(updateParsingStatusMock).not.toHaveBeenCalled();
   });
 
   it("rejects an unreadable posted_at as invalid-date (#95)", async () => {
@@ -692,6 +694,243 @@ describe("writeLocationFromPost — the override matrix", () => {
 });
 
 // ---------------------------------------------------------------------------
+// The cancellation path (#69, plan decisions #1 and #6)
+// ---------------------------------------------------------------------------
+
+describe("writeLocationFromPost — cancellations", () => {
+  const POST_SOURCE: Record<Location["source"], Post["source"]> = {
+    manual: "manual",
+    webhook: "instagram",
+    email: "email",
+  };
+
+  const LANES = ["manual", "webhook", "email"] as const;
+
+  // All nine cells. ⚠ IDENTICAL TO THE OVERRIDE TABLE EXCEPT ON THE DIAGONAL, which is
+  // the `>=` of decision #6 — a truck must be able to retract through the lane it
+  // posted from.
+  const EXPECTED: Record<
+    Location["source"],
+    Record<Location["source"], "cancel" | "keep">
+  > = {
+    manual: { manual: "cancel", webhook: "cancel", email: "cancel" },
+    webhook: { manual: "keep", webhook: "cancel", email: "cancel" },
+    email: { manual: "keep", webhook: "keep", email: "cancel" },
+  };
+
+  function negation(overrides: Partial<ParseResult> = {}): ParseResult {
+    return makeParseResult({
+      isNegation: true,
+      place: null,
+      time: null,
+      parserConfidence: 0,
+      ...overrides,
+    });
+  }
+
+  for (const cancelling of LANES) {
+    for (const existing of LANES) {
+      const expected = EXPECTED[cancelling][existing];
+
+      it(`${cancelling} negation vs ${existing} location → ${expected}`, async () => {
+        findOverlappingMock.mockResolvedValue([
+          makeLocation({ id: "target", source: existing }),
+        ]);
+
+        const outcome = await writeLocationFromPost(
+          makePost({ source: POST_SOURCE[cancelling] }),
+          negation(),
+        );
+
+        const deleted = expected === "cancel" ? ["target"] : [];
+        expect(outcome).toEqual({ kind: "cancelled", deleted });
+        expect(deleteLocationsMock).toHaveBeenCalledExactlyOnceWith(deleted);
+        expect(insertLocationMock).not.toHaveBeenCalled();
+      });
+    }
+  }
+
+  it("a webhook negation cancels a webhook location — 0.85 >= 0.85 (decision #6)", async () => {
+    // ⚠ THE NAMED TEST DECISION #6 ASKS FOR, AND THE REASON IT IS NAMED. The `>=` reads
+    // like a typo next to the insert path's `>`, and "fixing" it to `>` would make this
+    // comparison 0.85 > 0.85 → false, discarding the cancellation. A truck that posts
+    // through Make.com could then never retract through Make.com — silently, on the
+    // most common cancellation path there is.
+    findOverlappingMock.mockResolvedValue([
+      makeLocation({ id: "own-pin", source: "webhook" }),
+    ]);
+
+    const outcome = await writeLocationFromPost(
+      makePost({ source: "instagram" }),
+      negation(),
+    );
+
+    expect(outcome).toEqual({ kind: "cancelled", deleted: ["own-pin"] });
+  });
+
+  it("the cancellation table differs from the override table on exactly the diagonal", () => {
+    // Pins the asymmetry as a property rather than as nine separate assertions: the
+    // two rules are `>` and `>=` over the same confidences, so they can only differ
+    // where the two lanes are equal.
+    for (const cancelling of LANES) {
+      for (const existing of LANES) {
+        const cancels = EXPECTED[cancelling][existing] === "cancel";
+        const replaces =
+          cancelling === "manual" ||
+          sourceConfidence(cancelling) > sourceConfidence(existing);
+
+        if (cancelling === existing) {
+          expect(cancels).toBe(true);
+        } else {
+          expect(cancels).toBe(replaces);
+        }
+      }
+    }
+  });
+
+  it("an email negation cannot cancel a webhook or a manual location", async () => {
+    // The #1 security property: Mailgun's HMAC authenticates the relay, never the
+    // content, so a forged email must not be able to delete a truck's pins.
+    findOverlappingMock.mockResolvedValue([
+      makeLocation({ id: "webhook-pin", source: "webhook" }),
+      makeLocation({ id: "manual-pin", source: "manual" }),
+    ]);
+
+    const outcome = await writeLocationFromPost(makePost({ source: "email" }), negation());
+
+    expect(outcome).toEqual({ kind: "cancelled", deleted: [] });
+    expect(deleteLocationsMock).toHaveBeenCalledExactlyOnceWith([]);
+  });
+
+  it("deletes the rows it may and leaves the rest, unlike the all-or-nothing insert path", async () => {
+    // ⚠ THE ASYMMETRY WITH `overridesAll`, ASSERTED. An insert must beat EVERY
+    // overlapping row or it discards, because inserting while losing to one would
+    // create two conflicting pins. A cancellation creates nothing, so cancelling what
+    // it is entitled to and leaving the rest produces no conflict.
+    findOverlappingMock.mockResolvedValue([
+      makeLocation({ id: "its-own", source: "webhook" }),
+      makeLocation({ id: "a-manual-one", source: "manual" }),
+    ]);
+
+    const outcome = await writeLocationFromPost(
+      makePost({ source: "instagram" }),
+      negation(),
+    );
+
+    expect(outcome).toEqual({ kind: "cancelled", deleted: ["its-own"] });
+  });
+
+  it("is a silent no-op when nothing matches", async () => {
+    findOverlappingMock.mockResolvedValue([]);
+
+    const outcome = await writeLocationFromPost(makePost(), negation());
+
+    expect(outcome).toEqual({ kind: "cancelled", deleted: [] });
+    expect(updateParsingStatusMock).toHaveBeenCalledWith(POST_ID, "parsed");
+  });
+
+  it("marks the post parsed", async () => {
+    findOverlappingMock.mockResolvedValue([makeLocation({ source: "webhook" })]);
+
+    await writeLocationFromPost(makePost(), negation());
+
+    expect(updateParsingStatusMock).toHaveBeenCalledExactlyOnceWith(POST_ID, "parsed");
+  });
+
+  it("never touches last_known — a cancellation carries no position", async () => {
+    findOverlappingMock.mockResolvedValue([makeLocation({ source: "webhook" })]);
+
+    await writeLocationFromPost(makePost(), negation());
+
+    // Not updated, and above all not nulled: a truck taking a day off must not lose
+    // the grey marker that says where it usually is.
+    expect(updateLastKnownPositionMock).not.toHaveBeenCalled();
+  });
+
+  it("never geocodes — a negation has no place to resolve", async () => {
+    await writeLocationFromPost(makePost(), negation());
+
+    expect(geocodeMock).not.toHaveBeenCalled();
+  });
+
+  describe("the cancellation window", () => {
+    it("covers the full Stockholm day when the caption gave no time", async () => {
+      await writeLocationFromPost(makePost(), negation({ date: PARSED_AT }));
+
+      const [truckId, from, to] = findOverlappingMock.mock.calls[0];
+      expect(truckId).toBe(TRUCK_ID);
+      // 00:00 and 24:00 Stockholm on 2026-08-22 (CEST, UTC+2).
+      expect(from).toBe("2026-08-21T22:00:00.000Z");
+      expect(to).toBe("2026-08-22T22:00:00.000Z");
+    });
+
+    it("uses the stated range when there is one", async () => {
+      await writeLocationFromPost(
+        makePost(),
+        negation({
+          time: {
+            startsAt: "2026-08-22T09:00:00.000Z",
+            endsAt: "2026-08-22T12:00:00.000Z",
+            kind: "range",
+          },
+        }),
+      );
+
+      const [, from, to] = findOverlappingMock.mock.calls[0];
+      expect(from).toBe("2026-08-22T09:00:00.000Z");
+      expect(to).toBe("2026-08-22T12:00:00.000Z");
+    });
+
+    it("runs an open-ended cancellation to the end of the day it named", async () => {
+      // "Inställt från 14" — the caption stated no close, and for a retraction the
+      // honest reading is "from then on", bounded by that day.
+      await writeLocationFromPost(
+        makePost(),
+        negation({
+          time: {
+            startsAt: "2026-08-22T12:00:00.000Z",
+            endsAt: null,
+            kind: "start",
+          },
+        }),
+      );
+
+      const [, from, to] = findOverlappingMock.mock.calls[0];
+      expect(from).toBe("2026-08-22T12:00:00.000Z");
+      expect(to).toBe("2026-08-22T22:00:00.000Z");
+    });
+
+    it("cancels the day the caption named, not the day it was posted", async () => {
+      await writeLocationFromPost(makePost(), negation({ date: "2026-08-23" }));
+
+      const [, from, to] = findOverlappingMock.mock.calls[0];
+      expect(from).toBe("2026-08-22T22:00:00.000Z"); // 00:00 on the 23rd
+      expect(to).toBe("2026-08-23T22:00:00.000Z"); // 24:00 on the 23rd
+    });
+
+    it("handles the winter offset", () => {
+      // CET (UTC+1). Asserted through computeExpiresAt, which shares the boundary.
+      expect(computeExpiresAt("2026-01-15T19:00:00.000Z", null, "2026-01-15")).toBe(
+        "2026-01-15T23:00:00.000Z",
+      );
+    });
+
+    it("refuses to build a window from a date it cannot read", async () => {
+      // The reason the date checks run BEFORE the negation branch: a DELETE must never
+      // be issued against a window built from garbage.
+      const outcome = await writeLocationFromPost(
+        makePost(),
+        negation({ date: "not-a-date" }),
+      );
+
+      expect(outcome).toEqual({ kind: "no-location", reason: "invalid-date" });
+      expect(findOverlappingMock).not.toHaveBeenCalled();
+      expect(deleteLocationsMock).not.toHaveBeenCalled();
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Expiry (plan decision #5)
 // ---------------------------------------------------------------------------
 
@@ -927,14 +1166,36 @@ describe("writeLocationFromPost — real captions", () => {
     expect(Date.parse(row.expires_at)).toBeGreaterThan(lunchtime);
   });
 
-  it("writes no location for a cancellation", async () => {
+  it("cancels the whole day for 'Inställt idag', writing no row", async () => {
     const { post, parseResult } = parsed("Inställt idag tyvärr!");
-
     expect(parseResult.isNegation).toBe(true);
+
+    findOverlappingMock.mockResolvedValue([
+      makeLocation({ id: "lunch", source: "webhook" }),
+      makeLocation({ id: "dinner", source: "webhook" }),
+    ]);
+
     const outcome = await writeLocationFromPost(post, parseResult);
 
-    expect(outcome).toEqual({ kind: "no-location", reason: "negation" });
+    expect(outcome).toEqual({ kind: "cancelled", deleted: ["lunch", "dinner"] });
     expect(insertLocationMock).not.toHaveBeenCalled();
+    // Both slots, not one and not zero — the full-day window is the point of #1.
+    expect(deleteLocationsMock).toHaveBeenCalledExactlyOnceWith(["lunch", "dinner"]);
+  });
+
+  it("cancels only the stated range for 'Inställt 11-14 idag'", async () => {
+    // The dinner pin survives because the query window never reaches it. This is the
+    // defect `parser/index.ts` fixed — its first version dropped `time` on a negation,
+    // so this caption would have fallen through to the full-day rule.
+    const { post, parseResult } = parsed("Inställt 11-14 idag");
+    expect(parseResult.isNegation).toBe(true);
+    expect(parseResult.time).not.toBeNull();
+
+    await writeLocationFromPost(post, parseResult);
+
+    const [, from, to] = findOverlappingMock.mock.calls[0];
+    expect(Date.parse(from)).toBe(Date.parse("2026-08-22T09:00:00.000Z")); // 11:00
+    expect(Date.parse(to)).toBe(Date.parse("2026-08-22T12:00:00.000Z")); // 14:00
   });
 
   it("scores an email-lane geocoded address above the display threshold", async () => {

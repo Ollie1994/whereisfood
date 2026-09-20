@@ -31,11 +31,18 @@ import type { Location, ParseResult, Post, ResolvedPlace } from "@/lib/types";
 //   THE OVERRIDE MATRIX IS A `Record` KEYED ON BOTH LANES. Nine cells, written out.
 //   A fourth lane fails the build rather than falling through a comparison.
 //
-//   "PRODUCE NO LOCATION" IS ONE NAMED EXIT keyed on an enumerated reason, not six
-//   inline early-returns. Plan decision #9 imposes this before the code was written,
-//   for a reason worth restating: the exit has six callers on day one and gains #102's
-//   later. Named, #102 lands as one more key. Inlined, it lands as a rewrite of this
-//   file and of #69.
+//   "PRODUCE NO LOCATION" IS ONE NAMED EXIT keyed on an enumerated reason, not a
+//   scatter of inline early-returns. Plan decision #9 imposed this before the code was
+//   written, for a reason worth restating: it has five callers today and gains #102's
+//   later. Named, #102 lands as one more key. Inlined, it would have landed as a
+//   rewrite of this file — and #69 is the proof, since the cancellation branch grew
+//   from a bare return into a window, a query, a matrix and a delete without any other
+//   exit having to move.
+//
+//   THE CANCELLATION MATRIX IS A SECOND `Record`, side by side with the override one.
+//   They differ on exactly the diagonal (`>=` against `>`), which reads like a typo
+//   and is plan decision #6 — so the defence is that both tables are visible together,
+//   each carrying its own reason.
 
 // Every wall clock in this system is Stockholm; every stored instant is UTC.
 const TIME_ZONE = "Europe/Stockholm";
@@ -75,14 +82,28 @@ export type NoLocationReason =
   // Gothenburg.
   | "geocode-failed"
   // The override matrix says an existing overlapping location outranks this one.
-  | "outranked"
-  // A cancellation. Writes no row by design (#1) — the delete path is #69.
-  | "negation";
+  | "outranked";
 
 export type WriteOutcome =
   // `replaced` carries the ids of the overlapping locations this insert superseded,
   // which is what makes "did anything get deleted" assertable without re-querying.
   | { kind: "inserted"; location: Location; replaced: readonly string[] }
+  // ⚠ A CANCELLATION IS ITS OWN OUTCOME AND NOT A `NoLocationReason`, WHICH DEVIATES
+  // FROM THE LETTER OF PLAN DECISION #9 (#69). That decision listed the negation as
+  // one of three callers of the "produce no location" exit, and it was one for as long
+  // as the branch was #68's stub — a bare return.
+  //
+  // It is not one any more. The branch now resolves a window, queries, filters by the
+  // cancellation matrix and DELETES; "no location was produced" describes what it did
+  // not do rather than what it did. Folding it back in would put it in a table whose
+  // whole job is mapping an outcome to a `parsing_status`, next to five reasons that
+  // wrote nothing — and `deleted: []` (a cancellation matching nothing) would then be
+  // indistinguishable from a post that never tried.
+  //
+  // Decision #9's actual requirement — that this not be three inline early-returns —
+  // is unaffected: the exit still exists, still has five callers, and still gains
+  // #102's as one more key.
+  | { kind: "cancelled"; deleted: readonly string[] }
   | { kind: "no-location"; reason: NoLocationReason };
 
 // ---------------------------------------------------------------------------
@@ -109,10 +130,13 @@ type Lane = Location["source"];
 //
 // ⚠ NEGATIONS USE A DIFFERENT TABLE, AND DELIBERATELY SO (plan decision #6). A
 // cancellation compares `>=`, so the three diagonal cells invert: a truck that posted
-// via Make.com must be able to retract via Make.com. That table belongs to #69 and is
-// NOT anticipated here with a flag or a parameter — the asymmetry reads like a typo
-// and its defence is that both tables are visible side by side, each with its own
-// reason written above it.
+// via Make.com must be able to retract via Make.com. See `CANCELLATION` below.
+//
+// The two are NOT unified behind a flag or a comparison parameter, and #69 kept it
+// that way on landing. A `strict: boolean` would make the asymmetry a call-site
+// argument — the one place nobody reads twice — and the asymmetry is the thing most
+// likely to be "corrected" by someone who thinks the `>=` is a typo. Two tables, side
+// by side, each carrying the argument for its own diagonal, is the defence.
 // ⚠ ONE DIMENSION, AND TWO OTHERS ARE MISSING — both filed, neither fixed here,
 // because this table is CLAUDE.md's documented rule and changing it unilaterally is
 // the re-litigation CLAUDE.md forbids (PR #107 review r1/r2).
@@ -162,6 +186,61 @@ function overridesAll(incoming: Lane, existing: readonly Location[]): boolean {
   return existing.every((row) => OVERRIDE[incoming][row.source] === "replace");
 }
 
+// The cancellation matrix (#69). Cancelling lane × existing lane.
+//
+// ⚠ IDENTICAL TO `OVERRIDE` EXCEPT ON THE DIAGONAL, AND THE DIFFERENCE IS THE WHOLE
+// POINT (plan decision #6). Locations compare `>`; cancellations compare `>=`:
+//
+//   location:  new.source_confidence >  existing.source_confidence → replace
+//   negation:  new.source_confidence >= existing.source_confidence → cancel
+//
+// ⚠ IT READS LIKE A TYPO AND SOMEONE WILL "FIX" IT. Under `>`, a truck that posts its
+// location through Make.com and then cancels through Make.com compares 0.85 against
+// 0.85, the cancellation is DISCARDED, and **a truck can never retract a post through
+// the lane it posted from** — silently, on the most common cancellation path there is.
+//
+// The reason `>` does not apply: it exists to stop two competing location CLAIMS
+// flip-flopping — two webhooks disagreeing about position, keep the first. A
+// cancellation is not a competing claim; it is the same source retracting its own
+// earlier statement. Arbitration rules for claims should not govern retractions, or
+// the system accepts a statement it will never allow you to take back.
+//
+// ⚠ AND THE MATRIX STILL APPLIES AT ALL, WHICH IS THE SECURITY HALF. An unmatched
+// negation would let a forged email DELETE any truck's manually-posted location — a
+// denial of service on truck visibility through the LOWEST-confidence lane. CLAUDE.md
+// is explicit that Mailgun's HMAC covers only `timestamp + token`, authenticating the
+// relay and never the content, so nothing proves an email came from the truck. Email
+// (0.55) therefore cannot cancel webhook (0.85) or manual (1.0).
+//
+// A negation's `parser_confidence` is 0.0 (`scoreConfidence` short-circuits on it), so
+// the comparison is deliberately on `source_confidence` alone — the lane is the only
+// thing that carries authority here, and the 0.0 must not interfere.
+//
+// Residual, accepted by decision #6: a forged email can cancel a genuine EMAIL-sourced
+// location. Identical in kind to the forged-creation exposure that already exists,
+// bounded by the replay index and the 15-minute window, and closed properly by Phase
+// 7's Mailgun IP allowlist.
+const CANCELLATION: Record<Lane, Record<Lane, "cancel" | "keep">> = {
+  manual: { manual: "cancel", webhook: "cancel", email: "cancel" },
+  // The diagonal cell that `>` would get wrong, and the reason this table exists.
+  webhook: { manual: "keep", webhook: "cancel", email: "cancel" },
+  // Still cannot touch a webhook or a manual pin — the #1 security property.
+  email: { manual: "keep", webhook: "keep", email: "cancel" },
+};
+
+// ⚠ PER-ROW, WHERE THE INSERT PATH IS ALL-OR-NOTHING, AND THAT ASYMMETRY IS CORRECT
+// RATHER THAN AN INCONSISTENCY. `overridesAll` demands unanimity because inserting
+// while losing to even one existing row would leave two conflicting pins live — it
+// would CREATE the state the matrix exists to prevent. A cancellation creates nothing.
+// Deleting the rows it is entitled to delete and leaving the rest produces no
+// conflict; it simply cancels less than the whole window, which is exactly what a
+// lane-limited retraction should do.
+function cancellableIds(cancelling: Lane, existing: readonly Location[]): string[] {
+  return existing
+    .filter((row) => CANCELLATION[cancelling][row.source] === "cancel")
+    .map((row) => row.id);
+}
+
 // ---------------------------------------------------------------------------
 // The single "no location" exit (plan decision #9)
 // ---------------------------------------------------------------------------
@@ -197,13 +276,6 @@ const STATUS_ON_NO_LOCATION: Record<NoLocationReason, Post["parsing_status"] | n
   // Parsing succeeded completely; the matrix chose to keep the existing pin. Nothing
   // about this post needs revisiting.
   outranked: "parsed",
-  // ⚠ LEAVE IT `'pending'` UNTIL #69 LANDS, WHICH IS THE POINT OF THE STUB. This
-  // issue's non-goals say a negation "returns without writing or deleting anything",
-  // and a status write is a write. #69 replaces this key with `'parsed'` at the same
-  // time it adds the delete. Until then a cancellation stays `'pending'`, which is
-  // accurate — nothing has acted on it — and is exactly the state #71 selects on to
-  // replay it once the delete path exists.
-  negation: null,
 };
 
 async function noLocation(post: Post, reason: NoLocationReason): Promise<WriteOutcome> {
@@ -363,6 +435,37 @@ function resolveStartsAt(
   };
 }
 
+// The instant a Stockholm calendar day ends — equivalently, the instant the next one
+// begins. Exclusive: every instant belonging to `date` is strictly less than this.
+//
+// ⚠ ONE DEFINITION, TWO CONSUMERS (the plan's M6 rule). `computeExpiresAt` caps an
+// inferred window with it and `cancellationWindow` (#69) bounds a full-day retraction
+// with it, and those two MUST agree — a cancellation whose day ended a second before
+// the location's did would leave a sliver of pin alive that nothing could then remove.
+// Two copies of a boundary is precisely how that sliver appears.
+//
+// ⚠ NEXT MIDNIGHT RATHER THAN `23:59:59`, which was a live defect and not a rounding
+// preference (PR #107 r1): `starts_at` carries milliseconds, so a caption posted at
+// 23:59:59.500 expired 500 ms before it began. Every instant within the day is
+// strictly less than next midnight at any precision, so no sub-second gap can exist.
+//
+// DST-safe by construction: built with `addCalendarDays` + `fromZonedTime`, never by
+// adding 24 h. A Swedish day is 23 or 25 hours twice a year, and the transition is at
+// 03:00 local so midnight itself is never doubled or missing.
+function stockholmDayEnd(date: string): string {
+  const nextDay = addCalendarDays(date, 1);
+  // `date` is a validated calendar date by contract — `writeLocationFromPost` rejects
+  // it as `invalid-date` before either caller is reached. Stated as a thrown
+  // precondition rather than left implicit: the previous `${date}T23:59:59` form
+  // produced an Invalid Date, then `NaN` through `Math.min`, then a `RangeError` from
+  // `toISOString` — a failure three steps from its cause.
+  if (nextDay === null) {
+    throw new Error(`stockholmDayEnd: unreadable date ${date}`);
+  }
+
+  return fromZonedTime(`${nextDay}T00:00:00`, TIME_ZONE).toISOString();
+}
+
 // When the location stops being live — `expires_at`, which is also the effective end
 // the overlap query compares against (plan hazard H4).
 //
@@ -430,16 +533,7 @@ export function computeExpiresAt(
   // DST-safe via `addCalendarDays` + `fromZonedTime`, never by adding 24 h: a Swedish
   // day is 23 or 25 hours twice a year, and the transition is at 03:00 local so
   // midnight itself is never doubled or missing.
-  const nextDay = addCalendarDays(date, 1);
-  // `date` is a validated calendar date by contract — `writeLocationFromPost` rejects
-  // it as `invalid-date` before reaching here. Stated as a thrown precondition rather
-  // than left implicit: the previous `${date}T23:59:59` form produced an Invalid Date,
-  // then `NaN` through `Math.min`, then a `RangeError` from `toISOString` — a failure
-  // three steps from its cause.
-  if (nextDay === null) {
-    throw new Error(`computeExpiresAt: unreadable date ${date}`);
-  }
-  const dayEnd = fromZonedTime(`${nextDay}T00:00:00`, TIME_ZONE).getTime();
+  const dayEnd = Date.parse(stockholmDayEnd(date));
 
   // ⚠ A CAPTION NAMING A FUTURE DAY AND NO TIME GETS THE WHOLE DAY, NOT EIGHT HOURS OF
   // IT (PR #107 review r1). The 8 h guess encodes "a truck is at a spot about eight
@@ -462,6 +556,79 @@ export function computeExpiresAt(
   // Instants, not strings. `Math.min` over epoch milliseconds is the comparison that
   // is correct regardless of which format either side was written in.
   return new Date(Math.min(inferredEnd, dayEnd)).toISOString();
+}
+
+// ---------------------------------------------------------------------------
+// The cancellation path (#69)
+// ---------------------------------------------------------------------------
+
+// What a cancellation supersedes: the range the caption stated, or the whole Stockholm
+// day it named.
+//
+// ⚠ THE FULL-DAY FALLBACK IS THE POINT, NOT A SAFETY MARGIN (plan decision #1).
+// "Inställt idag" must cancel EVERY location for that truck that day — a truck with a
+// lunch slot and a dinner slot has cancelled both. Resolving it to a narrow window, or
+// to the instant the post arrived, would cancel one of them or none, and the failure
+// would be silent: the truck says it is closed and its dinner pin stays on the map.
+//
+// ⚠ THE OPPOSITE ERROR IS WORSE, AND IS WHY THE RANGE WINS WHEN THERE IS ONE.
+// "Inställt 11-14 idag" cancels the lunch and must leave the dinner alone. That the
+// range survives into `ParseResult` at all is a defect `parser/index.ts` had and
+// fixed: its first version bailed on a negation with `time: null`, so a truck
+// cancelling only its lunch slot would have fallen through to this full-day rule and
+// lost its 17-20 pin as well.
+function cancellationWindow(parseResult: ParseResult): { from: string; to: string } {
+  const dayEnd = stockholmDayEnd(parseResult.date);
+
+  if (parseResult.time === null) {
+    return {
+      from: fromZonedTime(`${parseResult.date}T00:00:00`, TIME_ZONE).toISOString(),
+      to: dayEnd,
+    };
+  }
+
+  return {
+    from: parseResult.time.startsAt,
+    // An opening time with no close — "Inställt från 14" — cancels to the end of the
+    // day rather than to an arbitrary point. `endsAt` being null means the caption
+    // stated no end, and for a retraction the honest reading of that is "from then on",
+    // bounded by the day the caption named.
+    to: parseResult.time.endsAt ?? dayEnd,
+  };
+}
+
+// A cancellation DELETES the locations it supersedes and writes no row of its own
+// (plan decision #1).
+//
+// ⚠ WHY NOT A TOMBSTONE, since the schema still has `is_negation` and the older docs
+// described one. The active query is `is_negation = false AND expires_at > now()`, so
+// a tombstone row is invisible to it BY CONSTRUCTION while the original row still
+// matches — cancellation would appear to work for a client listening live and fail
+// silently for anyone who refreshed or reconnected. The original has to be deleted
+// either way, and once it is, the tombstone's only remaining job (telling the client)
+// is already done by the DELETE event. The column stays for a possible Phase 5 manual
+// "closed today" toggle.
+async function cancelLocations(post: Post, parseResult: ParseResult): Promise<WriteOutcome> {
+  const { from, to } = cancellationWindow(parseResult);
+  const cancelling = postSourceToLane(post.source);
+
+  const overlapping = await findOverlapping(post.truck_id, from, to);
+  const deleted = cancellableIds(cancelling, overlapping);
+
+  // ⚠ MATCHING NOTHING IS A SILENT NO-OP BY DESIGN, NOT AN ERROR. A truck cancelling a
+  // day it had nothing scheduled for is ordinary — it may have posted the cancellation
+  // before anything was ever parsed, or its pin may already have expired.
+  // `deleteLocations` skips the round trip for an empty list.
+  await deleteLocations(deleted);
+
+  // ⚠ NO `last_known_*` UPDATE, AND CERTAINLY NO CLEARING OF IT. A cancellation says
+  // where the truck will NOT be; it carries no position at all (`parseCaption`
+  // suppresses `place` on a negation precisely so this path cannot read one). Nulling
+  // the denormalized position would erase a working grey marker every time a truck
+  // took a day off, which is the opposite of what that column is for.
+  await updateParsingStatus(post.id, "parsed");
+
+  return { kind: "cancelled", deleted };
 }
 
 // ---------------------------------------------------------------------------
@@ -503,11 +670,10 @@ export async function writeLocationFromPost(
     return noLocation(post, "invalid-date");
   }
 
-  // The stub this issue owes #69. It is a branch rather than an omission precisely so
-  // that a cancellation arriving before the delete path lands is defined behaviour —
-  // no row written, no row deleted, post left `'pending'` — instead of falling through
-  // to the insert path and pinning the truck at the spot it just said it would not be.
-  if (parseResult.isNegation) return noLocation(post, "negation");
+  // The cancellation path (#69), which replaced #68's no-op stub here. It is placed
+  // AFTER the date checks deliberately: the full-day window below is built from
+  // `parseResult.date`, so a date this system cannot read must never reach a DELETE.
+  if (parseResult.isNegation) return cancelLocations(post, parseResult);
 
   if (parseResult.place === null) return noLocation(post, "no-place");
 
