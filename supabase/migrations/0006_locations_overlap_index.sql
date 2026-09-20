@@ -1,0 +1,96 @@
+-- 0006_locations_overlap_index.sql
+-- Reshape locations_truck_starts onto the column the overlap query actually filters.
+-- Issue #60.
+--
+-- WHY THIS EXISTS
+-- 0001:97 created the index as (truck_id, starts_at, ends_at), matching the overlap
+-- predicate documented at the time:
+--
+--   existing.starts_at < incoming.ends_at AND existing.ends_at > incoming.starts_at
+--
+-- Plan hazard H4 established that predicate is wrong, and #64 shipped the correction:
+-- `ends_at` is NULLABLE BY DESIGN (0002:19 records why — "the expiry rule explicitly
+-- handles 'no ends_at extracted'"), and under SQL's three-valued logic every comparison
+-- against NULL yields NULL, which WHERE drops. So the old predicate could not see a
+-- location with no end time — such a row was never matched as overlapping and could
+-- therefore never be overridden, making a 0.55 email pin permanently unreplaceable even
+-- by a manual post.
+--
+-- `findOverlapping` (src/lib/db/locations.ts) now filters on `expires_at`, which is NOT
+-- NULL and by construction IS the effective end. The index still trails `ends_at`, so it
+-- is shaped for a query that no longer exists.
+--
+-- ⚠ THIS IS NOT A PERFORMANCE FIX, AND SAYING SO MATTERS. At current volume — zero rows
+-- in every environment, since `locations` is written for the first time this phase —
+-- Postgres would sequential-scan regardless and the index earns nothing either way. The
+-- reason to do it now is that an index silently shaped for a superseded predicate is a
+-- thing someone later reads as evidence about what the query does. The phase plan puts
+-- it in its own migration for the same reason 0005 is in its own: one migration, one
+-- concern, granular rollback, and 0004 doing two things at once is the direct cause of
+-- process-log #5.
+--
+-- ---------------------------------------------------------------------------
+-- WHY ONE DO BLOCK
+-- ---------------------------------------------------------------------------
+-- DROP then CREATE as two top-level statements is not atomic under psql autocommit: a
+-- failing CREATE leaves the table with no index at all and the migration unrecorded,
+-- which blocks every later migration. A DO block is a single statement and is therefore
+-- atomic under every runner.
+--
+-- ⚠ THE STAKES ARE LOWER HERE THAN IN 0004 AND THE SHAPE IS THE SAME ON PURPOSE.
+-- Nothing in this migration is irreversible — no data is touched, and a lost index is
+-- recovered by re-running. 0004's DO block was load-bearing because it wrapped an
+-- UPDATE that stripped signatures permanently. This one is a consistency choice: the
+-- project's rule is that a migration is atomic as a whole rather than relying on the
+-- runner, and a reader comparing the two files should find the same structure rather
+-- than having to work out which migrations were judged to deserve it.
+--
+-- NOT `create index concurrently`, which cannot run inside a transaction or a DO block.
+-- It buys nothing here: the table is empty in every environment, so the exclusive lock
+-- this takes is instantaneous. If `locations` ever has real volume in production, a
+-- future reshape needs CONCURRENTLY and therefore needs to leave the DO block behind.
+--
+-- ---------------------------------------------------------------------------
+-- COLUMN ORDER
+-- ---------------------------------------------------------------------------
+-- (truck_id, starts_at, expires_at) mirrors the COLUMNS the query constrains:
+--
+--   where truck_id = :truckId
+--     and starts_at  < :effectiveEnd
+--     and expires_at > :startsAt
+--
+-- `truck_id` leads because it is the only equality predicate and is the most selective.
+-- `starts_at` and `expires_at` are both range predicates; a btree can use only the first
+-- of them for the index scan, so the trailing column serves as a filter on the index
+-- rather than narrowing the scan. Putting `starts_at` second keeps the change to exactly
+-- one column against the old shape.
+--
+-- ⚠ THE COLUMN ORDER IS NOT `findOverlapping`'s ARGUMENT ORDER, AND AN EARLIER VERSION
+-- OF THIS COMMENT SAID IT WAS. That is not a harmless slip: acting on it is how the H4
+-- defect class gets reintroduced. The signature is
+-- `findOverlapping(truckId, startsAt, effectiveEnd)` and its arguments reach the
+-- columns CROSSED —
+--
+--   startsAt      (2nd argument)  bounds  expires_at
+--   effectiveEnd  (3rd argument)  bounds  starts_at
+--
+-- — because that crossing IS the overlap test. Two half-open intervals [a,b) and [c,d)
+-- intersect exactly when `a < d AND b > c`: each interval's start is compared against
+-- the OTHER's end. Pairing start-with-start and end-with-end instead looks tidier, reads
+-- as an obvious cleanup, and silently tests something that is not overlap at all.
+--
+-- The index does not care — it is indifferent to which value bounds which column — but
+-- a reader who "corrects" the call site on the strength of a comment like the old one
+-- does. Written out here because this migration exists precisely because the overlap
+-- predicate was got wrong once already.
+
+do $$
+begin
+  -- `if exists` / `if not exists` so a partially-applied or hand-repaired database
+  -- converges rather than erroring. Re-running this migration is then a no-op instead
+  -- of a failure that needs manual inspection.
+  drop index if exists locations_truck_starts;
+
+  create index if not exists locations_truck_starts
+    on locations (truck_id, starts_at, expires_at);
+end $$;

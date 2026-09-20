@@ -1,0 +1,101 @@
+-- 0005_parsing_status_duplicate.sql
+-- Extend the posts.parsing_status CHECK to accept 'duplicate'. Issue #60.
+--
+-- WHY THIS EXISTS
+-- Phase 3's crosspost dedup stores a caption-identical repost within 60 s as a ROW
+-- rather than discarding it, flagged 'duplicate'. Without this value the CHECK rejects
+-- every such write, so this must land BEFORE the ingestion wiring (#70) — that issue
+-- is what first produces the value.
+--
+-- WHY A DISTINCT VALUE RATHER THAN REUSING 'skipped'
+-- 'skipped' is load-bearing for monitoring the email lane's 15-minute freshness window
+-- — "are we skipping genuine truck emails?" is a question we will want to answer, and
+-- crossposts in the same bucket pollute that count. Splitting later would cost a
+-- migration PLUS a backfill that reverse-engineers intent from raw_json; splitting now
+-- costs this ALTER.
+--
+-- WHY THE ROW IS KEPT AT ALL (the governing principle, recorded because it is the part
+-- that generalises): STRUCTURAL CERTAINTY MAY DISCARD; HEURISTIC JUDGEMENT MUST RETAIN.
+-- instagram_post_id equality is exact — the same id is definitionally the same post —
+-- so the existing unique-index discard is safe. Caption+60 s is a GUESS from a
+-- hand-picked window, and a wrong guess that discards is silent and unrecoverable,
+-- while a wrong guess that keeps the row is re-parseable.
+--
+-- ---------------------------------------------------------------------------
+-- THE CONSTRAINT NAME WAS READ FROM THE DATABASE, NOT ASSUMED
+-- ---------------------------------------------------------------------------
+-- Migration 0001:53-54 declares this CHECK inline and unnamed, so Postgres generated
+-- the name. The phase plan predicted 'posts_parsing_status_check' and told the
+-- implementer to confirm it rather than trust the prediction. Confirmed:
+--
+--   select conname, pg_get_constraintdef(oid) from pg_constraint
+--    where conrelid = 'posts'::regclass and contype = 'c';
+--
+--     posts_parsing_status_check | CHECK ((parsing_status = ANY (ARRAY['pending'::text,
+--                                  'parsed'::text, 'failed'::text, 'skipped'::text])))
+--
+-- The prediction was right. It was still worth checking — process-log #5 is a migration
+-- that failed on exactly this kind of confident assumption, and "the guess turned out
+-- correct" is only knowable after looking.
+--
+-- ---------------------------------------------------------------------------
+-- WHY ONE STATEMENT — DO NOT SPLIT THIS INTO TWO
+-- ---------------------------------------------------------------------------
+-- Extending a CHECK is DROP + ADD. Written as two top-level statements, psql's
+-- autocommit commits the DROP and then continues past a failed ADD, leaving the table
+-- with NO constraint on parsing_status and the migration unrecorded — the same shape as
+-- 0004's failure, which committed an irreversible UPDATE and then failed on the index.
+--
+-- A single ALTER TABLE with two subcommands is one statement, so it is atomic under
+-- every runner regardless of whether that runner wraps migrations in a transaction.
+--
+-- VERIFIED IN BOTH DIRECTIONS against the live database before landing, under psql
+-- autocommit — first on a scratch table with the same shape, then on `posts` ITSELF:
+--
+--   scratch, drop+add of the SAME constraint name in one statement  → ALTER TABLE, ok
+--   scratch, the same with a row the new CHECK rejects              → ERROR, and the
+--                                                                     ORIGINAL constraint
+--                                                                     is still in place
+--   posts, after this migration: insert a 'duplicate' row, then
+--   attempt a NARROWING alter in this same comma form (a check
+--   without 'duplicate', which that row violates)                   → ERROR, and
+--                                                                     pg_get_constraintdef
+--                                                                     still returns the
+--                                                                     five-value CHECK
+--
+-- The last line is the acceptance criterion, and it is on the real table because that is
+-- the only place the claim actually has to hold. A failing ADD must not leave the
+-- constraint dropped. It does not.
+--
+-- (An earlier version of this comment recorded only the scratch run. The file is the
+-- surviving evidence for this criterion long after the PR description is out of sight,
+-- so understating what was checked makes the record weaker than the work.)
+--
+-- ---------------------------------------------------------------------------
+-- SAFE WITHOUT A BACKFILL, AND WHY THAT IS NOT LUCK
+-- ---------------------------------------------------------------------------
+-- The new value set is a strict SUPERSET of the old one, so the ADD's validation scan
+-- cannot fail on existing data: every stored row already satisfies it. This is the only
+-- reason the ordering question does not arise here the way it did in 0004.
+--
+-- ---------------------------------------------------------------------------
+-- WHAT THIS DELIBERATELY DOES NOT TOUCH
+-- ---------------------------------------------------------------------------
+-- No application code. `Post["parsing_status"]` in src/lib/types.ts still narrows to
+-- the four old values, so after this migration the DATABASE accepts a value the TYPES
+-- call impossible. That gap is real but inert: nothing writes 'duplicate' until #70,
+-- so no such row can exist to be read back through the lying cast.
+--
+-- #70 closes it, and the closing is a compile error rather than a diff to remember:
+-- `isParseable` in src/lib/db/posts.ts is a `Record<Post["parsing_status"], boolean>`,
+-- so adding 'duplicate' to that union will not build until the key is placed. The
+-- answer when it is placed is `false` — a crosspost must never become a location.
+--
+-- Regenerating src/lib/database.types.ts changes nothing: a CHECK carries no type
+-- information into the generated types, so parsing_status arrives as plain `string`
+-- there either way. The hand-written narrowing in types.ts is the only stale artefact.
+
+alter table posts
+  drop constraint posts_parsing_status_check,
+  add  constraint posts_parsing_status_check
+    check (parsing_status in ('pending', 'parsed', 'failed', 'skipped', 'duplicate'));
