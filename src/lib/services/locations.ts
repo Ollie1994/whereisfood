@@ -236,46 +236,41 @@ const CANCELLATION: Record<Lane, Record<Lane, "cancel" | "keep">> = {
 // conflict; it simply cancels less than the whole window, which is exactly what a
 // lane-limited retraction should do.
 //
-// ⚠ TWO SEPARATE RULES, AND THE SECOND IS NOT THE MATRIX. Authority decides WHICH
-// lanes a cancellation may retract; recency decides whether a given row was even
-// knowable when the retraction was written. A row failing either is kept.
-function cancellableIds(
-  cancelling: Lane,
-  existing: readonly Location[],
-  cancelledAt: string,
-): string[] {
-  // ⚠ A CANCELLATION MAY ONLY RETRACT INFORMATION THAT EXISTED WHEN IT WAS WRITTEN,
-  // AND WITHOUT THIS A REPLAY DELETES THE FUTURE (PR #113 review r1).
-  //
-  // Plan decision #7 requires that "replaying an old post must not override a newer
-  // location" and states that "the priority matrix already covers this". That is true
-  // of the INSERT path — `OVERRIDE.webhook.webhook` is `discard`, so a replayed post
-  // loses to the row already there — and it INVERTS here, because
-  // `CANCELLATION.webhook.webhook` is `cancel`. Decision #6's `>=` is what makes the
-  // two differ, and decision #7 was written before that table existed.
-  //
-  // So the hazard is concrete and lands the moment `scripts/reparse.mjs` (#71) exists:
-  //
-  //   08:00  "Inställt idag"        → cancels, post marked 'parsed'
-  //   12:00  "Vi står vid Heden"    → a live pin
-  //   later  #71 replays the 08:00 post — `isParseable('parsed')` is true — and the
-  //          full-day window finds the 12:00 pin, which webhook may cancel. Gone.
-  //
-  // `created_at` is when WE learned a location; `posted_at` is when the truck wrote
-  // the retraction. Comparing them asks exactly the right question, and on the live
-  // path it never fires: a row we created after the cancellation was posted cannot be
-  // something that cancellation was about.
-  //
-  // ⚠ IT FAILS TOWARD NOT CANCELLING, which is the direction `negation.ts` argues for
-  // at length: a missed cancellation leaves a stale pin that `expires_at` clears within
-  // hours, while a false one removes the pin of a truck standing there right now. The
-  // narrow case it gets wrong — a location posted before the cancellation but PERSISTED
-  // after it — therefore lands on the safe side.
-  const cancelledAtMs = Date.parse(cancelledAt);
-
+// ⚠ AUTHORITY ONLY. THERE IS NO RECENCY RULE HERE, AND #114 IS WHY IT IS MISSING
+// RATHER THAN FORGOTTEN.
+//
+// Plan decision #7 requires that "replaying an old post must not override a newer
+// location" and states that "the priority matrix already covers this". That is true of
+// the INSERT path — `OVERRIDE.webhook.webhook` is `discard`, so a replayed post loses
+// to the row already there — and it INVERTS here, because
+// `CANCELLATION.webhook.webhook` is `cancel`. Decision #6's `>=` is what makes them
+// differ, and #7 was written before that table existed. So once `scripts/reparse.mjs`
+// (#71) exists, replaying an 08:00 "Inställt idag" can delete a 12:00 pin the truck
+// posted afterwards.
+//
+// ⚠ PR #113 r1 ADDED A GUARD FOR THIS AND r2 REMOVED IT, WHICH IS WORTH RECORDING SO
+// IT IS NOT REINTRODUCED. The guard compared each row's `created_at` against the
+// cancelling post's `posted_at`. Both operands are wrong for the question:
+//
+//   `created_at` is when WE WROTE the row, not when the truck stated it. Under a #71
+//   replay every re-inserted location gets `created_at = now`, later than every
+//   replayed cancellation's `posted_at` — so NO cancellation could ever cancel, and
+//   replaying a day RESURRECTED every pin it had cancelled. The guard inverted the
+//   defect it was added for. Verified before removing it.
+//
+//   `posted_at` on the email lane is the SIGNED MAILGUN TIMESTAMP, frozen across
+//   retries (`ingestion.ts:144`). Two emails that both retry can therefore arrive with
+//   their delivery order inverted relative to their timestamps, and a genuine
+//   cancellation was silently dropped — a live-path regression the guard introduced.
+//
+// The question is "was this location STATED before the retraction was written", and
+// answering it needs the originating post's `posted_at` — `locations.post_id`, which
+// `findOverlapping` does not return and which is nullable for a manual row. That is a
+// db-layer change with a decision attached, so it is #114 rather than a third attempt
+// inline here.
+function cancellableIds(cancelling: Lane, existing: readonly Location[]): string[] {
   return existing
     .filter((row) => CANCELLATION[cancelling][row.source] === "cancel")
-    .filter((row) => Date.parse(row.created_at) <= cancelledAtMs)
     .map((row) => row.id);
 }
 
@@ -287,7 +282,7 @@ function cancellableIds(
 // is a third answer and not a synonym for either terminal state.
 //
 // ⚠ THE REASONS DO NOT SHARE A STATUS, and that is the argument for the table. Three
-// distinct answers across six reasons is not something a single early-return per site
+// distinct answers across five reasons is not something a single early-return per site
 // keeps straight, and getting one wrong is invisible: the post simply sits in the
 // wrong bucket, and the buckets are what #71's replay and any future failure sweep
 // select on.
@@ -673,7 +668,7 @@ async function cancelLocations(post: Post, parseResult: ParseResult): Promise<Wr
   const cancelling = postSourceToLane(post.source);
 
   const overlapping = await findOverlapping(post.truck_id, from, to);
-  const deleted = cancellableIds(cancelling, overlapping, post.posted_at);
+  const deleted = cancellableIds(cancelling, overlapping);
 
   // ⚠ MATCHING NOTHING IS A SILENT NO-OP BY DESIGN, NOT AN ERROR. A truck cancelling a
   // day it had nothing scheduled for is ordinary — it may have posted the cancellation

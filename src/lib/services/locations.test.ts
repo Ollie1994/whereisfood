@@ -103,13 +103,15 @@ function makeLocation(overrides: Partial<Location> = {}): Location {
     parser_confidence: 1.0,
     source_confidence: 0.85,
     is_negation: false,
-    // ⚠ EARLIER THAN THE DEFAULT POST'S `posted_at` (09:00:00Z), AND THAT MATTERS SINCE
-    // PR #113. This fixture stands for a location that ALREADY EXISTED when the post
-    // under test arrived — which is what `findOverlapping` returns — so it must predate
-    // it. The first version used 09:00:01, one second AFTER, which is the shape of a
-    // row created BY the post itself; the cancellation path's replay guard reads this
-    // column and correctly refused to cancel rows it was told were newer than the
-    // cancellation.
+    // ⚠ EARLIER THAN THE DEFAULT POST'S `posted_at` (09:00:00Z). This fixture stands
+    // for a location that ALREADY EXISTED when the post under test arrived — which is
+    // the only kind `findOverlapping` returns — so it must predate it. The first
+    // version used 09:00:01, one second AFTER, which is the shape of a row created BY
+    // the post itself and a scenario this mock can never legitimately represent.
+    //
+    // Nothing in production reads this column today (PR #113 r2 removed the guard that
+    // briefly did — see the replay-safety block and #114). Kept honest anyway: a
+    // fixture that lies is cheap only until something reads the field.
     created_at: "2026-08-22T07:00:00+00:00",
     updated_at: "2026-08-22T07:00:00+00:00",
     ...overrides,
@@ -858,77 +860,40 @@ describe("writeLocationFromPost — cancellations", () => {
     expect(outcome).toEqual({ kind: "cancelled", deleted: ["its-own"] });
   });
 
-  describe("replay safety (plan decision #7)", () => {
-    // ⚠ DECISION #7 SAYS "the priority matrix already covers this". It covers the
-    // INSERT path — `OVERRIDE.webhook.webhook` is `discard` — and INVERTS here, because
-    // `CANCELLATION.webhook.webhook` is `cancel`. #6's `>=` is what makes them differ,
-    // and #7 was written before that table existed.
-    it("does not cancel a location created after the cancellation was posted", async () => {
-      // The #71 scenario: an 08:00 "Inställt idag" replayed after the truck posted a
-      // fresh pin at 12:00. Without the guard the replay deletes the live pin.
+  describe("replay safety (plan decision #7) — NOT guarded here, see #114", () => {
+    // ⚠ THIS BLOCK PINS A KNOWN HAZARD RATHER THAN A GUARD, and it says so because a
+    // reader who assumed otherwise would be badly wrong.
+    //
+    // Decision #7 says "the priority matrix already covers" replay safety. It covers
+    // the INSERT path — `OVERRIDE.webhook.webhook` is `discard` — and INVERTS here,
+    // because `CANCELLATION.webhook.webhook` is `cancel`. #6's `>=` is what makes them
+    // differ, and #7 predates that table.
+    //
+    // PR #113 r1 added a `created_at <= posted_at` guard for this and r2 removed it:
+    // under a #71 replay every re-inserted location carries `created_at = now`, later
+    // than every replayed cancellation's `posted_at`, so no cancellation could cancel
+    // and replaying a day RESURRECTED every pin it had cancelled — the inverse of the
+    // defect. #114 carries the correct fix, which needs the originating post's
+    // `posted_at` via `locations.post_id`.
+    it("cancels a row regardless of when it was created — the #114 baseline", async () => {
       findOverlappingMock.mockResolvedValue([
         makeLocation({
-          id: "posted-later",
+          id: "created-later",
           source: "webhook",
-          created_at: "2026-08-22T12:00:00+00:00",
+          // Later than the post's `posted_at`, which is what a #71 replay produces.
+          created_at: "2026-09-20T15:00:00+00:00",
         }),
       ]);
 
       const outcome = await writeLocationFromPost(
-        makePost({ posted_at: "2026-08-22T08:00:00.000Z" }),
+        makePost({ posted_at: "2026-08-22T10:00:00.000Z" }),
         negation(),
       );
 
-      expect(outcome).toEqual({ kind: "cancelled", deleted: [] });
-      expect(deleteLocationsMock).toHaveBeenCalledExactlyOnceWith([]);
-    });
-
-    it("still cancels a location created before it", async () => {
-      findOverlappingMock.mockResolvedValue([
-        makeLocation({
-          id: "posted-earlier",
-          source: "webhook",
-          created_at: "2026-08-22T07:00:00+00:00",
-        }),
-      ]);
-
-      const outcome = await writeLocationFromPost(
-        makePost({ posted_at: "2026-08-22T08:00:00.000Z" }),
-        negation(),
-      );
-
-      expect(outcome).toEqual({ kind: "cancelled", deleted: ["posted-earlier"] });
-    });
-
-    it("keeps only the rows that predate it when both are present", async () => {
-      findOverlappingMock.mockResolvedValue([
-        makeLocation({ id: "before", source: "webhook", created_at: "2026-08-22T07:00:00+00:00" }),
-        makeLocation({ id: "after", source: "webhook", created_at: "2026-08-22T12:00:00+00:00" }),
-      ]);
-
-      const outcome = await writeLocationFromPost(
-        makePost({ posted_at: "2026-08-22T08:00:00.000Z" }),
-        negation(),
-      );
-
-      expect(outcome).toEqual({ kind: "cancelled", deleted: ["before"] });
-    });
-
-    it("compares instants, not strings, across the two timestamp formats", async () => {
-      // `created_at` comes back from Postgres as "+00:00"; `posted_at` on the live path
-      // is `toISOString()`'s ".000Z". Ordering them as text is right only by accident.
-      findOverlappingMock.mockResolvedValue([
-        makeLocation({ id: "same-instant", source: "webhook", created_at: "2026-08-22T08:00:00+00:00" }),
-      ]);
-
-      const outcome = await writeLocationFromPost(
-        makePost({ posted_at: "2026-08-22T08:00:00.000Z" }),
-        negation(),
-      );
-
-      // Equal instants are cancellable — the boundary is `<=`, since a row created in
-      // the same instant as the post is not "newer than" it.
-      expect(outcome).toEqual({ kind: "cancelled", deleted: ["same-instant"] });
+      // Current behaviour, asserted so #114 has a baseline to change rather than a
+      // scenario to reconstruct. On the live path this is correct — `findOverlapping`
+      // only returns rows that already exist. Under replay it is the hazard.
+      expect(outcome).toEqual({ kind: "cancelled", deleted: ["created-later"] });
     });
   });
 
