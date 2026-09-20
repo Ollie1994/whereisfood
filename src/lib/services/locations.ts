@@ -579,6 +579,32 @@ export async function writeLocationFromPost(
 
   // ONLY after a successful insert, which is the acceptance criterion in both
   // directions: updated here, and never reached by any path above.
+  //
+  // ⚠ THIS FIRES FOR A FUTURE-DATED INSERT TOO, AND THAT IS A DECISION RATHER THAN AN
+  // OVERSIGHT (PR #107 review r1, settled with the user). "Vi står vid Järntorget
+  // imorgon" posted on Saturday moves `last_known_*` to Järntorget on SATURDAY — a
+  // place the truck has not been, and if it spent the week at Lindholmen the grey
+  // marker moves off Lindholmen on the strength of a sentence about tomorrow.
+  //
+  // Two readings of the column, and the choice is between them:
+  //
+  //   "the most recent position INFORMATION we have"  ← this one. An announcement
+  //                                                     about tomorrow is the freshest
+  //                                                     thing we know, and it is what
+  //                                                     0001 describes: updated "on
+  //                                                     each successful location
+  //                                                     insert".
+  //   "where the truck most recently ACTUALLY WAS"      would need `starts_at <= now()`
+  //                                                     here, making this impure and
+  //                                                     adding a branch.
+  //
+  // Kept as-is because the grey marker is ALREADY the "we do not know" state, and on
+  // Saturday both candidates are guesses — Lindholmen a stale one, Järntorget one
+  // about a different day. Neither is right, and the strict reading buys precision the
+  // marker does not claim to have.
+  //
+  // Written down because the next reader will notice this and reason exactly as the
+  // review did. It is a weighed trade, not a missed `starts_at` check.
   await updateLastKnownPosition(post.truck_id, resolved.latitude, resolved.longitude);
   await updateParsingStatus(post.id, "parsed");
 
