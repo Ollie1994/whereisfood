@@ -113,6 +113,23 @@ type Lane = Location["source"];
 // NOT anticipated here with a flag or a parameter — the asymmetry reads like a typo
 // and its defence is that both tables are visible side by side, each with its own
 // reason written above it.
+// ⚠ ONE DIMENSION, AND TWO OTHERS ARE MISSING — both filed, neither fixed here,
+// because this table is CLAUDE.md's documented rule and changing it unilaterally is
+// the re-litigation CLAUDE.md forbids (PR #107 review r1/r2).
+//
+//   RECENCY (#110). Same lane always discards, so a truck's 15:00 "now at Lindholmen"
+//   is outranked by its own 11:00 post and the map stays wrong until 19:00.
+//
+//   PRECISION (#111). The comparison reads `source_confidence` ONLY, never the
+//   product the map actually filters on. So an hourless "Lindholmen imorgon"
+//   (0.6 × 0.85 = 0.51) replaces a precise emailed "Järntorget 11-14"
+//   (1.0 × 0.55 = 0.55) — LOWER combined confidence winning on lane alone.
+//
+// ⚠ BOTH BECAME REACHABLE THROUGH CORRECTIONS, WHICH IS THE PART WORTH KNOWING. H4's
+// `expires_at` fix and r1's whole-day window each widened what `findOverlapping`
+// SEES. Neither created these conflicts; both were previously invisible, resolved by
+// leaving two contradictory pins live for one truck at one moment. Seeing a conflict
+// and deciding it badly is strictly better than not seeing it — but it is not done.
 const OVERRIDE: Record<Lane, Record<Lane, "replace" | "discard">> = {
   // A human typed this in the dashboard. It outranks everything, including an earlier
   // manual entry — that case is a correction, not a competing claim.
@@ -574,6 +591,17 @@ export async function writeLocationFromPost(
   // constraint). #109 also settles this ordering in the opposite direction, which is
   // where it belongs: a consequence of an invariant rather than a choice between two
   // ways to lose.
+  // ⚠ THE OVERRIDE DECISION IS PER-ROW; THE DELETION IS NOT, AND THAT ASYMMETRY LOSES
+  // DATA ON A PARTIAL OVERLAP (#112, PR #107 review r2). A row is matched if it
+  // overlaps AT ALL and is then removed WHOLE, so an existing manual Heden 11:00–20:00
+  // met by a manual "Järntorget 19-21" posted at 15:00 — sharing one hour — loses the
+  // entire Heden row at 15:00, four hours before its replacement begins. The truck's
+  // live pin disappears and nothing takes its place.
+  //
+  // The model assumes a superseding location is roughly COEXTENSIVE with what it
+  // supersedes — true of the crosspost and re-post cases it was designed around, false
+  // whenever the windows merely touch. Fixing it means truncating the survivor rather
+  // than deleting it, which needs a db primitive that does not exist yet.
   const replaced = existing.map((row) => row.id);
   await deleteLocations(replaced);
 
