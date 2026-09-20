@@ -244,9 +244,28 @@ const CANCELLATION: Record<Lane, Record<Lane, "cancel" | "keep">> = {
 // the INSERT path — `OVERRIDE.webhook.webhook` is `discard`, so a replayed post loses
 // to the row already there — and it INVERTS here, because
 // `CANCELLATION.webhook.webhook` is `cancel`. Decision #6's `>=` is what makes them
-// differ, and #7 was written before that table existed. So once `scripts/reparse.mjs`
-// (#71) exists, replaying an 08:00 "Inställt idag" can delete a 12:00 pin the truck
+// differ, and #7 was written before that table existed. So replaying an 08:00
+// "Inställt idag" through `scripts/reparse.mjs` (#71) deletes a 12:00 pin the truck
 // posted afterwards.
+//
+// ⚠ AND IT IS NOT ONLY A REPLAY HAZARD — IT IS LIVE ON THE EMAIL LANE TODAY (PR #113
+// review r3). An earlier version of this comment said "once #71 exists", which
+// understated it. Email `posted_at` is Mailgun's SIGNED timestamp, frozen across
+// retries, and Mailgun's first retry lands at 10 minutes — inside the ±15 min
+// freshness window, so it is parsed rather than skipped:
+//
+//   12:00  truck emails "Inställt idag"   → our endpoint is down; Mailgun will retry
+//   12:05  truck emails "Heden 12-16"     → delivered; pin created
+//   12:10  the cancellation retry lands, still fresh, and email cancels email
+//          → the 12:05 pin is deleted
+//
+// The truck cancelled, changed its mind, and the stale retraction won. The webhook
+// lane cannot produce this — its `posted_at` is INGEST time, so a retry makes the
+// cancellation genuinely newer by every timestamp we hold.
+//
+// ⚠ NOTE THE SYMMETRY, because it is what makes this subtle: the frozen email
+// timestamp is BOTH why the gap is live AND why r1's guard was wrong to compare
+// against it. Same property, both directions.
 //
 // ⚠ PR #113 r1 ADDED A GUARD FOR THIS AND r2 REMOVED IT, WHICH IS WORTH RECORDING SO
 // IT IS NOT REINTRODUCED. The guard compared each row's `created_at` against the
@@ -605,11 +624,18 @@ export function computeExpiresAt(
 // would be silent: the truck says it is closed and its dinner pin stays on the map.
 //
 // ⚠ THE OPPOSITE ERROR IS WORSE, AND IS WHY THE RANGE WINS WHEN THERE IS ONE.
-// "Inställt 11-14 idag" cancels the lunch and must leave the dinner alone. That the
-// range survives into `ParseResult` at all is a defect `parser/index.ts` had and
-// fixed: its first version bailed on a negation with `time: null`, so a truck
-// cancelling only its lunch slot would have fallen through to this full-day rule and
-// lost its 17-20 pin as well.
+// "Inställt 11-14 idag" cancels the lunch and must leave a SEPARATE 17-20 dinner row
+// alone. That the range survives into `ParseResult` at all is a defect
+// `parser/index.ts` had and fixed: its first version bailed on a negation with
+// `time: null`, so a truck cancelling only its lunch slot would have fallen through to
+// this full-day rule and lost its dinner pin as well.
+//
+// ⚠ "LEAVES THE DINNER ALONE" HOLDS ONLY WHERE THE DINNER IS ITS OWN ROW, and an
+// earlier version of this comment claimed it unconditionally (PR #113 review r3).
+// Against ONE row spanning "Heden 11:00–20:00", the same caption overlaps by three
+// hours and `deleteLocations` removes the whole thing — the truck vanishes from 14:00
+// to 20:00, which it never cancelled. The window is correctly narrow; the DELETION is
+// not, and that is #112 rather than anything this function can fix.
 //
 // ⚠ AND THE RANGE IS CAPTION-WIDE, SO A TWO-CLAUSE CAPTION CANCELS THE PIN IT
 // ANNOUNCES (#80/#94, raised by PR #113 review r1). `detectNegation` fires on the
