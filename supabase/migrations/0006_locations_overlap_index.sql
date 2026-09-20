@@ -53,15 +53,36 @@
 -- ---------------------------------------------------------------------------
 -- COLUMN ORDER
 -- ---------------------------------------------------------------------------
--- (truck_id, starts_at, expires_at) mirrors the query:
+-- (truck_id, starts_at, expires_at) mirrors the COLUMNS the query constrains:
 --
---   where truck_id = $1 and starts_at < $2 and expires_at > $3
+--   where truck_id = :truckId
+--     and starts_at  < :effectiveEnd
+--     and expires_at > :startsAt
 --
 -- `truck_id` leads because it is the only equality predicate and is the most selective.
 -- `starts_at` and `expires_at` are both range predicates; a btree can use only the first
 -- of them for the index scan, so the trailing column serves as a filter on the index
--- rather than narrowing the scan. Putting `starts_at` second matches both the old shape
--- and the argument order of `findOverlapping`, so the change is exactly one column.
+-- rather than narrowing the scan. Putting `starts_at` second keeps the change to exactly
+-- one column against the old shape.
+--
+-- ⚠ THE COLUMN ORDER IS NOT `findOverlapping`'s ARGUMENT ORDER, AND AN EARLIER VERSION
+-- OF THIS COMMENT SAID IT WAS. That is not a harmless slip: acting on it is how the H4
+-- defect class gets reintroduced. The signature is
+-- `findOverlapping(truckId, startsAt, effectiveEnd)` and its arguments reach the
+-- columns CROSSED —
+--
+--   startsAt      (2nd argument)  bounds  expires_at
+--   effectiveEnd  (3rd argument)  bounds  starts_at
+--
+-- — because that crossing IS the overlap test. Two half-open intervals [a,b) and [c,d)
+-- intersect exactly when `a < d AND b > c`: each interval's start is compared against
+-- the OTHER's end. Pairing start-with-start and end-with-end instead looks tidier, reads
+-- as an obvious cleanup, and silently tests something that is not overlap at all.
+--
+-- The index does not care — it is indifferent to which value bounds which column — but
+-- a reader who "corrects" the call site on the strength of a comment like the old one
+-- does. Written out here because this migration exists precisely because the overlap
+-- predicate was got wrong once already.
 
 do $$
 begin

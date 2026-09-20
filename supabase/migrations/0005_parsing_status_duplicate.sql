@@ -49,16 +49,27 @@
 -- A single ALTER TABLE with two subcommands is one statement, so it is atomic under
 -- every runner regardless of whether that runner wraps migrations in a transaction.
 --
--- VERIFIED IN BOTH DIRECTIONS against the live database before landing, on a scratch
--- table with the same shape, under psql autocommit:
+-- VERIFIED IN BOTH DIRECTIONS against the live database before landing, under psql
+-- autocommit — first on a scratch table with the same shape, then on `posts` ITSELF:
 --
---   drop+add of the SAME constraint name in one statement           → ALTER TABLE, ok
---   the same, with a row present that the new CHECK rejects         → ERROR, and the
+--   scratch, drop+add of the SAME constraint name in one statement  → ALTER TABLE, ok
+--   scratch, the same with a row the new CHECK rejects              → ERROR, and the
 --                                                                     ORIGINAL constraint
 --                                                                     is still in place
+--   posts, after this migration: insert a 'duplicate' row, then
+--   attempt a NARROWING alter in this same comma form (a check
+--   without 'duplicate', which that row violates)                   → ERROR, and
+--                                                                     pg_get_constraintdef
+--                                                                     still returns the
+--                                                                     five-value CHECK
 --
--- The second line is the one that matters and is the acceptance criterion: a failing
--- ADD must not leave the constraint dropped. It does not.
+-- The last line is the acceptance criterion, and it is on the real table because that is
+-- the only place the claim actually has to hold. A failing ADD must not leave the
+-- constraint dropped. It does not.
+--
+-- (An earlier version of this comment recorded only the scratch run. The file is the
+-- surviving evidence for this criterion long after the PR description is out of sight,
+-- so understating what was checked makes the record weaker than the work.)
 --
 -- ---------------------------------------------------------------------------
 -- SAFE WITHOUT A BACKFILL, AND WHY THAT IS NOT LUCK
