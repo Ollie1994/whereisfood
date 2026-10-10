@@ -152,10 +152,11 @@ export default defineConfig({
           // not exist at all (which is what a fresh clone has — git tracks no empty
           // directory, so no `.gitkeep` is needed).
           //
-          // It is on `test:integration` ONLY. `test:all` does not carry it and does not
-          // need it: vitest's empty-match check is per-RUN, so a run that also collects
-          // the 917 unit tests is never empty. Measured — `npx vitest run` with
-          // `tests/integration/` absent exits 0 with no flag at all.
+          // It is on `test:integration` ONLY, and deliberately NOT on `test:all` — the
+          // merge gate. Since #99, `test:all` runs each project in its own `vitest run`
+          // (see below), so an empty integration project now FAILS the gate. That is
+          // the point: an integration suite collecting nothing is a broken glob, not a
+          // legitimately empty state, now that the suite exists.
           //
           // ⚠ "PUTTING IT ON THE SCRIPT KEEPS IT SCOPED TO INTEGRATION" IS WHAT THIS
           // SAID, AND IT IS FALSE. The claim was that at the root the flag would also
@@ -172,12 +173,20 @@ export default defineConfig({
           // zero unit tests, and the flag is not what allows it. Only running a project
           // alone makes its emptiness visible, because then the RUN is empty.
           //
-          // ⚠ THE OBLIGATION HANDED TO #99 IS THEREFORE BOTH PROJECTS, NOT INTEGRATION.
-          // And it cannot be discharged from inside the project it protects: an
-          // assertion living in `unit` does not run when `unit` collects nothing, so a
-          // vacuity guard inside a vacant project never fires. It needs an external
-          // comparison — collected files against files on disk — which is why #99 is
-          // its own issue rather than a line here.
+          // ⚠ RESOLVED BY #99 — FROM OUTSIDE THE CONFIG, BECAUSE IT HAS TO BE. A guard
+          // inside a project cannot fire when that project collects nothing, so the fix
+          // is in `package.json`: `test:all` is
+          //
+          //   vitest run --project unit && vitest run --project integration
+          //
+          // Each project is its own RUN, so vitest's per-run empty-match check now
+          // covers each one. Verified by breaking each project's `include` in turn:
+          // `npm run test:all` exits non-zero both times, and 0 once restored.
+          //
+          // What it does NOT catch: a PARTIAL drop (e.g. every `.tsx` test silently
+          // uncollected while other files still run). The structural include/exclude
+          // rule above guards that case; a collected-vs-on-disk comparison was
+          // considered for #99 and deferred until a partial drop actually recurs.
 
           // ⚠ SEQUENTIAL EXECUTION — the setting this split exists for, and the one
           // whose absence is silent.
