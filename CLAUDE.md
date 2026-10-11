@@ -165,6 +165,16 @@ the old route until regenerated, so `tsc` and `build` fail with `Cannot find mod
 '…/route.js'`, which reads like a broken import. `rm -rf .next` (gitignored build
 output) and re-run (process-log row 275, PR #133).
 
+⚠ **Browser checks: confirm which server answered, and that it is gone afterwards.**
+Stopping `npm start` or `npm run dev` from a background task on Windows ends `npm` but
+leaves its Next child processes running, still holding the port. The next server
+then silently takes the next free port (:3001), and a request to :3000 is answered by
+the stale one. So:
+- read the URL from the server's own `Local:` line before requesting or sharing it;
+- after stopping, check that no `node` process with this repo in its command line is
+  left (`Get-CimInstance Win32_Process -Filter "Name = 'node.exe'"`), and stop any
+  that are (process-log row 279, PR #135).
+
 **`test:all` fails if any project collects zero test files** (fixed by #99). Vitest's
 empty-match check is per-**run**, not per-project, so `test:all` (`scripts/test-all.mjs`)
 runs each project in its own `vitest run` (via `test:run` and `test:integration`),
