@@ -3,8 +3,11 @@ import type { Truck } from "@/lib/types";
 
 // DB access only — no business logic. Returns the truck row when an *active* truck
 // has this id, or null when none does (unknown id, or is_active = false). The
-// caller decides what null means: the ingestion service maps it to a 400 for an
-// unknown/inactive truck. All reads use the service role (RLS bypassed server-side).
+// caller decides what null means. All reads use the service role (RLS bypassed
+// server-side).
+//
+// Nothing calls this module since the teardown (Phase 4). It is kept on purpose: it
+// matches the current schema, and Phase 5 rewrites it along with that schema.
 export async function getActiveTruckById(id: string): Promise<Truck | null> {
   const { data, error } = await supabaseAdmin
     .from("trucks")
@@ -19,17 +22,12 @@ export async function getActiveTruckById(id: string): Promise<Truck | null> {
   return data;
 }
 
-// Denormalized last-known position, updated ONLY after a location row is
-// successfully inserted (#68). It is what the map falls back to when a truck has no
-// live location — the grey marker still needs somewhere to sit.
+// Denormalized last-known position: what the map falls back to when a truck has no
+// live location — the grey marker still needs somewhere to sit. The columns are
+// dropped in Phase 5's schema reset, and this function with them.
 //
-// ⚠ THERE IS NO PATH THAT NULLS THESE, AND THAT IS THE POINT. A failed geocode must
-// leave the previous position intact rather than clearing it: "we could not resolve
-// today's caption" is not "we no longer know where this truck has ever been", and
-// treating it as such would erase a working grey marker every time Nominatim had a
-// bad minute. The service enforces this by only calling here on success; this
-// signature makes it structural by taking two `number`s rather than `number | null`,
-// so there is no way to SPELL the clearing call.
+// It takes two `number`s rather than `number | null`, so there is no way to SPELL a
+// call that clears a known position.
 export async function updateLastKnownPosition(
   truckId: string,
   latitude: number,

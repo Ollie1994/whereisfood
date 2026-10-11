@@ -109,9 +109,9 @@ phase uses them:
 
 | Module | Used again in | Why keep instead of deleting and re-adding |
 |---|---|---|
-| `src/lib/http/handler.ts` (`withErrorHandling`) | Phase 6 (`/api/live`), Phase 7 (admin routes) | `CLAUDE.md` requires every route to use it; it's tested and settled. |
+| `src/lib/http/handler.ts` (`withErrorHandling`) | Phase 6 (`/api/live`), Phase 7 (admin routes) | `CLAUDE.md` requires every route to use it; settled. (It had **no test** until #121 added `handler.test.ts`; process-log row 274.) |
 | `src/lib/geo.ts` (Gothenburg bounding box) | Phase 7 (validate map taps and GPS) | Named in `transition.md` §11 as kept. |
-| `src/lib/validators/uuid.ts` | Phase 7 (truck id on admin writes) | Small, tested, no reason to rewrite it. |
+| `src/lib/validators/uuid.ts` | Phase 7 (truck id on admin writes) | Small, no reason to rewrite it. (Tested only through the deleted lane validators until #121 added `uuid.test.ts`; row 274.) |
 | `src/lib/db/trucks.ts` | Phase 5 (rewritten with the schema) | Matches the current schema, like `db/locations.ts`. |
 
 ---
@@ -286,8 +286,11 @@ vitest 3 keeps a critical advisory. Upgrading a local tool costs one command.
 - [ ] `npx tsc --noEmit` passes, which proves no file imports a deleted module.
 - [ ] `grep -rliE "parser|ingestion|geocod|mailgun|upstash|nominatim" src scripts tests`
   lists **only** the files kept on purpose until Phase 5 (`src/lib/database.types.ts`,
-  `src/lib/db/locations.ts`, `tests/integration/*`) and `scripts/seed-dictionary.mjs`.
-  (Checked 2026-10-11: 15 files match today, so the comment clean-up is real work.)
+  `src/lib/db/locations.ts`, `tests/integration/*`), `scripts/seed-dictionary.mjs`,
+  and `src/lib/fake-data.ts`, whose rows use the current schema's column names
+  (`parser_confidence`, `address_geocoded`) as keys until Phase 5 renames them; its
+  *comments* must not match. (Checked 2026-10-11: 15 files match today, so the comment
+  clean-up is real work. `fake-data.ts` added during #121, process-log row 273.)
 - [ ] `src/lib/spots.ts` exports `SPOTS` with the same places and coordinates as the
   old dictionary.
 - [ ] `.env.example` lists only the three Supabase variables and

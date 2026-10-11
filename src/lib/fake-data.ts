@@ -8,7 +8,7 @@ const now = Date.now();
 const hours = (h: number) => new Date(now + h * 60 * 60 * 1000).toISOString();
 
 export const FAKE_TRUCKS: Truck[] = [
-  // GREEN — manual post, active location, confidence 1.0
+  // GREEN — manual source, active location, confidence 1.0
   {
     id: "11111111-1111-1111-1111-111111111111",
     name: "Strömmingsluckan",
@@ -20,7 +20,7 @@ export const FAKE_TRUCKS: Truck[] = [
     last_known_longitude: 11.9529,
     created_at: hours(-720),
   },
-  // YELLOW — webhook (Instagram), parsed location, confidence 0.51
+  // YELLOW — webhook source, active location, confidence 0.51
   {
     id: "22222222-2222-2222-2222-222222222222",
     name: "Tacos & Tequila",
@@ -32,7 +32,7 @@ export const FAKE_TRUCKS: Truck[] = [
     last_known_longitude: 11.9614,
     created_at: hours(-480),
   },
-  // YELLOW — email lane, parsed location, confidence 0.4675
+  // YELLOW — email source, active location, confidence 0.4675
   {
     id: "33333333-3333-3333-3333-333333333333",
     name: "Falafel Express",
