@@ -54,6 +54,10 @@ Thumbs.db
 # Map tiles (served from public/ locally; hosted externally in production)
 public/*.pmtiles
 
+# MapLibre worker, copied from node_modules by `predev`/`prebuild`
+# (scripts/copy-maplibre-worker.mjs)
+/public/maplibre/
+
 # Supabase
 supabase/.branches
 supabase/.temp

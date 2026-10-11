@@ -1,11 +1,13 @@
 import { useEffect, type RefObject } from "react";
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
-import maplibregl from "maplibre-gl";
+// Namespace import: MapLibre 6 is ESM-only and has no default export.
+import * as maplibregl from "maplibre-gl";
 import { Protocol } from "pmtiles";
-import layers from "protomaps-themes-base";
+import { layers, namedFlavor } from "@protomaps/basemaps";
 import TruckPopup from "@/components/Map/TruckPopup";
 import { FAKE_TRUCKS, FAKE_LOCATIONS } from "@/lib/fake-data";
+import { workerUrl } from "@/lib/maplibre-worker.mjs";
 import type { Location, MarkerColor, MarkerState, Truck } from "@/lib/types";
 
 const GOTHENBURG: [number, number] = [11.9746, 57.7089];
@@ -20,8 +22,14 @@ const MARKER_COLORS: Record<MarkerColor, string> = {
   grey: "#6b7280",
 };
 
-// Registered once on the client, lazily inside the effect (never on the server).
-let pmtilesRegistered = false;
+// Registered once on the client, lazily inside the effect (never on the server):
+// the `pmtiles://` protocol, and MapLibre 6's worker URL.
+//
+// The worker is a separate file in v6, and it imports a shared chunk. Both are served
+// from `public/maplibre/<version>/`, copied from node_modules by
+// `scripts/copy-maplibre-worker.mjs`. Where, why versioned, and why MapLibre's
+// documented Turbopack form does NOT work here: `src/lib/maplibre-worker.mjs`.
+let mapLibreInitialised = false;
 
 function deriveColor(location: Location | null): MarkerColor {
   if (!location) return "grey";
@@ -64,9 +72,10 @@ export function useMapLibre(containerRef: RefObject<HTMLDivElement | null>) {
   useEffect(() => {
     if (!containerRef.current || !PMTILES_URL) return;
 
-    if (!pmtilesRegistered) {
+    if (!mapLibreInitialised) {
+      maplibregl.setWorkerUrl(workerUrl(maplibregl.getVersion()));
       maplibregl.addProtocol("pmtiles", new Protocol().tile);
-      pmtilesRegistered = true;
+      mapLibreInitialised = true;
     }
 
     const map = new maplibregl.Map({
@@ -86,7 +95,10 @@ export function useMapLibre(containerRef: RefObject<HTMLDivElement | null>) {
               '<a href="https://protomaps.com">Protomaps</a> © <a href="https://openstreetmap.org">OpenStreetMap</a>',
           },
         },
-        layers: layers("protomaps", "light", "en"),
+        // Swedish labels. For Latin-script places (all of Gothenburg) the generated
+        // `text-field` is `name:sv`, then `pgf:name`, then the local `name`; `name:en`
+        // is only a fallback for places in other scripts.
+        layers: layers("protomaps", namedFlavor("light"), { lang: "sv" }),
       },
     });
 

@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // MapLibre's minified worker, copied from node_modules (scripts/copy-maplibre-worker.mjs).
+    // Flat config does not read .gitignore, so it is listed here too.
+    "public/maplibre/**",
   ]),
 ]);
 

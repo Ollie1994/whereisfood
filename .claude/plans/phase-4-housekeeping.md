@@ -160,6 +160,7 @@ Strict order. Each numbered step is one PR unless marked otherwise.
    decision #1), switch map labels to **`"sv"`**, and check the tile file matches the
    new style (open decision #2). `/map` renders with Swedish labels, markers and popups
    in the browser.
+   *Done in PR #136:* worker setup is decision #13; the tile file is compatible.
 8. **Upgrade vitest.** vitest 3.2.7 → **4.1.11**, migrate `vitest.config.ts` per the
    official v4 guide. Re-run step 3's check (break each project's `include` once) to
    confirm the #99 guard still works on v4.
@@ -284,6 +285,36 @@ by a tool. The block's useful hint (version-matched docs in
 `node_modules/next/dist/docs/`) is written by hand in #126. **Rejected:** committing
 the generated block. Don't remove `agentRules: false` without the owner.
 
+### #13 — MapLibre's worker is served from `public/maplibre/<version>/` (PR #136, owner)
+MapLibre 6's documented Turbopack / Next.js form,
+`setWorkerUrl(new URL("maplibre-gl/dist/maplibre-gl-worker.mjs", import.meta.url))`,
+does **not** work on Next 16.3.8. Turbopack copies the worker verbatim as a static
+asset, but the worker imports `./maplibre-gl-shared.mjs`, which is emitted under a
+hashed name, so the worker 404s and the map draws only its background. Every gate
+stayed green; the owner's browser check caught it (process-log row 282).
+
+So `scripts/copy-maplibre-worker.mjs` copies the worker, the shared chunk and their
+source maps from `node_modules` into a gitignored `public/maplibre/<version>/`, as the
+`postinstall`, `predev` and `prebuild` hooks. One module,
+`src/lib/maplibre-worker.mjs`, defines the folder and the file list, for both the
+script and `useMapLibre` (`setWorkerUrl(workerUrl(getVersion()))`).
+- **Owner chose** copying on install, dev and build over committing the copies
+  (~535 KB, re-copied by hand on every upgrade).
+- **Versioned path.** A tab running an old hashed client chunk after an upgrade
+  deploys asks for its own version's worker. The new deploy no longer serves it, so
+  it gets a clear 404 and no tiles until a reload, instead of a newer worker failing
+  on a protocol mismatch. That's a clearer failure, **not a fix**: keeping old
+  versions reachable (skew protection, or committing every version) isn't worth it
+  for a one-admin MVP (corrected in PR #136 r2).
+- **The script is idempotent:** it rewrites only changed files, removes only other
+  versions' folders, and skips under `postinstall` when `maplibre-gl` isn't installed.
+  Before `dev`/`build` a missing package still fails loudly.
+- **Guard:** `src/lib/maplibre-worker.test.mjs` fails if the copied set stops being
+  closed under its own imports, and if `getVersion()` and the package version disagree.
+- **Accepted cost:** the worker fetches its own copy of the 516 KB shared chunk, which
+  the main bundle already contains. Now that the path is versioned, it could be served
+  with an immutable `Cache-Control`; that's left for launch (Phase 8).
+
 ---
 
 ## Acceptance Criteria
@@ -380,14 +411,13 @@ the generated block. Don't remove `agentRules: false` without the owner.
   `.tsx` test; add it only if a partial drop recurs, since `vitest.config.ts`'s
   structural include/exclude rule now guards against that).
 
-1. **MapLibre worker setup under Next.** v6 ships its background worker as a separate
-   file and needs `setWorkerUrl()`. Either copy the file into `public/` (simple, but
-   must be refreshed on every MapLibre upgrade) or let the bundler emit it via
-   `new URL(…, import.meta.url)` (stays in sync, if Next 16.3 supports it). Found out
-   in step 7; a wrong setup means the map doesn't draw, so it can't fail silently.
-2. **Tile file vs. new basemap style.** `@protomaps/basemaps` 5.7.2 must match the
-   schema version of the June-downloaded `gothenburg.pmtiles`. Checked in step 7; if
-   they don't match, re-download a current extract (no code change).
+1. ~~**MapLibre worker setup under Next.**~~ → **resolved in PR #136: copied into
+   `public/maplibre/<version>/` by npm hooks** (decision #13). The bundler form does not
+   work on Next 16.3.8. And "can't fail silently" was only half true: every gate stayed
+   green, and only the browser check showed the missing tiles.
+2. ~~**Tile file vs. new basemap style.**~~ → **compatible, no re-download** (PR #136).
+   The file's own metadata says Protomaps basemap schema 4.14.9, newer than the 4.13.0
+   that styles 5.7.0 shipped with, and it has all 9 source layers the style uses.
 
 ---
 
