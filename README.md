@@ -164,6 +164,10 @@ command fetches only the tiles inside the box: about 36 MB, in under a minute. A
 
 ### 3. Environment
 
+Start the local Supabase stack first with `npx supabase start` (needs Docker). On a
+fresh database it applies the migrations and `supabase/seed.sql`; `npx supabase db
+reset` re-applies both later. Then:
+
 ```bash
 cp .env.example .env.local
 ```
@@ -175,9 +179,8 @@ cp .env.example .env.local
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | integration tests, later phases | `ANON_KEY` from the same output |
 | `SUPABASE_SERVICE_ROLE_KEY` | integration tests, later phases | `SERVICE_ROLE_KEY` from the same output (server only, never `NEXT_PUBLIC_`) |
 
-Start the local Supabase stack first with `npx supabase start` (needs Docker). On a
-fresh database it applies the migrations and `supabase/seed.sql`; `npx supabase db
-reset` re-applies both later.
+The map itself needs only the first variable, so you can skip the stack if you only
+want to see the map.
 
 ### 4. Run
 

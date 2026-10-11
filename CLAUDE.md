@@ -10,8 +10,9 @@ exists) — read it too, and when the two disagree, THE PLAN WINS.**
 tracked task in each plan — Phase 4's is issue #127). So for the whole duration of a
 phase it is a snapshot of the phase *before* it, while the plan carries the decisions
 that were actually settled. Reading only the context is how a resolved question gets
-re-litigated with a stale answer. **Until #127 lands it still describes the old
-three-lane design**, which Phase 4 removed.
+re-litigated with a stale answer. **If it has no "Current state" section, it predates
+the Phase 4 rewrite (#127) and describes the old three-lane design**, which Phase 4
+removed.
 
 The plan is also where the numbered decision records live (`#1`, `#2`, …) —
 those are the reasoning behind rules the context states as bare facts, and an issue
@@ -47,17 +48,17 @@ describe a different one.
 
 **Dependencies**
 - `next`, `eslint-config-next` and `maplibre-gl` are **exact pins**. Upgrade them
-  deliberately, each with a browser check of `/map` (plan decision #10). `next` and
+  deliberately, each with a browser check of `/map` (Phase 4 plan decision #10). `next` and
   `eslint-config-next` move together, to the same version (PR #135).
 - **Node `^20.19.0 || >=22.12.0`** (vite/rolldown's floor; older 20.x/22.x pass Next's
   check and fail under vitest) and **npm ≥ 11** (npm 10 crashes resolving vitest 4's
-  optional peers, decision #11). Prose only: `package.json` doesn't enforce either.
+  optional peers, Phase 4 decision #11). Prose only: `package.json` doesn't enforce either.
 - `next.config.ts` sets `agentRules: false`. Don't remove it without the owner
-  (decision #12).
+  (Phase 4 decision #12).
 - MapLibre's worker is copied into `public/maplibre/<version>/` by the
   `postinstall`/`predev`/`prebuild` hooks. Don't switch to MapLibre's documented
   `setWorkerUrl(new URL(…, import.meta.url))` form: on Next 16.3 the worker 404s and
-  the map draws only its background, with every gate green (decision #13).
+  the map draws only its background, with every gate green (Phase 4 decision #13).
 
 ---
 
@@ -87,8 +88,10 @@ Route handlers call services. Services call DB layer. Never mix layers.
   write goes through an API route using `supabaseAdmin`
 - Anon gets **no SELECT on `trucks` or `locations`** (Phase 5). With history kept, anon access
   would make every truck's movement history public through Supabase's API
-- RLS on every table, an explicit `GRANT` per table matching the RLS matrix, and no
-  owner self-UPDATE on `users` (blocks `is_admin` self-escalation and `truck_id` hijack)
+- RLS on every table, an explicit `GRANT` per table that matches its RLS policies, and
+  no owner self-UPDATE on `users` (blocks `is_admin` self-escalation and `truck_id`
+  hijack). **Applies now:** 0001 already does all three, and every new migration must
+  too
 
 **proxy.ts**
 - File is `src/proxy.ts` — this is the Next.js 16 name for middleware
@@ -118,10 +121,11 @@ Route handlers call services. Services call DB layer. Never mix layers.
   `created_by` and future columns can't leak
 
 **Target-design rules, enforced from Phase 5.** The Locations rules below and the
-anon/RLS bullets above describe the Phase 5 schema (Time and Scheduling apply now). Today's schema (0001–0006) still breaks them: 0001
-grants anon SELECT on `trucks` and `locations`, `ends_at` is nullable (0002), there is
-no exclusion constraint, and `src/lib/db/locations.ts` exports `deleteLocations`. Don't
-"fix" today's code to match; Phase 5 replaces schema, db layer and tests together.
+no-anon-SELECT bullet above describe the Phase 5 schema. Today's schema (0001–0006)
+still breaks them: 0001 grants anon SELECT on `trucks` and `locations`, `ends_at` is
+nullable (0002), there is no exclusion constraint, and `src/lib/db/locations.ts`
+exports `deleteLocations`. Don't "fix" today's code to match; Phase 5 replaces schema,
+db layer and tests together. (Time and Scheduling below apply now.)
 
 **Locations** (Phase 5)
 - Overlapping non-cancelled entries for a truck are refused by the DB exclusion
@@ -149,9 +153,11 @@ no exclusion constraint, and `src/lib/db/locations.ts` exports `deleteLocations`
 - All `useState` / `useEffect` live in hooks, not components
 - Components only describe what to render
 - Map markers are HTML elements via MapLibre Marker API — no image files
-- Only trucks with an entry today appear on the map; the popup always shows when it
-  was updated. (The fake-data map still uses the old design's grey/yellow/green
-  markers until Phase 6.)
+- **(Phase 6)** Only trucks with an entry today appear on the map; the popup always
+  shows when it was updated. Today's fake-data map still does the old design's
+  version: grey markers at `last_known_*` for trucks with no entry, colours and popup
+  labels from confidence, no updated time. Don't change it before Phase 6 (Phase 4
+  plan, Out of Scope)
 - Never fully re-render the map — only update affected markers
 
 ---

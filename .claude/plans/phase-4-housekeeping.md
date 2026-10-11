@@ -363,10 +363,13 @@ script and `useMapLibre` (`setWorkerUrl(workerUrl(getVersion()))`).
   `grep -c '"node_modules/@upstash/' package-lock.json` → `0` instead (rows 277, 278).
   ⚠ **The pattern above misses half the removed design** (row 288, PR #138): it has no
   `cron`, `realtime` or `confidence`, and `src/lib/supabase.ts` still described cron
-  and Realtime as current. Also run `grep -rniE "cron|realtime|confidence|webhook" src scripts`.
+  and Realtime as current. Also run `grep -rniE "cron|realtime|confidence|webhook|grey|CLAUDE\.md" src scripts`.
   Allowed hits: the fake-data map's **code** (`useMapLibre.tsx`, `TruckPopup.tsx`,
   `fake-data.ts`, `types.ts`; Phase 6 replaces it) and the Phase 5 files above. No
-  *comment* may describe them as current or cite a removed CLAUDE.md rule (fixed in #127).
+  *comment* may describe them as current, and every `CLAUDE.md` citation must name a
+  rule that still exists (today only `handler.ts`'s "API responses" does; the two that
+  don't are fixed in #127). Round 2 of PR #138 added `grey` and `CLAUDE\.md`, which
+  the first widening still missed.
 - [ ] `src/lib/spots.ts` exports `SPOTS` with the same places and coordinates as the
   old dictionary.
 - [ ] `.env.example` lists only the three Supabase variables and
