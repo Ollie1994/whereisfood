@@ -17,22 +17,32 @@
 
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
-// The declared projects, each run through its package script so the gate and the
-// inner-loop scripts are one definition. A project that has test files but is missing
-// here FAILS the gate (checked below against `vitest list`).
-//
-// ⚠ Known gap: a project whose `include` matches NOTHING doesn't appear in
-// `vitest list` either, so an empty project that is also missing here goes unnoticed.
-// Closing it needs the project names from the resolved config (vitest's Node API),
-// deferred to the vitest 4 upgrade (#125), which changes that API.
+// The environment the test runs get, captured BEFORE vitest is loaded below. Resolving
+// the config in this process sets `NODE_ENV=development` (plus Vite's `MODE`, `DEV`,
+// `PROD`, `BASE_URL`), and children inherit `process.env`; vitest only defaults
+// `NODE_ENV` to `test` when it is unset. Without the snapshot `test:all` ran every test
+// under `development` while `test:run` used `test` (measured, PR #137 review).
+const TEST_ENV = { ...process.env };
+
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
+
+// The projects the gate runs, each through its package script so the gate and the
+// inner-loop scripts are one definition. RUNS must name exactly the projects
+// `vitest.config.ts` declares (checked below against the resolved config): a declared
+// project missing here FAILS the gate, even one whose `include` matches nothing, and
+// so does an entry here that the config doesn't declare.
 const RUNS = [
   { project: "unit", script: "test:run" },
   { project: "integration", script: "test:integration" },
 ];
 
-// `shell: true` so `npm`/`npx` resolve on Windows as well as POSIX.
-const sh = (command, options = {}) => spawnSync(command, { shell: true, ...options });
+// `shell: true` so `npm`/`npx` resolve on Windows as well as POSIX. EVERY child gets
+// the pre-vitest environment and the repo root by default, so no later call can inherit
+// what resolving the config left in this process (see TEST_ENV).
+const sh = (command, options = {}) =>
+  spawnSync(command, { shell: true, env: TEST_ENV, cwd: ROOT, ...options });
 
 // Reports a spawn failure (the shell couldn't start) with its real error. Note the
 // limit: with `shell: true` the direct child is the shell, so a signal or OOM kill of
@@ -71,32 +81,51 @@ if (weakened.length > 0) {
   process.exit(1);
 }
 
-// Every project that has test files must be in RUNS. `--filesOnly` lists files per
-// project without collecting or running any test, so this needs no database.
-const listing = sh("npx vitest list --filesOnly --json", {
-  encoding: "utf8",
-  maxBuffer: 64 * 1024 * 1024,
-});
-if (listing.error || listing.status !== 0) {
-  console.error(
-    `✖ test:all: could not list test files (${outcome(listing)})\n${listing.stdout ?? ""}${listing.stderr ?? ""}`,
-  );
-  process.exit(1);
-}
-let listed;
+// RUNS must match the projects the config DECLARES. Read from the resolved config
+// through vitest's Node API, so a project whose `include` matches nothing is still
+// seen (the `vitest list` check this replaced only saw projects that had files; that
+// gap was deferred from #99 to the vitest 4 upgrade, #125). Resolving the config
+// collects and runs no test, so this needs no database. ~200 ms.
+//
+// Imported here, not at the top: after the argument refusal, and inside the `try`, so a
+// missing or broken vitest is reported as one line instead of a module-loader stack.
+// `root` anchors the config lookup to the repo, like the package.json read above,
+// rather than to the working directory.
+//
+// A local result, not `process.exitCode`: vitest's Node API writes that global itself on
+// some paths without throwing, which would end the gate with no explanation. `close()`
+// failing (e.g. a Windows `EBUSY` on a watcher) only warns: the names are already read.
+let declared = null;
+let vitest;
 try {
-  listed = new Set(JSON.parse(listing.stdout).map((entry) => entry.projectName));
+  const { createVitest } = await import("vitest/node");
+  vitest = await createVitest("test", { watch: false, root: ROOT });
+  declared = vitest.projects.map((project) => project.name);
 } catch (error) {
-  console.error(`✖ test:all: could not parse \`vitest list\` output (${error.message})`);
-  process.exit(1);
+  console.error(`✖ test:all: could not resolve the vitest config (${error.message})`);
+} finally {
+  try {
+    await vitest?.close();
+  } catch (error) {
+    console.warn(`⚠ test:all: closing the vitest config failed (${error.message})`);
+  }
 }
-const declared = new Set(RUNS.map((run) => run.project));
-const undeclared = [...listed].filter((project) => !declared.has(project));
-if (undeclared.length > 0) {
-  console.error(
-    `✖ test:all: project(s) with test files but not in RUNS: ${undeclared.join(", ")}.\n` +
-      "  Add them to RUNS in scripts/test-all.mjs, or the gate would never run them.",
-  );
+if (declared === null) process.exit(1);
+const inRuns = new Set(RUNS.map((run) => run.project));
+const missing = declared.filter((project) => !inRuns.has(project));
+const unknown = [...inRuns].filter((project) => !declared.includes(project));
+if (missing.length > 0 || unknown.length > 0) {
+  if (missing.length > 0) {
+    console.error(
+      `✖ test:all: project(s) declared in vitest.config.ts but not in RUNS: ${missing.join(", ")}.\n` +
+        "  Add them to RUNS in scripts/test-all.mjs, or the gate would never run them.",
+    );
+  }
+  if (unknown.length > 0) {
+    console.error(
+      `✖ test:all: project(s) in RUNS that vitest.config.ts doesn't declare: ${unknown.join(", ")}.`,
+    );
+  }
   process.exit(1);
 }
 

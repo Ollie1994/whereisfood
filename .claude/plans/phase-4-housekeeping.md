@@ -24,6 +24,9 @@ green.
 
 ## Prerequisites
 
+- **Node `^20.19.0 || >=22.12.0`**, the floor `vite` (7 and 8 alike) and `rolldown`
+  declare, which is above Next 16's `>=20.9`. Node 22.14 meets it. Older 20.x/22.x
+  Node passes Next's check but fails under vitest (added in PR #137 review).
 - **npm ≥ 11 locally** (`npm i -g npm@11`). Node 22.14 bundles npm **10.9.2**, which
   **crashes** resolving vitest 4.1.11's optional peer dependencies (`Cannot read
   properties of null (reading 'edgesOut')` in `#loadPeerSet`), reproduced twice on a
@@ -131,7 +134,11 @@ Strict order. Each numbered step is one PR unless marked otherwise.
    `node scripts/test-all.mjs`, which:
    - runs each project in its own `vitest run` through `test:run` and `test:integration`;
    - always runs both, and fails if either fails;
-   - fails if `vitest list` shows a project with test files that isn't in its `RUNS`;
+   - fails unless `RUNS` names exactly the projects the resolved config declares,
+     read through vitest's Node API (since #125): a declared project missing from
+     `RUNS` fails, even one that collects no files, and so does a `RUNS` entry the
+     config doesn't declare. (Until #125 this used `vitest list`, which saw only
+     projects that had files.)
    - refuses extra arguments.
 
    `test:integration` drops `--passWithNoTests`. `--project` already works on vitest
@@ -164,9 +171,17 @@ Strict order. Each numbered step is one PR unless marked otherwise.
 8. **Upgrade vitest.** vitest 3.2.7 → **4.1.11**, migrate `vitest.config.ts` per the
    official v4 guide. Re-run step 3's check (break each project's `include` once) to
    confirm the #99 guard still works on v4.
+   *Done in PR for #125:* `singleFork` → per-project `fileParallelism: false` (keeps
+   per-file isolation; the guide's `maxWorkers: 1, isolate: false` mapping would turn
+   it off). The sequencing probe ran on v4 with a negative control. The #99 guard
+   still fails on each broken `include`, and #99's deferred gap is closed: `test:all`
+   now checks `RUNS` against the projects the resolved config declares (vitest Node
+   API), so an empty undeclared project fails too.
 9. **Transitive clean-up.** `npm audit fix` (non-breaking only). The expected end
    state is **0 production advisories** and exactly one known dev-only chain (see
    decision #3); anything else gets a reason in the PR.
+   *Done in PR for #125:* exactly that end state. npm 11.21's install-scripts warning
+   was verified on a clean `npm ci`: warn-only, the script still runs.
 10. **Docs.** `CLAUDE.md`, `project-context.md` rewrite, `README.md` (incl. the npm ≥ 11 prerequisite), the
     `phase-3-parser.md` header, `transition.md` header + renumbering + archive note.
 11. **Phase 3 retrospective (no PR needed beyond the log).** Count Phase 3 rows by
@@ -205,6 +220,7 @@ on a line that has had time to settle, not a fresh `.0`. Release dates checked o
 | `protomaps-themes-base` | 4.5.0 | **`@protomaps/basemaps` 5.7.2** | 2026-03-10; v5 line since 2025-02 | **Deprecated** on npm: "migrated to @protomaps/basemaps with a new major version". No peer dependencies; ships ESM and CJS. | Yes, new major; follow its CHANGELOG. |
 | `pmtiles` | 4.4.1 | **4.5.0** | 2026-08-10 | Same major; the version the target set was resolved and audited with. No peer dependency on MapLibre. | No (minor). `addProtocol` on v6 verified in step 7. |
 | `vitest` | 3.2.7 | **4.1.11** | 2026-08-18, 11th patch of 4.1; maintained `V4` dist-tag | Critical prototype-pollution → RCE gadgets in `tinypool` (GHSA-5gmw-xhrv-c9v3, GHSA-85c8-ppgw-ccpr) and a moderate path traversal in `@vitest/mocker` (GHSA-82fw-gwwq-j7x9). npm's DB marks vitest vulnerable **up to 4.1.10**. **Not 5.0.3:** 5.0 is 5 weeks old, and 5.0.3 **failed to resolve** (`ERESOLVE`: it needs a newer `@types/node` than our `^20`), so it would drag in a second upgrade. | **Yes:** our config relies on `poolOptions.forks.singleFork` and `projects`; secondary sources say `poolOptions` was flattened in v4. Read the official guide. |
+| `vite` (transitive, dev-only; added in PR #137 review) | 7.3.6 | **8.3.x** (8.3.4 at install) | 8.0.0 2026-03-12; 8.3.0 2026-09-10; 8.3.4 2026-10-08 | Not chosen, pulled in: vitest 4.1.11 accepts `vite ^6 \|\| ^7 \|\| ^8`, so npm took the newest. **Kept (owner's call)** over pinning `~7.3.6` as a direct devDependency: the 8.x line is 7 months old and 8.3 is on its 5th release; vite only loads `vitest.config.ts` and transforms test files (Next/Turbopack builds the app); every gate and the sequencing probe pass on it. esbuild and rollup leave the tree with it (vite 8 uses rolldown/oxc). | Unflagged until the review found it; gates are the test. Pin to 7 if a transform difference shows up. **Known warning, accepted:** every run prints `(!) Your Vite config uses features that are unsupported by configLoader: 'native'… ESM syntax in a file loaded as CommonJS (vitest.config.ts)`. It's about a *future* Vite major's default loader; when that lands, rename to `vitest.config.mts` (`tsconfig` already includes `**/*.mts`) or add `"type": "module"`. Not done now: no breakage today, and the rename ripples through every doc that names the file. |
 | `@upstash/ratelimit`, `@upstash/redis` | installed | **removed** | — | Never imported anywhere; rate limiting was dropped in `transition.md` §7. | — |
 
 **Verified, not assumed:** this exact set was resolved into a throwaway lockfile (with

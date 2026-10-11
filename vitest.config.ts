@@ -9,9 +9,8 @@ import { fileURLToPath } from "node:url";
 // integration test exists, so the boundary is in place when there is something to put
 // behind it rather than being retrofitted around a suite that already went red.
 //
-// `projects` rather than `workspace`: vitest 3.2.7's own types mark the latter
-// `@deprecated use the 'projects' field in the root config instead` — verified in
-// `node_modules/vitest/dist/config.d.ts`, not assumed from the changelog.
+// `projects`, not `workspace`: vitest 3.2 deprecated `workspace` and vitest 4 removed
+// it (official v4 migration guide).
 
 // ⚠ DECLARED ONCE AND SPREAD INTO BOTH PROJECTS, because a project config is a full
 // vite config and does NOT inherit `resolve` from the root. A root-level alias looks
@@ -59,31 +58,49 @@ const INTEGRATION_DIR = "tests/integration";
 // `defaultInclude` and `defaultExclude` are imported from `vitest/config` — the real
 // values, not a copy of them. r1 hand-copied the pattern correctly and that was still
 // the weaker move: a copy is right until vitest changes, and nothing would say when it
-// had. Current values, for the reader: include `["**/*.{test,spec}.?(c|m)[jt]s?(x)"]`,
-// exclude `node_modules`, `dist`, `cypress`, dotfile caches and tool configs.
+// had. Current values (vitest 4.1.11), for the reader: include
+// `["**/*.{test,spec}.?(c|m)[jt]s?(x)"]`, exclude `["**/node_modules/**", "**/.git/**"]`.
+// Vitest 3 also excluded `dist`, `cypress`, the `.{idea,git,cache,output,temp}` dotfile
+// directories and tool configs. Of those, only `supabase/.temp` exists here (via
+// `.temp`), and it is now in `BUILD_OUTPUT` below with the rest of `.gitignore`'s
+// generated folders. The per-project file counts were unchanged by the upgrade.
 const INTEGRATION_INCLUDE = defaultInclude.map((pattern) => `${INTEGRATION_DIR}/${pattern}`);
 
-// Generated directories, mirroring `.gitignore`'s `/coverage`, `/.next/`, `/out/` and
-// `/build`. Vitest's `defaultExclude` does not cover any of them — see the note on the
-// unit project's `exclude`.
+// Generated directories: every generated folder `.gitignore` names (`/coverage`,
+// `/.next/`, `/out/`, `/build`, `.vercel`, `/public/maplibre/`, `supabase/.branches`,
+// `supabase/.temp`). Vitest 4's `defaultExclude` covers none of them, see the note on
+// the unit project's `exclude`. The last four were added with vitest 4 (PR #137):
+// vitest 3's defaults had covered `supabase/.temp`, and the mirror had been partial.
+// A folder added to `.gitignore` as generated belongs here too.
 //
-// ⚠ ROOT-ANCHORED, matching how `.gitignore` writes them. A first pass used `**/build/**`
-// and `**/out/**`, which reach any depth and would silently swallow a legitimate
-// `src/lib/build/thing.test.ts` — the same class of over-reach as #170 and #172, in the
-// opposite direction: excluding too much rather than including too little, and equally
-// silent. Vitest resolves these relative to the project root, so no leading `**/` is
-// what pins them to the four directories `.gitignore` actually names.
+// ⚠ ANCHORED EXACTLY AS `.gitignore` WRITES THEM. An entry with a slash (`/build`,
+// `supabase/.temp`) is root-anchored there, so it is here: a first pass used
+// `**/build/**` and `**/out/**`, which reach any depth and would silently swallow a
+// legitimate `src/lib/build/thing.test.ts` (the class of over-reach #170 and #172
+// caught in the other direction, equally silent). `.vercel` has no slash, so git
+// matches it at any depth, and so does `**/.vercel/**` here.
 //
 // Verified both ways: a failing test under `.next/` and `coverage/` is NOT collected,
-// and a failing test under `src/lib/build/` IS.
-const BUILD_OUTPUT = [".next/**", "out/**", "build/**", "coverage/**"];
+// and a failing test under `src/lib/build/` IS. Re-verified on vitest 4.1.11 for
+// `supabase/.temp/`, `.vercel/`, `src/.vercel/` and `public/maplibre/` (not
+// collected) and `src/lib/build/` (collected).
+const BUILD_OUTPUT = [
+  ".next/**",
+  "out/**",
+  "build/**",
+  "coverage/**",
+  "**/.vercel/**",
+  "public/maplibre/**",
+  "supabase/.branches/**",
+  "supabase/.temp/**",
+];
 
 export default defineConfig({
   test: {
     // ⚠ ADDING A PROJECT? Add it to `RUNS` in `scripts/test-all.mjs` too. The merge
-    // gate runs each project by name (#99). It cross-checks `vitest list` and FAILS
-    // while a project with test files is missing from `RUNS`, so forgetting is loud,
-    // not silent — but the gate is red until the list is updated.
+    // gate runs each project by name (#99). It reads the declared projects from this
+    // resolved config and FAILS while any is missing from `RUNS` (even one that collects
+    // no files), so forgetting is loud, not silent — but the gate is red until the list is updated.
     projects: [
       {
         resolve: { alias },
@@ -102,9 +119,9 @@ export default defineConfig({
           // defaults are spread back in. Dropping them would pull `node_modules` into
           // the run.
           //
-          // ⚠ `defaultExclude` DOES NOT COVER BUILD OUTPUT. It is `node_modules`,
-          // `dist`, `cypress`, the `.{idea,git,cache,output,temp}` dotfiles and tool
-          // configs — no `.next`, no `out`, no `build`, no `coverage`. Verified: a
+          // ⚠ `defaultExclude` DOES NOT COVER BUILD OUTPUT. Since vitest 4 it is only
+          // `node_modules` and `.git` — no `.next`, no `out`, no `build`, no `coverage`.
+          // Verified (on vitest 3, whose list was longer but had none of them either): a
           // failing `.next/zz/orphan.test.ts` is collected and fails `test:run`.
           //
           // Latent rather than live — nothing emits a `*.test.*` file into `.next`
@@ -114,7 +131,7 @@ export default defineConfig({
           // r1→r2 overcorrection happened in the first place.
           //
           // The list comes from `.gitignore`, which is this project's own declaration
-          // of what is generated: `/coverage`, `/.next/`, `/out/`, `/build`. That makes
+          // of what is generated (`BUILD_OUTPUT` above names each entry). That makes
           // it a mirror of an existing statement rather than a set invented here —
           // which is the distinction that matters after #173, where copying a set
           // vitest owns was the mistake. This set is ours.
@@ -171,8 +188,9 @@ export default defineConfig({
           // inside a project cannot fire when that project collects nothing, so
           // `test:all` is `scripts/test-all.mjs`. It runs each project in its own
           // `vitest run` (through `test:run` and `test:integration`), always runs both,
-          // fails if either fails, and fails if `vitest list` shows a project with test
-          // files that isn't in its `RUNS`. Verified by breaking each project's `include`
+          // fails if either fails, and fails if a project this config declares isn't in
+          // its `RUNS` (since #125, via vitest's Node API; before, via `vitest list`, which
+          // missed a project with no files). Verified by breaking each project's `include`
           // in turn: non-zero both times, 0 once restored.
           //
           // What it does NOT catch:
@@ -193,37 +211,24 @@ export default defineConfig({
           // the plan flags this as M5, and it is the expensive kind of failure because
           // the first instinct is to debug the service rather than the runner.
           //
-          // ⚠ IT IS NOT `fileParallelism: false`, WHICH IS WHAT #61 SPECIFIES. That
-          // option cannot be set on a project at all: vitest 3.2.7 types
-          // `ProjectConfig` as `Omit<InlineConfig, NonProjectOptions | …>` and
-          // `NonProjectOptions` lists `fileParallelism` (and `passWithNoTests`, see the
-          // note above). Writing it here is a `tsc` error, not a silent no-op —
-          // "Object literal may only specify known properties, and 'fileParallelism'
-          // does not exist in type 'ProjectConfig'" — but the first version of this
-          // file had it, and a throwaway sequencing probe caught the interleaving
-          // before the gate did.
+          // `fileParallelism: false` — WHAT #61 SPECIFIED, POSSIBLE SINCE VITEST 4. On
+          // vitest 3.2.7 it could not be set on a project (it was in `NonProjectOptions`),
+          // so this used `poolOptions.forks.singleFork` instead. Vitest 4 removed
+          // `poolOptions` and allows pool options per project (official v4 migration
+          // guide); `fileParallelism` is no longer in `NonProjectOptions`, and `false`
+          // "will override `maxWorkers` option to `1`" (its type docs).
           //
-          // The project-level lever is `poolOptions.forks.singleFork`, which
-          // `ProjectConfig` explicitly re-adds via `Pick<…, "singleFork" | "isolate">`.
+          // ⚠ NOT THE GUIDE'S `singleFork` MAPPING. The guide maps `singleFork` to
+          // `maxWorkers: 1, isolate: false`, which ALSO turns off per-file module
+          // isolation. `singleFork` never did that (`isolate` defaulted to true), so the
+          // suite has always run isolated. Only the sequencing is wanted, so only the
+          // sequencing is set, and isolation stays what it was.
           //
-          // `pool` is pinned alongside it rather than left to the default. `singleFork`
-          // configures the FORKS pool specifically, so it silently stops applying if
-          // the pool ever changes — naming the pool is what keeps the two from
-          // drifting apart.
-          pool: "forks",
-          poolOptions: {
-            forks: {
-              // One child process, so files run one after another.
-              //
-              // Verified, not trusted: two throwaway files appending start/end markers
-              // to a shared log. Without this they interleave — the observed order was
-              // `b-start, a-start, a-end, b-end`. With it they nest: `a-start, a-end,
-              // b-start, b-end`. Deleted afterwards; #72 owns the real suite, and the
-              // plan already requires it green on THREE consecutive runs precisely
-              // because one pass does not prove sequencing is holding.
-              singleFork: true,
-            },
-          },
+          // Verified, not trusted, on each vitest major: two throwaway files appending
+          // start/end markers to a shared log. Without sequencing they interleave (vitest
+          // 3 observed `b-start, a-start, a-end, b-end`); with it they nest: `a-start,
+          // a-end, b-start, b-end` (vitest 4.1.11, PR for #125). Deleted afterwards.
+          fileParallelism: false,
         },
       },
     ],
