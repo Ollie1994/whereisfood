@@ -3,7 +3,8 @@ import type { MarkerState } from "@/lib/types";
 
 const TZ = "Europe/Stockholm";
 
-// Human-language confidence — never raw numbers (CLAUDE.md UI rule).
+// Human-language labels for the old design's marker colours, never raw numbers.
+// Phase 6 replaces them with freshness text ("Uppdaterad 08:12").
 const CONFIDENCE_LABEL: Record<MarkerState["color"], string> = {
   green: "Postad av trucken idag",
   yellow: "Baserat på morgonens inlägg",

@@ -13,7 +13,8 @@ import type { Location, MarkerColor, MarkerState, Truck } from "@/lib/types";
 const GOTHENBURG: [number, number] = [11.9746, 57.7089];
 const PMTILES_URL = process.env.NEXT_PUBLIC_PMTILES_URL;
 
-// Display threshold — sub-0.45 locations count as "no update" (grey), per CLAUDE.md.
+// Display threshold — sub-0.45 locations count as "no update" (grey). Old-design
+// behaviour kept for the fake-data map; Phase 6 removes confidence from the UI.
 const DISPLAY_THRESHOLD = 0.45;
 
 const MARKER_COLORS: Record<MarkerColor, string> = {
@@ -36,7 +37,8 @@ function deriveColor(location: Location | null): MarkerColor {
   return location.confidence >= 0.9 ? "green" : "yellow";
 }
 
-// Merge trucks + locations into one MarkerState per truck (the Phase 4 hook's job).
+// Merge trucks + locations into one MarkerState per truck (the Phase 6 `useLocations`
+// hook's job once the map reads `/api/live`).
 function buildMarkerStates(trucks: Truck[], locations: Location[]): MarkerState[] {
   return trucks.flatMap((truck) => {
     const location =

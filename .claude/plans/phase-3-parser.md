@@ -1,5 +1,7 @@
 # Phase 3 — Parser
 
+> **Superseded (Phase 4).** The parser and ingestion lanes were dropped for an admin-populated map; see `.claude/transition.md` (history) and `.claude/context/project-context.md`. The code this plan built is archived on `archive/parser-lanes` (commit `b089fd0`). Kept as history; nothing below is current.
+
 ## Goal
 An ingested caption resolves to the truck's live map state: normalized, parsed,
 geocoded and override-resolved into a `locations` row with

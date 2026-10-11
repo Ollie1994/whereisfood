@@ -370,6 +370,9 @@ script and `useMapLibre` (`setWorkerUrl(workerUrl(getVersion()))`).
   rule that still exists (today only `handler.ts`'s "API responses" does; the two that
   don't are fixed in #127). Round 2 of PR #138 added `grey` and `CLAUDE\.md`, which
   the first widening still missed.
+  ⚠ **Phase numbers changed too** (decision #9, row 292): run `grep -rnE "Phase [0-9]" src scripts`
+  and read each hit against the new numbering (4 Housekeeping, 5 Schema reset, 6 Live read
+  path, 7 Admin, 8 Launch). Allowed: `src/lib/db/locations.ts`, frozen until Phase 5.
 - [ ] `src/lib/spots.ts` exports `SPOTS` with the same places and coordinates as the
   old dictionary.
 - [ ] `.env.example` lists only the three Supabase variables and
