@@ -81,8 +81,9 @@ const BUILD_OUTPUT = [".next/**", "out/**", "build/**", "coverage/**"];
 export default defineConfig({
   test: {
     // ⚠ ADDING A PROJECT? Add it to `RUNS` in `scripts/test-all.mjs` too. The merge
-    // gate runs each project by name (#99), so a project missing there is never run by
-    // `npm run test:all` — and the gate stays green while its tests are never executed.
+    // gate runs each project by name (#99). It cross-checks `vitest list` and FAILS
+    // while a project with test files is missing from `RUNS`, so forgetting is loud,
+    // not silent — but the gate is red until the list is updated.
     projects: [
       {
         resolve: { alias },
@@ -144,21 +145,13 @@ export default defineConfig({
           // collected as well as one nested under it.
           include: INTEGRATION_INCLUDE,
 
-          // ⚠ `passWithNoTests` IS NOT HERE EITHER, and for the same reason — it is on
-          // the `NonProjectOptions` list, so it belongs to the run rather than to a
-          // project. It lives on the `test:integration` script as `--passWithNoTests`.
-          //
-          // TWO SCRIPTS, TWO JOBS — they deliberately disagree about an empty
-          // integration project:
-          //
-          //   `test:integration` — the lenient inner-loop script. Keeps the flag, so an
-          //   empty match exits 0 (originally so it wasn't red before #72 wrote the
-          //   first integration file, and so a fresh clone with no such directory isn't
-          //   red either — git tracks no empty directory).
-          //
-          //   `test:all` — the MERGE GATE, and the one that counts. No flag anywhere: an
-          //   integration project collecting zero test FILES fails it, because once the
-          //   suite exists that means a broken glob, not a legitimately empty state.
+          // ⚠ `passWithNoTests` IS NOT USED ANYWHERE (since #99). It is on the
+          // `NonProjectOptions` list, so it could only ever live on a script, and
+          // `test:integration` used to carry it, originally so that script wasn't red
+          // before #72 wrote the first integration file. That reason is gone: the
+          // directory is tracked and non-empty. Every script now treats a project that
+          // collects zero test FILES as a failure, because once a suite exists, that
+          // means a broken glob, not a legitimately empty state.
           //
           // History, kept because it is why the gate looks the way it does: an earlier
           // version of this comment said putting the flag on the script "keeps it
@@ -173,12 +166,13 @@ export default defineConfig({
           // So the merge gate DID report success while running zero unit tests, until
           // #99. Only a run of a project on its own makes its emptiness visible.
           //
-          // ⚠ RESOLVED BY #99 — FROM OUTSIDE THE CONFIG, BECAUSE IT HAS TO BE. A guard
+          // ⚠ RESOLVED BY #99, FROM OUTSIDE THE CONFIG, BECAUSE IT HAS TO BE. A guard
           // inside a project cannot fire when that project collects nothing, so
-          // `test:all` is `scripts/test-all.mjs`, which runs each project in its own
-          // `vitest run`, always runs both, and fails if either fails. Verified by
-          // breaking each project's `include` in turn: non-zero both times, 0 once
-          // restored.
+          // `test:all` is `scripts/test-all.mjs`. It runs each project in its own
+          // `vitest run` (through `test:run` and `test:integration`), always runs both,
+          // fails if either fails, and fails if `vitest list` shows a project with test
+          // files that isn't in its `RUNS`. Verified by breaking each project's `include`
+          // in turn: non-zero both times, 0 once restored.
           //
           // What it does NOT catch:
           //   - a PARTIAL drop (e.g. every `.tsx` test silently uncollected while other
@@ -201,8 +195,8 @@ export default defineConfig({
           // ⚠ IT IS NOT `fileParallelism: false`, WHICH IS WHAT #61 SPECIFIES. That
           // option cannot be set on a project at all: vitest 3.2.7 types
           // `ProjectConfig` as `Omit<InlineConfig, NonProjectOptions | …>` and
-          // `NonProjectOptions` lists `fileParallelism` (and `passWithNoTests`, see
-          // `package.json`). Writing it here is a `tsc` error, not a silent no-op —
+          // `NonProjectOptions` lists `fileParallelism` (and `passWithNoTests`, see the
+          // note above). Writing it here is a `tsc` error, not a silent no-op —
           // "Object literal may only specify known properties, and 'fileParallelism'
           // does not exist in type 'ProjectConfig'" — but the first version of this
           // file had it, and a throwaway sequencing probe caught the interleaving

@@ -802,8 +802,8 @@ Nothing to delete.
   history is public.
 - **Never re-introduce a Vercel cron on Hobby.** It fails at deploy.
 - **Check exact Next 16 APIs** when implementing; don't rely on memory.
-- **Gates:** `test:all` needs Docker. A green `test:all` does not prove both vitest
-  projects ran (#99), so read the file/test counts.
+- **Gates:** `test:all` needs Docker. Since #99 it fails if any vitest project collects
+  zero test files; it still cannot see partial drops or all-skipped files, so read the counts.
 - **Archive, don't delete.** The parser work stays recoverable on
   `archive/parser-lanes`. That branch is cut from `11f081a`, before IS #116, so it
   holds **code only**. The plans, process log and this file are tracked on `dev` from
