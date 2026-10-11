@@ -24,12 +24,13 @@ const MARKER_COLORS: Record<MarkerColor, string> = {
 // Registered once on the client, lazily inside the effect (never on the server):
 // the `pmtiles://` protocol, and MapLibre 6's worker URL.
 //
-// The worker is a separate file in v6 that a bundler cannot find on its own. This is
-// the form MapLibre documents for Turbopack / Next.js: `new URL(…, import.meta.url)`
-// makes the bundler emit `maplibre-gl-worker.mjs` as a hashed asset and gives its URL,
-// so it stays in step with the installed version (no copy in `public/` to refresh on
-// every upgrade). Turbopack recognises the pattern wherever it appears, so it can sit
-// in the effect and stay client-only.
+// The worker is a separate file in v6, and it imports a shared chunk. It is served
+// from `public/maplibre/`, where `scripts/copy-maplibre-worker.mjs` copies it (and that
+// chunk) from node_modules on every `npm run dev` / `npm run build`. MapLibre's
+// documented Turbopack form, `new URL(…, import.meta.url)`, does NOT work here: the
+// worker is emitted without the chunk it imports, and the map draws no tiles (see the
+// script's header).
+const WORKER_URL = "/maplibre/maplibre-gl-worker.mjs";
 let mapLibreInitialised = false;
 
 function deriveColor(location: Location | null): MarkerColor {
@@ -74,9 +75,7 @@ export function useMapLibre(containerRef: RefObject<HTMLDivElement | null>) {
     if (!containerRef.current || !PMTILES_URL) return;
 
     if (!mapLibreInitialised) {
-      maplibregl.setWorkerUrl(
-        new URL("maplibre-gl/dist/maplibre-gl-worker.mjs", import.meta.url).toString(),
-      );
+      maplibregl.setWorkerUrl(WORKER_URL);
       maplibregl.addProtocol("pmtiles", new Protocol().tile);
       mapLibreInitialised = true;
     }
