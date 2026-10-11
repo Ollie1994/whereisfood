@@ -15,10 +15,21 @@ describe("SPOTS", () => {
     },
   );
 
-  // The name becomes the location's label and the admin picks a spot by it, so two
-  // spots with one name would be indistinguishable.
-  it("has unique names", () => {
-    const names = SPOTS.map((spot) => spot.name);
+  // The name becomes the location's label, and a label is compared as a string. A
+  // padded name, or one in decomposed Unicode (an NFD "Gårda" looks identical in the
+  // editor), would never equal the same place typed by the admin.
+  it.each(SPOTS.map((spot) => [spot.name] as const))(
+    "%s is trimmed and stored in NFC",
+    (name) => {
+      expect(name).toBe(name.trim());
+      expect(name).toBe(name.normalize("NFC"));
+    },
+  );
+
+  // The admin picks a spot by name, so two spots whose names differ only in case
+  // would be indistinguishable.
+  it("has names that are unique, ignoring case", () => {
+    const names = SPOTS.map((spot) => spot.name.toLowerCase());
     expect(new Set(names).size).toBe(names.length);
   });
 });

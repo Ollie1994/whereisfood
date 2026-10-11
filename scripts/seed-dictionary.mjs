@@ -25,7 +25,7 @@
 //
 // POLITENESS. Nominatim's usage policy caps automated clients at 1 request per
 // second and requires an identifying User-Agent carrying a contact address. Both
-// are honoured below. This makes ~17 requests, once, from a developer machine —
+// are honoured below. This makes 16 requests, once, from a developer machine —
 // the kind of use the policy permits, but only while it stays throttled, so the
 // delay is deliberately not exposed as a flag.
 

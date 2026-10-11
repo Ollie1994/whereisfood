@@ -159,6 +159,12 @@ does not run it.
 command's, and has already produced a confident wrong gate result here (process-log
 #169). Use `cmd >/dev/null 2>&1; echo $?`.
 
+⚠ **After deleting or renaming a route, clear `.next/` before the gates.** `tsconfig`
+includes Next's generated `.next/types` and `.next/dev/types`, which keep referencing
+the old route until regenerated, so `tsc` and `build` fail with `Cannot find module
+'…/route.js'`, which reads like a broken import. `rm -rf .next` (gitignored build
+output) and re-run (process-log row 275, PR #133).
+
 **`test:all` fails if any project collects zero test files** (fixed by #99). Vitest's
 empty-match check is per-**run**, not per-project, so `test:all` (`scripts/test-all.mjs`)
 runs each project in its own `vitest run` (via `test:run` and `test:integration`),

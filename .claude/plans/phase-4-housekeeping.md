@@ -291,6 +291,11 @@ vitest 3 keeps a critical advisory. Upgrading a local tool costs one command.
   (`parser_confidence`, `address_geocoded`) as keys until Phase 5 renames them; its
   *comments* must not match. (Checked 2026-10-11: 15 files match today, so the comment
   clean-up is real work. `fake-data.ts` added during #121, process-log row 273.)
+  ⚠ The grep's paths miss **root files**: `vitest.config.ts` described the parser as
+  current and passed unseen (row 275). Also run it over
+  `git ls-files ':!src' ':!scripts' ':!tests' ':!supabase' ':!.claude'`; today that
+  should list only what #122 (`.env.example`, `package*.json`) and #126
+  (`README.md`, `CLAUDE.md`) remove.
 - [ ] `src/lib/spots.ts` exports `SPOTS` with the same places and coordinates as the
   old dictionary.
 - [ ] `.env.example` lists only the three Supabase variables and

@@ -10,7 +10,8 @@
 // Two copies would drift, and a drifted box fails silently in the direction that
 // matters least visibly: it accepts a wrong pin rather than rejecting a right one.
 //
-// Pure module — no DB, no HTTP, no clock.
+// No imports, no DB, no HTTP, no clock — by inspection only. The test that enforced
+// this was removed in Phase 4 together with the code that depended on it.
 
 // Approximately 11.6–12.2 E / 57.5–57.85 N. Deliberately generous: it spans from
 // Mölndal in the south to Hisingen in the north, which covers every known spot plus

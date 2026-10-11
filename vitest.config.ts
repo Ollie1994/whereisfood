@@ -3,9 +3,9 @@ import { fileURLToPath } from "node:url";
 
 // TWO PROJECTS, SPLIT BY WHAT THEY NEED TO RUN — not by what they test.
 //
-// Phase 3 adds an integration layer that talks to a real local Supabase (#72). Without
-// this split one stopped Docker daemon fails the entire suite, which holds the 917 pure
-// tests hostage to infrastructure they do not use. The split lands BEFORE the first
+// Phase 3 added an integration layer that talks to a real local Supabase (#72). Without
+// this split one stopped Docker daemon fails the entire suite, which holds every pure
+// test hostage to infrastructure it does not use. The split landed BEFORE the first
 // integration test exists, so the boundary is in place when there is something to put
 // behind it rather than being retrofitted around a suite that already went red.
 //
@@ -27,9 +27,8 @@ const alias = {
   "@": fileURLToPath(new URL("./src", import.meta.url)),
 };
 
-// Node environment in both — nothing under test touches a DOM. The validators are pure
-// Node modules (crypto), the parser is pure, and the integration layer talks to
-// Postgres over HTTP.
+// Node environment in both — nothing under test touches a DOM. The unit tests cover
+// plain modules, and the integration layer talks to Postgres over HTTP.
 const environment = "node";
 
 // The one directory that needs infrastructure. Everything else is a unit test by
@@ -49,7 +48,8 @@ const INTEGRATION_DIR = "tests/integration";
 //   DIRECTORIES (PR #98 r2). Fixing the extensions left `src/**` as the unit root, so a
 //   test in neither root belonged to no project at all. Verified: failing files at
 //   `tests/helpers/zz.test.ts` and `scripts/zz.test.ts` left BOTH scripts at exit 0.
-//   `scripts/` is not hypothetical — `scripts/reparse.mjs` is #71, this phase.
+//   `scripts/` is not hypothetical — it holds the repo's runnable `.mjs` tools, and a
+//   test written next to one would have run in neither project.
 //
 // Same class, one axis apart, and the second was introduced by the fix for the first.
 // So the rule is now structural rather than remembered: `unit` is vitest's DEFAULT

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { GOTHENBURG_BBOX, isInGothenburg } from "@/lib/geo";
 
-// Real coordinates for known spots (`spots.ts`). If the box is ever
+// Real Gothenburg coordinates, hand-picked for this test. NOT a copy of `SPOTS`
+// (`spots.test.ts` checks those against the box). If the box is ever
 // retuned, these are the cases that must keep passing — they are the reason it
 // exists, not arbitrary fixtures.
 const REAL_SPOTS: ReadonlyArray<[name: string, lat: number, lng: number]> = [
