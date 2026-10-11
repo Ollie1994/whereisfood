@@ -13,7 +13,7 @@ that were actually settled. Reading only the context is how a resolved question 
 re-litigated with a stale answer. **Until #127 lands it still describes the old
 three-lane design**, which Phase 4 removed.
 
-The plan is also where the numbered decision records live (`#1`…`#13` in Phase 4) —
+The plan is also where the numbered decision records live (`#1`, `#2`, …) —
 those are the reasoning behind rules the context states as bare facts, and an issue
 saying "see the plan" means that section.
 
@@ -47,8 +47,11 @@ describe a different one.
 
 **Dependencies**
 - `next`, `eslint-config-next` and `maplibre-gl` are **exact pins**. Upgrade them
-  deliberately, one PR each, with a browser check of `/map` (plan decision #10).
-- **npm ≥ 11** locally. npm 10 crashes resolving vitest 4's optional peers (decision #11).
+  deliberately, each with a browser check of `/map` (plan decision #10). `next` and
+  `eslint-config-next` move together, to the same version (PR #135).
+- **Node `^20.19.0 || >=22.12.0`** (vite/rolldown's floor; older 20.x/22.x pass Next's
+  check and fail under vitest) and **npm ≥ 11** (npm 10 crashes resolving vitest 4's
+  optional peers, decision #11). Prose only: `package.json` doesn't enforce either.
 - `next.config.ts` sets `agentRules: false`. Don't remove it without the owner
   (decision #12).
 - MapLibre's worker is copied into `public/maplibre/<version>/` by the
@@ -75,13 +78,14 @@ Route handlers call services. Services call DB layer. Never mix layers.
 
 **Supabase**
 - `supabaseAdmin` (service role) — server only, API routes and services
-- `supabaseClient` (anon key) — browser only, components and hooks
+- `supabaseClient` (anon key) — browser only, and only for Auth (admin login, Phase 7).
+  Never for data: see the next rules
 - Never use `supabaseAdmin` in client components
 - Never use `NEXT_PUBLIC_` prefix on secret keys
 - **The browser never reads or writes the database.** Public map data comes only from
   `/api/live`; the admin screen reads through its own (uncached) API routes; every
   write goes through an API route using `supabaseAdmin`
-- Anon gets **no SELECT on `trucks` or `locations`**. With history kept, anon access
+- Anon gets **no SELECT on `trucks` or `locations`** (Phase 5). With history kept, anon access
   would make every truck's movement history public through Supabase's API
 - RLS on every table, an explicit `GRANT` per table matching the RLS matrix, and no
   owner self-UPDATE on `users` (blocks `is_admin` self-escalation and `truck_id` hijack)
@@ -113,7 +117,13 @@ Route handlers call services. Services call DB layer. Never mix layers.
 - Reads with `supabaseAdmin`, and selects an **explicit column list, never `*`**, so
   `created_by` and future columns can't leak
 
-**Locations**
+**Target-design rules, enforced from Phase 5.** The Locations rules below and the
+anon/RLS bullets above describe the Phase 5 schema (Time and Scheduling apply now). Today's schema (0001–0006) still breaks them: 0001
+grants anon SELECT on `trucks` and `locations`, `ends_at` is nullable (0002), there is
+no exclusion constraint, and `src/lib/db/locations.ts` exports `deleteLocations`. Don't
+"fix" today's code to match; Phase 5 replaces schema, db layer and tests together.
+
+**Locations** (Phase 5)
 - Overlapping non-cancelled entries for a truck are refused by the DB exclusion
   constraint (`23P01` → 409, Swedish "överlappar" message). Never auto-resolve,
   replace or delete
@@ -127,7 +137,9 @@ Route handlers call services. Services call DB layer. Never mix layers.
   service
 
 **Scheduling**
-- No Vercel cron. It can't deploy on Hobby. Any scheduler is pg_cron or external
+- No Vercel cron for the MVP: nothing needs one, and Hobby allows only daily jobs (a more
+  frequent schedule fails at deploy). If a scheduler is ever needed, use pg_cron or an
+  external service, never Vercel's free cron
 
 ---
 
@@ -154,8 +166,7 @@ run — not by what it tests:
   **sequentially** (`fileParallelism: false` on the project, since vitest 4) because
   they share one database.
 
-Toolchain: Node `^20.19.0 || >=22.12.0` (vite/rolldown's floor; older 20.x/22.x pass
-Next's check and fail under vitest) and **npm ≥ 11** (see Dependencies).
+Toolchain: the Node floor and npm ≥ 11 under Dependencies.
 
 | Script | Runs | Needs Docker |
 |---|---|---|
@@ -198,7 +209,7 @@ the stale one. So:
 dependencies or the tile file, look at `/map` in a real browser: basemap, markers and
 a popup. MapLibre's worker 404'd with all four gates green (process-log row 282).
 Headless Edge on this machine doesn't load the style at all, even on a working build,
-so it is no substitute (PR for #126).
+so it is no substitute (PR #138).
 
 **`test:all` fails if any project collects zero test files** (fixed by #99). Vitest's
 empty-match check is per-**run**, not per-project, so `test:all` (`scripts/test-all.mjs`)

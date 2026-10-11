@@ -53,9 +53,11 @@ Most of this is built in Phases 5–7; it describes the design, not today's code
   simply stops matching the "today" filter. The only real delete is a takedown on a
   truck's request.
 - **One public read path.** The map polls `GET /api/live` every 60 seconds. It's an
-  ordinary route that Vercel's CDN caches for 60 seconds, so the database sees about
-  one query a minute per region whatever the traffic. The browser never talks to the
-  database, so no one can pull a truck's location history.
+  ordinary route that Vercel's CDN caches for 60 seconds, so normal polling costs the
+  database about one query a minute per region, however many people have the map
+  open. (A request with a made-up query string skips the cache and costs one small
+  query; that's accepted.) The browser never talks to the database, so no one can
+  pull a truck's location history.
 - **Honest freshness.** Only trucks with an entry today appear. The popup says when
   the entry was last updated and links to the truck's Instagram so people can check.
 
