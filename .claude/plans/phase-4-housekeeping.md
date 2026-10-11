@@ -377,8 +377,9 @@ script and `useMapLibre` (`setWorkerUrl(workerUrl(getVersion()))`).
   **and** the same over the root-file list above (`git ls-files ':!src' ':!scripts' ':!tests'
   ':!supabase' ':!.claude' ':!package-lock.json'`; row 275's gap, which PR #140 r1 caught
   again in `vitest.config.ts`). Read each hit against the new numbering (4 Housekeeping,
-  5 Schema reset, 6 Live read path, 7 Admin, 8 Launch). Allowed: Phases 1–3 (unchanged)
-  `src/lib/db/locations.ts` (frozen until Phase 5), and `supabase/migrations/*` (applied
+  5 Schema reset, 6 Live read path, 7 Admin, 8 Launch). Allowed: (1) Phases 1–3, whose
+  numbers didn't change; (2) `src/lib/db/locations.ts`, frozen until Phase 5; (3)
+  `supabase/migrations/*` (applied
   migrations aren't edited; `0001:108` and `0002:4` say "Phase 4" meaning the old
   Realtime phase, and Phase 5 squashes them).
 - [ ] `src/lib/spots.ts` exports `SPOTS` with the same places and coordinates as the

@@ -148,19 +148,56 @@ target design before that.
 | `src/lib/validators/uuid.ts` | UUID check (+ test) | Phase 7: truck id on admin writes |
 | `src/lib/db/trucks.ts`, `src/lib/db/locations.ts` | primitives on the old schema | rewritten in Phase 5 |
 | `src/lib/supabase.ts` | `supabaseAdmin` and `supabaseClient` | Phase 6/7 (see "Admin and auth") |
-| `src/lib/types.ts`, `src/lib/database.types.ts` | shared and generated types | regenerated in Phase 5 |
+| `src/lib/database.types.ts` | generated (`npx supabase gen types typescript --local`) | regenerated in Phase 5 |
+| `src/lib/types.ts` | hand-written row types **derived** from the generated ones, with CHECK columns narrowed by hand (e.g. `source`) | re-derived **and its narrowings edited by hand** in Phase 5 |
 | `src/lib/fake-data.ts` | the map's data source | replaced in Phase 6 |
 | `src/lib/maplibre-worker.mjs` | worker folder and file list (+ test) | — |
 | `scripts/seed-dictionary.mjs` | prints `Spot` stubs from OpenStreetMap for **human review**; never paste its output over `SPOTS`, which reverts hand-corrected pins | when adding spots |
 | `scripts/test-all.mjs` | the `test:all` gate | — |
 
+## Folder structure
+
+Today's tree (tracked files; generated folders omitted). Expected additions are marked
+with the phase that adds them; each phase plan decides the exact files.
+
+```
+src/
+├── app/
+│   ├── layout.tsx, globals.css, favicon.ico
+│   ├── page.tsx                  ← redirects to /map
+│   ├── map/page.tsx
+│   ├── api/live/route.ts         ← Phase 6
+│   ├── api/… (admin routes)      ← Phase 7
+│   └── admin/…                   ← Phase 7
+├── components/Map/               ← MapClient, MapView, TruckPopup
+├── hooks/
+│   ├── useMapLibre.tsx
+│   └── useLocations.ts           ← Phase 6
+├── lib/
+│   ├── db/                       ← trucks.ts, locations.ts (rewritten in Phase 5)
+│   ├── services/                 ← empty today; a small locations service in Phase 7
+│   ├── http/handler.ts           ← withErrorHandling (+ test)
+│   ├── validators/uuid.ts        ← (+ test)
+│   ├── geo.ts, spots.ts          ← (+ tests)
+│   ├── supabase.ts, types.ts, database.types.ts
+│   ├── fake-data.ts              ← replaced in Phase 6
+│   └── maplibre-worker.mjs       ← (+ test)
+└── proxy.ts                      ← stub until Phase 7
+scripts/                          ← copy-maplibre-worker.mjs, seed-dictionary.mjs, test-all.mjs
+supabase/                         ← config.toml, migrations/0001–0006 (squashed in Phase 5), seed.sql
+tests/integration/                ← setup.ts, helpers.ts (+ test), db-locations.test.ts
+public/                           ← gothenburg.pmtiles and maplibre/ (both gitignored)
+.claude/                          ← plans, context, commands, process-log.md, transition.md
+```
+
 ## Environment
 
 `.env.example` lists four variables: `NEXT_PUBLIC_SUPABASE_URL`,
 `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (server only, never
-`NEXT_PUBLIC_`) and `NEXT_PUBLIC_PMTILES_URL`. The map needs only the last one; the
-Supabase three come from `npx supabase status -o env` and are needed by the
-integration tests.
+`NEXT_PUBLIC_`) and `NEXT_PUBLIC_PMTILES_URL`. The map needs only the last one. The
+Supabase three are needed by the integration tests; `npx supabase status -o env`
+prints them under other names: `API_URL` → `NEXT_PUBLIC_SUPABASE_URL`, `ANON_KEY` →
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SERVICE_ROLE_KEY` → `SUPABASE_SERVICE_ROLE_KEY`.
 
 ## Tests and gates
 
@@ -422,54 +459,32 @@ mechanics, hand-off rule, custom SMTP provider.
 
 # Part 3 — Standing rules
 
+These hold in both the current state and the target design.
+
+**Owned by `CLAUDE.md`, not repeated here:** Supabase clients and keys, architecture
+layers, `proxy.ts`, API responses (`withErrorHandling`, the `{ error }` shape), the
+`/api/live` rules, UI rules and time. One copy per rule: a rule restated in two files
+drifts (process-log rows 291, 293, 294). This part holds only what `CLAUDE.md` doesn't.
+
 ## Map behaviour
 
 - Centred on Gothenburg `[11.9746, 57.7089]`, zoom 13 (MapLibre takes `[lng, lat]`).
 - Coordinates are `(latitude, longitude)` everywhere else; MapLibre's order is a
   rendering concern converted at the map boundary.
-- Markers are HTML elements via MapLibre's Marker API (CSS circles), no image files.
-- The map never fully re-renders; only affected markers update.
 
-## Supabase clients
-
-```typescript
-// Server only: bypasses RLS. API routes and services.
-supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
-
-// Browser: respects RLS. Auth only in the target design; never for data.
-supabaseClient = createClient(NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY)
-```
-
-Never use `supabaseAdmin` in client components. Never use the `NEXT_PUBLIC_` prefix
-for secret keys. The browser never reads or writes the database.
-
-## Architecture layers
-
-```
-app/api/*/route.ts      → thin route handlers (HTTP only, no business logic)
-src/lib/services/       → all business logic (no HTTP knowledge)
-src/lib/db/             → database access only (no business logic)
-src/lib/validators/     → input validation (pure: no `new Date()`, no env)
-src/lib/supabase.ts     → DB clients
-src/lib/types.ts        → shared TypeScript types
-```
-
-Route handlers call services; services call the DB layer. Services have no knowledge
-of `NextRequest`/`NextResponse`. Every route handler wraps its body in
-`withErrorHandling()`; expected failures are returned, never thrown.
-
-### Import convention
+## Import convention
 
 Internal modules are imported via the `@/` alias (`./src/*`), never relative paths.
 Bare package imports stay as they are (`maplibre-gl/dist/maplibre-gl.css`,
-`next/navigation`).
+`next/navigation`). Use `import type` for anything used only as a type; plain
+`import` for runtime values.
 
 ```typescript
-import { Truck } from "@/lib/types";   // ✅
-import { Truck } from "../lib/types";  // ❌ relative
+import type { Truck } from "@/lib/types";        // ✅ alias, type-only
+import { isInGothenburg } from "@/lib/geo";      // ✅ alias, runtime value
+import type { Truck } from "../lib/types";       // ❌ relative
+import { Truck } from "@/lib/types";             // ❌ a type imported as a value
 ```
-
-Use `import type` for anything used only as a type; plain `import` for runtime values.
 
 ## Component structure
 
@@ -496,31 +511,11 @@ export default function TruckPopup({ marker, onClose }: TruckPopupProps) {
 
 ## Hooks
 
-All state and effects live in hooks. Today: `useMapLibre.tsx` (map init, markers,
-popups). Target: `useLocations` (Phase 6, polling and timer as above). Further hooks
-(e.g. a selected-truck or filter hook) are decided when built.
+Today: `useMapLibre.tsx` (map init, markers, popups). Target: `useLocations` (Phase 6,
+polling and timer as in Part 2). Further hooks (e.g. a selected-truck or filter hook)
+are decided when built.
 
-## proxy.ts (Next.js 16)
+## Status codes
 
-- `src/proxy.ts` is Next 16's name for middleware; it exports a named
-  `proxy(request: NextRequest)` and a `config` with a `matcher`.
-- It always runs on Node.js, which Supabase auth needs. **Never export `runtime`** or
-  any route segment config from it: `next build` fails ("Route segment config is not
-  allowed in Proxy file") while `tsc`, lint and tests pass.
-
-## API error format
-
-```json
-{ "error": "Human-readable message" }
-```
-
-With the matching status: `400` bad input · `401` not authenticated · `403`
-authenticated but not allowed (e.g. not admin) · `409` conflict (an overlapping
-entry, from `23P01`) · `500` unexpected. Never expose stack traces or internal errors.
-
-## Language and time
-
-- Swedish throughout all user-facing text.
-- Store UTC; display `Europe/Stockholm` via `date-fns-tz`. "Today" means the Stockholm
-  date. Clock-dependent logic lives in services or hooks, never in validators.
-- Consumers are always anonymous: no account, no tracking.
+`400` bad input · `401` not authenticated · `403` authenticated but not allowed (e.g.
+not admin) · `409` conflict (an overlapping entry, from `23P01`) · `500` unexpected.

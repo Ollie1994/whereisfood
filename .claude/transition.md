@@ -1,8 +1,8 @@
 # Transition — from three ingestion lanes to an admin-populated map
 
 > **History. Absorbed into `.claude/context/project-context.md` (Phase 4, #127).**
-> Phase 4 carried out the teardown (§11's Remove list, §13's tracker clean-up, §14's
-> docs). Everything else here (schema reset, `/api/live`, admin, R2, launch) is the
+> Phase 4 carried out the teardown (§11's Remove list except its last item, the
+> migration squash, which is Phase 5; §13's tracker clean-up; §14's docs). Everything else here (schema reset, `/api/live`, admin, R2, launch) is the
 > target design for Phases 5–8 and **not built**; it is condensed into the context's
 > "Target design" part, which is now the reference. The current phase plan wins over
 > both. This file is kept, not deleted, because §0's table is what stops removed
@@ -11,8 +11,10 @@
 > Phase numbers were renumbered in Phase 4 (Phase 4 plan decision #9): **4 Housekeeping →
 > 5 Schema reset → 6 Live read path → 7 Admin → 8 Launch.** §13's table and the inline
 > references in §7 and §9 use the new numbers; mentions of "the old roadmap" (§11, §13,
-> §14) mean the numbering before this file. Phases 1–3 kept their numbers. The status and precedence notes just below describe
-> the file as it was on 2026-10-10. The removed code is archived on
+> §14) mean the numbering before this file. Phases 1–3 kept their numbers.
+> **Facts in the body are as of 2026-10-10** (the status and precedence notes just below,
+> versions, "today"): e.g. §7's "the project pins `next` 16.2.6" is 16.3.8 now. The
+> context has current values. The removed code is archived on
 > `archive/parser-lanes` (commit `b089fd0`, see §15).
 
 **Decided:** 2026-10-10 (conversation between the user and Claude; no PR yet)

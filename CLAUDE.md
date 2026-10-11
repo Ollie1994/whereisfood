@@ -78,7 +78,9 @@ Route handlers call services. Services call DB layer. Never mix layers.
 ## Hard Rules
 
 **Supabase**
-- `supabaseAdmin` (service role) — server only, API routes and services
+- `supabaseAdmin` (service role) — server only, imported by the db layer (`src/lib/db/`)
+  and the integration test helpers. Routes and services reach the database through the
+  db layer, never this client directly
 - `supabaseClient` (anon key) — browser only, and only for Auth (admin login, Phase 7).
   Never for data: see the next rules
 - Never use `supabaseAdmin` in client components
@@ -90,8 +92,9 @@ Route handlers call services. Services call DB layer. Never mix layers.
   would make every truck's movement history public through Supabase's API
 - RLS on every table, an explicit `GRANT` per table that matches its RLS policies, and
   no owner self-UPDATE on `users` (blocks `is_admin` self-escalation and `truck_id`
-  hijack). **Applies now:** 0001 already does all three, and every new migration must
-  too
+  hijack). **Applies now** to every new migration: a `GRANT` per table, `service_role`
+  included. 0001 has RLS everywhere and no self-UPDATE, but grants `service_role` with
+  one blanket `on all tables` grant that doesn't reach later tables; don't copy it
 
 **proxy.ts**
 - File is `src/proxy.ts` — this is the Next.js 16 name for middleware
