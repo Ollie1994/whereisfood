@@ -149,9 +149,10 @@ export default defineConfig({
           // `NonProjectOptions` list, so it could only ever live on a script, and
           // `test:integration` used to carry it, originally so that script wasn't red
           // before #72 wrote the first integration file. That reason is gone: the
-          // directory is tracked and non-empty. Every script now treats a project that
-          // collects zero test FILES as a failure, because once a suite exists, that
-          // means a broken glob, not a legitimately empty state.
+          // directory is tracked and non-empty. Every `vitest run` script (`test:run`,
+          // `test:integration`, and so `test:all`) treats a project that collects zero test
+          // FILES as a failure, because once a suite exists, that means a broken glob, not a
+          // legitimately empty state. (Watch mode, `npm test`, just waits instead of exiting.)
           //
           // History, kept because it is why the gate looks the way it does: an earlier
           // version of this comment said putting the flag on the script "keeps it
