@@ -136,7 +136,8 @@ run — not by what it tests:
 - Unit: everything vitest collects **except** `tests/integration/`. Needs nothing.
   Co-located next to source by convention.
 - Integration: `tests/integration/` only. Needs local Supabase. Runs files
-  **sequentially** (`poolOptions.forks.singleFork`) because they share one database.
+  **sequentially** (`fileParallelism: false` on the project, since vitest 4) because
+  they share one database.
 
 | Script | Runs | Needs Docker |
 |---|---|---|

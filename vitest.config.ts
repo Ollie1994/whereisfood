@@ -60,24 +60,37 @@ const INTEGRATION_DIR = "tests/integration";
 // the weaker move: a copy is right until vitest changes, and nothing would say when it
 // had. Current values (vitest 4.1.11), for the reader: include
 // `["**/*.{test,spec}.?(c|m)[jt]s?(x)"]`, exclude `["**/node_modules/**", "**/.git/**"]`.
-// Vitest 3 also excluded `dist`, `cypress`, dotfile caches and tool configs; none of
-// those exist here, and the per-project file counts were unchanged by the upgrade.
+// Vitest 3 also excluded `dist`, `cypress`, the `.{idea,git,cache,output,temp}` dotfile
+// directories and tool configs. Of those, only `supabase/.temp` exists here (via
+// `.temp`), and it is now in `BUILD_OUTPUT` below with the rest of `.gitignore`'s
+// generated folders. The per-project file counts were unchanged by the upgrade.
 const INTEGRATION_INCLUDE = defaultInclude.map((pattern) => `${INTEGRATION_DIR}/${pattern}`);
 
-// Generated directories, mirroring `.gitignore`'s `/coverage`, `/.next/`, `/out/` and
-// `/build`. Vitest's `defaultExclude` does not cover any of them — see the note on the
-// unit project's `exclude`.
+// Generated directories, mirroring EVERY generated folder `.gitignore` names:
+// `/coverage`, `/.next/`, `/out/`, `/build`, `.vercel`, `supabase/.branches` and
+// `supabase/.temp`. Vitest 4's `defaultExclude` covers none of them, see the note on the
+// unit project's `exclude`. (The last three were added with vitest 4: vitest 3's
+// defaults had covered `supabase/.temp`, and the mirror had silently been partial.)
 //
 // ⚠ ROOT-ANCHORED, matching how `.gitignore` writes them. A first pass used `**/build/**`
 // and `**/out/**`, which reach any depth and would silently swallow a legitimate
 // `src/lib/build/thing.test.ts` — the same class of over-reach as #170 and #172, in the
 // opposite direction: excluding too much rather than including too little, and equally
 // silent. Vitest resolves these relative to the project root, so no leading `**/` is
-// what pins them to the four directories `.gitignore` actually names.
+// what pins them to the directories `.gitignore` actually names.
 //
 // Verified both ways: a failing test under `.next/` and `coverage/` is NOT collected,
-// and a failing test under `src/lib/build/` IS.
-const BUILD_OUTPUT = [".next/**", "out/**", "build/**", "coverage/**"];
+// and a failing test under `src/lib/build/` IS. Re-verified on vitest 4.1.11 for
+// `supabase/.temp/` (not collected) and `src/lib/build/` (collected).
+const BUILD_OUTPUT = [
+  ".next/**",
+  "out/**",
+  "build/**",
+  "coverage/**",
+  ".vercel/**",
+  "supabase/.branches/**",
+  "supabase/.temp/**",
+];
 
 export default defineConfig({
   test: {

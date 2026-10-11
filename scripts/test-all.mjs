@@ -17,7 +17,16 @@
 
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { createVitest } from "vitest/node";
+import { fileURLToPath } from "node:url";
+
+// The environment the test runs get, captured BEFORE vitest is loaded below. Resolving
+// the config in this process sets `NODE_ENV=development` (plus Vite's `MODE`, `DEV`,
+// `PROD`, `BASE_URL`), and children inherit `process.env`; vitest only defaults
+// `NODE_ENV` to `test` when it is unset. Without the snapshot `test:all` ran every test
+// under `development` while `test:run` used `test` (measured, PR #137 review).
+const TEST_ENV = { ...process.env };
+
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 // The projects the gate runs, each through its package script so the gate and the
 // inner-loop scripts are one definition. RUNS must name exactly the projects
@@ -74,15 +83,24 @@ if (weakened.length > 0) {
 // seen (the `vitest list` check this replaced only saw projects that had files; that
 // gap was deferred from #99 to the vitest 4 upgrade, #125). Resolving the config
 // collects and runs no test, so this needs no database. ~200 ms.
+//
+// Imported here, not at the top: after the argument refusal, and inside the `try`, so a
+// missing or broken vitest is reported as one line instead of a module-loader stack.
+// `root` anchors the config lookup to the repo, like the package.json read above,
+// rather than to the working directory.
 let declared;
+let vitest;
 try {
-  const vitest = await createVitest("test", { watch: false });
+  const { createVitest } = await import("vitest/node");
+  vitest = await createVitest("test", { watch: false, root: ROOT });
   declared = vitest.projects.map((project) => project.name);
-  await vitest.close();
 } catch (error) {
   console.error(`✖ test:all: could not resolve the vitest config (${error.message})`);
-  process.exit(1);
+  process.exitCode = 1;
+} finally {
+  await vitest?.close();
 }
+if (process.exitCode) process.exit();
 const inRuns = new Set(RUNS.map((run) => run.project));
 const missing = declared.filter((project) => !inRuns.has(project));
 const unknown = [...inRuns].filter((project) => !declared.includes(project));
@@ -104,7 +122,7 @@ if (missing.length > 0 || unknown.length > 0) {
 const failed = [];
 for (const { project, script } of RUNS) {
   console.log(`\n▶ test:all — ${project}: npm run ${script}\n`);
-  const result = sh(`npm run ${script}`, { stdio: "inherit" });
+  const result = sh(`npm run ${script}`, { stdio: "inherit", env: TEST_ENV, cwd: ROOT });
   if (result.error || result.status !== 0) failed.push(`${project} (${outcome(result)})`);
 }
 
