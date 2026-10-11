@@ -293,9 +293,11 @@ vitest 3 keeps a critical advisory. Upgrading a local tool costs one command.
   clean-up is real work. `fake-data.ts` added during #121, process-log row 273.)
   ⚠ The grep's paths miss **root files**: `vitest.config.ts` described the parser as
   current and passed unseen (row 275). Also run it over
-  `git ls-files ':!src' ':!scripts' ':!tests' ':!supabase' ':!.claude'`; today that
-  should list only what #122 (`.env.example`, `package*.json`) and #126
-  (`README.md`, `CLAUDE.md`) remove.
+  `git ls-files ':!src' ':!scripts' ':!tests' ':!supabase' ':!.claude' ':!package-lock.json'`;
+  after #122 that lists only `README.md` and `CLAUDE.md`, which #126 rewrites.
+  `package-lock.json` is excluded because it always matches on third-party package
+  names (`@babel/parser`, `@typescript-eslint/parser`); check it with
+  `npm ls @upstash/ratelimit @upstash/redis` instead (row 277).
 - [ ] `src/lib/spots.ts` exports `SPOTS` with the same places and coordinates as the
   old dictionary.
 - [ ] `.env.example` lists only the three Supabase variables and
