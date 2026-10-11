@@ -84,10 +84,10 @@ green.
 | `src/lib/geo.ts`, `src/lib/db/trucks.ts`, `src/lib/fake-data.ts`, `src/lib/types.ts` (comments) | **Comment clean-up only:** comments that describe the parser, geocoding or ingestion as current are reworded or removed. No behaviour change. |
 | `.env.example` | Remove `MAKE_WEBHOOK_SECRET`, `MAILGUN_WEBHOOK_SIGNING_KEY`, `NOMINATIM_BASE_URL`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`. |
 | `scripts/seed-dictionary.mjs` | Kept (decision #6). Point its comments and output at `src/lib/spots.ts` and the new shape. |
-| `package.json`, `package-lock.json` | Dependency changes (decision #3). **#99:** `test:all` becomes `vitest run --project unit && vitest run --project integration`. |
+| `package.json`, `package-lock.json` | Dependency changes (decision #3). **#99:** `test:all` becomes `node scripts/test-all.mjs` (each project in its own run; see step 3), and `test:integration` drops `--passWithNoTests`. |
 | `vitest.config.ts` | vitest 4 migration (`poolOptions`/`projects` per the official guide). |
 | `src/hooks/useMapLibre.tsx` | MapLibre v6 imports + worker setup; `@protomaps/basemaps` instead of `protomaps-themes-base`. |
-| `CLAUDE.md` | Remove rules for removed features; add the new rules (`transition.md` §14); point at the Phase 5 plan once it exists, this plan until then. **Testing section:** `test:all` now runs the projects separately, so the "⚠ a green `test:all` does not prove both projects ran" warning is replaced by a note that #99 fixed it. |
+| `CLAUDE.md` | Remove rules for removed features; add the new rules (`transition.md` §14); point at the Phase 5 plan once it exists, this plan until then. **Testing section:** already updated by PR #130 (#99). Re-check it against the final versions. |
 | `.claude/context/project-context.md` | Full rewrite (decision #8). |
 | `README.md` | Public description of the new product and stack. **Fix a false claim:** it says `public/gothenburg.pmtiles` "is committed for dev", but the file is gitignored and untracked, so a fresh clone has no map. Document how to get it: downloaded by hand from Protomaps' website as a Gothenburg extract (resolved in review). |
 | `.claude/plans/phase-3-parser.md` | One-line "superseded" header pointing at the archive and `transition.md`. |
@@ -128,10 +128,19 @@ Strict order. Each numbered step is one PR unless marked otherwise.
    `phase-4`. Close milestone `phase-3`. Comment texts shown to the owner before
    posting.
 3. **#99: run each test project separately.** `test:all` becomes
-   `vitest run --project unit && vitest run --project integration`. `--project` already
-   works on vitest 3.2.7 (`test:run` uses it), so this lands **before** the teardown and
-   guards it. Verified by breaking each project's `include` once (gate fails), then
-   restoring (gate passes).
+   `node scripts/test-all.mjs`, which:
+   - runs each project in its own `vitest run` through `test:run` and `test:integration`;
+   - always runs both, and fails if either fails;
+   - fails if `vitest list` shows a project with test files that isn't in its `RUNS`;
+   - refuses extra arguments.
+
+   `test:integration` drops `--passWithNoTests`. `--project` already works on vitest
+   3.2.7, so this lands **before** the teardown and guards it. Verified by breaking each
+   project's `include` once (gate fails), then restoring (gate passes).
+
+   *Changed during PR #130's two `/code-review` rounds (process-log rows 268–269):* the
+   one-line `&&` form hid integration results whenever unit failed, and named projects
+   with nothing checking the list. **Don't revert to the one-liner.**
 4. **Teardown A: lanes, parser, geocoding.** Delete the files above, create
    `src/lib/spots.ts`, trim `types.ts`, drop the purity assertions (or delete
    `types.test.ts`), update `seed-dictionary.mjs`, clean the stale comments in the
@@ -335,9 +344,11 @@ vitest 3 keeps a critical advisory. Upgrading a local tool costs one command.
 - ~~How `gothenburg.pmtiles` is produced~~ → **downloaded by hand** from Protomaps'
   website as a Gothenburg extract and placed in `public/` (owner). The README documents
   exactly that, with the bounding box from `src/lib/geo.ts`.
-- ~~Form of the #99 guard~~ → **run each project separately** (owner). `test:all`
-  becomes `vitest run --project unit && vitest run --project integration`, so each run
-  fails by itself when it collects zero tests. No code, one `package.json` line.
+- ~~Form of the #99 guard~~ → **run each project separately** (owner), so each run
+  fails by itself when it collects zero test **files**. First shipped as a one-line
+  `&&` script; PR #130's code reviews turned it into `scripts/test-all.mjs` (see
+  step 3), because the one-liner hid integration results and nothing checked its project
+  list.
   Rejected: a custom reporter (code for the same coverage) and a disk-vs-collected
   comparison script (the only option that also catches a *partial* drop such as every
   `.tsx` test; add it only if a partial drop recurs, since `vitest.config.ts`'s

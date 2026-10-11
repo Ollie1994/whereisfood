@@ -141,8 +141,8 @@ run — not by what it tests:
 | Script | Runs | Needs Docker |
 |---|---|---|
 | `npm run test:run` | unit only | no |
-| `npm run test:integration` | integration only | yes |
-| `npm run test:all` | **both** | yes |
+| `npm run test:integration` | integration only (fails if it collects zero files) | yes |
+| `npm run test:all` | **every project in `RUNS`** of `scripts/test-all.mjs` (today `unit` + `integration`), checked against `vitest list`; takes no arguments | yes |
 
 **There is no CI — every gate is manual.** The gate list is four commands, and
 `test:run` is *not* one of them once integration tests exist:
@@ -159,11 +159,20 @@ does not run it.
 command's, and has already produced a confident wrong gate result here (process-log
 #169). Use `cmd >/dev/null 2>&1; echo $?`.
 
-⚠ **A green `test:all` does not prove both projects ran.** Vitest's empty-match check is
-per-**run**, not per-project: if one project's `include` breaks, the run still collects
-the other project's files and exits 0. Verified — a broken `unit` glob with one
-integration test present gives `exit 0, "Test Files 1 passed"`, with 917 tests silently
-gone. Glance at the reported file/test counts, not just the exit code. Tracked as #99.
+**`test:all` fails if any project collects zero test files** (fixed by #99). Vitest's
+empty-match check is per-**run**, not per-project, so `test:all` (`scripts/test-all.mjs`)
+runs each project in its own `vitest run` (via `test:run` and `test:integration`),
+always runs all of them, and fails if any fails. Before #99 a broken `unit` glob with
+one integration test present gave `exit 0`, with 917 tests silently gone.
+
+**Adding a vitest project?** Add it to `RUNS` in `scripts/test-all.mjs`. The gate
+cross-checks `vitest list` and **fails** while a project with test files is missing
+there. To narrow a run, use vitest directly (`npx vitest run --project <name> <filter>`);
+`test:all` refuses arguments rather than ignoring them.
+
+⚠ **What the gate still can't see:** a *partial* drop (some files silently uncollected
+while others run) and files whose tests are all skipped. So glance at each project's
+file/test counts when tests are added, moved or deleted.
 
 ---
 

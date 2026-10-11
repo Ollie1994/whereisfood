@@ -9,8 +9,8 @@
     "lint": "eslint",
     "test": "vitest --project unit",
     "test:run": "vitest run --project unit",
-    "test:integration": "vitest run --project integration --passWithNoTests",
-    "test:all": "vitest run"
+    "test:integration": "vitest run --project integration",
+    "test:all": "node scripts/test-all.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.2",
