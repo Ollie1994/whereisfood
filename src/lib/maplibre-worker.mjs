@@ -3,12 +3,18 @@
 // (`scripts/copy-maplibre-worker.mjs` copies the files there), so the two cannot
 // drift apart. Plain `.mjs` because the script runs on Node without a TS loader.
 //
-// WHY THE VERSION IS IN THE PATH. The main-thread MapLibre code ships in a hashed,
-// immutable Next chunk; `public/` files are not hashed. Without the version, a tab
-// still running an old chunk after a MapLibre upgrade is deployed would load the NEW
-// worker and talk to it with the old message protocol. With it, each chunk asks for
-// the worker it was built with. `getVersion()` returns the installed package version
-// (6.11.2 = `maplibre-gl/package.json`, checked in the test).
+// WHY THE VERSION IS IN THE PATH, AND WHAT IT DOES NOT FIX. The main-thread MapLibre
+// code ships in a hashed Next chunk; `public/` files are not hashed. Unversioned, a tab
+// still running an old chunk after a MapLibre upgrade deploys would load the NEW worker
+// and fail inside it, with the old message protocol. Versioned, the same tab asks for
+// its own version's worker, which the new deploy no longer serves: a plain 404 and no
+// tiles until a reload. That is a clearer failure, not a fix. A real fix would keep old
+// versions reachable (skew protection, or committing every version), which a one-admin
+// MVP doesn't need. `getVersion()` returns the installed package version (6.11.2 =
+// `maplibre-gl/package.json`, checked in the test).
+//
+// The URL is root-relative. If `basePath` or `assetPrefix` is ever set in
+// `next.config.ts`, it must be prefixed here too, or the worker 404s.
 //
 // WHY NOT THE BUNDLER. MapLibre documents `setWorkerUrl(new URL("maplibre-gl/dist/
 // maplibre-gl-worker.mjs", import.meta.url))` for Turbopack / Next.js. With Next 16.3.8

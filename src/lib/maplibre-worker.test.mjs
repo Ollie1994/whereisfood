@@ -13,8 +13,11 @@ const DIST = path.join(PACKAGE_DIR, "dist");
 
 // Every module reference in a minified ES module, in any of the three quote styles
 // the minifier uses (it writes most string literals as backtick templates):
-// `from"x"`, `import"x"`, `import("x")` and `new URL("x", import.meta.url)`.
-const SPECIFIER = /(?:\bfrom\s*|\bimport\s*\(?\s*|\bnew URL\(\s*)(["'`])([^"'`]+)\1/g;
+// `from"x"`, `import"x"`, `import("x")` and `new URL("x", import.meta.url)`, with
+// any comments in between: the minifier keeps `/* @vite-ignore */` annotations, and
+// the installed worker already writes `import(\n/* @vite-ignore */\ne)`.
+const SPECIFIER =
+  /(?:\bfrom\s*|\bimport\s*\(?\s*|\bnew URL\(\s*)(?:\/\*[\s\S]*?\*\/\s*)*(["'`])([^"'`]+)\1/g;
 
 const referencesOf = (file) =>
   [...fs.readFileSync(path.join(DIST, file), "utf8").matchAll(SPECIFIER)].map(
@@ -44,10 +47,12 @@ describe("WORKER_FILES", () => {
     expect(referencesOf("maplibre-gl-worker.mjs")).toContain("./maplibre-gl-shared.mjs");
   });
 
-  it("matches a backtick-quoted reference, the minifier's usual form", () => {
-    const sample = "new URL(`./maplibre-gl-worker.mjs`,import.meta.url);import(`./chunk.mjs`)";
+  it("matches backtick-quoted and comment-annotated references, the minifier's forms", () => {
+    const sample =
+      "new URL(`./maplibre-gl-worker.mjs`,import.meta.url);import(`./chunk.mjs`);" +
+      "import(\n/* @vite-ignore */\n`./annotated.mjs`)";
     const found = [...sample.matchAll(SPECIFIER)].map((match) => match[2]);
-    expect(found).toEqual(["./maplibre-gl-worker.mjs", "./chunk.mjs"]);
+    expect(found).toEqual(["./maplibre-gl-worker.mjs", "./chunk.mjs", "./annotated.mjs"]);
   });
 });
 

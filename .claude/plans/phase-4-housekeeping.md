@@ -300,8 +300,15 @@ source maps from `node_modules` into a gitignored `public/maplibre/<version>/`, 
 script and `useMapLibre` (`setWorkerUrl(workerUrl(getVersion()))`).
 - **Owner chose** copying on install, dev and build over committing the copies
   (~535 KB, re-copied by hand on every upgrade).
-- **Versioned path**, so a tab running an old hashed client chunk never loads a newer
-  worker after an upgrade deploys.
+- **Versioned path.** A tab running an old hashed client chunk after an upgrade
+  deploys asks for its own version's worker. The new deploy no longer serves it, so
+  it gets a clear 404 and no tiles until a reload, instead of a newer worker failing
+  on a protocol mismatch. That's a clearer failure, **not a fix**: keeping old
+  versions reachable (skew protection, or committing every version) isn't worth it
+  for a one-admin MVP (corrected in PR #136 r2).
+- **The script is idempotent:** it rewrites only changed files, removes only other
+  versions' folders, and skips under `postinstall` when `maplibre-gl` isn't installed.
+  Before `dev`/`build` a missing package still fails loudly.
 - **Guard:** `src/lib/maplibre-worker.test.mjs` fails if the copied set stops being
   closed under its own imports, and if `getVersion()` and the package version disagree.
 - **Accepted cost:** the worker fetches its own copy of the 516 KB shared chunk, which

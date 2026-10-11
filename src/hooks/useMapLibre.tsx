@@ -95,8 +95,9 @@ export function useMapLibre(containerRef: RefObject<HTMLDivElement | null>) {
               '<a href="https://protomaps.com">Protomaps</a> © <a href="https://openstreetmap.org">OpenStreetMap</a>',
           },
         },
-        // Swedish labels: the generated `text-field` uses `name:sv`, falling back to
-        // `name:en`, then the local `name`.
+        // Swedish labels. For Latin-script places (all of Gothenburg) the generated
+        // `text-field` is `name:sv`, then `pgf:name`, then the local `name`; `name:en`
+        // is only a fallback for places in other scripts.
         layers: layers("protomaps", namedFlavor("light"), { lang: "sv" }),
       },
     });
