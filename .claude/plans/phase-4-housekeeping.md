@@ -92,7 +92,7 @@ green.
 | `src/hooks/useMapLibre.tsx` | MapLibre v6 imports + worker setup; `@protomaps/basemaps` instead of `protomaps-themes-base`. |
 | `CLAUDE.md` | Remove rules for removed features; add the new rules (`transition.md` §14); point at the Phase 5 plan once it exists, this plan until then. **Testing section:** already updated by PR #130 (#99). Re-check it against the final versions. |
 | `.claude/context/project-context.md` | Full rewrite (decision #8). |
-| `README.md` | Public description of the new product and stack. **Fix a false claim:** it says `public/gothenburg.pmtiles` "is committed for dev", but the file is gitignored and untracked, so a fresh clone has no map. Document how to get it: downloaded by hand from Protomaps' website as a Gothenburg extract (resolved in review). |
+| `README.md` | Public description of the new product and stack. **Fix a false claim:** it says `public/gothenburg.pmtiles` "is committed for dev", but the file is gitignored and untracked, so a fresh clone has no map. Document how to get it: cut a Gothenburg extract with `pmtiles extract` from a Protomaps daily build (corrected in PR #138; see Open Decisions). |
 | `.claude/plans/phase-3-parser.md` | One-line "superseded" header pointing at the archive and `transition.md`. |
 | `.claude/transition.md` | Header: "absorbed into project-context.md (Phase 4)"; phases renumbered (§13); archive note corrected (decision #2). |
 | `.claude/process-log.md` | Phase 3 retrospective; row 258 marked resolved. |
@@ -361,6 +361,15 @@ script and `useMapLibre` (`setWorkerUrl(workerUrl(getVersion()))`).
   `package-lock.json` is excluded because it always matches on third-party package
   names (`@babel/parser`, `@typescript-eslint/parser`); check the lockfile itself with
   `grep -c '"node_modules/@upstash/' package-lock.json` → `0` instead (rows 277, 278).
+  ⚠ **The pattern above misses half the removed design** (row 288, PR #138): it has no
+  `cron`, `realtime` or `confidence`, and `src/lib/supabase.ts` still described cron
+  and Realtime as current. Also run `grep -rniE "cron|realtime|confidence|webhook|grey|CLAUDE\.md" src scripts`.
+  Allowed hits: the fake-data map's **code** (`useMapLibre.tsx`, `TruckPopup.tsx`,
+  `fake-data.ts`, `types.ts`; Phase 6 replaces it) and the Phase 5 files above. No
+  *comment* may describe them as current, and every `CLAUDE.md` citation must name a
+  rule that still exists (today only `handler.ts`'s "API responses" does; the two that
+  don't are fixed in #127). Round 2 of PR #138 added `grey` and `CLAUDE\.md`, which
+  the first widening still missed.
 - [ ] `src/lib/spots.ts` exports `SPOTS` with the same places and coordinates as the
   old dictionary.
 - [ ] `.env.example` lists only the three Supabase variables and
@@ -396,9 +405,9 @@ script and `useMapLibre` (`setWorkerUrl(workerUrl(getVersion()))`).
 - [ ] `project-context.md` has a "Current state" and a "Target design" section, and
   the roadmap uses the new numbering.
 - [ ] `README.md` describes the new product and stack, no longer claims the
-  `.pmtiles` file is committed, and explains how to get it: download a Gothenburg
-  extract from Protomaps' website (bounding box from `src/lib/geo.ts`) and save it as
-  `public/gothenburg.pmtiles`.
+  `.pmtiles` file is committed, and explains how to get it: cut a Gothenburg extract
+  with `pmtiles extract` from a Protomaps daily build (bounding box from
+  `src/lib/geo.ts`) into `public/gothenburg.pmtiles`.
 - [ ] `phase-3-parser.md` and `transition.md` carry their superseded/absorbed
   headers.
 
@@ -414,9 +423,16 @@ script and `useMapLibre` (`setWorkerUrl(workerUrl(getVersion()))`).
 *Resolved in review (2026-10-11):*
 - ~~vitest 4.1.11 or 5.x~~ → **4.1.11** (decision #3).
 - ~~Basemap label language~~ → **`"sv"`** (owner). Set during step 7.
-- ~~How `gothenburg.pmtiles` is produced~~ → **downloaded by hand** from Protomaps'
-  website as a Gothenburg extract and placed in `public/` (owner). The README documents
-  exactly that, with the bounding box from `src/lib/geo.ts`.
+- ~~How `gothenburg.pmtiles` is produced~~ → **cut with `pmtiles extract`** from a
+  Protomaps daily build, with the bounding box from `src/lib/geo.ts`, into `public/`.
+  *Corrected in PR #138 (row 289):* this first said "downloaded by hand from Protomaps'
+  website". The owner recalls https://maps.protomaps.com/builds/, but that page only
+  lists daily builds, and its download link is the whole planet (~139 GB); Protomaps'
+  docs offer no in-browser extract, only the CLI. So the 11.5 MB June file (27 June
+  build, round-number box, `--maxzoom=14`) was cut from one of that page's builds with
+  `pmtiles extract`. The README names the page for the build date and warns off its
+  download link. The README's command was run from a fresh
+  clone and the result checked in the owner's browser.
 - ~~Form of the #99 guard~~ → **run each project separately** (owner), so each run
   fails by itself when it collects zero test **files**. First shipped as a one-line
   `&&` script; PR #130's code reviews turned it into `scripts/test-all.mjs` (see

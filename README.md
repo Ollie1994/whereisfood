@@ -1,19 +1,20 @@
 # WhereIsFood — Gothenburg Food Truck Map
 
-A live web map showing where Gothenburg's food trucks are **right now**.
+A web map showing where Gothenburg's food trucks are **today**.
 
-Hungry people open the map (no login) and see active trucks with their location,
-hours, and cuisine. Trucks broadcast their location three ways: posting manually,
-via [Make.com](https://make.com) automations wired to their social posts, or by email.
+Hungry people open the map (no login, no tracking) and see which trucks are out,
+where, and until when. At launch every location is entered by hand by one admin, who
+follows each truck on Instagram with post and Story notifications on, and updates the
+map from a phone-first admin screen. Truck owners get to claim their listing and post
+themselves later.
 
-It fills a real gap — Gothenburg has had no central live food-truck map since
-Streetkäk shut down in 2017.
+It fills a real gap: Gothenburg has had no central food-truck map since Streetkäk
+shut down in 2017.
 
-> **Status: Phases 1–2 of 8 complete.**
-> The map renders in the browser (still from fake data), and both ingestion
-> lanes — webhook (`/api/ingest`) and email (`/api/email`) — are built and
-> verified end-to-end against a local Supabase stack, storing raw posts.
-> The map is not yet wired to live data (Phase 4). See [Project status](#project-status).
+> **Status: Phase 4 of 8 (housekeeping).** The map renders in the browser from
+> **fake data**; the app doesn't read from or write to the database yet. Phase 4 removed the
+> old design (automatic ingestion from Make.com and email, plus a Swedish text
+> parser); see [Project status](#project-status).
 
 ---
 
@@ -22,273 +23,195 @@ Streetkäk shut down in 2017.
 
 ## Tech stack
 
-| Concern        | Choice |
-|----------------|--------|
-| Framework      | Next.js 16 (App Router), React 19, TypeScript |
-| Styling        | Tailwind CSS v4 |
-| Map            | MapLibre GL JS + Protomaps PMTiles (local file now, Cloudflare R2 planned) |
-| Database       | Supabase Postgres |
-| Realtime       | Supabase Realtime (WebSocket broadcasts) |
-| Auth           | Supabase Auth (magic links, truck owners only) |
-| Geocoding      | Nominatim (cached in DB forever) |
-| Rate limiting  | Upstash Redis (sliding window) |
-| Time           | date-fns-tz — store UTC, display `Europe/Stockholm` |
-| Automation     | Make.com (per-truck free accounts) + Mailgun inbound email |
-| Testing        | Vitest |
-| Deployment     | Vercel + Vercel Cron |
+| Concern    | Choice |
+|------------|--------|
+| Framework  | Next.js 16 (App Router), React 19, TypeScript |
+| Styling    | Tailwind CSS v4 |
+| Map        | MapLibre GL JS 6 + Protomaps PMTiles (a local file in development, Cloudflare R2 at launch) |
+| Database   | Supabase Postgres |
+| Auth       | Supabase Auth (the admin only at launch) |
+| Time       | date-fns-tz: store UTC, display `Europe/Stockholm` |
+| Testing    | Vitest 4 (unit, plus integration tests against a local Supabase) |
+| Deployment | Vercel |
 
-Consumers are always anonymous — no account, no tracking. All user-facing text is
-in Swedish.
+Consumers are always anonymous. All user-facing text is in Swedish.
 
 ---
 
 ## How it's designed to work
 
-### Three ingestion lanes
+Most of this is built in Phases 5–7; it describes the design, not today's code.
 
-Each lane carries a **source confidence** weighting:
-
-| Lane      | Endpoint          | Source confidence | Notes |
-|-----------|-------------------|-------------------|-------|
-| Dashboard | `POST /api/locations` | `1.0` — always wins | Authenticated truck owner, structured input, no parser |
-| Webhook   | `POST /api/ingest`    | `0.85`             | Make.com routes a social post caption through the parser |
-| Email     | `POST /api/email`     | `0.55`             | Mailgun inbound, HMAC-verified, parser runs on the body |
-
-Priority: **Dashboard > Webhook > Email**. A manual post always overrides a parsed
-one whose time window overlaps it.
-
-### Confidence & marker colours
-
-Two-axis model: `confidence = parser_confidence × source_confidence`, shown to users
-as human language — never raw percentages.
-
-- 🟢 **Green** — fresh manual post ("Posted by truck today")
-- 🟡 **Yellow** — parsed from a caption ("Based on this morning's post")
-- ⚫ **Grey** — no update today, shown at last known spot (absence is honest, never hidden)
-
-Anything below `0.45` displays as grey rather than a location.
-
-### Swedish NLP parser (pure functions)
-
-Every email/webhook caption runs through a pure, dictionary-based pipeline:
-normalize → detect negation (`inställt`, `stängt`) → extract location → extract date
-(`idag`, `imorgon`, weekdays, always resolving to the nearest *future* day) → extract
-time (`11-14`, `lunchtid`) → score confidence → geocode. No `new Date()` inside the
-parser — `parsedAt` is always passed in, keeping it testable.
-
-### Realtime & expiry
-
-Supabase Realtime broadcasts location changes; the map patches only the affected
-marker and never fully re-renders. Locations expire at `ends_at`, or `posted_at + 8h`,
-capped at midnight. A Vercel cron cleans expired **locations** every 30 min — the
-**posts** table is never purged, as it's the training corpus for a future ML parser
-that will replace the dictionary.
+- **The admin enters every location by hand.** A pin comes from a map tap, a known
+  Gothenburg spot, a recently used place, or the phone's GPS. Start and end times are
+  pre-filled and always required. A morning checklist suggests what each truck did
+  on the same weekday recently. Nothing reaches the map until the admin confirms it.
+- **Overlaps are refused, not resolved.** A database constraint rejects a second
+  entry for the same truck in an overlapping time window, and the admin edits the
+  existing one instead. Nothing is replaced or deleted automatically.
+- **Nothing is deleted.** Cancelling an entry marks it cancelled, and an ended entry
+  simply stops matching the "today" filter. The only real delete is a takedown on a
+  truck's request.
+- **One public read path.** The map polls `GET /api/live` every 60 seconds. It's an
+  ordinary route that Vercel's CDN caches for 60 seconds, so normal polling costs the
+  database about one query a minute per region, however many people have the map
+  open. (A request with a made-up query string skips the cache and costs one small
+  query; that's accepted.) The browser never talks to the database, so no one can
+  pull a truck's location history.
+- **Honest freshness.** Only trucks with an entry today appear. The popup says when
+  the entry was last updated and links to the truck's Instagram so people can check.
 
 ---
 
 ## Architecture
 
-Strict layering — never mix layers:
+Strict layering. Never mix layers:
 
 ```
 app/api/*/route.ts   → HTTP only, no business logic
 src/lib/services/    → all business logic, no HTTP knowledge
 src/lib/db/          → database access only
-src/lib/parser/      → pure functions, no DB, no HTTP, no side effects
 src/lib/validators/  → input validation
 ```
 
-Route handlers call services. Services call the DB layer. The parser is pure.
+Route handlers call services. Services call the DB layer.
 
-Full design reference lives in [`.claude/context/project-context.md`](.claude/context/project-context.md)
-and the working rules in [`CLAUDE.md`](CLAUDE.md).
+The working rules live in [`CLAUDE.md`](CLAUDE.md) and the design reference in
+[`.claude/context/project-context.md`](.claude/context/project-context.md).
 
 ---
 
 ## Project status
 
-Build order is 8 phases. **Phases 1–2 are complete; Phases 3–8 are not started.**
-
 | Phase | Scope | Status |
 |-------|-------|--------|
-| 1 · Foundation      | Map renders (MapLibre + local PMTiles file) with fake data | ✅ Done |
-| 2 · Ingestion       | Email + webhook endpoints, Supabase schema + seed | ✅ Done |
-| 3 · Parser          | Swedish NLP parser, unit tested | ⬜ Not started |
-| 4 · Realtime        | Supabase Realtime, live map updates | ⬜ Not started |
-| 5 · Auth + Dashboard| Truck login, manual posting, admin — **first deploy** | ⬜ Not started |
-| 6 · Cron + Cleanup  | Stale pins expire automatically | ⬜ Not started |
-| 7 · Hardening       | `proxy.ts`, rate limiting, security headers | ⬜ Not started |
-| 8 · Onboarding      | Real trucks, Make.com per-truck guides | ⬜ Not started |
+| 1 · Foundation       | Map renders (MapLibre + a local PMTiles file) with fake data | ✅ Done |
+| 2 · Ingestion        | Email and webhook endpoints, Supabase schema and seed | ✅ Done; endpoints removed in Phase 4, schema kept until Phase 5 |
+| 3 · Parser           | Swedish text parser for social-media captions | Stopped and removed in Phase 4 |
+| 4 · Housekeeping     | Remove the old design, upgrade dependencies, rewrite the docs | 🟡 In progress |
+| 5 · Schema reset     | A fresh 3-table schema (`trucks`, `locations`, `users`) | ⬜ Not started |
+| 6 · Live read path   | `/api/live`, polling, first preview deploy | ⬜ Not started |
+| 7 · Admin            | Admin login and location entry | ⬜ Not started |
+| 8 · Launch           | Map tiles on Cloudflare R2, production deploy | ⬜ Not started |
 
-### What actually works today
+Phases 2 and 3 built automatic ingestion: Make.com webhooks and Mailgun email, run
+through a Swedish parser that turned captions into locations. It was dropped for the
+admin-populated design above. The code is archived on the `archive/parser-lanes`
+branch and tag.
 
-**Phase 1 — map**
-- Map renders in the browser — MapLibre + Protomaps PMTiles from a local committed file (`public/gothenburg.pmtiles`; Cloudflare R2 is the planned production host), centred on Gothenburg
-- Custom HTML circle markers (green / yellow / grey), colour derived from confidence
-- Clickable truck popups rendered via React roots into MapLibre popups
-- Client-side merge of trucks + locations into one marker per truck
-- Core TypeScript types (`Truck`, `Location`, `MarkerState`); root `/` redirects to `/map`
+### What works today
 
-**Phase 2 — ingestion**
-- **Supabase Postgres schema** — `supabase/migrations/0001_initial_schema.sql` (trucks, posts, locations, geocoding_cache, users) with indexes, RLS policies, and Data API grants; `0002`/`0003` tighten column nullability so the schema and the TypeScript types agree; `0004` adds the email replay guard; dev `seed.sql` (2 active + 1 inactive truck, fixed UUIDs)
-- **Webhook lane** — `POST /api/ingest`, constant-time `X-Make-Secret` check, validates the truck, returns 200 and stores the raw post in `after()`
-- **Email lane** — `POST /api/email`, Mailgun `multipart/form-data` + constant-time HMAC-SHA256 verification, truck extracted from the recipient
-- **Replay protection** — a correctly signed payload older than **±15 minutes** is still stored, but marked `parsing_status = 'skipped'` so it can never become a live location. See [Replay window](#replay-window)
-- **Typed database access** — both Supabase clients are parameterized with generated `Database` types (`src/lib/database.types.ts`), and `Truck` / `Location` / `Post` are derived from them, so schema drift becomes a compile error
-- **Layered backend** — pure validators (`src/lib/validators/`), ingestion service (`src/lib/services/ingestion.ts`), and DB layer (`src/lib/db/`), all writing through `supabaseAdmin`
-- **Raw posts stored** as the permanent ML training corpus (never purged)
-- **88 Vitest unit tests** across the validators/security boundary and the ingestion service; `scripts/sign-mailgun.mjs` dev helper for signing email-lane requests
+- The map renders in the browser from a local tile file, centred on Gothenburg, with
+  Swedish place names.
+- HTML markers and clickable truck popups (React rendered into MapLibre popups),
+  from fake data in [`src/lib/fake-data.ts`](src/lib/fake-data.ts). The markers still
+  use the old design's colours; Phase 6 replaces them.
+- A Supabase schema with migrations, row-level security and a dev seed. It is still
+  the old design's schema; Phase 5 replaces it.
+- Unit tests, and integration tests for the database layer against a local Supabase.
 
-#### Replay window
+### What does not exist yet
 
-The email lane treats a correctly signed payload whose timestamp is more than
-**15 minutes** from now, in either direction, as untrustworthy *to act on*.
-Without this, a captured `(timestamp, token, signature)` tuple would stay valid
-forever.
-
-Crucially, a stale payload is **not rejected** — it is stored with
-`parsing_status = 'skipped'` and the endpoint returns 200:
-
-| Case | Response | `posts` row |
-|---|---|---|
-| Invalid signature | `400` | none — we don't know who sent it |
-| Valid signature, **stale** | `200` | stored, `parsing_status = 'skipped'` |
-| Valid signature, fresh | `200` | stored, `parsing_status = 'pending'` |
-
-Signature verification and freshness answer different questions. A bad signature
-means *"this did not come through Mailgun"* — reject it. A valid signature with an
-old timestamp means *"Mailgun relayed this, it's just old"* — most likely a genuine
-truck email, and it belongs in the permanent corpus either way. **Freshness governs
-whether we act on a post, not whether we keep it.**
-
-This keeps the security property that matters: a replayed payload can never create
-or override a live location.
-
-> **What the signature actually proves.** Mailgun's HMAC covers only
-> `timestamp + token` — **not** `recipient` and **not** `body-plain`. So it
-> authenticates the *relay*, not the *content*: anyone holding one captured tuple
-> could present an arbitrary recipient and body under it. That's inherent to
-> Mailgun's scheme, not something verification can fix. Two things bound it: the
-> replay index caps it at one row per captured tuple (tokens are single-use), and a
-> tuple only yields a live location while still inside the 15-minute window — after
-> that the row is `skipped` and never parsed.
-
-Because accepting stale payloads means a replay would otherwise append rows to a
-corpus that is **never purged**, two further guards ship alongside it:
-
-- **The HMAC boundary is ambiguous — handled structurally.** Mailgun signs
-  `timestamp + token` with **no delimiter**, so the same signed string can be
-  re-split at any interior index; every split verifies under the *same* signature
-  and yields a different token (41 working variants from one captured tuple).
-  Constraining the timestamp format would "fix" this by rejecting validly-signed
-  payloads — reintroducing the very data loss this section exists to prevent.
-  Instead the index below keys on the **concatenation**, which is byte-identical
-  across every split, so all variants collapse to a single stored row. And since
-  only the original split can fall inside the freshness window, no variant ever
-  becomes a live location.
-- **`posts_email_token_unique`** (migration `0004`) — a unique index on
-  `(raw_json->>'timestamp') || (raw_json->>'token')` for the email lane. The key is
-  the **concatenation**, not the token alone: that is exactly the string Mailgun
-  signed, so it stays invariant under re-splitting even if the width check is ever
-  loosened. Mailgun's token is single-use, so a replayed payload collides on insert
-  and raises `23505`, which `persistPost` already swallows as a benign discard. A
-  replay is a logged no-op.
-- **The signature is never stored.** `redactSignature()` strips it before the row
-  is written. Otherwise every row would be a ready-to-replay request, reachable
-  via a leaked service-role key, a DB backup, or the eventual ML export — none of
-  which HTTPS protects against.
-
-`token` and `timestamp` are deliberately retained: replay needs all three fields
-and the signature cannot be recomputed without the signing key, so those two are
-inert on their own. The token is also what the unique index keys on.
-
-The Phase 7 Redis token cache complements these rather than replacing them — a
-cache TTL is a finite protection window, whereas the index never expires.
-
-**These guards protect the corpus, not the database.** A replayed tuple no longer
-stores a row, but it still costs a `trucks` lookup and a failed insert, and
-`/api/email` has no rate limit until Phase 7. Short-circuiting a replay *before*
-the DB round trip needs a cache in front of the query — that remains Phase 7 work.
-Worth revisiting whether a per-IP limit is the right shape there, since every
-legitimate request to this endpoint arrives from Mailgun's own IP pool.
-
-15 minutes is not arbitrary:
-
-- It is **Mailgun's own documented tolerance**, and they explicitly warn against being
-  more aggressive, since delivery delays outside their control are normal.
-- Mailgun **retries a failed POST** at 10, 20, 35, 65, 125, 245 and 485 minutes
-  (cumulative). `/api/email` returns 200 before the DB write, so the only 5xx paths are
-  a missing signing key or Supabase being unreachable during the truck lookup. A window
-  under 10 minutes would mark even the *first* retry unparseable; 15 minutes keeps
-  that one actionable.
-- Exceeding the window **is not data loss**. An outage that outlives it costs you
-  the *location*, never the *post* — so the exact value is no longer load-bearing.
-  It decides parsed-vs-skipped, not kept-vs-lost.
-- The window is **defence in depth, not the primary control**. Mailgun's recommended
-  replay defence is rejecting repeated tokens, which ships as the
-  `posts_email_token_unique` index described above.
-
-Do not tighten it below 10 minutes.
-
-> **Phase 3 dependency:** the parser must exclude `parsing_status = 'skipped'` rows
-> when writing `locations`. Otherwise stale posts create locations anyway and this
-> whole guard is defeated.
-
-### What does NOT exist yet
-
-- **The map still shows fake data** — it reads from [`src/lib/fake-data.ts`](src/lib/fake-data.ts) and is not yet wired to the database (Phase 4 · Realtime)
-- **No parser** — ingested captions are stored raw but not yet parsed into locations; the Swedish NLP pipeline (`src/lib/parser/*`), geocoding, and `locations` writes are Phase 3
-- **`src/proxy.ts` is a stub** — no auth / rate limiting / security headers yet (Phase 7)
-- No auth, no dashboard, no admin, no realtime, no cron
-
-**Immediate next step (Phase 3):** build the Swedish NLP parser (normalize → negation →
-location → date → time → confidence → geocode), then write parsed `locations` off the
-raw posts with the override/priority and dedup logic.
+- `/api/live` and live data on the map (Phase 6)
+- Admin login and location entry (Phase 7); `src/proxy.ts` is a stub
+- Any deploy (the first preview deploy is Phase 6)
 
 ---
 
 ## Getting started
 
+### Prerequisites
+
+- **Node `^20.19.0` or `>=22.12.0`.** Vitest's toolchain needs this; older 20.x and
+  22.x releases pass Next's check but fail under vitest.
+- **npm 11 or newer** (`npm i -g npm@11`). npm 10, which Node 22 bundles, crashes
+  while resolving vitest's optional peer dependencies.
+- **Docker**, for the local Supabase stack. The map runs without it; the integration
+  tests don't.
+- **The `pmtiles` CLI**, to cut the map tiles (next section). It's a single binary
+  from [go-pmtiles releases](https://github.com/protomaps/go-pmtiles/releases).
+
+### 1. Install
+
 ```bash
+git clone https://github.com/Ollie1994/whereisfood.git
+cd whereisfood
 npm install
-npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) — it redirects to `/map`.
+`npm install` also copies MapLibre's web worker into `public/maplibre/` (gitignored);
+`npm run dev` and `npm run build` repeat the copy.
 
-The map needs a PMTiles URL to render tiles. Copy the environment template and fill it in:
+### 2. Get the map tiles
+
+The tile file is **not in the repo** (`public/*.pmtiles` is gitignored). Without it
+the map draws an empty background.
+
+Cut a Gothenburg extract from one of Protomaps' daily builds of the world map, using
+the bounding box in [`src/lib/geo.ts`](src/lib/geo.ts)
+(west, south, east, north):
+
+```bash
+pmtiles extract https://build.protomaps.com/YYYYMMDD.pmtiles public/gothenburg.pmtiles --bbox=11.6,57.5,12.2,57.85
+```
+
+Replace `YYYYMMDD` with a recent build date from
+[maps.protomaps.com/builds](https://maps.protomaps.com/builds/), which lists one row
+per daily build. Only recent builds are kept, so an old date returns 404. **Don't use
+that page's "download" link:** it's the whole planet (about 140 GB). The extract
+command fetches only the tiles inside the box: about 36 MB, in under a minute. Add
+`--maxzoom=14` for a smaller file with less street-level detail.
+
+### 3. Environment
+
+Start the local Supabase stack first with `npx supabase start` (needs Docker). On a
+fresh database it applies the migrations and `supabase/seed.sql`; `npx supabase db
+reset` re-applies both later. Then:
 
 ```bash
 cp .env.example .env.local
 ```
 
-Required for the map to draw today:
+| Variable | Needed for | Value |
+|---|---|---|
+| `NEXT_PUBLIC_PMTILES_URL` | the map | `/gothenburg.pmtiles` (already set in the template) |
+| `NEXT_PUBLIC_SUPABASE_URL` | integration tests, later phases | `API_URL` from `npx supabase status -o env` |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | integration tests, later phases | `ANON_KEY` from the same output |
+| `SUPABASE_SERVICE_ROLE_KEY` | integration tests, later phases | `SERVICE_ROLE_KEY` from the same output (server only, never `NEXT_PUBLIC_`) |
+
+The map itself needs only the first variable, so you can skip the stack if you only
+want to see the map.
+
+### 4. Run
 
 ```bash
-# Currently a local file — public/gothenburg.pmtiles is committed for dev.
-# Cloudflare R2 is the planned production host.
-NEXT_PUBLIC_PMTILES_URL=/gothenburg.pmtiles
+npm run dev
 ```
 
-The remaining variables (Supabase, Make.com, Mailgun, Nominatim, Upstash) are consumed
-in later phases and not yet needed to run the map:
+Open the URL from the `Local:` line Next prints, usually
+[http://localhost:3000](http://localhost:3000). It redirects to `/map`.
 
-```bash
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
-MAKE_WEBHOOK_SECRET=
-MAILGUN_WEBHOOK_SIGNING_KEY=
-NOMINATIM_BASE_URL=https://nominatim.openstreetmap.org
-UPSTASH_REDIS_REST_URL=
-UPSTASH_REDIS_REST_TOKEN=
-```
+---
 
 ## Scripts
 
 ```bash
-npm run dev     # start the dev server
-npm run build   # production build
-npm run start   # serve the production build
-npm run lint    # eslint
+npm run dev               # dev server
+npm run build             # production build
+npm run start             # serve the production build
+npm run lint              # eslint
+npm test                  # unit tests in watch mode
+npm run test:run          # unit tests once (no Docker needed)
+npm run test:integration  # integration tests (needs local Supabase)
+npm run test:all          # every test project, each in its own run
+```
+
+There is no CI. Before opening or merging a pull request, run all four gates and
+check each one exits 0:
+
+```bash
+npx tsc --noEmit
+npm run lint
+npm run test:all
+npm run build
 ```
