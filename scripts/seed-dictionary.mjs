@@ -57,7 +57,8 @@ const VIEWBOX = "11.6,57.85,12.2,57.5";
 // pins nobody has checked, carried indefinitely, several for spots no truck will
 // use. The admin pins any other place by map tap; this covers the common ones.
 //
-// `id` is only for `--only`. `query` is what Nominatim is asked. `name` is the
+// `id` selects a seed with `--only` and labels failures and `--json` output; it is
+// never printed into a stub. `query` is what Nominatim is asked. `name` is the
 // spot's name as people write it, which becomes the location's label.
 //
 // SEVERAL QUERIES ARE DELIBERATELY NARROWER THAN THE PLACE NAME, and that is the
@@ -180,7 +181,11 @@ async function lookup(query) {
 // once it has reached the database.
 //
 // Printed in the same one-line shape as `SPOTS`, so a re-run diffs line by line.
+// The OSM feature the query resolved to goes on the line ABOVE, as a comment: it is
+// what the review step reads to catch a query that hit the wrong place (the Chalmers
+// and Mölndal notes in `SEEDS`), and a bounding-box test cannot catch that.
 function printEntry(seed, hit) {
+  console.log("  // OSM: " + hit.display_name);
   console.log(
     "  { name: " + JSON.stringify(seed.name) +
       ", latitude: " + Number(hit.lat) +

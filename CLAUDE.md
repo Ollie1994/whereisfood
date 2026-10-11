@@ -75,7 +75,7 @@ Never mix layers.
 - All errors return `{ "error": "message" }` with the correct HTTP status code
 - Never expose stack traces or internal errors to the client
 - Return 200 immediately from webhook endpoints, run parsing inside `after()`
-- Every route handler wraps its body in `withErrorHandling()` (`src/lib/http/handler.ts`) so an unexpected throw becomes a 500 `{ error }` instead of Next's default error page. Expected failures are **returned** (`errorResponse(msg, 400/401)`), never thrown — returns pass through the wrapper untouched; the catch only intercepts genuine exceptions (e.g. a DB error from the db layer).
+- Every route handler wraps its body in `withErrorHandling()` (`src/lib/http/handler.ts`) so an unexpected throw becomes a 500 `{ error }` instead of Next's default error page. Expected failures are **returned** (`NextResponse.json({ error: msg }, { status: 400 })`), never thrown — returns pass through the wrapper untouched; the catch only intercepts genuine exceptions (e.g. a DB error from the db layer).
 
 **Email lane (Mailgun)**
 - Verify the HMAC signature before anything else, then evaluate timestamp freshness
