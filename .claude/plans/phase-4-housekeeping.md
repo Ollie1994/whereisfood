@@ -295,9 +295,11 @@ vitest 3 keeps a critical advisory. Upgrading a local tool costs one command.
   current and passed unseen (row 275). Also run it over
   `git ls-files ':!src' ':!scripts' ':!tests' ':!supabase' ':!.claude' ':!package-lock.json'`;
   after #122 that lists only `README.md` and `CLAUDE.md`, which #126 rewrites.
+  **Pass at phase end:** every remaining hit is read, and each is a history mention
+  (the Docs AC's exemption), not a description of the removed code as current.
   `package-lock.json` is excluded because it always matches on third-party package
-  names (`@babel/parser`, `@typescript-eslint/parser`); check it with
-  `npm ls @upstash/ratelimit @upstash/redis` instead (row 277).
+  names (`@babel/parser`, `@typescript-eslint/parser`); check the lockfile itself with
+  `grep -c '"node_modules/@upstash/' package-lock.json` → `0` instead (rows 277, 278).
 - [ ] `src/lib/spots.ts` exports `SPOTS` with the same places and coordinates as the
   old dictionary.
 - [ ] `.env.example` lists only the three Supabase variables and
