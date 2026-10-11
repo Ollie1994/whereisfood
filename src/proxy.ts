@@ -8,16 +8,19 @@ import type { NextRequest } from "next/server";
 // export to be uncommented; that request predates the Next 16 behaviour and was
 // closed as invalid. See https://nextjs.org/docs/messages/middleware-to-proxy
 //
-// No-op stub. Public-route bypass, X-Make-Secret verification, session auth, and
-// Upstash rate limiting all land in Phase 7 — the matcher below is already scoped.
+// No-op stub. The admin session check, and the `is_admin` check on top of it
+// (logged in is not admin), land in Phase 7.
+//
+// ⚠ THE MATCHER BELOW IS A PHASE 1 DRAFT, NOT THE PHASE 7 SCOPE. `/api/locations` is
+// an exact path, so it misses `/api/locations/:id` (edit, cancel); `/dashboard` is
+// the truck-owner dashboard, deferred to the Owners phase, and must not get the
+// `is_admin` check. Phase 7 sets the matcher to the admin routes it actually builds.
 export function proxy(request: NextRequest) {}
 
 export const config = {
   matcher: [
     '/dashboard/:path*',
     '/admin/:path*',
-    '/api/ingest',
-    '/api/email',
     '/api/locations',
   ],
 }
