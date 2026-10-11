@@ -17,7 +17,7 @@ After all questions are answered, produce the plan doc. Then ask the user if the
 ## Guided Questions
 
 1. **Which phase is this plan for?**
-   (Reference the build order in project-context.md — e.g. "Phase 1 — Foundation")
+   (Reference the Roadmap and Phase map in project-context.md — e.g. "Phase 5 — Schema reset")
 
 2. **What does done look like for this phase?**
    (One sentence. If you can't say it in one sentence, the scope isn't clear yet.)

@@ -1,5 +1,24 @@
 # Transition — from three ingestion lanes to an admin-populated map
 
+> **History. Absorbed into `.claude/context/project-context.md` (Phase 4, #127).**
+> Phase 4 carried out the teardown and clean-up: §11's Remove list (except the
+> migration squash, which is Phase 5) and its clean-up Rework items (`spots.ts`,
+> `@upstash/*`, the proxy matcher); §5's dependency changes; §13's tracker clean-up;
+> §14's docs, except row 258's fix column (#128). The rest (schema reset, `/api/live`,
+> admin, R2, launch) is the target design for Phases 5–8 and **not built**; it is condensed into the context's
+> "Target design" part, which is now the reference. The current phase plan wins over
+> both. This file is kept, not deleted, because §0's table is what stops removed
+> pieces being re-added; read it before adding anything back.
+>
+> Phase numbers were renumbered in Phase 4 (Phase 4 plan decision #9): **4 Housekeeping →
+> 5 Schema reset → 6 Live read path → 7 Admin → 8 Launch.** §13's table and the inline
+> references in §7 and §9 use the new numbers; mentions of "the old roadmap" (§11, §13,
+> §14) mean the numbering before this file. Phases 1–3 kept their numbers.
+> **Facts in the body are as of 2026-10-10** (the status and precedence notes just below,
+> versions, "today"): e.g. §7's "the project pins `next` 16.2.6" is 16.3.8 now. The
+> context has current values. The removed code is archived on
+> `archive/parser-lanes` (commit `b089fd0`, see §15).
+
 **Decided:** 2026-10-10 (conversation between the user and Claude; no PR yet)
 **Status:** decided, not started. Nothing in `src/` has changed.
 **Purpose:** the input for writing the next phase plan. Read this before
@@ -267,7 +286,7 @@ Visitor's map ──► GET /api/live (every 60 s + when tab regains focus)
 > **Fitness re-check (2026-10-10, after the user asked twice):** free tier at any
 > traffic ✓, no public history ✓, simplest working option ✓, fails safe (errors not
 > cached, DDoS mitigation) ✓, fresh within ~1–2 min ✓. Remaining unknowns are
-> empirical (Phase 5 preview checks), not design questions.
+> empirical (Phase 6 preview checks), not design questions.
 
 **Server: `GET /api/live`** (behaviour from the Vercel CDN-cache docs, 2026-10-10;
 ⚠ the project pins **`next` 16.2.6** while the Next docs read were 16.4, so re-check
@@ -478,7 +497,7 @@ the preview):
   **Free covers ~200,000 visits a month, roughly 6,500 a day.**
 - Past free: 10k visits/day ≈ $2/mo, 50k/day ≈ $23/mo.
 - Real example: Pinball Map on Protomaps + R2 reported about 840k reads a month.
-- **Setup (Phase 7):**
+- **Setup (Phase 8):**
   - Use a **custom domain** (e.g. `tiles.<domain>`), not `r2.dev`. `r2.dev` is
     rate-limited and dev-only (from memory; verify). The domain's DNS must be on
     Cloudflare, which is free.
@@ -664,7 +683,7 @@ SMTP provider.
 
 ## 13. GitHub: issues and milestones
 
-### Milestone `phase-3` (open)
+### Milestone `phase-3` (closed in Phase 4, #120)
 Close it with a note pointing to this decision, or rename it to something like
 "phase-3 (superseded)" and close. Its closed issues stay as the record of the archived
 work.
@@ -699,13 +718,14 @@ work.
 Close each with a one-line comment linking the archive branch and this decision, so
 the history is traceable from the issue itself, not only from this file.
 
-### Proposed new milestones (a sketch; the plan decides)
+### New milestones (renumbered in Phase 4; each phase plan decides the detail)
 | Phase | Name | Content |
 |---|---|---|
-| 4 | **Teardown + schema reset** | Archive branch/tag; remove lanes, parser, geocoding, Upstash, `vercel.json`; squashed baseline schema (trucks, locations, users; `btree_gist` + exclusion constraint + CHECK + `updated_at` trigger); RLS + GRANTs; regenerate types; `dictionary.ts` → `spots.ts`; README update; fix #99 |
-| 5 | **Live read path** | `GET /api/live` as an ordinary route with `Cache-Control: public, s-maxage=60, stale-while-revalidate=60` (§7); `useLocations` polling + timer + marker diffing; popup with freshness text + Instagram link; replace `fake-data.ts`. **Create a hosted Supabase project** (free) for previews: so far only the local Docker DB exists, and a preview build can't reach it. **First preview deploy** here: `x-vercel-cache` MISS → HIT check; **look at the usage dashboard to measure real requests per visit** (checks the §9 cliff estimate). Tiles can stay in `public/` for previews. |
-| 6 | **Admin** | Magic-link login (admin only; **public sign-ups disabled**) + `is_admin` check in `proxy.ts` **and** in every admin route; truck CRUD; mobile-first location entry (map tap / known spot / recent place / GPS, pre-filled times); edit; cancel; overlap → 409 message; morning checklist from history |
-| 7 | **Launch**: first PRODUCTION deploy | Supabase **Pro** (backups); **tiles on R2** (custom domain on Cloudflare DNS, CORS rule, `NEXT_PUBLIC_PMTILES_URL`; confirm the map loads = range requests work); production env; security headers; privacy note; takedown procedure (manual SQL); tell trucks they're listed; consumer acquisition plan; runbook: Vercel **Attack Mode**; watch Vercel usage (emails near limits). **Gate: upgrade Vercel to Pro + Spend Management (pause cap) before the first marketing push**, or at ~50% of any Hobby limit, or when commercial |
+| 4 | **Housekeeping** | Archive branch/tag; close the Phase 3 issues; remove lanes, parser, geocoding, Upstash, `vercel.json`; `dictionary.ts` → `spots.ts`; upgrade Next, MapLibre (+ `@protomaps/basemaps`) and vitest; README, CLAUDE.md and context rewrite; fix #99. No new schema |
+| 5 | **Schema reset** | Squashed baseline schema (trucks, locations, users; `btree_gist` + exclusion constraint + CHECK + `updated_at` trigger); RLS + GRANTs; regenerate types; rewrite `seed.sql`, the db layer and the integration tests |
+| 6 | **Live read path** | `GET /api/live` as an ordinary route with `Cache-Control: public, s-maxage=60, stale-while-revalidate=60` (§7); `useLocations` polling + timer + marker diffing; popup with freshness text + Instagram link; replace `fake-data.ts`. **Create a hosted Supabase project** (free) for previews: so far only the local Docker DB exists, and a preview build can't reach it. **First preview deploy** here: `x-vercel-cache` MISS → HIT check; **look at the usage dashboard to measure real requests per visit** (checks the §9 cliff estimate). Tiles can stay in `public/` for previews. |
+| 7 | **Admin** | Magic-link login (admin only; **public sign-ups disabled**) + `is_admin` check in `proxy.ts` **and** in every admin route; truck CRUD; mobile-first location entry (map tap / known spot / recent place / GPS, pre-filled times); edit; cancel; overlap → 409 message; morning checklist from history |
+| 8 | **Launch**: first PRODUCTION deploy | Supabase **Pro** (backups); **tiles on R2** (custom domain on Cloudflare DNS, CORS rule, `NEXT_PUBLIC_PMTILES_URL`; confirm the map loads = range requests work); production env; security headers; privacy note; takedown procedure (manual SQL); tell trucks they're listed; consumer acquisition plan; runbook: Vercel **Attack Mode**; watch Vercel usage (emails near limits). **Gate: upgrade Vercel to Pro + Spend Management (pause cap) before the first marketing push**, or at ~50% of any Hobby limit, or when commercial |
 | later | **Owners** | Claim flow; owner dashboard; owner-overrides-admin; X-day takeover + heads-up; custom SMTP |
 | trigger | **Vercel Pro + Spend Management** | Before any marketing push, at ~50% of a Hobby limit, or when commercial (§9) |
 | later | **Automation (optional)** | Meta Business Discovery → captions in the admin screen; pg_cron or an external scheduler; labelled dataset |
@@ -728,7 +748,7 @@ survives. Rewrite from this file and the new plan:
   export, named `proxy`, `config.matcher`), error format, Swedish UI, timezone rule.
 - **Remove:** the email lane, webhook lane, parser pipeline, confidence scoring, the
   override matrix, deduplication, `posts`/`geocoding_cache` schema, the replay index,
-  `vercel.json`, the cron expiry text, Realtime, Upstash, the Make.com model, Phase 7's
+  `vercel.json`, the cron expiry text, Realtime, Upstash, the Make.com model, the old roadmap's Phase 7
   Mailgun ⚠ items, grey markers / `last_known_*`.
 - **Add:** the product model (§4), the `/api/live` read path (§7), "ended is a filter"
   plus client timers (§6), the data model (§10), pricing and upgrade triggers (§9),
@@ -805,9 +825,10 @@ Nothing to delete.
 - **Gates:** `test:all` needs Docker. Since #99 it fails if any vitest project collects
   zero test files; it still cannot see partial drops or all-skipped files, so read the counts.
 - **Archive, don't delete.** The parser work stays recoverable on
-  `archive/parser-lanes`. That branch is cut from `11f081a`, before IS #116, so it
-  holds **code only**. The plans, process log and this file are tracked on `dev` from
-  IS #116 onward.
+  `archive/parser-lanes` (branch and annotated tag, commit `b089fd0`). *Corrected in
+  Phase 4 (Phase 4 plan decision #2):* this first said the archive would be cut from `11f081a`,
+  before IS #116, holding code only. It was cut after PR #117 instead, so it holds the
+  code **and** the plans, process log and this file as they were.
 - **Admin UI is mobile-first.** The workflow is "phone pings → update on the phone".
   Design and test the admin screens at phone width first.
 - **Supabase's built-in email is for testing only** (official docs): it delivers

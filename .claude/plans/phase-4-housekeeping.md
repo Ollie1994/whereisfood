@@ -104,6 +104,8 @@ green.
 words until Phase 5 replaces schema, types, primitives and tests together.
 
 Also untouched: `src/lib/supabase.ts`, `src/components/Map/*`, `src/app/map/page.tsx`.
+*Except comments (PR #140, #127):* `supabase.ts`, `TruckPopup.tsx`, `useMapLibre.tsx` and
+`vitest.config.ts` had stale comments rewritten (rows 288, 292); no behaviour changed.
 
 ### Kept on purpose with no callers after the teardown
 A clean slate shouldn't keep dead code by accident. Checked 2026-10-11: these four lose
@@ -263,12 +265,13 @@ match the **current** schema, which still exists until Phase 5. Deleting them no
 would leave the schema untested for a phase; Phase 5 replaces schema, primitives and
 tests together.
 
-### #8 — Rewrite `project-context.md` in two labelled parts
+### #8 — Rewrite `project-context.md` in labelled parts (two, plus Standing rules since PR #140)
 After this phase the code is a fake-data map plus an old schema, while the design is
 the admin-populated map. A context that only describes the target would be wrong about
 the code; one that only describes the code would hide the plan. So:
 **"Current state"** (what exists after Phase 4) and **"Target design"** (condensed
-from `transition.md`). `transition.md` then becomes history: kept, with an "absorbed"
+from `transition.md`). *Added in PR #140:* a third part, **"Standing rules"**, for the
+conventions that hold in both; filing them under either part would mislabel them. `transition.md` then becomes history: kept, with an "absorbed"
 header, because its §0 table is what stops removed pieces being re-added.
 
 ### #9 — Renumber the roadmap
@@ -370,6 +373,15 @@ script and `useMapLibre` (`setWorkerUrl(workerUrl(getVersion()))`).
   rule that still exists (today only `handler.ts`'s "API responses" does; the two that
   don't are fixed in #127). Round 2 of PR #138 added `grey` and `CLAUDE\.md`, which
   the first widening still missed.
+  ⚠ **Phase numbers changed too** (decision #9, row 292): run `grep -rnE "Phase [0-9]" src scripts tests supabase`
+  **and** the same over the root-file list above (`git ls-files ':!src' ':!scripts' ':!tests'
+  ':!supabase' ':!.claude' ':!package-lock.json'`; row 275's gap, which PR #140 r1 caught
+  again in `vitest.config.ts`). Read each hit against the new numbering (4 Housekeeping,
+  5 Schema reset, 6 Live read path, 7 Admin, 8 Launch). Allowed: (1) Phases 1–3, whose
+  numbers didn't change; (2) `src/lib/db/locations.ts`, frozen until Phase 5; (3)
+  `supabase/migrations/*` (applied
+  migrations aren't edited; `0001:108` and `0002:4` say "Phase 4" meaning the old
+  Realtime phase, and Phase 5 squashes them).
 - [ ] `src/lib/spots.ts` exports `SPOTS` with the same places and coordinates as the
   old dictionary.
 - [ ] `.env.example` lists only the three Supabase variables and

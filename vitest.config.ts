@@ -40,7 +40,7 @@ const INTEGRATION_DIR = "tests/integration";
 //
 //   EXTENSIONS (PR #98 r1). `src/**/*.test.ts` silently dropped `.tsx`, `.spec.*`,
 //   `.mts` and `.cts`. A failing `src/lib/x.test.tsx` and a failing `src/lib/x.spec.ts`
-//   both reported `917 passed`, exit 0, never collected. Phase 4 and 5 add `.tsx` hook
+//   both reported `917 passed`, exit 0, never collected. Phases 6 and 7 add `.tsx` hook
 //   and component tests — `useMapLibre.tsx` is already `.tsx` — so the first UI test
 //   written would have passed by not running.
 //
