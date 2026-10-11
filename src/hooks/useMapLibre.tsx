@@ -7,6 +7,7 @@ import { Protocol } from "pmtiles";
 import { layers, namedFlavor } from "@protomaps/basemaps";
 import TruckPopup from "@/components/Map/TruckPopup";
 import { FAKE_TRUCKS, FAKE_LOCATIONS } from "@/lib/fake-data";
+import { workerUrl } from "@/lib/maplibre-worker.mjs";
 import type { Location, MarkerColor, MarkerState, Truck } from "@/lib/types";
 
 const GOTHENBURG: [number, number] = [11.9746, 57.7089];
@@ -24,13 +25,10 @@ const MARKER_COLORS: Record<MarkerColor, string> = {
 // Registered once on the client, lazily inside the effect (never on the server):
 // the `pmtiles://` protocol, and MapLibre 6's worker URL.
 //
-// The worker is a separate file in v6, and it imports a shared chunk. It is served
-// from `public/maplibre/`, where `scripts/copy-maplibre-worker.mjs` copies it (and that
-// chunk) from node_modules on every `npm run dev` / `npm run build`. MapLibre's
-// documented Turbopack form, `new URL(…, import.meta.url)`, does NOT work here: the
-// worker is emitted without the chunk it imports, and the map draws no tiles (see the
-// script's header).
-const WORKER_URL = "/maplibre/maplibre-gl-worker.mjs";
+// The worker is a separate file in v6, and it imports a shared chunk. Both are served
+// from `public/maplibre/<version>/`, copied from node_modules by
+// `scripts/copy-maplibre-worker.mjs`. Where, why versioned, and why MapLibre's
+// documented Turbopack form does NOT work here: `src/lib/maplibre-worker.mjs`.
 let mapLibreInitialised = false;
 
 function deriveColor(location: Location | null): MarkerColor {
@@ -75,7 +73,7 @@ export function useMapLibre(containerRef: RefObject<HTMLDivElement | null>) {
     if (!containerRef.current || !PMTILES_URL) return;
 
     if (!mapLibreInitialised) {
-      maplibregl.setWorkerUrl(WORKER_URL);
+      maplibregl.setWorkerUrl(workerUrl(maplibregl.getVersion()));
       maplibregl.addProtocol("pmtiles", new Protocol().tile);
       mapLibreInitialised = true;
     }
