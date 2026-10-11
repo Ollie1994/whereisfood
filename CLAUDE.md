@@ -176,14 +176,35 @@ file/test counts when tests are added, moved or deleted.
 
 ---
 
+## Doc changes — always issue → branch → PR
+
+Every change to a tracked doc goes through an issue, a branch and a PR into `dev`,
+exactly like code. Tracked docs are `CLAUDE.md`, `README.md` and everything under
+`.claude/` (plans, `project-context.md`, `transition.md`, commands and
+**`process-log.md`**). Never commit one straight to `dev`, and never leave one sitting
+uncommitted on `dev`. Every doc change then has a reviewable diff and a
+`PR #n / IS #n` to point at.
+
+- **Part of tracked work → ride along.** A log row from a review round, a doc claim a
+  fix made stale, a plan tweak while working an issue: commit it on that issue's
+  branch, in its PR, and name it in the PR body.
+- **Nothing covers it → open one.** A dedicated issue (same format as the others), a
+  branch off `dev`, a PR. That includes a log row written outside any issue's work,
+  e.g. a miss found while surveying the repo (IS #131).
+- GitHub issue and PR text is not a repo file, so editing it needs no branch. It is
+  still a doc: when correcting a claim, check every copy, **open issue bodies
+  included** (process-log rows 269, 271).
+
+---
+
 ## Process Log — always record misses
 
 `.claude/process-log.md` is the record of what the development process got wrong.
 It only works if entries are written **as they happen**, in the same session. A miss
 reconstructed a week later loses the detail that made it useful.
 
-**Append a row when any of these happen — no exceptions, including when the miss is
-mine:**
+**Add a row to the `## Log` table when any of these happen — no exceptions, including
+when the miss is mine:**
 
 - A defect gets past a gate that should have caught it (tests, `tsc`, lint, build, review)
 - A rule in `CLAUDE.md`, `project-context.md`, a plan, a command or an issue turns out
@@ -201,9 +222,13 @@ issues; this file is for what the bug reveals about how we work.
 **Also record settled decisions** with their rationale, so a resolved question stays
 resolved and is not re-litigated next session.
 
-**Before appending, read the file's own `Columns` and `Cause taxonomy` sections** and
+**Before adding a row, read the file's own `Columns` and `Cause taxonomy` sections** and
 use those exact values — do not invent new ones and do not copy the taxonomy here.
 Duplicating it in two files is the same `manual-drift` the log exists to catch.
+
+**A row goes directly after the last row of the `## Log` table, not at the end of the
+file.** Detail entries follow the table, so a row appended to the file lands outside
+it and renders as plain text (row 272).
 
 Include the `PR #n / IS #n` reference. Those numbers link each row to the diff and the
 review discussion. The log is tracked in the repo (since IS #116), and the repo is
