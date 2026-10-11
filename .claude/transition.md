@@ -1,15 +1,17 @@
 # Transition — from three ingestion lanes to an admin-populated map
 
 > **History. Absorbed into `.claude/context/project-context.md` (Phase 4, #127).**
-> The decisions below were carried out in Phase 4 and condensed into the context's
-> "Target design" part, which is now the reference; the current phase plan wins over
+> Phase 4 carried out the teardown (§11's Remove list, §13's tracker clean-up, §14's
+> docs). Everything else here (schema reset, `/api/live`, admin, R2, launch) is the
+> target design for Phases 5–8 and **not built**; it is condensed into the context's
+> "Target design" part, which is now the reference. The current phase plan wins over
 > both. This file is kept, not deleted, because §0's table is what stops removed
 > pieces being re-added; read it before adding anything back.
 >
-> Phase numbers were renumbered in Phase 4 (plan decision #9): **4 Housekeeping →
+> Phase numbers were renumbered in Phase 4 (Phase 4 plan decision #9): **4 Housekeeping →
 > 5 Schema reset → 6 Live read path → 7 Admin → 8 Launch.** §13's table and the inline
-> references in §7 and §9 use the new numbers; mentions of "the old roadmap" mean the
-> numbering before this file. The status and precedence notes just below describe
+> references in §7 and §9 use the new numbers; mentions of "the old roadmap" (§11, §13,
+> §14) mean the numbering before this file. Phases 1–3 kept their numbers. The status and precedence notes just below describe
 > the file as it was on 2026-10-10. The removed code is archived on
 > `archive/parser-lanes` (commit `b089fd0`, see §15).
 
@@ -742,7 +744,7 @@ survives. Rewrite from this file and the new plan:
   export, named `proxy`, `config.matcher`), error format, Swedish UI, timezone rule.
 - **Remove:** the email lane, webhook lane, parser pipeline, confidence scoring, the
   override matrix, deduplication, `posts`/`geocoding_cache` schema, the replay index,
-  `vercel.json`, the cron expiry text, Realtime, Upstash, the Make.com model, Phase 7's
+  `vercel.json`, the cron expiry text, Realtime, Upstash, the Make.com model, the old roadmap's Phase 7
   Mailgun ⚠ items, grey markers / `last_known_*`.
 - **Add:** the product model (§4), the `/api/live` read path (§7), "ended is a filter"
   plus client timers (§6), the data model (§10), pricing and upgrade triggers (§9),
@@ -820,7 +822,7 @@ Nothing to delete.
   zero test files; it still cannot see partial drops or all-skipped files, so read the counts.
 - **Archive, don't delete.** The parser work stays recoverable on
   `archive/parser-lanes` (branch and annotated tag, commit `b089fd0`). *Corrected in
-  Phase 4 (plan decision #2):* this first said the archive would be cut from `11f081a`,
+  Phase 4 (Phase 4 plan decision #2):* this first said the archive would be cut from `11f081a`,
   before IS #116, holding code only. It was cut after PR #117 instead, so it holds the
   code **and** the plans, process log and this file as they were.
 - **Admin UI is mobile-first.** The workflow is "phone pings → update on the phone".

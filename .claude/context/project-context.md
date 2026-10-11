@@ -75,8 +75,9 @@ save-triggered cache purges, grey markers) without a concrete problem that needs
 - Markers and popups come from **fake data** (`src/lib/fake-data.ts`). The app reads
   nothing from the database and has **no API routes**.
 - The fake-data map still behaves like the **old** design: marker colour from
-  `confidence` (green ≥ 0.9, yellow ≥ 0.45, grey for a truck with no location, drawn
-  at `last_known_*`), and popup labels from the same colours. Phase 6 replaces this;
+  `confidence` (green ≥ 0.9, yellow ≥ 0.45; grey, drawn at `last_known_*`, for a truck
+  whose location is missing, below 0.45 or a negation), and popup labels from the same
+  colours. Phase 6 replaces this;
   don't change it before then (Phase 4 plan, Out of Scope).
 - `src/proxy.ts` is a no-op stub. Its matcher (`/dashboard/:path*`, `/admin/:path*`,
   `/api/locations`) is a Phase 1 draft; Phase 7 sets the real one.
@@ -113,7 +114,7 @@ Toolchain: Node `^20.19.0 || >=22.12.0` and **npm ≥ 11** (npm 10.9.2 crashes o
 vitest 4's optional peers). Both are prose only; enforcing them in `package.json` waits
 for Vercel's build versions (#139, Phase 6). `npm audit --omit=dev` is clean; full
 `npm audit` shows one accepted dev-only chain (`braces` via `eslint-config-next`,
-GHSA-vfj7-8cjw-p6xm). `next.config.ts` sets `agentRules: false` (decision #12).
+GHSA-vfj7-8cjw-p6xm). `next.config.ts` sets `agentRules: false` (Phase 4 plan decision #12).
 
 ## Database (the old schema, kept until Phase 5)
 
@@ -124,9 +125,10 @@ replaces them with a squashed baseline:
   (with `confidence`, `parser_confidence`, `source_confidence`, `is_negation`,
   `post_id`, `address_*`, `expires_at`, and a **nullable** `ends_at`),
   `geocoding_cache`, `users`.
-- RLS is enabled on all five, with an explicit `GRANT` per table. `anon` and
-  `authenticated` can SELECT `trucks` and `locations` (the target design removes
-  this). `users` has no UPDATE grant (no owner self-UPDATE).
+- RLS is enabled on all five. Grants: `service_role` gets one blanket `grant … on all
+  tables in schema public` (it covers only tables that existed at that point); `anon`
+  and `authenticated` get SELECT on `trucks` and `locations` (the target design removes
+  this); `authenticated` gets SELECT on `users` and no UPDATE (no owner self-UPDATE).
 - `0004` is the email replay index, `0005` adds `parsing_status = 'duplicate'`, `0006`
   reshapes the overlap index. All three go in Phase 5.
 - `supabase/seed.sql` seeds dev trucks against these columns.
@@ -149,7 +151,7 @@ target design before that.
 | `src/lib/types.ts`, `src/lib/database.types.ts` | shared and generated types | regenerated in Phase 5 |
 | `src/lib/fake-data.ts` | the map's data source | replaced in Phase 6 |
 | `src/lib/maplibre-worker.mjs` | worker folder and file list (+ test) | — |
-| `scripts/seed-dictionary.mjs` | regenerates `SPOTS` from OpenStreetMap | as needed |
+| `scripts/seed-dictionary.mjs` | prints `Spot` stubs from OpenStreetMap for **human review**; never paste its output over `SPOTS`, which reverts hand-corrected pins | when adding spots |
 | `scripts/test-all.mjs` | the `test:all` gate | — |
 
 ## Environment
@@ -276,7 +278,8 @@ powers the checklist, "recent places" and proof of value to trucks.
   covers `is_admin` or `truck_id`.
 - **Explicit GRANTs.** Policies only filter rows; a role still needs a table `GRANT`,
   and Supabase doesn't auto-expose new tables to the API roles. Every migration grants
-  explicitly to match the table above.
+  explicitly, **per table, `service_role` included**, to match the table above. 0001's
+  blanket `grant … on all tables` doesn't reach tables created later, so don't copy it.
 - All writes, `/api/live` and the admin screen's reads go through server-side routes
   using `supabaseAdmin`.
 - Unverified third-party reports say free projects need explicit GRANTs for API access
@@ -298,8 +301,9 @@ Visitor's map ──► GET /api/live (every 60 s, and when the tab regains focu
   fragile "never read the request" rule; the header gives the same shared copy without
   either (process-log row 264).
 - Response header: `Cache-Control: public, s-maxage=60, stale-while-revalidate=60`.
-  Vercel strips `s-maxage`/`stale-while-revalidate` before the browser, so every poll
-  reaches the CDN copy.
+  Vercel strips `s-maxage`/`stale-while-revalidate` before the browser **when no
+  `CDN-Cache-Control` header is set**, so every poll reaches the CDN copy. Don't add
+  `CDN-Cache-Control`: browsers would then cache the response themselves.
 - Reads with `supabaseAdmin` (anon has no SELECT), selecting an **explicit column
   list, never `*`**, so `created_by` and future columns can't leak.
 - Returns active trucks plus locations with `cancelled_at IS NULL AND ends_at > now()
