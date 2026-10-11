@@ -3,37 +3,58 @@
 Full project reference: `.claude/context/project-context.md`
 Read it at the start of any non-trivial task.
 
-**Current phase plan: `.claude/plans/phase-<n>-<name>.md` — read it too, and when the
-two disagree, THE PLAN WINS.**
+**Current phase plan: `.claude/plans/phase-4-housekeeping.md` (until the Phase 5 plan
+exists) — read it too, and when the two disagree, THE PLAN WINS.**
 
 `project-context.md` is only reconciled with reality at the END of a phase (it is a
-tracked task in each plan — Phase 3's is issue #73). So for the whole duration of a
+tracked task in each plan — Phase 4's is issue #127). So for the whole duration of a
 phase it is a snapshot of the phase *before* it, while the plan carries the decisions
 that were actually settled. Reading only the context is how a resolved question gets
-re-litigated with a stale answer.
+re-litigated with a stale answer. **Until #127 lands it still describes the old
+three-lane design**, which Phase 4 removed.
 
-The plan is also where the numbered decision records live (`#1`…`#7` in Phase 3) —
+The plan is also where the numbered decision records live (`#1`…`#13` in Phase 4) —
 those are the reasoning behind rules the context states as bare facts, and an issue
 saying "see the plan" means that section.
+
+The removed design (ingestion lanes, parser, geocoding) is archived on the
+`archive/parser-lanes` branch and tag. Don't re-add any of it, or Realtime, cron or
+Upstash, without a concrete problem that needs it.
 
 ---
 
 ## What This Is
 
-A live map showing where Gothenburg food trucks are right now.
-Three ingestion lanes: Dashboard (manual), Make.com webhooks, Mailgun email.
-No login for consumers. Truck owners have accounts.
+A map showing where Gothenburg food trucks are today.
+At launch one admin enters every location by hand from a phone-first admin screen.
+No login for consumers. Only the admin logs in; truck owners get accounts later
+(Owners phase).
 
 ---
 
 ## Tech Stack
 
 ```
-Next.js 16 (App Router) · TypeScript · Tailwind CSS v4
-MapLibre GL JS + Protomaps PMTiles + Cloudflare R2
-Supabase (Postgres + Realtime + Auth)
-Vitest · date-fns-tz · Upstash Redis · Nominatim
+Next.js 16.3 (App Router) · React 19 · TypeScript · Tailwind CSS v4
+MapLibre GL JS 6 + Protomaps PMTiles (local file now, Cloudflare R2 at launch)
+Supabase (Postgres + Auth)
+Vitest 4 · date-fns-tz
 ```
+
+**Read the Next docs that ship with the installed version** before writing Next code:
+`node_modules/next/dist/docs/`. They match the pinned release; memory and the web may
+describe a different one.
+
+**Dependencies**
+- `next`, `eslint-config-next` and `maplibre-gl` are **exact pins**. Upgrade them
+  deliberately, one PR each, with a browser check of `/map` (plan decision #10).
+- **npm ≥ 11** locally. npm 10 crashes resolving vitest 4's optional peers (decision #11).
+- `next.config.ts` sets `agentRules: false`. Don't remove it without the owner
+  (decision #12).
+- MapLibre's worker is copied into `public/maplibre/<version>/` by the
+  `postinstall`/`predev`/`prebuild` hooks. Don't switch to MapLibre's documented
+  `setWorkerUrl(new URL(…, import.meta.url))` form: on Next 16.3 the worker 404s and
+  the map draws only its background, with every gate green (decision #13).
 
 ---
 
@@ -43,12 +64,10 @@ Vitest · date-fns-tz · Upstash Redis · Nominatim
 app/api/*/route.ts   → HTTP only, no business logic
 src/lib/services/    → all business logic, no HTTP knowledge
 src/lib/db/          → database access only
-src/lib/parser/      → pure functions, no DB, no HTTP, no side effects
 src/lib/validators/  → input validation
 ```
 
-Route handlers call services. Services call DB layer. Parser is pure.
-Never mix layers.
+Route handlers call services. Services call DB layer. Never mix layers.
 
 ---
 
@@ -59,7 +78,13 @@ Never mix layers.
 - `supabaseClient` (anon key) — browser only, components and hooks
 - Never use `supabaseAdmin` in client components
 - Never use `NEXT_PUBLIC_` prefix on secret keys
-- All writes go through API routes using `supabaseAdmin` — never write from the browser
+- **The browser never reads or writes the database.** Public map data comes only from
+  `/api/live`; the admin screen reads through its own (uncached) API routes; every
+  write goes through an API route using `supabaseAdmin`
+- Anon gets **no SELECT on `trucks` or `locations`**. With history kept, anon access
+  would make every truck's movement history public through Supabase's API
+- RLS on every table, an explicit `GRANT` per table matching the RLS matrix, and no
+  owner self-UPDATE on `users` (blocks `is_admin` self-escalation and `truck_id` hijack)
 
 **proxy.ts**
 - File is `src/proxy.ts` — this is the Next.js 16 name for middleware
@@ -69,52 +94,40 @@ Never mix layers.
   auth requires. `tsc`/lint/tests all pass with it, so only `next build` catches it.
 - Must export a named function: `export function proxy(request: NextRequest)`
 - Must export `config` with `matcher` to scope to protected routes only
+- The proxy and the admin routes check for a session cookie **before any network or
+  DB call**, so a cookie-less flood costs only the function run (Phase 7)
 
 **API responses**
-- Use `after()` from `next/server` for post-response async work — `unstable_after` does not exist in Next.js 16
 - All errors return `{ "error": "message" }` with the correct HTTP status code
 - Never expose stack traces or internal errors to the client
-- Return 200 immediately from webhook endpoints, run parsing inside `after()`
 - Every route handler wraps its body in `withErrorHandling()` (`src/lib/http/handler.ts`) so an unexpected throw becomes a 500 `{ error }` instead of Next's default error page. Expected failures are **returned** (`NextResponse.json({ error: msg }, { status: 400 })`), never thrown — returns pass through the wrapper untouched; the catch only intercepts genuine exceptions (e.g. a DB error from the db layer).
 
-**Email lane (Mailgun)**
-- Verify the HMAC signature before anything else, then evaluate timestamp freshness
-- **A stale timestamp is never a rejection.** Signature = "did this come through Mailgun" (bad → 400). Freshness = "may we act on it" (stale → store with `parsing_status = 'skipped'`, return 200). Freshness governs whether we ACT on a post, not whether we KEEP it
-- **The HMAC covers only `timestamp + token`** — not `recipient`, not `body-plain`. It authenticates the *relay*, not the *content*, so one captured tuple could carry an arbitrary recipient and body. Inherent to Mailgun's scheme. Bounded by the replay index (one row per tuple) and the 15-min window (after which the row is `skipped` and never parsed). Never describe the signature as proving the truck sent it
-- Replay window is **±15 minutes** (`REPLAY_WINDOW_SECONDS`, `src/lib/services/ingestion.ts`)
-- **Never tighten below 10 minutes.** Mailgun retries a failed POST at 10/20/35/65/125/245/485 min (cumulative), and 15 min is Mailgun's own documented tolerance — they warn against being more aggressive. A shorter window makes even the first retry unparseable
-- Never return 400 or a 5xx for a stale-but-signed payload — that discards a genuine truck email and breaks "never lose incoming data"
-- **The HMAC boundary is ambiguous, and the defence is structural — not validation.** Mailgun signs `timestamp + token` with **no delimiter**, so the same signed string re-splits at any interior index, every split verifies under the *same* signature, and each yields a different token (41 working variants, verified). Do **not** "fix" this by constraining the timestamp format: that rejects validly-signed payloads and reintroduces permanent data loss. The index keys on the concatenation, which is identical across every split, so variants collapse to one row — and none can fall inside the freshness window, so none becomes a live location
-- **Replay is blocked by `posts_email_token_unique`** (migration 0004), a unique index on `(raw_json->>'timestamp') || (raw_json->>'token')` for `source = 'email'`. The key is the **concatenation**, not the token alone — that is exactly the string Mailgun signed, so it is invariant under re-splitting. Mailgun's token is single-use, so a replay raises 23505, which `persistPost` already swallows as a benign discard. Do not remove it — the Phase 7 Redis token cache is a *complement*, not a replacement (a cache TTL is a finite window; the index never expires)
-- **Never store the Mailgun `signature`.** `redactSignature()` strips it before the row is persisted. `posts` is never purged, so a stored signature would make every row a ready-to-replay request, reachable via a leaked service-role key, a DB backup, or the ML export
-- **`token` and `timestamp` MUST be retained.** Replay needs all three fields, and the signature can't be recomputed without the key — so those two are inert alone. The token is also what 0004 keys on; strip it and the replay guard silently stops working
-- These guards protect the **corpus, not the database** — a replay still costs a `trucks` lookup and a failed insert. Short-circuiting before the DB round trip is Phase 7 work
-- Freshness lives in the service, never the validator — validators stay pure (no `new Date()`, no env)
-- **Phase 3:** the parser must exclude `parsing_status = 'skipped'` rows when writing `locations`, or stale posts become locations anyway
+**`/api/live` (the public read path, Phase 6)**
+- An ordinary (dynamic) route, cached by Vercel's CDN through
+  `Cache-Control: public, s-maxage=60, stale-while-revalidate=60`. **Never ISR**, and
+  no route segment config on it
+- Never `Set-Cookie`, `Vary: Cookie`, `private` or `no-store` on its response: any of
+  them stops Vercel caching it
+- **Never return `[]` on error.** An error goes through `withErrorHandling` → 500,
+  which Vercel doesn't cache; an empty 200 would be cached and wipe the map
+- Reads with `supabaseAdmin`, and selects an **explicit column list, never `*`**, so
+  `created_by` and future columns can't leak
 
-**Parser**
-- All parser functions are pure — no DB calls, no HTTP, no `new Date()`
-- Always receive `parsedAt: string` (Stockholm date, "yyyy-MM-dd") as a parameter
+**Locations**
+- Overlapping non-cancelled entries for a truck are refused by the DB exclusion
+  constraint (`23P01` → 409, Swedish "överlappar" message). Never auto-resolve,
+  replace or delete
+- Locations are never deleted (except a takedown, which deletes the truck's whole
+  history). Ended (`ends_at <= now()`) and cancelled (`cancelled_at`) are filters
+- `starts_at` and `ends_at` are both required; a human always knows the end time
+
+**Time**
 - Timezone handling via `date-fns-tz`, always store UTC, display as `Europe/Stockholm`
+- Validators stay pure: no `new Date()`, no env. Anything clock-dependent lives in the
+  service
 
-**Confidence**
-- Display threshold: combined >= 0.45
-- `confidence = parser_confidence × source_confidence`
-- Source confidence: manual = 1.0 · webhook = 0.85 · email = 0.55
-- Never show raw confidence to users — always human language
-
-**Override logic**
-- Conflict detection is time-window overlap, not same-day
-  `existing.starts_at < incoming.ends_at AND existing.ends_at > incoming.starts_at`
-- Manual always overrides. Higher source confidence replaces lower. Same confidence → discard incoming.
-
-**Geocoding**
-- If geocoding fails → do not insert the location row, set `parsing_status = 'failed'`
-- Never update `last_known_latitude` / `last_known_longitude` on a failed geocode
-
-**Posts table**
-- Never purge the `posts` table — it is the ML training corpus for the future parser replacement
-- Vercel cron cleans `locations` only — this is intentional
+**Scheduling**
+- No Vercel cron. It can't deploy on Hobby. Any scheduler is pg_cron or external
 
 ---
 
@@ -124,7 +137,9 @@ Never mix layers.
 - All `useState` / `useEffect` live in hooks, not components
 - Components only describe what to render
 - Map markers are HTML elements via MapLibre Marker API — no image files
-- Never show confidence below 0.45 — show grey marker instead
+- Only trucks with an entry today appear on the map; the popup always shows when it
+  was updated. (The fake-data map still uses the old design's grey/yellow/green
+  markers until Phase 6.)
 - Never fully re-render the map — only update affected markers
 
 ---
@@ -138,6 +153,9 @@ run — not by what it tests:
 - Integration: `tests/integration/` only. Needs local Supabase. Runs files
   **sequentially** (`fileParallelism: false` on the project, since vitest 4) because
   they share one database.
+
+Toolchain: Node `^20.19.0 || >=22.12.0` (vite/rolldown's floor; older 20.x/22.x pass
+Next's check and fail under vitest) and **npm ≥ 11** (see Dependencies).
 
 | Script | Runs | Needs Docker |
 |---|---|---|
@@ -175,6 +193,12 @@ the stale one. So:
 - after stopping, check that no `node` process with this repo in its command line is
   left (`Get-CimInstance Win32_Process -Filter "Name = 'node.exe'"`), and stop any
   that are (process-log row 279, PR #135).
+
+⚠ **Green gates don't show the map renders.** After a change to the map code, its
+dependencies or the tile file, look at `/map` in a real browser: basemap, markers and
+a popup. MapLibre's worker 404'd with all four gates green (process-log row 282).
+Headless Edge on this machine doesn't load the style at all, even on a working build,
+so it is no substitute (PR for #126).
 
 **`test:all` fails if any project collects zero test files** (fixed by #99). Vitest's
 empty-match check is per-**run**, not per-project, so `test:all` (`scripts/test-all.mjs`)
