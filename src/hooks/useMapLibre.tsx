@@ -1,9 +1,10 @@
 import { useEffect, type RefObject } from "react";
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
-import maplibregl from "maplibre-gl";
+// Namespace import: MapLibre 6 is ESM-only and has no default export.
+import * as maplibregl from "maplibre-gl";
 import { Protocol } from "pmtiles";
-import layers from "protomaps-themes-base";
+import { layers, namedFlavor } from "@protomaps/basemaps";
 import TruckPopup from "@/components/Map/TruckPopup";
 import { FAKE_TRUCKS, FAKE_LOCATIONS } from "@/lib/fake-data";
 import type { Location, MarkerColor, MarkerState, Truck } from "@/lib/types";
@@ -20,8 +21,16 @@ const MARKER_COLORS: Record<MarkerColor, string> = {
   grey: "#6b7280",
 };
 
-// Registered once on the client, lazily inside the effect (never on the server).
-let pmtilesRegistered = false;
+// Registered once on the client, lazily inside the effect (never on the server):
+// the `pmtiles://` protocol, and MapLibre 6's worker URL.
+//
+// The worker is a separate file in v6 that a bundler cannot find on its own. This is
+// the form MapLibre documents for Turbopack / Next.js: `new URL(…, import.meta.url)`
+// makes the bundler emit `maplibre-gl-worker.mjs` as a hashed asset and gives its URL,
+// so it stays in step with the installed version (no copy in `public/` to refresh on
+// every upgrade). Turbopack recognises the pattern wherever it appears, so it can sit
+// in the effect and stay client-only.
+let mapLibreInitialised = false;
 
 function deriveColor(location: Location | null): MarkerColor {
   if (!location) return "grey";
@@ -64,9 +73,12 @@ export function useMapLibre(containerRef: RefObject<HTMLDivElement | null>) {
   useEffect(() => {
     if (!containerRef.current || !PMTILES_URL) return;
 
-    if (!pmtilesRegistered) {
+    if (!mapLibreInitialised) {
+      maplibregl.setWorkerUrl(
+        new URL("maplibre-gl/dist/maplibre-gl-worker.mjs", import.meta.url).toString(),
+      );
       maplibregl.addProtocol("pmtiles", new Protocol().tile);
-      pmtilesRegistered = true;
+      mapLibreInitialised = true;
     }
 
     const map = new maplibregl.Map({
@@ -86,7 +98,9 @@ export function useMapLibre(containerRef: RefObject<HTMLDivElement | null>) {
               '<a href="https://protomaps.com">Protomaps</a> © <a href="https://openstreetmap.org">OpenStreetMap</a>',
           },
         },
-        layers: layers("protomaps", "light", "en"),
+        // Swedish labels: the generated `text-field` uses `name:sv`, falling back to
+        // `name:en`, then the local `name`.
+        layers: layers("protomaps", namedFlavor("light"), { lang: "sv" }),
       },
     });
 
