@@ -159,11 +159,16 @@ does not run it.
 command's, and has already produced a confident wrong gate result here (process-log
 #169). Use `cmd >/dev/null 2>&1; echo $?`.
 
-⚠ **A green `test:all` does not prove both projects ran.** Vitest's empty-match check is
-per-**run**, not per-project: if one project's `include` breaks, the run still collects
-the other project's files and exits 0. Verified — a broken `unit` glob with one
-integration test present gives `exit 0, "Test Files 1 passed"`, with 917 tests silently
-gone. Glance at the reported file/test counts, not just the exit code. Tracked as #99.
+**`test:all` fails if either project collects zero test files** (fixed by #99). Vitest's
+empty-match check is per-**run**, not per-project, so `test:all` (`scripts/test-all.mjs`)
+runs each project in its own `vitest run`, always runs both, and fails if either fails.
+Before #99 a broken `unit` glob with one integration test present gave `exit 0`, with
+917 tests silently gone.
+
+⚠ **What the gate still can't see:** a *partial* drop (some files silently uncollected
+while others run) and files whose tests are all skipped. So glance at each project's
+file/test counts when tests are added, moved or deleted. **Adding a vitest project?**
+Add it to `RUNS` in `scripts/test-all.mjs`, or the gate never runs it.
 
 ---
 

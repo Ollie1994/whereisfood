@@ -80,6 +80,9 @@ const BUILD_OUTPUT = [".next/**", "out/**", "build/**", "coverage/**"];
 
 export default defineConfig({
   test: {
+    // ⚠ ADDING A PROJECT? Add it to `RUNS` in `scripts/test-all.mjs` too. The merge
+    // gate runs each project by name (#99), so a project missing there is never run by
+    // `npm run test:all` — and the gate stays green while its tests are never executed.
     projects: [
       {
         resolve: { alias },
@@ -145,48 +148,46 @@ export default defineConfig({
           // the `NonProjectOptions` list, so it belongs to the run rather than to a
           // project. It lives on the `test:integration` script as `--passWithNoTests`.
           //
-          // Vitest FAILS on an empty match by default, so without it that script is red
-          // from the moment this config lands until #72 writes the first file — red for
-          // a reason unrelated to anything being wrong. Verified both ways: exit 1
-          // without the flag, exit 0 with it, including when `tests/integration/` does
-          // not exist at all (which is what a fresh clone has — git tracks no empty
-          // directory, so no `.gitkeep` is needed).
+          // TWO SCRIPTS, TWO JOBS — they deliberately disagree about an empty
+          // integration project:
           //
-          // It is on `test:integration` ONLY, and deliberately NOT on `test:all` — the
-          // merge gate. Since #99, `test:all` runs each project in its own `vitest run`
-          // (see below), so an empty integration project now FAILS the gate. That is
-          // the point: an integration suite collecting nothing is a broken glob, not a
-          // legitimately empty state, now that the suite exists.
+          //   `test:integration` — the lenient inner-loop script. Keeps the flag, so an
+          //   empty match exits 0 (originally so it wasn't red before #72 wrote the
+          //   first integration file, and so a fresh clone with no such directory isn't
+          //   red either — git tracks no empty directory).
           //
-          // ⚠ "PUTTING IT ON THE SCRIPT KEEPS IT SCOPED TO INTEGRATION" IS WHAT THIS
-          // SAID, AND IT IS FALSE. The claim was that at the root the flag would also
-          // mute `unit`, where an empty match means a broken glob and should stay loud.
-          // Vitest never checks per-project emptiness, so the flag's LOCATION changes
-          // nothing about `unit`. Verified by breaking the unit `include` to match
-          // nothing while one real integration test existed:
+          //   `test:all` — the MERGE GATE, and the one that counts. No flag anywhere: an
+          //   integration project collecting zero test FILES fails it, because once the
+          //   suite exists that means a broken glob, not a legitimately empty state.
+          //
+          // History, kept because it is why the gate looks the way it does: an earlier
+          // version of this comment said putting the flag on the script "keeps it
+          // scoped to integration". That was false. Vitest checks for an empty match
+          // per RUN, never per project, so with `test:all` as one `vitest run` a broken
+          // unit `include` was masked by the integration files. Verified at the time:
           //
           //   npx vitest run                     → exit 0, "Test Files 1 passed"
           //   npx vitest run --passWithNoTests   → exit 0, identical
           //   npx vitest run --project unit      → exit 1
           //
-          // So `test:all` — the documented MERGE GATE — reports success while running
-          // zero unit tests, and the flag is not what allows it. Only running a project
-          // alone makes its emptiness visible, because then the RUN is empty.
+          // So the merge gate DID report success while running zero unit tests, until
+          // #99. Only a run of a project on its own makes its emptiness visible.
           //
           // ⚠ RESOLVED BY #99 — FROM OUTSIDE THE CONFIG, BECAUSE IT HAS TO BE. A guard
-          // inside a project cannot fire when that project collects nothing, so the fix
-          // is in `package.json`: `test:all` is
+          // inside a project cannot fire when that project collects nothing, so
+          // `test:all` is `scripts/test-all.mjs`, which runs each project in its own
+          // `vitest run`, always runs both, and fails if either fails. Verified by
+          // breaking each project's `include` in turn: non-zero both times, 0 once
+          // restored.
           //
-          //   vitest run --project unit && vitest run --project integration
-          //
-          // Each project is its own RUN, so vitest's per-run empty-match check now
-          // covers each one. Verified by breaking each project's `include` in turn:
-          // `npm run test:all` exits non-zero both times, and 0 once restored.
-          //
-          // What it does NOT catch: a PARTIAL drop (e.g. every `.tsx` test silently
-          // uncollected while other files still run). The structural include/exclude
-          // rule above guards that case; a collected-vs-on-disk comparison was
-          // considered for #99 and deferred until a partial drop actually recurs.
+          // What it does NOT catch:
+          //   - a PARTIAL drop (e.g. every `.tsx` test silently uncollected while other
+          //     files still run). The structural include/exclude rule above guards
+          //     that; a collected-vs-on-disk comparison was considered for #99 and
+          //     deferred until a partial drop actually recurs.
+          //   - collected files whose tests are ALL skipped (`describe.skip`,
+          //     `it.skipIf`). Those count as collected; the check is zero FILES, not
+          //     zero executed tests.
 
           // ⚠ SEQUENTIAL EXECUTION — the setting this split exists for, and the one
           // whose absence is silent.
