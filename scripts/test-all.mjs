@@ -17,15 +17,13 @@
 
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { createVitest } from "vitest/node";
 
-// The declared projects, each run through its package script so the gate and the
-// inner-loop scripts are one definition. A project that has test files but is missing
-// here FAILS the gate (checked below against `vitest list`).
-//
-// ⚠ Known gap: a project whose `include` matches NOTHING doesn't appear in
-// `vitest list` either, so an empty project that is also missing here goes unnoticed.
-// Closing it needs the project names from the resolved config (vitest's Node API),
-// deferred to the vitest 4 upgrade (#125), which changes that API.
+// The projects the gate runs, each through its package script so the gate and the
+// inner-loop scripts are one definition. RUNS must name exactly the projects
+// `vitest.config.ts` declares (checked below against the resolved config): a declared
+// project missing here FAILS the gate, even one whose `include` matches nothing, and
+// so does an entry here that the config doesn't declare.
 const RUNS = [
   { project: "unit", script: "test:run" },
   { project: "integration", script: "test:integration" },
@@ -71,32 +69,35 @@ if (weakened.length > 0) {
   process.exit(1);
 }
 
-// Every project that has test files must be in RUNS. `--filesOnly` lists files per
-// project without collecting or running any test, so this needs no database.
-const listing = sh("npx vitest list --filesOnly --json", {
-  encoding: "utf8",
-  maxBuffer: 64 * 1024 * 1024,
-});
-if (listing.error || listing.status !== 0) {
-  console.error(
-    `✖ test:all: could not list test files (${outcome(listing)})\n${listing.stdout ?? ""}${listing.stderr ?? ""}`,
-  );
-  process.exit(1);
-}
-let listed;
+// RUNS must match the projects the config DECLARES. Read from the resolved config
+// through vitest's Node API, so a project whose `include` matches nothing is still
+// seen (the `vitest list` check this replaced only saw projects that had files; that
+// gap was deferred from #99 to the vitest 4 upgrade, #125). Resolving the config
+// collects and runs no test, so this needs no database. ~200 ms.
+let declared;
 try {
-  listed = new Set(JSON.parse(listing.stdout).map((entry) => entry.projectName));
+  const vitest = await createVitest("test", { watch: false });
+  declared = vitest.projects.map((project) => project.name);
+  await vitest.close();
 } catch (error) {
-  console.error(`✖ test:all: could not parse \`vitest list\` output (${error.message})`);
+  console.error(`✖ test:all: could not resolve the vitest config (${error.message})`);
   process.exit(1);
 }
-const declared = new Set(RUNS.map((run) => run.project));
-const undeclared = [...listed].filter((project) => !declared.has(project));
-if (undeclared.length > 0) {
-  console.error(
-    `✖ test:all: project(s) with test files but not in RUNS: ${undeclared.join(", ")}.\n` +
-      "  Add them to RUNS in scripts/test-all.mjs, or the gate would never run them.",
-  );
+const inRuns = new Set(RUNS.map((run) => run.project));
+const missing = declared.filter((project) => !inRuns.has(project));
+const unknown = [...inRuns].filter((project) => !declared.includes(project));
+if (missing.length > 0 || unknown.length > 0) {
+  if (missing.length > 0) {
+    console.error(
+      `✖ test:all: project(s) declared in vitest.config.ts but not in RUNS: ${missing.join(", ")}.\n` +
+        "  Add them to RUNS in scripts/test-all.mjs, or the gate would never run them.",
+    );
+  }
+  if (unknown.length > 0) {
+    console.error(
+      `✖ test:all: project(s) in RUNS that vitest.config.ts doesn't declare: ${unknown.join(", ")}.`,
+    );
+  }
   process.exit(1);
 }
 

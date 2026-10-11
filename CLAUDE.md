@@ -142,7 +142,7 @@ run — not by what it tests:
 |---|---|---|
 | `npm run test:run` | unit only | no |
 | `npm run test:integration` | integration only (fails if it collects zero files) | yes |
-| `npm run test:all` | **every project in `RUNS`** of `scripts/test-all.mjs` (today `unit` + `integration`), checked against `vitest list`; takes no arguments | yes |
+| `npm run test:all` | **every project in `RUNS`** of `scripts/test-all.mjs` (today `unit` + `integration`), checked against the projects `vitest.config.ts` declares; takes no arguments | yes |
 
 **There is no CI — every gate is manual.** The gate list is four commands, and
 `test:run` is *not* one of them once integration tests exist:
@@ -182,8 +182,9 @@ always runs all of them, and fails if any fails. Before #99 a broken `unit` glob
 one integration test present gave `exit 0`, with 917 tests silently gone.
 
 **Adding a vitest project?** Add it to `RUNS` in `scripts/test-all.mjs`. The gate
-cross-checks `vitest list` and **fails** while a project with test files is missing
-there. To narrow a run, use vitest directly (`npx vitest run --project <name> <filter>`);
+reads the declared projects from the resolved config and **fails** while one is missing
+there, even a project that collects no files (or while `RUNS` names one the config
+doesn't declare). To narrow a run, use vitest directly (`npx vitest run --project <name> <filter>`);
 `test:all` refuses arguments rather than ignoring them.
 
 ⚠ **What the gate still can't see:** a *partial* drop (some files silently uncollected

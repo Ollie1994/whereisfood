@@ -131,7 +131,9 @@ Strict order. Each numbered step is one PR unless marked otherwise.
    `node scripts/test-all.mjs`, which:
    - runs each project in its own `vitest run` through `test:run` and `test:integration`;
    - always runs both, and fails if either fails;
-   - fails if `vitest list` shows a project with test files that isn't in its `RUNS`;
+   - fails if `vitest list` shows a project with test files that isn't in its `RUNS`
+     (since #125: if any project the resolved config declares isn't in `RUNS`, even an
+     empty one, read through vitest's Node API);
    - refuses extra arguments.
 
    `test:integration` drops `--passWithNoTests`. `--project` already works on vitest
@@ -164,9 +166,17 @@ Strict order. Each numbered step is one PR unless marked otherwise.
 8. **Upgrade vitest.** vitest 3.2.7 → **4.1.11**, migrate `vitest.config.ts` per the
    official v4 guide. Re-run step 3's check (break each project's `include` once) to
    confirm the #99 guard still works on v4.
+   *Done in PR for #125:* `singleFork` → per-project `fileParallelism: false` (keeps
+   per-file isolation; the guide's `maxWorkers: 1, isolate: false` mapping would turn
+   it off). The sequencing probe ran on v4 with a negative control. The #99 guard
+   still fails on each broken `include`, and #99's deferred gap is closed: `test:all`
+   now checks `RUNS` against the projects the resolved config declares (vitest Node
+   API), so an empty undeclared project fails too.
 9. **Transitive clean-up.** `npm audit fix` (non-breaking only). The expected end
    state is **0 production advisories** and exactly one known dev-only chain (see
    decision #3); anything else gets a reason in the PR.
+   *Done in PR for #125:* exactly that end state. npm 11.21's install-scripts warning
+   was verified on a clean `npm ci`: warn-only, the script still runs.
 10. **Docs.** `CLAUDE.md`, `project-context.md` rewrite, `README.md` (incl. the npm ≥ 11 prerequisite), the
     `phase-3-parser.md` header, `transition.md` header + renumbering + archive note.
 11. **Phase 3 retrospective (no PR needed beyond the log).** Count Phase 3 rows by
