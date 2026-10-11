@@ -156,10 +156,11 @@ pmtiles extract https://build.protomaps.com/YYYYMMDD.pmtiles public/gothenburg.p
 ```
 
 Replace `YYYYMMDD` with a recent build date from
-[maps.protomaps.com/builds](https://maps.protomaps.com/builds/). Only recent builds
-are kept, so an old date returns 404. The extract downloads only the tiles it needs:
-about 36 MB, in under a minute. Add `--maxzoom=14` for a smaller file with less
-street-level detail.
+[maps.protomaps.com/builds](https://maps.protomaps.com/builds/), which lists one row
+per daily build. Only recent builds are kept, so an old date returns 404. **Don't use
+that page's "download" link:** it's the whole planet (about 140 GB). The extract
+command fetches only the tiles inside the box: about 36 MB, in under a minute. Add
+`--maxzoom=14` for a smaller file with less street-level detail.
 
 ### 3. Environment
 

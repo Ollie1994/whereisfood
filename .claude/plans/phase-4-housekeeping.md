@@ -423,9 +423,12 @@ script and `useMapLibre` (`setWorkerUrl(workerUrl(getVersion()))`).
 - ~~How `gothenburg.pmtiles` is produced~~ → **cut with `pmtiles extract`** from a
   Protomaps daily build, with the bounding box from `src/lib/geo.ts`, into `public/`.
   *Corrected in PR #138 (row 289):* this first said "downloaded by hand from Protomaps'
-  website". Protomaps' docs offer no in-browser extract, only the CLI, and the owner
-  doesn't remember how the June file was made. Its metadata (27 June build, round-number
-  box, `--maxzoom=14`) fits a CLI extract. The README's command was run from a fresh
+  website". The owner recalls https://maps.protomaps.com/builds/, but that page only
+  lists daily builds, and its download link is the whole planet (~139 GB); Protomaps'
+  docs offer no in-browser extract, only the CLI. So the 11.5 MB June file (27 June
+  build, round-number box, `--maxzoom=14`) was cut from one of that page's builds with
+  `pmtiles extract`. The README names the page for the build date and warns off its
+  download link. The README's command was run from a fresh
   clone and the result checked in the owner's browser.
 - ~~Form of the #99 guard~~ → **run each project separately** (owner), so each run
   fails by itself when it collects zero test **files**. First shipped as a one-line
