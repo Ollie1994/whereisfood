@@ -151,6 +151,7 @@ Strict order. Each numbered step is one PR unless marked otherwise.
    `@upstash/redis`.
 6. **Upgrade Next.** `next` and `eslint-config-next` 16.2.6 → **16.3.8** (exact pin).
    Gates green, `/map` renders, `npm audit --omit=dev` shows no `next` advisory.
+   *Added in PR #135:* `next.config.ts` sets `agentRules: false` (decision #12).
 7. **Upgrade MapLibre + basemap.** `maplibre-gl` 5.24 → **6.11.2** (exact pin),
    `protomaps-themes-base` → **`@protomaps/basemaps` 5.7.2**, `pmtiles` → **4.5.0**,
    following the official v5→v6 migration guide and the basemaps CHANGELOG. Confirm
@@ -258,7 +259,8 @@ Housekeeping takes Phase 4, so: **5 Schema reset → 6 Live read path → 7 Admi
 8 Launch.** `transition.md` §13 and the new context use the new numbers.
 
 ### #10 — Pin exact versions for the framework and the map
-`next` and `eslint-config-next` are already exact pins (`16.2.6`), and stay exact.
+`next` and `eslint-config-next` were already exact pins (`16.2.6`) and stay exact
+(`16.3.8` since PR #135).
 `maplibre-gl` becomes an exact pin too: its maintainers advise against auto-updating,
 and a map-rendering change is only caught by looking at the map. Everything else keeps
 `^` within its major. Upgrades to these three are deliberate, each with a browser
@@ -269,6 +271,18 @@ npm 10.9.2 (bundled with Node 22.14) crashes in `#loadPeerSet` on vitest 4.1.11'
 optional peers. Reproduced twice on clean installs; npm 11 resolves the same set. The
 alternatives were worse: `--legacy-peer-deps` hides real peer conflicts, and staying on
 vitest 3 keeps a critical advisory. Upgrading a local tool costs one command.
+
+### #12 — Next's agent-rules generator stays off (added in PR #135, owner)
+Since 16.3, `next dev` writes a managed "agent rules" block when it detects an AI
+coding agent, and re-adds it on every such run: into `AGENTS.md` if that exists,
+otherwise `CLAUDE.md`, creating both if neither exists
+(`node_modules/next/dist/server/lib/generate-agent-files.js`). It appended the block
+to `CLAUDE.md` during #123's dev check. `next.config.ts` sets `agentRules: false`.
+Every tracked doc is hand-written and changes only through a PR; a dependency that
+rewrites one on every dev run, and again whenever its own text changes, is drift done
+by a tool. The block's useful hint (version-matched docs in
+`node_modules/next/dist/docs/`) is written by hand in #126. **Rejected:** committing
+the generated block. Don't remove `agentRules: false` without the owner.
 
 ---
 
