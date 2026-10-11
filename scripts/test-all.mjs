@@ -38,8 +38,11 @@ const RUNS = [
   { project: "integration", script: "test:integration" },
 ];
 
-// `shell: true` so `npm`/`npx` resolve on Windows as well as POSIX.
-const sh = (command, options = {}) => spawnSync(command, { shell: true, ...options });
+// `shell: true` so `npm`/`npx` resolve on Windows as well as POSIX. EVERY child gets
+// the pre-vitest environment and the repo root by default, so no later call can inherit
+// what resolving the config left in this process (see TEST_ENV).
+const sh = (command, options = {}) =>
+  spawnSync(command, { shell: true, env: TEST_ENV, cwd: ROOT, ...options });
 
 // Reports a spawn failure (the shell couldn't start) with its real error. Note the
 // limit: with `shell: true` the direct child is the shell, so a signal or OOM kill of
@@ -88,7 +91,11 @@ if (weakened.length > 0) {
 // missing or broken vitest is reported as one line instead of a module-loader stack.
 // `root` anchors the config lookup to the repo, like the package.json read above,
 // rather than to the working directory.
-let declared;
+//
+// A local result, not `process.exitCode`: vitest's Node API writes that global itself on
+// some paths without throwing, which would end the gate with no explanation. `close()`
+// failing (e.g. a Windows `EBUSY` on a watcher) only warns: the names are already read.
+let declared = null;
 let vitest;
 try {
   const { createVitest } = await import("vitest/node");
@@ -96,11 +103,14 @@ try {
   declared = vitest.projects.map((project) => project.name);
 } catch (error) {
   console.error(`✖ test:all: could not resolve the vitest config (${error.message})`);
-  process.exitCode = 1;
 } finally {
-  await vitest?.close();
+  try {
+    await vitest?.close();
+  } catch (error) {
+    console.warn(`⚠ test:all: closing the vitest config failed (${error.message})`);
+  }
 }
-if (process.exitCode) process.exit();
+if (declared === null) process.exit(1);
 const inRuns = new Set(RUNS.map((run) => run.project));
 const missing = declared.filter((project) => !inRuns.has(project));
 const unknown = [...inRuns].filter((project) => !declared.includes(project));
@@ -122,7 +132,7 @@ if (missing.length > 0 || unknown.length > 0) {
 const failed = [];
 for (const { project, script } of RUNS) {
   console.log(`\n▶ test:all — ${project}: npm run ${script}\n`);
-  const result = sh(`npm run ${script}`, { stdio: "inherit", env: TEST_ENV, cwd: ROOT });
+  const result = sh(`npm run ${script}`, { stdio: "inherit" });
   if (result.error || result.status !== 0) failed.push(`${project} (${outcome(result)})`);
 }
 

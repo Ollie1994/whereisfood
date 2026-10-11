@@ -66,28 +66,31 @@ const INTEGRATION_DIR = "tests/integration";
 // generated folders. The per-project file counts were unchanged by the upgrade.
 const INTEGRATION_INCLUDE = defaultInclude.map((pattern) => `${INTEGRATION_DIR}/${pattern}`);
 
-// Generated directories, mirroring EVERY generated folder `.gitignore` names:
-// `/coverage`, `/.next/`, `/out/`, `/build`, `.vercel`, `supabase/.branches` and
-// `supabase/.temp`. Vitest 4's `defaultExclude` covers none of them, see the note on the
-// unit project's `exclude`. (The last three were added with vitest 4: vitest 3's
-// defaults had covered `supabase/.temp`, and the mirror had silently been partial.)
+// Generated directories: every generated folder `.gitignore` names (`/coverage`,
+// `/.next/`, `/out/`, `/build`, `.vercel`, `/public/maplibre/`, `supabase/.branches`,
+// `supabase/.temp`). Vitest 4's `defaultExclude` covers none of them, see the note on
+// the unit project's `exclude`. The last four were added with vitest 4 (PR #137):
+// vitest 3's defaults had covered `supabase/.temp`, and the mirror had been partial.
+// A folder added to `.gitignore` as generated belongs here too.
 //
-// ⚠ ROOT-ANCHORED, matching how `.gitignore` writes them. A first pass used `**/build/**`
-// and `**/out/**`, which reach any depth and would silently swallow a legitimate
-// `src/lib/build/thing.test.ts` — the same class of over-reach as #170 and #172, in the
-// opposite direction: excluding too much rather than including too little, and equally
-// silent. Vitest resolves these relative to the project root, so no leading `**/` is
-// what pins them to the directories `.gitignore` actually names.
+// ⚠ ANCHORED EXACTLY AS `.gitignore` WRITES THEM. An entry with a slash (`/build`,
+// `supabase/.temp`) is root-anchored there, so it is here: a first pass used
+// `**/build/**` and `**/out/**`, which reach any depth and would silently swallow a
+// legitimate `src/lib/build/thing.test.ts` (the class of over-reach #170 and #172
+// caught in the other direction, equally silent). `.vercel` has no slash, so git
+// matches it at any depth, and so does `**/.vercel/**` here.
 //
 // Verified both ways: a failing test under `.next/` and `coverage/` is NOT collected,
 // and a failing test under `src/lib/build/` IS. Re-verified on vitest 4.1.11 for
-// `supabase/.temp/` (not collected) and `src/lib/build/` (collected).
+// `supabase/.temp/`, `.vercel/`, `src/.vercel/` and `public/maplibre/` (not
+// collected) and `src/lib/build/` (collected).
 const BUILD_OUTPUT = [
   ".next/**",
   "out/**",
   "build/**",
   "coverage/**",
-  ".vercel/**",
+  "**/.vercel/**",
+  "public/maplibre/**",
   "supabase/.branches/**",
   "supabase/.temp/**",
 ];
@@ -128,7 +131,7 @@ export default defineConfig({
           // r1→r2 overcorrection happened in the first place.
           //
           // The list comes from `.gitignore`, which is this project's own declaration
-          // of what is generated: `/coverage`, `/.next/`, `/out/`, `/build`. That makes
+          // of what is generated (`BUILD_OUTPUT` above names each entry). That makes
           // it a mirror of an existing statement rather than a set invented here —
           // which is the distinction that matters after #173, where copying a set
           // vitest owns was the mistake. This set is ours.
