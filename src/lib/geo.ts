@@ -1,24 +1,21 @@
-// The Gothenburg bounding box — ONE definition, for two unrelated consumers that
-// do not exist yet. This module ships ahead of both, deliberately (issue #55), so
-// everything below is what they WILL do, not what anything does today:
+// The Gothenburg bounding box — ONE definition, for two consumers:
 //
-//   1. `dictionary.test.ts` (#62) will assert every hand-entered entry falls inside it,
-//      which catches typos and the lat/lng transposition that would otherwise
-//      land a pin in the Indian Ocean — transposed Järntorget is 11.95 N /
-//      57.70 E, in the Arabian Sea. (Null island, 0/0, is a different failure
-//      and has its own test.)
-//   2. `geocoding.ts` (#63) will re-validate Nominatim responses against it. `bounded=1`
-//      is a request parameter, not a guarantee worth trusting blindly, so the
-//      returned coordinates are checked before they are accepted.
+//   1. `spots.test.ts` asserts every known spot falls inside it, which catches
+//      typos and the lat/lng transposition that would otherwise land a pin in the
+//      Indian Ocean — transposed Järntorget is 11.95 N / 57.70 E, in the Arabian
+//      Sea. (Null island, 0/0, is a different failure and has its own test.)
+//   2. The admin location entry (Phase 7) will validate map taps and GPS fixes
+//      against it before a location is written.
 //
 // Two copies would drift, and a drifted box fails silently in the direction that
 // matters least visibly: it accepts a wrong pin rather than rejecting a right one.
 //
-// Pure module — no DB, no HTTP, no clock.
+// No imports, no DB, no HTTP, no clock — by inspection only. The test that enforced
+// this was removed in Phase 4 together with the code that depended on it.
 
 // Approximately 11.6–12.2 E / 57.5–57.85 N. Deliberately generous: it spans from
-// Mölndal in the south to Hisingen in the north, which covers every location the
-// dictionary seeds (#4) plus room for novel addresses the geocode fallback finds.
+// Mölndal in the south to Hisingen in the north, which covers every known spot plus
+// room for new places the admin pins.
 //
 // This is a coarse sanity check, NOT a service-area definition. Its job is to
 // catch coordinates that are obviously wrong — a transposed pair, a Stockholm
@@ -42,9 +39,9 @@ export const GOTHENBURG_BBOX = {
 // outcome depend on float representation rather than on anything meaningful.
 //
 // The `Number.isFinite` prefix is a RUNTIME guard, not a restatement of the type
-// signature. Nominatim returns `lat` and `lon` as JSON **strings**, and `res.json()`
-// is `any` — so `isInGothenburg(hit.lat, hit.lon)` type-checks in the geocoding
-// consumer and, through relational coercion, `"57.6997" >= 57.5` is `true`. Without
+// signature. A JSON body can carry `lat` and `lng` as **strings**, and `request.json()`
+// is `any` — so `isInGothenburg(body.lat, body.lng)` type-checks in a route handler
+// and, through relational coercion, `"57.6997" >= 57.5` is `true`. Without
 // this the box would wave a string coordinate through into `locations.latitude`,
 // which is the exact class of wrong-but-plausible value it exists to stop. The
 // caller should still convert; this makes forgetting to a miss rather than a pin.

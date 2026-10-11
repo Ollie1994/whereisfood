@@ -8,7 +8,7 @@ const now = Date.now();
 const hours = (h: number) => new Date(now + h * 60 * 60 * 1000).toISOString();
 
 export const FAKE_TRUCKS: Truck[] = [
-  // GREEN — manual post, active location, confidence 1.0
+  // GREEN — manual source, active location, confidence 1.0
   {
     id: "11111111-1111-1111-1111-111111111111",
     name: "Strömmingsluckan",
@@ -20,7 +20,7 @@ export const FAKE_TRUCKS: Truck[] = [
     last_known_longitude: 11.9529,
     created_at: hours(-720),
   },
-  // YELLOW — webhook (Instagram), parsed location, confidence 0.51
+  // YELLOW — webhook source, active location, confidence 0.51
   {
     id: "22222222-2222-2222-2222-222222222222",
     name: "Tacos & Tequila",
@@ -32,7 +32,7 @@ export const FAKE_TRUCKS: Truck[] = [
     last_known_longitude: 11.9614,
     created_at: hours(-480),
   },
-  // YELLOW — email lane, parsed location, confidence 0.4675
+  // YELLOW — email source, active location, confidence 0.4675
   {
     id: "33333333-3333-3333-3333-333333333333",
     name: "Falafel Express",
@@ -59,7 +59,7 @@ export const FAKE_TRUCKS: Truck[] = [
 ];
 
 export const FAKE_LOCATIONS: Location[] = [
-  // GREEN — manual: source_confidence 1.0 × parser_confidence 1.0 = 1.0
+  // GREEN — manual source, confidence 1.0
   {
     id: "aaaaaaaa-0000-0000-0000-000000000001",
     truck_id: "11111111-1111-1111-1111-111111111111",
@@ -79,7 +79,7 @@ export const FAKE_LOCATIONS: Location[] = [
     created_at: hours(-1),
     updated_at: hours(-1),
   },
-  // YELLOW — webhook: source_confidence 0.85 × parser_confidence 0.6 = 0.51
+  // YELLOW — webhook source, confidence 0.51
   {
     id: "aaaaaaaa-0000-0000-0000-000000000002",
     truck_id: "22222222-2222-2222-2222-222222222222",
@@ -99,7 +99,7 @@ export const FAKE_LOCATIONS: Location[] = [
     created_at: hours(-2),
     updated_at: hours(-2),
   },
-  // YELLOW — email: source_confidence 0.55 × parser_confidence 0.85 = 0.4675
+  // YELLOW — email source, confidence 0.4675
   {
     id: "aaaaaaaa-0000-0000-0000-000000000003",
     truck_id: "33333333-3333-3333-3333-333333333333",

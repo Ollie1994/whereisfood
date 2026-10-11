@@ -75,7 +75,7 @@ Never mix layers.
 - All errors return `{ "error": "message" }` with the correct HTTP status code
 - Never expose stack traces or internal errors to the client
 - Return 200 immediately from webhook endpoints, run parsing inside `after()`
-- Every route handler wraps its body in `withErrorHandling()` (`src/lib/http/handler.ts`) so an unexpected throw becomes a 500 `{ error }` instead of Next's default error page. Expected failures are **returned** (`errorResponse(msg, 400/401)`), never thrown — returns pass through the wrapper untouched; the catch only intercepts genuine exceptions (e.g. a DB error from the db layer).
+- Every route handler wraps its body in `withErrorHandling()` (`src/lib/http/handler.ts`) so an unexpected throw becomes a 500 `{ error }` instead of Next's default error page. Expected failures are **returned** (`NextResponse.json({ error: msg }, { status: 400 })`), never thrown — returns pass through the wrapper untouched; the catch only intercepts genuine exceptions (e.g. a DB error from the db layer).
 
 **Email lane (Mailgun)**
 - Verify the HMAC signature before anything else, then evaluate timestamp freshness
@@ -158,6 +158,12 @@ does not run it.
 ⚠ **Read an exit code unpiped.** `cmd | tail; echo $?` reports `tail`'s status, not the
 command's, and has already produced a confident wrong gate result here (process-log
 #169). Use `cmd >/dev/null 2>&1; echo $?`.
+
+⚠ **After deleting or renaming a route, clear `.next/` before the gates.** `tsconfig`
+includes Next's generated `.next/types` and `.next/dev/types`, which keep referencing
+the old route until regenerated, so `tsc` and `build` fail with `Cannot find module
+'…/route.js'`, which reads like a broken import. `rm -rf .next` (gitignored build
+output) and re-run (process-log row 275, PR #133).
 
 **`test:all` fails if any project collects zero test files** (fixed by #99). Vitest's
 empty-match check is per-**run**, not per-project, so `test:all` (`scripts/test-all.mjs`)

@@ -1,12 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { GOTHENBURG_BBOX, isInGothenburg } from "@/lib/geo";
-import {
-  findImpurities,
-  FORBID_ALL_IMPORTS,
-  readModuleSource,
-} from "@/lib/test-utils/purity";
 
-// Real coordinates for spots the dictionary will seed (#4). If the box is ever
+// Real Gothenburg coordinates, hand-picked for this test. NOT a copy of `SPOTS`
+// (`spots.test.ts` checks those against the box). If the box is ever
 // retuned, these are the cases that must keep passing — they are the reason it
 // exists, not arbitrary fixtures.
 const REAL_SPOTS: ReadonlyArray<[name: string, lat: number, lng: number]> = [
@@ -111,8 +107,8 @@ describe("isInGothenburg", () => {
 
   describe("non-numeric ordinates", () => {
     // The type signature says `number`, but the guard's job starts where the type
-    // system stops: `res.json()` is `any`, and Nominatim returns lat/lon as JSON
-    // STRINGS, so a consumer that forgets to convert type-checks fine. Relational
+    // system stops: `request.json()` is `any`, and a JSON body can carry lat/lng as
+    // STRINGS, so a caller that forgets to convert type-checks fine. Relational
     // coercion then makes `"57.6997" >= 57.5` true, and a string coordinate would
     // be waved through into `locations.latitude`.
     //
@@ -120,7 +116,7 @@ describe("isInGothenburg", () => {
     // guard exists to catch, so the test has to be able to make it.
     const loose = isInGothenburg as unknown as (lat: unknown, lng: unknown) => boolean;
 
-    it("rejects Nominatim's string coordinates even though they coerce in range", () => {
+    it("rejects string coordinates even though they coerce in range", () => {
       expect(loose("57.6997", "11.9515")).toBe(false);
       // Proof the strings really are in-range once converted — the rejection is
       // the guard firing, not the coordinates being wrong.
@@ -137,30 +133,5 @@ describe("isInGothenburg", () => {
     ])("rejects %s", (_label, lat, lng) => {
       expect(loose(lat, lng)).toBe(false);
     });
-  });
-});
-
-describe("geo.ts purity", () => {
-  // Verified by test, not by inspection (the plan's rule): the module is consumed
-  // by a pure parser test AND by an impure geocoding path, so it must be safe for
-  // the stricter of the two.
-  //
-  // The mechanism lives in `test-utils/purity` and is verified adversarially
-  // there, against every import form that defeated a previous version of this
-  // guard (issue #75). It is shared rather than restated because the six parser
-  // issues need the same check under a DIFFERENT policy, and re-deriving it is
-  // precisely what cost PR #74 three review rounds.
-  //
-  // `FORBID_ALL_IMPORTS` is the strictest policy and the right one here: geo.ts
-  // needs nothing, so anything arriving — including a type-only import, erased at
-  // compile time and harmless — deserves a deliberate decision rather than a
-  // silent pass.
-  it("is pure: no imports of any kind, no network, no clock", () => {
-    const violations = findImpurities(
-      readModuleSource(new URL("./geo.ts", import.meta.url).href),
-      FORBID_ALL_IMPORTS,
-    );
-
-    expect(violations).toEqual([]);
   });
 });
