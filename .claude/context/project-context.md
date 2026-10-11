@@ -76,8 +76,8 @@ save-triggered cache purges, grey markers) without a concrete problem that needs
   nothing from the database and has **no API routes**.
 - The fake-data map still behaves like the **old** design: marker colour from
   `confidence` (green ≥ 0.9, yellow ≥ 0.45; grey, drawn at `last_known_*`, for a truck
-  whose location is missing, below 0.45 or a negation), and popup labels from the same
-  colours. Phase 6 replaces this;
+  whose location is missing, below 0.45 or a negation; **no marker at all** when
+  `last_known_*` is null), and popup labels from the same colours. Phase 6 replaces this;
   don't change it before then (Phase 4 plan, Out of Scope).
 - `src/proxy.ts` is a no-op stub. Its matcher (`/dashboard/:path*`, `/admin/:path*`,
   `/api/locations`) is a Phase 1 draft; Phase 7 sets the real one.
@@ -175,7 +175,7 @@ src/
 │   └── useLocations.ts           ← Phase 6
 ├── lib/
 │   ├── db/                       ← trucks.ts, locations.ts (rewritten in Phase 5)
-│   ├── services/                 ← empty today; a small locations service in Phase 7
+│   ├── services/                 ← Phase 7 (doesn't exist yet): a small locations service
 │   ├── http/handler.ts           ← withErrorHandling (+ test)
 │   ├── validators/uuid.ts        ← (+ test)
 │   ├── geo.ts, spots.ts          ← (+ tests)
@@ -246,7 +246,9 @@ first (Supabase's built-in email reaches only org members, 2/hour).
 
 Next.js 16 · React 19 · TypeScript · Tailwind v4 · MapLibre GL + PMTiles (Cloudflare
 R2 at launch, the local file for development) · Supabase Postgres + Auth ·
-date-fns-tz · Vercel. **No** Realtime, cron, Upstash, Nominatim, Mailgun or Make.com.
+date-fns-tz · Vercel. **No** Realtime, cron, Upstash, Mailgun or Make.com, and no
+Nominatim at runtime (`scripts/seed-dictionary.mjs` queries it by hand, as a dev-only
+authoring tool for `SPOTS`).
 
 ## Phase map
 
@@ -318,7 +320,7 @@ powers the checklist, "recent places" and proof of value to trucks.
   explicitly, **per table, `service_role` included**, to match the table above. 0001's
   blanket `grant … on all tables` doesn't reach tables created later, so don't copy it.
 - All writes, `/api/live` and the admin screen's reads go through server-side routes
-  using `supabaseAdmin`.
+  (route → service → db layer; only the db layer uses `supabaseAdmin`).
 - Unverified third-party reports say free projects need explicit GRANTs for API access
   from 2026-10-30; already covered by the rule above.
 
@@ -341,7 +343,8 @@ Visitor's map ──► GET /api/live (every 60 s, and when the tab regains focu
   Vercel strips `s-maxage`/`stale-while-revalidate` before the browser **when no
   `CDN-Cache-Control` header is set**, so every poll reaches the CDN copy. Don't add
   `CDN-Cache-Control`: browsers would then cache the response themselves.
-- Reads with `supabaseAdmin` (anon has no SELECT), selecting an **explicit column
+- Reads through the db layer, which uses `supabaseAdmin` (anon has no SELECT),
+  selecting an **explicit column
   list, never `*`**, so `created_by` and future columns can't leak.
 - Returns active trucks plus locations with `cancelled_at IS NULL AND ends_at > now()
   AND starts_at < now() + interval '1 day'`. The client handles minute-level edges.
@@ -461,10 +464,13 @@ mechanics, hand-off rule, custom SMTP provider.
 
 These hold in both the current state and the target design.
 
-**Owned by `CLAUDE.md`, not repeated here:** Supabase clients and keys, architecture
-layers, `proxy.ts`, API responses (`withErrorHandling`, the `{ error }` shape), the
-`/api/live` rules, UI rules and time. One copy per rule: a rule restated in two files
-drifts (process-log rows 291, 293, 294). This part holds only what `CLAUDE.md` doesn't.
+**Owned by `CLAUDE.md`:** Supabase clients and keys, architecture layers, `proxy.ts`,
+API responses (`withErrorHandling`, the `{ error }` shape), the `/api/live` rules, UI
+rules and time. This part doesn't restate them. Part 2 does describe several of them
+(RLS and grants, `/api/live`, the auth check order) **together with their reasons**;
+where a Part 2 statement and a `CLAUDE.md` rule disagree, the `CLAUDE.md` rule wins and
+Part 2 is corrected. A rule restated in two files drifts (process-log rows 291, 293,
+294, 295).
 
 ## Map behaviour
 
@@ -474,9 +480,12 @@ drifts (process-log rows 291, 293, 294). This part holds only what `CLAUDE.md` d
 
 ## Import convention
 
-Internal modules are imported via the `@/` alias (`./src/*`), never relative paths.
-Bare package imports stay as they are (`maplibre-gl/dist/maplibre-gl.css`,
-`next/navigation`). Use `import type` for anything used only as a type; plain
+Files **inside `src/`** import other `src/` modules via the `@/` alias (`./src/*`),
+never relative paths. Files outside `src/` keep relative imports: `scripts/*.mjs` run
+on plain Node, which can't resolve the alias (`copy-maplibre-worker.mjs` imports
+`../src/lib/maplibre-worker.mjs`, and breaks install, dev and build if "fixed"), and
+`tests/integration/*` import `./helpers`. Bare package imports stay as they are
+(`maplibre-gl/dist/maplibre-gl.css`, `next/navigation`). Use `import type` for anything used only as a type; plain
 `import` for runtime values.
 
 ```typescript
@@ -487,8 +496,6 @@ import { Truck } from "@/lib/types";             // ❌ a type imported as a val
 ```
 
 ## Component structure
-
-Components are pure render; `useState`/`useEffect` live in hooks.
 
 ```tsx
 import type { MarkerState } from "@/lib/types";

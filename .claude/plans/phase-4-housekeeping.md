@@ -265,7 +265,7 @@ match the **current** schema, which still exists until Phase 5. Deleting them no
 would leave the schema untested for a phase; Phase 5 replaces schema, primitives and
 tests together.
 
-### #8 — Rewrite `project-context.md` in two labelled parts
+### #8 — Rewrite `project-context.md` in labelled parts (two, plus Standing rules since PR #140)
 After this phase the code is a fake-data map plus an old schema, while the design is
 the admin-populated map. A context that only describes the target would be wrong about
 the code; one that only describes the code would hide the plan. So:

@@ -1,9 +1,11 @@
 # Transition — from three ingestion lanes to an admin-populated map
 
 > **History. Absorbed into `.claude/context/project-context.md` (Phase 4, #127).**
-> Phase 4 carried out the teardown (§11's Remove list except its last item, the
-> migration squash, which is Phase 5; §13's tracker clean-up; §14's docs). Everything else here (schema reset, `/api/live`, admin, R2, launch) is the
-> target design for Phases 5–8 and **not built**; it is condensed into the context's
+> Phase 4 carried out the teardown and clean-up: §11's Remove list (except the
+> migration squash, which is Phase 5) and its clean-up Rework items (`spots.ts`,
+> `@upstash/*`, the proxy matcher); §5's dependency changes; §13's tracker clean-up;
+> §14's docs, except row 258's fix column (#128). The rest (schema reset, `/api/live`,
+> admin, R2, launch) is the target design for Phases 5–8 and **not built**; it is condensed into the context's
 > "Target design" part, which is now the reference. The current phase plan wins over
 > both. This file is kept, not deleted, because §0's table is what stops removed
 > pieces being re-added; read it before adding anything back.

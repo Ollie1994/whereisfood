@@ -87,7 +87,8 @@ Route handlers call services. Services call DB layer. Never mix layers.
 - Never use `NEXT_PUBLIC_` prefix on secret keys
 - **The browser never reads or writes the database.** Public map data comes only from
   `/api/live`; the admin screen reads through its own (uncached) API routes; every
-  write goes through an API route using `supabaseAdmin`
+  write goes through an API route. Server-side, all of them go route → service → db
+  layer, and only the db layer uses `supabaseAdmin`
 - Anon gets **no SELECT on `trucks` or `locations`** (Phase 5). With history kept, anon access
   would make every truck's movement history public through Supabase's API
 - RLS on every table, an explicit `GRANT` per table that matches its RLS policies, and
@@ -120,7 +121,8 @@ Route handlers call services. Services call DB layer. Never mix layers.
   them stops Vercel caching it
 - **Never return `[]` on error.** An error goes through `withErrorHandling` → 500,
   which Vercel doesn't cache; an empty 200 would be cached and wipe the map
-- Reads with `supabaseAdmin`, and selects an **explicit column list, never `*`**, so
+- Reads through the db layer (which uses `supabaseAdmin`), and selects an **explicit
+  column list, never `*`**, so
   `created_by` and future columns can't leak
 
 **Target-design rules, enforced from Phase 5.** The Locations rules below and the

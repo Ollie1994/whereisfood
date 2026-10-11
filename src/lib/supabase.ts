@@ -6,9 +6,10 @@ import type { Database } from "@/lib/database.types";
 // Today the env boundary is the only guard: SUPABASE_SERVICE_ROLE_KEY has no
 // NEXT_PUBLIC_ prefix, so Next.js never inlines it into the client bundle — it is
 // undefined in the browser. `supabaseAdmin` must therefore only ever be imported
-// from server code (the db layer). No `import 'server-only'` guard yet:
-// the first client component that imports `supabaseClient` (the Phase 7 login
-// screen) would evaluate this whole module in the browser and throw on the missing
+// from server code (the db layer and the integration test helpers). There is no
+// `import 'server-only'` guard and no client code imports this module today. That
+// changes at the Phase 7 login screen: a client component importing `supabaseClient`
+// would evaluate this whole module in the browser and throw on the missing
 // service-role key, so the file is split then (project-context, "Admin and auth").
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
