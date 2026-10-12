@@ -466,6 +466,28 @@ One session's worth. Early, but several patterns are already visible.
 > tally 7    # which gate is actually catching things
 > tally 8    # how far things escape before being caught
 > tally 4    # which PR generated the most misses
+>
+> # logcheck: rows whose Artifact, Escaped or Cause value isn't one this file lists, and
+> # malformed rows (a raw | adds a cell). The allowed values are read from the Columns
+> # and Cause taxonomy sections below, never copied here. Usage: logcheck [first-row] [file]
+> logcheck () { local f="${2:-.claude/process-log.md}"
+>   local art esc cau
+>   art=$(sed -n '/^Values: `CLAUDE.md`/,/^$/p' "$f" | grep -o '`[^`]*`' | tr -d '`' | paste -sd' ')
+>   esc=$(sed -n '/^\*\*`Escaped`\*\*/,/^$/p' "$f" | grep -o '`[^`]*`' | tr -d '`' | grep -vx Escaped | paste -sd' ')
+>   cau=$(sed -n '/^### Cause taxonomy/,/^---/p' "$f" | grep -oE '^\| `[a-z-]+`' | tr -d '|` ' | paste -sd' ')
+>   grep -E "^\| [0-9]+ \|" "$f" | sed 's/[\]|/~/g' \
+>   | awk -F'|' -v from="${1:-0}" -v art="$art" -v esc="$esc" -v cau="$cau" '
+>       BEGIN { split(art, a, " "); for (i in a) A[a[i]]
+>               split(esc, e, " "); for (i in e) E[e[i]]
+>               split(cau, c, " "); for (i in c) C[c[i]] }
+>       $2+0 < from { next }
+>       { n = $2+0
+>         if (NF != 11) { print n ": malformed row, " NF-2 " cells instead of 9 (a raw | in a cell?)"; next }
+>         v = $5; gsub(/^ +| +$|`/, "", v); if (!(v in A)) print n ": Artifact \"" v "\""
+>         v = $8; gsub(/^ +| +$|`/, "", v); if (!(v in E)) print n ": Escaped \"" v "\""
+>         v = $9; gsub(/^ +| +$|`/, "", v); if (!(v in C)) print n ": Cause \"" v "\"" }'; }
+>
+> logcheck 268   # after adding rows: must print nothing (197–267 are known drift, row 297)
 > ```
 >
 > If a column is added or reordered, these indices shift — update this block in the

@@ -109,6 +109,10 @@ Before starting, read CLAUDE.md and .claude/context/project-context.md.
 - <exact commands to run + what to observe; omit this section entirely for
   pure config/chore issues and fold the command into the matching AC line.>
 
+**Failure modes:**              ← REQUIRED when the issue adds or changes a guard; otherwise "none"
+- Catches: <failure class> — <the probe or test that shows it, and its negative control>
+- Does not catch: <class deliberately out of scope> — <why>
+
 **Acceptance Criteria:**        ← the PROOF: binary outcomes, as checkboxes
 - [ ] <specific, unambiguous, objectively pass/fail — one box per check>
 ```
@@ -131,6 +135,14 @@ Rules for issue breakdown:
 - Include integration tests as a separate issue — they are never trivial
 - Dependencies must be explicit: "Blocked by Issue N" — never implicit.
   Asset / env / external dependencies go under **Prerequisites**, not Blocked by.
+- **Failure modes** are required for any issue that adds or changes a guard: a
+  validator, a DB constraint, a test gate, a grep acceptance criterion, a gate
+  script. Derive the classes from the change (the inputs, files, terms and paths it
+  touches), not from memory, and name the ones deliberately out of scope. Each
+  listed class gets an Acceptance Criterion with a **negative control**: break the
+  guard (or feed it the bad case) and watch it fail. Guards written for the failure
+  modes someone remembered were Phase 3's largest cause of misses (process log,
+  Phase 3 retrospective).
 
 ---
 
@@ -158,6 +170,8 @@ repair any issue that is missing a required section or value:
 - [ ] Implementation steps present as `- [ ]` checkboxes
 - [ ] Tests present (Unit + Integration, "none" where applicable)
 - [ ] Verification present if the issue has a runnable surface
+- [ ] Failure modes present ("none" if the issue adds no guard); for a guard-adding
+  issue, each class it catches has an Acceptance Criterion with a negative control
 - [ ] Acceptance Criteria present as `- [ ]` checkboxes, each binary
 - [ ] Dependency/chore issues pin the intended major version
 

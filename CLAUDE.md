@@ -256,8 +256,28 @@ uncommitted on `dev`. Every doc change then has a reviewable diff and a
   branch off `dev`, a PR. That includes a log row written outside any issue's work,
   e.g. a miss found while surveying the repo (IS #131).
 - GitHub issue and PR text is not a repo file, so editing it needs no branch. It is
-  still a doc: when correcting a claim, check every copy, **open issue bodies
-  included** (process-log rows 269, 271).
+  still a doc: a corrected claim there gets the same sweep as one in a file ("Review
+  rounds" below; process-log rows 269, 271).
+
+---
+
+## Review rounds — sweep every fix before the next round
+
+In Phase 3 every `/code-review` round that ran found about as much per PR as the first
+round did, and part of that was fixes that reached one copy of a claim and missed the
+others (the process log's Phase 3 retrospective, with its limits). So after applying a round's fixes, and **before** asking
+for the next round, or whenever a claim is corrected outside a review:
+
+1. **List** each claim, term or rule the fixes corrected.
+2. **Grep every mention** of each across the tracked docs (`CLAUDE.md`, `README.md`,
+   `.claude/`), code comments and tests, **every open issue body**, and this PR's body.
+3. **Read every hit.** Fix the stale ones; history (process-log rows, dated entries)
+   stays as written.
+4. **Record the sweep** in that round's section of the PR body: claim → where it was
+   checked → result.
+
+Fixing only the lines a finding names is what let one correction miss its copies three
+rounds running; the sweep found the copy no finding had named (process-log row 295).
 
 ---
 
@@ -293,6 +313,9 @@ Duplicating it in two files is the same `manual-drift` the log exists to catch.
 **A row goes directly after the last row of the `## Log` table, not at the end of the
 file.** Detail entries follow the table, so a row appended to the file lands outside
 it and renders as plain text (row 272).
+
+**After adding rows, run `logcheck 268`** (defined in the log's "What the data already
+says"). It must print nothing: it flags values outside the lists and malformed rows.
 
 Include the `PR #n / IS #n` reference. Those numbers link each row to the diff and the
 review discussion. The log is tracked in the repo (since IS #116), and the repo is
