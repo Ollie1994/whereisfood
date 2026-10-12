@@ -1,7 +1,7 @@
 # Phase 4 — Housekeeping
 
 **Planned:** 2026-10-11 · **Reviewed:** 2026-10-11 (versions re-checked for stability; see
-decision #3) · **Status:** done (end-of-phase check 2026-10-12, #144)
+decision #3) · **Status:** done (end-of-phase check 2026-10-12, #144, PR #145)
 **Source:** `.claude/transition.md` (the decision to drop the ingestion lanes and the
 parser) plus the planning conversation of 2026-10-10/11. Where this plan and
 `project-context.md` disagree, **this plan wins**: the context still describes the
