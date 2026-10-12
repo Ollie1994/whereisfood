@@ -95,7 +95,10 @@ green.
 | `README.md` | Public description of the new product and stack. **Fix a false claim:** it says `public/gothenburg.pmtiles` "is committed for dev", but the file is gitignored and untracked, so a fresh clone has no map. Document how to get it: cut a Gothenburg extract with `pmtiles extract` from a Protomaps daily build (corrected in PR #138; see Open Decisions). |
 | `.claude/plans/phase-3-parser.md` | One-line "superseded" header pointing at the archive and `transition.md`. |
 | `.claude/transition.md` | Header: "absorbed into project-context.md (Phase 4)"; phases renumbered (§13); archive note corrected (decision #2). |
-| `.claude/process-log.md` | Phase 3 retrospective; row 258 marked resolved. |
+| `.claude/process-log.md` | Phase 3 retrospective; row 258 marked resolved. *Added by #142 (PR #143):* the counting commands moved to `scripts/process-log.sh`. |
+| `scripts/process-log.sh` *(created, #142 / PR #143)* | `tally` and `check` for the process log; `check` is the post-edit step in `CLAUDE.md`. |
+| `.gitattributes` *(created, #142 / PR #143)* | `*.sh text eol=lf`, so the script keeps LF endings in a Windows checkout. |
+| `.claude/commands/create-issues.md` *(#142 / PR #143)* | A "Failure modes" field for guard-adding issues, and its Step 5 check. |
 
 ### Untouched (deliberately) until Phase 5
 `src/lib/db/locations.ts`, `tests/integration/*`, `src/lib/database.types.ts`,
@@ -188,6 +191,9 @@ Strict order. Each numbered step is one PR unless marked otherwise.
     `phase-3-parser.md` header, `transition.md` header + renumbering + archive note.
 11. **Phase 3 retrospective (no PR needed beyond the log).** Count Phase 3 rows by
     `Caught by` and `Cause`, act on the two biggest, mark row 258 resolved.
+    *Done in PR #141 (#128); its two actions and a log value check were applied in
+    PR #143 (#142): the fix-sweep rule in `CLAUDE.md`, the Failure-modes field in
+    `/create-issues`, and `scripts/process-log.sh`.*
 
 **Any time, by the owner:** rotate or delete any Mailgun, Make.com and Upstash keys
 and accounts, and clean `.env.local`.

@@ -256,8 +256,29 @@ uncommitted on `dev`. Every doc change then has a reviewable diff and a
   branch off `dev`, a PR. That includes a log row written outside any issue's work,
   e.g. a miss found while surveying the repo (IS #131).
 - GitHub issue and PR text is not a repo file, so editing it needs no branch. It is
-  still a doc: when correcting a claim, check every copy, **open issue bodies
-  included** (process-log rows 269, 271).
+  still a doc: a corrected claim there gets the same sweep as one in a file ("Review
+  rounds" below; process-log rows 269, 271).
+
+---
+
+## Review rounds — sweep every fix before the next round
+
+Why: the process log's Phase 3 retrospective (its Action 1). After applying a review
+round's fixes, and **before** asking for the next round, or whenever a claim is
+corrected outside a review:
+
+1. **List** each claim, term or rule the fixes corrected.
+2. **Grep every mention** of each across the tracked docs (`CLAUDE.md`, `README.md`,
+   `.claude/`), code comments and tests, **every open issue body**, and the PR body if
+   there is one.
+3. **Read every hit.** Fix the stale ones; history (process-log rows, dated entries)
+   stays as written.
+4. **Record the sweep** where the correction lives: that round's section of the PR
+   body, or a comment on the issue when only an issue body was corrected. Claim →
+   where it was checked → result.
+
+Fixing only the lines a finding names is what let one correction miss its copies three
+rounds running; the sweep found the copy no finding had named (process-log row 295).
 
 ---
 
@@ -293,6 +314,11 @@ Duplicating it in two files is the same `manual-drift` the log exists to catch.
 **A row goes directly after the last row of the `## Log` table, not at the end of the
 file.** Detail entries follow the table, so a row appended to the file lands outside
 it and renders as plain text (row 272).
+
+**After adding or editing rows, run `bash scripts/process-log.sh check`.** It must
+print nothing and exit 0. It checks every row: placement in the table, numbering, cell
+count, and values against the log's own lists. Exit 2 means it couldn't read the log or
+its lists.
 
 Include the `PR #n / IS #n` reference. Those numbers link each row to the diff and the
 review discussion. The log is tracked in the repo (since IS #116), and the repo is
