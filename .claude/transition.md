@@ -4,7 +4,7 @@
 > Phase 4 carried out the teardown and clean-up: §11's Remove list (except the
 > migration squash, which is Phase 5) and its clean-up Rework items (`spots.ts`,
 > `@upstash/*`, the proxy matcher); §5's dependency changes; §13's tracker clean-up;
-> §14's docs, except row 258's fix column (#128). The rest (schema reset, `/api/live`,
+> §14's docs, including row 258's fix column (#128, PR #141). The rest (schema reset, `/api/live`,
 > admin, R2, launch) is the target design for Phases 5–8 and **not built**; it is condensed into the context's
 > "Target design" part, which is now the reference. The current phase plan wins over
 > both. This file is kept, not deleted, because §0's table is what stops removed
@@ -786,7 +786,7 @@ Leave it as is, as history. Add a one-line header saying it is superseded by thi
 and archived with `archive/parser-lanes`.
 
 ### `.claude/process-log.md`
-- Row 258 (cron) is **resolved by this decision:** mark its fix column when the
+- Row 258 (cron) is **resolved by this decision** (fix column marked in #128, PR #141): mark its fix column when the
   context is rewritten.
 - The DECISION entry is written, including the simplification pass.
 - Keep logging misses as usual during the teardown. An overcorrection while ripping out

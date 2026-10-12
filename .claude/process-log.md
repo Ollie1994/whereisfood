@@ -434,8 +434,9 @@ Keep to these; add a value only when something genuinely does not fit.
 | 293 | 2026-10-12 | PR #140 / IS #127 | `docs` | `/code-review` round 1 on #127 found 10, all applied. **Three were misses this phase had already logged, repeated in the same session:** (a) the context cited "decision #12" with no phase, and `transition.md` "(plan decision #9/#2)", the exact miss of row 291(b) one PR earlier; (b) the new header said `transition.md`'s decisions "were carried out in Phase 4", when only the teardown was, which reads the Phase 5–8 target design as built (row 290's class); (c) row 292's new `Phase [0-9]` check covered `src scripts` only, row 275's root-file gap, and `vitest.config.ts:43` still said "Phase 4 and 5 add `.tsx` tests" in the old numbering. Also: the context said `seed-dictionary.mjs` "regenerates `SPOTS`", but it prints stubs for human review and warns that pasting them reverts hand-corrected pins; the plan still called `supabase.ts` and `components/Map/*` untouched, and decision #8 still said two parts (the ride-along rule); §14 kept an unlabelled "Phase 7's Mailgun"; my rewritten `supabase.ts` comment said `supabaseAdmin` is "used in API routes and services", endorsing a layer violation (only the db layer and test helpers import it); "an explicit GRANT per table" for 0001, whose `service_role` grant is a blanket `on all tables`; the `/api/live` strip rule lost its condition (no `CDN-Cache-Control`); grey markers described too narrowly. **Pattern:** a lesson recorded in the log isn't applied by the session that recorded it unless the check for it is mechanical | `/code-review` r1 (user-requested) | `pre-merge` | `imprecise-claim` | ✅ All ten fixed (decisions qualified; header says only the teardown was carried out; phase check covers `tests`, `supabase` and root files, with allowed hits named; `vitest.config.ts` comment; seed-script description; plan untouched-list and decision #8; §14 labelled; `supabase.ts` importers, plus its header's mirror line; 0001 grants described exactly, and the target says per table, `service_role` included; the `CDN-Cache-Control` condition; grey conditions) |
 | 294 | 2026-10-12 | PR #140 / IS #127 | `docs` | `/code-review` round 2 on #127 found 10, all applied. **The root cause was structural: the rewrite restated `CLAUDE.md`'s rules in the context's Part 3, so round 1's fixes reached one copy and missed the rest.** The `supabaseAdmin` correction landed in `supabase.ts` but not in Part 3 or `CLAUDE.md` (both still said "API routes and services"); the 0001-grants correction landed in the context, while `CLAUDE.md` still said "0001 already does all three, copy it". Rows 269/271/291/293's every-copy miss, now with a mechanism: two files owning one rule. Also: (a) the rewrite deleted the context's "Build Order" and "Folder Structure" sections, which `/create-milestone`, the very next command (Phase 5 plan), tells you to read; (b) `transition.md`'s header still overreached: "§11's Remove list" includes the migration squash, which is Phase 5; (c) the import example marked a type imported as a value as ✅; (d) the context said `supabase status -o env` gives the three variables without their name mapping; (e) `types.ts` called "regenerated" when it's hand-written and derived; (f) the plan's allowed-hits list lost a separator; (g) `transition.md` body facts (e.g. `next` 16.2.6) were undated | `/code-review` r2 (user-requested) | `pre-merge` | `manual-drift` | ✅ Part 3 cut to what `CLAUDE.md` doesn't own (map coordinates, imports, components, hooks, status codes) with an explicit "owned by CLAUDE.md" list; `CLAUDE.md`'s `supabaseAdmin` and grant lines corrected; a Folder structure section restored and `/create-milestone` pointed at Roadmap/Phase map; header excludes the squash and dates the body's facts; import example, env mapping, `types.ts`, separator fixed. **Not done:** Part 2's RLS and `/api/live` sections still overlap `CLAUDE.md`'s rules (kept because they carry the design reasons; the rules themselves live in `CLAUDE.md`) |
 | 295 | 2026-10-12 | PR #140 / IS #127 | `docs` | `/code-review` round 3 on #127 found 9, all applied. **The `supabaseAdmin` correction missed copies for the third round running:** round 2 fixed one CLAUDE.md bullet, but the next bullet ("every write goes through an API route using `supabaseAdmin`") and context lines 320/344 kept the old wording, and while fixing those a grep found a fourth copy in CLAUDE.md's `/api/live` rules. Round 2's Part 3 also claimed "one copy per rule" while Part 2 still restated the RLS, `/api/live` and auth-order rules: the fix described a structure it hadn't fully built. Also: the import rule lost "for `src/` only", so it told scripts to use an alias plain Node can't resolve (`copy-maplibre-worker.mjs`, which install, dev and build run); `transition.md`'s header overclaimed (row 258's fix isn't done) and underclaimed (the `spots.ts`/Upstash/matcher Rework items were done); decision #8's heading still said two parts; "No Nominatim" with no carve-out for `seed-dictionary.mjs`; `services/` listed as an existing empty folder; the grey-marker text dropped "no marker when `last_known_*` is null"; `supabase.ts`'s header left out the test helpers. **What finally worked for the copy problem:** grep every mention of the term across all docs and read each one, instead of fixing the lines a finding names. Findings are now precision, not structure, so **stop here (#254)** | `/code-review` r3 (user-requested) | `pre-merge` | `manual-drift` | ✅ All nine fixed; every `supabaseAdmin` mention in CLAUDE.md, the context and `supabase.ts` read and aligned (route → service → db layer); Part 3's preface states that Part 2 carries several rules with their reasons, and that CLAUDE.md wins on disagreement; import rule scoped to `src/`; header lists what was and wasn't done; decision #8 heading; Nominatim carve-out; `services/` marked Phase 7; null `last_known_*` → no marker; `supabase.ts` header |
-| 296 | 2026-10-12 | PR #141 / IS #128 | `process-log` | **The log's own counting tool was wrong.** The `tally` block in "What the data already says" read every column by its index from the start. A raw `|` inside the Miss text (several rows have one) shifts every column after it, so `tally 9` reported `pre-commit`, `pre-merge` and a sentence fragment as Causes, and `tally 7` reported Miss-text fragments as `Caught by`. Its own warning covered a reordered column, not a cell that adds one. Found on the first phase-end count the file asks for, which no one had run before | self, counting for #128 | `merged` | `incomplete-guard` | ✅ `Caught by`, `Escaped`, `Cause` and `Fix` are counted from the end (negative indices), and escaped pipes are masked first with a bracket expression for the backslash (the plain backslash form is read by sed as alternation and matches the empty string). Checked: `Cause` and `Escaped` each sum to every row, with only taxonomy values. This cell quotes no pipe on purpose: the first draft quoted the sed command and broke the count it describes |
-| 297 | 2026-10-12 | PR #141 / IS #128 | `process-log` | **The `Artifact` column drifted from its taxonomy partway through Phase 3, and nothing noticed.** Rows 197–226 hold a `Cause` value in `Artifact` (e.g. `incomplete-guard`), and rows 228–267 hold file names (`locations.ts`, `transition.md`, `phase-4-housekeeping.md`, `review practice`) instead of one of the ten listed values. Hand-classified data with no check on its values, the `manual-drift` this file exists to catch, inside the file. `tally 5` therefore can't say which artifact kept failing in Phase 3 | self, counting for #128 | `merged` | `manual-drift` | ⬜ Recorded, not re-classified (#128 non-goal). Rows from 268 on use the taxonomy (CLAUDE.md now says to read Columns before adding a row). A value check, e.g. a one-line grep for `Artifact`/`Cause` values outside the lists, could run whenever rows are added |
+| 296 | 2026-10-12 | PR #141 / IS #128 | `process-log` | **The log's own counting tool was wrong.** The `tally` block in "What the data already says" split rows on every pipe, including the escaped ones (`\|`) that rows 115, 127, 145, 168–170, 192, 275, 287, 288 and 291 contain. GitHub renders an escaped pipe inside its cell, but awk splits on it, so those rows shifted and `tally 9` reported `pre-commit`, `pre-merge` and a sentence fragment as Causes. Its warning covered a reordered column, not this. Found on the first phase-end count the file asks for, which no one had run before. **My first fix was itself wrong:** I blamed raw pipes in the Miss text, switched to counting from the end of the row, and wrote this row with a raw pipe in it, the only malformed row in the file; `/code-review` r1 on PR #141 caught both | self, counting for #128; the misdiagnosis by `/code-review` r1 | `crossed-phase` | `incomplete-guard` | ✅ Escaped pipes are masked before splitting (a bracket expression for the backslash, since sed reads the plain form as alternation); indices count from the start again. Checked: after masking every row has the same column count, and Cause and Escaped hold only taxonomy values |
+| 297 | 2026-10-12 | PR #141 / IS #128 | `process-log` | **The `Artifact` column drifted from its taxonomy partway through Phase 3, and nothing noticed.** In rows 197–226, 11 of 30 hold a `Cause` value (e.g. `incomplete-guard`); in rows 228–267, 33 of 40 hold something outside the ten listed values: file names (`locations.ts`, `transition.md`, `phase-4-housekeeping.md`), issue references (`IS #68`, `→ IS #80`) or `review practice`. Hand-classified data with no check on its values, the `manual-drift` this file exists to catch, inside the file. So `tally 5` can't say which artifact kept failing in Phase 3 | self, counting for #128 | `crossed-phase` | `manual-drift` | ⬜ Recorded, not re-classified (#128 non-goal). Rows from 268 on all use the taxonomy (CLAUDE.md now says to read Columns before adding a row). A value check, e.g. a one-line grep for `Artifact`/`Cause` values outside the lists, could run whenever rows are added |
+| 298 | 2026-10-12 | PR #141 / IS #128 | `process-log` | `/code-review` round 1 on #128 found 10, all applied. **The retrospective that counts `imprecise-claim` rows was full of them.** (a) I diagnosed the broken `tally` as raw pipes in the Miss text; it was escaped pipes (rows 115–291), and my end-anchored workaround only papered over the one malformed row, my own 296 (now corrected in that row). (b) Code review was counted 182: five reviews of `transition.md`, a design doc, belonged under plan / issue review by the section's own rule (177 and 17). (c) "Its rounds don't converge on their own" contradicted its own per-round figures (56, 61, 31, 13, 3): they converge, slowly. (d) "30 `overcorrection` rows" credited all to review; 23 were caught by it. (e) The Artifact drift was overstated: 11 of 30 rows, not "rows 197–226". (f) Rows 296–297 used Escaped `merged` for defects that began in Phase 3: `crossed-phase`. (g) "A snapshot that won't drift", in a PR that edits a row in the range. (h) Resolving row 258 left `transition.md`'s header and §14 saying it was undone: the every-copy miss, in the PR proposing the fix sweep against it. (i) The two actions were tracked nowhere, the exact failure the section diagnoses | `/code-review` r1 (user-requested) | `pre-merge` | `imprecise-claim` | ✅ All ten fixed: masking with start-based indices; regrouped counts (177 / 46 / 17 / 12); convergence restated; 23 of 30; exact drift counts; `crossed-phase`; counts dated "as of PR #141" with a re-run rule; `transition.md` updated after a sweep of every "row 258" mention; the actions tracked as IS #142 |
 
 ---
 
@@ -449,24 +450,24 @@ One session's worth. Early, but several patterns are already visible.
 > Recompute before quoting a number:
 >
 > ```bash
-> # tally a column. From the start: 4=Where 5=Artifact. From the END, as negative
-> # numbers: -1=Fix -2=Cause -3=Escaped -4=Caught-by. A raw | inside the Miss text
-> # shifts every column after it, so those four are counted from the end; escaped
-> # \| is masked first (the bracket form, because sed reads \| as alternation).
+> # tally any column: 4=Where 5=Artifact 7=Caught-by 8=Escaped 9=Cause 10=Fix
+> # Escaped pipes (\|) are masked first: GitHub renders them inside a cell, but awk
+> # splits on them. The bracket form is needed because sed reads \| as alternation.
 > tally () { grep -E "^\| [0-9]+ \|" .claude/process-log.md | sed 's/[\]|/~/g' \
->   | awk -F'|' -v c="$1" '{v = (c < 0) ? $(NF + c) : $c; gsub(/^ +| +$|`/,"",v); print v}' \
+>   | awk -F'|' -v c="$1" '{v = $c; gsub(/^ +| +$|`/,"",v); print v}' \
 >   | sort | uniq -c | sort -rn; }
 >
-> tally -2   # which causes dominate
+> tally 9    # which causes dominate
 > tally 5    # which dev-process artifact keeps failing (see the Phase 3 retrospective)
-> tally -4   # which gate is actually catching things
-> tally -3   # how far things escape before being caught
+> tally 7    # which gate is actually catching things
+> tally 8    # how far things escape before being caught
 > tally 4    # which PR generated the most misses
 > ```
 >
 > If a column is added or reordered, these indices shift — update this block in the
-> same edit. (Until #128 every index counted from the start, and rows with a raw `|`
-> in the Miss text reported, e.g., `pre-commit` as a Cause; row 296.)
+> same edit. Every cell must escape a pipe as `\|`; a raw one shifts every column after it
+> (row 296). Until #128 the escaped ones weren't masked, so rows 115–291 that contain one
+> reported, e.g., `pre-commit` as a Cause.
 >
 > Prefer qualitative wording ("most", "the largest group") in prose, and keep exact
 > figures in the commands above where they cannot go stale.
@@ -535,21 +536,22 @@ the two biggest columns. This is the first time it has been done.
 - 14–27 are Phase 3 planning (2026-08-22, → IS #59–#71).
 - 28–257 are Phase 3 implementation (PRs #74–#115).
 - 258–265 are the 2026-10-10 conversation that dropped the lanes, while the `phase-3`
-  milestone was still open. Leaving them out doesn't change the two biggest columns.
-  It does move `unverified-assumption` from 37 to 29, below `overcorrection` (30), and
-  breaks the tie below (plan / issue review 11, the user 10).
+  milestone was still open. Leaving them out doesn't change the two biggest columns. It
+  moves `unverified-assumption` from 37 to 29, below `overcorrection` (30), and plan /
+  issue review from 17 to 11 and the user from 12 to 10.
 - 266 onward are Phase 4.
 
-These are fixed, already-written rows, so unlike the counts the section above warns
-about, these figures are a snapshot that won't drift. Reproduce them with `tally` plus
-a row filter:
+**These counts are as of PR #141.** Rows in the range can still be corrected (this PR
+corrected row 258's fix column); after any change to a `Cause` or `Caught by` cell in
+rows 14–265, re-run the command and update the tables. `Cause` comes straight from it;
+the `Caught by` groups are a hand classification of its raw output (rule below).
 
 ```bash
 tally3 () { grep -E "^\| [0-9]+ \|" .claude/process-log.md | sed 's/[\]|/~/g' \
-  | awk -F'|' -v c="$1" '$2+0 >= 14 && $2+0 <= 265 {v = $(NF + c); gsub(/^ +| +$|`/,"",v); print v}' \
+  | awk -F'|' -v c="$1" '$2+0 >= 14 && $2+0 <= 265 {v = $c; gsub(/^ +| +$|`/,"",v); print v}' \
   | sort | uniq -c | sort -rn; }
-tally3 -2   # Cause
-tally3 -4   # Caught by (free text; grouped below)
+tally3 9    # Cause
+tally3 7    # Caught by (free text; grouped below)
 ```
 
 ### By `Cause`
@@ -567,31 +569,34 @@ tally3 -4   # Caught by (free text; grouped below)
 
 ### By `Caught by`
 
-`Caught by` is free text, so it is grouped: **code review** is any `/code-review` round,
-numbered or not, plus user-requested code and security reviews; **plan / issue review**
-is a review of a plan, issue or the context; **the user** is the owner noticing,
-asking or pushing back; **self, while working** is everything found by doing the work
-(writing, running, probing, mutation testing, re-reading output).
+`Caught by` is free text, so it is grouped by **what was reviewed**, not who asked:
+**code review** is any review of code or a PR (`/code-review` rounds, numbered or not);
+**plan / issue review** is a review of a plan, an issue, the context or a design doc,
+including the user-requested reviews and the security review of `transition.md` (rows
+259, 261–263, 265); **the user** is the owner noticing, asking or pushing back; **self,
+while working** is everything found by doing the work (writing, running, probing,
+mutation testing, re-reading output).
 
 | Caught by | Rows |
 |---|---|
-| code review | 182 |
+| code review | 177 |
 | self, while working | 46 |
+| plan / issue review | 17 |
 | the user | 12 |
-| plan / issue review | 12 |
 
-Code review by round: **r1 56; r2 61, r3 31, r4 13, r5 3 (108 in later rounds)**;
-unnumbered 18.
+Code review by round: **r1 56 · r2 61 · r3 31 · r4 13 · r5 3**; unnumbered 13.
 
 ### The two biggest columns, and one action each
 
 Read as the biggest in each count.
 
-**1. `Caught by`: code review, 182 of 252 (72%).** Review is the gate doing the work,
-and its rounds don't converge on their own: later rounds found nearly twice as many
-misses as first rounds (108 against 56). Much of what they found was in the previous
-round's fixes (30 `overcorrection` rows) or in copies and mirrors that a fix didn't
-reach (rows 269, 271, 291, 293, 294 in Phase 4 are the same mechanism).
+**1. `Caught by`: code review, 177 of 252 (70%).** Review is the gate doing the work.
+Rounds do converge (findings fall steeply after round 2), but slowly and expensively:
+**round 2 found more than round 1** (61 against 56), and rounds 2–5 together found
+nearly twice as much (108). Later rounds find what earlier rounds' fixes introduced or
+didn't reach: 23 of the 30 `overcorrection` rows were caught by a code-review round,
+and Phase 4's rows 269, 271, 291, 293 and 294 are fixes that reached one copy of a claim
+and missed the others.
 
 > **Action: a fix sweep before every further review round (a rule, for `CLAUDE.md`).**
 > After applying a round's fixes and before asking for the next round: for each fix,
@@ -615,17 +620,17 @@ anyone do it.
 > class, each with a negative control: break it and watch the guard fail.
 
 Both actions are doc changes, not code. #128 names them; applying them to `CLAUDE.md`
-and `.claude/commands/create-issues.md` is a separate change.
+and `.claude/commands/create-issues.md` is tracked as #142.
 
 ### Also found while counting
 
-- **The `tally` command above miscounted** rows with a raw `|` in the Miss text (its
-  column indices counted from the start). Fixed in this section's PR (row 296).
-- **The `Artifact` column stopped following its taxonomy partway through Phase 3.**
-  Rows 197–226 hold a `Cause` value there, and rows 228–267 hold file names
-  (`locations.ts`, `transition.md`, `review practice`, …). So `tally 5` can't answer
-  "which artifact keeps failing" for this phase. Not re-classified (#128's non-goal);
-  recorded as row 297.
+- **The `tally` command above miscounted** every row containing an escaped pipe
+  (`\|`), which awk splits on although GitHub renders it in the cell. Fixed by masking
+  them first (row 296).
+- **The `Artifact` column drifted from its taxonomy partway through Phase 3:** 11 of
+  rows 197–226 hold a `Cause` value, and 33 of rows 228–267 hold file names, issue
+  references or `review practice`. So `tally 5` can't answer "which artifact keeps
+  failing" for this phase. Not re-classified (#128's non-goal); recorded as row 297.
 
 ---
 
