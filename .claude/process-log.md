@@ -662,7 +662,8 @@ anyone do it.
 > class, each with a negative control: break it and watch the guard fail.
 
 Both actions are doc changes, not code. #128 names them; applying them to `CLAUDE.md`
-and `.claude/commands/create-issues.md` is tracked as #142.
+and `.claude/commands/create-issues.md` is tracked as #142 and was applied in PR #143,
+together with row 297's value check (`logcheck`, above).
 
 ### Also found while counting
 
