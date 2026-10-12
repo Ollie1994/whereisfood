@@ -1,11 +1,11 @@
 # Phase 4 — Housekeeping
 
 **Planned:** 2026-10-11 · **Reviewed:** 2026-10-11 (versions re-checked for stability; see
-decision #3) · **Status:** draft for review
+decision #3) · **Status:** done (end-of-phase check 2026-10-12, #144, PR #145)
 **Source:** `.claude/transition.md` (the decision to drop the ingestion lanes and the
 parser) plus the planning conversation of 2026-10-10/11. Where this plan and
-`project-context.md` disagree, **this plan wins**: the context still describes the
-old design until step 10 rewrites it.
+`project-context.md` disagree, **this plan wins**: the context described the old
+design until step 10 rewrote it (#127, PR #140).
 
 **Purpose of the phase:** clean the slate. Phase 5 starts building the new design
 from a repo, a doc set and an issue tracker that contain nothing from the old one.
@@ -344,23 +344,28 @@ script and `useMapLibre` (`setWorkerUrl(workerUrl(getVersion()))`).
 
 ## Acceptance Criteria
 
+*All checked 2026-10-12 (#144). Run against `dev` at `ee53ed7`, every criterion passed
+except three items, which PR #145 fixes: `fake-data.ts`'s comments, history headers on
+the Phase 1–2 plans, and this plan's own status. So they hold from PR #145's merge on;
+the evidence for each criterion is in that PR.*
+
 **Archive and tracker**
-- [ ] `git ls-remote --tags origin archive/parser-lanes` and `--heads` both resolve
+- [x] `git ls-remote --tags origin archive/parser-lanes` and `--heads` both resolve
   to the same commit, which contains `src/lib/parser/`.
-- [ ] Milestone `phase-3` is closed; each of the 22 listed issues is closed with a
+- [x] Milestone `phase-3` is closed; each of the 22 listed issues is closed with a
   comment linking the archive.
-- [ ] Milestone `phase-4` exists and contains #99.
+- [x] Milestone `phase-4` exists and contains #99.
 
 **Code removal**
-- [ ] None of the deleted paths exist on `dev`.
-- [ ] `npx tsc --noEmit` passes, which proves no file imports a deleted module.
-- [ ] `grep -rliE "parser|ingestion|geocod|mailgun|upstash|nominatim" src scripts tests`
+- [x] None of the deleted paths exist on `dev`.
+- [x] `npx tsc --noEmit` passes, which proves no file imports a deleted module.
+- [x] `grep -rliE "parser|ingestion|geocod|mailgun|upstash|nominatim" src scripts tests`
   lists **only** the files kept on purpose until Phase 5 (`src/lib/database.types.ts`,
   `src/lib/db/locations.ts`, `tests/integration/*`), `scripts/seed-dictionary.mjs`,
   and `src/lib/fake-data.ts`, whose rows use the current schema's column names
   (`parser_confidence`, `address_geocoded`) as keys until Phase 5 renames them; its
-  *comments* must not match. (Checked 2026-10-11: 15 files match today, so the comment
-  clean-up is real work. `fake-data.ts` added during #121, process-log row 273.)
+  *comments* must not match. (Planning baseline, 2026-10-11: 15 files matched before
+  the clean-up, so it was real work. `fake-data.ts` added during #121, process-log row 273.)
   ⚠ The grep's paths miss **root files**: `vitest.config.ts` described the parser as
   current and passed unseen (row 275). Also run it over
   `git ls-files ':!src' ':!scripts' ':!tests' ':!supabase' ':!.claude' ':!package-lock.json'`;
@@ -374,7 +379,8 @@ script and `useMapLibre` (`setWorkerUrl(workerUrl(getVersion()))`).
   `cron`, `realtime` or `confidence`, and `src/lib/supabase.ts` still described cron
   and Realtime as current. Also run `grep -rniE "cron|realtime|confidence|webhook|grey|CLAUDE\.md" src scripts`.
   Allowed hits: the fake-data map's **code** (`useMapLibre.tsx`, `TruckPopup.tsx`,
-  `fake-data.ts`, `types.ts`; Phase 6 replaces it) and the Phase 5 files above. No
+  `fake-data.ts`, `types.ts`; Phase 6 replaces it), the Phase 5 files above, and
+  `src/lib/db/trucks.ts` (kept on purpose for Phase 5, see that table). No
   *comment* may describe them as current, and every `CLAUDE.md` citation must name a
   rule that still exists (today only `handler.ts`'s "API responses" does; the two that
   don't are fixed in #127). Round 2 of PR #138 added `grey` and `CLAUDE\.md`, which
@@ -388,51 +394,51 @@ script and `useMapLibre` (`setWorkerUrl(workerUrl(getVersion()))`).
   `supabase/migrations/*` (applied
   migrations aren't edited; `0001:108` and `0002:4` say "Phase 4" meaning the old
   Realtime phase, and Phase 5 squashes them).
-- [ ] `src/lib/spots.ts` exports `SPOTS` with the same places and coordinates as the
+- [x] `src/lib/spots.ts` exports `SPOTS` with the same places and coordinates as the
   old dictionary.
-- [ ] `.env.example` lists only the three Supabase variables and
+- [x] `.env.example` lists only the three Supabase variables and
   `NEXT_PUBLIC_PMTILES_URL`.
-- [ ] `vercel.json` is gone and `proxy.ts`'s matcher has no `/api/ingest` or
+- [x] `vercel.json` is gone and `proxy.ts`'s matcher has no `/api/ingest` or
   `/api/email`.
 
 **Dependencies**
-- [ ] `npm ls --depth=0` shows `next@16.3.8`, `eslint-config-next@16.3.8`,
+- [x] `npm ls --depth=0` shows `next@16.3.8`, `eslint-config-next@16.3.8`,
   `maplibre-gl@6.11.2`, `@protomaps/basemaps@5.7.2`, `pmtiles@4.5.0`, `vitest@4.1.11`;
   no `@upstash/*`, no `protomaps-themes-base`. `package.json` pins `next`,
   `eslint-config-next` and `maplibre-gl` exactly.
-- [ ] `npm audit --omit=dev` reports **0 vulnerabilities**.
-- [ ] Full `npm audit` reports nothing beyond the `braces` chain
+- [x] `npm audit --omit=dev` reports **0 vulnerabilities**.
+- [x] Full `npm audit` reports nothing beyond the `braces` chain
   (GHSA-vfj7-8cjw-p6xm), and the PR names it as accepted (decision #3).
-- [ ] `package-lock.json` is still `lockfileVersion: 3`.
-- [ ] `/map` renders in the browser with the basemap, markers and a working popup
+- [x] `package-lock.json` is still `lockfileVersion: 3`.
+- [x] `/map` renders in the browser with the basemap, markers and a working popup
   (manual check, noted in the PR).
 
 **Gates**
-- [ ] `npx tsc --noEmit`, `npm run lint`, `npm run test:all`, `npm run build` all exit 0
+- [x] `npx tsc --noEmit`, `npm run lint`, `npm run test:all`, `npm run build` all exit 0
   (read unpiped).
-- [ ] The #99 guard fails the gate when either vitest project collects zero files
+- [x] The #99 guard fails the gate when either vitest project collects zero files
   (demonstrated by temporarily breaking each project's `include`), and passes
   normally.
 
 **Docs**
-- [ ] No tracked doc describes the lanes, parser, confidence scoring, geocoding,
+- [x] No tracked doc describes the lanes, parser, confidence scoring, geocoding,
   cron, Realtime or Upstash as current. (History sections, the archive and the
   process log are exempt.)
-- [ ] `CLAUDE.md` contains the new rules from `transition.md` §14 and points at the
+- [x] `CLAUDE.md` contains the new rules from `transition.md` §14 and points at the
   current plan.
-- [ ] `project-context.md` has a "Current state" and a "Target design" section, and
+- [x] `project-context.md` has a "Current state" and a "Target design" section, and
   the roadmap uses the new numbering.
-- [ ] `README.md` describes the new product and stack, no longer claims the
+- [x] `README.md` describes the new product and stack, no longer claims the
   `.pmtiles` file is committed, and explains how to get it: cut a Gothenburg extract
   with `pmtiles extract` from a Protomaps daily build (bounding box from
   `src/lib/geo.ts`) into `public/gothenburg.pmtiles`.
-- [ ] `phase-3-parser.md` and `transition.md` carry their superseded/absorbed
+- [x] `phase-3-parser.md` and `transition.md` carry their superseded/absorbed
   headers.
 
 **Process**
-- [ ] The process log has a Phase 3 retrospective with counts by `Caught by` and
+- [x] The process log has a Phase 3 retrospective with counts by `Caught by` and
   `Cause`, and names an action for the two largest columns.
-- [ ] Row 258's fix column is marked resolved.
+- [x] Row 258's fix column is marked resolved.
 
 ---
 

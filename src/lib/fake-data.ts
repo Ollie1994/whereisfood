@@ -2,13 +2,19 @@ import type { Truck, Location } from "@/lib/types";
 
 // Phase 1 fake data — hardcoded for the map before Supabase is wired up.
 // Real Gothenburg coordinates so markers land on the map (centre 57.7089, 11.9746).
-// Covers all three marker states: green, yellow, grey.
+// Covers the old design's three marker states: green, yellow, grey.
+//
+// The rows use the OLD design's values, because the map does until Phase 6: the three
+// `source` lanes (manual / webhook / email), `confidence`, and a grey marker at
+// `last_known_*`. The target design keeps a `source` column but with 'admin' | 'owner',
+// and drops the lanes, `confidence` and `last_known_*` (project-context, "Target
+// design"). Phase 6 replaces this file with `/api/live`.
 
 const now = Date.now();
 const hours = (h: number) => new Date(now + h * 60 * 60 * 1000).toISOString();
 
 export const FAKE_TRUCKS: Truck[] = [
-  // GREEN — manual source, active location, confidence 1.0
+  // Old-design GREEN marker: `source` manual, active location, confidence 1.0
   {
     id: "11111111-1111-1111-1111-111111111111",
     name: "Strömmingsluckan",
@@ -20,7 +26,7 @@ export const FAKE_TRUCKS: Truck[] = [
     last_known_longitude: 11.9529,
     created_at: hours(-720),
   },
-  // YELLOW — webhook source, active location, confidence 0.51
+  // Old-design YELLOW marker: `source` webhook, active location, confidence 0.51
   {
     id: "22222222-2222-2222-2222-222222222222",
     name: "Tacos & Tequila",
@@ -32,7 +38,7 @@ export const FAKE_TRUCKS: Truck[] = [
     last_known_longitude: 11.9614,
     created_at: hours(-480),
   },
-  // YELLOW — email source, active location, confidence 0.4675
+  // Old-design YELLOW marker: `source` email, active location, confidence 0.4675
   {
     id: "33333333-3333-3333-3333-333333333333",
     name: "Falafel Express",
@@ -44,7 +50,7 @@ export const FAKE_TRUCKS: Truck[] = [
     last_known_longitude: 11.9668,
     created_at: hours(-240),
   },
-  // GREY — no active location today, but has a last known position
+  // Old-design GREY marker: no active location today, drawn at the last known position
   {
     id: "44444444-4444-4444-4444-444444444444",
     name: "Burgare på hjul",
@@ -59,7 +65,7 @@ export const FAKE_TRUCKS: Truck[] = [
 ];
 
 export const FAKE_LOCATIONS: Location[] = [
-  // GREEN — manual source, confidence 1.0
+  // Old-design green row: `source` manual, confidence 1.0
   {
     id: "aaaaaaaa-0000-0000-0000-000000000001",
     truck_id: "11111111-1111-1111-1111-111111111111",
@@ -79,7 +85,7 @@ export const FAKE_LOCATIONS: Location[] = [
     created_at: hours(-1),
     updated_at: hours(-1),
   },
-  // YELLOW — webhook source, confidence 0.51
+  // Old-design yellow row: `source` webhook, confidence 0.51
   {
     id: "aaaaaaaa-0000-0000-0000-000000000002",
     truck_id: "22222222-2222-2222-2222-222222222222",
@@ -99,7 +105,7 @@ export const FAKE_LOCATIONS: Location[] = [
     created_at: hours(-2),
     updated_at: hours(-2),
   },
-  // YELLOW — email source, confidence 0.4675
+  // Old-design yellow row: `source` email, confidence 0.4675
   {
     id: "aaaaaaaa-0000-0000-0000-000000000003",
     truck_id: "33333333-3333-3333-3333-333333333333",
@@ -119,5 +125,5 @@ export const FAKE_LOCATIONS: Location[] = [
     created_at: hours(-3),
     updated_at: hours(-3),
   },
-  // Truck 4 (Burgare på hjul) has NO location row → renders grey at last_known.
+  // Truck 4 (Burgare på hjul) has NO location row → the old design's grey marker at last_known.
 ];
