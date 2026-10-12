@@ -396,7 +396,7 @@ Keep to these; add a value only when something genuinely does not fit.
 | 255 | 2026-09-20 | PR #115 / IS #60 | `0006_locations_overlap_index.sql` | **A comment pointed the reader at the H4 defect the migration exists to move away from.** It said the index column order "matches the argument order of `findOverlapping`". It does not: `startsAt` (2nd arg) bounds `expires_at` and `effectiveEnd` (3rd arg) bounds `starts_at`. The crossing IS the overlap test — `[a,b)` meets `[c,d)` iff `a < d AND b > c` — so pairing start-with-start reads as an obvious cleanup and silently tests something that is not overlap | code review r1 | `pre-merge` | `imprecise-claim` | ✅ corrected, and the crossing written out with its reason. ⚠ **The index is indifferent to the error; a reader acting on it is not.** Worth noting the shape: the comment was wrong in the one file whose entire purpose is that this predicate was got wrong once already |
 | 256 | 2026-09-20 | PR #115 / IS #60 | `0005_parsing_status_duplicate.sql` | The file recorded the atomicity verification as done "on a scratch table with the same shape" and omitted that it was then repeated on `posts` itself. The PR description had it right; the FILE — which is the surviving evidence for H5's acceptance criterion once the PR is out of sight — understated the work | code review r1 | `pre-merge` | `imprecise-claim` | ✅ both runs recorded, with the real-table one marked as the criterion. **Durability rule worth keeping: when evidence exists in both a PR body and a committed file, the file is the one that has to be complete.** The PR body is the perishable copy |
 | 257 | 2026-09-20 | n/a | `review practice` | Applied #254's rule for the first time: PR #113 r3 changed only comments, so no r4 was run, and PR #115's single round changed only comments, so none is queued. Both rounds on #115 and #113-r3 found REAL problems — the rule is about what a round EARNS, not about whether comment-only rounds are valuable | after PR #115 r1 | `pre-merge` | `missing-gate` | ➖ Holding: **a round that changes code earns another; one that changes only comments does not.** Four of the last five review rounds across #107/#113/#115 found something, and the two that found live defects (#107 r1, #113 r2) both followed a round that had changed code |
-| 258 | 2026-10-10 | n/a | `project-context` | Tech stack, Expiry Logic and the committed `vercel.json` all say "Vercel Cron every 30 min" (`*/30 * * * *`) on the Vercel free tier. Vercel Hobby only allows cron jobs that run once a day, and a more frequent expression **fails at deploy** (official docs, Jan 2026). Never checked against plan limits; it would first have surfaced at the Phase 5 first deploy. Display correctness doesn't depend on it (reads filter `expires_at > now()`), but the context says pins vanish via Realtime DELETEs from that sweep, so open clients would show expired pins for up to ~24h | user-requested context review | `crossed-phase` | `unverified-assumption` | ❌ open — decide the scheduler (pg_cron candidate) during the lane-removal replan |
+| 258 | 2026-10-10 | n/a | `project-context` | Tech stack, Expiry Logic and the committed `vercel.json` all say "Vercel Cron every 30 min" (`*/30 * * * *`) on the Vercel free tier. Vercel Hobby only allows cron jobs that run once a day, and a more frequent expression **fails at deploy** (official docs, Jan 2026). Never checked against plan limits; it would first have surfaced at the Phase 5 first deploy. Display correctness doesn't depend on it (reads filter `expires_at > now()`), but the context says pins vanish via Realtime DELETEs from that sweep, so open clients would show expired pins for up to ~24h | user-requested context review | `crossed-phase` | `unverified-assumption` | ✅ Resolved: no scheduler is needed (`transition.md` §6: in the new design, reads filter on `ends_at` and a client timer moves pins; Phase 6 builds it); `vercel.json` removed in PR #134 (IS #122); the context rewritten without cron in PR #140 (IS #127). If one is ever needed: pg_cron or external, never Vercel's free cron |
 | 259 | 2026-10-10 | n/a | `transition.md` | Self-review of the transition doc found four design claims I had made confidently in the same conversation that were wrong. (1) "`s-maxage` header + Next tag invalidation" mixes two caches; the tag purge may never clear the CDN copy. (2) The server-time offset taken from a cached body is off by up to ~90 s. (3) "Cancel = `expires_at = now()`" inverts the range for a future pin and would make the proposed `tstzrange` exclusion constraint throw. (4) "Shrink `proxy.ts`, drop its layers": it is a no-op stub, the layers never existed (never read the file). Also missing: the live-read upper bound, cache-bust abuse, README (the public doc), R2 CORS, Supabase test-only SMTP, GDPR retention, and that a fresh session won't find the doc | user-requested review | `pre-commit` | `unverified-assumption` | ✅ fixed in `transition.md`; (4) is the recurring "describe a file without reading it" pattern |
 | 260 | 2026-10-10 | n/a | `transition.md` | Verifying my caching advice against the Vercel and Next 16.4 docs falsified two claims. (1) "Make the cache ignore query parameters": Vercel cache keys include the full URL and **are not configurable**; queries are ignored only for static files. (2) "Vercel ignores query strings for ISR output": not documented. The ISR-cache read before function invocation probably saves the DB, but that is unverified, so it is now a preview-deploy test. Also corrected the opposite direction: row 259's fix said a header cache and Next's tag invalidation were "two different caches". Vercel documents that Next 16 `revalidateTag`/`revalidatePath` purge the CDN cache, so that was overstated. The fix for an unverified claim was itself partly unverified (an overcorrection risk, caught before any code) | user ("verify claims") | `pre-commit` | `unverified-assumption` | ✅ `transition.md` §7 rewritten from the docs, with an explicit test for the remaining unknown |
 | 261 | 2026-10-10 | n/a | `transition.md` | Consistency review after the simplification rewrite. (1) §0 justified dropping save-triggered regeneration with "the admin screen reads the DB directly". That contradicts the doc's own rule "the browser never reads the DB" and the RLS section (admin goes through API routes); I wrote it to make the trade-off sound free. (2) Missing: an ISR GET route is pre-rendered during `next build`, so the Supabase query runs at build time. That affects the local `npm run build` gate (DB must be up), preview deploys (env vars), and error handling (returning `[]` on error would cache an empty map). Nobody mentioned build time in three rounds of ISR discussion. Plus two wording drifts (`dictionary.ts` named after it was moved; "Phase 4" ambiguous between old and new roadmaps) | user-requested review | `pre-commit` | `unverified-assumption` | ✅ fixed in `transition.md` §0/§4/§7/§11/§12/§13; build behaviour left as an explicit Phase 5 check |
@@ -434,6 +434,8 @@ Keep to these; add a value only when something genuinely does not fit.
 | 293 | 2026-10-12 | PR #140 / IS #127 | `docs` | `/code-review` round 1 on #127 found 10, all applied. **Three were misses this phase had already logged, repeated in the same session:** (a) the context cited "decision #12" with no phase, and `transition.md` "(plan decision #9/#2)", the exact miss of row 291(b) one PR earlier; (b) the new header said `transition.md`'s decisions "were carried out in Phase 4", when only the teardown was, which reads the Phase 5–8 target design as built (row 290's class); (c) row 292's new `Phase [0-9]` check covered `src scripts` only, row 275's root-file gap, and `vitest.config.ts:43` still said "Phase 4 and 5 add `.tsx` tests" in the old numbering. Also: the context said `seed-dictionary.mjs` "regenerates `SPOTS`", but it prints stubs for human review and warns that pasting them reverts hand-corrected pins; the plan still called `supabase.ts` and `components/Map/*` untouched, and decision #8 still said two parts (the ride-along rule); §14 kept an unlabelled "Phase 7's Mailgun"; my rewritten `supabase.ts` comment said `supabaseAdmin` is "used in API routes and services", endorsing a layer violation (only the db layer and test helpers import it); "an explicit GRANT per table" for 0001, whose `service_role` grant is a blanket `on all tables`; the `/api/live` strip rule lost its condition (no `CDN-Cache-Control`); grey markers described too narrowly. **Pattern:** a lesson recorded in the log isn't applied by the session that recorded it unless the check for it is mechanical | `/code-review` r1 (user-requested) | `pre-merge` | `imprecise-claim` | ✅ All ten fixed (decisions qualified; header says only the teardown was carried out; phase check covers `tests`, `supabase` and root files, with allowed hits named; `vitest.config.ts` comment; seed-script description; plan untouched-list and decision #8; §14 labelled; `supabase.ts` importers, plus its header's mirror line; 0001 grants described exactly, and the target says per table, `service_role` included; the `CDN-Cache-Control` condition; grey conditions) |
 | 294 | 2026-10-12 | PR #140 / IS #127 | `docs` | `/code-review` round 2 on #127 found 10, all applied. **The root cause was structural: the rewrite restated `CLAUDE.md`'s rules in the context's Part 3, so round 1's fixes reached one copy and missed the rest.** The `supabaseAdmin` correction landed in `supabase.ts` but not in Part 3 or `CLAUDE.md` (both still said "API routes and services"); the 0001-grants correction landed in the context, while `CLAUDE.md` still said "0001 already does all three, copy it". Rows 269/271/291/293's every-copy miss, now with a mechanism: two files owning one rule. Also: (a) the rewrite deleted the context's "Build Order" and "Folder Structure" sections, which `/create-milestone`, the very next command (Phase 5 plan), tells you to read; (b) `transition.md`'s header still overreached: "§11's Remove list" includes the migration squash, which is Phase 5; (c) the import example marked a type imported as a value as ✅; (d) the context said `supabase status -o env` gives the three variables without their name mapping; (e) `types.ts` called "regenerated" when it's hand-written and derived; (f) the plan's allowed-hits list lost a separator; (g) `transition.md` body facts (e.g. `next` 16.2.6) were undated | `/code-review` r2 (user-requested) | `pre-merge` | `manual-drift` | ✅ Part 3 cut to what `CLAUDE.md` doesn't own (map coordinates, imports, components, hooks, status codes) with an explicit "owned by CLAUDE.md" list; `CLAUDE.md`'s `supabaseAdmin` and grant lines corrected; a Folder structure section restored and `/create-milestone` pointed at Roadmap/Phase map; header excludes the squash and dates the body's facts; import example, env mapping, `types.ts`, separator fixed. **Not done:** Part 2's RLS and `/api/live` sections still overlap `CLAUDE.md`'s rules (kept because they carry the design reasons; the rules themselves live in `CLAUDE.md`) |
 | 295 | 2026-10-12 | PR #140 / IS #127 | `docs` | `/code-review` round 3 on #127 found 9, all applied. **The `supabaseAdmin` correction missed copies for the third round running:** round 2 fixed one CLAUDE.md bullet, but the next bullet ("every write goes through an API route using `supabaseAdmin`") and context lines 320/344 kept the old wording, and while fixing those a grep found a fourth copy in CLAUDE.md's `/api/live` rules. Round 2's Part 3 also claimed "one copy per rule" while Part 2 still restated the RLS, `/api/live` and auth-order rules: the fix described a structure it hadn't fully built. Also: the import rule lost "for `src/` only", so it told scripts to use an alias plain Node can't resolve (`copy-maplibre-worker.mjs`, which install, dev and build run); `transition.md`'s header overclaimed (row 258's fix isn't done) and underclaimed (the `spots.ts`/Upstash/matcher Rework items were done); decision #8's heading still said two parts; "No Nominatim" with no carve-out for `seed-dictionary.mjs`; `services/` listed as an existing empty folder; the grey-marker text dropped "no marker when `last_known_*` is null"; `supabase.ts`'s header left out the test helpers. **What finally worked for the copy problem:** grep every mention of the term across all docs and read each one, instead of fixing the lines a finding names. Findings are now precision, not structure, so **stop here (#254)** | `/code-review` r3 (user-requested) | `pre-merge` | `manual-drift` | ✅ All nine fixed; every `supabaseAdmin` mention in CLAUDE.md, the context and `supabase.ts` read and aligned (route → service → db layer); Part 3's preface states that Part 2 carries several rules with their reasons, and that CLAUDE.md wins on disagreement; import rule scoped to `src/`; header lists what was and wasn't done; decision #8 heading; Nominatim carve-out; `services/` marked Phase 7; null `last_known_*` → no marker; `supabase.ts` header |
+| 296 | 2026-10-12 | PR #TBD / IS #128 | `process-log` | **The log's own counting tool was wrong.** The `tally` block in "What the data already says" read every column by its index from the start. A raw `|` inside the Miss text (several rows have one) shifts every column after it, so `tally 9` reported `pre-commit`, `pre-merge` and a sentence fragment as Causes, and `tally 7` reported Miss-text fragments as `Caught by`. Its own warning covered a reordered column, not a cell that adds one. Found on the first phase-end count the file asks for, which no one had run before | self, counting for #128 | `merged` | `incomplete-guard` | ✅ `Caught by`, `Escaped`, `Cause` and `Fix` are counted from the end (negative indices), and escaped pipes are masked first with a bracket expression for the backslash (the plain backslash form is read by sed as alternation and matches the empty string). Checked: `Cause` and `Escaped` each sum to every row, with only taxonomy values. This cell quotes no pipe on purpose: the first draft quoted the sed command and broke the count it describes |
+| 297 | 2026-10-12 | PR #TBD / IS #128 | `process-log` | **The `Artifact` column drifted from its taxonomy partway through Phase 3, and nothing noticed.** Rows 197–226 hold a `Cause` value in `Artifact` (e.g. `incomplete-guard`), and rows 228–267 hold file names (`locations.ts`, `transition.md`, `phase-4-housekeeping.md`, `review practice`) instead of one of the ten listed values. Hand-classified data with no check on its values, the `manual-drift` this file exists to catch, inside the file. `tally 5` therefore can't say which artifact kept failing in Phase 3 | self, counting for #128 | `merged` | `manual-drift` | ⬜ Recorded, not re-classified (#128 non-goal). Rows from 268 on use the taxonomy (CLAUDE.md now says to read Columns before adding a row). A value check, e.g. a one-line grep for `Artifact`/`Cause` values outside the lists, could run whenever rows are added |
 
 ---
 
@@ -447,20 +449,24 @@ One session's worth. Early, but several patterns are already visible.
 > Recompute before quoting a number:
 >
 > ```bash
-> # tally any column: 4=Where 5=Artifact 7=Caught-by 8=Escaped 9=Cause 10=Fix
-> tally () { grep -E "^\| [0-9]+ \|" .claude/process-log.md \
->   | awk -F'|' -v c="$1" '{gsub(/^ +| +$|`/,"",$c); print $c}' \
+> # tally a column. From the start: 4=Where 5=Artifact. From the END, as negative
+> # numbers: -1=Fix -2=Cause -3=Escaped -4=Caught-by. A raw | inside the Miss text
+> # shifts every column after it, so those four are counted from the end; escaped
+> # \| is masked first (the bracket form, because sed reads \| as alternation).
+> tally () { grep -E "^\| [0-9]+ \|" .claude/process-log.md | sed 's/[\]|/~/g' \
+>   | awk -F'|' -v c="$1" '{v = (c < 0) ? $(NF + c) : $c; gsub(/^ +| +$|`/,"",v); print v}' \
 >   | sort | uniq -c | sort -rn; }
 >
-> tally 9    # which causes dominate
-> tally 5    # which dev-process artifact keeps failing
-> tally 7    # which gate is actually catching things
-> tally 8    # how far things escape before being caught
+> tally -2   # which causes dominate
+> tally 5    # which dev-process artifact keeps failing (see the Phase 3 retrospective)
+> tally -4   # which gate is actually catching things
+> tally -3   # how far things escape before being caught
 > tally 4    # which PR generated the most misses
 > ```
 >
 > If a column is added or reordered, these indices shift — update this block in the
-> same edit.
+> same edit. (Until #128 every index counted from the start, and rows with a raw `|`
+> in the Miss text reported, e.g., `pre-commit` as a Cause; row 296.)
 >
 > Prefer qualitative wording ("most", "the largest group") in prose, and keep exact
 > figures in the commands above where they cannot go stale.
@@ -518,6 +524,108 @@ reliance on it — most of these could in principle have been caught earlier and
 cheaply. Rounds 1–3 found latent issues *exposed* by a change; round 4 found a
 defect *introduced* by a fix, which is the signal that a change has stopped
 converging.
+
+## Phase 3 retrospective (2026-10-12, #128)
+
+The rule above: at each phase boundary, count by `Caught by` and by `Cause` and act on
+the two biggest columns. This is the first time it has been done.
+
+**Rows counted: 14–265 (252 rows).**
+- 1–13 are Phase 2 (PRs #52, #54).
+- 14–27 are Phase 3 planning (2026-08-22, → IS #59–#71).
+- 28–257 are Phase 3 implementation (PRs #74–#115).
+- 258–265 are the 2026-10-10 conversation that dropped the lanes, while the `phase-3`
+  milestone was still open. Leaving them out doesn't change the two biggest columns.
+  It does move `unverified-assumption` from 37 to 29, below `overcorrection` (30), and
+  breaks the tie below (plan / issue review 11, the user 10).
+- 266 onward are Phase 4.
+
+These are fixed, already-written rows, so unlike the counts the section above warns
+about, these figures are a snapshot that won't drift. Reproduce them with `tally` plus
+a row filter:
+
+```bash
+tally3 () { grep -E "^\| [0-9]+ \|" .claude/process-log.md | sed 's/[\]|/~/g' \
+  | awk -F'|' -v c="$1" '$2+0 >= 14 && $2+0 <= 265 {v = $(NF + c); gsub(/^ +| +$|`/,"",v); print v}' \
+  | sort | uniq -c | sort -rn; }
+tally3 -2   # Cause
+tally3 -4   # Caught by (free text; grouped below)
+```
+
+### By `Cause`
+
+| Cause | Rows |
+|---|---|
+| `incomplete-guard` | 84 |
+| `imprecise-claim` | 56 |
+| `unverified-assumption` | 37 |
+| `overcorrection` | 30 |
+| `missing-gate` | 19 |
+| `stale-doc` | 16 |
+| `manual-drift` | 9 |
+| `gate-skipped` | 1 |
+
+### By `Caught by`
+
+`Caught by` is free text, so it is grouped: **code review** is any `/code-review` round,
+numbered or not, plus user-requested code and security reviews; **plan / issue review**
+is a review of a plan, issue or the context; **the user** is the owner noticing,
+asking or pushing back; **self, while working** is everything found by doing the work
+(writing, running, probing, mutation testing, re-reading output).
+
+| Caught by | Rows |
+|---|---|
+| code review | 182 |
+| self, while working | 46 |
+| the user | 12 |
+| plan / issue review | 12 |
+
+Code review by round: **r1 56; r2 61, r3 31, r4 13, r5 3 (108 in later rounds)**;
+unnumbered 18.
+
+### The two biggest columns, and one action each
+
+Read as the biggest in each count.
+
+**1. `Caught by`: code review, 182 of 252 (72%).** Review is the gate doing the work,
+and its rounds don't converge on their own: later rounds found nearly twice as many
+misses as first rounds (108 against 56). Much of what they found was in the previous
+round's fixes (30 `overcorrection` rows) or in copies and mirrors that a fix didn't
+reach (rows 269, 271, 291, 293, 294 in Phase 4 are the same mechanism).
+
+> **Action: a fix sweep before every further review round (a rule, for `CLAUDE.md`).**
+> After applying a round's fixes and before asking for the next round: for each fix,
+> grep every mention of the corrected claim, term or rule across tracked docs, code
+> comments, tests and open issue bodies; read every hit; and list the sweep (term →
+> where it was checked) in that round's section of the PR body. PR #140 r3 is the
+> evidence that it works: the sweep found a copy no finding had named (row 295).
+
+**2. `Cause`: `incomplete-guard`, 84 of 252 (33%)**, with `imprecise-claim` second (56).
+The pattern this file noted after its first session (failure modes discovered one
+review at a time instead of enumerated up front) held for the whole phase, and it
+recurred in Phase 4 as greps written for the words someone remembered rather than for
+the change made (rows 288, 292). The first-session lesson stayed prose; nothing made
+anyone do it.
+
+> **Action: a "Failure modes" field in `/create-issues` (a check in the issue
+> template).** An issue that adds or changes a guard (a validator, a DB constraint, a
+> test gate, a grep acceptance criterion, a gate script) lists the failure classes it
+> must catch, derived from the change rather than from memory, and the ones it
+> deliberately doesn't. Its acceptance criteria require one test or probe per listed
+> class, each with a negative control: break it and watch the guard fail.
+
+Both actions are doc changes, not code. #128 names them; applying them to `CLAUDE.md`
+and `.claude/commands/create-issues.md` is a separate change.
+
+### Also found while counting
+
+- **The `tally` command above miscounted** rows with a raw `|` in the Miss text (its
+  column indices counted from the start). Fixed in this section's PR (row 296).
+- **The `Artifact` column stopped following its taxonomy partway through Phase 3.**
+  Rows 197–226 hold a `Cause` value there, and rows 228–267 hold file names
+  (`locations.ts`, `transition.md`, `review practice`, …). So `tally 5` can't answer
+  "which artifact keeps failing" for this phase. Not re-classified (#128's non-goal);
+  recorded as row 297.
 
 ---
 
