@@ -1,6 +1,6 @@
 # Phase 3 — Parser
 
-> **Superseded (Phase 4).** The parser and ingestion lanes were dropped for an admin-populated map; see `.claude/transition.md` (history) and `.claude/context/project-context.md`. The code this plan built is archived on `archive/parser-lanes` (commit `b089fd0`). Kept as history; nothing below is current.
+> **Superseded (Phase 4).** The parser and ingestion lanes were dropped for an admin-populated map; see `.claude/transition.md` (history) and `.claude/context/project-context.md`. The code this plan built is archived on `archive/parser-lanes` (commit `b089fd0`). Kept as history; nothing below is current. Phase numbers in this plan are the old roadmap's (4 Realtime, 5 Auth + Dashboard, 6 Cron, 7 Hardening, 8 Onboarding), not today's (4 Housekeeping … 8 Launch).
 
 ## Goal
 An ingested caption resolves to the truck's live map state: normalized, parsed,

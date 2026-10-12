@@ -4,8 +4,8 @@
 decision #3) · **Status:** done (end-of-phase check 2026-10-12, #144, PR #145)
 **Source:** `.claude/transition.md` (the decision to drop the ingestion lanes and the
 parser) plus the planning conversation of 2026-10-10/11. Where this plan and
-`project-context.md` disagree, **this plan wins**: the context still describes the
-old design until step 10 rewrites it.
+`project-context.md` disagree, **this plan wins**: the context described the old
+design until step 10 rewrote it (#127, PR #140).
 
 **Purpose of the phase:** clean the slate. Phase 5 starts building the new design
 from a repo, a doc set and an issue tracker that contain nothing from the old one.
@@ -344,8 +344,10 @@ script and `useMapLibre` (`setWorkerUrl(workerUrl(getVersion()))`).
 
 ## Acceptance Criteria
 
-*All checked 2026-10-12 against `dev` at `ee53ed7` (#144); the evidence for each
-criterion is in that issue's PR.*
+*All checked 2026-10-12 (#144). Run against `dev` at `ee53ed7`, every criterion passed
+except three items, which PR #145 fixes: `fake-data.ts`'s comments, history headers on
+the Phase 1–2 plans, and this plan's own status. So they hold from PR #145's merge on;
+the evidence for each criterion is in that PR.*
 
 **Archive and tracker**
 - [x] `git ls-remote --tags origin archive/parser-lanes` and `--heads` both resolve
@@ -362,8 +364,8 @@ criterion is in that issue's PR.*
   `src/lib/db/locations.ts`, `tests/integration/*`), `scripts/seed-dictionary.mjs`,
   and `src/lib/fake-data.ts`, whose rows use the current schema's column names
   (`parser_confidence`, `address_geocoded`) as keys until Phase 5 renames them; its
-  *comments* must not match. (Checked 2026-10-11: 15 files match today, so the comment
-  clean-up is real work. `fake-data.ts` added during #121, process-log row 273.)
+  *comments* must not match. (Planning baseline, 2026-10-11: 15 files matched before
+  the clean-up, so it was real work. `fake-data.ts` added during #121, process-log row 273.)
   ⚠ The grep's paths miss **root files**: `vitest.config.ts` described the parser as
   current and passed unseen (row 275). Also run it over
   `git ls-files ':!src' ':!scripts' ':!tests' ':!supabase' ':!.claude' ':!package-lock.json'`;
@@ -377,7 +379,8 @@ criterion is in that issue's PR.*
   `cron`, `realtime` or `confidence`, and `src/lib/supabase.ts` still described cron
   and Realtime as current. Also run `grep -rniE "cron|realtime|confidence|webhook|grey|CLAUDE\.md" src scripts`.
   Allowed hits: the fake-data map's **code** (`useMapLibre.tsx`, `TruckPopup.tsx`,
-  `fake-data.ts`, `types.ts`; Phase 6 replaces it) and the Phase 5 files above. No
+  `fake-data.ts`, `types.ts`; Phase 6 replaces it), the Phase 5 files above, and
+  `src/lib/db/trucks.ts` (kept on purpose for Phase 5, see that table). No
   *comment* may describe them as current, and every `CLAUDE.md` citation must name a
   rule that still exists (today only `handler.ts`'s "API responses" does; the two that
   don't are fixed in #127). Round 2 of PR #138 added `grey` and `CLAUDE\.md`, which
