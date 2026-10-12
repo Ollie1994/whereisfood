@@ -1,5 +1,10 @@
 # Phase 2 — Ingestion
 
+> **History (marked in Phase 4, #144).** Phase 2 was done, then Phase 4 removed the
+> ingestion lanes it built (the schema stays until Phase 5). The code is archived on
+> `archive/parser-lanes` (commit `b089fd0`); see `.claude/transition.md` (history) and
+> `.claude/context/project-context.md`. Nothing below is current.
+
 ## Goal
 The `/api/ingest` (webhook) and `/api/email` (Mailgun) endpoints accept requests, verify their secrets (X-Make-Secret / HMAC-SHA256), validate the `truck_id` against active trucks, and store the raw incoming data in the `posts` table — all verifiable via curl against seeded dev trucks.
 

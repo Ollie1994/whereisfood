@@ -3,6 +3,11 @@ import type { Truck, Location } from "@/lib/types";
 // Phase 1 fake data — hardcoded for the map before Supabase is wired up.
 // Real Gothenburg coordinates so markers land on the map (centre 57.7089, 11.9746).
 // Covers all three marker states: green, yellow, grey.
+//
+// The rows still use the OLD design's vocabulary, because the map does until Phase 6:
+// `source` lanes (manual / webhook / email), `confidence` values, and a grey marker at
+// `last_known_*`. None of those exist in the target design (project-context, "Target
+// design"); Phase 6 replaces this file with `/api/live`.
 
 const now = Date.now();
 const hours = (h: number) => new Date(now + h * 60 * 60 * 1000).toISOString();

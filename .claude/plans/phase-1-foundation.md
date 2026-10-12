@@ -1,5 +1,10 @@
 # Phase 1 — Foundation
 
+> **History (marked in Phase 4, #144).** Phase 1 is done, and its fake-data map still
+> runs. Parts of this plan describe the old three-lane design (confidence-coloured and
+> grey markers, Realtime, ingest routes) that Phase 4 dropped. The current design is in
+> `.claude/context/project-context.md`.
+
 ## Goal
 The map renders in the browser at `/map` with fake hardcoded truck markers.
 
