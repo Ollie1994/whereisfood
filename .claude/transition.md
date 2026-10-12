@@ -786,8 +786,8 @@ Leave it as is, as history. Add a one-line header saying it is superseded by thi
 and archived with `archive/parser-lanes`.
 
 ### `.claude/process-log.md`
-- Row 258 (cron) is **resolved by this decision** (fix column marked in #128, PR #141): mark its fix column when the
-  context is rewritten.
+- Row 258 (cron) is **resolved by this decision.** Its fix column was marked resolved in
+  #128 (PR #141), after the context rewrite.
 - The DECISION entry is written, including the simplification pass.
 - Keep logging misses as usual during the teardown. An overcorrection while ripping out
   code is the classic risk here.
