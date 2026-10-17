@@ -75,6 +75,20 @@ Route handlers call services. Services call DB layer. Never mix layers.
 
 ---
 
+## Code comments
+
+A comment keeps **evidence**: the command, probe or mutation that showed what it claims,
+and what a reader needs in order not to break the code. It doesn't argue from
+reasoning: across PRs #93 and #98, comments that named their evidence were never
+refuted, and ones that argued were refuted six times. A change's history goes in the PR
+and the process log, not in the source.
+
+This is a rule about the **kind** of comment, not how many. The decision (2026-09-13,
+on the `archive/process-log-details` tag) rejected a density rule, because a later
+session would ratchet against it.
+
+---
+
 ## Hard Rules
 
 **Supabase**
@@ -185,7 +199,10 @@ Toolchain: the Node floor and npm ≥ 11 under Dependencies.
 | `npm run test:integration` | integration only (fails if it collects zero files) | yes |
 | `npm run test:all` | **every project in `RUNS`** of `scripts/test-all.mjs` (today `unit` + `integration`), checked against the projects `vitest.config.ts` declares; takes no arguments | yes |
 
-**There is no CI — every gate is manual.** The gate list is four commands, and
+**There is no CI — every gate is manual, until deploy.** CI/CD arrives then as its own
+piece of work: GitHub Actions running the four gates, SAST and branch protection,
+designed together. Don't re-propose it before then (the owner's decision of 2026-09-06,
+on the `archive/process-log-details` tag). The gate list is four commands, and
 `test:run` is *not* one of them once integration tests exist:
 
 ```
@@ -341,8 +358,10 @@ when the miss is mine:**
 work. The bar is *"this says something about the process."* Bugs belong in GitHub
 issues; this file is for what the bug reveals about how we work.
 
-**Also record settled decisions** with their rationale, so a resolved question stays
-resolved and is not re-litigated next session.
+**Settled decisions go in the current plan's numbered decisions**, with their rationale,
+so a resolved question stays resolved and is not re-litigated next session. Not in this
+log: its detail entries, which used to hold decisions, were removed (IS #152) and are
+kept on the `archive/process-log-details` tag.
 
 **Every milestone includes a retrospective.** The procedure, with its order,
 blocking and closing rules, is in the log's "How to use it" section;
@@ -353,7 +372,7 @@ use those exact values — do not invent new ones and do not copy the taxonomy h
 Duplicating it in two files is the same `manual-drift` the log exists to catch.
 
 **A row goes directly after the last row of the `## Log` table, not at the end of the
-file.** Detail entries follow the table, so a row appended to the file lands outside
+file.** Other sections follow the table, so a row appended to the file lands outside
 it and renders as plain text (row 272).
 
 **After adding or editing rows, run `bash scripts/process-log.sh check`.** It must

@@ -39,7 +39,7 @@
 # \| as alternation.
 #
 # Does not catch: a value that is in its list but wrong for the row (a
-# misclassification), and anything outside the table rows (prose, detail entries).
+# misclassification), and anything outside the table rows (prose).
 # No mechanical check can see the first.
 
 set -euo pipefail
