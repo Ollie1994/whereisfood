@@ -7,16 +7,19 @@
 #
 # add     Adds one row from <file>, one `Field: value` line per field (blank lines are
 #         skipped): Date (optional, today if left out), Where, Artifact, Miss, Caught by,
-#         Escaped, Cause, Fix. A byte-order mark is ignored. Artifact, Escaped and Cause
-#         may be bare or backticked. A Caught by that doesn't start with a backtick gets
-#         its leading lowercase letters and dashes backticked as the group ("self, by
-#         running it" becomes "`self`, by running it"). A Date must be a real date from
-#         2000 on. Raw pipes are escaped. The row takes the next number and goes
-#         directly after the table's last row, with the file's line endings. It is
-#         written only if `check` passes on the result, so a bad value, an over-cap
-#         cell, a missing, unknown, repeated, empty or multi-line field leave the log
-#         unchanged (exit 1). The new file is renamed over the log, so a failed write
-#         can't truncate it. add refuses to run on a log that already fails check.
+#         Escaped, Cause, Fix (# is assigned). The file is UTF-8; a byte-order mark is
+#         ignored and UTF-16 is refused. Artifact, Escaped and Cause may be bare or
+#         backticked. A Caught by that doesn't start with a backtick gets its leading
+#         lowercase letters and dashes backticked as the group ("self, by running it"
+#         becomes "`self`, by running it"). A Date must be a real date from 2000 on,
+#         not after today and not before the previous row's. Raw pipes are escaped.
+#         The row takes the next number and goes directly after the table's last row,
+#         with the file's line endings (and a newline first if that row had none). It
+#         is written only if `check` passes on the result: a bad value, an over-cap
+#         cell, a missing, unknown, repeated, empty or multi-line field, or an
+#         unreadable row file leave the log unchanged (exit 1). The new file keeps the
+#         log's permissions and is renamed over it, so a failed write can't truncate it.
+#         add refuses to run on a log that already fails check (its exit, 1 or 2).
 # tally   Counts the values in one column of the ## Log table, optionally for a row
 #         range. Columns: 4=Where 5=Artifact 7=Caught-by 8=Escaped 9=Cause 10=Fix.
 #         From the values block's caught-by-from-row, a Caught by cell counts as its
@@ -146,10 +149,12 @@ check() {
       -v cap_from="$CAP_FROM" -v cap_miss="$CAP_MISS" -v cap_fix="$CAP_FIX" "$GROUP_FN $CHARS_FN"'
     function cell(v) { gsub(/^ +| +$/, "", v); return v }
     BEGIN {
-      n = split(art, a, " "); for (i = 1; i <= n; i++) { A[a[i]]; seen[a[i]]++ }
-      n = split(esc, e, " "); for (i = 1; i <= n; i++) { E[e[i]]; seen[e[i]]++ }
-      n = split(cau, c, " "); for (i = 1; i <= n; i++) { C[c[i]]; seen[c[i]]++ }
-      n = split(grp, g, " "); for (i = 1; i <= n; i++) { G[g[i]]; seen[g[i]]++ }
+      # A value repeated within one list is harmless; one in two lists is ambiguous.
+      n = split(art, a, " "); for (i = 1; i <= n; i++) A[a[i]]
+      n = split(esc, e, " "); for (i = 1; i <= n; i++) E[e[i]]
+      n = split(cau, c, " "); for (i = 1; i <= n; i++) C[c[i]]
+      n = split(grp, g, " "); for (i = 1; i <= n; i++) G[g[i]]
+      for (v in A) seen[v]++; for (v in E) seen[v]++; for (v in C) seen[v]++; for (v in G) seen[v]++
       for (v in seen) if (seen[v] > 1) { print "check: \"" v "\" is in two value lists"; fatal = 2; exit }
       n = split(tab, t, " "); for (i = 1; i <= n; i++) T[t[i]]
       for (v in C) if (!(v in T)) { print "check: cause \"" v "\" is on the values block'"'"'s cause line but not in the Cause taxonomy table"; bad = 1 }
@@ -185,15 +190,18 @@ check() {
     END { exit fatal ? fatal : (bad ? 1 : 0) }'
 }
 
-# Prints the row built from the field file $1 with number $2, or reports and exits 1.
+# Prints the row built from the field file $1 with number $2 (the previous row dated
+# $3), or reports and exits 1.
 build_row() {
-  awk -v n="$2" -v today="$(date +%Y-%m-%d)" '
+  awk -v n="$2" -v prev="${3:-}" -v today="$(date +%Y-%m-%d)" '
     function err(m) { print "add: " m > "/dev/stderr"; bad = 1 }
     function esc(v) { gsub(/\\\|/, "\001", v); gsub(/\|/, "\\|", v); gsub(/\001/, "\\|", v); return v }
     function tick(v) { gsub(/`/, "", v); return "`" v "`" }
     BEGIN { split("Date|Where|Artifact|Miss|Caught by|Escaped|Cause|Fix", names, "|"); for (i in names) K[names[i]] }
     { sub(/\r$/, "") }
-    # PowerShell 5.1 writes UTF-8 with a byte-order mark.
+    # Set-Content -Encoding utf8 (PowerShell 5.1) writes UTF-8 with a byte-order mark,
+    # which is skipped. Its default for `>` and Out-File is UTF-16, which is refused.
+    NR == 1 && /^(\377\376|\376\377)/ { err("the row file is UTF-16; save it as UTF-8"); exit }
     NR == 1 { sub(/^\357\273\277/, "") }
     /^[ \t]*$/ { next }
     match($0, /^[A-Za-z][A-Za-z ]*:/) {
@@ -213,6 +221,9 @@ build_row() {
         split("31 28 31 30 31 30 31 31 30 31 30 31", ml, " ")
         if (mo == 2 && (y % 4 == 0 && (y % 100 != 0 || y % 400 == 0))) ml[2] = 29
         if (y < 2000 || mo < 1 || mo > 12 || dy < 1 || dy > ml[mo]) err("Date \"" d "\" is not a real date from 2000 on")
+        # ISO dates compare as strings. A row is written on or after the one before it.
+        else if (d > today) err("Date \"" d "\" is after today (" today ")")
+        else if (d < prev) err("Date \"" d "\" is before the previous row, dated " prev)
       }
       if (bad) exit 1
       c = F["Caught by"]
@@ -223,12 +234,14 @@ build_row() {
 }
 
 add() {
-  local file="${1:-}" out rc=0 n row line cr=""
-  [ -n "$file" ] && [ -f "$file" ] && [ -r "$file" ] || die2 "add: cannot read the row file \"$file\" (usage: add <file>)"
+  local file="${1:-}" out rc=0 n prev row line cr=""
+  # Exit 1, not 2: 2 means the log can't be used, and here only the argument is wrong.
+  [ -n "$file" ] && [ -f "$file" ] && [ -r "$file" ] || { echo "add: cannot read the row file \"$file\" (usage: add <file>)" >&2; exit 1; }
   out=$(check 2>&1) || rc=$?
   [ "$rc" -eq 0 ] || { printf '%s\n' "$out" >&2; echo "add: the log already fails check (exit $rc); fix that first" >&2; exit "$rc"; }
   n=$(( $(max_row) + 1 ))
-  row=$(build_row "$file" "$n") || exit 1
+  prev=$(rows | awk -F'|' -v m="$((n - 1))" '$2 + 0 == m { d = $3; gsub(/ /, "", d); print d; exit }')
+  row=$(build_row "$file" "$n" "$prev") || exit 1
   line=$(plain | awk -v m="$((n - 1))" 'index($0, "| " m " |") == 1 { l = NR } END { print l + 0 }')
   [ "$line" -gt 0 ] || die2 "add: could not find row $((n - 1)) in the log"
   # Not grep: Git Bash's grep drops each \r too, so it would never find one.
@@ -237,8 +250,13 @@ add() {
   # are; awk would not here (Git Bash's gawk reads in text mode and drops each \r).
   # The new file is built next to the log and renamed over it, so an interrupted or
   # failed write leaves the log as it was (cat > LOG would truncate it first).
+  # cp -p gives the new file the log's permissions (mktemp makes it 0600).
   TMP=$(mktemp "$LOG.add.XXXXXX"); trap 'rm -f "${TMP:-}"' EXIT
-  { head -n "$line" "$LOG"; printf '%s%s\n' "$row" "$cr"; tail -n +"$((line + 1))" "$LOG"; } > "$TMP"
+  cp -p "$LOG" "$TMP"
+  head -n "$line" "$LOG" > "$TMP"
+  # A last row with no final newline would have the new row glued onto it.
+  [ -z "$(tail -c 1 "$TMP")" ] || printf '%s\n' "$cr" >> "$TMP"
+  { printf '%s%s\n' "$row" "$cr"; tail -n +"$((line + 1))" "$LOG"; } >> "$TMP"
   rc=0; out=$(PROCESS_LOG="$TMP" bash "$0" check 2>&1) || rc=$?
   [ "$rc" -eq 0 ] || { printf '%s\n' "$out" >&2; echo "add: row $n not added; the log is unchanged" >&2; exit "$rc"; }
   mv -f "$TMP" "$LOG"

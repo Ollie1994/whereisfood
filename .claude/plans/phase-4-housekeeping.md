@@ -372,9 +372,9 @@ Added after the phase closed, like #14. Writing a row by hand kept going wrong (
   the log's Columns section. The prose explains it and is not read. The Cause table
   keeps its meanings, and `check` matches its names against the block.
 - **From row 321, a Miss is at most 600 characters and a Fix at most 300.** Those are
-  just above rows 1–265's 90th percentile (527 and 242); the rest of a story goes in
-  the PR body.
-- **The 79 earlier rows over the cap stay as written** (owner, 2026-10-17): rewriting
+  just above rows 1–265's 90th percentile in characters, as `check` counts them (522
+  and 238); the rest of a story goes in the PR body.
+- **The 77 earlier rows over the cap stay as written** (owner, 2026-10-17): rewriting
   them would break append-only, risk new imprecise claims, and push some stories onto
   the archive tag only.
 - **Not part of it:** moving the rows to CSV or JSON, or splitting them across files.
