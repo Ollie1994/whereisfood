@@ -20,15 +20,16 @@
 #           (row 297). Every other Artifact value, and every Escaped and Cause value,
 #           is checked on every row;
 #         - from the row the Columns section names (IS #150), a Caught by cell that
-#           doesn't start with a listed backticked group. Earlier rows are free text,
-#           kept as written.
+#           doesn't start with a listed backticked group, and a listed group on the
+#           row just before it (the boundary set too high). Earlier rows are free
+#           text, kept as written.
 #         The allowed values, and that row number, are read from the log's own Columns
 #         and Cause taxonomy sections (the first match of each), never copied here. The
 #         groups and the row number come from their own anchored lines inside Columns
 #         ("Groups:", "Grouped from row:"), so a re-wrapped paragraph, the definitions
 #         under them or a quote elsewhere in the log can't change them. If the log
 #         can't be read, a list comes back empty, the row number is missing or past
-#         the last row + 1, or two lists share a value (a section read past its end),
+#         the highest row + 1, or two lists share a value (a section read past its end),
 #         check stops with exit 2 instead of passing everything.
 #
 # The Caught by group is extracted in one place (GROUP_FN), used by both commands.
@@ -67,21 +68,27 @@ columns() { plain | awk '/^### Cause taxonomy/ { exit } /^### Columns/ { on = 1 
 # The backticked values on the Columns line that starts with "Groups: `" (that line only).
 group_values() { columns | grep -m1 '^Groups: `' | grep -o '`[^`]*`' | tr -d '`' || true; }
 # The first row whose Caught by starts with a group: the Columns line "Grouped from
-# row: N". Empty unless N is a number from 1 to the last row + 1, so a typo can't
-# switch the group check off.
+# row: N". Empty unless N is a number from 1 to the highest row number + 1, so a typo
+# past the end can't switch the group check off. (check also catches a boundary one
+# off either way: the row before it must have no group, the row at it must have one.)
 caught_from() {
-  local n last
+  local n max
   n=$(columns | sed -n 's/^Grouped from row: \([0-9][0-9]*\)$/\1/p' | head -n 1)
-  last=$(rows | awk -F'|' '{ r = $2 + 0 } END { print r + 0 }')
-  [ -n "$n" ] && [ "$n" -ge 1 ] && [ "$n" -le $((last + 1)) ] && echo "$n" || true
+  max=$(rows | awk -F'|' '$2 + 0 > m { m = $2 + 0 } END { print m + 0 }')
+  [ -n "$n" ] && [ "$n" -ge 1 ] && [ "$n" -le $((max + 1)) ] && echo "$n" || true
 }
 # A Caught by cell's leading backticked group, or "" if it has none.
 GROUP_FN='function group(v) { sub(/^[ \t]+/, "", v); return match(v, /^`[^`]+`/) ? substr(v, 2, RLENGTH - 2) : "" }'
 
+tally_usage() { echo "tally: $1 (usage: tally <column 2-10> [first-row] [last-row])" >&2; exit 2; }
 tally() {
-  local col="${1:?usage: tally <column> [first-row] [last-row]}" from=""
-  case "$col" in ''|*[!0-9]*) echo "tally: <column> must be a number, not \"$col\"" >&2; exit 2 ;; esac
+  local col="${1:-}" from=""
+  case "$col" in ''|*[!0-9]*) tally_usage "<column> must be a number, not \"$col\"" ;; esac
   col=$((10#$col))
+  [ "$col" -ge 2 ] && [ "$col" -le 10 ] || tally_usage "<column> $col is not a table column"
+  for b in "${2:-0}" "${3:-0}"; do
+    case "$b" in ''|*[!0-9]*) tally_usage "row bounds must be numbers, not \"$b\"" ;; esac
+  done
   if [ "$col" -eq 7 ]; then
     from=$(caught_from)
     [ -n "$from" ] || { echo 'tally: no usable "Grouped from row: N" line in the log'"'"'s Columns section' >&2; exit 2; }
@@ -104,7 +111,7 @@ check() {
   masked | awk -F'|' -v art="$art" -v esc="$esc" -v cau="$cau" -v grp="$grp" \
       -v drift_lo=197 -v drift_hi=267 -v caught_from="$from" "$GROUP_FN"'
     BEGIN {
-      if (art == "" || esc == "" || cau == "" || grp == "" || caught_from == "") { print "check: could not read the allowed values (a list is empty, or the \"Grouped from row:\" line is missing or past the last row + 1)"; fatal = 2; exit }
+      if (art == "" || esc == "" || cau == "" || grp == "" || caught_from == "") { print "check: could not read the allowed values (a list is empty, or the \"Grouped from row:\" line is missing or past the highest row + 1)"; fatal = 2; exit }
       n = split(art, a, " "); for (i = 1; i <= n; i++) { A[a[i]]; seen[a[i]]++ }
       n = split(esc, e, " "); for (i = 1; i <= n; i++) { E[e[i]]; seen[e[i]]++ }
       n = split(cau, c, " "); for (i = 1; i <= n; i++) { C[c[i]]; seen[c[i]]++ }
@@ -128,6 +135,9 @@ check() {
         v = group($7)
         if (v == "") { print r ": Caught by has no leading group"; bad = 1 }
         else if (!(v in G)) { print r ": Caught by group \"" v "\""; bad = 1 }
+      } else if (r == caught_from - 1 && (group($7) in G)) {
+        # A boundary set too high would exempt grouped rows without a word.
+        print r ": Caught by has a group, but \"Grouped from row:\" says " caught_from; bad = 1
       }
     }
     # awk runs END even after `exit` in BEGIN, so END must keep the fatal status.

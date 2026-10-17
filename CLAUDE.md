@@ -360,7 +360,8 @@ it and renders as plain text (row 272).
 print nothing and exit 0. It checks every row: placement in the table, numbering, cell
 count, and values against the log's own lists, including the `Caught by` group that
 new rows start with (from the row on the Columns section's `Grouped from row:` line).
-Exit 2 means it couldn't read the log, its lists or that row number.
+Exit 2 means it couldn't use the log: unreadable, a list empty or overlapping another,
+or that row line missing or past the highest row + 1.
 
 Include the `PR #n / IS #n` reference. Those numbers link each row to the diff and the
 review discussion. The log is tracked in the repo (since IS #116), and the repo is
