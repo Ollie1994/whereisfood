@@ -267,9 +267,10 @@ Why: the process log's Phase 3 retrospective (its Action 1) and Phase 4 retrospe
 (#149).
 
 **Before every review round, the first included: check the claims.** Run
-`bash scripts/claims.sh <rev> <PR-body file>`, where `<rev>` is the last reviewed commit
-(the base, for the first round). It lists added lines with words like "every", "only",
-"always" or "checked". For each hit, do one of three things:
+`bash scripts/claims.sh <rev> <PR-body file>`, where `<rev>` is the last reviewed commit,
+or `$(git merge-base dev HEAD)` for the first round. (Plain `dev` would also list lines
+`dev` changed after the branch was cut.) It lists added lines with words like "every",
+"only", "always" or "checked". For each hit, do one of three things:
 - back it with a command whose result is in the PR body;
 - reword it;
 - or note it is a rule, not a claim of fact.
