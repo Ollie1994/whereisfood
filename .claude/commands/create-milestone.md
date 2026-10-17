@@ -33,8 +33,8 @@ After all questions are answered, produce the plan doc. Then ask the user if the
 
 6. **What is the strict order of steps?**
    (Step 1 must be done before Step 2, etc. Why does this order matter?)
-   Every plan ends its planned steps with the **milestone retrospective** (see Output
-   Format), so don't ask about it.
+   Every plan's planned steps end with the **milestone retrospective** and then the
+   **`project-context.md` reconciliation** (see Output Format), so don't ask about them.
 
 7. **Why are the key decisions being made this way?**
    (For each non-obvious decision: what alternatives were considered and why was this chosen.)
@@ -65,16 +65,17 @@ Save the plan to `.claude/plans/phase-<N>-<short-name>.md` using this structure:
 
 ## Steps
 <strict ordered list — each step names the file and function being worked on>
-<last planned step, always: **Milestone retrospective** (procedure: `.claude/process-log.md`,
-"How to use it")>
+<last two planned steps, always: **Milestone retrospective**, then **Reconcile
+`project-context.md`**; the retrospective's follow-up issues go between them
+(procedure: `.claude/process-log.md`, "How to use it")>
 
 ## Rationale
 <key decisions and why — one paragraph or bullet per decision>
 
 ## Acceptance Criteria
 <one bullet per item — specific and unambiguous>
-<last bullet, always: the milestone retrospective is done, per its procedure in
-`.claude/process-log.md` ("How to use it")>
+<last bullet, always: the milestone retrospective and its follow-up issues are merged,
+and `project-context.md` is reconciled (procedure: `.claude/process-log.md`, "How to use it")>
 
 ## Open Decisions
 <list — things to resolve during coding>
