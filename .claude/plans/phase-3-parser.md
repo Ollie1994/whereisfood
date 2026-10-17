@@ -1,5 +1,9 @@
 # Phase 3 — Parser
 
+> *Its `process-log #N` citations are row numbers. Where it quotes more than the row
+> holds (#5, #7), the text is in the log's old detail entries, on the
+> `archive/process-log-details` tag since IS #152.*
+>
 > **Superseded (Phase 4).** The parser and ingestion lanes were dropped for an admin-populated map; see `.claude/transition.md` (history) and `.claude/context/project-context.md`. The code this plan built is archived on `archive/parser-lanes` (commit `b089fd0`). Kept as history; nothing below is current. Phase numbers in this plan are the old roadmap's (4 Realtime, 5 Auth + Dashboard, 6 Cron, 7 Hardening, 8 Onboarding), not today's (4 Housekeeping … 8 Launch).
 
 ## Goal
