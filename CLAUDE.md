@@ -359,8 +359,8 @@ it and renders as plain text (row 272).
 **After adding or editing rows, run `bash scripts/process-log.sh check`.** It must
 print nothing and exit 0. It checks every row: placement in the table, numbering, cell
 count, and values against the log's own lists, including the `Caught by` group that
-new rows start with (from the row the log's Columns section names). Exit 2 means it
-couldn't read the log or its lists.
+new rows start with (from the row on the Columns section's `Grouped from row:` line).
+Exit 2 means it couldn't read the log, its lists or that row number.
 
 Include the `PR #n / IS #n` reference. Those numbers link each row to the diff and the
 review discussion. The log is tracked in the repo (since IS #116), and the repo is

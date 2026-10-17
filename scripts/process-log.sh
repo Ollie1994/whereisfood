@@ -6,9 +6,8 @@
 #
 # tally   Counts the values in one column of the ## Log table, optionally for a row
 #         range. Columns: 4=Where 5=Artifact 7=Caught-by 8=Escaped 9=Cause 10=Fix.
-#         From the row the log's Columns section names ("Required from row N"), a
-#         Caught by cell counts as its leading group; tally 7 stops (exit 2) if the log
-#         doesn't name one.
+#         From the row on the Columns line "Grouped from row: N", a Caught by cell
+#         counts as its leading group; tally 7 stops (exit 2) without a usable line.
 # check   Checks every row of the log and exits 1 if it finds a problem:
 #         - a numbered row outside the ## Log table (it renders as plain text; row 272);
 #         - a line inside the table that isn't a well-formed numbered row (e.g. `|303 |`,
@@ -25,13 +24,15 @@
 #           kept as written.
 #         The allowed values, and that row number, are read from the log's own Columns
 #         and Cause taxonomy sections (the first match of each), never copied here. The
-#         groups come from the "Groups:" line alone, so the definitions under it can't
-#         run into the list. If the log can't be read, or a list or the row number
-#         comes back empty, or two lists share a value (a section read past its end),
+#         groups and the row number come from their own anchored lines inside Columns
+#         ("Groups:", "Grouped from row:"), so a re-wrapped paragraph, the definitions
+#         under them or a quote elsewhere in the log can't change them. If the log
+#         can't be read, a list comes back empty, the row number is missing or past
+#         the last row + 1, or two lists share a value (a section read past its end),
 #         check stops with exit 2 instead of passing everything.
 #
-# One copy of the row parsing for both commands, and one of the Caught by group
-# (GROUP_FN): CRs are stripped (a CRLF checkout),
+# The Caught by group is extracted in one place (GROUP_FN), used by both commands.
+# One copy of the row parsing for both commands: CRs are stripped (a CRLF checkout),
 # and escaped pipes (\|) are masked before splitting, because GitHub renders them
 # inside a cell but awk splits on them. The bracket form is needed because sed reads
 # \| as alternation.
@@ -61,22 +62,34 @@ cause_values() {
     | grep -oE '^\| `[a-z-]+`' | tr -d '|` ' || true
 }
 words() { paste -sd' ' - || true; }
-# The backticked values on the FIRST line that starts with "Groups: `" (that line only).
-group_values() { plain | grep -m1 '^Groups: `' | grep -o '`[^`]*`' | tr -d '`' || true; }
-# The first row whose Caught by starts with a group, from "Required from row N".
-caught_from() { plain | grep -o 'Required from row [0-9][0-9]*' | head -n 1 | grep -o '[0-9]*$' || true; }
+# The ### Columns section, up to the Cause taxonomy.
+columns() { plain | awk '/^### Cause taxonomy/ { exit } /^### Columns/ { on = 1 } on'; }
+# The backticked values on the Columns line that starts with "Groups: `" (that line only).
+group_values() { columns | grep -m1 '^Groups: `' | grep -o '`[^`]*`' | tr -d '`' || true; }
+# The first row whose Caught by starts with a group: the Columns line "Grouped from
+# row: N". Empty unless N is a number from 1 to the last row + 1, so a typo can't
+# switch the group check off.
+caught_from() {
+  local n last
+  n=$(columns | sed -n 's/^Grouped from row: \([0-9][0-9]*\)$/\1/p' | head -n 1)
+  last=$(rows | awk -F'|' '{ r = $2 + 0 } END { print r + 0 }')
+  [ -n "$n" ] && [ "$n" -ge 1 ] && [ "$n" -le $((last + 1)) ] && echo "$n" || true
+}
 # A Caught by cell's leading backticked group, or "" if it has none.
 GROUP_FN='function group(v) { sub(/^[ \t]+/, "", v); return match(v, /^`[^`]+`/) ? substr(v, 2, RLENGTH - 2) : "" }'
 
 tally() {
-  local col="${1:?usage: tally <column> [first-row] [last-row]}" from=999999
-  if [ "$col" = 7 ]; then
+  local col="${1:?usage: tally <column> [first-row] [last-row]}" from=""
+  case "$col" in ''|*[!0-9]*) echo "tally: <column> must be a number, not \"$col\"" >&2; exit 2 ;; esac
+  col=$((10#$col))
+  if [ "$col" -eq 7 ]; then
     from=$(caught_from)
-    [ -n "$from" ] || { echo 'tally: the log names no "Required from row N" for Caught by' >&2; exit 2; }
+    [ -n "$from" ] || { echo 'tally: no usable "Grouped from row: N" line in the log'"'"'s Columns section' >&2; exit 2; }
   fi
+  # from is set only for column 7, so it is the one test for grouping.
   rows | awk -F'|' -v c="$col" -v lo="${2:-0}" -v hi="${3:-999999}" -v from="$from" "$GROUP_FN"'
       $2+0 >= lo && $2+0 <= hi {v = $c
-        if (c == 7 && $2+0 >= from + 0 && group(v) != "") v = group(v)
+        if (from != "" && $2+0 >= from + 0) { g = group(v); if (g != "") v = g }
         gsub(/^ +| +$|`/, "", v); print v}' \
     | sort | uniq -c | sort -rn
 }
@@ -91,7 +104,7 @@ check() {
   masked | awk -F'|' -v art="$art" -v esc="$esc" -v cau="$cau" -v grp="$grp" \
       -v drift_lo=197 -v drift_hi=267 -v caught_from="$from" "$GROUP_FN"'
     BEGIN {
-      if (art == "" || esc == "" || cau == "" || grp == "" || caught_from == "") { print "check: could not read the allowed values (a list or the Caught by row is empty)"; fatal = 2; exit }
+      if (art == "" || esc == "" || cau == "" || grp == "" || caught_from == "") { print "check: could not read the allowed values (a list is empty, or the \"Grouped from row:\" line is missing or past the last row + 1)"; fatal = 2; exit }
       n = split(art, a, " "); for (i = 1; i <= n; i++) { A[a[i]]; seen[a[i]]++ }
       n = split(esc, e, " "); for (i = 1; i <= n; i++) { E[e[i]]; seen[e[i]]++ }
       n = split(cau, c, " "); for (i = 1; i <= n; i++) { C[c[i]]; seen[c[i]]++ }
