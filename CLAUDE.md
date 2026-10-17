@@ -379,16 +379,19 @@ blocking and closing rules, is in the log's "How to use it" section;
 use those exact values — do not invent new ones and do not copy the taxonomy here.
 Duplicating it in two files is the same `manual-drift` the log exists to catch.
 
-**A row goes directly after the last row of the `## Log` table, not at the end of the
-file.** Other sections follow the table, so a row appended to the file lands outside
-it and renders as plain text (row 272).
+**Add a row with `bash scripts/process-log.sh add <file>`**, never by hand. The file
+holds one `Field: value` line per column except `#`, which `add` assigns (`Date` is
+optional); the script's header lists them. `add` numbers
+the row, puts it directly after the table's last row (a row appended to the end of the
+file lands outside the table, row 272), escapes pipes, keeps the line endings, and runs
+`check` on the result before writing. If anything fails, the log is unchanged. Keep the
+Miss and Fix within the values block's caps; the rest of the story goes in the PR body.
 
-**After adding or editing rows, run `bash scripts/process-log.sh check`.** It must
-print nothing and exit 0. It checks every row: placement in the table, numbering, cell
-count, and values against the log's own lists, including the `Caught by` group that
-new rows start with (from the row on the Columns section's `Grouped from row:` line).
-Exit 2 means it couldn't use the log: unreadable, a list empty or overlapping another,
-or that row line missing or past the highest row + 1.
+**After editing rows by hand (a correction), run `bash scripts/process-log.sh check`.**
+It must print nothing and exit 0. It checks every row against the log's values block:
+placement in the table, numbering, cell count, the listed values, the `Caught by` group
+and the length caps from the rows the block names. Exit 2 means it couldn't use the log
+(no values block, a missing or bad key, an unreadable Cause table, overlapping lists).
 
 Include the `PR #n / IS #n` reference. Those numbers link each row to the diff and the
 review discussion. The log is tracked in the repo (since IS #116), and the repo is

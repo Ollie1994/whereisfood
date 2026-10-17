@@ -87,10 +87,10 @@ quoting the one-line rule this replaced.)
    `## Phase 4 retrospective (2026-10-17, #148)` (a milestone without a phase number
    uses its name in place of `Phase <N>`), the output of
    `bash scripts/process-log.sh tally 9 <first> <last>` (Cause) and
-   `bash scripts/process-log.sh tally 7 <first> <last>` (Caught by: rows from the one
-   on the Columns section's `Grouped from row:` line start with a group, which
-   `tally 7` counts; earlier rows are free text, grouped by hand as the Phase 3
-   retrospective does), with those commands.
+   `bash scripts/process-log.sh tally 7 <first> <last>` (Caught by: rows from the
+   values block's `caught-by-from-row` start with a group, which `tally 7` counts;
+   earlier rows are free text, grouped by hand as the Phase 3 retrospective does), with
+   those commands.
 3. **The previous retrospective's actions.** For each, did the misses it targeted
    drop? Keep, adjust or retire it, citing the rows as evidence. A rule that stopped
    nothing is a cost, not a safeguard.
@@ -178,17 +178,17 @@ implicated. A doc appears here both when it was **wrong** (#1) and when it was
 worth counting, because "this rule keeps being ignored" is as actionable as "this
 rule is stale".
 
-Values: `CLAUDE.md` · `project-context` · `README` · `process-log` · `command` ·
-`plan` · `issue` · `process` · `docs` (several at once) · `code-only`
+Values: the values block's `artifact` line (end of this section). `docs` means several
+docs at once; `code-only` means no process artifact is implicated.
 
-**`Escaped`** — how far it travelled before being caught, the real cost signal:
-`pre-commit` · `pre-merge` · `merged` · `crossed-phase` · `production` · `n/a`
+**`Escaped`** — how far it travelled before being caught, the real cost signal.
+Values: the values block's `escaped` line, nearest first.
 
 **`Caught by`** — what found the miss. The cell starts with one backticked group,
 then free text: `` `code-review` r2 (user-requested) ``, `` `self` counting for #148 ``.
-Required from the row on the `Grouped from row:` line below, and `check` enforces it.
-The script reads both lines below, inside this section only, so keep each on its own
-line. Earlier rows stay as written and are grouped by hand: rows 308–314 are the first
+Required from the row on the values block's `caught-by-from-row` line, and `check`
+enforces it; the groups are its `caught-by` line. Earlier rows stay as written and
+are grouped by hand: rows 308–314 are the first
 range that needs it (the Phase 5 retrospective). The groups follow the Phase 3
 retrospective's rule, as its Phase 4 count applied it. **A review is grouped by what was
 reviewed**, whoever asked for it (`code-review`, `plan-review`). **Anything else is
@@ -196,10 +196,6 @@ grouped by who found it**: `self` while doing the work, `user` the owner. So the
 owner's browser check (row 282) is `user`, and the end-of-phase check run while working
 (row 303) is `self`. If two found it, the group is the one that found it first, and the
 other goes in the text. Older free-text rows name that one first (rows 289, 296).
-
-Groups: `code-review` · `plan-review` · `self` · `user`
-
-Grouped from row: 315
 
 - **code-review:** a review of code or a PR (`/code-review` rounds), whoever asked for
   it. Put the round in the text (`r2`).
@@ -211,9 +207,30 @@ Grouped from row: 315
 - **user:** found by the owner outside a review: noticing, asking, pushing back, or a
   check the owner runs, such as a browser check (row 282).
 
+**The values block.** `scripts/process-log.sh` checks rows against the values in this
+block, and only these; the prose above explains them. Change a value here and nowhere
+else. `artifact-drift-rows` are exempt from the `artifact` list (known drift, row
+297). From `cap-from-row`, a row's Miss is at most `cap-miss` characters and its Fix
+at most `cap-fix`: the details go in the PR body. Earlier rows are exempt (IS #155).
+The Cause names in the taxonomy below must match the `cause` line, and `check` says so
+when they don't.
+
+```values
+artifact: CLAUDE.md project-context README process-log command plan issue process docs code-only
+escaped: pre-commit pre-merge merged crossed-phase production n/a
+cause: stale-doc missing-gate gate-skipped unverified-assumption incomplete-guard overcorrection imprecise-claim manual-drift
+caught-by: code-review plan-review self user
+caught-by-from-row: 315
+artifact-drift-rows: 197-267
+cap-from-row: 321
+cap-miss: 600
+cap-fix: 300
+```
+
 ### Cause taxonomy
 
-Keep to these; add a value only when something genuinely does not fit.
+Keep to these; add a value only when something genuinely does not fit, here and on the
+values block's `cause` line.
 
 | Cause | Meaning |
 |---|---|
@@ -563,6 +580,8 @@ Old rows that point at them are now pointing there: "see note" (rows 14, 15, 17,
 | 318 | 2026-10-17 | PR #156 / IS #152 | `process-log` | `/code-review` round 1 on #152 found 8, all applied. **The note listing rows that point at the removed entries named 4 of 10:** rows 17 and 22 end in a bare "see note", and rows 272, 281, 299 and 300 cite "the DECISION entry" or "DECISION note"; the pointer grep matched only "see note below" and "DECISION below", so it couldn't find them, and the PR said it had found only new text. Also: the code-comments rule went into CLAUDE.md although the archived decision said "deliberately not as a CLAUDE.md rule" (asked this round: the owner kept it there); "the current plan's numbered decisions" gave a decision that outlives its phase no lasting home; "history goes in … the process log" pointed at the long form this PR deletes; the CI copy dropped the part its decision called worth keeping (vitest never type-checks, so `tsc` is its own gate); the header narrowed append-only to rows, leaving retrospectives and dated decisions unprotected; CLAUDE.md's "not in this log" didn't square with the dated decision sections still in it; `transition.md:38` stayed unwrapped and quoted the heading as if findable | `code-review` r1 (user-requested) | `pre-merge` | `incomplete-guard` | ✅ The note lists all 10 rows by how they point (found by grepping rows for `DECISION`, `see note`, `detail entr`); the owner's choice is recorded in CLAUDE.md's section; decisions that outlive a phase are carried forward by the end-of-phase reconciliation; history goes in the PR; the `tsc` reason is in Testing; append-only covers the whole file again, with the one exception; "new decisions don't go in the log, dated ones stay"; `transition.md:38` rewrapped and reworded |
 | 319 | 2026-10-17 | PR #156 / IS #152 | `CLAUDE.md` | `/code-review` round 2 on #152 found 8, all applied. **Round 1 gave the end-of-phase reconciliation a new job in CLAUDE.md (carry forward decisions that outlive the phase) without adding it to the one procedure that defines that step**, part 6 of the milestone retrospective, which `/create-milestone` and `/create-issues` build the reconciliation issue from; the next reconciliation would have left it out. And the PR broke its own new rule: the owner's 2026-10-17 decisions weren't a numbered plan decision, and CLAUDE.md cited a log row instead. Also: no home said for a miss's long story now the detail entries are gone; "a row records a miss in a line or two" while row 318 is a paragraph; the removal restated in five places; #152's body still said history goes in "the PR and the log"; `transition.md:794` still said the DECISION entry is in the log; the CI paragraph's rewrap left an orphan line and read as if Actions runs branch protection | `code-review` r2 (user-requested) | `pre-merge` | `incomplete-guard` | ✅ Part 6 carries decisions forward, and CLAUDE.md points at it; Phase 4 plan decision #14 records today's decisions, and the plan's Modify table lists the change; "How to use it" says a long story goes in the PR body; the row wording, CI list and orphan line fixed; CLAUDE.md and the log's aside point at the note instead of restating; #152's body and `transition.md:794` marked |
 | 320 | 2026-10-17 | PR #156 / IS #152 | `plan` | `/code-review` round 3 on #152 found 9, all applied. **Round 2's part 6 carried forward only "the plan's" decisions, so a decision added to a plan after its reconciliation had merged had no path forward**, and Phase 4's #14, the decision recording this change, is exactly that case. Also: the plan template still said "one paragraph or bullet per decision", with no numbering for the decisions that are now the only home; #14 said "decisions [already lived] in plans", while 14 decision entries lived only in the log; the size figures were working-copy guesses ("459 KB → 261 KB", "215 KB"), not the blobs (474,581 → 264,119 bytes, 215,283 removed), and the claims check had listed them without backing; the Phase 3 plan's `process-log #5`/`#7` quotes now point at text only on the tag; CLAUDE.md cited archived decisions without a name to find them by; the comments section restated #14's reasoning; `transition.md:794` stayed unwrapped after round 1 fixed only line 38; the aside in a dated section had no rule allowing it | `code-review` r3 (user-requested) | `pre-merge` | `imprecise-claim` | ✅ Part 6 also carries forward decisions added to an earlier plan after its reconciliation; the template numbers decisions (`### #N`) and appends mid-phase ones; #14's evidence is the PR's per-entry table, in measured bytes; the Phase 3 plan's header says where its quoted entries are; CLAUDE.md cites archived decisions by heading, and the note says how to find one; the comments section cites #14; line 794 wrapped; the header allows italic pointer notes in dated sections |
+| 321 | 2026-10-17 | PR #157 / IS #155 | `process-log` | `/code-review` round 1 on #155 found 10; 9 applied, 1 declined. **The new guards claimed more than they enforced:** a drift glob let `197-267x, 400-410` through (exit 0), dates like 2026-17-45 were written, a row file with a BOM was rejected, `cat > LOG` could truncate the log on a failed write, and `tally 7` stopped on an unrelated cap key. Also: the header said "first word" for the group, a live command block and the plan weren't updated, and the block was read nine times per run. | `code-review` r1 (user-requested) | `pre-merge` | `incomplete-guard` | ✅ One low-to-high drift range; real dates from 2000; BOM ignored; temp file renamed over the log; `tally 7` reads only its key; header, command block and plan decision #15; block read once. Declined: Cause names only in the table (#155 puts every list in the block). |
+| 322 | 2026-10-17 | PR #157 / IS #155 | `plan` | `/code-review` round 2 on #155 found 9; 8 applied, 1 declined. **Decision #15 quoted the cap's evidence in bytes, not the characters the cap counts:** 79 rows over it and a 527/242 percentile, where `check`'s own count gives 77 and 522/238. Also: `add` wrote future dates, broke on a log without a final newline, left the log 0600, refused UTF-16 without saying why, and exited 2 for a bad argument; a value repeated in one list stopped `check`. | `code-review` r2 (user-requested) | `pre-merge` | `imprecise-claim` | ✅ #15 says 77 and 522/238; dates not after today or before the last row; final newline added; log mode kept; UTF-16 named; bad argument exits 1; repeats in one list allowed; CLAUDE.md says # is assigned. Declined: one check pass (0.6 s). |
 
 ---
 
@@ -576,7 +595,8 @@ One session's worth. Early, but several patterns are already visible.
 > Recompute before quoting a number:
 >
 > ```bash
-> # scripts/process-log.sh (IS #142): one copy of the row parsing, for both commands.
+> # scripts/process-log.sh (IS #142, #155): add, tally and check share one copy of the
+> # row parsing; its header describes each.
 > # tally <column> [first-row] [last-row]
 > #   columns: 4=Where 5=Artifact 7=Caught-by 8=Escaped 9=Cause 10=Fix
 > bash scripts/process-log.sh tally 9    # which causes dominate
@@ -585,9 +605,11 @@ One session's worth. Early, but several patterns are already visible.
 > bash scripts/process-log.sh tally 8    # how far things escape before being caught
 > bash scripts/process-log.sh tally 4    # which PR generated the most misses
 >
-> # check: every row, against the table structure, numbering, cell count and the value
-> # lists in Columns and Cause taxonomy above (read from this file, not copied).
-> bash scripts/process-log.sh check      # after adding or editing rows: no output, exit 0
+> # add: a new row from a file of Field: value lines (CLAUDE.md, "Process Log").
+> # check: every row, against the table structure, numbering, cell count and the
+> # values block in Columns above (read from this file, not copied).
+> bash scripts/process-log.sh add row.txt   # adding a row; it runs check itself
+> bash scripts/process-log.sh check         # after a hand correction: no output, exit 0
 > ```
 >
 > If a column is added or reordered, these indices shift — update the script in the
