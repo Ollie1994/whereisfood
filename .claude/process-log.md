@@ -62,16 +62,18 @@ class of thing is caught twice.
 That is just work. The bar is *"this says something about the process."*
 
 **Read it at the end of every milestone: the milestone retrospective.** A log nobody
-reads is a diary. Every milestone plan ends with this step and `/create-issues` makes
-it the milestone's last issue (#146), because as prose it was skipped for three phases.
-This is the only copy of the procedure; the commands and CLAUDE.md point here.
+reads is a diary. As a one-line rule it was skipped at the end of Phase 2, and Phase
+3's only happened as a planned issue (#128), so every milestone plan now includes it
+(#146). This is the only copy of the procedure; the commands and CLAUDE.md point here.
 
-1. **Range.** State the rows written during the milestone: from the first row after
-   the previous retrospective's range to the last row before this one.
-2. **Counts.** `bash scripts/process-log.sh tally 9 <first> <last>` (Cause) and
-   `tally 7 <first> <last>` (Caught by, which is free text: group it as the Phase 3
-   retrospective does). Record them in a dated `## Phase N retrospective` section,
-   before "Detail entries", as exact figures with the command that reproduces them.
+1. **Range.** From the first row after the previous retrospective's range to the last
+   row written before this retrospective starts. State both numbers. Rows that the
+   retrospective and its action issues add later belong to the next range.
+2. **Counts.** Record, in a dated `## Phase N retrospective` section before "Detail
+   entries", the output of
+   `bash scripts/process-log.sh tally 9 <first> <last>` (Cause) and
+   `bash scripts/process-log.sh tally 7 <first> <last>` (Caught by, which is free text:
+   group it as the Phase 3 retrospective does), with those commands.
 3. **The previous retrospective's actions.** For each, did the misses it targeted
    drop? Keep, adjust or retire it, citing the rows as evidence. A rule that stopped
    nothing is a cost, not a safeguard.
@@ -79,8 +81,14 @@ This is the only copy of the procedure; the commands and CLAUDE.md point here.
    script), never just advice. Aim them where misses could have been caught earlier,
    not just at the biggest number: code review is usually the biggest `Caught by`
    because that is where misses surface. Zero new actions is a valid answer.
-5. **Each action becomes its own issue in the same milestone,** merged before the
-   milestone closes, so a named action can't stay unapplied (as #142 did for #128).
+5. **Track every action as an issue in the `/create-issues` format,** validated by its
+   Step 5, Failure-modes field included: an action is a mechanism, so it is usually a
+   guard. One issue may carry several small actions, as #142 carried #128's.
+6. **Order and closing.** The retrospective is the milestone's last *planned* issue.
+   Its action issues follow it, and the milestone closes only once they are merged.
+   If the milestone is already closed (as Phase 4's was when this was added), run the
+   retrospective and its actions as issues with no milestone, finished before the
+   next milestone's plan is written.
 
 ### Columns
 
@@ -461,6 +469,7 @@ Keep to these; add a value only when something genuinely does not fit.
 | 302 | 2026-10-12 | PR #143 / IS #142 | `docs` | `/code-review` round 2 on #142 found 9, all applied. **The round-1 rewrite still claimed more than it checked.** (a) An empty Escaped list exited 1 with no output, not the documented exit 2: under `set -e` the `grep -vx` that drops the heading word failed first; my "empty list" control had covered only the Artifact and Cause lists. (b) "Checked on EVERY row" held only for rows matching `^\| N \|`; a row like `\|303 \|` or one with no number escaped every check, and `tally` too. (c) Duplicate, out-of-order or skipped row numbers weren't caught, nor named under "Does not catch". (d) A later paragraph starting `Values: ` would have added its words to the allowed list (sed ranges repeat). (e) A missing log exited 1 for `check` and 0 for `tally`. (f) The prescribed `check 268` never re-checked rows 1–267, including 1–196 that hold no drift. (g) `paste -sd' '` without `-` is GNU-only. Also: the Phase 4 plan's file list and step 11 didn't mention the new files; #142 still said "No code changes" and, though it adds a guard, had no Failure-modes section, which my own sweep should have caught | `/code-review` r2 (user-requested) | `pre-merge` | `incomplete-guard` | ✅ `check` takes no start row: it checks every row and exempts only rows 197–267's known `Artifact` drift; it flags table lines that aren't numbered rows and numbers that aren't previous+1; value lists come from the first matching section only; a missing log, an empty list or overlapping lists exit 2; POSIX `paste`. 19 negative controls (the earlier 8 plus 11 for the new classes) each give the expected exit. CLAUDE.md, the log and row 297 say `check`; the plan lists the new files; #142 has its exception note and a Failure-modes section |
 | 303 | 2026-10-12 | PR #145 / IS #144 | `issue` | **#127's stale-comment check narrowed both the files and the pattern, so the widened rule never reached `fake-data.ts`.** Row 288 widened the old-design grep to `cron\|realtime\|confidence\|webhook` and set a rule: no *comment* may describe the removed design as current. #127's acceptance criterion then grepped only `supabase.ts`, `useMapLibre.tsx` and `TruckPopup.tsx`, the three files the row listed, and only for `cron\|realtime\|CLAUDE.md`, dropping `confidence`, `webhook` and `grey`. Either narrowing alone would have missed it: over all of `src`, that pattern still doesn't match "webhook source, confidence 0.51". `fake-data.ts`'s comments ("YELLOW — webhook source, confidence 0.51") kept describing the lanes as if current, and passed every review round of PR #140. Found by the end-of-phase check, which runs the widened grep over all of `src` | Phase 4 end-of-phase check | `merged` | `incomplete-guard` | ✅ `fake-data.ts`'s header and each row comment now say the rows use the old design's values until Phase 6 replaces the file (comments only; PR #145 r1 reworded the row comments too). The lesson is Action 2's, for both halves: derive a guard's files **and its pattern** from the change it guards (here, every file the full widened pattern matches), not from a list someone wrote down or a pattern cut to fit |
 | 304 | 2026-10-12 | PR #145 / IS #144 | `plan` | `/code-review` round 1 on #144 found 8, all applied. **The close-out's own evidence notes claimed more than the check had shown.** The plan's new note said every criterion was checked "against `dev` at `ee53ed7`", but three of them only pass with this PR's fixes; the PR said "the only miss is `fake-data.ts`" while `db/trucks.ts` also matched the widened grep (a kept Phase 5 file the allowed list had never named). Row 303's first diagnosis covered half the cause: #127 narrowed the pattern as well as the files. The `fake-data.ts` fix covered the per-row comments with a header instead of fixing them, and the header said none of the old fields exist in the target design, though `source` stays (with `admin` / `owner`). Also: the plan header still said the context awaits step 10; the new Phase 1–2 history headers used today's phase numbers while their bodies use the old ones (the sweep found the Phase 3 plan has the same gap); a planning-time note contradicted the new dated one | `/code-review` r1 (user-requested) | `pre-merge` | `imprecise-claim` | ✅ The plan's note says what passed at `ee53ed7` and what PR #145 fixed; `db/trucks.ts` added to the allowed list; row 303 names both narrowings; every `fake-data.ts` row comment says "old-design", and the header says `source` stays with new values; the Phase 1–3 headers explain the old numbering; the plan header and the planning note updated |
+| 305 | 2026-10-17 | PR #147 / IS #146 | `docs` | `/code-review` round 1 on #146 found 9, all applied. **The procedure couldn't be followed as written, and it misstated its own history.** It made the retrospective "always the last issue", but its action issues must come after it and merge before the milestone closes; its first use (Phase 4, whose milestone is closed) had nowhere to put those issues; and the action issues would have skipped `/create-issues`' validation and Failure-modes field although every action is meant to be a guard. Its justification cited #142 as an action left unapplied (it was applied, in PR #143) and said the rule was "skipped for three phases" (only Phase 2: Phase 1 predates it, Phase 3 had #128). Also: "the last row before this one" was undefined; the command templates restated parts of the procedure, against its own "only copy" claim; the Phase 3 retrospective still said "the rule above"; the second `tally` command lacked its `bash scripts/process-log.sh` prefix (row 301(e)'s defect again) | `/code-review` r1 (user-requested) | `pre-merge` | `imprecise-claim` | ✅ Procedure rewritten: a range that ends when the retrospective starts; both commands in full; action issues in the `/create-issues` format with Step 5 and Failure modes; the retrospective as the last *planned* issue, its actions after it, and the milestone closing when they merge; a carve-out for an already-closed milestone; the history corrected. The commands and CLAUDE.md now only point; the Phase 3 back-reference is marked as replaced |
 
 ---
 
@@ -552,8 +561,9 @@ converging.
 
 ## Phase 3 retrospective (2026-10-12, #128)
 
-The rule above: at each phase boundary, count by `Caught by` and by `Cause` and act on
-the two biggest columns. This is the first time it has been done.
+The rule at the time (replaced by the milestone-retrospective procedure in "How to use
+it", #146): at each phase boundary, count by `Caught by` and by `Cause` and act on the
+two biggest columns. This is the first time it has been done.
 
 **Rows counted: 13–265 (253 rows), the rows written during Phase 3:** from the Phase 3
 planning read-through (2026-08-22) to the end of the conversation that dropped the

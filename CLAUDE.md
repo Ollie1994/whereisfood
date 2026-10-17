@@ -308,7 +308,8 @@ issues; this file is for what the bug reveals about how we work.
 resolved and is not re-litigated next session.
 
 **Every milestone ends with a retrospective.** The procedure is in the log's "How to
-use it" section; `/create-milestone` and `/create-issues` add it as the last step.
+use it" section; `/create-milestone` and `/create-issues` add it as the last planned
+issue.
 
 **Before adding a row, read the file's own `Columns` and `Cause taxonomy` sections** and
 use those exact values — do not invent new ones and do not copy the taxonomy here.
