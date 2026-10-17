@@ -35,10 +35,12 @@
 > read this file first.** Say so when you start the replan.
 >
 > `.claude/` is tracked in the (public) repo since IS #116; before that it was
-> gitignored and existed only on one machine. The decision was also recorded in `.claude/process-log.md` ("DECISION — Drop the ingestion lanes and
-> the parser; admin-populated launch", 2026-10-10); since IS #152 that entry is on the
-> `archive/process-log-details` tag, and §1 below and the Phase 4 plan hold the decision. The cron finding is row 258, and
-> the review/verification misses from this conversation are rows 259–265.
+> gitignored and existed only on one machine. The decision was also recorded as a
+> process-log DECISION entry ("Drop the ingestion lanes and the parser; admin-populated
+> launch", 2026-10-10). Since IS #152 that entry is only on the
+> `archive/process-log-details` tag; §1 below and the Phase 4 plan hold the decision.
+> The cron finding is row 258, and the review/verification misses from this
+> conversation are rows 259–265.
 >
 > **This file has been through a simplification pass (§0).** If something you expected
 > is missing (a `schedules` table, `expires_at`, auto-replace,
