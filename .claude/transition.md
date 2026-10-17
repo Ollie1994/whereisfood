@@ -791,7 +791,8 @@ and archived with `archive/parser-lanes`.
 ### `.claude/process-log.md`
 - Row 258 (cron) is **resolved by this decision.** Its fix column was marked resolved in
   #128 (PR #141), after the context rewrite.
-- The DECISION entry is written, including the simplification pass. *(Since IS #152 it is only on the `archive/process-log-details` tag.)*
+- The DECISION entry is written, including the simplification pass. *(Since IS #152
+  it is only on the `archive/process-log-details` tag.)*
 - Keep logging misses as usual during the teardown. An overcorrection while ripping out
   code is the classic risk here.
 

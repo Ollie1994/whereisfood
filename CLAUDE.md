@@ -84,12 +84,10 @@ refuted, and ones that argued were refuted six times. A change's history goes in
 (its body and review discussion), not in the source; a process-log row summarises a
 miss and points there.
 
-This is a rule about the **kind** of comment, not how many. The 2026-09-13 decision
-(archived; see the note above the process log's table) rejected a density rule,
-because a later session would ratchet against it, and scheduled the clean-up
-"deliberately not as a CLAUDE.md rule". The owner chose on 2026-10-17 to keep this
-kind rule here anyway, so that the sessions that write comments read it (Phase 4 plan
-decision #14).
+This is a rule about the **kind** of comment, not how many: a density rule invites a
+later session to ratchet against it. Why it is in this file although its source
+decision ("DECISION — comments keep evidence, not argument", 2026-09-13, archived)
+said otherwise: Phase 4 plan decision #14.
 
 ---
 
@@ -206,7 +204,8 @@ Toolchain: the Node floor and npm ≥ 11 under Dependencies.
 **There is no CI — every gate is manual, until deploy.** CI/CD arrives then as its own
 piece of work, designed together: GitHub Actions workflows for the four gates, SAST,
 and branch protection (a repository setting). Don't re-propose it before then (the
-owner's decision of 2026-09-06, archived; see the note above the process log's table).
+owner's decision "DECISION — Gates stay manual until deploy", 2026-09-06, archived;
+the note above the process log's table says how to read it).
 Until then the gates are the only enforcement, and `tsc` is one of them in its own
 right: vitest strips types and never type-checks, so a green test run says nothing
 about types. The gate list is four commands, and

@@ -11,9 +11,11 @@ issues. This file exists to answer questions like:
 
 **Append-only.** Never rewrite history here: rows, retrospectives and the dated
 decision sections all stay as written, and a miss that later turned out to be a
-non-issue gets a follow-up row, not a deletion. The one exception, approved by the
-owner: the detail entries that used to follow the table were removed on 2026-10-17
-(IS #152), and are kept unchanged on the `archive/process-log-details` tag.
+non-issue gets a follow-up row, not a deletion. A dated section may gain a pointer
+note, in italics with its issue number, when what it describes has moved; its own
+text stays. The one exception, approved by the owner: the detail entries that used
+to follow the table were removed on 2026-10-17 (IS #152), and are kept unchanged on
+the `archive/process-log-details` tag.
 
 ---
 
@@ -108,11 +110,13 @@ quoting the one-line rule this replaced.)
    issue is **blocked by every other planned issue**, so its range is complete. The
    reconciliation issue is **blocked by the retrospective, and by each follow-up as it
    is opened** (add it to the reconciliation's `Blocked by`), so the context records
-   the changed process. **The reconciliation also carries forward each of the plan's
-   numbered decisions that outlives the phase** (a process, tooling or standing rule):
-   into `project-context.md`, or into CLAUDE.md when it is a rule, citing the plan
-   decision. Without that, the next plan replaces it as "the current plan" and the
-   decision stops being read. The milestone closes once the reconciliation merges.
+   the changed process. **The reconciliation also carries forward each numbered
+   decision that outlives the phase** (a process, tooling or standing rule): the
+   plan's own, and any added to an earlier plan after that plan's reconciliation
+   merged (Phase 4's #14 is the first). Each goes into `project-context.md`, or into
+   CLAUDE.md when it is a rule, citing the plan decision. Without that, the next plan
+   replaces it as "the current plan" and the decision stops being read. The milestone
+   closes once the reconciliation merges.
 7. **An already-closed milestone** (Phase 4's case when this was added): create the
    retrospective issue and its follow-ups the way part 5 creates follow-ups, with no
    milestone (skip Step 6's milestone check), and finish them before the next plan is
@@ -231,6 +235,8 @@ the DECISION entries) were removed on 2026-10-17, IS #152. They are kept unchang
 the `archive/process-log-details` tag:
 `git show archive/process-log-details:.claude/process-log.md` prints the old file (in
 Git Bash, prefix `MSYS_NO_PATHCONV=1`, or it rewrites the argument as a Windows path).
+To find one entry, pipe it to `grep -n` with words from its heading (e.g.
+`grep -n 'DECISION — Gates stay manual'`).
 Old rows that point at them are now pointing there: "see note" (rows 14, 15, 17, 21,
 22), "DECISION below" (row 280), and "the DECISION entry" or "DECISION note" (rows 272,
 281, 299, 300).*
@@ -556,6 +562,7 @@ Old rows that point at them are now pointing there: "see note" (rows 14, 15, 17,
 | 317 | 2026-10-17 | PR #154 / IS #150 | `process-log` | `/code-review` round 3 on #150 found 9; 8 applied, 1 declined. **Round 2's fix for the `self`/`user` overlap broke the issue's own spec:** #150 asked for the groups "as the Phase 3 retrospective's grouping rule defines them", and that rule splits `self` and `user` by who found it (the owner, or the author doing the work), as the Phase 4 count did (row 282 `user`, row 303 `self`). Round 2 moved the owner's browser check to `self`, so Phase 5's `tally 7` wouldn't compare with Phase 4's table, the drift row 308 logs. Rounds 2 and 3 pulled opposite ways; settled by the spec's wording, as row 306 says to. Also: a boundary one or two too high still passed (only past-the-end typos were caught); "last row" came from the last numbered line anywhere, so a stray small table made a valid boundary exit 2 and hid the real report; `tally` accepted `7 abc`, `0` and `12` silently, and its `''` case was dead code behind `${1:?}` (exit 1); CLAUDE.md's exit-2 sentence still missed two cases; "first in time" didn't say how it relates to rows 289/296 | `code-review` r3 (user-requested) | `pre-merge` | `overcorrection` | ✅ `self`/`user` follow the Phase 3 rule again (reviews by what was reviewed; anything else by who found it), with rows 282 and 303 as the examples; the row before the boundary must have no group, so one too high or too low fails; the highest row number bounds it; `tally` checks its column (2–10) and row bounds; CLAUDE.md lists each case in which `check` exits 2. Declined: reading the log fewer times (`check` takes 0.6 s). 36 controls pass (3 new); against the round-2 script, 34, 36 and the three `tally` cases fail as they should |
 | 318 | 2026-10-17 | PR #156 / IS #152 | `process-log` | `/code-review` round 1 on #152 found 8, all applied. **The note listing rows that point at the removed entries named 4 of 10:** rows 17 and 22 end in a bare "see note", and rows 272, 281, 299 and 300 cite "the DECISION entry" or "DECISION note"; the pointer grep matched only "see note below" and "DECISION below", so it couldn't find them, and the PR said it had found only new text. Also: the code-comments rule went into CLAUDE.md although the archived decision said "deliberately not as a CLAUDE.md rule" (asked this round: the owner kept it there); "the current plan's numbered decisions" gave a decision that outlives its phase no lasting home; "history goes in … the process log" pointed at the long form this PR deletes; the CI copy dropped the part its decision called worth keeping (vitest never type-checks, so `tsc` is its own gate); the header narrowed append-only to rows, leaving retrospectives and dated decisions unprotected; CLAUDE.md's "not in this log" didn't square with the dated decision sections still in it; `transition.md:38` stayed unwrapped and quoted the heading as if findable | `code-review` r1 (user-requested) | `pre-merge` | `incomplete-guard` | ✅ The note lists all 10 rows by how they point (found by grepping rows for `DECISION`, `see note`, `detail entr`); the owner's choice is recorded in CLAUDE.md's section; decisions that outlive a phase are carried forward by the end-of-phase reconciliation; history goes in the PR; the `tsc` reason is in Testing; append-only covers the whole file again, with the one exception; "new decisions don't go in the log, dated ones stay"; `transition.md:38` rewrapped and reworded |
 | 319 | 2026-10-17 | PR #156 / IS #152 | `CLAUDE.md` | `/code-review` round 2 on #152 found 8, all applied. **Round 1 gave the end-of-phase reconciliation a new job in CLAUDE.md (carry forward decisions that outlive the phase) without adding it to the one procedure that defines that step**, part 6 of the milestone retrospective, which `/create-milestone` and `/create-issues` build the reconciliation issue from; the next reconciliation would have left it out. And the PR broke its own new rule: the owner's 2026-10-17 decisions weren't a numbered plan decision, and CLAUDE.md cited a log row instead. Also: no home said for a miss's long story now the detail entries are gone; "a row records a miss in a line or two" while row 318 is a paragraph; the removal restated in five places; #152's body still said history goes in "the PR and the log"; `transition.md:794` still said the DECISION entry is in the log; the CI paragraph's rewrap left an orphan line and read as if Actions runs branch protection | `code-review` r2 (user-requested) | `pre-merge` | `incomplete-guard` | ✅ Part 6 carries decisions forward, and CLAUDE.md points at it; Phase 4 plan decision #14 records today's decisions, and the plan's Modify table lists the change; "How to use it" says a long story goes in the PR body; the row wording, CI list and orphan line fixed; CLAUDE.md and the log's aside point at the note instead of restating; #152's body and `transition.md:794` marked |
+| 320 | 2026-10-17 | PR #156 / IS #152 | `plan` | `/code-review` round 3 on #152 found 9, all applied. **Round 2's part 6 carried forward only "the plan's" decisions, so a decision added to a plan after its reconciliation had merged had no path forward**, and Phase 4's #14, the decision recording this change, is exactly that case. Also: the plan template still said "one paragraph or bullet per decision", with no numbering for the decisions that are now the only home; #14 said "decisions [already lived] in plans", while 14 decision entries lived only in the log; the size figures were working-copy guesses ("459 KB → 261 KB", "215 KB"), not the blobs (474,581 → 264,119 bytes, 215,283 removed), and the claims check had listed them without backing; the Phase 3 plan's `process-log #5`/`#7` quotes now point at text only on the tag; CLAUDE.md cited archived decisions without a name to find them by; the comments section restated #14's reasoning; `transition.md:794` stayed unwrapped after round 1 fixed only line 38; the aside in a dated section had no rule allowing it | `code-review` r3 (user-requested) | `pre-merge` | `imprecise-claim` | ✅ Part 6 also carries forward decisions added to an earlier plan after its reconciliation; the template numbers decisions (`### #N`) and appends mid-phase ones; #14's evidence is the PR's per-entry table, in measured bytes; the Phase 3 plan's header says where its quoted entries are; CLAUDE.md cites archived decisions by heading, and the note says how to find one; the comments section cites #14; line 794 wrapped; the header allows italic pointer notes in dated sections |
 
 ---
 

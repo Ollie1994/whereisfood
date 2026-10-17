@@ -344,9 +344,12 @@ script and `useMapLibre` (`setWorkerUrl(workerUrl(getVersion()))`).
 
 ### #14 — Decisions live in plans; the log's detail entries are archived (2026-10-17, #152, owner)
 Added after the phase closed, under the rule it sets. The process log's 79 detail
-entries (215 KB, mostly about the removed parser) were deleted from the file and kept
-unchanged on the `archive/process-log-details` tag. Review details already lived in PR
-bodies, and decisions in plans.
+entries (215,283 of its 474,581 bytes, mostly about the removed parser) were deleted
+from the file and kept unchanged on the `archive/process-log-details` tag. Review
+details had already moved to PR bodies. Of the 15 decision and review entries, 3 were
+also recorded in a plan or `CLAUDE.md`, 2 still in force were copied into
+`CLAUDE.md` (below), 9 covered removed code, and 1 was replaced by the Phase 3
+retrospective (PR #156 lists each).
 - **Settled decisions go only in the current plan's numbered decisions.** The
   end-of-phase reconciliation carries forward the ones that outlive the phase (the
   milestone-retrospective procedure's part 6).

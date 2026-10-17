@@ -68,7 +68,9 @@ Save the plan to `.claude/plans/phase-<N>-<short-name>.md` using this structure:
 `.claude/process-log.md` ("How to use it"), as that procedure orders them>
 
 ## Rationale
-<key decisions and why — one paragraph or bullet per decision>
+<key decisions and why, numbered: one `### #N — <decision>` heading per decision.
+These numbered decisions are where settled decisions live (CLAUDE.md, "Process Log"):
+one settled mid-phase is appended with the next number.>
 
 ## Acceptance Criteria
 <one bullet per item — specific and unambiguous>
