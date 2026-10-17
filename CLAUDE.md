@@ -261,18 +261,34 @@ uncommitted on `dev`. Every doc change then has a reviewable diff and a
 
 ---
 
-## Review rounds — sweep every fix before the next round
+## Review rounds — check claims, then sweep every fix
 
-Why: the process log's Phase 3 retrospective (its Action 1). After applying a review
-round's fixes, and **before** asking for the next round, or whenever a claim is
-corrected outside a review:
+Why: the process log's Phase 3 retrospective (its Action 1) and Phase 4 retrospective
+(#149).
 
-1. **List** each claim, term or rule the fixes corrected.
+**Before every review round, the first included: check the claims.** Run
+`bash scripts/claims.sh <rev> <PR-body file>`, where `<rev>` is the last reviewed commit
+(the base, for the first round). It lists added lines with words like "every", "only",
+"always" or "checked". For each hit, do one of three things:
+- back it with a command whose result is in the PR body;
+- reword it;
+- or note it is a rule, not a claim of fact.
+
+Record the hit count and how each was settled with that round's sweep (below). The
+script lists claims, it doesn't judge them; its header says what it can't see.
+
+**After applying a round's fixes, and before asking for the next round** (or whenever
+a claim is corrected outside a review), sweep:
+
+1. **List from the diff** (`git diff <last reviewed commit>`) each claim, term or rule
+   the fixes changed or added, not only the ones a finding named. A list from memory
+   is what let the sweep miss copies in PRs #143, #145 and #147 (rows 301, 304, 306).
 2. **Grep every mention** of each across the tracked docs (`CLAUDE.md`, `README.md`,
    `.claude/`), code comments and tests, **every open issue body**, and the PR body if
    there is one.
-3. **Read every hit.** Fix the stale ones; history (process-log rows, dated entries)
-   stays as written.
+3. **Read every hit.** Fix the stale ones. A hit that restates a rule owned elsewhere
+   becomes a pointer to that copy, not a second edit (rows 294–295, 307). History
+   (process-log rows, dated entries) stays as written.
 4. **Record the sweep** where the correction lives: that round's section of the PR
    body, or a comment on the issue when only an issue body was corrected. Claim →
    where it was checked → result.
