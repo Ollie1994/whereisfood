@@ -97,6 +97,7 @@ green.
 | `.claude/transition.md` | Header: "absorbed into project-context.md (Phase 4)"; phases renumbered (§13); archive note corrected (decision #2). |
 | `.claude/process-log.md` | Phase 3 retrospective; row 258 marked resolved. *Added by #142 (PR #143):* the counting commands moved to `scripts/process-log.sh`. |
 | `scripts/process-log.sh` *(created, #142 / PR #143)* | `tally` and `check` for the process log; `check` is the post-edit step in `CLAUDE.md`. |
+| `scripts/claims.sh` *(created after the phase closed, #149 / PR #153)* | Lists added lines with universal or verification words; the claims step of `CLAUDE.md`'s "Review rounds" runs it before every review round. |
 | `.gitattributes` *(created, #142 / PR #143)* | `*.sh text eol=lf`, so the script keeps LF endings in a Windows checkout. |
 | `.claude/commands/create-issues.md` *(#142 / PR #143)* | A "Failure modes" field for guard-adding issues, and its Step 5 check. |
 
