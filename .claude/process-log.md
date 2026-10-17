@@ -486,7 +486,8 @@ Keep to these; add a value only when something genuinely does not fit.
 | 305 | 2026-10-17 | PR #147 / IS #146 | `docs` | `/code-review` round 1 on #146 found 9, all applied. **The procedure couldn't be followed as written, and it misstated its own history.** It made the retrospective "always the last issue", but its action issues must come after it and merge before the milestone closes; its first use (Phase 4, whose milestone is closed) had nowhere to put those issues; and the action issues would have skipped `/create-issues`' validation and Failure-modes field although every action is meant to be a guard. Its justification cited #142 as an action left unapplied (it was applied, in PR #143) and said the rule was "skipped for three phases" (only Phase 2: Phase 1 predates it, Phase 3 had #128). Also: "the last row before this one" was undefined; the command templates restated parts of the procedure, against its own "only copy" claim; the Phase 3 retrospective still said "the rule above"; the second `tally` command lacked its `bash scripts/process-log.sh` prefix (row 301(e)'s defect again) | `/code-review` r1 (user-requested) | `pre-merge` | `imprecise-claim` | ✅ Procedure rewritten: a range that ends when the retrospective starts; both commands in full; action issues in the `/create-issues` format with Step 5 and Failure modes; the retrospective as the last *planned* issue, its actions after it, and the milestone closing when they merge; a carve-out for an already-closed milestone; the history corrected. The commands and CLAUDE.md now only point; the Phase 3 back-reference is marked as replaced |
 | 306 | 2026-10-17 | PR #147 / IS #146 | `docs` | `/code-review` round 2 on #146 found 9, all applied. **Round 1's fix sent action issues through a command they can't pass:** `/create-issues` needs a plan and a milestone (Step 1 stops without a plan; Step 6 creates a missing milestone), and its new Step 5 item, "the breakdown includes the retrospective", fails for a breakdown of only action issues. **And one round-1 fix broke a standing rule:** marking the dated Phase 3 retrospective's "the rule above" as replaced edited a dated record, against CLAUDE.md ("dated entries stay as written") and #146's own non-goal; two rounds' findings pulled in opposite directions, and the first one should have been checked against the rules. Also: the procedure ignored the end-of-phase `project-context.md` reconciliation (actions landing after it leave the context stale for a phase); the new CLAUDE.md pointer still said "ends" / "last"; my round-1 sweep missed four of #146's stale claims; adjusting or retiring an old action had no tracking rule; the plan's last AC didn't require the follow-ups merged; the section heading was undefined for a milestone without a phase number | `/code-review` r2 (user-requested) | `pre-merge` | `overcorrection` | ✅ Follow-up issues (new, adjusted or retired actions) use the `/create-issues` format and Step 5 list but are created with `gh issue create`; Step 5's retrospective item applies to plan breakdowns only. The Phase 3 opening is reverted, and the procedure itself notes the quote. Plans end with two fixed steps (the retrospective, then the reconciliation), follow-ups go between them, and the AC requires both. Pointer, heading and #146's body corrected; PR and issue retitled |
 | 307 | 2026-10-17 | PR #147 / IS #146 | `docs` | `/code-review` round 3 on #146 found 8, all applied. **The order lived only in prose, and the "only copy" claim was still false.** Nothing blocked the reconciliation on follow-up issues (they're opened later, so its `Blocked by` named only the retrospective) or the retrospective on the milestone's other issues, so the order part 6 describes could break unnoticed. Part 6 was restated in CLAUDE.md and both commands, and the CLAUDE.md copy had already drifted: it lacked the closed-milestone carve-out, the very case of the next use. Also: the carve-out gave no way to create the retrospective issue itself; follow-ups created with a bare `gh issue create` skipped `/create-issues`' pre-flight checks and `--body-file`; the heading example didn't match its format; "(CLAUDE.md)" after `project-context.md` read as a second file to reconcile. **Pattern, three rounds running:** each round's structural fix added a rule that I then also restated elsewhere | `/code-review` r3 (user-requested) | `pre-merge` | `manual-drift` | ✅ The procedure alone holds the order, blocking and closing rules: the retrospective is blocked by every other planned issue, and the reconciliation by the retrospective and each follow-up as it's opened. CLAUDE.md and both commands only point ("closing steps … as that procedure says"). Follow-ups and the closed-milestone retrospective go through `/create-issues` Steps 5–7. The heading format and example agree; the reconciliation is named unambiguously |
-| 308 | 2026-10-17 | → IS #150 | `process-log` | **The log never said what one row is, and its unit changed between phases.** Phase 3's review rounds mostly took several rows, one per finding (its retrospective counted 3–4 rows per PR per round). From row 268 every Phase 4 review round is one row, with "found N", a headline `Cause` and the rest under "Also". The Columns section records neither, so the Phase 4 retrospective's `Cause` counts are headline causes of rounds, and their shares can't be compared with Phase 3's (`incomplete-guard` reads 33% there and 19% here). Found counting for the Phase 4 retrospective | self, counting for #148 | `crossed-phase` | `manual-drift` | ⬜ → IS #150: the Columns section states the unit (the per-round practice), and `Caught by` gets fixed groups that `check` validates and `tally 7` counts |
+| 308 | 2026-10-17 | → IS #150 | `process-log` | **The log never said what one row is, and its unit changed between phases.** Phase 3's review rounds mostly took several rows, one per finding (its retrospective counted 3–4 rows per PR per round). From row 268 each Phase 4 review round gets one row (rows 289 and 296 also hold a round-1 finding each), with "found N", a headline `Cause` and the rest under "Also". The Columns section records neither, so the Phase 4 retrospective's `Cause` counts are headline causes of rounds, and their shares can't be compared with Phase 3's (`incomplete-guard` reads 33% there and 19% here). Found counting for the Phase 4 retrospective | self, counting for #148 | `crossed-phase` | `missing-gate` | ⬜ → IS #150: the Columns section states the unit (the per-round practice), and `Caught by` gets fixed groups that `check` validates and `tally 7` counts |
+| 309 | 2026-10-17 | PR #151 / IS #148 | `process-log` | `/code-review` round 1 on #148 found 8, all applied. **The retrospective's counts held; the claims written around them went further than the rows.** (a) Action 1's "before" left out rows the log itself files as missed copies (273, 290, 291, 293), so "five of nine PRs" was six; (b) only PR #130 was named as stopped by row 254's rule, while row 291 says PR #138 was too; (c) the only evidence that `check` worked (row 302's raw pipes) is in no row, and was stated as if it were; (d) row 296 was called "a malformed row", but it was the counting tool splitting on escaped pipes; (e) "read straight from the rows": row 270 has no "found N", and row 268's accepted trade-off was left out of r1 while row 270's were counted; (f) row 290 was counted among claims built on a universal word, but the word in its quotes ("never") was in the true rule, not the over-claim; (g) "every round is one row", while rows 289 and 296 hold round-1 findings; (h) row 308's `manual-drift` didn't fit a definition that never existed. The kind of claim #149 targets, written in the section that proposes #149 | `/code-review` r1 (user-requested) | `pre-merge` | `imprecise-claim` | ✅ All eight fixed in the section and row 308 (six of nine PRs; PRs #130 and #138; the row-302 catch marked as unrecorded; 296 described as the tally bug; a counting rule and r1 104 / 8.7; six rows; the two exceptions named; `missing-gate`); #149's and #150's bodies corrected |
 
 ---
 
@@ -712,8 +713,9 @@ the follow-ups are finished before the Phase 5 plan is written.
 2026-10-17). Row 308 onward belong to the next range.
 
 **A Phase 4 row usually counts a review round, not a miss** (row 308). From row 268,
-each `/code-review` round is one row: "found N", one headline `Cause`, and the rest
-listed under "Also". Phase 3's rounds mostly took several rows, one per finding
+each `/code-review` round gets one row: "found N", one headline `Cause`, and the rest
+listed under "Also". Two round-1 findings also sit in rows of their own, because the miss
+was first found while working (rows 289, 296; 296's is in row 298 too). Phase 3's rounds mostly took several rows, one per finding
 (3–4 rows per PR per round, by its table). So the
 `Cause` counts below are headline causes of rounds and other misses, and their shares
 don't compare with Phase 3's. Follow-up #150 records the unit. Like Phase 3's, these
@@ -749,19 +751,21 @@ Grouped by the Phase 3 retrospective's rule. A cell naming two finders (rows 289
 | plan / issue review | 2 | 266–267 (the owner-requested reviews of the plan draft) |
 | the user | 1 | 282 (the owner's browser check) |
 
-**Code review by round.** Each row records its round's findings ("found N"), so
-findings per round can be read straight from the rows:
+**Code review by round.** Findings are what each round raised, applied or not, read
+from each row's "found N". Two rows need a rule: row 270 numbers its findings 1–9
+instead, and row 268's "found 7 real issues (1 more accepted as a trade-off)" counts as
+8, as row 270's accepted and rejected items do.
 
 | Round | PRs that reached it | Findings | Per PR |
 |---|---|---|---|
-| r1 | 12 | 103 | 8.6 |
+| r1 | 12 | 104 | 8.7 |
 | r2 | 9 | 78 | 8.7 |
 | r3 | 4 | 34 | 8.5 |
 
 As in Phase 3, every round that ran found about as much as the one before (the
 fewest any round found was 7), and no PR reached round 4. Each PR stopped when the
-owner merged it, PR #130 by row 254's stopping rule (row 270). No PR stopped because
-a round came back empty.
+owner merged it; PRs #130 and #138 stopped by row 254's stopping rule (rows 270, 291).
+No PR stopped because a round came back empty.
 
 **`Escaped`:** 26 `pre-merge`, 8 `merged`, 5 `pre-commit`, 3 `crossed-phase`. All three
 `crossed-phase` rows were in the log itself (272, 296, 297). Five of the eight
@@ -774,9 +778,10 @@ All three were applied in PR #143 (#142, merged 2026-10-12), so rows 301–307 (
 verdict says what the rows show and no more.
 
 **1. The fix sweep (CLAUDE.md, "Review rounds"). Keep, adjusted (#149).**
-- **Before.** In rows 268–300 (nine PRs), a fix that missed a copy of the claim it
-  corrected appears in rows 269, 271, 276, 281, 286, 294 and 295, in five of the nine
-  PRs.
+- **Before.** In rows 268–300 (nine PRs), the log itself files these rows as
+  copies a fix didn't reach: 269, 271, 273, 276, 281 and 286 (row 286 lists them),
+  290 (its item e), and 291 and 293–295 (named by the Phase 3 retrospective's Action
+  1). That's six of the nine PRs: #130, #133, #135, #137, #138 and #140.
 - **After.** Every round since has a recorded sweep. PR #145's found a copy no
   finding had named: the Phase 3 plan's old-numbering gap. But copies were still
   missed in two of the three PRs:
@@ -804,11 +809,17 @@ verdict says what the rows show and no more.
   guards, and on #149 and #150, which both carry the field.
 
 **3. `scripts/process-log.sh check` (row 297). Keep, unchanged.**
-- **The target.** It targets the three `crossed-phase` rows: a row outside the table
-  (272), a malformed row (296) and out-of-list values (297). Those were the furthest
-  any Phase 4 miss travelled.
-- **Since it shipped.** It caught raw pipes in row 302 before the commit (exit 1, 13
-  cells instead of 9). Rows 303–307 passed it.
+- **The target.** The three `crossed-phase` rows, the furthest any Phase 4 miss
+  travelled:
+  - a row outside the table (272);
+  - the counting tool splitting rows on escaped pipes (296), fixed by masking them in
+    the parser that `check` now shares (row 296 itself was also written with a raw
+    pipe, row 298);
+  - out-of-list values (297).
+- **Since it shipped.** Rows 303–307 passed it. While PR #143 was being written it
+  flagged raw pipes in row 302 before the commit (exit 1, "13 cells instead of 9").
+  No row records that, because a gate that works isn't a miss, so it is weaker
+  evidence than a row.
 - **The cost** is one command per log edit.
 
 ### New actions (two)
@@ -818,9 +829,9 @@ review is the biggest `Caught by` because that is where misses surface).
 
 **1. A pre-review claims check (#149).**
 - **The evidence.** `imprecise-claim` is the biggest `Cause` (13 rows), and code
-  review found 12 of them. Seven quote a claim built on a word like "every", "only",
-  "always", "clean" or "already" (rows 270, 275, 278, 287, 290, 304, 305). So did row
-  307's "only copy".
+  review found 12 of them. Six quote a claim built on a word like "every", "only",
+  "always", "clean" or "already" (rows 270, 275, 278, 287, 304, 305). So did row 307's
+  "only copy".
 - **The mechanism.** `scripts/claims.sh` lists the lines a diff adds, plus the PR
   body, that contain such a word. Before each review round the author backs each hit
   with a command or rewords it.
