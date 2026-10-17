@@ -96,7 +96,7 @@ green.
 | `.claude/plans/phase-3-parser.md` | One-line "superseded" header pointing at the archive and `transition.md`. |
 | `.claude/transition.md` | Header: "absorbed into project-context.md (Phase 4)"; phases renumbered (§13); archive note corrected (decision #2). |
 | `.claude/process-log.md` | Phase 3 retrospective; row 258 marked resolved. *Added by #142 (PR #143):* the counting commands moved to `scripts/process-log.sh`. |
-| `scripts/process-log.sh` *(created, #142 / PR #143)* | `tally` and `check` for the process log; `check` is the post-edit step in `CLAUDE.md`. |
+| `scripts/process-log.sh` *(created, #142 / PR #143; `add` and the values block, #155 / PR #157)* | `add`, `tally` and `check` for the process log, reading every value from the log's values block; `add` is how `CLAUDE.md` says to write a row, and `check` follows a hand correction (decision #15). |
 | `scripts/claims.sh` *(created after the phase closed, #149 / PR #153)* | Lists added lines with universal or verification words; the claims step of `CLAUDE.md`'s "Review rounds" runs it before every review round. |
 | `.claude/process-log.md`, `CLAUDE.md` *(after the phase closed, #152 / PR #156)* | Detail entries removed and kept on the `archive/process-log-details` tag; decisions recorded only in plans; CI/CD and code-comments rules copied into `CLAUDE.md` (decision #14). |
 | `.gitattributes` *(created, #142 / PR #143)* | `*.sh text eol=lf`, so the script keeps LF endings in a Windows checkout. |
@@ -361,6 +361,26 @@ retrospective (PR #156 lists each).
   decision had scheduled it "deliberately not as a CLAUDE.md rule". The copy is a rule
   about the kind of comment, not a density rule, which is what that decision argued
   against (asked in PR #156 r1; process-log row 318).
+
+### #15 — Rows are written with `add`; the log's values live in one block; new rows are capped (2026-10-17, #155, owner)
+Added after the phase closed, like #14. Writing a row by hand kept going wrong (rows 272,
+296, 302), and `check` reading values out of prose cost three review rounds on PR #154
+(rows 315–317).
+- **`bash scripts/process-log.sh add <file>` writes every new row.** It builds the row
+  from `Field: value` lines, places it, and writes only if `check` passes.
+- **Every value rows are checked or counted against is in one `values` block** in
+  the log's Columns section. The prose explains it and is not read. The Cause table
+  keeps its meanings, and `check` matches its names against the block.
+- **From row 321, a Miss is at most 600 characters and a Fix at most 300.** Those are
+  just above rows 1–265's 90th percentile (527 and 242); the rest of a story goes in
+  the PR body.
+- **The 79 earlier rows over the cap stay as written** (owner, 2026-10-17): rewriting
+  them would break append-only, risk new imprecise claims, and push some stories onto
+  the archive tag only.
+- **Not part of it:** moving the rows to CSV or JSON, or splitting them across files.
+  The proposal argued against both (GitHub shows cell markdown raw in CSV, and the
+  retrospectives' `tally` commands and `check`'s numbering rely on one table), and the
+  owner asked for the three changes above only.
 
 ---
 

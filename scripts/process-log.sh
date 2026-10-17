@@ -7,13 +7,16 @@
 #
 # add     Adds one row from <file>, one `Field: value` line per field (blank lines are
 #         skipped): Date (optional, today if left out), Where, Artifact, Miss, Caught by,
-#         Escaped, Cause, Fix. Artifact, Escaped and Cause may be bare or backticked;
-#         a Caught by that doesn't start with a backtick gets its first word backticked
-#         as the group. Raw pipes are escaped. The row takes the next number and goes
+#         Escaped, Cause, Fix. A byte-order mark is ignored. Artifact, Escaped and Cause
+#         may be bare or backticked. A Caught by that doesn't start with a backtick gets
+#         its leading lowercase letters and dashes backticked as the group ("self, by
+#         running it" becomes "`self`, by running it"). A Date must be a real date from
+#         2000 on. Raw pipes are escaped. The row takes the next number and goes
 #         directly after the table's last row, with the file's line endings. It is
 #         written only if `check` passes on the result, so a bad value, an over-cap
-#         cell, a missing, unknown, repeated or multi-line field all leave the log
-#         unchanged (exit 1). add refuses to run on a log that already fails check.
+#         cell, a missing, unknown, repeated, empty or multi-line field leave the log
+#         unchanged (exit 1). The new file is renamed over the log, so a failed write
+#         can't truncate it. add refuses to run on a log that already fails check.
 # tally   Counts the values in one column of the ## Log table, optionally for a row
 #         range. Columns: 4=Where 5=Artifact 7=Caught-by 8=Escaped 9=Cause 10=Fix.
 #         From the values block's caught-by-from-row, a Caught by cell counts as its
@@ -34,11 +37,12 @@
 #           characters (escaped pipes count as one);
 #         - a Cause in the taxonomy table that the block's cause line lacks, or the
 #           reverse.
-#         Every value comes from the log's values block (the first ```values fence in
-#         its Columns section), never copied here. A missing block, a missing or empty
-#         key, a row number that isn't a number from 1 to the highest row + 1, an
-#         unreadable Cause table, or two lists sharing a value: check stops with exit 2
-#         instead of passing everything.
+#         Every value rows are checked against comes from the log's values block (the
+#         first ```values fence in its Columns section), never copied here. A missing block, a missing or empty
+#         key, a row number that isn't a number from 1 to the highest row + 1, a drift
+#         range that isn't one low-to-high range, an unreadable Cause table, or two lists
+#         sharing a value: check stops with exit 2 instead of passing everything. tally 7
+#         needs only the block's caught-by-from-row.
 #
 # One copy of the row parsing for all three commands: CRs are stripped (a CRLF
 # checkout), and escaped pipes (\|) are masked before splitting, because GitHub renders
@@ -71,8 +75,19 @@ values() {
   plain | awk '/^### Cause taxonomy/ { exit } /^### Columns/ { cols = 1 }
     cols && !on && /^```values[ \t]*$/ { on = 1; next } on && /^```[ \t]*$/ { exit } on' || true
 }
-# One key's value from the block (the first line for it), or "".
-value() { values | awk -v k="$1:" 'index($0, k) == 1 { v = substr($0, length(k) + 1); gsub(/^[ \t]+|[ \t]+$/, "", v); print v; exit }' || true; }
+# One key's value from BLOCK (the values block, read once by read_block), or "".
+value() { printf '%s\n' "$BLOCK" | awk -v k="$1:" 'index($0, k) == 1 { v = substr($0, length(k) + 1); gsub(/^[ \t]+|[ \t]+$/, "", v); print v; exit }' || true; }
+read_block() { BLOCK=$(values); [ -n "$BLOCK" ] || die2 "no \`\`\`values block in the log's Columns section"; }
+# A row-number key, checked: a number from 1 to the highest row + 1, or exit 2.
+row_key() {
+  local v; v=$(value "$1")
+  [ -n "$v" ] || die2 "the values block has no usable \"$1:\" line"
+  case "$v" in *[!0-9]*) die2 "\"$1: $v\" is not a row number" ;; esac
+  [ "$v" -ge 1 ] && [ "$v" -le $(( MAX + 1 )) ] || die2 "\"$1: $v\" is past the highest row + 1 ($(( MAX + 1 )))"
+  printf -v "$2" '%s' "$v"
+}
+# Only what tally 7 needs: the block and caught-by-from-row, into FROM.
+load_from() { read_block; MAX=$(max_row); row_key caught-by-from-row FROM; }
 # The first-column values of the FIRST "### Cause taxonomy" table.
 cause_values() {
   plain | awk 'on && /^---/ { exit } !on && /^### Cause taxonomy/ { on = 1 } on' \
@@ -82,23 +97,20 @@ cause_values() {
 # Reads every key of the values block into the variables below, or stops with exit 2.
 # Must run in the main shell (not inside $(...)), so die2 ends the script.
 load_values() {
+  load_from
+  row_key cap-from-row CAP_FROM
   ART=$(value artifact); ESC=$(value escaped); CAU=$(value cause); GRP=$(value caught-by)
-  FROM=$(value caught-by-from-row); DRIFT=$(value artifact-drift-rows)
-  CAP_FROM=$(value cap-from-row); CAP_MISS=$(value cap-miss); CAP_FIX=$(value cap-fix)
-  [ -n "$(values)" ] || die2 "no \`\`\`values block in the log's Columns section"
-  local k v max
-  for k in artifact:ART escaped:ESC cause:CAU caught-by:GRP caught-by-from-row:FROM \
-      artifact-drift-rows:DRIFT cap-from-row:CAP_FROM cap-miss:CAP_MISS cap-fix:CAP_FIX; do
+  DRIFT=$(value artifact-drift-rows); CAP_MISS=$(value cap-miss); CAP_FIX=$(value cap-fix)
+  local k v
+  for k in artifact:ART escaped:ESC cause:CAU caught-by:GRP artifact-drift-rows:DRIFT \
+      cap-miss:CAP_MISS cap-fix:CAP_FIX; do
     v="${k#*:}"; [ -n "${!v}" ] || die2 "the values block has no usable \"${k%%:*}:\" line"
   done
-  max=$(max_row)
-  for k in caught-by-from-row:FROM cap-from-row:CAP_FROM; do
-    v="${k#*:}"; v="${!v}"
-    case "$v" in *[!0-9]*) die2 "\"${k%%:*}: $v\" is not a row number" ;; esac
-    [ "$v" -ge 1 ] && [ "$v" -le $((max + 1)) ] || die2 "\"${k%%:*}: $v\" is past the highest row + 1 ($((max + 1)))"
-  done
   case "$CAP_MISS$CAP_FIX" in *[!0-9]*) die2 "cap-miss and cap-fix must be numbers" ;; esac
-  case "$DRIFT" in [0-9]*-[0-9]*) ;; *) die2 "\"artifact-drift-rows: $DRIFT\" is not a range like 197-267" ;; esac
+  # Exactly one range, low to high: a looser pattern let "197-267x, 400-410" through.
+  if ! [[ "$DRIFT" =~ ^([0-9]+)-([0-9]+)$ ]] || [ "${BASH_REMATCH[1]}" -gt "${BASH_REMATCH[2]}" ]; then
+    die2 "\"artifact-drift-rows: $DRIFT\" is not one range, low to high, like 197-267"
+  fi
 }
 
 # A Caught by cell's leading backticked group, or "" if it has none.
@@ -115,7 +127,7 @@ tally() {
   for b in "${2:-0}" "${3:-0}"; do
     case "$b" in ''|*[!0-9]*) tally_usage "row bounds must be numbers, not \"$b\"" ;; esac
   done
-  if [ "$col" -eq 7 ]; then load_values; from="$FROM"; fi
+  if [ "$col" -eq 7 ]; then load_from; from="$FROM"; fi
   # from is set only for column 7, so it is the one test for grouping.
   rows | awk -F'|' -v c="$col" -v lo="${2:-0}" -v hi="${3:-999999}" -v from="$from" "$GROUP_FN"'
       $2+0 >= lo && $2+0 <= hi {v = $c
@@ -181,6 +193,8 @@ build_row() {
     function tick(v) { gsub(/`/, "", v); return "`" v "`" }
     BEGIN { split("Date|Where|Artifact|Miss|Caught by|Escaped|Cause|Fix", names, "|"); for (i in names) K[names[i]] }
     { sub(/\r$/, "") }
+    # PowerShell 5.1 writes UTF-8 with a byte-order mark.
+    NR == 1 { sub(/^\357\273\277/, "") }
     /^[ \t]*$/ { next }
     match($0, /^[A-Za-z][A-Za-z ]*:/) {
       k = substr($0, 1, RLENGTH - 1); v = substr($0, RLENGTH + 1); gsub(/^[ \t]+|[ \t]+$/, "", v)
@@ -194,6 +208,12 @@ build_row() {
       for (i = 2; i <= 8; i++) if (!(names[i] in F)) err("missing field \"" names[i] "\"")
       d = ("Date" in F) ? F["Date"] : today
       if (d !~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/) err("Date \"" d "\" is not YYYY-MM-DD")
+      else {
+        y = substr(d, 1, 4) + 0; mo = substr(d, 6, 2) + 0; dy = substr(d, 9, 2) + 0
+        split("31 28 31 30 31 30 31 31 30 31 30 31", ml, " ")
+        if (mo == 2 && (y % 4 == 0 && (y % 100 != 0 || y % 400 == 0))) ml[2] = 29
+        if (y < 2000 || mo < 1 || mo > 12 || dy < 1 || dy > ml[mo]) err("Date \"" d "\" is not a real date from 2000 on")
+      }
       if (bad) exit 1
       c = F["Caught by"]
       if (c !~ /^`/ && match(c, /^[a-z-]+/)) c = "`" substr(c, 1, RLENGTH) "`" substr(c, RLENGTH + 1)
@@ -215,11 +235,13 @@ add() {
   if ! tr -d '\r' < "$LOG" | cmp -s - "$LOG"; then cr=$'\r'; fi
   # TMP is global so the EXIT trap can still see it. head and tail copy bytes as they
   # are; awk would not here (Git Bash's gawk reads in text mode and drops each \r).
-  TMP=$(mktemp); trap 'rm -f "${TMP:-}"' EXIT
+  # The new file is built next to the log and renamed over it, so an interrupted or
+  # failed write leaves the log as it was (cat > LOG would truncate it first).
+  TMP=$(mktemp "$LOG.add.XXXXXX"); trap 'rm -f "${TMP:-}"' EXIT
   { head -n "$line" "$LOG"; printf '%s%s\n' "$row" "$cr"; tail -n +"$((line + 1))" "$LOG"; } > "$TMP"
   rc=0; out=$(PROCESS_LOG="$TMP" bash "$0" check 2>&1) || rc=$?
   [ "$rc" -eq 0 ] || { printf '%s\n' "$out" >&2; echo "add: row $n not added; the log is unchanged" >&2; exit "$rc"; }
-  cat "$TMP" > "$LOG"
+  mv -f "$TMP" "$LOG"
   echo "add: row $n added"
 }
 
