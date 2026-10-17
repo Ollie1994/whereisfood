@@ -61,8 +61,26 @@ class of thing is caught twice.
 **Do not write an entry for:** ordinary bugs found and fixed while writing the code.
 That is just work. The bar is *"this says something about the process."*
 
-**Read it at phase boundaries.** A log nobody reads is a diary. At the end of each
-phase, count by `Caught by` and by `Cause`, and act on the two biggest columns.
+**Read it at the end of every milestone: the milestone retrospective.** A log nobody
+reads is a diary. Every milestone plan ends with this step and `/create-issues` makes
+it the milestone's last issue (#146), because as prose it was skipped for three phases.
+This is the only copy of the procedure; the commands and CLAUDE.md point here.
+
+1. **Range.** State the rows written during the milestone: from the first row after
+   the previous retrospective's range to the last row before this one.
+2. **Counts.** `bash scripts/process-log.sh tally 9 <first> <last>` (Cause) and
+   `tally 7 <first> <last>` (Caught by, which is free text: group it as the Phase 3
+   retrospective does). Record them in a dated `## Phase N retrospective` section,
+   before "Detail entries", as exact figures with the command that reproduces them.
+3. **The previous retrospective's actions.** For each, did the misses it targeted
+   drop? Keep, adjust or retire it, citing the rows as evidence. A rule that stopped
+   nothing is a cost, not a safeguard.
+4. **At most two new actions,** each a mechanism (a check, a template field, a
+   script), never just advice. Aim them where misses could have been caught earlier,
+   not just at the biggest number: code review is usually the biggest `Caught by`
+   because that is where misses surface. Zero new actions is a valid answer.
+5. **Each action becomes its own issue in the same milestone,** merged before the
+   milestone closes, so a named action can't stay unapplied (as #142 did for #128).
 
 ### Columns
 

@@ -33,6 +33,8 @@ After all questions are answered, produce the plan doc. Then ask the user if the
 
 6. **What is the strict order of steps?**
    (Step 1 must be done before Step 2, etc. Why does this order matter?)
+   The **milestone retrospective** is always the last step; it is added to every plan
+   (see Output Format), so don't ask about it.
 
 7. **Why are the key decisions being made this way?**
    (For each non-obvious decision: what alternatives were considered and why was this chosen.)
@@ -63,12 +65,17 @@ Save the plan to `.claude/plans/phase-<N>-<short-name>.md` using this structure:
 
 ## Steps
 <strict ordered list — each step names the file and function being worked on>
+<last step, always: **Milestone retrospective** — follow the procedure in
+`.claude/process-log.md` ("How to use it"); each action it names becomes its own
+issue in this milestone>
 
 ## Rationale
 <key decisions and why — one paragraph or bullet per decision>
 
 ## Acceptance Criteria
 <one bullet per item — specific and unambiguous>
+<last bullet, always: the milestone retrospective is in the process log, and every
+action it named is merged>
 
 ## Open Decisions
 <list — things to resolve during coding>

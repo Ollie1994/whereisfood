@@ -135,6 +135,10 @@ Rules for issue breakdown:
 - Include integration tests as a separate issue — they are never trivial
 - Dependencies must be explicit: "Blocked by Issue N" — never implicit.
   Asset / env / external dependencies go under **Prerequisites**, not Blocked by.
+- **The plan's last step, the milestone retrospective, becomes the milestone's last
+  issue.** Its body points at the procedure in `.claude/process-log.md` ("How to use
+  it") instead of restating it. The issues for its actions are created by that issue,
+  once it has named them.
 - **Failure modes** are required for any issue that adds or changes a guard: a
   validator, a DB constraint, a test gate, a grep acceptance criterion, a gate
   script. Derive the classes from the change (the inputs, files, terms and paths it
@@ -174,6 +178,7 @@ repair any issue that is missing a required section or value:
   an Acceptance Criterion with a negative control
 - [ ] Acceptance Criteria present as `- [ ]` checkboxes, each binary
 - [ ] Dependency/chore issues pin the intended major version
+- [ ] The breakdown ends with the milestone-retrospective issue
 
 If any issue fails, fix it and re-present before proceeding.
 
