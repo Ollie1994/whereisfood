@@ -98,6 +98,7 @@ green.
 | `.claude/process-log.md` | Phase 3 retrospective; row 258 marked resolved. *Added by #142 (PR #143):* the counting commands moved to `scripts/process-log.sh`. |
 | `scripts/process-log.sh` *(created, #142 / PR #143)* | `tally` and `check` for the process log; `check` is the post-edit step in `CLAUDE.md`. |
 | `scripts/claims.sh` *(created after the phase closed, #149 / PR #153)* | Lists added lines with universal or verification words; the claims step of `CLAUDE.md`'s "Review rounds" runs it before every review round. |
+| `.claude/process-log.md`, `CLAUDE.md` *(after the phase closed, #152 / PR #156)* | Detail entries removed and kept on the `archive/process-log-details` tag; decisions recorded only in plans; CI/CD and code-comments rules copied into `CLAUDE.md` (decision #14). |
 | `.gitattributes` *(created, #142 / PR #143)* | `*.sh text eol=lf`, so the script keeps LF endings in a Windows checkout. |
 | `.claude/commands/create-issues.md` *(#142 / PR #143)* | A "Failure modes" field for guard-adding issues, and its Step 5 check. |
 
@@ -340,6 +341,23 @@ script and `useMapLibre` (`setWorkerUrl(workerUrl(getVersion()))`).
 - **Accepted cost:** the worker fetches its own copy of the 516 KB shared chunk, which
   the main bundle already contains. Now that the path is versioned, it could be served
   with an immutable `Cache-Control`; that's left for launch (Phase 8).
+
+### #14 — Decisions live in plans; the log's detail entries are archived (2026-10-17, #152, owner)
+Added after the phase closed, under the rule it sets. The process log's 79 detail
+entries (215 KB, mostly about the removed parser) were deleted from the file and kept
+unchanged on the `archive/process-log-details` tag. Review details already lived in PR
+bodies, and decisions in plans.
+- **Settled decisions go only in the current plan's numbered decisions.** The
+  end-of-phase reconciliation carries forward the ones that outlive the phase (the
+  milestone-retrospective procedure's part 6).
+- **Two archived decisions still in force were copied into `CLAUDE.md`:**
+  - CI/CD arrives at deploy as its own piece of work, with `tsc` a gate in its own
+    right meanwhile (2026-09-06);
+  - comments keep evidence, not argument (2026-09-13).
+- **The owner chose to keep the comments rule in `CLAUDE.md`,** although the 2026-09-13
+  decision had scheduled it "deliberately not as a CLAUDE.md rule". The copy is a rule
+  about the kind of comment, not a density rule, which is what that decision argued
+  against (asked in PR #156 r1; process-log row 318).
 
 ---
 

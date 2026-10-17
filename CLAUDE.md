@@ -81,14 +81,15 @@ A comment keeps **evidence**: the command, probe or mutation that showed what it
 and what a reader needs in order not to break the code. It doesn't argue from
 reasoning: across PRs #93 and #98, comments that named their evidence were never
 refuted, and ones that argued were refuted six times. A change's history goes in the PR
-(its body and review discussion), not in the source; a process-log row records a miss
-in a line or two and points there.
+(its body and review discussion), not in the source; a process-log row summarises a
+miss and points there.
 
-This is a rule about the **kind** of comment, not how many. The decision (2026-09-13,
-on the `archive/process-log-details` tag) rejected a density rule, because a later
-session would ratchet against it, and scheduled the clean-up "deliberately not as a
-CLAUDE.md rule". The owner chose on 2026-10-17 (PR #156, row 318) to keep this kind
-rule here anyway, so that the sessions that write comments read it.
+This is a rule about the **kind** of comment, not how many. The 2026-09-13 decision
+(archived; see the note above the process log's table) rejected a density rule,
+because a later session would ratchet against it, and scheduled the clean-up
+"deliberately not as a CLAUDE.md rule". The owner chose on 2026-10-17 to keep this
+kind rule here anyway, so that the sessions that write comments read it (Phase 4 plan
+decision #14).
 
 ---
 
@@ -203,12 +204,12 @@ Toolchain: the Node floor and npm ≥ 11 under Dependencies.
 | `npm run test:all` | **every project in `RUNS`** of `scripts/test-all.mjs` (today `unit` + `integration`), checked against the projects `vitest.config.ts` declares; takes no arguments | yes |
 
 **There is no CI — every gate is manual, until deploy.** CI/CD arrives then as its own
-piece of work: GitHub Actions running the four gates, SAST and branch protection,
-designed together. Don't re-propose it before then (the owner's decision of 2026-09-06,
-on the `archive/process-log-details` tag). Until then the gates are the only
-enforcement, and `tsc` is one of them in its own right: vitest strips types and never
-type-checks, so a green test run says nothing about types. The gate list is four
-commands, and
+piece of work, designed together: GitHub Actions workflows for the four gates, SAST,
+and branch protection (a repository setting). Don't re-propose it before then (the
+owner's decision of 2026-09-06, archived; see the note above the process log's table).
+Until then the gates are the only enforcement, and `tsc` is one of them in its own
+right: vitest strips types and never type-checks, so a green test run says nothing
+about types. The gate list is four commands, and
 `test:run` is *not* one of them once integration tests exist:
 
 ```
@@ -365,12 +366,11 @@ work. The bar is *"this says something about the process."* Bugs belong in GitHu
 issues; this file is for what the bug reveals about how we work.
 
 **Settled decisions go in the current plan's numbered decisions**, with their rationale,
-so a resolved question stays resolved and is not re-litigated next session. One that
-outlives the phase (a process, tooling or standing rule) is carried forward by the
-end-of-phase reconciliation: into `project-context.md`, or into this file when it is
-a rule, citing the plan decision. New decisions don't go in the process log; the
-dated ones already in it stay as written, and its detail entries, which used to hold
-decisions, were removed (IS #152) and are kept on the `archive/process-log-details` tag.
+so a resolved question stays resolved and is not re-litigated next session. The
+end-of-phase reconciliation carries forward the ones that outlive the phase (the
+milestone-retrospective procedure's part 6, in the log's "How to use it"). New
+decisions don't go in the process log; the dated ones already in it stay as written,
+and its old detail entries are archived (the note above its table says where).
 
 **Every milestone includes a retrospective.** The procedure, with its order,
 blocking and closing rules, is in the log's "How to use it" section;
