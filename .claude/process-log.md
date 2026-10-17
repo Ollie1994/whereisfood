@@ -77,8 +77,9 @@ quoting the one-line rule this replaced.)
    `## Phase 4 retrospective (2026-10-17, #148)` (a milestone without a phase number
    uses its name in place of `Phase <N>`), the output of
    `bash scripts/process-log.sh tally 9 <first> <last>` (Cause) and
-   `bash scripts/process-log.sh tally 7 <first> <last>` (Caught by, which is free text:
-   group it as the Phase 3 retrospective does), with those commands.
+   `bash scripts/process-log.sh tally 7 <first> <last>` (Caught by: rows from 315
+   start with a group, which `tally 7` counts; rows before 315 are free text, grouped
+   by hand as the Phase 3 retrospective does), with those commands.
 3. **The previous retrospective's actions.** For each, did the misses it targeted
    drop? Keep, adjust or retire it, citing the rows as evidence. A rule that stopped
    nothing is a cost, not a safeguard.
@@ -105,6 +106,13 @@ quoting the one-line rule this replaced.)
    written. The next plan's reconciliation picks up their changes.
 
 ### Columns
+
+**What one row is.** A review round is one row: "found N, M applied" (N counts every
+item the round raised, applied or not), the round's headline `Cause`, and the other
+findings under "Also". Any other miss is one row, including one found while working
+that a later round also touches (rows 289, 296). This is the practice since row 268.
+Most Phase 3 review rows recorded one finding each, so tallies across that boundary
+don't compare (row 308).
 
 **`Where`** — exactly one of these three forms, no variants:
 
@@ -157,6 +165,23 @@ Values: `CLAUDE.md` · `project-context` · `README` · `process-log` · `comman
 
 **`Escaped`** — how far it travelled before being caught, the real cost signal:
 `pre-commit` · `pre-merge` · `merged` · `crossed-phase` · `production` · `n/a`
+
+**`Caught by`** — what found the miss. The cell starts with one backticked group,
+then free text: `` `code-review` r2 (user-requested) ``, `` `self` counting for #148 ``.
+Required from row 315, and `check` enforces it; earlier rows stay as written, and are
+grouped by hand. Groups go by **what was reviewed**, not who asked (the Phase 3
+retrospective's rule). A miss that two things found counts under the first.
+
+Groups: `code-review` · `plan-review` · `self` · `user`
+
+- **code-review:** a review of code or a PR (`/code-review` rounds). Put the round in
+  the text (`r2`).
+- **plan-review:** a review of a plan, an issue, the context or a design doc, including
+  one the owner asked for.
+- **self:** found by doing the work: writing, running, probing, mutation testing,
+  re-reading output, or a planned check such as the end-of-phase check (row 303).
+- **user:** the owner noticing, asking or pushing back, such as a browser check (row
+  282).
 
 ### Cause taxonomy
 
