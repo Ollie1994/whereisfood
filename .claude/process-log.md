@@ -87,10 +87,10 @@ quoting the one-line rule this replaced.)
    `## Phase 4 retrospective (2026-10-17, #148)` (a milestone without a phase number
    uses its name in place of `Phase <N>`), the output of
    `bash scripts/process-log.sh tally 9 <first> <last>` (Cause) and
-   `bash scripts/process-log.sh tally 7 <first> <last>` (Caught by: rows from the one
-   on the Columns section's `Grouped from row:` line start with a group, which
-   `tally 7` counts; earlier rows are free text, grouped by hand as the Phase 3
-   retrospective does), with those commands.
+   `bash scripts/process-log.sh tally 7 <first> <last>` (Caught by: rows from the
+   values block's `caught-by-from-row` start with a group, which `tally 7` counts;
+   earlier rows are free text, grouped by hand as the Phase 3 retrospective does), with
+   those commands.
 3. **The previous retrospective's actions.** For each, did the misses it targeted
    drop? Keep, adjust or retire it, citing the rows as evidence. A rule that stopped
    nothing is a cost, not a safeguard.
@@ -178,17 +178,17 @@ implicated. A doc appears here both when it was **wrong** (#1) and when it was
 worth counting, because "this rule keeps being ignored" is as actionable as "this
 rule is stale".
 
-Values: `CLAUDE.md` · `project-context` · `README` · `process-log` · `command` ·
-`plan` · `issue` · `process` · `docs` (several at once) · `code-only`
+Values: the values block's `artifact` line (end of this section). `docs` means several
+docs at once; `code-only` means no process artifact is implicated.
 
-**`Escaped`** — how far it travelled before being caught, the real cost signal:
-`pre-commit` · `pre-merge` · `merged` · `crossed-phase` · `production` · `n/a`
+**`Escaped`** — how far it travelled before being caught, the real cost signal.
+Values: the values block's `escaped` line, nearest first.
 
 **`Caught by`** — what found the miss. The cell starts with one backticked group,
 then free text: `` `code-review` r2 (user-requested) ``, `` `self` counting for #148 ``.
-Required from the row on the `Grouped from row:` line below, and `check` enforces it.
-The script reads both lines below, inside this section only, so keep each on its own
-line. Earlier rows stay as written and are grouped by hand: rows 308–314 are the first
+Required from the row on the values block's `caught-by-from-row` line, and `check`
+enforces it; the groups are its `caught-by` line. Earlier rows stay as written and
+are grouped by hand: rows 308–314 are the first
 range that needs it (the Phase 5 retrospective). The groups follow the Phase 3
 retrospective's rule, as its Phase 4 count applied it. **A review is grouped by what was
 reviewed**, whoever asked for it (`code-review`, `plan-review`). **Anything else is
@@ -196,10 +196,6 @@ grouped by who found it**: `self` while doing the work, `user` the owner. So the
 owner's browser check (row 282) is `user`, and the end-of-phase check run while working
 (row 303) is `self`. If two found it, the group is the one that found it first, and the
 other goes in the text. Older free-text rows name that one first (rows 289, 296).
-
-Groups: `code-review` · `plan-review` · `self` · `user`
-
-Grouped from row: 315
 
 - **code-review:** a review of code or a PR (`/code-review` rounds), whoever asked for
   it. Put the round in the text (`r2`).
@@ -211,9 +207,30 @@ Grouped from row: 315
 - **user:** found by the owner outside a review: noticing, asking, pushing back, or a
   check the owner runs, such as a browser check (row 282).
 
+**The values block.** `scripts/process-log.sh` reads every value it checks from this
+block, and only from it; the prose above explains them. Change a value here and nowhere
+else. `artifact-drift-rows` are exempt from the `artifact` list (known drift, row
+297). From `cap-from-row`, a row's Miss is at most `cap-miss` characters and its Fix
+at most `cap-fix`: the details go in the PR body. Earlier rows are exempt (IS #155).
+The Cause names in the taxonomy below must match the `cause` line, and `check` says so
+when they don't.
+
+```values
+artifact: CLAUDE.md project-context README process-log command plan issue process docs code-only
+escaped: pre-commit pre-merge merged crossed-phase production n/a
+cause: stale-doc missing-gate gate-skipped unverified-assumption incomplete-guard overcorrection imprecise-claim manual-drift
+caught-by: code-review plan-review self user
+caught-by-from-row: 315
+artifact-drift-rows: 197-267
+cap-from-row: 321
+cap-miss: 600
+cap-fix: 300
+```
+
 ### Cause taxonomy
 
-Keep to these; add a value only when something genuinely does not fit.
+Keep to these; add a value only when something genuinely does not fit, here and on the
+values block's `cause` line.
 
 | Cause | Meaning |
 |---|---|
