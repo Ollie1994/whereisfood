@@ -135,11 +135,10 @@ Rules for issue breakdown:
 - Include integration tests as a separate issue — they are never trivial
 - Dependencies must be explicit: "Blocked by Issue N" — never implicit.
   Asset / env / external dependencies go under **Prerequisites**, not Blocked by.
-- **A plan's last two planned steps, the milestone retrospective and the
-  `project-context.md` reconciliation, become its last two issues, in that order.**
-  The retrospective issue's body points at the procedure in `.claude/process-log.md`
-  ("How to use it") instead of restating it; that procedure covers its follow-up
-  issues, which are not made with this command.
+- **A plan's closing steps become its last issues, ordered and blocked as the
+  milestone-retrospective procedure in `.claude/process-log.md` ("How to use it")
+  says.** The retrospective issue's body points at that procedure instead of
+  restating it. The procedure also says how its follow-up issues use this command.
 - **Failure modes** are required for any issue that adds or changes a guard: a
   validator, a DB constraint, a test gate, a grep acceptance criterion, a gate
   script. Derive the classes from the change (the inputs, files, terms and paths it
@@ -179,8 +178,8 @@ repair any issue that is missing a required section or value:
   an Acceptance Criterion with a negative control
 - [ ] Acceptance Criteria present as `- [ ]` checkboxes, each binary
 - [ ] Dependency/chore issues pin the intended major version
-- [ ] A milestone plan's breakdown ends with the milestone-retrospective issue, then
-  the reconciliation issue (this item doesn't apply to a retrospective's follow-up
+- [ ] A milestone plan's breakdown ends with its closing steps, ordered and blocked as
+  the milestone-retrospective procedure says (not for a retrospective's follow-up
   issues, which are checked against the rest of this list)
 
 If any issue fails, fix it and re-present before proceeding.

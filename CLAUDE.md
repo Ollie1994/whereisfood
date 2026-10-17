@@ -307,10 +307,9 @@ issues; this file is for what the bug reveals about how we work.
 **Also record settled decisions** with their rationale, so a resolved question stays
 resolved and is not re-litigated next session.
 
-**Every milestone includes a retrospective.** The procedure is in the log's "How to
-use it" section: `/create-milestone` puts it in every plan and `/create-issues` makes
-it an issue. Its follow-up issues merge before the `project-context.md`
-reconciliation, and the milestone closes after that.
+**Every milestone includes a retrospective.** The procedure, with its order,
+blocking and closing rules, is in the log's "How to use it" section;
+`/create-milestone` and `/create-issues` apply it.
 
 **Before adding a row, read the file's own `Columns` and `Cause taxonomy` sections** and
 use those exact values — do not invent new ones and do not copy the taxonomy here.

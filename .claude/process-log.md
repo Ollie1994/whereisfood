@@ -64,17 +64,18 @@ That is just work. The bar is *"this says something about the process."*
 **Read it at the end of every milestone: the milestone retrospective.** A log nobody
 reads is a diary. As a one-line rule it was skipped at the end of Phase 2, and Phase
 3's only happened as a planned issue (#128), so every milestone plan now includes it
-(#146). This is the only copy of the procedure; the commands and CLAUDE.md point here.
-(The Phase 3 retrospective opens by quoting the one-line rule this replaced.)
+(#146). This is the only copy of the procedure, including its order and blocking
+rules; the commands and CLAUDE.md only point here. (The Phase 3 retrospective opens by
+quoting the one-line rule this replaced.)
 
 1. **Range.** From the first row after the previous retrospective's range to the last
    row written before this retrospective starts. State both numbers. The previous
-   retrospective is the last `## … retrospective` section before "Detail entries".
-   Rows written later, by this retrospective and its follow-up issues, belong to the
-   next range.
-2. **Counts.** Record, in a dated section before "Detail entries" headed
-   `## <milestone> retrospective (<date>, #<issue>)` (e.g. `## Phase 4 retrospective`;
-   a milestone without a phase number uses its title), the output of
+   retrospective is the last section headed `## Phase <N> retrospective (…)`. Rows
+   written later, by this retrospective and its follow-ups, belong to the next range.
+2. **Counts.** Record, in a section before "Detail entries" headed
+   `## Phase <N> retrospective (<date>, #<issue>)`, e.g.
+   `## Phase 4 retrospective (2026-10-20, #150)` (a milestone without a phase number
+   uses its name in place of `Phase <N>`), the output of
    `bash scripts/process-log.sh tally 9 <first> <last>` (Cause) and
    `bash scripts/process-log.sh tally 7 <first> <last>` (Caught by, which is free text:
    group it as the Phase 3 retrospective does), with those commands.
@@ -86,18 +87,22 @@ reads is a diary. As a one-line rule it was skipped at the end of Phase 2, and P
    not just at the biggest number: code review is usually the biggest `Caught by`
    because that is where misses surface. Zero new actions is a valid answer.
 5. **Follow-up issues.** Every change the retrospective decides (a new action, or
-   adjusting or retiring an old one) is an issue written in the `/create-issues`
-   issue format and checked against that command's Step 5 list, Failure modes
-   included (an action is a mechanism, so usually a guard). One issue may carry
-   several small changes, as #142 carried #128's. Create them with `gh issue create`
-   in the same milestone, or with no milestone when it is already closed (part 6).
-6. **Order and closing.** A plan's last two planned steps are this retrospective and
-   then the reconciliation of `project-context.md` (CLAUDE.md). The follow-up issues
-   go between them, so the context records the process they changed, and the
-   milestone closes once the reconciliation merges. If the milestone is already
-   closed (as Phase 4's was when this was added), run the retrospective and its
-   follow-ups as issues with no milestone, finished before the next plan is written;
-   the next reconciliation picks up their changes.
+   adjusting or retiring an old one) becomes an issue: written in the `/create-issues`
+   issue format, checked against its Step 5 list (Failure modes included: an action is
+   a mechanism, so usually a guard), and created through its Steps 6–7 (pre-flight
+   checks, `--body-file`). Its Steps 1–4 don't apply: there is no plan to break down.
+   One issue may carry several small changes, as #142 carried #128's.
+6. **Order, blocking and closing.** A plan's closing steps are this retrospective and
+   then the reconciliation of `project-context.md` (the end-of-phase task CLAUDE.md
+   describes); `/create-milestone` and `/create-issues` add both. The retrospective
+   issue is **blocked by every other planned issue**, so its range is complete. The
+   reconciliation issue is **blocked by the retrospective, and by each follow-up as it
+   is opened** (add it to the reconciliation's `Blocked by`), so the context records
+   the changed process. The milestone closes once the reconciliation merges.
+7. **An already-closed milestone** (Phase 4's case when this was added): create the
+   retrospective issue and its follow-ups the way part 5 creates follow-ups, with no
+   milestone (skip Step 6's milestone check), and finish them before the next plan is
+   written. The next plan's reconciliation picks up their changes.
 
 ### Columns
 
@@ -480,6 +485,7 @@ Keep to these; add a value only when something genuinely does not fit.
 | 304 | 2026-10-12 | PR #145 / IS #144 | `plan` | `/code-review` round 1 on #144 found 8, all applied. **The close-out's own evidence notes claimed more than the check had shown.** The plan's new note said every criterion was checked "against `dev` at `ee53ed7`", but three of them only pass with this PR's fixes; the PR said "the only miss is `fake-data.ts`" while `db/trucks.ts` also matched the widened grep (a kept Phase 5 file the allowed list had never named). Row 303's first diagnosis covered half the cause: #127 narrowed the pattern as well as the files. The `fake-data.ts` fix covered the per-row comments with a header instead of fixing them, and the header said none of the old fields exist in the target design, though `source` stays (with `admin` / `owner`). Also: the plan header still said the context awaits step 10; the new Phase 1–2 history headers used today's phase numbers while their bodies use the old ones (the sweep found the Phase 3 plan has the same gap); a planning-time note contradicted the new dated one | `/code-review` r1 (user-requested) | `pre-merge` | `imprecise-claim` | ✅ The plan's note says what passed at `ee53ed7` and what PR #145 fixed; `db/trucks.ts` added to the allowed list; row 303 names both narrowings; every `fake-data.ts` row comment says "old-design", and the header says `source` stays with new values; the Phase 1–3 headers explain the old numbering; the plan header and the planning note updated |
 | 305 | 2026-10-17 | PR #147 / IS #146 | `docs` | `/code-review` round 1 on #146 found 9, all applied. **The procedure couldn't be followed as written, and it misstated its own history.** It made the retrospective "always the last issue", but its action issues must come after it and merge before the milestone closes; its first use (Phase 4, whose milestone is closed) had nowhere to put those issues; and the action issues would have skipped `/create-issues`' validation and Failure-modes field although every action is meant to be a guard. Its justification cited #142 as an action left unapplied (it was applied, in PR #143) and said the rule was "skipped for three phases" (only Phase 2: Phase 1 predates it, Phase 3 had #128). Also: "the last row before this one" was undefined; the command templates restated parts of the procedure, against its own "only copy" claim; the Phase 3 retrospective still said "the rule above"; the second `tally` command lacked its `bash scripts/process-log.sh` prefix (row 301(e)'s defect again) | `/code-review` r1 (user-requested) | `pre-merge` | `imprecise-claim` | ✅ Procedure rewritten: a range that ends when the retrospective starts; both commands in full; action issues in the `/create-issues` format with Step 5 and Failure modes; the retrospective as the last *planned* issue, its actions after it, and the milestone closing when they merge; a carve-out for an already-closed milestone; the history corrected. The commands and CLAUDE.md now only point; the Phase 3 back-reference is marked as replaced |
 | 306 | 2026-10-17 | PR #147 / IS #146 | `docs` | `/code-review` round 2 on #146 found 9, all applied. **Round 1's fix sent action issues through a command they can't pass:** `/create-issues` needs a plan and a milestone (Step 1 stops without a plan; Step 6 creates a missing milestone), and its new Step 5 item, "the breakdown includes the retrospective", fails for a breakdown of only action issues. **And one round-1 fix broke a standing rule:** marking the dated Phase 3 retrospective's "the rule above" as replaced edited a dated record, against CLAUDE.md ("dated entries stay as written") and #146's own non-goal; two rounds' findings pulled in opposite directions, and the first one should have been checked against the rules. Also: the procedure ignored the end-of-phase `project-context.md` reconciliation (actions landing after it leave the context stale for a phase); the new CLAUDE.md pointer still said "ends" / "last"; my round-1 sweep missed four of #146's stale claims; adjusting or retiring an old action had no tracking rule; the plan's last AC didn't require the follow-ups merged; the section heading was undefined for a milestone without a phase number | `/code-review` r2 (user-requested) | `pre-merge` | `overcorrection` | ✅ Follow-up issues (new, adjusted or retired actions) use the `/create-issues` format and Step 5 list but are created with `gh issue create`; Step 5's retrospective item applies to plan breakdowns only. The Phase 3 opening is reverted, and the procedure itself notes the quote. Plans end with two fixed steps (the retrospective, then the reconciliation), follow-ups go between them, and the AC requires both. Pointer, heading and #146's body corrected; PR and issue retitled |
+| 307 | 2026-10-17 | PR #147 / IS #146 | `docs` | `/code-review` round 3 on #146 found 8, all applied. **The order lived only in prose, and the "only copy" claim was still false.** Nothing blocked the reconciliation on follow-up issues (they're opened later, so its `Blocked by` named only the retrospective) or the retrospective on the milestone's other issues, so the order part 6 describes could break unnoticed. Part 6 was restated in CLAUDE.md and both commands, and the CLAUDE.md copy had already drifted: it lacked the closed-milestone carve-out, the very case of the next use. Also: the carve-out gave no way to create the retrospective issue itself; follow-ups created with a bare `gh issue create` skipped `/create-issues`' pre-flight checks and `--body-file`; the heading example didn't match its format; "(CLAUDE.md)" after `project-context.md` read as a second file to reconcile. **Pattern, three rounds running:** each round's structural fix added a rule that I then also restated elsewhere | `/code-review` r3 (user-requested) | `pre-merge` | `manual-drift` | ✅ The procedure alone holds the order, blocking and closing rules: the retrospective is blocked by every other planned issue, and the reconciliation by the retrospective and each follow-up as it's opened. CLAUDE.md and both commands only point ("closing steps … as that procedure says"). Follow-ups and the closed-milestone retrospective go through `/create-issues` Steps 5–7. The heading format and example agree; the reconciliation is named unambiguously |
 
 ---
 
