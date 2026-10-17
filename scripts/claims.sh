@@ -4,7 +4,8 @@
 #   bash scripts/claims.sh <rev> [file...]
 #
 # <rev>   anything `git diff` takes: a commit (compared with the working tree) or a
-#         range. For a PR's first round use `$(git merge-base dev HEAD)`, not `dev`.
+#         range. For a PR's first round use "$(git merge-base origin/dev HEAD)", not
+#         `dev`: quoted, so a failed merge-base gives an empty <rev> and exit 2.
 # file    more text to read whole, e.g. the PR-body file.
 #
 # Prints each line added in `git diff <rev>`, and each line of every given file, that
@@ -21,34 +22,41 @@
 # Every added line is read, process-log rows included: an added row is this change's
 # claim, not history. Only `package-lock.json` is skipped.
 #
-# Does not catch: an over-claim without a listed word (row 284), wrong counts (rows
-# 298-300), a claim on a line the diff doesn't add, untracked files (`git add -N`
-# them first), and whether a listed claim is true.
+# Does not catch: an over-claim without a listed word (row 284), including other
+# forms of a listed word ("verifies", "checks"); wrong counts (rows 298-300); a claim
+# on a line the diff doesn't add; untracked files (`git add -N` them first); and
+# whether a listed claim is true.
 #
-# Exit codes: 0 when the run worked, hits or not; 2 for a bad <rev>, an unreadable
-# file, or no git repository.
+# Exit codes: 0 when the run worked, hits or not; 2 for no or an empty <rev>, `-h`,
+# a bad <rev>, an unreadable file, or no git repository. Piped into a reader that
+# stops early (`| head`), it can exit 141 (SIGPIPE) after a good run.
 
 set -euo pipefail
 
-# Settled by probes on six Phase 4 diffs (IS #149): each word below turned up there.
-WORDS="every all only none never always clean verified checked confirmed works already"
+# Settled by probes on six Phase 4 diffs (IS #149): each word below turned up there,
+# except "everything", kept with "everywhere" as a universal form of "every" (PR #153).
+WORDS="every everything everywhere all only none never always clean verified checked confirmed works already"
 
-usage() { sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+usage() { sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 [ $# -ge 1 ] || usage
 case "$1" in -h|--help) usage ;; esac
 
 rev="$1"; shift
+[ -n "$rev" ] || { echo "claims.sh: empty <rev> (did a git merge-base fail?)" >&2; exit 2; }
 for f in "$@"; do
   [ -f "$f" ] && [ -r "$f" ] || { echo "claims.sh: cannot read $f" >&2; exit 2; }
 done
 root=$(git rev-parse --show-toplevel 2>/dev/null) || { echo "claims.sh: not in a git repository" >&2; exit 2; }
 
 # git's stderr (e.g. autocrlf warnings) is kept out of the diff text, and shown only
-# when the diff fails: a bad rev must not look like an empty, clean diff. The explicit
-# prefixes override diff.noprefix and diff.mnemonicPrefix.
+# when the diff fails: a bad rev must not look like an empty, clean diff. The flags
+# undo config that would change the text read: diff.noprefix and diff.mnemonicPrefix
+# (explicit prefixes), diff.interHunkContext (context lines inside a hunk), and a
+# textconv driver (converted text instead of the file's lines).
 err=$(mktemp); trap 'rm -f "$err"' EXIT
-if ! diff=$(git -C "$root" -c core.quotePath=false diff -U0 --no-color --no-ext-diff \
-    --src-prefix=a/ --dst-prefix=b/ "$rev" -- ':(top,exclude)package-lock.json' 2>"$err"); then
+if ! diff=$(git -C "$root" -c core.quotePath=false diff -U0 --inter-hunk-context=0 \
+    --no-color --no-ext-diff --no-textconv --src-prefix=a/ --dst-prefix=b/ \
+    "$rev" -- ':(top,exclude)package-lock.json' 2>"$err"); then
   echo "claims.sh: git diff $rev failed: $(cat "$err")" >&2
   exit 2
 fi
@@ -80,10 +88,12 @@ scan='
   # git ends the header with a tab when the path holds a space.
   header && /^\+\+\+ / { path = substr($0, 5); sub(/^b\//, "", path); sub(/\t$/, "", path); next }
   /^@@ / { header = 0; split($3, h, ","); line = substr(h[1], 2) + 0; next }
-  !header && /^\+/ { hit(path, line, substr($0, 2)); line++ }
+  !header && /^\+/ { hit(path, line, substr($0, 2)); line++; next }
+  !header && /^ / { line++ }
   END { printf "claims.sh: %s: %d hits in %d lines\n", name, hits + 0, seen + 0 > "/dev/stderr" }
 '
 
 export CLAIMS_WORDS="$WORDS"
 printf '%s\n' "$diff" | CLAIMS_MODE=diff CLAIMS_NAME="diff $rev" awk "$scan"
-for f in "$@"; do CLAIMS_MODE=file CLAIMS_NAME="$f" awk "$scan" "$f"; done
+# Through stdin: awk reads an operand shaped like `name=value` as an assignment.
+for f in "$@"; do CLAIMS_MODE=file CLAIMS_NAME="$f" awk "$scan" < "$f"; done

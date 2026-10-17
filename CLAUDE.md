@@ -261,41 +261,49 @@ uncommitted on `dev`. Every doc change then has a reviewable diff and a
 
 ---
 
-## Review rounds — check claims, then sweep every fix
+## Review rounds — sweep every fix, then check claims
 
 Why: the process log's Phase 3 retrospective (its Action 1) and Phase 4 retrospective
-(#149).
+(#149). Before asking for any review round, do the sweep (after a round's fixes) and
+then the claims check (every round, the first included), in that order, so the claims
+check also reads what the sweep changed.
 
-**Before every review round, the first included: check the claims.** Run
-`bash scripts/claims.sh <rev> <PR-body file>`, where `<rev>` is the last reviewed commit,
-or `$(git merge-base dev HEAD)` for the first round. (Plain `dev` would also list lines
-`dev` changed after the branch was cut.) It lists added lines with words like "every",
-"only", "always" or "checked". For each hit, do one of three things:
-- back it with a command whose result is in the PR body;
-- reword it;
-- or note it is a rule, not a claim of fact.
-
-Record the hit count and how each was settled with that round's sweep (below). The
-script lists claims, it doesn't judge them; its header says what it can't see.
-
-**After applying a round's fixes, and before asking for the next round** (or whenever
-a claim is corrected outside a review), sweep:
+**The sweep: after applying a round's fixes** (or whenever a claim is corrected
+outside a review):
 
 1. **List from the diff** (`git diff <last reviewed commit>`) each claim, term or rule
    the fixes changed or added, not only the ones a finding named. A list from memory
    is what let the sweep miss copies in PRs #143, #145 and #147 (rows 301, 304, 306).
+   A correction with no commit (an issue body) lists from the edit itself: the old
+   and new text.
 2. **Grep every mention** of each across the tracked docs (`CLAUDE.md`, `README.md`,
    `.claude/`), code comments and tests, **every open issue body**, and the PR body if
    there is one.
 3. **Read every hit.** Fix the stale ones. A hit that restates a rule owned elsewhere
    becomes a pointer to that copy, not a second edit (rows 294–295, 307). History
-   (process-log rows, dated entries) stays as written.
+   (process-log rows from earlier work, dated entries) stays as written; rows this PR
+   added are its own claims and get fixed.
 4. **Record the sweep** where the correction lives: that round's section of the PR
    body, or a comment on the issue when only an issue body was corrected. Claim →
    where it was checked → result.
 
 Fixing only the lines a finding names is what let one correction miss its copies three
 rounds running; the sweep found the copy no finding had named (process-log row 295).
+
+**The claims check: last, before every round.** Run
+`bash scripts/claims.sh "<rev>" <PR-body file>`, where `<rev>` is the last reviewed
+commit, or `"$(git merge-base origin/dev HEAD)"` for the first round (plain `dev`
+would also list lines `dev` changed after the branch was cut; quoted, so a failed
+merge-base stops the script instead of shifting its arguments). It lists added lines
+with words like "every", "only", "always" or "checked". For each hit, do one of three
+things:
+- back it with a command whose result is in the PR body;
+- reword it;
+- or note it is a rule, not a claim of fact.
+
+Record the hit count and how each was settled in the PR body, under the round the
+check comes before (the first round's goes in the body as opened). The script lists
+claims, it doesn't judge them; its header says what it can't see.
 
 ---
 
