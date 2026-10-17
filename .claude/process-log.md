@@ -77,9 +77,10 @@ quoting the one-line rule this replaced.)
    `## Phase 4 retrospective (2026-10-17, #148)` (a milestone without a phase number
    uses its name in place of `Phase <N>`), the output of
    `bash scripts/process-log.sh tally 9 <first> <last>` (Cause) and
-   `bash scripts/process-log.sh tally 7 <first> <last>` (Caught by: rows from 315
-   start with a group, which `tally 7` counts; rows before 315 are free text, grouped
-   by hand as the Phase 3 retrospective does), with those commands.
+   `bash scripts/process-log.sh tally 7 <first> <last>` (Caught by: rows from the one
+   the Columns section's `Caught by` paragraph names start with a group, which
+   `tally 7` counts; earlier rows are free text, grouped by hand as the Phase 3
+   retrospective does), with those commands.
 3. **The previous retrospective's actions.** For each, did the misses it targeted
    drop? Keep, adjust or retire it, citing the rows as evidence. A rule that stopped
    nothing is a cost, not a safeguard.
@@ -110,9 +111,10 @@ quoting the one-line rule this replaced.)
 **What one row is.** A review round is one row: "found N, M applied" (N counts every
 item the round raised, applied or not), the round's headline `Cause`, and the other
 findings under "Also". Any other miss is one row, including one found while working
-that a later round also touches (rows 289, 296). This is the practice since row 268.
-Most Phase 3 review rows recorded one finding each, so tallies across that boundary
-don't compare (row 308).
+that a later round also touches (rows 289, 296). This is the practice since row 268;
+rows 268 and 270 predate the counting rule, and the Phase 4 retrospective counts them as
+8 and 9. Most Phase 3 review rows recorded one finding each, so tallies across that
+boundary don't compare (row 308).
 
 **`Where`** — exactly one of these three forms, no variants:
 
@@ -168,20 +170,23 @@ Values: `CLAUDE.md` · `project-context` · `README` · `process-log` · `comman
 
 **`Caught by`** — what found the miss. The cell starts with one backticked group,
 then free text: `` `code-review` r2 (user-requested) ``, `` `self` counting for #148 ``.
-Required from row 315, and `check` enforces it; earlier rows stay as written, and are
-grouped by hand. Groups go by **what was reviewed**, not who asked (the Phase 3
+Required from row 315, and `check` enforces it; the script reads the number from this
+sentence. Earlier rows stay as written and are grouped by hand: rows 308–314 are the
+first range that needs it (the Phase 5 retrospective). A group names **what found the
+miss**, and a review counts as that review whoever asked for it (the Phase 3
 retrospective's rule). A miss that two things found counts under the first.
 
 Groups: `code-review` · `plan-review` · `self` · `user`
 
-- **code-review:** a review of code or a PR (`/code-review` rounds). Put the round in
-  the text (`r2`).
-- **plan-review:** a review of a plan, an issue, the context or a design doc, including
-  one the owner asked for.
+- **code-review:** a review of code or a PR (`/code-review` rounds), whoever asked for
+  it. Put the round in the text (`r2`).
+- **plan-review:** a review of a plan, an issue, the context or a design doc, whoever
+  asked for it (rows 266–267).
 - **self:** found by doing the work: writing, running, probing, mutation testing,
   re-reading output, or a planned check such as the end-of-phase check (row 303).
-- **user:** the owner noticing, asking or pushing back, such as a browser check (row
-  282).
+- **user:** the owner noticing something or pushing back outside any review, such as a
+  browser check (row 282). A review the owner asks for is `code-review` or
+  `plan-review`.
 
 ### Cause taxonomy
 
@@ -518,6 +523,7 @@ Keep to these; add a value only when something genuinely does not fit.
 | 312 | 2026-10-17 | PR #153 / IS #149 | `issue` | `/code-review` round 1 on #149 found 10, all applied. **The issue's own spec put a hole in the guard:** it skipped process-log table rows as "dated history", but in a diff every added row is the current change's claim (row 301: a Fix column still said "tracked"), so a new row's over-claims were never listed. Its Failure modes listed the classes the probes pointed at, and none of the ones that come from the environment the script runs in: (a) the first round's `<rev>` was the base branch's tip, so lines `dev` changed after the branch was cut would be listed as added; (b) `diff.mnemonicPrefix` / `diff.noprefix` broke the hard-coded `b/` strip; (c) `awk -v` turned a Windows path's backslashes into escapes, and the scratchpad PR-body path is exactly that shape; (d) git's stderr (autocrlf warnings, on in this repo) was captured into the diff text. Also: `_every_`, `checked/verified` and `double-checked` weren't matched while `--all` was, against the header; the line count included skipped rows; the row pattern copied `process-log.sh`'s; the plan's file table didn't list the script | `/code-review` r1 (user-requested) | `pre-merge` | `incomplete-guard` | ✅ Every added line read, rows included (#149's Files and AC corrected); first round uses `$(git merge-base dev HEAD)` (CLAUDE.md, header); explicit `--src-prefix`/`--dst-prefix`; values passed through `ENVIRON`; stderr kept apart and shown only on failure; `:` joins words, a leading `-` marks a flag, `-` `/` `_` otherwise separate; plan table lists the script. 28 controls, all pass (9 new: two word-edge cases, two prefix settings, the line count, a Windows path, autocrlf, the merge-base and its negative control; 2 dropped with "no other" and the row skip) |
 | 313 | 2026-10-17 | PR #153 / IS #149 | `CLAUDE.md` | `/code-review` round 2 on #149 found 10, all applied. **The new rule's order defeated its own check:** the claims check ran before the sweep, so whatever the sweep then rewrote (docs, issue bodies, the PR body) reached the reviewer unchecked. And sweep step 3 still said process-log rows "stay as written", against the round-1 change that an added row is this PR's claim. Also gaps in the rule: no place to record the first round's check (there's no sweep before it); no source for step 1's list when a correction has no commit (an issue body); the first-round base `$(git merge-base dev HEAD)` relied on a possibly stale local `dev`, unquoted, so a failed merge-base would shift the arguments. And in the script, more environment classes like round 1's: `diff.interHunkContext` put context lines inside hunks, so line numbers drifted; a textconv driver would replace the text; a relative body file named `x=y.md` was read by awk as an assignment and silently skipped. Plus "everything"/"everywhere" not listed, and undocumented exit codes (`-h`, SIGPIPE) | `/code-review` r2 (user-requested) | `pre-merge` | `incomplete-guard` | ✅ Section reordered (sweep, then claims check last) and retitled; step 3 says rows this PR added get fixed; the first round's record goes in the body as opened; an issue-body correction lists from the edit; first round uses `"$(git merge-base origin/dev HEAD)"`, quoted, and an empty `<rev>` exits 2; `--inter-hunk-context=0`, context lines counted, `--no-textconv`; body files read through stdin; "everything"/"everywhere" added (other forms named as a gap); exit codes documented. 34 controls pass; against the round-1 script, 29–32 fail as they should |
 | 314 | 2026-10-17 | PR #153 / IS #149 | `CLAUDE.md` | `/code-review` round 3 on #149 found 10, all applied. **Round 2's reorder claimed more than it built:** "so the claims check also reads what the sweep changed" held for the diff and the PR body, not for the issue bodies the sweep edits, which the script never saw. And the PR body was read whole every round, so each run re-listed every earlier round's text and the claims records quoting their own words. Also: the rule's own evidence over-claimed twice ("miss copies in PRs #143, #145 and #147", while PR #145's copies were found by its first review, before any sweep ran; rows 294–295 cited as the pointer precedent, which PR #151 had corrected twice); "rows this PR added get fixed" contradicted row 312, which records round 1 accurately; a merge or rebase of `dev` puts `dev`'s changes into later rounds' diffs; untracked files were skipped silently; #149's body wasn't swept after round 2 (old heading, two of the three ways to settle a hit); a glued dash (`(-only`) was skipped as a flag; "quoted, so a failed merge-base stops the script" holds in bash, not PowerShell 5.1 | `/code-review` r3 (user-requested) | `pre-merge` | `imprecise-claim` | ✅ `--was <old> <new>` reads only what a body gained (the PR body as last posted via `gh pr view`, and each issue body the sweep edited); untracked files named in a warning; only `--` tokens are flags; step 1 cites rows 301 and 306 and covers a `dev` merge; step 3 cites row 307 (294–295 partial) and fixes a PR's own rows only when false about their round; "in bash"; #149's body corrected and marked. 42 controls pass; against the round-2 script, 35, 39 and 40 fail as they should |
+| 315 | 2026-10-17 | PR #154 / IS #150 | `process-log` | `/code-review` round 1 on #150 found 7, all applied. **The new guard read its group list as a paragraph, and the paragraph runs into the definitions under it** if one blank line goes: the bullets' `/code-review` and `r2` then count as groups, and an old-style `` `/code-review` `` row passes (reproduced on the original text, exit 0). Also: the boundary row (315) was hard-coded in the script and repeated in six more places, against the script's own "read from the log, never copied"; the group-extraction code was written twice, against "one copy of the parsing"; `user` ("the owner … asking") overlapped `plan-review` ("one the owner asked for"), and "not who asked" contradicted a group defined by who; "the practice since row 268" over-claimed (rows 268 and 270 predate the counting rule); the header's "every other cell is checked" read as covering Where, Miss and Fix; rows 308–314 fall in the next range ungrouped, with nothing saying so | `code-review` r1 (user-requested) | `pre-merge` | `incomplete-guard` | ✅ Groups read from the `Groups:` line alone; the row number read from the Columns sentence ("Required from row N"), with exit 2 if it's missing (check and `tally 7`); one `GROUP_FN`; `user` limited to outside any review, and a review counts as that review whoever asked; the row-268 and header wording corrected; the 308–314 gap named. 30 controls pass (3 new: a groups line running into its bullets, a missing row number, the number read from the log) |
 
 ---
 
