@@ -28,9 +28,10 @@ unchanged.
 
 - Node `^20.19.0 || >=22.12.0` and npm ≥ 11 (`CLAUDE.md`, "Dependencies").
 - Docker running, for local Supabase and `npm run test:all`.
-- **After pulling step 2, run `npx supabase db reset`.** The squash replaces migration
-  versions a local database has already applied (decision #3); `supabase start` alone
-  won't re-apply them.
+- **After pulling step 2, run `npx supabase db reset`.** A local database records
+  versions `0001`–`0006` as applied (`supabase_migrations.schema_migrations`, checked
+  2026-10-18), and the squash reuses `0001` and removes the rest (decision #3); a reset
+  rebuilds the database from the files.
 
 ---
 
@@ -220,8 +221,8 @@ constraint, so a cancelled window can be re-entered.
 
 ### #5 — `updated_at` via `moddatetime`
 `create extension moddatetime schema extensions` and one `before update` trigger. No
-custom function lands in `public`, so there is none to secure against a mutable
-`search_path` (the case Supabase's database linter flags). **Rejected:** a hand-written
+custom function lands in `public`, so no function of ours needs its `search_path`
+pinned. **Rejected:** a hand-written
 plpgsql function; it works, but is more to own. Open decision 2 is the fallback if the
 extension isn't available locally. The trigger fires on every UPDATE, cancellation
 included; a cancelled row never reaches the map, so its moved `updated_at` shows nowhere.
@@ -267,8 +268,8 @@ window, so time stays in the service (`CLAUDE.md`, "Time"). PostgREST can't send
 
 ### #11 — Truck writes wait for Phase 7
 Truck insert and update arrive with the truck CRUD screen that uses them, so their shape
-follows the form instead of a guess. Phase 5 needs only the reads the next two phases
-name.
+follows the form instead of a guess. Phase 5 writes the two truck reads Phases 6 and 7
+name (`listActiveTrucks`, `getActiveTruckById`).
 
 ### #12 — `label` is nullable
 A pin dropped by tapping the map may have no name. The popup's handling of a missing
@@ -289,8 +290,8 @@ nothing more until a measured query needs it. `0001`'s `locations_truck_starts` 
 ### #15 — Seed history is relative to `now()`
 `seed.sql` builds four weeks of past rows plus today's, in Stockholm local times, with
 `generate_series`, on the three fixed-UUID trucks (Vintervilan stays inactive). "The
-same weekday last week" then exists after any reset. **Rejected:** fixed dates, which age
-out of every look-back. Open decision 3 covers DST.
+same weekday last week" then exists after any reset. **Rejected:** fixed dates, which
+fall out of the look-back window as the weeks pass. Open decision 3 covers DST.
 
 ### #16 — `trucks` and `users` columns unchanged, minus `last_known_*`
 `trucks`: `name` not null, `instagram_handle` unique and nullable, `is_active` and
@@ -390,4 +391,5 @@ Nothing in the target design changes them; owner claim columns are the Owners ph
    splits or merges a file, that PR records the new count and why.
 
 Product decisions #1 (retention), #3 (default times) and #4 (app name) stay open for
-Phases 7–8; none changes this schema.
+Phases 7–8. This plan's schema doesn't wait on them: retention would filter or delete
+rows, and the other two are UI text and form defaults.
