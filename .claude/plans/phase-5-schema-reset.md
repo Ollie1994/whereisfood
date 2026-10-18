@@ -64,7 +64,7 @@ gates green and the fake-data map unchanged.
 ### Create
 | File | Content |
 |---|---|
-| `supabase/migrations/0001_baseline.sql` | `btree_gist` and `moddatetime`, both in the `extensions` schema; `trucks`, `locations`, `users`, every column's nullability stated (decision #17); the exclusion constraint, `CHECK (ends_at > starts_at)` and the `source` CHECK; the `updated_at` trigger; two partial indexes; RLS and per-table grants (decisions #3–#8, #12–#14, #16, #17). |
+| `supabase/migrations/0001_baseline.sql` | `btree_gist` and `moddatetime`, both in the `extensions` schema; `trucks`, `locations`, `users`, every column's nullability and default stated (decision #17); the exclusion constraint, `CHECK (ends_at > starts_at)` and the `source` CHECK; the `updated_at` trigger; two partial indexes; RLS and per-table grants (decisions #3–#8, #12–#14, #16, #17). |
 | `src/lib/map-types.ts` | The fake-data map's **frozen, hand-written** types: `MapTruck` (today's `Truck`, `last_known_*` included), `MapLocation` (today's `Location`: `confidence`, `is_negation`, the old `source` lanes and the rest), `MarkerColor`, `MarkerState`. Deleted in Phase 6 (decision #1). |
 | `tests/integration/schema.test.ts` | Constraint, CHECK and trigger tests (step 3). |
 | `tests/integration/rls.test.ts` | RLS and grant tests (step 4). |
@@ -83,7 +83,7 @@ gates green and the fake-data map unchanged.
 | `tests/integration/db-locations.test.ts` | Rewritten for the new primitives. |
 | `tests/integration/setup.ts` | Comments only: they name `NOMINATIM_BASE_URL` (line 73) and `geocoding.ts` (line 87), both removed in Phase 4. |
 | `src/lib/fake-data.ts`, `src/hooks/useMapLibre.tsx`, `src/components/Map/TruckPopup.tsx` | **Type imports and type names only**, from `map-types.ts`. No behaviour change. |
-| `README.md` | "What works today": the schema is the new design's; and the status line (`README.md:14`, still "Phase 4 of 8 (housekeeping)"). |
+| `README.md` | "What works today": the schema is the new design's; the status line (`README.md:14`, still "Phase 4 of 8 (housekeeping)"); and the "Project status" table (`README.md:89–92`: Phase 2's "schema kept until Phase 5", Phase 4 "🟡 In progress", Phase 5 "⬜ Not started"). |
 | `CLAUDE.md` | Step 0: point at this plan. Step 2: the "Target-design rules, enforced from Phase 5" paragraph becomes current rules, and its list of what today's schema breaks goes; and the Hard Rules' grants bullet loses "0001 … grants `service_role` with one blanket `on all tables` grant …; don't copy it", which is false of the baseline. |
 | `.claude/context/project-context.md` | Step 7, the end-of-phase reconciliation. |
 | `.claude/process-log.md` | Step 5, the Phase 5 retrospective; rows as misses happen. |
@@ -106,7 +106,7 @@ and `moddatetime` are Postgres extensions).
 | Function | Does |
 |---|---|
 | `insertLocation(NewLocation)` → `Location` | Insert and return the stored row. Can raise `23P01` or the CHECK violation. |
-| `updateLocation(id, LocationPatch)` → `Location \| null` | Edits place, label or times of a row that isn't cancelled; `null` when no such row. Can raise `23P01` or the CHECK violation. |
+| `updateLocation(id, LocationPatch)` → `Location \| null` | Edits place, label or times of a row that isn't cancelled; `null` when no such row. Can raise `23P01` or the CHECK violation. **Throws before any request on an empty patch** (no key with a defined value): PostgREST answers an empty PATCH by updating no row (probed 2026-10-18: `{}` on an existing truck → `200 []`), so it would return `null` for a row that exists. |
 | `cancelLocation(id, cancelledAt)` → `Location \| null` | Sets `cancelled_at` where it is still null; `null` when the row is missing or already cancelled. The caller passes the timestamp (decision #10). |
 | `findLocationsOverlapping(from, to)` → `Location[]` | Non-cancelled rows with `starts_at < to AND ends_at > from`, all trucks (decision #9). |
 | `listRecentLocationsForTruck(truckId, before, limit)` → `Location[]` | The truck's latest non-cancelled rows with `starts_at < before`, newest `starts_at` first. The caller passes `before` (usually now), so future entries don't fill "recent places" and the clock stays in the service (decision #10). Phase 7's service dedupes them into "recent places". |
@@ -120,7 +120,7 @@ the columns exist (issue #48).
 
 **`src/lib/types.ts`**
 - `Truck`: the generated `trucks` row.
-- `Location`: the generated `locations` row **minus `created_by`**, with `source` narrowed to `'admin' | 'owner'`. It is the shape `LOCATION_COLUMNS` selects. The db functions still return it through `as Location`, because a CHECK carries no type into the generated types and `source` arrives as `string` (today's `src/lib/db/locations.ts:46` casts for the same reason); that cast covers `source` only, since every other key already matches (decision #8).
+- `Location`: the generated `locations` row **minus `created_by`**, with `source` narrowed to `'admin' | 'owner'`. It is the shape `LOCATION_COLUMNS` selects. A CHECK carries no type into the generated types, so `source` arrives as `string` (today's `src/lib/db/locations.ts:46` casts `as Location` for that reason). The db functions narrow it with a **typed spread, not `as`**: `const loc: Location = { ...row, source: row.source as Location["source"] }`. An `as Location` on the whole row also compiles when `LOCATION_COLUMNS` leaves a column out, so `tsc` would stop checking the select (probed with `tsc --strict` on 2026-10-18: `select("id, truck_id, latitude")` cast `as Location` compiled; the typed spread failed on the 13 missing keys) (decision #8).
 - `NewLocation`: `Location` minus `id`, `created_at`, `updated_at`, `cancelled_at` (an insert is never born cancelled), **plus `created_by: string | null`**. Every key, `created_by` and `label` included, is required, so a caller states each value.
 - `LocationPatch`: an optional pick of `latitude`, `longitude`, `label`, `starts_at`, `ends_at`.
 
@@ -169,15 +169,18 @@ per follow-up the retrospective opens, which may be none.
    `helpers.test.ts`, `db-locations.test.ts`; create `db-trucks.test.ts`. Record open
    decisions 3 and 5. The docs this makes stale ride along: `CLAUDE.md`'s
    target-design paragraph and its Hard Rules sentence about `0001`'s blanket grant,
-   `README.md`'s status line and "What works today", `setup.ts`'s comments.
+   `README.md`'s status line, "What works today" and "Project status" table,
+   `setup.ts`'s comments.
    *One PR because* it is the smallest unit with green gates (decision #2).
 3. **Constraint tests.** `tests/integration/schema.test.ts`: overlap → `23P01`; a
    cancelled row doesn't block; back-to-back windows are allowed; `ends_at = starts_at`
    and `ends_at < starts_at` are rejected with **`23514`**; a NULL in each NOT NULL
-   column of decision #17 is rejected with `23502` (`source` included: a CHECK passes
-   NULL, so only NOT NULL stops it); a bad `source` value is rejected with `23514`;
+   column of decision #17 except the `id` primary keys is rejected with `23502`
+   (`source` included: a CHECK passes NULL, so only NOT NULL stops it; a primary key
+   implies NOT NULL and can't drop it for a control: "column "id" is in a primary
+   key", probed 2026-10-18); a bad `source` value is rejected with `23514`;
    `updated_at` moves on an edit and on a cancel (decision #5) and `created_at`
-   doesn't. (The `SET NULL` case needs an auth user, so it is step 4's.)
+   doesn't. (The two `created_by` cases need an auth user, so they are step 4's.)
    Each case that expects an error asserts its **SQLSTATE**, not only that an error
    came back: with the CHECK dropped, `ends_at < starts_at` still fails, with `22000`
    from the constructor of `tstzrange(starts_at, ends_at)` in the exclusion constraint
@@ -190,9 +193,11 @@ per follow-up the retrospective opens, which may be none.
 4. **RLS and grant tests.** `anonClient()`, `signedInClient()` and auth-user cleanup in
    `resetTables()` (with `helpers.test.ts` cases for the new cleanup);
    `tests/integration/rls.test.ts`. With the auth fixtures in place, `schema.test.ts`
-   gains step 3's remaining case: `updated_at` **doesn't** move when deleting an auth
-   user sets its rows' `created_by` to NULL (decision #5), with a negative control
-   (the trigger without its `WHEN` clause). What each case sees, probed in rolled-back
+   gains step 3's two `created_by` cases (decision #5): `updated_at` **doesn't** move
+   when deleting an auth user sets its rows' `created_by` to NULL (control: the
+   trigger without its `WHEN` clause), and **does** move on an edit that also sets a
+   NULL `created_by` to a user (control: round 6's `old … is not distinct from new …`
+   clause). What each case sees, probed in rolled-back
    transactions on 2026-10-18:
    - no grant: `42501` "permission denied for table …", with a hint listing every
      missing privilege: `GRANT SELECT ON …`, `GRANT INSERT ON …`, and for a filtered
@@ -280,19 +285,23 @@ create extension if not exists moddatetime schema extensions;
 create trigger locations_updated_at
   before update on locations
   for each row
-  when (old.created_by is not distinct from new.created_by)
+  when (new.created_by is not null or old.created_by is null)
   execute procedure extensions.moddatetime (updated_at);
 ```
-**Every UPDATE except the `SET NULL`.** `created_by … on delete set null` (decision #8)
-runs an UPDATE on every row the deleted user wrote, and a plain `before update`
-trigger moves their `updated_at`, so the popup would say "Uppdaterad <now>" on entries
-nobody edited. The `WHEN` clause skips exactly the updates that change `created_by`,
-and nothing else changes it: `LocationPatch` leaves it out. Probed in rolled-back
-transactions (2026-10-18): with a plain trigger the `SET NULL` moved `updated_at`;
-with the `WHEN` clause (on a stand-in parent table) it didn't, and a later label edit
-did. **Rejected:** a column list (`before update of label, cancelled_at, …`), which
-also passed the probe but has to be extended by hand whenever `locations` gains a
-column, or edits to that column silently stop moving `updated_at` (PR #159 round 6).
+**Every UPDATE except one that clears `created_by`.** `created_by … on delete set
+null` (decision #8) runs an UPDATE on every row the deleted user wrote, and a plain
+`before update` trigger moves their `updated_at`, so the popup would say "Uppdaterad
+<now>" on entries nobody edited. The `WHEN` clause skips only an UPDATE that takes
+`created_by` from a value to NULL, which is what the `SET NULL` does; an edit,
+including one that attributes a row (NULL → a user), still moves it. Probed in
+rolled-back transactions (2026-10-18), on a stand-in parent table: with a plain
+trigger the `SET NULL` moved `updated_at`; with this clause it didn't, and a plain
+edit, an edit of an unattributed row, and an attribution with a label edit each did.
+**Rejected:** `when (old.created_by is not distinct from new.created_by)` (PR #159
+round 6), which also skips that attribution-with-edit (probed: `updated_at` didn't
+move); and a column list (`before update of label, cancelled_at, …`), which has to be
+extended by hand whenever `locations` gains a column, or edits to that column silently
+stop moving `updated_at`.
 No custom function lands in `public`, so no function of ours needs its `search_path`
 pinned, and neither extension's functions land there either (the stack keeps
 `pgcrypto`, `uuid-ossp` and others in `extensions` already). Both forms were probed
@@ -332,11 +341,11 @@ a truck's history.
 rows and hand-written SQL have no author; `NewLocation` still requires the key, so a
 caller states it. `LOCATION_COLUMNS` leaves it out, so Phase 6's `/api/live` can't leak
 it by reusing the constant (the explicit-column rule in `CLAUDE.md`). **`Location` leaves
-it out too**, so the type is exactly what `LOCATION_COLUMNS` selects. The db layer still
-casts with `as Location`, to narrow `source` (a CHECK column arrives as `string`); with
-`created_by` in `Location`, that same cast would also hide a key the select never
-returns, typed `string | null` and `undefined` at runtime. Keeping the two in step
-means the cast does only the narrowing. `NewLocation` adds `created_by` back for
+it out too**, so the type is exactly what `LOCATION_COLUMNS` selects, and the db
+layer's typed spread (`types.ts` section above) checks every key of it against the
+select; with `created_by` in `Location`, that spread would fail `tsc`, and an `as` cast
+would hide a key the select never returns, typed `string | null` and `undefined` at
+runtime. Only `source` is narrowed, with its own cast. `NewLocation` adds `created_by` back for
 inserts. An admin-only column list, and a type to match, are added when something
 needs to read the author.
 
@@ -419,6 +428,12 @@ particular:** a CHECK whose expression is NULL passes, so `source in ('admin',
 would hide it from `tsc`. `0001` made this mistake and `0002`/`0003` fixed it column by
 column; the baseline states every column's nullability once.
 
+**Defaults, stated with it**, since `NewLocation` and the fixtures omit these columns
+and an insert fails with `23502` without them: every `id` `gen_random_uuid()` except
+`users.id` (it is the auth user's); every `created_at`, and `locations.updated_at`,
+`now()`; `trucks.is_active` `true`; `users.is_admin` `false`; `locations.source`
+`'admin'`. (`0001` sets the same, but as nullable columns.)
+
 ---
 
 ## Acceptance Criteria
@@ -447,9 +462,9 @@ column; the baseline states every column's nullability once.
   `23514`, `23502`) of each case that expects an error, and the PR records a negative
   control per case (constraint dropped or altered locally, test red, restored with
   `npx supabase db reset`).
-- [ ] `schema.test.ts` also covers step 4's `SET NULL` case: deleting an auth user
-  leaves `updated_at` on its rows unchanged; its negative control (the trigger without
-  the `WHEN` clause) turns it red.
+- [ ] `schema.test.ts` also covers step 4's two `created_by` cases: deleting an auth
+  user leaves `updated_at` on its rows unchanged, and an edit that sets a NULL
+  `created_by` to a user moves it; each case's negative control (step 4) turns it red.
 - [ ] `rls.test.ts` shows, each refusal asserted as `42501` **plus a hint whose
   privilege list contains that operation's privilege** (step 4):
   - anon and `authenticated` are refused SELECT, INSERT, UPDATE and DELETE on `trucks`
@@ -498,7 +513,8 @@ column; the baseline states every column's nullability once.
   the select returns, and a new column the constant doesn't name can't reach them.
 - [ ] Each function exported by `db/trucks.ts` and `db/locations.ts` has an integration
   test, including: `insertLocation` and `updateLocation` let a `23P01` through with its
-  code; `cancelLocation` returns `null` for an already-cancelled row.
+  code; `cancelLocation` returns `null` for an already-cancelled row; `updateLocation`
+  throws on an empty patch (`{}`, and one whose keys are all `undefined`).
 - [ ] Within 12 hours of `npx supabase db reset`, at any time of day,
   `findLocationsOverlapping(now, now + 1 day)` returns at least one seed row, and the
   Stockholm day one week earlier returns at least one, each on an active truck; no seed
@@ -523,7 +539,9 @@ column; the baseline states every column's nullability once.
   paragraph listing what today's schema breaks; the Locations and anon-SELECT rules
   read as current; the Hard Rules' grants bullet no longer describes `0001`'s blanket
   `service_role` grant.
-- [ ] `README.md`'s "What works today" describes the new schema, and its status line names Phase 5.
+- [ ] `README.md`'s "What works today" describes the new schema, its status line names
+  Phase 5, and its "Project status" table shows Phase 4 done, Phase 5 in progress, and
+  no Phase 2 schema kept.
 
 **Closing**
 - [ ] The closing steps of the milestone-retrospective procedure are done: the Phase 5
