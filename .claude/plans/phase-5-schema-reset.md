@@ -1,0 +1,393 @@
+# Phase 5 — Schema reset
+
+**Planned:** 2026-10-18 · **Status:** draft
+**Source:** `project-context.md` Part 2 ("Phase map", "Data model (Phase 5)", "RLS and
+grants (Phase 5)") and the `/create-milestone` conversation of 2026-10-18. Where this
+plan and `project-context.md` disagree, **this plan wins** until step 7 reconciles the
+context.
+
+**Purpose of the phase:** the database stops describing the old design. Phases 6 and 7
+build their read path and admin screen on a schema, types and db layer that already
+match the target design, with the security properties proven by tests rather than
+stated in comments.
+
+---
+
+## Goal
+
+A single squashed migration creates the target schema (`trucks`, `locations`, `users`
+with the overlap exclusion constraint, `CHECK (ends_at > starts_at)`, an `updated_at`
+trigger, RLS and an explicit per-table GRANT, and no anon access to `trucks` or
+`locations`), and the generated types, `seed.sql`, `db/trucks.ts`, `db/locations.ts` and
+the integration tests all match it, with all four gates green and the fake-data map
+unchanged.
+
+---
+
+## Prerequisites
+
+- Node `^20.19.0 || >=22.12.0` and npm ≥ 11 (`CLAUDE.md`, "Dependencies").
+- Docker running, for local Supabase and `npm run test:all`.
+- **After pulling step 2, run `npx supabase db reset`.** The squash replaces migration
+  versions a local database has already applied (decision #3); `supabase start` alone
+  won't re-apply them.
+
+---
+
+## Out of Scope
+
+| Item | Where it goes |
+|---|---|
+| `/api/live`, `useLocations`, polling, the client timer, marker diffing | Phase 6 |
+| Any change to the map's behaviour or look: no `TruckPopup` freshness text or Instagram link; confidence colours and grey markers stay; `fake-data.ts` still feeds the map | Phase 6 |
+| A hosted Supabase project, the first preview deploy, #139 (engines) | Phase 6 |
+| Any API route, the `services/` layer, the 409 "överlappar" mapping (the db layer lets `23P01` through; Phase 7's service maps it) | Phase 7 |
+| Admin login, `proxy.ts` auth, disabling public sign-ups in `config.toml`, splitting `supabase.ts` into server and browser modules | Phase 7 |
+| The checklist and "recent places" UI (Phase 5 writes only the db queries behind them) | Phase 7 |
+| Truck insert and update primitives (decision #11) | Phase 7 |
+| Owner columns on `trucks`, the claim flow, writes with `source = 'owner'` (the column and its CHECK exist; nothing writes `'owner'`) | Owners phase |
+| A retention or purge job, a scheduler, pg_cron | not planned (retention is open product decision #1) |
+| R2 tiles, Supabase Pro, production deploy, the takedown procedure's SQL | Phase 8 |
+
+---
+
+## Files
+
+### Delete
+| File(s) | Why |
+|---|---|
+| `supabase/migrations/0001_initial_schema.sql` … `0006_locations_overlap_index.sql` | Squashed into one baseline (decision #3). |
+
+### Create
+| File | Content |
+|---|---|
+| `supabase/migrations/0001_baseline.sql` | `btree_gist` and `moddatetime`; `trucks`, `locations`, `users`; the exclusion constraint, `CHECK (ends_at > starts_at)` and the `source` CHECK; the `updated_at` trigger; one partial index; RLS and per-table grants (decisions #3–#8, #12–#14, #16). |
+| `src/lib/map-types.ts` | The fake-data map's **frozen, hand-written** types: `MapTruck`, `MapLocation` (with `last_known_*`, `confidence` and the old `source` lanes), `MarkerColor`, `MarkerState`. Deleted in Phase 6 (decision #1). |
+| `tests/integration/schema.test.ts` | Constraint, CHECK and trigger tests (step 3). |
+| `tests/integration/rls.test.ts` | RLS and grant tests (step 4). |
+| `tests/integration/db-trucks.test.ts` | Tests for the rewritten `db/trucks.ts`. |
+| `.claude/plans/phase-5-schema-reset.md` | This plan. |
+
+### Modify
+| File | Change |
+|---|---|
+| `src/lib/database.types.ts` | Regenerated: `npx supabase gen types typescript --local > src/lib/database.types.ts`. |
+| `src/lib/types.ts` | Re-derived: `Truck`, `Location` (`source` narrowed to `'admin' \| 'owner'`), `NewLocation`, `LocationPatch`. `MarkerColor` and `MarkerState` move to `map-types.ts`. Comments rewritten for the new schema. |
+| `src/lib/db/trucks.ts` | Rewritten for the new schema (functions below). |
+| `src/lib/db/locations.ts` | Rewritten (functions below). No delete. |
+| `supabase/seed.sql` | The three fixed-UUID trucks without `last_known_*`, plus history relative to `now()` (decision #15). |
+| `tests/integration/helpers.ts`, `tests/integration/helpers.test.ts` | `posts` and `geocoding_cache` leave the cleanup and the comments; new helpers (below). |
+| `tests/integration/db-locations.test.ts` | Rewritten for the new primitives. |
+| `tests/integration/setup.ts` | Comment only: its example names `NOMINATIM_BASE_URL`, a removed variable. |
+| `src/lib/fake-data.ts`, `src/hooks/useMapLibre.tsx`, `src/components/Map/TruckPopup.tsx` | **Type imports and type names only**, from `map-types.ts`. No behaviour change. |
+| `README.md` | "What works today": the schema is the new design's. |
+| `CLAUDE.md` | Step 0: point at this plan. Step 2: the "Target-design rules, enforced from Phase 5" paragraph becomes current rules, and its list of what today's schema breaks goes. |
+| `.claude/context/project-context.md` | Step 7, the end-of-phase reconciliation. |
+| `.claude/process-log.md` | Step 5, the Phase 5 retrospective; rows as misses happen. |
+
+### Untouched
+`supabase/config.toml` (sign-ups are Phase 7), `src/lib/supabase.ts` (its split is
+Phase 7), `src/proxy.ts`, `src/app/*`, `package.json` (no new dependency: `btree_gist`
+and `moddatetime` are Postgres extensions).
+
+### Functions and types
+
+**`src/lib/db/trucks.ts`** (db layer)
+| Function | Does |
+|---|---|
+| `getActiveTruckById(id)` → `Truck \| null` | Kept; selects an explicit column list. Phase 7's admin writes use it to check the truck id. |
+| `listActiveTrucks()` → `Truck[]` | Active trucks, ordered by name. Read by Phase 6's `/api/live` and Phase 7's checklist. |
+| ~~`updateLastKnownPosition`~~ | Removed with its columns. |
+
+**`src/lib/db/locations.ts`** (db layer). Postgres errors propagate unchanged (decision #10).
+| Function | Does |
+|---|---|
+| `insertLocation(NewLocation)` → `Location` | Insert and return the stored row. Can raise `23P01` or the CHECK violation. |
+| `updateLocation(id, LocationPatch)` → `Location \| null` | Edits place, label or times of a row that isn't cancelled; `null` when no such row. Can raise `23P01` or the CHECK violation. |
+| `cancelLocation(id, cancelledAt)` → `Location \| null` | Sets `cancelled_at` where it is still null; `null` when the row is missing or already cancelled. The caller passes the timestamp (decision #10). |
+| `findLocationsOverlapping(from, to)` → `Location[]` | Non-cancelled rows with `starts_at < to AND ends_at > from`, all trucks (decision #9). |
+| `listRecentLocationsForTruck(truckId, limit)` → `Location[]` | The truck's latest non-cancelled rows, newest `starts_at` first. Phase 7's service dedupes them into "recent places". |
+| ~~`findOverlapping`, `deleteLocations`~~ | Removed: the constraint replaces the first; rows are never deleted. |
+
+Every select names its columns through one `LOCATION_COLUMNS` constant, which leaves
+out `created_by` (decision #8).
+
+**`src/lib/types.ts`**
+- `Truck`, `Location`: derived from the generated row types; `Location.source` narrowed to `'admin' | 'owner'`.
+- `NewLocation`: `Location` minus `id`, `created_at`, `updated_at`, `cancelled_at` (an insert is never born cancelled). Every other key, `created_by` and `label` included, stays required, so a caller states each value.
+- `LocationPatch`: an optional pick of `latitude`, `longitude`, `label`, `starts_at`, `ends_at`.
+
+**`src/lib/map-types.ts`**: types only, frozen copies of today's shapes (decision #1).
+
+**`tests/integration/helpers.ts`**
+| Helper | Does |
+|---|---|
+| `seedTruck(name)` | Kept. |
+| `seedLocation(truckId, overrides?)` | Inserts a valid location with defaults, so a test states only what it is about. |
+| `anonClient()` | A supabase-js client with the anon key. |
+| `signedInClient()` | Creates a prefixed auth user and its `users` row through the admin API, signs in, returns an `authenticated` client and its user id. |
+| `resetTables()` | Also removes fixture `users` rows and fixture auth users (by an email prefix), children first. |
+
+⚠ `resetTables()` removes only `itest-fixture-` trucks and their children, so the
+seed's history survives a test run, as intended. A test that counts rows must scope to
+its own fixture truck, or the seed leaks into the count.
+
+---
+
+## Steps
+
+Strict order. Each numbered step is one PR into `dev`.
+
+0. **This plan.** The plan file, and `CLAUDE.md` pointing at it as the current plan.
+1. **Decouple the map from the schema types.** Create `src/lib/map-types.ts`; switch
+   `fake-data.ts`, `useMapLibre.tsx` and `TruckPopup.tsx` to it. A type-only move. Gates
+   green and a browser check of `/map` (basemap, markers, a popup), because it touches
+   map code. *First because* step 2 regenerates the types, and the map would otherwise
+   break `tsc` in step 2's diff.
+2. **Schema reset.** Delete `0001`–`0006`; write `0001_baseline.sql`;
+   `npx supabase db reset`; regenerate `database.types.ts`; re-derive `types.ts`; rewrite
+   `db/trucks.ts` (`getActiveTruckById`, `listActiveTrucks`) and `db/locations.ts`
+   (`insertLocation`, `updateLocation`, `cancelLocation`, `findLocationsOverlapping`,
+   `listRecentLocationsForTruck`, `LOCATION_COLUMNS`); rewrite `seed.sql`, `helpers.ts`
+   (`seedLocation`; `posts` and `geocoding_cache` out of `resetTables`),
+   `helpers.test.ts`, `db-locations.test.ts`; create `db-trucks.test.ts`. Record open
+   decisions 1–3 and 5. The docs this makes stale ride along: `CLAUDE.md`'s
+   target-design paragraph, `README.md`'s "What works today", `setup.ts`'s comment.
+   *One PR because* it is the smallest unit with green gates (decision #2).
+3. **Constraint tests.** `tests/integration/schema.test.ts`: overlap → `23P01`; a
+   cancelled row doesn't block; back-to-back windows are allowed; `ends_at = starts_at`
+   and `ends_at < starts_at` are rejected; NOT NULL `ends_at`; a bad `source` is
+   rejected; `updated_at` moves on UPDATE and `created_at` doesn't. Each with a negative
+   control, recorded in the PR.
+4. **RLS and grant tests.** `anonClient()`, `signedInClient()` and auth-user cleanup in
+   `resetTables()` (with `helpers.test.ts` cases for the new cleanup);
+   `tests/integration/rls.test.ts`. Record open decision 4.
+5. **Phase 5 retrospective**, by the milestone-retrospective procedure in
+   `.claude/process-log.md` ("How to use it"). Blocked by every other planned issue.
+6. **Follow-up issues** the retrospective opens, if any, each merged before step 7.
+7. **Reconcile `project-context.md`** (the end-of-phase task). Blocked by step 5 and by
+   each follow-up as it is opened. It covers Part 1's "Database", "Modules kept on
+   purpose", "Folder structure", "Tests and gates" and the Roadmap row, and carries
+   forward the decisions that outlive their phase: this plan's (#10's db-layer rules
+   are the likely one) and **Phase 4's #14 and #15**, which were added after Phase 4's
+   reconciliation merged, with the tooling they and #149/#150 brought
+   (`scripts/claims.sh`, `process-log.sh add`, the values block, the `Caught by`
+   groups). The milestone closes when this merges.
+
+---
+
+## Rationale
+
+### #1 — The fake-data map gets frozen, hand-written types
+`fake-data.ts`, `useMapLibre.tsx` and `TruckPopup.tsx` type their data with `Truck` and
+`Location` from `types.ts`, which derive from the generated schema types (issue #48).
+Regenerating them drops `last_known_*` and `confidence`, and `tsc` fails on the map.
+`map-types.ts` holds today's shapes by hand until Phase 6 replaces the map's data source
+and deletes the file. **Rejected:** keeping the old columns in the new schema (the
+schema would describe the old design for another phase), and pulling Phase 6's map
+rewrite forward (the map would change in a schema phase, against the Out of Scope).
+
+### #2 — Steps 1–4 split this way
+Step 2 can't be split further with green gates: squashing without regenerating leaves
+the types disagreeing with the database, and regenerating without the db-layer rewrite
+fails `tsc` on `last_known_*` and `expires_at`. The constraint tests (step 3) and the RLS
+tests (step 4) follow as their own PRs, to keep each reviewable; recent PRs took two or
+three review rounds each (PRs #154, #156, #157). Step 4 also isolates the most delicate new test code,
+which creates and deletes auth users. **Rejected:** folding steps 3–4 into step 2 (about
+900 lines in one PR). The cost of the split is that the schema's security properties go
+untested for two PRs; accepted because nothing is deployed and no route reads the
+database until Phase 6.
+
+### #3 — Squash into `0001_baseline.sql`
+No hosted database exists, so only local Docker databases have applied `0001`–`0006`,
+and `npx supabase db reset` rebuilds them. A baseline written fresh is readable as the
+schema; today's `0001` warns that it isn't the current schema and must be read with
+`0002`/`0003`. **Rejected:** a `0007` that drops the old tables (six files of dead
+history stay as the record of the schema), and a timestamp name (mixes two naming
+conventions in one folder).
+
+### #4 — The overlap constraint, and why the CHECK is part of it
+```sql
+EXCLUDE USING gist (truck_id WITH =, tstzrange(starts_at, ends_at) WITH &&)
+  WHERE (cancelled_at IS NULL)
+```
+`tstzrange`'s default bounds are `[)`, so a window ending at 14:00 and one starting at
+14:00 don't overlap. `CHECK (ends_at > starts_at)` is not only data hygiene: with
+`ends_at = starts_at` the range is empty, and an empty range overlaps nothing, so such a
+row would pass the constraint. Step 3 tests that case. A violation raises `23P01`;
+Phase 7's service maps it to 409 "överlappar". Cancelled rows are outside the
+constraint, so a cancelled window can be re-entered.
+
+### #5 — `updated_at` via `moddatetime`
+`create extension moddatetime schema extensions` and one `before update` trigger. No
+custom function lands in `public`, so there is none to secure against a mutable
+`search_path` (the case Supabase's database linter flags). **Rejected:** a hand-written
+plpgsql function; it works, but is more to own. Open decision 2 is the fallback if the
+extension isn't available locally. The trigger fires on every UPDATE, cancellation
+included; a cancelled row never reaches the map, so its moved `updated_at` shows nowhere.
+
+### #6 — Grants: revoke, then grant exactly the table; no `service_role` policies
+For each table: `revoke all … from anon, authenticated`, then the grants in
+`project-context.md`'s "RLS and grants" table (`authenticated` SELECT on `users`;
+`service_role` SELECT, INSERT, UPDATE, DELETE on each table, granted per table). The
+revoke makes the result independent of whatever default privileges the stack applies to
+new tables; today that rests on a comment in `0001` (open decision 1 records the
+answer). No `service_role` policies, because `service_role` bypasses RLS; `0001`'s
+service-role policies were dead code. Step 4's tests are the evidence for both, not this
+paragraph. The policy that remains: `users` SELECT for `authenticated` where
+`(select auth.uid()) = id`.
+
+### #7 — Foreign keys stay `NO ACTION`; no cascade
+`locations.truck_id` and `users.truck_id` reference `trucks` without `ON DELETE
+CASCADE`. Deleting a truck that has history then fails, so only the takedown, written as
+two deletes in one transaction (the procedure is Phase 8's), removes history.
+**Rejected:** cascade, which turns any future "delete truck" action into a silent wipe of
+a truck's history.
+
+### #8 — `created_by` is nullable and never selected
+`created_by uuid references auth.users (id) on delete set null`. Nullable because seed
+rows and hand-written SQL have no author; `NewLocation` still requires the key, so a
+caller states it. `LOCATION_COLUMNS` leaves it out, so Phase 6's `/api/live` can't leak
+it by reusing the constant (the explicit-column rule in `CLAUDE.md`). An admin-only
+column list is added when something needs to read the author.
+
+### #9 — One overlap query for the live window and the checklist
+`findLocationsOverlapping(from, to)` returns non-cancelled rows overlapping `[from, to)`.
+Phase 6's live read passes `[now, now + 1 day)`; Phase 7's checklist passes the same
+weekday's Stockholm day N weeks back. The look-back is the caller's parameter, so open
+product decision #2 (checklist look-back) stays with Phase 7 instead of blocking this
+phase. **Rejected:** a dedicated checklist query (it would bake in a look-back nobody has
+chosen).
+
+### #10 — The db layer finds and mutates; it decides nothing
+Errors propagate unchanged, so a `23P01` reaches the service with its code. No function
+reads the clock: `cancelLocation` takes `cancelledAt`, and the overlap query takes its
+window, so time stays in the service (`CLAUDE.md`, "Time"). PostgREST can't send
+`now()` in an update anyway. No function deletes; ended and cancelled are filters.
+
+### #11 — Truck writes wait for Phase 7
+Truck insert and update arrive with the truck CRUD screen that uses them, so their shape
+follows the form instead of a guess. Phase 5 needs only the reads the next two phases
+name.
+
+### #12 — `label` is nullable
+A pin dropped by tapping the map may have no name. The popup's handling of a missing
+label is Phase 6's.
+
+### #13 — Coordinates: `float8`, no CHECK in the database
+The Gothenburg bounding box is checked by Phase 7's validator (`isInGothenburg` in
+`src/lib/geo.ts`), which also catches swapped latitude and longitude. A CHECK in the
+database would be a second copy of the box, free to drift from the first.
+
+### #14 — Indexes: the constraint's, plus one for the live window
+The exclusion constraint's GiST index on `(truck_id, tstzrange(…))` serves per-truck
+lookups. One partial btree, `(ends_at) WHERE cancelled_at IS NULL`, serves the live
+window, where most rows have ended. About 22k rows a year (`project-context.md`), so
+nothing more until a measured query needs it. `0001`'s `locations_truck_starts` and
+`locations_expires` go.
+
+### #15 — Seed history is relative to `now()`
+`seed.sql` builds four weeks of past rows plus today's, in Stockholm local times, with
+`generate_series`, on the three fixed-UUID trucks (Vintervilan stays inactive). "The
+same weekday last week" then exists after any reset. **Rejected:** fixed dates, which age
+out of every look-back. Open decision 3 covers DST.
+
+### #16 — `trucks` and `users` columns unchanged, minus `last_known_*`
+`trucks`: `name` not null, `instagram_handle` unique and nullable, `is_active` and
+`created_at` not null with their defaults, as `0001` and `0003` left them. `users`:
+`id` references `auth.users`, `truck_id` nullable, `is_admin` and `created_at` not null.
+Nothing in the target design changes them; owner claim columns are the Owners phase's.
+
+---
+
+## Acceptance Criteria
+
+**Schema (steps 2–4)**
+- [ ] `ls supabase/migrations` lists only `0001_baseline.sql`.
+- [ ] `npx supabase db reset` exits 0 and applies the migration and the seed.
+- [ ] `select table_name from information_schema.tables where table_schema = 'public'`
+  returns exactly `trucks`, `locations`, `users`.
+- [ ] `locations` has exactly the columns of `project-context.md`'s Data model;
+  `starts_at` and `ends_at` are NOT NULL; none of `confidence`, `parser_confidence`,
+  `source_confidence`, `is_negation`, `post_id`, `address_raw`, `address_geocoded`,
+  `expires_at` exists (`information_schema.columns`).
+- [ ] `pg_class.relrowsecurity` is true for all three tables.
+- [ ] `information_schema.role_table_grants` shows, for `anon` and `authenticated`,
+  only `authenticated` SELECT on `users`; and `service_role` SELECT, INSERT, UPDATE,
+  DELETE on all three tables.
+- [ ] `schema.test.ts` covers each case in step 3, and the PR records a negative
+  control per case (constraint dropped or altered locally, test red, restored).
+- [ ] `rls.test.ts` shows: anon and `authenticated` get no rows from, and can't write
+  to, `trucks` and `locations`; `authenticated` reads its own `users` row and not
+  another's; its UPDATE of `is_admin` or `truck_id` changes nothing; `service_role`
+  reads and writes all three. Negative control: a temporary
+  `grant select on locations to anon` turns a test red.
+
+**Types and db layer (step 2)**
+- [ ] Re-running `npx supabase gen types typescript --local > src/lib/database.types.ts`
+  leaves `git diff --exit-code src/lib/database.types.ts` clean.
+- [ ] `grep -rnE "last_known|confidence|expires_at|is_negation|post_id|posts|geocod" src/lib/db src/lib/types.ts src/lib/database.types.ts tests/integration supabase`
+  → no hits. Old-design names remain only in `map-types.ts`, `fake-data.ts`,
+  `useMapLibre.tsx` and `TruckPopup.tsx`.
+- [ ] `grep -nE '\.select\(\)|select\("\*"\)|\.delete\(' src/lib/db` → no hits.
+- [ ] `LOCATION_COLUMNS` does not contain `created_by`.
+- [ ] Each function exported by `db/trucks.ts` and `db/locations.ts` has an integration
+  test, including: `insertLocation` and `updateLocation` let a `23P01` through with its
+  code; `cancelLocation` returns `null` for an already-cancelled row.
+- [ ] After `npx supabase db reset`, `findLocationsOverlapping` returns at least one
+  seed row for today's window and at least one for the same weekday a week earlier.
+
+**Map (step 1)**
+- [ ] The diffs of `fake-data.ts`, `useMapLibre.tsx` and `TruckPopup.tsx` change only
+  type imports and type names.
+- [ ] `/map` checked in a real browser (basemap, markers, a popup), noted in the PR.
+
+**Gates (every step)**
+- [ ] `npx tsc --noEmit`, `npm run lint`, `npm run test:all`, `npm run build` exit 0,
+  read unpiped.
+- [ ] Each PR records both vitest projects' file and test counts. Integration: 2 files
+  today, 5 at the end (open decision 7).
+
+**Docs (step 2, under the sweep)**
+- [ ] `CLAUDE.md` no longer has the "Target-design rules, enforced from Phase 5"
+  paragraph listing what today's schema breaks; the Locations and anon-SELECT rules
+  read as current.
+- [ ] `README.md`'s "What works today" describes the new schema.
+
+**Closing**
+- [ ] The closing steps of the milestone-retrospective procedure are done: the Phase 5
+  retrospective (step 5), its follow-ups merged (step 6), and the `project-context.md`
+  reconciliation merged (step 7).
+
+---
+
+## Open Decisions
+
+1. **Default privileges on new tables.** Does the local stack grant `anon` or
+   `authenticated` anything on a new `public` table by default? Decision #6's revoke
+   makes the result independent of the answer; step 2 records what `pg_default_acl`
+   shows, so the rationale rests on a query rather than `0001`'s comment.
+2. **`moddatetime` locally.** Confirm `create extension if not exists moddatetime schema
+   extensions` works on the local stack and the trigger references it correctly
+   (`extensions.moddatetime(updated_at)`). If not: a hand-written function with
+   `set search_path = ''`, and amend decision #5.
+3. **Seed times across DST.** Rows at 11:00–14:00 Stockholm time over four weeks must
+   stay at 11:00–14:00 across a DST change; 2026-10-25 is inside the seed's window as
+   this plan is written. Build them with `at time zone 'Europe/Stockholm'` and check
+   with a query.
+4. **Auth fixtures for `rls.test.ts`.** Does local Auth accept
+   `admin.createUser({ email_confirm: true })` and a password sign-in, or does the test
+   need OTP? Delete order: the `users` row, then the auth user (`users.id` references
+   `auth.users` with no cascade). The email prefix must hold no `%`, `_` or `*`, for the
+   reason `FIXTURE_PREFIX` records in `helpers.ts`.
+5. **How `23P01` arrives through supabase-js.** Confirm a PostgREST error on insert and
+   update carries `code: "23P01"`; Phase 7's 409 mapping depends on it. Step 2's tests
+   pin it.
+6. **`is_active` in the live read.** `findLocationsOverlapping` doesn't filter by the
+   truck's state. Whether Phase 6 filters in its service or adds a joined query is
+   Phase 6's call; this phase only records that the primitive doesn't.
+7. **Integration file count.** The AC expects 5 files at the end. If step 3 or 4
+   splits or merges a file, that PR records the new count and why.
+
+Product decisions #1 (retention), #3 (default times) and #4 (app name) stay open for
+Phases 7–8; none changes this schema.

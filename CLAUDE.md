@@ -3,13 +3,13 @@
 Full project reference: `.claude/context/project-context.md`
 Read it at the start of any non-trivial task.
 
-**Current phase plan: `.claude/plans/phase-4-housekeeping.md` (until the Phase 5 plan
-exists) — read it too, and when the two disagree, THE PLAN WINS.**
+**Current phase plan: `.claude/plans/phase-5-schema-reset.md` — read it too, and when
+the two disagree, THE PLAN WINS.**
 
 `project-context.md` is only reconciled with reality at the END of a phase (it is a
-tracked task in each plan — Phase 4's is issue #127). So for the whole duration of a
-phase it is a snapshot of the phase *before* it, while the plan carries the decisions
-that were actually settled. Reading only the context is how a resolved question gets
+tracked task in each plan — Phase 4's was issue #127, Phase 5's is its step 7). So for
+the whole duration of a phase it is a snapshot of the phase *before* it, while the plan
+carries the decisions that were actually settled. Reading only the context is how a resolved question gets
 re-litigated with a stale answer. **If it has no "Current state" section, it predates
 the Phase 4 rewrite (#127) and describes the old three-lane design**, which Phase 4
 removed.
