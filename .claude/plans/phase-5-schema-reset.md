@@ -136,10 +136,10 @@ the whole shape keeps step 1 a type-only move.
 | Helper | Does |
 |---|---|
 | `seedTruck(name)` | Kept. |
-| `seedLocation(truckId, overrides?)` | Inserts a valid location with defaults, so a test states only what it is about. |
+| `seedLocation(truckId, overrides?)` | Inserts a valid location with defaults, so a test states only what it is about. A call without `starts_at`/`ends_at` gets a window on a day no earlier call used (a counter in the module), so two default calls on one truck don't raise `23P01`. |
 | `anonClient()` | A supabase-js client with the anon key. Not `supabaseClient` from `supabase.ts`: `CLAUDE.md` keeps that one for browser Auth, and Phase 7 splits the file. |
-| `signedInClient()` | Creates a prefixed auth user and its `users` row through the admin API, signs in, returns an `authenticated` client and its user id. |
-| `resetTables()` | Also removes fixture `users` rows and fixture auth users. They are found through the admin API, not PostgREST (`public.users` has no email, and `auth` isn't exposed): `auth.admin.listUsers({ page, perPage })`, **every page until a short one** (one page holds 50 by default, and leaked fixtures from interrupted runs are the case cleanup exists for), filtered on the email prefix; their ids give the `users` rows. Children first: `users` rows before trucks (`users.truck_id` references `trucks`, decision #7) and before their auth users (`users.id` references `auth.users`). ⚠ Today's version returns early when no fixture truck exists (`helpers.ts:91`); the user cleanup must run before that return or without it, or a test that creates a user and no truck leaks the user. |
+| `signedInClient()` | Creates a prefixed auth user with `supabaseAdmin.auth.admin.createUser`, then its `users` row with `supabaseAdmin.from("users").insert` (the Auth admin API doesn't write `public` tables); signs in; returns an `authenticated` client and its user id. |
+| `resetTables()` | Also removes fixture `users` rows and fixture auth users. They are found through the admin API, not PostgREST (`public.users` has no email, and `auth` isn't exposed): `auth.admin.listUsers({ page, perPage })`, **every page until a short one** (one page holds 50 by default, and leaked fixtures from interrupted runs are the case cleanup exists for), filtered in JS with `startsWith` on the email prefix; their ids give the `users` rows. Children first: `users` rows before trucks (`users.truck_id` references `trucks`, decision #7) and before their auth users (`users.id` references `auth.users`). ⚠ Today's version returns early when no fixture truck exists (`helpers.ts:91`); the user cleanup must run before that return or without it, or a test that creates a user and no truck leaks the user. |
 
 ⚠ `resetTables()` removes only `itest-fixture-` trucks and their children, so the
 seed's history survives a test run, as intended. A test that counts rows must scope to
@@ -176,18 +176,24 @@ per follow-up the retrospective opens, which may be none.
    and `ends_at < starts_at` are rejected with **`23514`**; a NULL in each NOT NULL
    column of decision #17 is rejected with `23502` (`source` included: a CHECK passes
    NULL, so only NOT NULL stops it); a bad `source` value is rejected with `23514`;
-   `updated_at` moves on an UPDATE of a column in the trigger's list (decision #5) and
-   `created_at` doesn't. (The `SET NULL` case needs an auth user, so it is step 4's.)
-   Each test asserts the **SQLSTATE**, not only that an error came back: with the CHECK
-   dropped, `ends_at < starts_at` still fails, with `22000` from the constructor of
-   `tstzrange(starts_at, ends_at)` in the exclusion constraint (decision #4), so an
-   "any error" test stays green. Each with a negative control, recorded in the PR.
+   `updated_at` moves on an edit and on a cancel (decision #5) and `created_at`
+   doesn't. (The `SET NULL` case needs an auth user, so it is step 4's.)
+   Each case that expects an error asserts its **SQLSTATE**, not only that an error
+   came back: with the CHECK dropped, `ends_at < starts_at` still fails, with `22000`
+   from the constructor of `tstzrange(starts_at, ends_at)` in the exclusion constraint
+   (decision #4), so an "any error" test stays green. Each case with a negative
+   control, recorded in the PR. **Each control is undone with `npx supabase db reset`**,
+   not by re-adding the constraint: a NOT NULL control lets in a row `resetTables()`
+   can't find (a `NULL` `truck_id`, or a truck with no name and so no fixture prefix),
+   and `set not null` over it fails ("column … contains null values", probed
+   2026-10-18).
 4. **RLS and grant tests.** `anonClient()`, `signedInClient()` and auth-user cleanup in
    `resetTables()` (with `helpers.test.ts` cases for the new cleanup);
    `tests/integration/rls.test.ts`. With the auth fixtures in place, `schema.test.ts`
    gains step 3's remaining case: `updated_at` **doesn't** move when deleting an auth
-   user sets its rows' `created_by` to NULL (decision #5). What each case sees, probed
-   in rolled-back transactions on 2026-10-18:
+   user sets its rows' `created_by` to NULL (decision #5), with a negative control
+   (the trigger without its `WHEN` clause). What each case sees, probed in rolled-back
+   transactions on 2026-10-18:
    - no grant: `42501` "permission denied for table …", with a hint listing every
      missing privilege: `GRANT SELECT ON …`, `GRANT INSERT ON …`, and for a filtered
      UPDATE or DELETE `GRANT SELECT, UPDATE ON …` / `GRANT SELECT, DELETE ON …` (the
@@ -272,19 +278,21 @@ constraint, so a cancelled window can be re-entered.
 create extension if not exists btree_gist  schema extensions;
 create extension if not exists moddatetime schema extensions;
 create trigger locations_updated_at
-  before update of truck_id, latitude, longitude, label, starts_at, ends_at,
-                   cancelled_at, source
-  on locations
-  for each row execute procedure extensions.moddatetime (updated_at);
+  before update on locations
+  for each row
+  when (old.created_by is not distinct from new.created_by)
+  execute procedure extensions.moddatetime (updated_at);
 ```
-**A column list, not every UPDATE.** `created_by … on delete set null` (decision #8)
+**Every UPDATE except the `SET NULL`.** `created_by … on delete set null` (decision #8)
 runs an UPDATE on every row the deleted user wrote, and a plain `before update`
 trigger moves their `updated_at`, so the popup would say "Uppdaterad <now>" on entries
-nobody edited. Probed in a rolled-back transaction (2026-10-18): with a plain trigger
-the `SET NULL` moved `updated_at`; with `before update of label, cancelled_at` it
-didn't, and an UPDATE of `cancelled_at` still did. The list is every column an edit
-or a cancel can change. **A column added to `locations` later must be added to it**,
-or edits to it won't move `updated_at`.
+nobody edited. The `WHEN` clause skips exactly the updates that change `created_by`,
+and nothing else changes it: `LocationPatch` leaves it out. Probed in rolled-back
+transactions (2026-10-18): with a plain trigger the `SET NULL` moved `updated_at`;
+with the `WHEN` clause (on a stand-in parent table) it didn't, and a later label edit
+did. **Rejected:** a column list (`before update of label, cancelled_at, …`), which
+also passed the probe but has to be extended by hand whenever `locations` gains a
+column, or edits to that column silently stop moving `updated_at` (PR #159 round 6).
 No custom function lands in `public`, so no function of ours needs its `search_path`
 pinned, and neither extension's functions land there either (the stack keeps
 `pgcrypto`, `uuid-ossp` and others in `extensions` already). Both forms were probed
@@ -435,9 +443,13 @@ column; the baseline states every column's nullability once.
   shows, besides the owner: no entry for `anon`; `authenticated=r` on `users` only;
   `service_role=arwd` (SELECT, INSERT, UPDATE, DELETE, nothing else) on all three.
   (`relacl` rather than `role_table_grants`, which doesn't list MAINTAIN.)
-- [ ] `schema.test.ts` covers each case in step 3, asserting each case's SQLSTATE
-  (`23P01`, `23514`, `23502`), and the PR records a negative control per case
-  (constraint dropped or altered locally, test red, restored).
+- [ ] `schema.test.ts` covers each case in step 3, asserting the SQLSTATE (`23P01`,
+  `23514`, `23502`) of each case that expects an error, and the PR records a negative
+  control per case (constraint dropped or altered locally, test red, restored with
+  `npx supabase db reset`).
+- [ ] `schema.test.ts` also covers step 4's `SET NULL` case: deleting an auth user
+  leaves `updated_at` on its rows unchanged; its negative control (the trigger without
+  the `WHEN` clause) turns it red.
 - [ ] `rls.test.ts` shows, each refusal asserted as `42501` **plus a hint whose
   privilege list contains that operation's privilege** (step 4):
   - anon and `authenticated` are refused SELECT, INSERT, UPDATE and DELETE on `trucks`
@@ -477,11 +489,13 @@ column; the baseline states every column's nullability once.
   `.delete()`, not `.select(LOCATION_COLUMNS)` or `.select("id, truck_id")`. The second
   grep drops comment lines: today's code gives 5 hits without it, one of them the
   comment at `locations.ts:32`, and 4 with it.)
-- [ ] `grep -rnE "_COLUMNS\s*=.*\*" src/lib/db` → no hits: the greps above read only
-  what is written inside `.select(…)`, so a `"*"` in a column constant passes them.
-- [ ] `LOCATION_COLUMNS` does not contain `created_by`, and `db-locations.test.ts`
-  asserts that the keys of a row each function returns are exactly `Location`'s. That
-  test is the guard that sees what the select returns; the greps read source text only.
+- [ ] `LOCATION_COLUMNS` does not contain `created_by`, and **`db-locations.test.ts`
+  and `db-trucks.test.ts` assert that the keys of a row each function returns equal a
+  list written out in the test** (not derived from a type, which would grow with the
+  table). The greps above read only what is written inside `.select(…)`, so a `"*"` in
+  a column constant passes them, and a one-line grep for one misses a constant wrapped
+  onto its next line (tried on a scratch file, 2026-10-18). The key-set tests see what
+  the select returns, and a new column the constant doesn't name can't reach them.
 - [ ] Each function exported by `db/trucks.ts` and `db/locations.ts` has an integration
   test, including: `insertLocation` and `updateLocation` let a `23P01` through with its
   code; `cancelLocation` returns `null` for an already-cancelled row.
@@ -532,14 +546,19 @@ column; the baseline states every column's nullability once.
    stay at 11:00–14:00 across a DST change. The seed's real window holds a DST change
    only in the four weeks after one (the next is 2026-10-25, a week after this plan
    was written), so a check run on today's seed can pass with no change inside it.
-   Build the times with `at time zone 'Europe/Stockholm'`, and check the expression on
+   Build the times as `(d::date + time '11:00') at time zone 'Europe/Stockholm'`. The
+   cast matters: `generate_series` over dates yields `timestamptz`, and without
+   `::date` the expression returns a `timestamp` of 13:00, then 12:00 after the
+   change, which a `timestamptz` column reads as UTC (probed 2026-10-18; with the cast:
+   09:00Z, then 10:00Z, 11:00 Stockholm on both sides). Check the expression on
    a fixed anchor that puts a change inside the series (e.g. `now()` replaced by
    `timestamptz '2026-11-05 12:00+01'`): every row's Stockholm start must be 11:00.
 4. **Auth fixtures for `rls.test.ts`.** Does local Auth accept
    `admin.createUser({ email_confirm: true })` and a password sign-in, or does the test
    need OTP? Delete order: the `users` row, then the auth user (`users.id` references
-   `auth.users` with no cascade). The email prefix must hold no `%`, `_` or `*`, for the
-   reason `FIXTURE_PREFIX` records in `helpers.ts`. **The hint the RLS tests assert**
+   `auth.users` with no cascade). Fixture users are matched in JS with `startsWith` on
+   the email (`resetTables()` above), so the prefix needs none of the escaping
+   `FIXTURE_PREFIX` needs for its server-side `like`. **The hint the RLS tests assert**
    (`GRANT … ON …`) was seen on the local stack's Postgres 17.6; whether it comes from
    upstream Postgres or Supabase's image isn't checked. If an upgrade drops it, the
    tests fail loudly rather than pass, and step 4 then asserts the message instead.
