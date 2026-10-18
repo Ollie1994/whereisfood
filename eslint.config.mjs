@@ -18,11 +18,13 @@ const eslintConfig = defineConfig([
   ]),
   // map-types.ts holds frozen copies of the pre-Phase-5 rows, so it must import
   // nothing: an import from `database.types` or `@/lib/types` would follow the schema
-  // (plan phase-5-schema-reset, decision #1). Parse-tree selectors, not a text grep: a
-  // grep missed `export type{X}from"…"` and multi-line re-exports (PR #166 round 2).
-  // Each selector was shown to fail lint on a copy of the file (PR #166).
+  // (plan phase-5-schema-reset, decision #1). `noInlineConfig` makes an
+  // `eslint-disable` comment in the file inert. `src/lib/map-types.lint.test.ts` runs
+  // this config on the real file and on each import form appended to it, so a renamed
+  // file or a weakened selector fails `npm run test:run`.
   {
     files: ["src/lib/map-types.ts"],
+    linterOptions: { noInlineConfig: true },
     rules: {
       "no-restricted-syntax": [
         "error",
@@ -31,7 +33,7 @@ const eslintConfig = defineConfig([
           "ExportAllDeclaration",
           "ExportNamedDeclaration[source]",
           "TSImportType",
-          "TSImportEqualsDeclaration",
+          "TSImportEqualsDeclaration[moduleReference.type='TSExternalModuleReference']",
           "ImportExpression",
           "CallExpression[callee.name='require']",
         ].map((selector) => ({

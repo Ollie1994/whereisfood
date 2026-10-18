@@ -9,9 +9,10 @@
 // Why frozen: plan phase-5-schema-reset, decision #1 and its `map-types.ts` section.
 // What the map shows until then: CLAUDE.md, UI Rules.
 //
-// ⚠ No imports in this file: `npm run lint` fails on any import form here
-// (`eslint.config.mjs`), since anything from `database.types` or `@/lib/types` would
-// follow the schema, which plan step 2 replaces.
+// ⚠ No imports in this file: anything from `database.types` or `@/lib/types` would
+// follow the schema, which plan step 2 replaces. `npm run lint` refuses the import
+// forms `map-types.lint.test.ts` lists, behind `eslint-disable` comments too, and that
+// test fails if this file is renamed or moved.
 
 export interface MapTruck {
   created_at: string;
