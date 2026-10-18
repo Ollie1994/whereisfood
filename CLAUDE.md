@@ -3,16 +3,16 @@
 Full project reference: `.claude/context/project-context.md`
 Read it at the start of any non-trivial task.
 
-**Current phase plan: `.claude/plans/phase-4-housekeeping.md` (until the Phase 5 plan
-exists) — read it too, and when the two disagree, THE PLAN WINS.**
+**Current phase plan: `.claude/plans/phase-5-schema-reset.md` — read it too, and when
+the two disagree, THE PLAN WINS.**
 
 `project-context.md` is only reconciled with reality at the END of a phase (it is a
-tracked task in each plan — Phase 4's is issue #127). So for the whole duration of a
-phase it is a snapshot of the phase *before* it, while the plan carries the decisions
-that were actually settled. Reading only the context is how a resolved question gets
-re-litigated with a stale answer. **If it has no "Current state" section, it predates
-the Phase 4 rewrite (#127) and describes the old three-lane design**, which Phase 4
-removed.
+tracked task in each plan — Phase 4's was issue #127, Phase 5's is its step 7). So for
+the whole duration of a phase it is a snapshot of the phase *before* it, while the plan
+carries the decisions that were actually settled. Reading only the context is how a
+resolved question gets re-litigated with a stale answer. **If it has no "Current state"
+section, it predates the Phase 4 rewrite (#127) and describes the old three-lane
+design**, which Phase 4 removed.
 
 The plan is also where the numbered decision records live (`#1`, `#2`, …) —
 those are the reasoning behind rules the context states as bare facts, and an issue
@@ -379,7 +379,8 @@ blocking and closing rules, is in the log's "How to use it" section;
 use those exact values — do not invent new ones and do not copy the taxonomy here.
 Duplicating it in two files is the same `manual-drift` the log exists to catch.
 
-**Add a row with `bash scripts/process-log.sh add <file>`**, never by hand. The file
+**Add a row with `bash scripts/process-log.sh add <file>`**, never by hand (Phase 4
+plan decision #15, which also sets the values block and the length caps). The file
 holds one `Field: value` line per column except `#`, which `add` assigns (`Date` is
 optional); the script's header lists them. `add` numbers
 the row, puts it directly after the table's last row (a row appended to the end of the
