@@ -250,8 +250,8 @@ pinned, and neither extension's functions land there either (the stack keeps
 in a rolled-back transaction on the local stack (2026-10-18): neither extension was
 installed before, both created in `extensions`, the trigger was accepted, and a GiST
 exclusion constraint on `uuid` and `tstzrange` raised its conflict on a second
-overlapping insert. **Rejected:** a hand-written plpgsql function; it works, but is more
-to own. The trigger fires on every UPDATE, cancellation included; a cancelled row never
+overlapping insert. **Rejected:** a hand-written plpgsql function, which is more to
+own. The trigger fires on every UPDATE, cancellation included; a cancelled row never
 reaches the map, so its moved `updated_at` shows nowhere.
 
 ### #6 — Grants: revoke, then grant exactly the table; no `service_role` policies
@@ -337,14 +337,14 @@ query needs it. `0001`'s `locations_truck_starts` and `locations_expires` go.
 series covers the 28 days **before today's Stockholm date and stops at yesterday**.
 "The same weekday last week" then exists after any reset. **Plus one row on an active
 truck from `now() - interval '1 hour'` to `now() + interval '12 hours'`**. Because the
-history stops at yesterday, that row can't overlap a history row, which would raise
-`23P01` and fail `db reset` only at certain times of day. (Today's date is the series' risk: a series that included it would put an 11–14
-row on the same truck, which the spanning row overlaps whenever a reset runs between
-about 10:00 and 14:00.) The row means the live window
-`[now, now + 1 day)` holds a row for 12 hours after a reset at any time of day. A row
-at fixed Stockholm hours ("today 11–14") would be over by the afternoon, and the live
-window would come back empty. **Rejected:** fixed dates, which
-fall out of the look-back window as the weeks pass. Open decision 3 covers DST.
+history stops at yesterday, that row can't overlap a history row. A series that
+included today would put an 11–14 row on the same truck, which `[now − 1 h, now + 12 h)`
+overlaps for any reset before 15:00: `23P01`, and `db reset` failing by time of day.
+The spanning row means the live window `[now, now + 1 day)` holds a row for 12 hours
+after a reset at any time of day. A row at fixed Stockholm hours ("today 11–14") would
+be over by the afternoon, and the live window would come back empty. **Rejected:**
+fixed dates, which fall out of the look-back window as the weeks pass. Open decision 3
+covers DST.
 
 ### #16 — `trucks` and `users` columns unchanged, minus `last_known_*`
 `trucks`, every column `0001` and `0003` left except `last_known_*`: `id` (uuid,
