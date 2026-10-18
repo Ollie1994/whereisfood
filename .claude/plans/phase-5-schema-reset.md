@@ -48,7 +48,7 @@ gates green and the fake-data map unchanged.
 | Admin login, `proxy.ts` auth, disabling public sign-ups in `config.toml`, splitting `supabase.ts` into server and browser modules | Phase 7 |
 | The checklist and "recent places" UI (Phase 5 writes only the db queries behind them) | Phase 7 |
 | Truck insert and update primitives (decision #11) | Phase 7 |
-| Owner columns on `trucks`, the claim flow, writes with `source = 'owner'` (the column and its CHECK exist; nothing writes `'owner'`) | Owners phase |
+| Owner columns on `trucks`, the claim flow, writes with `source = 'owner'` (the column and its enum value exist; nothing writes `'owner'`) | Owners phase |
 | A retention or purge job, a scheduler, pg_cron | not planned (retention is open product decision #1) |
 | R2 tiles, Supabase Pro, production deploy, the takedown procedure's SQL | Phase 8 |
 
@@ -64,7 +64,7 @@ gates green and the fake-data map unchanged.
 ### Create
 | File | Content |
 |---|---|
-| `supabase/migrations/0001_baseline.sql` | `btree_gist` and `moddatetime`, both in the `extensions` schema; `trucks`, `locations`, `users`, every column's nullability and default stated (decision #17); the exclusion constraint, `CHECK (ends_at > starts_at)` and the `source` CHECK; the `updated_at` trigger; two partial indexes; RLS and per-table grants (decisions #3–#8, #12–#14, #16, #17). |
+| `supabase/migrations/0001_baseline.sql` | `btree_gist` and `moddatetime`, both in the `extensions` schema; `trucks`, `locations`, `users`, every column's nullability and default stated (decision #17); the exclusion constraint and `CHECK (ends_at > starts_at)`; the `location_source` enum for `source`; the `updated_at` trigger; two partial indexes; RLS and per-table grants (decisions #3–#8, #12–#14, #16–#18). |
 | `src/lib/map-types.ts` | The fake-data map's **frozen, hand-written** types: `MapTruck` (today's `Truck`, `last_known_*` included), `MapLocation` (today's `Location`: `confidence`, `is_negation`, the old `source` lanes and the rest), `MarkerColor`, `MarkerState`. Deleted in Phase 6 (decision #1). |
 | `tests/integration/schema.test.ts` | Constraint, CHECK and trigger tests (step 3). |
 | `tests/integration/rls.test.ts` | RLS and grant tests (step 4). |
@@ -75,7 +75,7 @@ gates green and the fake-data map unchanged.
 | File | Change |
 |---|---|
 | `src/lib/database.types.ts` | Regenerated: `npx supabase gen types typescript --local > src/lib/database.types.ts`, **in Git Bash**, not PowerShell 5.1, whose `>` re-encodes the output (UTF-16, or UTF-8 with a BOM), so `git diff` shows the whole file changed. |
-| `src/lib/types.ts` | Re-derived: `Truck`, `Location` (without `created_by`; `source` narrowed to `'admin' \| 'owner'`), `NewLocation`, `LocationPatch` (`MarkerColor` and `MarkerState` already left in step 1). Comments rewritten for the new schema. |
+| `src/lib/types.ts` | Re-derived: `Truck`, `Location` (without `created_by`; `source` is `'admin' \| 'owner'` from the generated enum, decision #18), `NewLocation`, `LocationPatch` (`MarkerColor` and `MarkerState` already left in step 1). Comments rewritten for the new schema. |
 | `src/lib/db/trucks.ts` | Rewritten for the new schema (functions below). |
 | `src/lib/db/locations.ts` | Rewritten (functions below). No delete. |
 | `supabase/seed.sql` | The three fixed-UUID trucks without `last_known_*`, plus history relative to `now()` on the two active ones (decision #15). |
@@ -120,7 +120,7 @@ the columns exist (issue #48).
 
 **`src/lib/types.ts`**
 - `Truck`: the generated `trucks` row.
-- `Location`: the generated `locations` row **minus `created_by`**, with `source` narrowed to `'admin' | 'owner'`. It is the shape `LOCATION_COLUMNS` selects. A CHECK carries no type into the generated types, so `source` arrives as `string` (today's `src/lib/db/locations.ts:46` casts `as Location` for that reason). The db functions narrow it with a **typed spread, not `as`**: `const loc: Location = { ...row, source: row.source as Location["source"] }`. An `as Location` on the whole row also compiles when `LOCATION_COLUMNS` leaves a column out, so `tsc` would stop checking the select (probed with `tsc --strict` on 2026-10-18: `select("id, truck_id, latitude")` cast `as Location` compiled; the typed spread failed on the 13 missing keys) (decision #8).
+- `Location`: the generated `locations` row **minus `created_by`**; `source` is already `'admin' | 'owner'`, because it is an enum (decision #18). It is the shape `LOCATION_COLUMNS` selects. **The db functions return the selected row with no cast**, so `tsc` checks that the select has every key of `Location`. Never `as Location`: a cast also compiles when `LOCATION_COLUMNS` leaves a column out (probed with `tsc --strict` on 2026-10-18: `select("id, truck_id, latitude")` cast `as Location` compiled, and the same row spread into a `Location`-typed literal failed on the 13 missing keys; returned uncast from a function typed with a three-key pick, `select("id, truck_id")` failed on the missing key). `tsc` doesn't see an **extra** column: in the same probe, `select("id, truck_id, latitude, starts_at")` and `select("*")` both compiled returned uncast. So the key-set tests guard that side (decision #8).
 - `NewLocation`: `Location` minus `id`, `created_at`, `updated_at`, `cancelled_at` (an insert is never born cancelled), **plus `created_by: string | null`**. Every key, `created_by` and `label` included, is required, so a caller states each value.
 - `LocationPatch`: an optional pick of `latitude`, `longitude`, `label`, `starts_at`, `ends_at`.
 
@@ -136,7 +136,7 @@ the whole shape keeps step 1 a type-only move.
 | Helper | Does |
 |---|---|
 | `seedTruck(name)` | Kept. |
-| `seedLocation(truckId, overrides?)` | Inserts a valid location with defaults, so a test states only what it is about. A call without `starts_at`/`ends_at` gets a window on a day no earlier call used (a counter in the module), so two default calls on one truck don't raise `23P01`. |
+| `seedLocation(truckId, overrides?)` | Inserts a valid location with defaults, so a test states only what it is about. A call without `starts_at`/`ends_at` gets a window on a day no earlier call used: day *n* after 2000-01-01, *n* a counter in the module. So two default calls on one truck don't raise `23P01`; a test that passes its own window keeps it after 2020 (a rule for the tests; the counter would need 7,000-odd default calls in one run to get there). |
 | `anonClient()` | A supabase-js client with the anon key. Not `supabaseClient` from `supabase.ts`: `CLAUDE.md` keeps that one for browser Auth, and Phase 7 splits the file. |
 | `signedInClient()` | Creates a prefixed auth user with `supabaseAdmin.auth.admin.createUser`, then its `users` row with `supabaseAdmin.from("users").insert` (the Auth admin API doesn't write `public` tables); signs in; returns an `authenticated` client and its user id. |
 | `resetTables()` | Also removes fixture `users` rows and fixture auth users. They are found through the admin API, not PostgREST (`public.users` has no email, and `auth` isn't exposed): `auth.admin.listUsers({ page, perPage })`, **every page until a short one** (one page holds 50 by default, and leaked fixtures from interrupted runs are the case cleanup exists for), filtered in JS with `startsWith` on the email prefix; their ids give the `users` rows. Children first: `users` rows before trucks (`users.truck_id` references `trucks`, decision #7) and before their auth users (`users.id` references `auth.users`). ⚠ Today's version returns early when no fixture truck exists (`helpers.ts:91`); the user cleanup must run before that return or without it, or a test that creates a user and no truck leaks the user. |
@@ -176,9 +176,10 @@ per follow-up the retrospective opens, which may be none.
    cancelled row doesn't block; back-to-back windows are allowed; `ends_at = starts_at`
    and `ends_at < starts_at` are rejected with **`23514`**; a NULL in each NOT NULL
    column of decision #17 except the `id` primary keys is rejected with `23502`
-   (`source` included: a CHECK passes NULL, so only NOT NULL stops it; a primary key
+   (`source` included: an enum column accepts NULL, so only NOT NULL stops it; a primary key
    implies NOT NULL and can't drop it for a control: "column "id" is in a primary
-   key", probed 2026-10-18); a bad `source` value is rejected with `23514`;
+   key", probed 2026-10-18); a bad `source` value is rejected with `22P02` (decision
+   #18);
    `updated_at` moves on an edit and on a cancel (decision #5) and `created_at`
    doesn't. (The two `created_by` cases need an auth user, so they are step 4's.)
    Each case that expects an error asserts its **SQLSTATE**, not only that an error
@@ -195,7 +196,10 @@ per follow-up the retrospective opens, which may be none.
    `tests/integration/rls.test.ts`. With the auth fixtures in place, `schema.test.ts`
    gains step 3's two `created_by` cases (decision #5): `updated_at` **doesn't** move
    when deleting an auth user sets its rows' `created_by` to NULL (control: the
-   trigger without its `WHEN` clause), and **does** move on an edit that also sets a
+   trigger without its `WHEN` clause; the author is a bare auth user from
+   `admin.createUser`, with no `users` row, because `users.id → auth.users` is NO
+   ACTION and its row would block the delete: `confdeltype = 'a'` on today's
+   `users_id_fkey`, read 2026-10-18), and **does** move on an edit that also sets a
    NULL `created_by` to a user (control: round 6's `old … is not distinct from new …`
    clause). What each case sees, probed in rolled-back
    transactions on 2026-10-18:
@@ -219,7 +223,9 @@ per follow-up the retrospective opens, which may be none.
 
    Steps 5–7 are ordered, blocked and closed as that procedure's part 6 says; this plan
    doesn't restate it. Step 7's content: it covers Part 1's "Database", "Modules kept on
-   purpose", "Folder structure", "Tests and gates" and the Roadmap row; Part 3's
+   purpose" (its `types.ts` row, `project-context.md:152`, describes "CHECK columns
+   narrowed by hand (e.g. `source`)", which decision #18's enum removes), "Folder
+   structure", "Tests and gates" and the Roadmap row; Part 3's
    "Component structure" example, which imports `MarkerState` from `@/lib/types`
    (`project-context.md:501`; it moves to `map-types.ts` in step 1); Part 2's
    "Explicit GRANTs" bullet, whose "Supabase doesn't auto-expose new tables to the API
@@ -341,11 +347,14 @@ a truck's history.
 rows and hand-written SQL have no author; `NewLocation` still requires the key, so a
 caller states it. `LOCATION_COLUMNS` leaves it out, so Phase 6's `/api/live` can't leak
 it by reusing the constant (the explicit-column rule in `CLAUDE.md`). **`Location` leaves
-it out too**, so the type is exactly what `LOCATION_COLUMNS` selects, and the db
-layer's typed spread (`types.ts` section above) checks every key of it against the
-select; with `created_by` in `Location`, that spread would fail `tsc`, and an `as` cast
-would hide a key the select never returns, typed `string | null` and `undefined` at
-runtime. Only `source` is narrowed, with its own cast. `NewLocation` adds `created_by` back for
+it out too**, so the type is exactly what `LOCATION_COLUMNS` selects. Returning the
+row uncast (`types.ts` section above) makes `tsc` check that the select has every key
+of `Location`; with `created_by` in `Location`, that would fail `tsc`, where an `as`
+cast would hide a key the select never returns, typed `string | null` and `undefined`
+at runtime. **The reverse isn't checked:** if `LOCATION_COLUMNS` gains `created_by`
+(or a `*`), the row still assigns to `Location`, since TypeScript has no excess-property
+check on a value that isn't an object literal. The key-set tests (AC) are the only
+guard there. `NewLocation` adds `created_by` back for
 inserts. An admin-only column list, and a type to match, are added when something
 needs to read the author.
 
@@ -423,16 +432,33 @@ Every column of the three tables is NOT NULL, except `trucks.instagram_handle`,
 (decision #12), `cancelled_at` (null means live) and `created_by` (decision #8). On
 `locations` that makes `truck_id`, `latitude`, `longitude`, `starts_at`, `ends_at`,
 `source` (default `'admin'`), `created_at` and `updated_at` NOT NULL. **`source` in
-particular:** a CHECK whose expression is NULL passes, so `source in ('admin',
-'owner')` alone lets a NULL through, and `types.ts`'s narrowing to `'admin' | 'owner'`
-would hide it from `tsc`. `0001` made this mistake and `0002`/`0003` fixed it column by
-column; the baseline states every column's nullability once.
+particular:** an enum column accepts NULL like any other (probed 2026-10-18: NOT NULL
+is what raised `23502`), and the generated type would then be `'admin' | 'owner' |
+null`. `0001` left NOT NULL off columns and `0002`/`0003` fixed it column by column;
+the baseline states every column's nullability once.
 
-**Defaults, stated with it**, since `NewLocation` and the fixtures omit these columns
-and an insert fails with `23502` without them: every `id` `gen_random_uuid()` except
-`users.id` (it is the auth user's); every `created_at`, and `locations.updated_at`,
-`now()`; `trucks.is_active` `true`; `users.is_admin` `false`; `locations.source`
-`'admin'`. (`0001` sets the same, but as nullable columns.)
+**Defaults, stated with it.** `NewLocation` omits `id`, `created_at` and `updated_at`,
+so `insertLocation` fails with `23502` without their defaults (probed 2026-10-18: an
+omitted NOT NULL column with no default, primary key included). The rest let the seed
+and hand-written SQL leave them out. Every `id` `gen_random_uuid()` except `users.id`
+(it is the auth user's); every `created_at`, and `locations.updated_at`, `now()`;
+`trucks.is_active` `true`; `users.is_admin` `false`; `locations.source` `'admin'`.
+(`0001` gives the same defaults to `id`, `created_at`, `updated_at`, `is_active` and
+`is_admin`, on nullable columns; its `locations.source` has no default, and its values
+were the old lanes.)
+
+### #18 — `source` is a Postgres enum, not text with a CHECK
+`create type location_source as enum ('admin', 'owner')`, and `locations.source
+location_source not null default 'admin'`. A CHECK carries no type into the generated
+types, so a text `source` arrives as `string`, and every db function would have to
+narrow it by hand; an enum is generated as `'admin' | 'owner'`, so `Location` derives
+with no narrowing and the db functions return rows uncast (`types.ts` section). A bad
+value raises **`22P02`** ("invalid input value for enum"), not `23514` (probed
+2026-10-18). **Rejected:** text with `CHECK (source in ('admin', 'owner'))` (PR #159
+round 8), which needed a cast or a typed spread in each of five functions, and any of
+them slipping back to `as Location` loses `tsc`'s check of the select. The cost
+accepted: an enum value can be added (`alter type … add value`) but not easily
+removed; `'owner'` is already planned, so the list isn't expected to shrink.
 
 ---
 
@@ -459,7 +485,7 @@ and an insert fails with `23502` without them: every `id` `gen_random_uuid()` ex
   `service_role=arwd` (SELECT, INSERT, UPDATE, DELETE, nothing else) on all three.
   (`relacl` rather than `role_table_grants`, which doesn't list MAINTAIN.)
 - [ ] `schema.test.ts` covers each case in step 3, asserting the SQLSTATE (`23P01`,
-  `23514`, `23502`) of each case that expects an error, and the PR records a negative
+  `23514`, `23502`, `22P02`) of each case that expects an error, and the PR records a negative
   control per case (constraint dropped or altered locally, test red, restored with
   `npx supabase db reset`).
 - [ ] `schema.test.ts` also covers step 4's two `created_by` cases: deleting an auth
