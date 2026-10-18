@@ -135,7 +135,7 @@ set. The map reads `location.confidence` and `is_negation` and
 `truck.last_known_latitude`/`_longitude` (`useMapLibre.tsx`'s `deriveColor` and
 `buildMarkerStates`), and `TruckPopup`'s `hours` branches on `ends_at` being null
 ("Från …"), so `MapLocation` keeps today's nullable `ends_at` where the new `Location`
-makes it required. Copying the whole shape keeps step 1 a type-only move.
+makes it required. Copying the whole shape keeps the map code's change type-only.
 
 **`tests/integration/helpers.ts`**
 | Helper | Does |
@@ -162,7 +162,7 @@ per follow-up the retrospective opens, which may be none.
 1. **Decouple the map from the schema types.** Create `src/lib/map-types.ts`; switch
    `fake-data.ts`, `useMapLibre.tsx` and `TruckPopup.tsx` to it; **move** `MarkerColor`
    and `MarkerState` out of `types.ts` into it (no copy left behind). `types.ts` keeps
-   `Truck`, `Location` and `NewLocation` until step 2. A type-only move. Gates
+   `Truck`, `Location` and `NewLocation` until step 2. The map code's change is type-only, plus the lint override that keeps `map-types.ts` import-free. Gates
    green and a browser check of `/map` (basemap, markers, a popup), because it touches
    map code. *First because* step 2 regenerates the types, and the map would otherwise
    break `tsc` in step 2's diff.
