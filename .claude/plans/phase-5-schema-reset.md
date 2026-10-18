@@ -62,7 +62,7 @@ unchanged.
 ### Create
 | File | Content |
 |---|---|
-| `supabase/migrations/0001_baseline.sql` | `btree_gist` and `moddatetime`; `trucks`, `locations`, `users`; the exclusion constraint, `CHECK (ends_at > starts_at)` and the `source` CHECK; the `updated_at` trigger; one partial index; RLS and per-table grants (decisions #3–#8, #12–#14, #16). |
+| `supabase/migrations/0001_baseline.sql` | `btree_gist` and `moddatetime`, both in the `extensions` schema; `trucks`, `locations`, `users`; the exclusion constraint, `CHECK (ends_at > starts_at)` and the `source` CHECK; the `updated_at` trigger; two partial indexes; RLS and per-table grants (decisions #3–#8, #12–#14, #16). |
 | `src/lib/map-types.ts` | The fake-data map's **frozen, hand-written** types: `MapTruck`, `MapLocation` (with `last_known_*`, `confidence` and the old `source` lanes), `MarkerColor`, `MarkerState`. Deleted in Phase 6 (decision #1). |
 | `tests/integration/schema.test.ts` | Constraint, CHECK and trigger tests (step 3). |
 | `tests/integration/rls.test.ts` | RLS and grant tests (step 4). |
@@ -111,11 +111,14 @@ and `moddatetime` are Postgres extensions).
 | ~~`findOverlapping`, `deleteLocations`~~ | Removed: the constraint replaces the first; rows are never deleted. |
 
 Every select names its columns through one `LOCATION_COLUMNS` constant, which leaves
-out `created_by` (decision #8).
+out `created_by` (decision #8). It is **one string literal** (`"id, truck_id, …"`), not
+built with `join` or typed `string`: supabase-js infers a select's row type from the
+literal text, so a computed string loses that inference and with it `tsc`'s check that
+the columns exist (issue #48).
 
 **`src/lib/types.ts`**
 - `Truck`: the generated `trucks` row.
-- `Location`: the generated `locations` row **minus `created_by`**, with `source` narrowed to `'admin' | 'owner'`. It is the shape `LOCATION_COLUMNS` selects, so every db function returns what its type says, with no cast (decision #8).
+- `Location`: the generated `locations` row **minus `created_by`**, with `source` narrowed to `'admin' | 'owner'`. It is the shape `LOCATION_COLUMNS` selects. The db functions still return it through `as Location`, because a CHECK carries no type into the generated types and `source` arrives as `string` (today's `src/lib/db/locations.ts:46` casts for the same reason); that cast covers `source` only, since every other key already matches (decision #8).
 - `NewLocation`: `Location` minus `id`, `created_at`, `updated_at`, `cancelled_at` (an insert is never born cancelled), **plus `created_by: string | null`**. Every key, `created_by` and `label` included, is required, so a caller states each value.
 - `LocationPatch`: an optional pick of `latitude`, `longitude`, `label`, `starts_at`, `ends_at`.
 
@@ -128,7 +131,7 @@ out `created_by` (decision #8).
 | `seedLocation(truckId, overrides?)` | Inserts a valid location with defaults, so a test states only what it is about. |
 | `anonClient()` | A supabase-js client with the anon key. |
 | `signedInClient()` | Creates a prefixed auth user and its `users` row through the admin API, signs in, returns an `authenticated` client and its user id. |
-| `resetTables()` | Also removes fixture `users` rows and fixture auth users (by an email prefix), children first: `users` rows before trucks (`users.truck_id` references `trucks`, decision #7) and before their auth users (`users.id` references `auth.users`). |
+| `resetTables()` | Also removes fixture `users` rows and fixture auth users (by an email prefix), children first: `users` rows before trucks (`users.truck_id` references `trucks`, decision #7) and before their auth users (`users.id` references `auth.users`). ⚠ Today's version returns early when no fixture truck exists (`helpers.ts:91`); the user cleanup must run before that return or without it, or a test that creates a user and no truck leaks the user. |
 
 ⚠ `resetTables()` removes only `itest-fixture-` trucks and their children, so the
 seed's history survives a test run, as intended. A test that counts rows must scope to
@@ -153,7 +156,7 @@ Strict order. Each numbered step is one PR into `dev`.
    `listRecentLocationsForTruck`, `LOCATION_COLUMNS`); rewrite `seed.sql`, `helpers.ts`
    (`seedLocation`; `posts` and `geocoding_cache` out of `resetTables`),
    `helpers.test.ts`, `db-locations.test.ts`; create `db-trucks.test.ts`. Record open
-   decisions 2, 3 and 5. The docs this makes stale ride along: `CLAUDE.md`'s
+   decisions 3 and 5. The docs this makes stale ride along: `CLAUDE.md`'s
    target-design paragraph, `README.md`'s "What works today", `setup.ts`'s comments.
    *One PR because* it is the smallest unit with green gates (decision #2).
 3. **Constraint tests.** `tests/integration/schema.test.ts`: overlap → `23P01`; a
@@ -171,10 +174,12 @@ Strict order. Each numbered step is one PR into `dev`.
    gets an empty result. So the tests assert `42501` for the missing grants, and the
    one policy test (own `users` row) asserts rows. Record open decision 4.
 5. **Phase 5 retrospective**, by the milestone-retrospective procedure in
-   `.claude/process-log.md` ("How to use it"). Blocked by every other planned issue.
-6. **Follow-up issues** the retrospective opens, if any, each merged before step 7.
-7. **Reconcile `project-context.md`** (the end-of-phase task). Blocked by step 5 and by
-   each follow-up as it is opened. It covers Part 1's "Database", "Modules kept on
+   `.claude/process-log.md` ("How to use it").
+6. **Follow-up issues** the retrospective opens, if any.
+7. **Reconcile `project-context.md`** (the end-of-phase task).
+
+   Steps 5–7 are ordered, blocked and closed as that procedure's part 6 says; this plan
+   doesn't restate it. Step 7's content: it covers Part 1's "Database", "Modules kept on
    purpose", "Folder structure", "Tests and gates" and the Roadmap row; Part 2's
    "Explicit GRANTs" bullet, whose "Supabase doesn't auto-expose new tables to the API
    roles" leaves out the default privileges decision #6 records; and it carries
@@ -182,7 +187,7 @@ Strict order. Each numbered step is one PR into `dev`.
    are the likely one) and **Phase 4's #14 and #15**, which were added after Phase 4's
    reconciliation merged, with the tooling they and #149/#150 brought
    (`scripts/claims.sh`, `process-log.sh add`, the values block, the `Caught by`
-   groups). The milestone closes when this merges.
+   groups).
 
 ---
 
@@ -232,13 +237,22 @@ step 3 test asserts. A violation of the constraint raises `23P01`;
 Phase 7's service maps it to 409 "överlappar". Cancelled rows are outside the
 constraint, so a cancelled window can be re-entered.
 
-### #5 — `updated_at` via `moddatetime`
-`create extension moddatetime schema extensions` and one `before update` trigger. No
-custom function lands in `public`, so no function of ours needs its `search_path`
-pinned. **Rejected:** a hand-written
-plpgsql function; it works, but is more to own. Open decision 2 is the fallback if the
-extension isn't available locally. The trigger fires on every UPDATE, cancellation
-included; a cancelled row never reaches the map, so its moved `updated_at` shows nowhere.
+### #5 — `updated_at` via `moddatetime`; both extensions in `extensions`
+```sql
+create extension if not exists btree_gist  schema extensions;
+create extension if not exists moddatetime schema extensions;
+create trigger locations_updated_at before update on locations
+  for each row execute procedure extensions.moddatetime (updated_at);
+```
+No custom function lands in `public`, so no function of ours needs its `search_path`
+pinned, and neither extension's functions land there either (the stack keeps
+`pgcrypto`, `uuid-ossp` and others in `extensions` already). Both forms were probed
+in a rolled-back transaction on the local stack (2026-10-18): neither extension was
+installed before, both created in `extensions`, the trigger was accepted, and a GiST
+exclusion constraint on `uuid` and `tstzrange` raised its conflict on a second
+overlapping insert. **Rejected:** a hand-written plpgsql function; it works, but is more
+to own. The trigger fires on every UPDATE, cancellation included; a cancelled row never
+reaches the map, so its moved `updated_at` shows nowhere.
 
 ### #6 — Grants: revoke, then grant exactly the table; no `service_role` policies
 For each table: `revoke all … from anon, authenticated, service_role`, then the grants
@@ -269,12 +283,13 @@ a truck's history.
 rows and hand-written SQL have no author; `NewLocation` still requires the key, so a
 caller states it. `LOCATION_COLUMNS` leaves it out, so Phase 6's `/api/live` can't leak
 it by reusing the constant (the explicit-column rule in `CLAUDE.md`). **`Location` leaves
-it out too**, so the type is exactly what `LOCATION_COLUMNS` selects: a `Location` that
-included it would need an `as Location` cast where a select returns it, and a
-`created_by` typed `string | null` that is `undefined` at runtime. `NewLocation` adds it
-back for inserts.
-An admin-only column list, and a type to match, are added when something needs to read
-the author.
+it out too**, so the type is exactly what `LOCATION_COLUMNS` selects. The db layer still
+casts with `as Location`, to narrow `source` (a CHECK column arrives as `string`); with
+`created_by` in `Location`, that same cast would also hide a key the select never
+returns, typed `string | null` and `undefined` at runtime. Keeping the two in step
+means the cast does only the narrowing. `NewLocation` adds `created_by` back for
+inserts. An admin-only column list, and a type to match, are added when something
+needs to read the author.
 
 ### #9 — One overlap query for the live window and the checklist
 `findLocationsOverlapping(from, to)` returns non-cancelled rows overlapping `[from, to)`.
@@ -304,26 +319,38 @@ The Gothenburg bounding box is checked by Phase 7's validator (`isInGothenburg` 
 `src/lib/geo.ts`), which also catches swapped latitude and longitude. A CHECK in the
 database would be a second copy of the box, free to drift from the first.
 
-### #14 — Indexes: the constraint's, plus one for the live window
-The exclusion constraint's GiST index on `(truck_id, tstzrange(…))` serves per-truck
-lookups. One partial btree, `(ends_at) WHERE cancelled_at IS NULL`, serves the live
-window, where most rows have ended. About 22k rows a year (`project-context.md`), so
-nothing more until a measured query needs it. `0001`'s `locations_truck_starts` and
-`locations_expires` go.
+### #14 — Indexes: the constraint's, plus one per read
+The exclusion constraint's GiST index on `(truck_id, tstzrange(…))` serves overlap
+checks for one truck, but can't return rows in `starts_at` order. So two partial
+btrees, each `WHERE cancelled_at IS NULL`, one per read:
+- `(ends_at)` for the live window, where most rows have ended;
+- `(truck_id, starts_at desc)` for `listRecentLocationsForTruck`, which can then read
+  `limit` rows off the index instead of sorting a truck's whole history (which is never
+  deleted, so it only grows).
+
+About 22k rows a year in total (`project-context.md`), so nothing more until a measured
+query needs it. `0001`'s `locations_truck_starts` and `locations_expires` go.
 
 ### #15 — Seed history is relative to `now()`
 `seed.sql` builds four weeks of past rows, in Stockholm local times, with
-`generate_series`, on the three fixed-UUID trucks (Vintervilan stays inactive). "The
-same weekday last week" then exists after any reset. **Plus one row on an active truck
-from `now() - interval '1 hour'` to `now() + interval '12 hours'`**, so the live window
+`generate_series`, on the three fixed-UUID trucks (Vintervilan stays inactive). The
+series covers the 28 days **before today's Stockholm date and stops at yesterday**.
+"The same weekday last week" then exists after any reset. **Plus one row on an active
+truck from `now() - interval '1 hour'` to `now() + interval '12 hours'`**. Because the
+history stops at yesterday, that row can't overlap a history row, which would raise
+`23P01` and fail `db reset` only at certain times of day. (Today's date is the series' risk: a series that included it would put an 11–14
+row on the same truck, which the spanning row overlaps whenever a reset runs between
+about 10:00 and 14:00.) The row means the live window
 `[now, now + 1 day)` holds a row for 12 hours after a reset at any time of day. A row
 at fixed Stockholm hours ("today 11–14") would be over by the afternoon, and the live
 window would come back empty. **Rejected:** fixed dates, which
 fall out of the look-back window as the weeks pass. Open decision 3 covers DST.
 
 ### #16 — `trucks` and `users` columns unchanged, minus `last_known_*`
-`trucks`: `name` not null, `instagram_handle` unique and nullable, `is_active` and
-`created_at` not null with their defaults, as `0001` and `0003` left them. `users`:
+`trucks`, every column `0001` and `0003` left except `last_known_*`: `id` (uuid,
+`gen_random_uuid()`), `name` not null, `instagram_handle` unique and nullable,
+`cuisine_type` and `description` nullable text, `is_active` and `created_at` not null
+with their defaults (`project-context.md`'s Data model lists the same). `users`:
 `id` references `auth.users`, `truck_id` nullable, `is_admin` and `created_at` not null.
 Nothing in the target design changes them; owner claim columns are the Owners phase's.
 
@@ -341,6 +368,10 @@ Nothing in the target design changes them; owner claim columns are the Owners ph
   `source_confidence`, `is_negation`, `post_id`, `address_raw`, `address_geocoded`,
   `expires_at` exists (`information_schema.columns`).
 - [ ] `pg_class.relrowsecurity` is true for all three tables.
+- [ ] `select extname, extnamespace::regnamespace from pg_extension where extname in ('btree_gist', 'moddatetime')`
+  shows both in `extensions`.
+- [ ] `pg_indexes` for `locations` shows the exclusion constraint's GiST index and the
+  two partial btrees of decision #14, and no other index besides the primary key.
 - [ ] `select relname, relacl from pg_class where relname in ('trucks', 'locations', 'users') and relnamespace = 'public'::regnamespace`
   shows, besides the owner: no entry for `anon`; `authenticated=r` on `users` only;
   `service_role=arwd` (SELECT, INSERT, UPDATE, DELETE, nothing else) on all three.
@@ -349,7 +380,10 @@ Nothing in the target design changes them; owner claim columns are the Owners ph
   (`23P01`, `23514`, `23502`), and the PR records a negative control per case
   (constraint dropped or altered locally, test red, restored).
 - [ ] `rls.test.ts` shows: anon and `authenticated` get **`42501`** on SELECT, INSERT,
-  UPDATE and DELETE against `trucks` and `locations`; `authenticated` reads its own
+  UPDATE and DELETE against `trucks` and `locations`, each UPDATE and DELETE with a
+  filter (`.eq("id", …)`). Without one, the local API answers `21000` ("DELETE requires
+  a WHERE clause") before any permission check (probed with the anon key on
+  2026-10-18: unfiltered → `21000`, filtered → `42501`); `authenticated` reads its own
   `users` row and not another's (rows, filtered by the policy); its UPDATE of
   `is_admin` or `truck_id` gets `42501` and the row is unchanged afterwards (read with
   `service_role`); `service_role` reads and writes all three. Negative control: a
@@ -406,10 +440,10 @@ Nothing in the target design changes them; owner claim columns are the Owners ph
    yes. `pg_default_acl` on the local stack gives `anon`, `authenticated` and
    `service_role` TRUNCATE, REFERENCES, TRIGGER and MAINTAIN on new `public` tables
    (decision #6, which now revokes from all three).
-2. **`moddatetime` locally.** Confirm `create extension if not exists moddatetime schema
-   extensions` works on the local stack and the trigger references it correctly
-   (`extensions.moddatetime(updated_at)`). If not: a hand-written function with
-   `set search_path = ''`, and amend decision #5.
+2. ~~**`moddatetime` locally.**~~ → **answered in PR #159's review round 2:** both
+   extensions install into `extensions` on the local stack and the trigger form works
+   (decision #5's probe). Step 2 still runs it for real; a hosted project is Phase 6's
+   to check.
 3. **Seed times across DST.** Rows at 11:00–14:00 Stockholm time over four weeks must
    stay at 11:00–14:00 across a DST change. The seed's real window holds a DST change
    only in the four weeks after one (the next is 2026-10-25, a week after this plan
