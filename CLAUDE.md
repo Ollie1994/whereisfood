@@ -9,10 +9,10 @@ the two disagree, THE PLAN WINS.**
 `project-context.md` is only reconciled with reality at the END of a phase (it is a
 tracked task in each plan — Phase 4's was issue #127, Phase 5's is its step 7). So for
 the whole duration of a phase it is a snapshot of the phase *before* it, while the plan
-carries the decisions that were actually settled. Reading only the context is how a resolved question gets
-re-litigated with a stale answer. **If it has no "Current state" section, it predates
-the Phase 4 rewrite (#127) and describes the old three-lane design**, which Phase 4
-removed.
+carries the decisions that were actually settled. Reading only the context is how a
+resolved question gets re-litigated with a stale answer. **If it has no "Current state"
+section, it predates the Phase 4 rewrite (#127) and describes the old three-lane
+design**, which Phase 4 removed.
 
 The plan is also where the numbered decision records live (`#1`, `#2`, …) —
 those are the reasoning behind rules the context states as bare facts, and an issue

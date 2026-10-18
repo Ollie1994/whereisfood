@@ -62,8 +62,8 @@ unchanged.
 ### Create
 | File | Content |
 |---|---|
-| `supabase/migrations/0001_baseline.sql` | `btree_gist` and `moddatetime`, both in the `extensions` schema; `trucks`, `locations`, `users`; the exclusion constraint, `CHECK (ends_at > starts_at)` and the `source` CHECK; the `updated_at` trigger; two partial indexes; RLS and per-table grants (decisions #3–#8, #12–#14, #16). |
-| `src/lib/map-types.ts` | The fake-data map's **frozen, hand-written** types: `MapTruck`, `MapLocation` (with `last_known_*`, `confidence` and the old `source` lanes), `MarkerColor`, `MarkerState`. Deleted in Phase 6 (decision #1). |
+| `supabase/migrations/0001_baseline.sql` | `btree_gist` and `moddatetime`, both in the `extensions` schema; `trucks`, `locations`, `users`, every column's nullability stated (decision #17); the exclusion constraint, `CHECK (ends_at > starts_at)` and the `source` CHECK; the `updated_at` trigger; two partial indexes; RLS and per-table grants (decisions #3–#8, #12–#14, #16, #17). |
+| `src/lib/map-types.ts` | The fake-data map's **frozen, hand-written** types: `MapTruck` (today's `Truck`, `last_known_*` included), `MapLocation` (today's `Location`: `confidence`, `is_negation`, the old `source` lanes and the rest), `MarkerColor`, `MarkerState`. Deleted in Phase 6 (decision #1). |
 | `tests/integration/schema.test.ts` | Constraint, CHECK and trigger tests (step 3). |
 | `tests/integration/rls.test.ts` | RLS and grant tests (step 4). |
 | `tests/integration/db-trucks.test.ts` | Tests for the rewritten `db/trucks.ts`. |
@@ -72,7 +72,7 @@ unchanged.
 ### Modify
 | File | Change |
 |---|---|
-| `src/lib/database.types.ts` | Regenerated: `npx supabase gen types typescript --local > src/lib/database.types.ts`. |
+| `src/lib/database.types.ts` | Regenerated: `npx supabase gen types typescript --local > src/lib/database.types.ts`, **in Git Bash**, not PowerShell 5.1, whose `>` re-encodes the output (UTF-16, or UTF-8 with a BOM), so `git diff` shows the whole file changed. |
 | `src/lib/types.ts` | Re-derived: `Truck`, `Location` (without `created_by`; `source` narrowed to `'admin' \| 'owner'`), `NewLocation`, `LocationPatch`. `MarkerColor` and `MarkerState` move to `map-types.ts`. Comments rewritten for the new schema. |
 | `src/lib/db/trucks.ts` | Rewritten for the new schema (functions below). |
 | `src/lib/db/locations.ts` | Rewritten (functions below). No delete. |
@@ -107,7 +107,7 @@ and `moddatetime` are Postgres extensions).
 | `updateLocation(id, LocationPatch)` → `Location \| null` | Edits place, label or times of a row that isn't cancelled; `null` when no such row. Can raise `23P01` or the CHECK violation. |
 | `cancelLocation(id, cancelledAt)` → `Location \| null` | Sets `cancelled_at` where it is still null; `null` when the row is missing or already cancelled. The caller passes the timestamp (decision #10). |
 | `findLocationsOverlapping(from, to)` → `Location[]` | Non-cancelled rows with `starts_at < to AND ends_at > from`, all trucks (decision #9). |
-| `listRecentLocationsForTruck(truckId, limit)` → `Location[]` | The truck's latest non-cancelled rows, newest `starts_at` first. Phase 7's service dedupes them into "recent places". |
+| `listRecentLocationsForTruck(truckId, before, limit)` → `Location[]` | The truck's latest non-cancelled rows with `starts_at < before`, newest `starts_at` first. The caller passes `before` (usually now), so future entries don't fill "recent places" and the clock stays in the service (decision #10). Phase 7's service dedupes them into "recent places". |
 | ~~`findOverlapping`, `deleteLocations`~~ | Removed: the constraint replaces the first; rows are never deleted. |
 
 Every select names its columns through one `LOCATION_COLUMNS` constant, which leaves
@@ -122,7 +122,11 @@ the columns exist (issue #48).
 - `NewLocation`: `Location` minus `id`, `created_at`, `updated_at`, `cancelled_at` (an insert is never born cancelled), **plus `created_by: string | null`**. Every key, `created_by` and `label` included, is required, so a caller states each value.
 - `LocationPatch`: an optional pick of `latitude`, `longitude`, `label`, `starts_at`, `ends_at`.
 
-**`src/lib/map-types.ts`**: types only, frozen copies of today's shapes (decision #1).
+**`src/lib/map-types.ts`**: types only (decision #1). `MapTruck` and `MapLocation` are
+copies of today's `Truck` and `Location` **with every current field**, not a trimmed
+set: the map reads `truck.last_known_latitude`/`_longitude` and `location.is_negation`,
+`confidence`, `source` (`src/hooks/useMapLibre.tsx:40–56`, `TruckPopup.tsx`). Copying
+the whole shape keeps step 1 a type-only move.
 
 **`tests/integration/helpers.ts`**
 | Helper | Does |
@@ -141,7 +145,8 @@ its own fixture truck, or the seed leaks into the count.
 
 ## Steps
 
-Strict order. Each numbered step is one PR into `dev`.
+Strict order. Steps 0–5 and 7 are one PR into `dev` each; step 6 is one issue and PR
+per follow-up the retrospective opens, which may be none.
 
 0. **This plan.** The plan file, and `CLAUDE.md` pointing at it as the current plan.
 1. **Decouple the map from the schema types.** Create `src/lib/map-types.ts`; switch
@@ -161,18 +166,29 @@ Strict order. Each numbered step is one PR into `dev`.
    *One PR because* it is the smallest unit with green gates (decision #2).
 3. **Constraint tests.** `tests/integration/schema.test.ts`: overlap → `23P01`; a
    cancelled row doesn't block; back-to-back windows are allowed; `ends_at = starts_at`
-   and `ends_at < starts_at` are rejected with **`23514`**; NOT NULL `ends_at`; a bad
-   `source` is rejected; `updated_at` moves on UPDATE and `created_at` doesn't. Each
+   and `ends_at < starts_at` are rejected with **`23514`**; a NULL in each NOT NULL
+   column of decision #17 is rejected with `23502` (`source` included: a CHECK passes
+   NULL, so only NOT NULL stops it); a bad `source` value is rejected with `23514`;
+   `updated_at` moves on UPDATE and `created_at` doesn't. Each
    test asserts the **SQLSTATE**, not only that an error came back: with the CHECK
    dropped, `ends_at < starts_at` still fails, with `22000` from the constructor of
    `tstzrange(starts_at, ends_at)` in the exclusion constraint (decision #4), so an
    "any error" test stays green. Each with a negative control, recorded in the PR.
 4. **RLS and grant tests.** `anonClient()`, `signedInClient()` and auth-user cleanup in
    `resetTables()` (with `helpers.test.ts` cases for the new cleanup);
-   `tests/integration/rls.test.ts`. A role without a table grant gets **`42501`**
-   (permission denied), not an empty result; a role with a grant but no RLS policy
-   gets an empty result. So the tests assert `42501` for the missing grants, and the
-   one policy test (own `users` row) asserts rows. Record open decision 4.
+   `tests/integration/rls.test.ts`. What each case sees, probed in rolled-back
+   transactions on 2026-10-18:
+   - no grant: `42501` "permission denied for table …", with a hint naming the missing
+     privilege (`GRANT INSERT ON …`);
+   - a grant and no RLS policy: SELECT, UPDATE and DELETE affect no rows; INSERT gets
+     `42501` "new row violates row-level security policy";
+   - an UPDATE or DELETE grant without SELECT: a filtered request still gets "permission
+     denied", with the hint `GRANT SELECT ON …`.
+
+   So `42501` alone can't tell a missing grant from a wrong one. Each case asserts the
+   code **and the hint naming that operation's own privilege** (SELECT, INSERT, UPDATE,
+   DELETE), which only a missing grant produces. The one policy test (own `users` row)
+   asserts rows. Record open decision 4.
 5. **Phase 5 retrospective**, by the milestone-retrospective procedure in
    `.claude/process-log.md` ("How to use it").
 6. **Follow-up issues** the retrospective opens, if any.
@@ -180,7 +196,9 @@ Strict order. Each numbered step is one PR into `dev`.
 
    Steps 5–7 are ordered, blocked and closed as that procedure's part 6 says; this plan
    doesn't restate it. Step 7's content: it covers Part 1's "Database", "Modules kept on
-   purpose", "Folder structure", "Tests and gates" and the Roadmap row; Part 2's
+   purpose", "Folder structure", "Tests and gates" and the Roadmap row; Part 3's
+   "Component structure" example, which imports `MarkerState` from `@/lib/types`
+   (`project-context.md:501`; it moves to `map-types.ts` in step 1); Part 2's
    "Explicit GRANTs" bullet, whose "Supabase doesn't auto-expose new tables to the API
    roles" leaves out the default privileges decision #6 records; and it carries
    forward the decisions that outlive their phase: this plan's (#10's db-layer rules
@@ -301,8 +319,9 @@ chosen).
 
 ### #10 — The db layer finds and mutates; it decides nothing
 Errors propagate unchanged, so a `23P01` reaches the service with its code. No function
-reads the clock: `cancelLocation` takes `cancelledAt`, and the overlap query takes its
-window, so time stays in the service (`CLAUDE.md`, "Time"). PostgREST can't send
+reads the clock: `cancelLocation` takes `cancelledAt`, the overlap query its window and
+`listRecentLocationsForTruck` its `before`, so time stays in the service (`CLAUDE.md`,
+"Time"). PostgREST can't send
 `now()` in an update anyway. No function deletes; ended and cancelled are filters.
 
 ### #11 — Truck writes wait for Phase 7
@@ -329,7 +348,8 @@ btrees, each `WHERE cancelled_at IS NULL`, one per read:
   deleted, so it only grows).
 
 About 22k rows a year in total (`project-context.md`), so nothing more until a measured
-query needs it. `0001`'s `locations_truck_starts` and `locations_expires` go.
+query needs it. Today's `locations_truck_starts` (created in `0001`, reshaped under the
+same name by `0006`) and `0001`'s `locations_expires` go.
 
 ### #15 — Seed history is relative to `now()`
 `seed.sql` builds four weeks of past rows, in Stockholm local times, with
@@ -354,6 +374,17 @@ with their defaults (`project-context.md`'s Data model lists the same). `users`:
 `id` references `auth.users`, `truck_id` nullable, `is_admin` and `created_at` not null.
 Nothing in the target design changes them; owner claim columns are the Owners phase's.
 
+### #17 — Every column's nullability is stated; NOT NULL unless named here
+Every column of the three tables is NOT NULL, except `trucks.instagram_handle`,
+`cuisine_type` and `description`; `users.truck_id`; and on `locations`, `label`
+(decision #12), `cancelled_at` (null means live) and `created_by` (decision #8). On
+`locations` that makes `truck_id`, `latitude`, `longitude`, `starts_at`, `ends_at`,
+`source` (default `'admin'`), `created_at` and `updated_at` NOT NULL. **`source` in
+particular:** a CHECK whose expression is NULL passes, so `source in ('admin',
+'owner')` alone lets a NULL through, and `types.ts`'s narrowing to `'admin' | 'owner'`
+would hide it from `tsc`. `0001` made this mistake and `0002`/`0003` fixed it column by
+column; the baseline states every column's nullability once.
+
 ---
 
 ## Acceptance Criteria
@@ -363,8 +394,10 @@ Nothing in the target design changes them; owner claim columns are the Owners ph
 - [ ] `npx supabase db reset` exits 0 and applies the migration and the seed.
 - [ ] `select table_name from information_schema.tables where table_schema = 'public'`
   returns exactly `trucks`, `locations`, `users`.
-- [ ] `locations` has exactly the columns of `project-context.md`'s Data model;
-  `starts_at` and `ends_at` are NOT NULL; none of `confidence`, `parser_confidence`,
+- [ ] `locations` has exactly the columns of `project-context.md`'s Data model, with
+  `information_schema.columns.is_nullable` matching decision #17 for every column of
+  all three tables (only `label`, `cancelled_at` and `created_by` nullable on
+  `locations`); none of `confidence`, `parser_confidence`,
   `source_confidence`, `is_negation`, `post_id`, `address_raw`, `address_geocoded`,
   `expires_at` exists (`information_schema.columns`).
 - [ ] `pg_class.relrowsecurity` is true for all three tables.
@@ -379,20 +412,29 @@ Nothing in the target design changes them; owner claim columns are the Owners ph
 - [ ] `schema.test.ts` covers each case in step 3, asserting each case's SQLSTATE
   (`23P01`, `23514`, `23502`), and the PR records a negative control per case
   (constraint dropped or altered locally, test red, restored).
-- [ ] `rls.test.ts` shows: anon and `authenticated` get **`42501`** on SELECT, INSERT,
-  UPDATE and DELETE against `trucks` and `locations`, each UPDATE and DELETE with a
-  filter (`.eq("id", …)`). Without one, the local API answers `21000` ("DELETE requires
-  a WHERE clause") before any permission check (probed with the anon key on
-  2026-10-18: unfiltered → `21000`, filtered → `42501`); `authenticated` reads its own
-  `users` row and not another's (rows, filtered by the policy); its UPDATE of
-  `is_admin` or `truck_id` gets `42501` and the row is unchanged afterwards (read with
-  `service_role`); `service_role` reads and writes all three. Negative control: a
-  temporary `grant select on locations to anon` turns the anon SELECT test red (the
-  result becomes an empty list instead of `42501`).
+- [ ] `rls.test.ts` shows, each refusal asserted as `42501` **plus the hint naming that
+  operation's privilege** (step 4):
+  - anon and `authenticated` are refused SELECT, INSERT, UPDATE and DELETE on `trucks`
+    and `locations`, each UPDATE and DELETE with a filter (`.eq("id", …)`). Without
+    one, the local API answers `21000` ("DELETE requires a WHERE clause") before any
+    permission check (probed with the anon key on 2026-10-18: unfiltered → `21000`,
+    filtered → `42501`);
+  - anon is refused SELECT, INSERT, UPDATE and DELETE on `users`;
+  - `authenticated` reads its own `users` row and not another's (rows, filtered by the
+    policy); is refused an INSERT into `users`, including its own id with
+    `is_admin = true` (the other self-escalation path); is refused UPDATE of
+    `is_admin` or `truck_id` on its own row, which is unchanged afterwards (read with
+    `service_role`);
+  - `service_role` reads and writes all three.
+
+  **Negative controls, one per operation**, each a temporary grant that turns its test
+  red: `grant select` (the SELECT test gets an empty list), `grant insert` (the INSERT
+  test gets the RLS message, no hint), `grant update` and `grant delete` (their tests
+  get the `GRANT SELECT` hint).
 
 **Types and db layer (step 2)**
 - [ ] Re-running `npx supabase gen types typescript --local > src/lib/database.types.ts`
-  leaves `git diff --exit-code src/lib/database.types.ts` clean.
+  in Git Bash leaves `git diff --exit-code src/lib/database.types.ts` clean.
 - [ ] `grep -rnE "last_known|confidence|expires_at|is_negation|post_id|posts|geocod" src/lib/db src/lib/types.ts src/lib/database.types.ts tests/integration supabase/migrations supabase/seed.sql`
   → no hits. (Not all of `supabase/`: the gitignored CLI cache
   `supabase/.temp/pgdelta/*.json` holds `expires_at` 72 times per file, checked
@@ -455,7 +497,10 @@ Nothing in the target design changes them; owner claim columns are the Owners ph
    `admin.createUser({ email_confirm: true })` and a password sign-in, or does the test
    need OTP? Delete order: the `users` row, then the auth user (`users.id` references
    `auth.users` with no cascade). The email prefix must hold no `%`, `_` or `*`, for the
-   reason `FIXTURE_PREFIX` records in `helpers.ts`.
+   reason `FIXTURE_PREFIX` records in `helpers.ts`. **The hint the RLS tests assert**
+   (`GRANT … ON …`) was seen on the local stack's Postgres 17.6; whether it comes from
+   upstream Postgres or Supabase's image isn't checked. If an upgrade drops it, the
+   tests fail loudly rather than pass, and step 4 then asserts the message instead.
 5. **How `23P01` arrives through supabase-js.** Confirm a PostgREST error on insert and
    update carries `code: "23P01"`; Phase 7's 409 mapping depends on it. Step 2's tests
    pin it.
