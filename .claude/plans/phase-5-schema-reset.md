@@ -1,7 +1,8 @@
 # Phase 5 — Schema reset
 
-**Planned:** 2026-10-18 · **Status:** agreed through PR #159's review (four
-`/code-review` rounds, rows 323–327); in progress from its merge
+**Planned:** 2026-10-18 · **Status:** agreed through PR #159's review (its
+`/code-review` rounds are in the PR body and the process log from row 323); in progress
+from its merge
 **Source:** `project-context.md` Part 2 ("Phase map", "Data model (Phase 5)", "RLS and
 grants (Phase 5)") and the `/create-milestone` conversation of 2026-10-18. Where this
 plan and `project-context.md` disagree, **this plan wins** until step 7 reconciles the
@@ -16,12 +17,12 @@ stated in comments.
 
 ## Goal
 
-A single squashed migration creates the target schema (`trucks`, `locations`, `users`
-with the overlap exclusion constraint, `CHECK (ends_at > starts_at)`, an `updated_at`
-trigger, RLS and an explicit per-table GRANT, and no anon access to `trucks` or
-`locations`), and the generated types, `seed.sql`, `db/trucks.ts`, `db/locations.ts` and
-the integration tests all match it, with all four gates green and the fake-data map
-unchanged.
+A single squashed migration creates the target schema (`trucks`, `locations` and
+`users`; on `locations` the overlap exclusion constraint, `CHECK (ends_at > starts_at)`
+and an `updated_at` trigger; on all three RLS and an explicit per-table GRANT, and no
+anon access to `trucks` or `locations`), and the generated types, `seed.sql`,
+`db/trucks.ts`, `db/locations.ts` and the integration tests all match it, with all four
+gates green and the fake-data map unchanged.
 
 ---
 
@@ -83,7 +84,7 @@ unchanged.
 | `tests/integration/setup.ts` | Comments only: they name `NOMINATIM_BASE_URL` (line 73) and `geocoding.ts` (line 87), both removed in Phase 4. |
 | `src/lib/fake-data.ts`, `src/hooks/useMapLibre.tsx`, `src/components/Map/TruckPopup.tsx` | **Type imports and type names only**, from `map-types.ts`. No behaviour change. |
 | `README.md` | "What works today": the schema is the new design's; and the status line (`README.md:14`, still "Phase 4 of 8 (housekeeping)"). |
-| `CLAUDE.md` | Step 0: point at this plan. Step 2: the "Target-design rules, enforced from Phase 5" paragraph becomes current rules, and its list of what today's schema breaks goes. |
+| `CLAUDE.md` | Step 0: point at this plan. Step 2: the "Target-design rules, enforced from Phase 5" paragraph becomes current rules, and its list of what today's schema breaks goes; and the Hard Rules' grants bullet loses "0001 … grants `service_role` with one blanket `on all tables` grant …; don't copy it", which is false of the baseline. |
 | `.claude/context/project-context.md` | Step 7, the end-of-phase reconciliation. |
 | `.claude/process-log.md` | Step 5, the Phase 5 retrospective; rows as misses happen. |
 
@@ -125,8 +126,10 @@ the columns exist (issue #48).
 
 **`src/lib/map-types.ts`**: types only (decision #1). `MapTruck` and `MapLocation` are
 copies of today's `Truck` and `Location` **with every current field**, not a trimmed
-set: the map reads `truck.last_known_latitude`/`_longitude` and `location.is_negation`,
-`confidence`, `source` (`src/hooks/useMapLibre.tsx:40–56`, `TruckPopup.tsx`). Copying
+set. The map reads `location.confidence` and `is_negation` and
+`truck.last_known_latitude`/`_longitude` (`src/hooks/useMapLibre.tsx:37, 48–53`), and
+`TruckPopup.tsx:23–25` branches on `ends_at` being null ("Från …"), so `MapLocation`
+keeps today's nullable `ends_at` where the new `Location` makes it required. Copying
 the whole shape keeps step 1 a type-only move.
 
 **`tests/integration/helpers.ts`**
@@ -134,7 +137,7 @@ the whole shape keeps step 1 a type-only move.
 |---|---|
 | `seedTruck(name)` | Kept. |
 | `seedLocation(truckId, overrides?)` | Inserts a valid location with defaults, so a test states only what it is about. |
-| `anonClient()` | A supabase-js client with the anon key. |
+| `anonClient()` | A supabase-js client with the anon key. Not `supabaseClient` from `supabase.ts`: `CLAUDE.md` keeps that one for browser Auth, and Phase 7 splits the file. |
 | `signedInClient()` | Creates a prefixed auth user and its `users` row through the admin API, signs in, returns an `authenticated` client and its user id. |
 | `resetTables()` | Also removes fixture `users` rows and fixture auth users. They are found through the admin API, not PostgREST (`public.users` has no email, and `auth` isn't exposed): `auth.admin.listUsers({ page, perPage })`, **every page until a short one** (one page holds 50 by default, and leaked fixtures from interrupted runs are the case cleanup exists for), filtered on the email prefix; their ids give the `users` rows. Children first: `users` rows before trucks (`users.truck_id` references `trucks`, decision #7) and before their auth users (`users.id` references `auth.users`). ⚠ Today's version returns early when no fixture truck exists (`helpers.ts:91`); the user cleanup must run before that return or without it, or a test that creates a user and no truck leaks the user. |
 
@@ -165,8 +168,8 @@ per follow-up the retrospective opens, which may be none.
    (`seedLocation`; `posts` and `geocoding_cache` out of `resetTables`),
    `helpers.test.ts`, `db-locations.test.ts`; create `db-trucks.test.ts`. Record open
    decisions 3 and 5. The docs this makes stale ride along: `CLAUDE.md`'s
-   target-design paragraph, `README.md`'s status line and "What works today",
-   `setup.ts`'s comments.
+   target-design paragraph and its Hard Rules sentence about `0001`'s blanket grant,
+   `README.md`'s status line and "What works today", `setup.ts`'s comments.
    *One PR because* it is the smallest unit with green gates (decision #2).
 3. **Constraint tests.** `tests/integration/schema.test.ts`: overlap → `23P01`; a
    cancelled row doesn't block; back-to-back windows are allowed; `ends_at = starts_at`
@@ -174,16 +177,17 @@ per follow-up the retrospective opens, which may be none.
    column of decision #17 is rejected with `23502` (`source` included: a CHECK passes
    NULL, so only NOT NULL stops it); a bad `source` value is rejected with `23514`;
    `updated_at` moves on an UPDATE of a column in the trigger's list (decision #5) and
-   `created_at` doesn't; `updated_at` **doesn't** move when deleting an auth user sets
-   its rows' `created_by` to NULL. Each
-   test asserts the **SQLSTATE**, not only that an error came back: with the CHECK
+   `created_at` doesn't. (The `SET NULL` case needs an auth user, so it is step 4's.)
+   Each test asserts the **SQLSTATE**, not only that an error came back: with the CHECK
    dropped, `ends_at < starts_at` still fails, with `22000` from the constructor of
    `tstzrange(starts_at, ends_at)` in the exclusion constraint (decision #4), so an
    "any error" test stays green. Each with a negative control, recorded in the PR.
 4. **RLS and grant tests.** `anonClient()`, `signedInClient()` and auth-user cleanup in
    `resetTables()` (with `helpers.test.ts` cases for the new cleanup);
-   `tests/integration/rls.test.ts`. What each case sees, probed in rolled-back
-   transactions on 2026-10-18:
+   `tests/integration/rls.test.ts`. With the auth fixtures in place, `schema.test.ts`
+   gains step 3's remaining case: `updated_at` **doesn't** move when deleting an auth
+   user sets its rows' `created_by` to NULL (decision #5). What each case sees, probed
+   in rolled-back transactions on 2026-10-18:
    - no grant: `42501` "permission denied for table …", with a hint listing every
      missing privilege: `GRANT SELECT ON …`, `GRANT INSERT ON …`, and for a filtered
      UPDATE or DELETE `GRANT SELECT, UPDATE ON …` / `GRANT SELECT, DELETE ON …` (the
@@ -454,7 +458,9 @@ column; the baseline states every column's nullability once.
   `users` that test and its control are anon's, since `authenticated` may read its own
   row), `grant insert` (the INSERT test gets the RLS message, no hint),
   `grant update` and `grant delete` (their tests get the hint `GRANT SELECT ON …`,
-  which lacks UPDATE or DELETE).
+  which lacks UPDATE or DELETE; except `authenticated` on `users`, which already holds
+  SELECT there, so the write gets no error at all and matches no row, as "a grant and no
+  RLS policy" in step 4 predicts).
 
 **Types and db layer (step 2)**
 - [ ] Re-running `npx supabase gen types typescript --local > src/lib/database.types.ts`
@@ -464,13 +470,18 @@ column; the baseline states every column's nullability once.
   `supabase/.temp/pgdelta/*.json` holds `expires_at` 72 times per file, checked
   2026-10-18.) Old-design names remain only in `map-types.ts`, `fake-data.ts`,
   `useMapLibre.tsx` and `TruckPopup.tsx`.
-- [ ] ``grep -rnE "\.select\(\s*\)|\.select\(\s*[\"'\`][^\"'\`]*\*|\.delete\(" src/lib/db``
+- [ ] ``grep -rnE "\.select\(\s*\)|\.select\(\s*[\"'\`][^\"'\`]*\*|\.delete\(" src/lib/db | grep -vE "^[^:]+:[0-9]+:\s*(//|\*|/\*)"``
   → no hits. (`-r`: without it grep stops at "Is a directory", exit 2. The pattern was
   checked on 2026-10-18 against a scratch file: it matches `.select()`, `.select( )`,
   `select("*")`, `select('*')`, ``select(`*`)``, `select( "*" )`, `select("id, *")` and
-  `.delete()`, not `.select(LOCATION_COLUMNS)` or `.select("id, truck_id")`, and finds
-  today's 5 in `src/lib/db`.)
-- [ ] `LOCATION_COLUMNS` does not contain `created_by`.
+  `.delete()`, not `.select(LOCATION_COLUMNS)` or `.select("id, truck_id")`. The second
+  grep drops comment lines: today's code gives 5 hits without it, one of them the
+  comment at `locations.ts:32`, and 4 with it.)
+- [ ] `grep -rnE "_COLUMNS\s*=.*\*" src/lib/db` → no hits: the greps above read only
+  what is written inside `.select(…)`, so a `"*"` in a column constant passes them.
+- [ ] `LOCATION_COLUMNS` does not contain `created_by`, and `db-locations.test.ts`
+  asserts that the keys of a row each function returns are exactly `Location`'s. That
+  test is the guard that sees what the select returns; the greps read source text only.
 - [ ] Each function exported by `db/trucks.ts` and `db/locations.ts` has an integration
   test, including: `insertLocation` and `updateLocation` let a `23P01` through with its
   code; `cancelLocation` returns `null` for an already-cancelled row.
@@ -496,7 +507,8 @@ column; the baseline states every column's nullability once.
 **Docs (step 2, under the sweep)**
 - [ ] `CLAUDE.md` no longer has the "Target-design rules, enforced from Phase 5"
   paragraph listing what today's schema breaks; the Locations and anon-SELECT rules
-  read as current.
+  read as current; the Hard Rules' grants bullet no longer describes `0001`'s blanket
+  `service_role` grant.
 - [ ] `README.md`'s "What works today" describes the new schema, and its status line names Phase 5.
 
 **Closing**
