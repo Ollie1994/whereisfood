@@ -136,9 +136,10 @@ the whole shape keeps step 1 a type-only move.
 | Helper | Does |
 |---|---|
 | `seedTruck(name)` | Kept. |
-| `seedLocation(truckId, overrides?)` | Inserts a valid location with defaults, so a test states only what it is about. A call without `starts_at`/`ends_at` gets a window on a day no earlier call used: day *n* after 2000-01-01, *n* a counter in the module. So two default calls on one truck don't raise `23P01`; a test that passes its own window keeps it after 2020 (a rule for the tests; the counter would need 7,000-odd default calls in one run to get there). |
+| `seedLocation(truckId, overrides?)` | Inserts a valid location with defaults, so a test states only what it is about. **It throws if exactly one of `starts_at`/`ends_at` is given**: a default for the other would come from the year-2000 window below, giving `23514` or a window spanning decades. A call without `starts_at`/`ends_at` gets a window on a day no earlier call used: day *n* after 2000-01-01, *n* a counter in the module. So two default calls on one truck don't raise `23P01`; a test that passes its own window keeps it after 2020 (a rule for the tests; the counter would need 7,000-odd default calls in one run to get there). |
 | `anonClient()` | A supabase-js client with the anon key. Not `supabaseClient` from `supabase.ts`: `CLAUDE.md` keeps that one for browser Auth, and Phase 7 splits the file. |
-| `signedInClient()` | Creates a prefixed auth user with `supabaseAdmin.auth.admin.createUser`, then its `users` row with `supabaseAdmin.from("users").insert` (the Auth admin API doesn't write `public` tables); signs in; returns an `authenticated` client and its user id. |
+| `createFixtureAuthUser()` | The **only** way a test creates an auth user: `supabaseAdmin.auth.admin.createUser` with an email carrying the fixture prefix, so `resetTables()` finds it even when the test fails before its own cleanup. Returns the user id. Step 4's bare authors (no `users` row) come from it directly. |
+| `signedInClient()` | Creates a prefixed auth user with `createFixtureAuthUser()`, then its `users` row with `supabaseAdmin.from("users").insert` (the Auth admin API doesn't write `public` tables); signs in; returns an `authenticated` client and its user id. |
 | `resetTables()` | Also removes fixture `users` rows and fixture auth users. They are found through the admin API, not PostgREST (`public.users` has no email, and `auth` isn't exposed): `auth.admin.listUsers({ page, perPage })`, **every page until a short one** (one page holds 50 by default, and leaked fixtures from interrupted runs are the case cleanup exists for), filtered in JS with `startsWith` on the email prefix; their ids give the `users` rows. Children first: `users` rows before trucks (`users.truck_id` references `trucks`, decision #7) and before their auth users (`users.id` references `auth.users`). ⚠ Today's version returns early when no fixture truck exists (`helpers.ts:91`); the user cleanup must run before that return or without it, or a test that creates a user and no truck leaks the user. |
 
 ⚠ `resetTables()` removes only `itest-fixture-` trucks and their children, so the
@@ -178,8 +179,11 @@ per follow-up the retrospective opens, which may be none.
    column of decision #17 except the `id` primary keys is rejected with `23502`
    (`source` included: an enum column accepts NULL, so only NOT NULL stops it; a primary key
    implies NOT NULL and can't drop it for a control: "column "id" is in a primary
-   key", probed 2026-10-18); a bad `source` value is rejected with `22P02` (decision
-   #18);
+   key", probed 2026-10-18); a bad `source` value is rejected with `22P02` **and a
+   message naming `location_source`** (decision #18): `22P02` alone also comes from
+   any malformed uuid (probed: `'not-a-uuid'::uuid` → `22P02`). Its control is
+   `alter table locations alter column source type text`, after which the bad value
+   inserts (probed 2026-10-18);
    `updated_at` moves on an edit and on a cancel (decision #5) and `created_at`
    doesn't. (The two `created_by` cases need an auth user, so they are step 4's.)
    Each case that expects an error asserts its **SQLSTATE**, not only that an error
@@ -197,7 +201,7 @@ per follow-up the retrospective opens, which may be none.
    gains step 3's two `created_by` cases (decision #5): `updated_at` **doesn't** move
    when deleting an auth user sets its rows' `created_by` to NULL (control: the
    trigger without its `WHEN` clause; the author is a bare auth user from
-   `admin.createUser`, with no `users` row, because `users.id → auth.users` is NO
+   `createFixtureAuthUser()`, with no `users` row, because `users.id → auth.users` is NO
    ACTION and its row would block the delete: `confdeltype = 'a'` on today's
    `users_id_fkey`, read 2026-10-18), and **does** move on an edit that also sets a
    NULL `created_by` to a user (control: round 6's `old … is not distinct from new …`
@@ -303,6 +307,11 @@ including one that attributes a row (NULL → a user), still moves it. Probed in
 rolled-back transactions (2026-10-18), on a stand-in parent table: with a plain
 trigger the `SET NULL` moved `updated_at`; with this clause it didn't, and a plain
 edit, an edit of an unattributed row, and an attribution with a label edit each did.
+**The limit:** the clause skips *any* UPDATE that clears `created_by`, not only the
+FK's, so an edit that also clears it leaves `updated_at` stale. The db layer never
+writes `created_by` on an update (`LocationPatch` omits it; `cancelLocation` sets
+`cancelled_at` only), so only hand-written SQL can do that, and **SQL that clears
+`created_by` while editing sets `updated_at = now()` itself**.
 **Rejected:** `when (old.created_by is not distinct from new.created_by)` (PR #159
 round 6), which also skips that attribution-with-edit (probed: `updated_at` didn't
 move); and a column list (`before update of label, cancelled_at, …`), which has to be
@@ -444,8 +453,8 @@ and hand-written SQL leave them out. Every `id` `gen_random_uuid()` except `user
 (it is the auth user's); every `created_at`, and `locations.updated_at`, `now()`;
 `trucks.is_active` `true`; `users.is_admin` `false`; `locations.source` `'admin'`.
 (`0001` gives the same defaults to `id`, `created_at`, `updated_at`, `is_active` and
-`is_admin`, on nullable columns; its `locations.source` has no default, and its values
-were the old lanes.)
+`is_admin`. Its `id` columns are primary keys, so NOT NULL; the other four it left
+nullable. Its `locations.source` has no default, and its values were the old lanes.)
 
 ### #18 — `source` is a Postgres enum, not text with a CHECK
 `create type location_source as enum ('admin', 'owner')`, and `locations.source
@@ -485,9 +494,10 @@ removed; `'owner'` is already planned, so the list isn't expected to shrink.
   `service_role=arwd` (SELECT, INSERT, UPDATE, DELETE, nothing else) on all three.
   (`relacl` rather than `role_table_grants`, which doesn't list MAINTAIN.)
 - [ ] `schema.test.ts` covers each case in step 3, asserting the SQLSTATE (`23P01`,
-  `23514`, `23502`, `22P02`) of each case that expects an error, and the PR records a negative
-  control per case (constraint dropped or altered locally, test red, restored with
-  `npx supabase db reset`).
+  `23514`, `23502`, `22P02`) of each case that expects an error (the `22P02` case
+  also its message's `location_source`), and the PR records a negative control per
+  case (constraint dropped or altered locally, or `source` altered to `text`; test
+  red; restored with `npx supabase db reset`).
 - [ ] `schema.test.ts` also covers step 4's two `created_by` cases: deleting an auth
   user leaves `updated_at` on its rows unchanged, and an edit that sets a NULL
   `created_by` to a user moves it; each case's negative control (step 4) turns it red.
@@ -541,10 +551,12 @@ removed; `'owner'` is already planned, so the list isn't expected to shrink.
   test, including: `insertLocation` and `updateLocation` let a `23P01` through with its
   code; `cancelLocation` returns `null` for an already-cancelled row; `updateLocation`
   throws on an empty patch (`{}`, and one whose keys are all `undefined`).
-- [ ] Within 12 hours of `npx supabase db reset`, at any time of day,
-  `findLocationsOverlapping(now, now + 1 day)` returns at least one seed row, and the
-  Stockholm day one week earlier returns at least one, each on an active truck; no seed
-  row is on Vintervilan (decision #15).
+- [ ] **A manual check, run right after `npx supabase db reset` and recorded in step 2's
+  PR; never an integration test**, since its result depends on how long ago the local
+  database was reset: `findLocationsOverlapping(now, now + 1 day)` returns at least
+  one seed row, and the Stockholm day one week earlier returns at least one, each on
+  an active truck; no seed row is on Vintervilan (decision #15). (Decision #15 makes
+  it hold for 12 hours after a reset, at any time of day.)
 - [ ] Every seed row in the four weeks of history starts and ends at the same
   Stockholm wall-clock times, checked on a series that crosses a DST change (open
   decision 3).
