@@ -1,13 +1,13 @@
-// The fake-data map's types: FROZEN, HAND-WRITTEN copies of the old schema's rows.
+// The fake-data map's types, frozen until Phase 6 deletes this file.
 //
-// The map still runs the old design (grey markers at `last_known_*`, colours from
-// `confidence`) until Phase 6 replaces its data source. Phase 5 regenerates the
-// generated Supabase types from a schema without those columns, so the map can't keep
-// deriving from them: these are literal copies of `Truck` and `Location` as `types.ts`
-// derived them before Phase 5, every field kept (plan phase-5-schema-reset, decision #1).
+// `MapTruck` and `MapLocation` copy the `trucks` and `locations` rows of
+// `src/lib/database.types.ts` at commit d018091, every field, with `source` narrowed as
+// `types.ts` did at that commit. Checked in PR #166 with tsc: mutually assignable, equal
+// keys. Why frozen: plan phase-5-schema-reset, decision #1 and its `map-types.ts`
+// section. What the map shows until then: CLAUDE.md, UI Rules.
 //
-// ⚠ Never import the generated types here. A derived type would change with the
-// schema, which is what this file exists to stop. Phase 6 deletes the file.
+// ⚠ No imports in this file. Anything from `database.types` or `@/lib/types` follows
+// the schema, which plan step 2 replaces.
 
 export interface MapTruck {
   created_at: string;
@@ -26,7 +26,7 @@ export interface MapLocation {
   address_raw: string | null;
   confidence: number;
   created_at: string;
-  // Nullable here, unlike the new schema: `TruckPopup` shows "Från …" for a null end.
+  // Nullable: `TruckPopup.tsx:23–25` shows "Från …" when it is null.
   ends_at: string | null;
   expires_at: string;
   id: string;

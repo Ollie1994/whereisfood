@@ -42,5 +42,3 @@ export type Location = Omit<LocationRow, "source"> & {
 // deliberate: a silent default is how a row ends up with a value nobody chose, so
 // making every column required means a caller cannot forget one.
 export type NewLocation = Omit<Location, "id" | "created_at" | "updated_at">;
-
-// The map's marker types live in `map-types.ts`, frozen until Phase 6.

@@ -1,11 +1,11 @@
 import { formatInTimeZone } from "date-fns-tz";
-import type { MarkerState } from "@/lib/map-types";
+import type { MarkerColor, MarkerState } from "@/lib/map-types";
 
 const TZ = "Europe/Stockholm";
 
 // Human-language labels for the old design's marker colours, never raw numbers.
 // Phase 6 replaces them with freshness text ("Uppdaterad 08:12").
-const CONFIDENCE_LABEL: Record<MarkerState["color"], string> = {
+const CONFIDENCE_LABEL: Record<MarkerColor, string> = {
   green: "Postad av trucken idag",
   yellow: "Baserat på morgonens inlägg",
   grey: "Ingen uppdatering idag",
