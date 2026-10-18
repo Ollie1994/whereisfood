@@ -1,5 +1,5 @@
 import { formatInTimeZone } from "date-fns-tz";
-import type { MarkerState } from "@/lib/types";
+import type { MarkerState } from "@/lib/map-types";
 
 const TZ = "Europe/Stockholm";
 
