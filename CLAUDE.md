@@ -379,7 +379,8 @@ blocking and closing rules, is in the log's "How to use it" section;
 use those exact values — do not invent new ones and do not copy the taxonomy here.
 Duplicating it in two files is the same `manual-drift` the log exists to catch.
 
-**Add a row with `bash scripts/process-log.sh add <file>`**, never by hand. The file
+**Add a row with `bash scripts/process-log.sh add <file>`**, never by hand (Phase 4
+plan decision #15, which also sets the values block and the length caps). The file
 holds one `Field: value` line per column except `#`, which `add` assigns (`Date` is
 optional); the script's header lists them. `add` numbers
 the row, puts it directly after the table's last row (a row appended to the end of the
