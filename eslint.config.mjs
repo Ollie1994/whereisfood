@@ -16,33 +16,6 @@ const eslintConfig = defineConfig([
     // Flat config does not read .gitignore, so it is listed here too.
     "public/maplibre/**",
   ]),
-  // map-types.ts holds frozen copies of the pre-Phase-5 rows, so it must import
-  // nothing: an import from `database.types` or `@/lib/types` would follow the schema
-  // (plan phase-5-schema-reset, decision #1). `noInlineConfig` makes an
-  // `eslint-disable` comment in the file inert. `src/lib/map-types.lint.test.ts` runs
-  // this config on the real file and on each import form appended to it, so a renamed
-  // file or a weakened selector fails `npm run test:run`.
-  {
-    files: ["src/lib/map-types.ts"],
-    linterOptions: { noInlineConfig: true },
-    rules: {
-      "no-restricted-syntax": [
-        "error",
-        ...[
-          "ImportDeclaration",
-          "ExportAllDeclaration",
-          "ExportNamedDeclaration[source]",
-          "TSImportType",
-          "TSImportEqualsDeclaration[moduleReference.type='TSExternalModuleReference']",
-          "ImportExpression",
-          "CallExpression[callee.name='require']",
-        ].map((selector) => ({
-          selector,
-          message: "map-types.ts imports nothing: its types are frozen copies (plan phase-5-schema-reset, decision #1).",
-        })),
-      ],
-    },
-  },
 ]);
 
 export default eslintConfig;

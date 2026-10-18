@@ -9,12 +9,13 @@
 // Why frozen: plan phase-5-schema-reset, decision #1 and its `map-types.ts` section.
 // What the map shows until then: CLAUDE.md, UI Rules.
 //
-// ⚠ No imports in this file: anything from `database.types` or `@/lib/types` would
-// follow the schema, which plan step 2 replaces. `npm run lint` refuses the import
-// forms `map-types.lint.test.ts` lists, behind `eslint-disable` comments too, and that
-// test fails if this file is renamed or moved.
+// ⚠ No imports in this file, and `type` aliases rather than interfaces (another file
+// can extend an interface by module augmentation). What catches a copy re-derived from
+// the Phase 5 schema is `npx tsc --noEmit`: `fake-data.ts` and `useMapLibre.tsx` use
+// `confidence`, `is_negation` and `last_known_*`, which that schema lacks. With those
+// four fields deleted here, tsc reported 12 errors in the two files (PR #166).
 
-export interface MapTruck {
+export type MapTruck = {
   created_at: string;
   cuisine_type: string | null;
   description: string | null;
@@ -24,9 +25,9 @@ export interface MapTruck {
   last_known_latitude: number | null;
   last_known_longitude: number | null;
   name: string;
-}
+};
 
-export interface MapLocation {
+export type MapLocation = {
   address_geocoded: string | null;
   address_raw: string | null;
   confidence: number;
@@ -45,15 +46,15 @@ export interface MapLocation {
   starts_at: string;
   truck_id: string;
   updated_at: string;
-}
+};
 
 // Derived client-side, never persisted — one per truck shown on the map.
 export type MarkerColor = "green" | "yellow" | "grey";
 
-export interface MarkerState {
+export type MarkerState = {
   truck: MapTruck;
   location: MapLocation | null; // null → grey marker
   color: MarkerColor;
   latitude: number; // resolved from location, or truck's last_known
   longitude: number;
-}
+};

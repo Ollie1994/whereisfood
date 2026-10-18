@@ -83,7 +83,6 @@ gates green and the fake-data map unchanged.
 | `tests/integration/db-locations.test.ts` | Rewritten for the new primitives. |
 | `tests/integration/setup.ts` | Comments only: they name `NOMINATIM_BASE_URL` (line 73) and `geocoding.ts` (line 87), both removed in Phase 4. |
 | `src/lib/fake-data.ts`, `src/hooks/useMapLibre.tsx`, `src/components/Map/TruckPopup.tsx` | **Type imports and type names only**, from `map-types.ts`. No behaviour change. |
-| `eslint.config.mjs`, `src/lib/map-types.lint.test.ts` | Step 1: a `no-restricted-syntax` override for `src/lib/map-types.ts` (with `noInlineConfig`), and the unit test that runs it on the real file (the `map-types.ts` section below). Phase 6 removes both with the file. |
 | `README.md` | "What works today": the schema is the new design's; the status line (`README.md:14`, still "Phase 4 of 8 (housekeeping)"); and the "Project status" table (`README.md:89–92`: Phase 2's "schema kept until Phase 5", Phase 4 "🟡 In progress", Phase 5 "⬜ Not started"). |
 | `CLAUDE.md` | Step 0: point at this plan. Step 2: the "Target-design rules, enforced from Phase 5" paragraph becomes current rules, and its list of what today's schema breaks goes; and the Hard Rules' grants bullet loses "0001 … grants `service_role` with one blanket `on all tables` grant …; don't copy it", which is false of the baseline. |
 | `.claude/context/project-context.md` | Step 7, the end-of-phase reconciliation. |
@@ -125,20 +124,19 @@ the columns exist (issue #48).
 - `NewLocation`: `Location` minus `id`, `created_at`, `updated_at`, `cancelled_at` (an insert is never born cancelled), **plus `created_by: string | null`**. Every key, `created_by` and `label` included, is required, so a caller states each value.
 - `LocationPatch`: an optional pick of `latitude`, `longitude`, `label`, `starts_at`, `ends_at`.
 
-**`src/lib/map-types.ts`**: types only (decision #1), and **no imports**: anything from
-`database.types` or `@/lib/types` would follow the schema again. A `no-restricted-syntax`
-override in `eslint.config.mjs`, scoped to this file with `noInlineConfig`, makes
-`npm run lint` refuse each import form `src/lib/map-types.lint.test.ts` lists, behind
-`eslint-disable` comments too. That test runs the real config on the real file, so it
-also fails if the file is renamed or moved (PR #166: a text grep missed
-`export type{X}from"…"`, and the first override let `eslint-disable` through and would
-have gone silent on a rename). `MapTruck` and `MapLocation` are
+**`src/lib/map-types.ts`**: types only (decision #1): `type` aliases (an interface can be
+extended from another file by module augmentation) and **no imports**. A copy
+re-derived from `database.types` or `@/lib/types` would lose `confidence`,
+`is_negation` and `last_known_*`, which the map code uses, so `tsc` fails on it: 12
+errors with those four fields deleted (PR #166). `tsc` at step 2 is therefore the guard.
+**Rejected:** a lint rule and a lint test on the file (PR #166 rounds 2–3), which
+guarded what `tsc` already catches and each needed a fix of its own. `MapTruck` and `MapLocation` are
 copies of today's `Truck` and `Location` **with every current field**, not a trimmed
 set. The map reads `location.confidence` and `is_negation` and
 `truck.last_known_latitude`/`_longitude` (`useMapLibre.tsx`'s `deriveColor` and
 `buildMarkerStates`), and `TruckPopup`'s `hours` branches on `ends_at` being null
 ("Från …"), so `MapLocation` keeps today's nullable `ends_at` where the new `Location`
-makes it required. Copying the whole shape keeps the map code's change type-only.
+makes it required. Copying the whole shape keeps step 1 a type-only move.
 
 **`tests/integration/helpers.ts`**
 | Helper | Does |
@@ -165,7 +163,7 @@ per follow-up the retrospective opens, which may be none.
 1. **Decouple the map from the schema types.** Create `src/lib/map-types.ts`; switch
    `fake-data.ts`, `useMapLibre.tsx` and `TruckPopup.tsx` to it; **move** `MarkerColor`
    and `MarkerState` out of `types.ts` into it (no copy left behind). `types.ts` keeps
-   `Truck`, `Location` and `NewLocation` until step 2. The map code's change is type-only, plus the lint override that keeps `map-types.ts` import-free. Gates
+   `Truck`, `Location` and `NewLocation` until step 2. A type-only move. Gates
    green and a browser check of `/map` (basemap, markers, a popup), because it touches
    map code. *First because* step 2 regenerates the types, and the map would otherwise
    break `tsc` in step 2's diff.
@@ -572,10 +570,8 @@ removed; `'owner'` is already planned, so the list isn't expected to shrink.
 **Map (step 1)**
 - [ ] The diffs of `fake-data.ts`, `useMapLibre.tsx` and `TruckPopup.tsx` change only
   type imports and type names.
-- [ ] `npm run lint` passes, and `src/lib/map-types.lint.test.ts` passes: it refuses
-  each listed import form appended to `map-types.ts` (behind `eslint-disable` comments
-  too) and fails if the file moves. Its negative controls (each part of the override
-  removed or retargeted, the file renamed) recorded in the PR.
+- [ ] `map-types.ts` imports nothing and declares its types as `type` aliases, not
+  interfaces.
 - [ ] `/map` checked in a real browser (basemap, markers, a popup), noted in the PR.
 
 **Gates (every step)**
