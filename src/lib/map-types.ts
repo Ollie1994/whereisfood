@@ -2,12 +2,16 @@
 //
 // `MapTruck` and `MapLocation` copy the `trucks` and `locations` rows of
 // `src/lib/database.types.ts` at commit d018091, every field, with `source` narrowed as
-// `types.ts` did at that commit. Checked in PR #166 with tsc: mutually assignable, equal
-// keys. Why frozen: plan phase-5-schema-reset, decision #1 and its `map-types.ts`
-// section. What the map shows until then: CLAUDE.md, UI Rules.
+// `types.ts` did at that commit. To recheck, against `Truck`/`Location` from `types.ts`
+// at d018091, with `Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false`:
+// `Same<MapTruck, Truck>`, `Same<MapLocation, Location>` and `Same` of each pair's
+// `keyof` are all `true` (run in PR #166, with a dropped-key control that failed).
+// Why frozen: plan phase-5-schema-reset, decision #1 and its `map-types.ts` section.
+// What the map shows until then: CLAUDE.md, UI Rules.
 //
-// ⚠ No imports in this file. Anything from `database.types` or `@/lib/types` follows
-// the schema, which plan step 2 replaces.
+// ⚠ No imports in this file: `npm run lint` fails on any import form here
+// (`eslint.config.mjs`), since anything from `database.types` or `@/lib/types` would
+// follow the schema, which plan step 2 replaces.
 
 export interface MapTruck {
   created_at: string;
@@ -26,7 +30,7 @@ export interface MapLocation {
   address_raw: string | null;
   confidence: number;
   created_at: string;
-  // Nullable: `TruckPopup.tsx:23–25` shows "Från …" when it is null.
+  // Nullable: TruckPopup's `hours` shows "Från …" when it is null.
   ends_at: string | null;
   expires_at: string;
   id: string;
