@@ -93,7 +93,7 @@ describe("insertLocation", () => {
 
 describe("updateLocation", () => {
   it("edits a live row and returns it with exactly the selected keys", async () => {
-    const id = await seedLocation(truckId, { starts_at: LUNCH_START, ends_at: LUNCH_END });
+    const { id } = await seedLocation(truckId, { starts_at: LUNCH_START, ends_at: LUNCH_END });
 
     const updated = await updateLocation(id, {
       label: "Heden",
@@ -111,7 +111,7 @@ describe("updateLocation", () => {
   });
 
   it("returns null for a cancelled row and leaves it unchanged", async () => {
-    const id = await seedLocation(truckId, { cancelled_at: "2026-08-21T08:00:00.000Z" });
+    const { id } = await seedLocation(truckId, { cancelled_at: "2026-08-21T08:00:00.000Z" });
 
     expect(await updateLocation(id, { label: "Heden" })).toBeNull();
     expect((await readRow(id)).label).toBe("Järntorget");
@@ -119,7 +119,7 @@ describe("updateLocation", () => {
 
   it("lets an overlap's 23P01 through with its code (open decision 5)", async () => {
     await seedLocation(truckId, { starts_at: LUNCH_START, ends_at: LUNCH_END });
-    const later = await seedLocation(truckId, {
+    const { id: later } = await seedLocation(truckId, {
       starts_at: "2026-08-22T13:00:00.000Z",
       ends_at: "2026-08-22T15:00:00.000Z",
     });
@@ -135,7 +135,7 @@ describe("updateLocation", () => {
     ["{}", {}],
     ["a patch whose keys are all undefined", { label: undefined, ends_at: undefined }],
   ])("throws on %s and leaves the row unchanged", async (_name, patch) => {
-    const id = await seedLocation(truckId);
+    const { id } = await seedLocation(truckId);
 
     await expect(updateLocation(id, patch)).rejects.toThrow(/sets no column/);
     expect((await readRow(id)).label).toBe("Järntorget");
@@ -144,7 +144,7 @@ describe("updateLocation", () => {
 
 describe("cancelLocation", () => {
   it("sets cancelled_at to the caller's timestamp and returns the row", async () => {
-    const id = await seedLocation(truckId);
+    const { id } = await seedLocation(truckId);
 
     const cancelled = await cancelLocation(id, "2026-08-22T08:00:00.000Z");
 
@@ -154,7 +154,7 @@ describe("cancelLocation", () => {
   });
 
   it("returns null for an already-cancelled row and keeps the first timestamp", async () => {
-    const id = await seedLocation(truckId);
+    const { id } = await seedLocation(truckId);
     await cancelLocation(id, "2026-08-22T08:00:00.000Z");
 
     expect(await cancelLocation(id, "2026-08-22T10:00:00.000Z")).toBeNull();
@@ -178,8 +178,8 @@ describe("findLocationsOverlapping", () => {
 
   it("finds live rows of every truck that overlap the window, with exactly the selected keys", async () => {
     const otherTruck = await seedTruck("Other");
-    const mine = await seedLocation(truckId, { starts_at: LUNCH_START, ends_at: LUNCH_END });
-    const theirs = await seedLocation(otherTruck, {
+    const { id: mine } = await seedLocation(truckId, { starts_at: LUNCH_START, ends_at: LUNCH_END });
+    const { id: theirs } = await seedLocation(otherTruck, {
       starts_at: "2026-08-22T11:00:00.000Z",
       ends_at: "2026-08-22T15:00:00.000Z",
     });
@@ -223,9 +223,9 @@ describe("listRecentLocationsForTruck", () => {
 
   it("returns the truck's live rows that started before `before`, newest first, up to `limit`", async () => {
     const otherTruck = await seedTruck("Other");
-    const day18 = await seedLocation(truckId, onDay(18));
-    const day19 = await seedLocation(truckId, onDay(19));
-    const day20 = await seedLocation(truckId, onDay(20));
+    const { id: day18 } = await seedLocation(truckId, onDay(18));
+    const { id: day19 } = await seedLocation(truckId, onDay(19));
+    const { id: day20 } = await seedLocation(truckId, onDay(20));
     await seedLocation(truckId, { ...onDay(21), cancelled_at: "2026-08-20T08:00:00.000Z" });
     await seedLocation(truckId, onDay(23)); // starts after `before`
     await seedLocation(otherTruck, onDay(21));

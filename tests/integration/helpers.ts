@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { supabaseAdmin } from "@/lib/supabase";
+import type { Tables } from "@/lib/database.types";
 import type { Location, NewLocation } from "@/lib/types";
 
 // Minimal fixtures for the integration project. Deliberately small — #72 EXTENDS this
@@ -122,8 +123,8 @@ export async function seedTruck(name = "Truck"): Promise<string> {
 // earlier call used, so two default locations on one truck never overlap (`23P01`).
 let defaultWindowDay = 0;
 
-// Insert a valid location on `truckId` and return its id, so a test states only the
-// columns it is about. Inserts with `supabaseAdmin`, not `insertLocation`, so the db
+// Insert a valid location on `truckId` and return the stored row (every column,
+// `created_by` included), so a test states only the columns it is about. Inserts with `supabaseAdmin`, not `insertLocation`, so the db
 // layer's tests don't depend on the code under test for their setup.
 //
 // Without `starts_at`/`ends_at`, the window is 09:00–12:00 UTC on day *n* after
@@ -139,7 +140,7 @@ type SeedLocationOverrides = Partial<NewLocation> & Partial<Pick<Location, "canc
 export async function seedLocation(
   truckId: string,
   overrides: SeedLocationOverrides = {},
-): Promise<string> {
+): Promise<Tables<"locations">> {
   const { starts_at, ends_at } = overrides;
   if ((starts_at === undefined) !== (ends_at === undefined)) {
     throw new Error("seedLocation: give both starts_at and ends_at, or neither");
@@ -171,9 +172,9 @@ export async function seedLocation(
   const { data, error } = await supabaseAdmin
     .from("locations")
     .insert(location)
-    .select("id")
+    .select()
     .single();
 
   if (error) throw error;
-  return data.id;
+  return data;
 }
