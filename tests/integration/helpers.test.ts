@@ -38,14 +38,10 @@ afterEach(async () => {
 });
 
 it("⚠ resetTables deletes only what this suite created", async () => {
-  // THE REGRESSION THIS FILE EXISTS FOR, now hit twice. A first version emptied the
-  // tables it cleaned, trucks included, destroying `seed.sql`'s three fixed-UUID dev
-  // trucks, so running the merge gate broke the seed (r1). The fix for that then used a prefix containing
-  // LIKE wildcards, which matched unrelated trucks (r2).
-  //
-  // Both times nothing went red. A destructive side effect produces no failure, which
-  // is why the assertion has to be that the bystanders SURVIVE rather than that the
-  // fixtures are gone.
+  // The assertion is that the bystanders SURVIVE, not only that the fixture is gone: an
+  // over-wide delete fails no test of its own. Two earlier predicates (every row, then a
+  // prefix with LIKE wildcards) deleted trucks this suite never made, with every test
+  // green (PR #106).
   await supabaseAdmin
     .from("trucks")
     .upsert(BYSTANDERS.map((truck) => ({ ...truck, is_active: true })));
@@ -120,5 +116,16 @@ describe("seedLocation", () => {
 
     await expect(seedLocation(truckId, overrides)).rejects.toThrow(/both starts_at and ends_at/);
     expect(await windowsOf(truckId)).toEqual([]);
+  });
+
+  it("puts the row on the truck it is given, whatever the overrides say", async () => {
+    // A row on another truck (a seed truck, say) would leak past `resetTables()`.
+    const truckId = await seedTruck();
+    const otherTruck = await seedTruck("Other");
+
+    // @ts-expect-error `truck_id` isn't an override; `tsc` fails here if it becomes one.
+    const row = await seedLocation(truckId, { truck_id: otherTruck });
+
+    expect(row.truck_id).toBe(truckId);
   });
 });

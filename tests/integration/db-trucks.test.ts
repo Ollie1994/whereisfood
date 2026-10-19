@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it } from "vitest";
 import { getActiveTruckById, listActiveTrucks } from "@/lib/db/trucks";
-import { supabaseAdmin } from "@/lib/supabase";
 import { keysOf, resetTables, seedTruck } from "./helpers";
 
 // The keys every function's rows must have, WRITTEN OUT rather than derived from a
@@ -16,13 +15,6 @@ const TRUCK_KEYS = [
   "is_active",
   "name",
 ];
-
-async function seedInactiveTruck(name: string): Promise<string> {
-  const id = await seedTruck(name);
-  const { error } = await supabaseAdmin.from("trucks").update({ is_active: false }).eq("id", id);
-  if (error) throw error;
-  return id;
-}
 
 beforeEach(async () => {
   await resetTables();
@@ -39,7 +31,7 @@ describe("getActiveTruckById", () => {
   });
 
   it("returns null for an inactive truck", async () => {
-    expect(await getActiveTruckById(await seedInactiveTruck("Inactive"))).toBeNull();
+    expect(await getActiveTruckById(await seedTruck("Inactive", false))).toBeNull();
   });
 
   it("returns null for an unknown id", async () => {
@@ -50,17 +42,23 @@ describe("getActiveTruckById", () => {
 describe("listActiveTrucks", () => {
   // The seed's trucks are in the list too, so each assertion reads only this test's
   // fixture trucks.
-  it("returns active trucks ordered by name, without inactive ones, with exactly the selected keys", async () => {
+  it("returns active trucks in Swedish name order, without inactive ones, with exactly the selected keys", async () => {
+    // Inserted out of order. Swedish order puts Å, Ä, Ö after Z and ignores case; the
+    // stack's default collation gave `Åkes < Alpha < Ärtsoppan < burgare < Öl < Zebra`
+    // (checked 2026-10-19).
+    const oel = await seedTruck("Öl");
     const zebra = await seedTruck("Zebra");
+    const aertsoppan = await seedTruck("Ärtsoppan");
+    const burgare = await seedTruck("burgare");
+    const akes = await seedTruck("Åkes");
     const alpha = await seedTruck("Alpha");
-    const inactive = await seedInactiveTruck("Inactive");
+    const inactive = await seedTruck("Inactive", false);
+    const fixtures = [oel, zebra, aertsoppan, burgare, akes, alpha, inactive];
 
     const trucks = await listActiveTrucks();
-    const fixtureIds = trucks
-      .map((truck) => truck.id)
-      .filter((id) => [zebra, alpha, inactive].includes(id));
+    const fixtureIds = trucks.map((truck) => truck.id).filter((id) => fixtures.includes(id));
 
-    expect(fixtureIds).toEqual([alpha, zebra]);
+    expect(fixtureIds).toEqual([alpha, burgare, zebra, akes, aertsoppan, oel]);
     expect(trucks.every((truck) => keysOf(truck).join() === TRUCK_KEYS.join())).toBe(true);
   });
 });

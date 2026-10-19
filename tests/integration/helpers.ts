@@ -108,12 +108,12 @@ export async function resetTables(): Promise<void> {
 // remove what carries the prefix, so a hand-rolled truck leaks — and a location hung off
 // a SEED truck leaks too, because its parent is never collected. That is the trade for
 // not deleting rows this suite did not create.
-export async function seedTruck(name = "Truck"): Promise<string> {
+export async function seedTruck(name = "Truck", isActive = true): Promise<string> {
   const id = randomUUID();
 
   const { error } = await supabaseAdmin
     .from("trucks")
-    .insert({ id, name: `${FIXTURE_PREFIX}${name}`, is_active: true });
+    .insert({ id, name: `${FIXTURE_PREFIX}${name}`, is_active: isActive });
 
   if (error) throw error;
   return id;
@@ -140,9 +140,12 @@ let defaultWindowDay = 0;
 //
 // ⚠ THROWS IF EXACTLY ONE OF `starts_at`/`ends_at` IS GIVEN: the default for the other
 // would come from the year-2000 window, giving `23514` or a window decades long.
-// `cancelled_at` too, which `NewLocation` leaves out, so a test can seed a cancelled row
-// in one insert.
-type SeedLocationOverrides = Partial<NewLocation> & Partial<Pick<Location, "cancelled_at">>;
+//
+// The overrides take `id` and `cancelled_at` too, which `NewLocation` leaves out, so a
+// test can fix an id or seed a cancelled row in one insert. Never `truck_id`: a row put
+// on a seed truck through it would leak past `resetTables()`, so `truckId` always wins.
+type SeedLocationOverrides = Partial<Omit<NewLocation, "truck_id">> &
+  Partial<Pick<Location, "id" | "cancelled_at">>;
 
 export async function seedLocation(
   truckId: string,
@@ -166,7 +169,6 @@ export async function seedLocation(
   }
 
   const location: NewLocation & SeedLocationOverrides = {
-    truck_id: truckId,
     latitude: 57.6998935,
     longitude: 11.952503,
     label: "Järntorget",
@@ -174,6 +176,7 @@ export async function seedLocation(
     created_by: null,
     ...overrides,
     ...window,
+    truck_id: truckId,
   };
 
   const { data, error } = await supabaseAdmin
@@ -182,6 +185,38 @@ export async function seedLocation(
     .select()
     .single();
 
+  if (error) throw error;
+  return data;
+}
+
+// Insert `count` locations on `truckId` in one request, one a day from `firstDay`
+// (a UTC midnight) at 09:00–12:00 UTC, for the tests that need more rows than the API's
+// `max_rows`.
+export async function seedDailyLocations(
+  truckId: string,
+  firstDay: string,
+  count: number,
+): Promise<void> {
+  const start = Date.parse(firstDay);
+  const rows = Array.from({ length: count }, (_, n) => {
+    const day = start + n * 86_400_000;
+    return {
+      truck_id: truckId,
+      latitude: 57.6998935,
+      longitude: 11.952503,
+      starts_at: new Date(day + 9 * 3_600_000).toISOString(),
+      ends_at: new Date(day + 12 * 3_600_000).toISOString(),
+    };
+  });
+
+  const { error } = await supabaseAdmin.from("locations").insert(rows);
+  if (error) throw error;
+}
+
+// A location row as stored, every column, to check what a test's call left behind
+// without going through the code under test.
+export async function readLocation(id: string): Promise<Tables<"locations">> {
+  const { data, error } = await supabaseAdmin.from("locations").select().eq("id", id).single();
   if (error) throw error;
   return data;
 }

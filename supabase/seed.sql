@@ -2,6 +2,10 @@
 -- NOT production data. Fixed truck UUIDs so curl commands are copy-pasteable and stable
 -- across resets.
 --
+-- For an EMPTY database only (`npx supabase start` on a fresh stack, or
+-- `npx supabase db reset`). Run again on a seeded database it fails: the trucks' ids
+-- (23505) and the history's windows (23P01) are taken.
+--
 --   11111111-1111-1111-1111-111111111111  Burgarbilen        (active)
 --   22222222-2222-2222-2222-222222222222  Taco Loco Göteborg (active)
 --   33333333-3333-3333-3333-333333333333  Vintervilan        (INACTIVE — rejection tests)
@@ -15,8 +19,7 @@ values
    'Tacos, quesadillas och churros mitt i stan.', true),
 
   ('33333333-3333-3333-3333-333333333333', 'Vintervilan', 'vintervilan', 'Husmanskost',
-   'Klassisk husmanskost. Vintervila — öppnar igen till våren.', false)
-on conflict (id) do nothing;
+   'Klassisk husmanskost. Vintervila — öppnar igen till våren.', false);
 
 -- History, relative to now() so it never ages out of the checklist's look-back (Phase 5
 -- plan, decision #15): the 28 Stockholm days before today, ending yesterday, 11:00–14:00

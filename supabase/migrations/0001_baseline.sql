@@ -31,7 +31,9 @@ create type location_source as enum ('admin', 'owner');
 
 create table trucks (
   id                uuid        primary key default gen_random_uuid(),
-  name              text        not null,
+  -- Swedish collation, so `order by name` puts Å, Ä, Ö after Z (#19). The stack's
+  -- default sorted `Åkes < Alpha < Ärtsoppan` (checked 2026-10-19).
+  name              text        collate "sv-SE-x-icu" not null,
   instagram_handle  text        unique,
   cuisine_type      text,
   description       text,

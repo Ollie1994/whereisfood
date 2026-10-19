@@ -20,8 +20,8 @@ import type { Location, LocationPatch, NewLocation } from "@/lib/types";
 // `tsc` then fails if a column of `Location` is missing (issue #48). Never cast a row to
 // `Location`: a cast compiles with a column missing (Phase 5 plan, "Functions and
 // types"). An extra column isn't a type error; `db-locations.test.ts`'s key-set test
-// catches that.
-export const LOCATION_COLUMNS =
+// catches that. Module-private: other code reads locations through these functions.
+const LOCATION_COLUMNS =
   "id, truck_id, latitude, longitude, label, starts_at, ends_at, cancelled_at, source, created_at, updated_at";
 
 // ⚠ THE COLUMNS EACH WRITE MAY SEND, PICKED AT RUNTIME. `NewLocation` and
@@ -121,7 +121,9 @@ export async function cancelLocation(
 
 // Live rows of every truck overlapping [from, to): `starts_at < to AND ends_at > from`.
 // Half-open, so a row ending exactly at `from` is out. Not filtered on the truck's
-// `is_active` (plan, open decision 6). Ordered by `starts_at`.
+// `is_active` (plan, open decision 6). Ordered by `starts_at`, then `id`: rows sharing a
+// start time (every 11:00 entry) would otherwise come back in any order
+// (`db-locations.test.ts`, "breaks a starts_at tie").
 //
 // ⚠ THROWS RATHER THAN RETURN PART OF THE ROWS. PostgREST returns at most `max_rows`
 // rows (1000 in `supabase/config.toml`) with no error, so a wide window would come back
@@ -134,7 +136,8 @@ export async function findLocationsOverlapping(from: string, to: string): Promis
     .is("cancelled_at", null)
     .lt("starts_at", to)
     .gt("ends_at", from)
-    .order("starts_at");
+    .order("starts_at")
+    .order("id");
 
   if (error) throw error;
   if (count !== data.length) {
@@ -146,17 +149,25 @@ export async function findLocationsOverlapping(from: string, to: string): Promis
 }
 
 // The truck's latest `limit` live rows that started before `before`, newest `starts_at`
-// first. `before` is usually now, so future entries don't fill "recent places". A
-// `limit` above the API's `max_rows` returns `max_rows` rows (probed 2026-10-19: limit
-// 2000 over 1001 rows → 1000).
+// first. `before` is usually now, so future entries don't fill "recent places".
+//
+// ⚠ THROWS RATHER THAN RETURN FEWER ROWS THAN ASKED FOR AND AVAILABLE. A `limit` above
+// the API's `max_rows` returns `max_rows` rows with no error (probed 2026-10-19: limit
+// 2000 over 1001 rows → 1000), so the exact count is compared with what arrived, as in
+// `findLocationsOverlapping`. `limit` must be a positive integer: PostgREST rejects
+// others with a 400 that would reach the caller as an opaque error.
 export async function listRecentLocationsForTruck(
   truckId: string,
   before: string,
   limit: number,
 ): Promise<Location[]> {
-  const { data, error } = await supabaseAdmin
+  if (!Number.isInteger(limit) || limit < 1) {
+    throw new Error(`listRecentLocationsForTruck: limit must be a positive integer, got ${limit}`);
+  }
+
+  const { data, error, count } = await supabaseAdmin
     .from("locations")
-    .select(LOCATION_COLUMNS)
+    .select(LOCATION_COLUMNS, { count: "exact" })
     .eq("truck_id", truckId)
     .is("cancelled_at", null)
     .lt("starts_at", before)
@@ -164,5 +175,11 @@ export async function listRecentLocationsForTruck(
     .limit(limit);
 
   if (error) throw error;
+  const expected = Math.min(limit, count ?? 0);
+  if (data.length !== expected) {
+    throw new Error(
+      `listRecentLocationsForTruck: ${data.length} of ${expected} rows returned (the API's max_rows); ask for fewer`,
+    );
+  }
   return data;
 }

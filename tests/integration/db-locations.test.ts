@@ -7,9 +7,15 @@ import {
   listRecentLocationsForTruck,
   updateLocation,
 } from "@/lib/db/locations";
-import { supabaseAdmin } from "@/lib/supabase";
 import type { LocationPatch, NewLocation } from "@/lib/types";
-import { keysOf, resetTables, seedLocation, seedTruck } from "./helpers";
+import {
+  keysOf,
+  readLocation,
+  resetTables,
+  seedDailyLocations,
+  seedLocation,
+  seedTruck,
+} from "./helpers";
 
 // The keys every function's rows must have, WRITTEN OUT rather than derived from a
 // type, which would grow with the table. No `created_by` (Phase 5 plan, #8). `tsc`
@@ -53,16 +59,6 @@ function aLocation(overrides: Partial<NewLocation> = {}): NewLocation {
     created_by: null,
     ...overrides,
   };
-}
-
-async function readRow(id: string) {
-  const { data, error } = await supabaseAdmin
-    .from("locations")
-    .select("label, starts_at, cancelled_at")
-    .eq("id", id)
-    .single();
-  if (error) throw error;
-  return data;
 }
 
 describe("insertLocation", () => {
@@ -139,7 +135,7 @@ describe("updateLocation", () => {
     const { id } = await seedLocation(truckId, { cancelled_at: "2026-08-21T08:00:00.000Z" });
 
     expect(await updateLocation(id, { label: "Heden" })).toBeNull();
-    expect((await readRow(id)).label).toBe("Järntorget");
+    expect((await readLocation(id)).label).toBe("Järntorget");
   });
 
   it("lets an overlap's 23P01 through with its code (open decision 5)", async () => {
@@ -163,7 +159,7 @@ describe("updateLocation", () => {
     const { id } = await seedLocation(truckId);
 
     await expect(updateLocation(id, patch)).rejects.toThrow(/sets no column/);
-    expect((await readRow(id)).label).toBe("Järntorget");
+    expect((await readLocation(id)).label).toBe("Järntorget");
   });
 });
 
@@ -183,7 +179,7 @@ describe("cancelLocation", () => {
     await cancelLocation(id, "2026-08-22T08:00:00.000Z");
 
     expect(await cancelLocation(id, "2026-08-22T10:00:00.000Z")).toBeNull();
-    expect(Date.parse((await readRow(id)).cancelled_at!)).toBe(
+    expect(Date.parse((await readLocation(id)).cancelled_at!)).toBe(
       Date.parse("2026-08-22T08:00:00.000Z"),
     );
   });
@@ -222,6 +218,20 @@ describe("findLocationsOverlapping", () => {
 
     expect(ids).toEqual([mine, theirs]);
     expect(keysOf(rows.find((row) => row.id === mine)!)).toEqual(LOCATION_KEYS);
+  });
+
+  it("breaks a starts_at tie by id", async () => {
+    // Inserted in the reverse of id order, so insertion order alone gives the wrong one.
+    const otherTruck = await seedTruck("Other");
+    const high = "ffffffff-ffff-4fff-bfff-ffffffffffff";
+    const low = "00000000-0000-4000-8000-000000000000";
+    await seedLocation(truckId, { id: high, starts_at: LUNCH_START, ends_at: LUNCH_END });
+    await seedLocation(otherTruck, { id: low, starts_at: LUNCH_START, ends_at: LUNCH_END });
+
+    expect((await overlappingIds(LUNCH_START, LUNCH_END, [truckId, otherTruck])).ids).toEqual([
+      low,
+      high,
+    ]);
   });
 
   it("leaves out a cancelled row", async () => {
@@ -268,31 +278,41 @@ describe("listRecentLocationsForTruck", () => {
     const limited = await listRecentLocationsForTruck(truckId, BEFORE, 2);
     expect(limited.map((row) => row.id)).toEqual([day20, day19]);
   });
+
+  it.each([0, -1, 1.5])("throws on limit %s before any request", async (limit) => {
+    await expect(listRecentLocationsForTruck(truckId, BEFORE, limit)).rejects.toThrow(
+      /positive integer/,
+    );
+  });
 });
 
-// ⚠ LAST IN THE FILE, AND IT HAS TO BE. Its 1001 rows leave the table at 19 pages until
+// ⚠ LAST IN THE FILE, AND IT HAS TO BE. Their 1001 rows leave the table at 19 pages until
 // autovacuum runs, and on a table that size the planner reads "recent places" off the
 // `(truck_id, starts_at desc)` index, which returns newest first with or without the
 // ORDER BY. Measured 2026-10-19 with `.order(…)` removed from
 // `listRecentLocationsForTruck`: its test failed at 1 page, passed at 19, failed again
-// after `vacuum`. So this test runs after the order tests. A re-run before autovacuum
+// after `vacuum`. So these tests run after the order tests. A re-run before autovacuum
 // (about a minute) still meets the 19-page table: that run can't catch a missing ORDER BY.
 describe("findLocationsOverlapping at the API's max_rows", () => {
   it("throws when the API's max_rows would cut the result short", async () => {
     // 1001 rows, one a day from 2040-01-01: one more than `max_rows` in
     // `supabase/config.toml`. Without the check, the first 1000 come back with no error.
-    const rows = Array.from({ length: 1001 }, (_, n) => {
-      const day = Date.UTC(2040, 0, 1) + n * 86_400_000;
-      return aLocation({
-        starts_at: new Date(day + 9 * 3_600_000).toISOString(),
-        ends_at: new Date(day + 12 * 3_600_000).toISOString(),
-      });
-    });
-    const { error } = await supabaseAdmin.from("locations").insert(rows);
-    if (error) throw error;
+    await seedDailyLocations(truckId, "2040-01-01T00:00:00.000Z", 1001);
 
     await expect(
       findLocationsOverlapping("2040-01-01T00:00:00.000Z", "2043-01-01T00:00:00.000Z"),
     ).rejects.toThrow(/1000 of 1001 rows/);
+  }, 30_000);
+
+  it("throws when recent places' limit is above the API's max_rows", async () => {
+    await seedDailyLocations(truckId, "2040-01-01T00:00:00.000Z", 1001);
+
+    await expect(
+      listRecentLocationsForTruck(truckId, "2050-01-01T00:00:00.000Z", 2000),
+    ).rejects.toThrow(/1000 of 1001 rows/);
+    // At max_rows exactly, every row asked for arrives.
+    expect(
+      await listRecentLocationsForTruck(truckId, "2050-01-01T00:00:00.000Z", 1000),
+    ).toHaveLength(1000);
   }, 30_000);
 });

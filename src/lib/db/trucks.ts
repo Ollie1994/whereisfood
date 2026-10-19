@@ -24,7 +24,8 @@ export async function getActiveTruckById(id: string): Promise<Truck | null> {
   return data;
 }
 
-// Every active truck, ordered by name.
+// Every active truck, ordered by name in Swedish order (Å, Ä, Ö after Z): `trucks.name`
+// is declared with the `sv-SE-x-icu` collation (Phase 5 plan, #19).
 export async function listActiveTrucks(): Promise<Truck[]> {
   const { data, error } = await supabaseAdmin
     .from("trucks")
