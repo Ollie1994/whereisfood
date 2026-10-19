@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { supabaseAdmin } from "@/lib/supabase";
-import { resetTables, seedLocation, seedTruck, seedTrucks } from "./helpers";
+import { FIXTURE_PREFIX, resetTables, seedLocation, seedTruck, seedTrucks } from "./helpers";
 
 // ⚠ EVERY BYSTANDER IS ADVERSARIAL, AND THE FIRST VERSION'S WAS NOT. It was named
 // "Seed-like Truck", which stands in for `seed.sql`'s dev trucks — and that is exactly
@@ -72,7 +72,7 @@ it("removes more fixture trucks than the API's max_rows", async () => {
   const { count, error } = await supabaseAdmin
     .from("trucks")
     .select("id", { count: "exact", head: true })
-    .like("name", "itest-fixture-%");
+    .like("name", `${FIXTURE_PREFIX}%`);
   if (error) throw error;
   expect(count).toBe(0);
 }, 30_000);

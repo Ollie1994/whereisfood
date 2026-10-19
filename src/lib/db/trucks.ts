@@ -4,8 +4,8 @@ import type { Truck } from "@/lib/types";
 
 // DB access only — no business logic. Reads use the service role (RLS bypassed
 // server-side); errors propagate unchanged. An id that isn't a uuid raises `22P02`, not
-// null (probed 2026-10-19 on `getActiveTruckById`); the caller checks the shape first
-// with `isUuid` (`src/lib/validators/uuid.ts`).
+// null (probed 2026-10-19 on `getActiveTruckById`). Callers must check the shape first;
+// `isUuid` (`src/lib/validators/uuid.ts`) exists for it.
 
 // Every column of `trucks`, named. ONE STRING LITERAL: supabase-js infers the row type
 // from the literal text, and with rows returned uncast `tsc` then fails if a column of

@@ -7,6 +7,7 @@ import {
   listRecentLocationsForTruck,
   updateLocation,
 } from "@/lib/db/locations";
+import { MAX_ROWS } from "@/lib/db/complete";
 import type { LocationPatch, NewLocation } from "@/lib/types";
 import {
   FIXTURE_PLACE,
@@ -278,9 +279,9 @@ describe("listRecentLocationsForTruck", () => {
     expect(limited.map((row) => row.id)).toEqual([day20, day19]);
   });
 
-  it.each([0, -1, 1.5])("throws on limit %s before any request", async (limit) => {
+  it.each([0, -1, 1.5, 1001])("throws on limit %s before any request", async (limit) => {
     await expect(listRecentLocationsForTruck(truckId, BEFORE, limit)).rejects.toThrow(
-      /positive integer/,
+      /integer from 1 to 1000/,
     );
   });
 });
@@ -303,15 +304,13 @@ describe("findLocationsOverlapping at the API's max_rows", () => {
     ).rejects.toThrow(/1000 of 1001 rows/);
   }, 30_000);
 
-  it("throws when recent places' limit is above the API's max_rows", async () => {
+  it("returns every row at limit = MAX_ROWS, so the API's cap is no lower", async () => {
+    // `listRecentLocationsForTruck` rejects a limit above MAX_ROWS instead of checking for
+    // a cut; this holds only while the running API returns at least MAX_ROWS rows.
     await seedDailyLocations(truckId, "2040-01-01T00:00:00.000Z", 1001);
 
-    await expect(
-      listRecentLocationsForTruck(truckId, "2050-01-01T00:00:00.000Z", 2000),
-    ).rejects.toThrow(/1000 rows returned and more exist/);
-    // At max_rows exactly, every row asked for arrives.
     expect(
-      await listRecentLocationsForTruck(truckId, "2050-01-01T00:00:00.000Z", 1000),
-    ).toHaveLength(1000);
+      await listRecentLocationsForTruck(truckId, "2050-01-01T00:00:00.000Z", MAX_ROWS),
+    ).toHaveLength(MAX_ROWS);
   }, 30_000);
 });

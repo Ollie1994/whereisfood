@@ -63,7 +63,6 @@ describe("listActiveTrucks", () => {
   });
 });
 
-// Last in the file: 1001 trucks are more rows than any other test here needs.
 describe("listActiveTrucks at the API's max_rows", () => {
   it("throws rather than return part of the trucks", async () => {
     // One more than `max_rows` in `supabase/config.toml`; the seed's active trucks add to
@@ -71,5 +70,7 @@ describe("listActiveTrucks at the API's max_rows", () => {
     await seedTrucks("Bulk", 1001);
 
     await expect(listActiveTrucks()).rejects.toThrow(/1000 of \d+ rows/);
+    // Removed here, inside this test's timeout, rather than by the next hook.
+    await resetTables();
   }, 30_000);
 });

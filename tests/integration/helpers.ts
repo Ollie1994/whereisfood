@@ -38,7 +38,7 @@ import type { Location, NewLocation } from "@/lib/types";
 // metacharacters is the version with nothing left to get wrong: there is no escaping to
 // remember when someone changes this string. The module-load check below makes that a
 // checked property rather than a convention.
-const FIXTURE_PREFIX = "itest-fixture-";
+export const FIXTURE_PREFIX = "itest-fixture-";
 
 // ⚠ THREE, NOT TWO, AND THE THIRD IS NOT A LIKE WILDCARD AT ALL. SQL LIKE has `%` and
 // `_`. But this prefix does not reach SQL directly — supabase-js appends it verbatim to
@@ -74,7 +74,8 @@ if (WILDCARDS_ON_THE_PATH_TO_POSTGRES.test(FIXTURE_PREFIX)) {
 // ⚠ IN BATCHES, UNTIL NO FIXTURE TRUCK IS LEFT. The select returns at most the API's
 // `max_rows`, and every id goes into the `.in()` filter's URL: with 1001 fixture trucks
 // left by an interrupted run of the `listActiveTrucks` max_rows test, one pass failed
-// with "URI too long" (2026-10-19). Each pass removes what it found, so the loop ends.
+// with "URI too long" (2026-10-19). A pass that removes fewer trucks than it found
+// throws, so the loop can't spin on the same ids.
 const RESET_BATCH = 100;
 
 export async function resetTables(): Promise<void> {
@@ -99,12 +100,18 @@ export async function resetTables(): Promise<void> {
 
     if (locationError) throw locationError;
 
-    const { error: truckError } = await supabaseAdmin
+    const { data: removed, error: truckError } = await supabaseAdmin
       .from("trucks")
       .delete()
-      .in("id", fixtureTruckIds);
+      .in("id", fixtureTruckIds)
+      .select("id");
 
     if (truckError) throw truckError;
+    if (removed.length !== fixtureTruckIds.length) {
+      throw new Error(
+        `resetTables: removed ${removed.length} of ${fixtureTruckIds.length} fixture trucks; stopping rather than looping`,
+      );
+    }
   }
 }
 

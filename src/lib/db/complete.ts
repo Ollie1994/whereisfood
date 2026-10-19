@@ -1,11 +1,19 @@
-// ⚠ POSTGREST RETURNS AT MOST `max_rows` ROWS (1000 in `supabase/config.toml`) WITH NO
-// ERROR, so a read without a `limit` can come back cut short. A read that selects with
-// `{ count: "exact" }` passes its rows and that count here, and gets an error instead
-// of a partial list (`db-locations.test.ts` and `db-trucks.test.ts`, the max_rows tests).
+// The most rows the API returns from one request: `max_rows` in `supabase/config.toml`.
+// `complete.test.ts` fails when the two differ, and `db-locations.test.ts` fails when
+// the running API returns fewer than this (the `limit` = MAX_ROWS case).
+export const MAX_ROWS = 1000;
+
+// ⚠ POSTGREST RETURNS AT MOST `max_rows` ROWS WITH NO ERROR, so a read without a
+// `limit` can come back cut short. A read that selects with `{ count: "exact" }` passes
+// its rows and that count here, and gets an error instead of a partial list
+// (`db-locations.test.ts` and `db-trucks.test.ts`, the max_rows tests).
 export function assertAllRows(fn: string, rows: readonly unknown[], count: number | null): void {
+  if (count === null) {
+    throw new Error(`${fn}: no row count came back; select with { count: "exact" }`);
+  }
   if (count !== rows.length) {
     throw new Error(
-      `${fn}: ${rows.length} of ${count} rows returned (the API's max_rows); narrow the query`,
+      `${fn}: ${rows.length} of ${count} rows returned; the result is larger than the API's max_rows (${MAX_ROWS})`,
     );
   }
 }

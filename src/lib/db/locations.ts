@@ -1,5 +1,5 @@
 import type { TablesUpdate } from "@/lib/database.types";
-import { assertAllRows } from "@/lib/db/complete";
+import { MAX_ROWS, assertAllRows } from "@/lib/db/complete";
 import { supabaseAdmin } from "@/lib/supabase";
 import type { Location, LocationPatch, NewLocation } from "@/lib/types";
 
@@ -11,8 +11,8 @@ import type { Location, LocationPatch, NewLocation } from "@/lib/types";
 //   the service (`CLAUDE.md`, "Time").
 // - No function deletes. Ended and cancelled are filters.
 // - An id that isn't a uuid raises `22P02` ("invalid input syntax for type uuid"), not
-//   null (probed 2026-10-19 on `updateLocation` and `cancelLocation`). The caller
-//   checks the shape first with `isUuid` (`src/lib/validators/uuid.ts`).
+//   null (probed 2026-10-19 on `updateLocation` and `cancelLocation`). Callers must
+//   check the shape first; `isUuid` (`src/lib/validators/uuid.ts`) exists for it.
 //
 // ⚠ A timestamp doesn't round-trip as the same string: we send `…T09:00:00.000Z`,
 // PostgREST returns `…T09:00:00+00:00` (seen in PR #106 and again in this module's
@@ -149,20 +149,22 @@ export async function findLocationsOverlapping(from: string, to: string): Promis
 // The truck's latest `limit` live rows that started before `before`, newest `starts_at`
 // first. `before` is usually now, so future entries don't fill "recent places".
 //
-// ⚠ THROWS RATHER THAN RETURN FEWER ROWS THAN ASKED FOR AND AVAILABLE. A `limit` above
-// the API's `max_rows` returns `max_rows` rows with no error (probed 2026-10-19: limit
-// 2000 over 1001 rows → 1000). An exact count would read the truck's whole history on
-// every call, which the `(truck_id, starts_at desc)` index exists to avoid (plan, #14).
-// So only when fewer than `limit` rows arrive, one more row is asked for at the next
-// offset: if it exists, the result was cut. `limit` must be a positive integer:
-// PostgREST rejects others with a 400 that would reach the caller as an opaque error.
+// ⚠ `limit` MUST BE AN INTEGER FROM 1 TO `MAX_ROWS`, checked before any request. Above
+// the API's `max_rows` the result is cut with no error (probed 2026-10-19: limit 2000
+// over 1001 rows → 1000), and at or below it a cut can't happen, so no count or second
+// read is needed: an exact count would read the truck's whole history per call, which
+// the `(truck_id, starts_at desc)` index exists to avoid (plan, #14). PostgREST rejects
+// a zero, negative or fractional limit with a 400 that would reach the caller as an
+// opaque error.
 export async function listRecentLocationsForTruck(
   truckId: string,
   before: string,
   limit: number,
 ): Promise<Location[]> {
-  if (!Number.isInteger(limit) || limit < 1) {
-    throw new Error(`listRecentLocationsForTruck: limit must be a positive integer, got ${limit}`);
+  if (!Number.isInteger(limit) || limit < 1 || limit > MAX_ROWS) {
+    throw new Error(
+      `listRecentLocationsForTruck: limit must be an integer from 1 to ${MAX_ROWS}, got ${limit}`,
+    );
   }
 
   const { data, error } = await supabaseAdmin
@@ -175,22 +177,5 @@ export async function listRecentLocationsForTruck(
     .limit(limit);
 
   if (error) throw error;
-  if (data.length < limit) {
-    const { data: next, error: nextError } = await supabaseAdmin
-      .from("locations")
-      .select("id")
-      .eq("truck_id", truckId)
-      .is("cancelled_at", null)
-      .lt("starts_at", before)
-      .order("starts_at", { ascending: false })
-      .range(data.length, data.length);
-
-    if (nextError) throw nextError;
-    if (next.length > 0) {
-      throw new Error(
-        `listRecentLocationsForTruck: ${data.length} rows returned and more exist (the API's max_rows); ask for fewer`,
-      );
-    }
-  }
   return data;
 }
