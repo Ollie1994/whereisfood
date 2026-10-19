@@ -30,12 +30,14 @@ async function insertError(table: Table, row: Record<string, unknown>): Promise<
 }
 
 // A timestamp in microseconds. Postgres keeps microseconds and `Date.parse` only
-// milliseconds, so two writes in one millisecond would compare equal under it.
+// milliseconds, so two writes in one millisecond would compare equal under it. Throws on
+// a format `Date.parse` can't read: NaN would pass `toBe(NaN)` and prove nothing.
 function micros(timestamp: string): number {
   const fraction = /\.(\d+)/.exec(timestamp)?.[1] ?? "";
-  return (
-    Date.parse(timestamp.replace(/\.\d+/, "")) * 1000 + Number(fraction.padEnd(6, "0").slice(0, 6))
-  );
+  const value =
+    Date.parse(timestamp.replace(/\.\d+/, "")) * 1000 + Number(fraction.padEnd(6, "0").slice(0, 6));
+  if (!Number.isFinite(value)) throw new Error(`micros: can't read "${timestamp}"`);
+  return value;
 }
 
 let truckId: string;
@@ -147,14 +149,18 @@ describe("NOT NULL", () => {
     ["users", "created_at"],
   ])("%s.%s refuses NULL with 23502", async (table, column) => {
     const row = validRow(table);
+    let asserted = false;
     try {
       const error = await insertError(table, { ...row, [column]: null });
 
       expect(error).toMatchObject({ code: "23502" });
       expect(error?.message).toContain(`"${column}"`);
+      asserted = true;
     } finally {
+      // A cleanup error is thrown only when the assertions passed: thrown from here after
+      // a failed assertion, it would replace that failure in the report.
       const { error } = await supabaseAdmin.from(table).delete().eq("id", row.id);
-      if (error) throw error;
+      if (error && asserted) throw error;
     }
   });
 });
