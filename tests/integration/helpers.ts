@@ -145,6 +145,11 @@ export function keysOf(row: object): string[] {
   return Object.keys(row).sort();
 }
 
+// A Saturday lunch, 11:00–14:00 Stockholm (CEST), stored UTC: the window most tests
+// build around. After 2020, clear of `seedLocation`'s default windows.
+export const LUNCH_START = "2026-08-22T09:00:00.000Z";
+export const LUNCH_END = "2026-08-22T12:00:00.000Z";
+
 // The place every fixture location stands at unless a test says otherwise.
 export const FIXTURE_PLACE = { latitude: 57.6998935, longitude: 11.952503, label: "Järntorget" };
 

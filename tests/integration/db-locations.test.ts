@@ -12,6 +12,8 @@ import { supabaseAdmin } from "@/lib/supabase";
 import type { LocationPatch, NewLocation } from "@/lib/types";
 import {
   FIXTURE_PLACE,
+  LUNCH_END,
+  LUNCH_START,
   keysOf,
   readLocation,
   resetTables,
@@ -38,10 +40,7 @@ const LOCATION_KEYS = [
   "updated_at",
 ];
 
-// A Saturday lunch, 11:00–14:00 Stockholm (CEST), stored UTC. Every window here is after
-// 2020, clear of `seedLocation`'s default windows (helpers.ts).
-const LUNCH_START = "2026-08-22T09:00:00.000Z";
-const LUNCH_END = "2026-08-22T12:00:00.000Z";
+// Every window here is after 2020, clear of `seedLocation`'s default windows (helpers.ts).
 
 let truckId: string;
 
