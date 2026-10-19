@@ -105,10 +105,10 @@ and `moddatetime` are Postgres extensions).
 **`src/lib/db/locations.ts`** (db layer). Postgres errors propagate unchanged (decision #10).
 | Function | Does |
 |---|---|
-| `insertLocation(NewLocation)` → `Location` | Insert and return the stored row. Can raise `23P01` or the CHECK violation. |
-| `updateLocation(id, LocationPatch)` → `Location \| null` | Edits place, label or times of a row that isn't cancelled; `null` when no such row. Can raise `23P01` or the CHECK violation. **Throws before any request on an empty patch** (no key with a defined value): PostgREST answers an empty PATCH by updating no row (probed 2026-10-18: `{}` on an existing truck → `200 []`), so it would return `null` for a row that exists. |
+| `insertLocation(NewLocation)` → `Location` | Insert and return the stored row. Can raise `23P01` or the CHECK violation. Sends only `NewLocation`'s columns, picked at runtime, so a wider object can't write `id` or `cancelled_at` (PR #167 round 1). |
+| `updateLocation(id, LocationPatch)` → `Location \| null` | Edits place, label or times of a row that isn't cancelled; `null` when no such row. Can raise `23P01` or the CHECK violation. **Throws before any request on an empty patch** (no key with a defined value): PostgREST answers an empty PATCH by updating no row (probed 2026-10-18: `{}` on an existing truck → `200 []`), so it would return `null` for a row that exists. Sends only `LocationPatch`'s columns, picked at runtime: a key it doesn't list counts as absent, so `{ ...row, label }` can't rewrite `truck_id`, `cancelled_at` or `created_by` (PR #167 round 1). |
 | `cancelLocation(id, cancelledAt)` → `Location \| null` | Sets `cancelled_at` where it is still null; `null` when the row is missing or already cancelled. The caller passes the timestamp (decision #10). |
-| `findLocationsOverlapping(from, to)` → `Location[]` | Non-cancelled rows with `starts_at < to AND ends_at > from`, all trucks (decision #9). |
+| `findLocationsOverlapping(from, to)` → `Location[]` | Non-cancelled rows with `starts_at < to AND ends_at > from`, all trucks (decision #9), ordered by `starts_at`. **Throws when more rows match than the API returns** (`max_rows`, 1000 locally): the exact count is compared with the rows received, so a wide window fails loudly instead of losing its latest rows (PR #167 round 1). |
 | `listRecentLocationsForTruck(truckId, before, limit)` → `Location[]` | The truck's latest non-cancelled rows with `starts_at < before`, newest `starts_at` first. The caller passes `before` (usually now), so future entries don't fill "recent places" and the clock stays in the service (decision #10). Phase 7's service dedupes them into "recent places". |
 | ~~`findOverlapping`, `deleteLocations`~~ | Removed: the constraint replaces the first; rows are never deleted. |
 
@@ -317,8 +317,8 @@ trigger the `SET NULL` moved `updated_at`; with this clause it didn't, and a pla
 edit, an edit of an unattributed row, and an attribution with a label edit each did.
 **The limit:** the clause skips *any* UPDATE that clears `created_by`, not only the
 FK's, so an edit that also clears it leaves `updated_at` stale. The db layer never
-writes `created_by` on an update (`LocationPatch` omits it; `cancelLocation` sets
-`cancelled_at` only), so only hand-written SQL can do that, and **SQL that clears
+writes `created_by` on an update (`updateLocation` sends only `LocationPatch`'s
+columns, picked at runtime; `cancelLocation` sets `cancelled_at` only), so only hand-written SQL can do that, and **SQL that clears
 `created_by` while editing sets `updated_at = now()` itself**.
 **Rejected:** `when (old.created_by is not distinct from new.created_by)` (PR #159
 round 6), which also skips that attribution-with-edit (probed: `updated_at` didn't

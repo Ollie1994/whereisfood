@@ -83,7 +83,8 @@ create table users (
 -- NULL, which is what `on delete set null` runs when an auth user is deleted; without
 -- the WHEN clause that would mark every entry the user wrote as just updated.
 -- ⚠ SQL that clears `created_by` while editing a row must set `updated_at = now()`
--- itself. The db layer never writes `created_by` on an update.
+-- itself. The db layer never writes `created_by` on an update: `updateLocation` sends
+-- only `LocationPatch`'s columns, picked at runtime (`src/lib/db/locations.ts`).
 -- ---------------------------------------------------------------------------
 
 create trigger locations_updated_at
