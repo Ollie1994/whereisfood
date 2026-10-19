@@ -1,4 +1,5 @@
 import type { TablesUpdate } from "@/lib/database.types";
+import { assertAllRows } from "@/lib/db/complete";
 import { supabaseAdmin } from "@/lib/supabase";
 import type { Location, LocationPatch, NewLocation } from "@/lib/types";
 
@@ -9,6 +10,9 @@ import type { Location, LocationPatch, NewLocation } from "@/lib/types";
 // - No function reads the clock. The caller passes every timestamp, so time stays in
 //   the service (`CLAUDE.md`, "Time").
 // - No function deletes. Ended and cancelled are filters.
+// - An id that isn't a uuid raises `22P02` ("invalid input syntax for type uuid"), not
+//   null (probed 2026-10-19 on `updateLocation` and `cancelLocation`). Checking an
+//   id's shape is the validator's job (Phase 7, `src/lib/validators/`).
 //
 // ⚠ A timestamp doesn't round-trip as the same string: we send `…T09:00:00.000Z`,
 // PostgREST returns `…T09:00:00+00:00` (seen in PR #106 and again in this module's
@@ -125,10 +129,8 @@ export async function cancelLocation(
 // start time (every 11:00 entry) would otherwise come back in any order
 // (`db-locations.test.ts`, "breaks a starts_at tie").
 //
-// ⚠ THROWS RATHER THAN RETURN PART OF THE ROWS. PostgREST returns at most `max_rows`
-// rows (1000 in `supabase/config.toml`) with no error, so a wide window would come back
-// cut short, its latest rows missing. The exact count is compared with what arrived
-// (`db-locations.test.ts`, "throws when…").
+// ⚠ THROWS RATHER THAN RETURN PART OF THE ROWS: a window wider than `max_rows` rows
+// would lose its latest ones (`assertAllRows`).
 export async function findLocationsOverlapping(from: string, to: string): Promise<Location[]> {
   const { data, error, count } = await supabaseAdmin
     .from("locations")
@@ -140,11 +142,7 @@ export async function findLocationsOverlapping(from: string, to: string): Promis
     .order("id");
 
   if (error) throw error;
-  if (count !== data.length) {
-    throw new Error(
-      `findLocationsOverlapping: ${data.length} of ${count} rows returned (the API's max_rows); narrow the window`,
-    );
-  }
+  assertAllRows("findLocationsOverlapping", data, count);
   return data;
 }
 
@@ -153,9 +151,11 @@ export async function findLocationsOverlapping(from: string, to: string): Promis
 //
 // ⚠ THROWS RATHER THAN RETURN FEWER ROWS THAN ASKED FOR AND AVAILABLE. A `limit` above
 // the API's `max_rows` returns `max_rows` rows with no error (probed 2026-10-19: limit
-// 2000 over 1001 rows → 1000), so the exact count is compared with what arrived, as in
-// `findLocationsOverlapping`. `limit` must be a positive integer: PostgREST rejects
-// others with a 400 that would reach the caller as an opaque error.
+// 2000 over 1001 rows → 1000). An exact count would read the truck's whole history on
+// every call, which the `(truck_id, starts_at desc)` index exists to avoid (plan, #14).
+// So only when fewer than `limit` rows arrive, one more row is asked for at the next
+// offset: if it exists, the result was cut. `limit` must be a positive integer:
+// PostgREST rejects others with a 400 that would reach the caller as an opaque error.
 export async function listRecentLocationsForTruck(
   truckId: string,
   before: string,
@@ -165,9 +165,9 @@ export async function listRecentLocationsForTruck(
     throw new Error(`listRecentLocationsForTruck: limit must be a positive integer, got ${limit}`);
   }
 
-  const { data, error, count } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin
     .from("locations")
-    .select(LOCATION_COLUMNS, { count: "exact" })
+    .select(LOCATION_COLUMNS)
     .eq("truck_id", truckId)
     .is("cancelled_at", null)
     .lt("starts_at", before)
@@ -175,11 +175,22 @@ export async function listRecentLocationsForTruck(
     .limit(limit);
 
   if (error) throw error;
-  const expected = Math.min(limit, count ?? 0);
-  if (data.length !== expected) {
-    throw new Error(
-      `listRecentLocationsForTruck: ${data.length} of ${expected} rows returned (the API's max_rows); ask for fewer`,
-    );
+  if (data.length < limit) {
+    const { data: next, error: nextError } = await supabaseAdmin
+      .from("locations")
+      .select("id")
+      .eq("truck_id", truckId)
+      .is("cancelled_at", null)
+      .lt("starts_at", before)
+      .order("starts_at", { ascending: false })
+      .range(data.length, data.length);
+
+    if (nextError) throw nextError;
+    if (next.length > 0) {
+      throw new Error(
+        `listRecentLocationsForTruck: ${data.length} rows returned and more exist (the API's max_rows); ask for fewer`,
+      );
+    }
   }
   return data;
 }

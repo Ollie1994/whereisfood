@@ -3,8 +3,9 @@ import { supabaseAdmin } from "@/lib/supabase";
 import type { Tables } from "@/lib/database.types";
 import type { Location, NewLocation } from "@/lib/types";
 
-// Minimal fixtures for the integration project. Deliberately small — #72 EXTENDS this
-// file rather than replacing it, so what lands here is only what #64 needs.
+// Fixtures and checks more than one integration test file needs: fixture trucks and
+// locations, their cleanup, bulk inserts and the key-set helper. The Phase 5 plan's
+// "`tests/integration/helpers.ts`" table lists them, with the ones step 4 adds.
 //
 // Safe to import `supabaseAdmin` at module scope because `setup.ts` runs first and has
 // already populated `process.env` and refused any non-local database.
@@ -69,32 +70,42 @@ if (WILDCARDS_ON_THE_PATH_TO_POSTGRES.test(FIXTURE_PREFIX)) {
 //
 // Deleting `locations` rows here is cleanup of fixture rows only; the app never deletes
 // one (`CLAUDE.md`, "Locations").
+//
+// ⚠ IN BATCHES, UNTIL NO FIXTURE TRUCK IS LEFT. The select returns at most the API's
+// `max_rows`, and every id goes into the `.in()` filter's URL: with 1001 fixture trucks
+// left by an interrupted run of the `listActiveTrucks` max_rows test, one pass failed
+// with "URI too long" (2026-10-19). Each pass removes what it found, so the loop ends.
+const RESET_BATCH = 100;
+
 export async function resetTables(): Promise<void> {
-  const { data, error } = await supabaseAdmin
-    .from("trucks")
-    .select("id")
-    .like("name", `${FIXTURE_PREFIX}%`);
+  for (;;) {
+    const { data, error } = await supabaseAdmin
+      .from("trucks")
+      .select("id")
+      .like("name", `${FIXTURE_PREFIX}%`)
+      .limit(RESET_BATCH);
 
-  if (error) throw error;
+    if (error) throw error;
 
-  const fixtureTruckIds = (data ?? []).map((row) => row.id);
-  // Nothing this suite made, so nothing to remove. Also what keeps the `.in()` calls
-  // below off an empty array.
-  if (fixtureTruckIds.length === 0) return;
+    const fixtureTruckIds = data.map((row) => row.id);
+    // Nothing this suite made is left, so nothing to remove. Also what keeps the
+    // `.in()` calls below off an empty array.
+    if (fixtureTruckIds.length === 0) return;
 
-  const { error: locationError } = await supabaseAdmin
-    .from("locations")
-    .delete()
-    .in("truck_id", fixtureTruckIds);
+    const { error: locationError } = await supabaseAdmin
+      .from("locations")
+      .delete()
+      .in("truck_id", fixtureTruckIds);
 
-  if (locationError) throw locationError;
+    if (locationError) throw locationError;
 
-  const { error: truckError } = await supabaseAdmin
-    .from("trucks")
-    .delete()
-    .in("id", fixtureTruckIds);
+    const { error: truckError } = await supabaseAdmin
+      .from("trucks")
+      .delete()
+      .in("id", fixtureTruckIds);
 
-  if (truckError) throw truckError;
+    if (truckError) throw truckError;
+  }
 }
 
 // A truck to hang locations off. Returns the id rather than the row: every caller so far
@@ -123,6 +134,17 @@ export async function seedTruck(name = "Truck", isActive = true): Promise<string
 // list written out in the test, the only guard against an extra selected column.
 export function keysOf(row: object): string[] {
   return Object.keys(row).sort();
+}
+
+// The place every fixture location stands at unless a test says otherwise.
+export const FIXTURE_PLACE = { latitude: 57.6998935, longitude: 11.952503, label: "Järntorget" };
+
+// The fixture window on the UTC day starting at `dayMs`: 09:00–12:00 UTC.
+export function dayWindow(dayMs: number): Pick<NewLocation, "starts_at" | "ends_at"> {
+  return {
+    starts_at: new Date(dayMs + 9 * 3_600_000).toISOString(),
+    ends_at: new Date(dayMs + 12 * 3_600_000).toISOString(),
+  };
 }
 
 // Day *n* of the default windows: each call without its own window gets a day no
@@ -160,18 +182,12 @@ export async function seedLocation(
   if (starts_at !== undefined && ends_at !== undefined) {
     window = { starts_at, ends_at };
   } else {
-    const day = Date.UTC(2000, 0, 1) + defaultWindowDay * 86_400_000;
+    window = dayWindow(Date.UTC(2000, 0, 1) + defaultWindowDay * 86_400_000);
     defaultWindowDay += 1;
-    window = {
-      starts_at: new Date(day + 9 * 3_600_000).toISOString(),
-      ends_at: new Date(day + 12 * 3_600_000).toISOString(),
-    };
   }
 
   const location: NewLocation & SeedLocationOverrides = {
-    latitude: 57.6998935,
-    longitude: 11.952503,
-    label: "Järntorget",
+    ...FIXTURE_PLACE,
     source: "admin",
     created_by: null,
     ...overrides,
@@ -198,18 +214,27 @@ export async function seedDailyLocations(
   count: number,
 ): Promise<void> {
   const start = Date.parse(firstDay);
-  const rows = Array.from({ length: count }, (_, n) => {
-    const day = start + n * 86_400_000;
-    return {
-      truck_id: truckId,
-      latitude: 57.6998935,
-      longitude: 11.952503,
-      starts_at: new Date(day + 9 * 3_600_000).toISOString(),
-      ends_at: new Date(day + 12 * 3_600_000).toISOString(),
-    };
-  });
+  const rows = Array.from({ length: count }, (_, n) => ({
+    truck_id: truckId,
+    ...FIXTURE_PLACE,
+    ...dayWindow(start + n * 86_400_000),
+  }));
 
   const { error } = await supabaseAdmin.from("locations").insert(rows);
+  if (error) throw error;
+}
+
+// Insert `count` active fixture trucks in one request, named `${name} 0001` and so on,
+// for the tests that need more trucks than the API's `max_rows`. Prefixed like
+// `seedTruck`'s, so `resetTables()` removes them.
+export async function seedTrucks(name: string, count: number): Promise<void> {
+  const rows = Array.from({ length: count }, (_, n) => ({
+    id: randomUUID(),
+    name: `${FIXTURE_PREFIX}${name} ${String(n + 1).padStart(4, "0")}`,
+    is_active: true,
+  }));
+
+  const { error } = await supabaseAdmin.from("trucks").insert(rows);
   if (error) throw error;
 }
 

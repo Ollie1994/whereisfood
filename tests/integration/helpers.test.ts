@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { supabaseAdmin } from "@/lib/supabase";
-import { resetTables, seedLocation, seedTruck } from "./helpers";
+import { resetTables, seedLocation, seedTruck, seedTrucks } from "./helpers";
 
 // ⚠ EVERY BYSTANDER IS ADVERSARIAL, AND THE FIRST VERSION'S WAS NOT. It was named
 // "Seed-like Truck", which stands in for `seed.sql`'s dev trucks — and that is exactly
@@ -61,6 +61,21 @@ it("⚠ resetTables deletes only what this suite created", async () => {
   // And it did do its job — the fixture is gone.
   expect(removed.data).toBeNull();
 }, 20_000);
+
+it("removes more fixture trucks than the API's max_rows", async () => {
+  // In one pass, the ids of 1001 trucks overflow the `.in()` filter's URL ("URI too
+  // long") and the select stops at max_rows; `resetTables` loops in batches.
+  await seedTrucks("Bulk", 1001);
+
+  await resetTables();
+
+  const { count, error } = await supabaseAdmin
+    .from("trucks")
+    .select("id", { count: "exact", head: true })
+    .like("name", "itest-fixture-%");
+  if (error) throw error;
+  expect(count).toBe(0);
+}, 30_000);
 
 it("removes a fixture's children before the fixture itself", async () => {
   // `locations.truck_id` references `trucks` with no cascade, so a cleanup that deletes

@@ -9,6 +9,7 @@ import {
 } from "@/lib/db/locations";
 import type { LocationPatch, NewLocation } from "@/lib/types";
 import {
+  FIXTURE_PLACE,
   keysOf,
   readLocation,
   resetTables,
@@ -50,9 +51,7 @@ beforeEach(async () => {
 function aLocation(overrides: Partial<NewLocation> = {}): NewLocation {
   return {
     truck_id: truckId,
-    latitude: 57.6998935,
-    longitude: 11.952503,
-    label: "Järntorget",
+    ...FIXTURE_PLACE,
     starts_at: LUNCH_START,
     ends_at: LUNCH_END,
     source: "admin",
@@ -309,7 +308,7 @@ describe("findLocationsOverlapping at the API's max_rows", () => {
 
     await expect(
       listRecentLocationsForTruck(truckId, "2050-01-01T00:00:00.000Z", 2000),
-    ).rejects.toThrow(/1000 of 1001 rows/);
+    ).rejects.toThrow(/1000 rows returned and more exist/);
     // At max_rows exactly, every row asked for arrives.
     expect(
       await listRecentLocationsForTruck(truckId, "2050-01-01T00:00:00.000Z", 1000),

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it } from "vitest";
 import { getActiveTruckById, listActiveTrucks } from "@/lib/db/trucks";
-import { keysOf, resetTables, seedTruck } from "./helpers";
+import { keysOf, resetTables, seedTruck, seedTrucks } from "./helpers";
 
 // The keys every function's rows must have, WRITTEN OUT rather than derived from a
 // type, which would grow with the table. `tsc` catches a column missing from the
@@ -61,4 +61,15 @@ describe("listActiveTrucks", () => {
     expect(fixtureIds).toEqual([alpha, burgare, zebra, akes, aertsoppan, oel]);
     expect(trucks.every((truck) => keysOf(truck).join() === TRUCK_KEYS.join())).toBe(true);
   });
+});
+
+// Last in the file: 1001 trucks are more rows than any other test here needs.
+describe("listActiveTrucks at the API's max_rows", () => {
+  it("throws rather than return part of the trucks", async () => {
+    // One more than `max_rows` in `supabase/config.toml`; the seed's active trucks add to
+    // the count, so only the 1000 that arrive is asserted.
+    await seedTrucks("Bulk", 1001);
+
+    await expect(listActiveTrucks()).rejects.toThrow(/1000 of \d+ rows/);
+  }, 30_000);
 });
