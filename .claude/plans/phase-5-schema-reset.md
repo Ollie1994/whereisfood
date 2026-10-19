@@ -124,13 +124,15 @@ the columns exist (issue #48).
 - `NewLocation`: `Location` minus `id`, `created_at`, `updated_at`, `cancelled_at` (an insert is never born cancelled), **plus `created_by: string | null`**. Every key, `created_by` and `label` included, is required, so a caller states each value.
 - `LocationPatch`: an optional pick of `latitude`, `longitude`, `label`, `starts_at`, `ends_at`.
 
-**`src/lib/map-types.ts`**: types only (decision #1): `type` aliases (an interface can be
-extended from another file by module augmentation) and **no imports**. A copy
-re-derived from `database.types` or `@/lib/types` would lose `confidence`,
-`is_negation` and `last_known_*`, which the map code uses, so `tsc` fails on it: 12
-errors with those four fields deleted (PR #166). `tsc` at step 2 is therefore the guard.
-**Rejected:** a lint rule and a lint test on the file (PR #166 rounds 2–3), which
-guarded what `tsc` already catches and each needed a fix of its own. `MapTruck` and `MapLocation` are
+**`src/lib/map-types.ts`**: types only (decision #1): `type` aliases (an interface there
+merged a `declare module` augmentation from another file; with aliases it fails `tsc`
+with TS2300, PR #166) and **no imports**. A copy re-derived from `database.types` or
+`@/lib/types` still compiles at step 1, while those types keep the old columns. From
+step 2 it loses `confidence`, `is_negation` and `last_known_*`, which the map code uses,
+so `tsc` fails on it: 12 errors with those four fields deleted (PR #166). So the guard
+is `tsc` at step 2, and a re-coupling made between steps 1 and 2 surfaces in step 2's
+diff. **Rejected:** a lint rule and a lint test on the file (PR #166 rounds 2–3), which
+guarded what `tsc` already catches from step 2 and each needed a fix of its own. `MapTruck` and `MapLocation` are
 copies of today's `Truck` and `Location` **with every current field**, not a trimmed
 set. The map reads `location.confidence` and `is_negation` and
 `truck.last_known_latitude`/`_longitude` (`useMapLibre.tsx`'s `deriveColor` and

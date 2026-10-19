@@ -2,17 +2,20 @@
 //
 // `MapTruck` and `MapLocation` copy the `trucks` and `locations` rows of
 // `src/lib/database.types.ts` at commit d018091, every field, with `source` narrowed as
-// `types.ts` did at that commit. To recheck, against `Truck`/`Location` from `types.ts`
-// at d018091, with `Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false`:
+// `types.ts` did at that commit. To recheck, in a worktree at d018091 (its `types.ts`
+// imports that commit's `database.types.ts`, so both must come from it), with
+// `Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false`:
 // `Same<MapTruck, Truck>`, `Same<MapLocation, Location>` and `Same` of each pair's
 // `keyof` are all `true` (run in PR #166, with a dropped-key control that failed).
 // Why frozen: plan phase-5-schema-reset, decision #1 and its `map-types.ts` section.
 // What the map shows until then: CLAUDE.md, UI Rules.
 //
-// ⚠ No imports in this file, and `type` aliases rather than interfaces (another file
-// can extend an interface by module augmentation). What catches a copy re-derived from
-// the Phase 5 schema is `npx tsc --noEmit`: `fake-data.ts` and `useMapLibre.tsx` use
-// `confidence`, `is_negation` and `last_known_*`, which that schema lacks. With those
+// ⚠ No imports in this file, and `type` aliases rather than interfaces: an interface
+// here merged a `declare module` augmentation from another file, and with aliases the
+// same file fails tsc with TS2300 "Duplicate identifier" (PR #166). A copy re-derived
+// from `@/lib/types` still compiles until plan step 2 regenerates the types; from then
+// `npx tsc --noEmit` catches it, because `fake-data.ts` and `useMapLibre.tsx` use
+// `confidence`, `is_negation` and `last_known_*`, which the new schema lacks. With those
 // four fields deleted here, tsc reported 12 errors in the two files (PR #166).
 
 export type MapTruck = {
@@ -48,9 +51,9 @@ export type MapLocation = {
   updated_at: string;
 };
 
-// Derived client-side, never persisted — one per truck shown on the map.
 export type MarkerColor = "green" | "yellow" | "grey";
 
+// Derived client-side, never persisted — one per truck shown on the map.
 export type MarkerState = {
   truck: MapTruck;
   location: MapLocation | null; // null → grey marker
