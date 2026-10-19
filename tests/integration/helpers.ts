@@ -123,9 +123,10 @@ export async function seedTruck(name = "Truck"): Promise<string> {
 // earlier call used, so two default locations on one truck never overlap (`23P01`).
 let defaultWindowDay = 0;
 
-// Insert a valid location on `truckId` and return the stored row (every column,
-// `created_by` included), so a test states only the columns it is about. Inserts with `supabaseAdmin`, not `insertLocation`, so the db
-// layer's tests don't depend on the code under test for their setup.
+// Insert a valid location on `truckId` and return the stored row (`created_by`
+// included), so a test states only the columns it is about. Inserts with
+// `supabaseAdmin`, not `insertLocation`, so the db layer's tests don't depend on the
+// code under test for their setup.
 //
 // Without `starts_at`/`ends_at`, the window is 09:00–12:00 UTC on day *n* after
 // 2000-01-01. A test that passes its own window keeps it after 2020, clear of these

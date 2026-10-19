@@ -38,9 +38,9 @@ afterEach(async () => {
 });
 
 it("⚠ resetTables deletes only what this suite created", async () => {
-  // THE REGRESSION THIS FILE EXISTS FOR, now hit twice. A first version deleted every
-  // row of every table, destroying `seed.sql`'s three fixed-UUID dev trucks, so running
-  // the merge gate broke the seed (r1). The fix for that then used a prefix containing
+  // THE REGRESSION THIS FILE EXISTS FOR, now hit twice. A first version emptied the
+  // tables it cleaned, trucks included, destroying `seed.sql`'s three fixed-UUID dev
+  // trucks, so running the merge gate broke the seed (r1). The fix for that then used a prefix containing
   // LIKE wildcards, which matched unrelated trucks (r2).
   //
   // Both times nothing went red. A destructive side effect produces no failure, which

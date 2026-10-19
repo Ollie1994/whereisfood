@@ -111,7 +111,7 @@ branch and tag.
   ([`supabase/migrations/0001_baseline.sql`](supabase/migrations/0001_baseline.sql)):
   `trucks`, `locations` and `users`. The database refuses overlapping entries for a
   truck, entries are cancelled rather than deleted, and the API roles get no access to
-  `trucks` or `locations` (the app reads them server-side only). The dev seed has
+  `trucks` or `locations` (only the server-side database layer reads them). The dev seed has
   three trucks and four weeks of location history relative to the day it is loaded.
 - The database layer (`src/lib/db/`) the live read path and the admin screen will use.
 - Unit tests, and integration tests for the database layer against a local Supabase.
