@@ -1,3 +1,4 @@
+import type { TablesUpdate } from "@/lib/database.types";
 import { supabaseAdmin } from "@/lib/supabase";
 import type { Location, LocationPatch, NewLocation } from "@/lib/types";
 
@@ -23,14 +24,68 @@ import type { Location, LocationPatch, NewLocation } from "@/lib/types";
 export const LOCATION_COLUMNS =
   "id, truck_id, latitude, longitude, label, starts_at, ends_at, cancelled_at, source, created_at, updated_at";
 
+// ⚠ THE COLUMNS EACH WRITE MAY SEND, PICKED AT RUNTIME. `NewLocation` and
+// `LocationPatch` are compile-time only: an object with more keys still type-checks
+// (`LocationPatch` is all-optional, so anything sharing one key with it does), and
+// supabase-js would send every key. So `{ ...row, label }` would rewrite `truck_id`,
+// `cancelled_at` or `created_by` (`db-locations.test.ts`, "writes only…"). A `Record`
+// over the type's keys makes `tsc` fail when the type gains or loses a column and the
+// list doesn't.
+const INSERT_KEYS: Record<keyof NewLocation, true> = {
+  truck_id: true,
+  latitude: true,
+  longitude: true,
+  label: true,
+  starts_at: true,
+  ends_at: true,
+  source: true,
+  created_by: true,
+};
+
+const PATCH_KEYS: Record<keyof LocationPatch, true> = {
+  latitude: true,
+  longitude: true,
+  label: true,
+  starts_at: true,
+  ends_at: true,
+};
+
+// A copy of `source` with only the keys `keys` lists. Typed `T`: `keys` names every
+// key of `T`, so each key `source` must have is copied.
+function pick<T extends object>(source: T, keys: Record<keyof T, true>): T {
+  const picked = {} as T;
+  for (const key of Object.keys(keys) as (keyof T)[]) {
+    if (key in source) picked[key] = source[key];
+  }
+  return picked;
+}
+
 // Insert and return the stored row. Raises `23P01` on an overlap with a live row of the
 // same truck, `23514` when `ends_at <= starts_at`.
 export async function insertLocation(location: NewLocation): Promise<Location> {
   const { data, error } = await supabaseAdmin
     .from("locations")
-    .insert(location)
+    .insert(pick(location, INSERT_KEYS))
     .select(LOCATION_COLUMNS)
     .single();
+
+  if (error) throw error;
+  return data;
+}
+
+// Update a row that isn't cancelled and return it; null when no such row. The one path
+// for both edits and cancels, so the live-row filter and the select are written once.
+async function updateLiveRow(
+  id: string,
+  values: TablesUpdate<"locations">,
+): Promise<Location | null> {
+  const { data, error } = await supabaseAdmin
+    .from("locations")
+    .update(values)
+    .eq("id", id)
+    .is("cancelled_at", null)
+    .select(LOCATION_COLUMNS)
+    .maybeSingle();
 
   if (error) throw error;
   return data;
@@ -42,25 +97,17 @@ export async function insertLocation(location: NewLocation): Promise<Location> {
 // ⚠ THROWS ON AN EMPTY PATCH, before any request: PostgREST answers an empty PATCH by
 // updating no row (probed 2026-10-18: `{}` on an existing truck → `200 []`), so this
 // would return null for a row that exists. A key set to `undefined` is dropped from the
-// JSON body, so it counts as absent.
+// JSON body, so it counts as absent, and so does a key `PATCH_KEYS` doesn't list.
 export async function updateLocation(
   id: string,
   patch: LocationPatch,
 ): Promise<Location | null> {
-  if (Object.values(patch).every((value) => value === undefined)) {
+  const picked = pick(patch, PATCH_KEYS);
+  if (Object.values(picked).every((value) => value === undefined)) {
     throw new Error("updateLocation: the patch sets no column");
   }
 
-  const { data, error } = await supabaseAdmin
-    .from("locations")
-    .update(patch)
-    .eq("id", id)
-    .is("cancelled_at", null)
-    .select(LOCATION_COLUMNS)
-    .maybeSingle();
-
-  if (error) throw error;
-  return data;
+  return updateLiveRow(id, picked);
 }
 
 // Cancel a live row: set `cancelled_at` where it is still null. Null when the row is
@@ -69,36 +116,39 @@ export async function cancelLocation(
   id: string,
   cancelledAt: string,
 ): Promise<Location | null> {
-  const { data, error } = await supabaseAdmin
-    .from("locations")
-    .update({ cancelled_at: cancelledAt })
-    .eq("id", id)
-    .is("cancelled_at", null)
-    .select(LOCATION_COLUMNS)
-    .maybeSingle();
-
-  if (error) throw error;
-  return data;
+  return updateLiveRow(id, { cancelled_at: cancelledAt });
 }
 
 // Live rows of every truck overlapping [from, to): `starts_at < to AND ends_at > from`.
 // Half-open, so a row ending exactly at `from` is out. Not filtered on the truck's
 // `is_active` (plan, open decision 6). Ordered by `starts_at`.
+//
+// ⚠ THROWS RATHER THAN RETURN PART OF THE ROWS. PostgREST returns at most `max_rows`
+// rows (1000 in `supabase/config.toml`) with no error, so a wide window would come back
+// cut short, its latest rows missing. The exact count is compared with what arrived
+// (`db-locations.test.ts`, "throws when…").
 export async function findLocationsOverlapping(from: string, to: string): Promise<Location[]> {
-  const { data, error } = await supabaseAdmin
+  const { data, error, count } = await supabaseAdmin
     .from("locations")
-    .select(LOCATION_COLUMNS)
+    .select(LOCATION_COLUMNS, { count: "exact" })
     .is("cancelled_at", null)
     .lt("starts_at", to)
     .gt("ends_at", from)
     .order("starts_at");
 
   if (error) throw error;
+  if (count !== data.length) {
+    throw new Error(
+      `findLocationsOverlapping: ${data.length} of ${count} rows returned (the API's max_rows); narrow the window`,
+    );
+  }
   return data;
 }
 
 // The truck's latest `limit` live rows that started before `before`, newest `starts_at`
-// first. `before` is usually now, so future entries don't fill "recent places".
+// first. `before` is usually now, so future entries don't fill "recent places". A
+// `limit` above the API's `max_rows` returns `max_rows` rows (probed 2026-10-19: limit
+// 2000 over 1001 rows → 1000).
 export async function listRecentLocationsForTruck(
   truckId: string,
   before: string,

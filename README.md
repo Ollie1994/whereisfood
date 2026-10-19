@@ -110,8 +110,9 @@ branch and tag.
 - The new design's Supabase schema, in one migration
   ([`supabase/migrations/0001_baseline.sql`](supabase/migrations/0001_baseline.sql)):
   `trucks`, `locations` and `users`. The database refuses overlapping entries for a
-  truck, entries are cancelled rather than deleted, and the API roles get no access to
-  `trucks` or `locations` (only the server-side database layer reads them). The dev seed has
+  truck, entries are cancelled rather than deleted, and the public API roles (`anon`
+  and `authenticated`) get no access to `trucks` or `locations`: only the server-side
+  database layer reads them, with the `service_role` key. The dev seed has
   three trucks and four weeks of location history relative to the day it is loaded.
 - The database layer (`src/lib/db/`) the live read path and the admin screen will use.
 - Unit tests, and integration tests for the database layer against a local Supabase.

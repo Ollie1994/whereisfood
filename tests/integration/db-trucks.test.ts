@@ -2,8 +2,7 @@ import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it } from "vitest";
 import { getActiveTruckById, listActiveTrucks } from "@/lib/db/trucks";
 import { supabaseAdmin } from "@/lib/supabase";
-import type { Truck } from "@/lib/types";
-import { resetTables, seedTruck } from "./helpers";
+import { keysOf, resetTables, seedTruck } from "./helpers";
 
 // The keys every function's rows must have, WRITTEN OUT rather than derived from a
 // type, which would grow with the table. `tsc` catches a column missing from the
@@ -17,10 +16,6 @@ const TRUCK_KEYS = [
   "is_active",
   "name",
 ];
-
-function keysOf(row: Truck): string[] {
-  return Object.keys(row).sort();
-}
 
 async function seedInactiveTruck(name: string): Promise<string> {
   const id = await seedTruck(name);

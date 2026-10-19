@@ -23,9 +23,10 @@ create type location_source as enum ('admin', 'owner');
 
 -- ---------------------------------------------------------------------------
 -- Tables. Every column's nullability and default is stated here (#17).
--- Every foreign key is NO ACTION: deleting a truck with history fails with 23503
--- (probed on this schema 2026-10-19, `locations_truck_id_fkey`), and only the
--- takedown (Phase 8) removes history (#7).
+-- `locations.truck_id`, `users.truck_id` and `users.id` are NO ACTION: deleting a truck
+-- with history fails with 23503 (probed on this schema 2026-10-19,
+-- `locations_truck_id_fkey`), and only the takedown (Phase 8) removes history (#7).
+-- `locations.created_by` is the exception, ON DELETE SET NULL (#8; the trigger below).
 -- ---------------------------------------------------------------------------
 
 create table trucks (

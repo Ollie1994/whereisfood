@@ -8,8 +8,8 @@ import {
   updateLocation,
 } from "@/lib/db/locations";
 import { supabaseAdmin } from "@/lib/supabase";
-import type { Location, LocationPatch, NewLocation } from "@/lib/types";
-import { resetTables, seedLocation, seedTruck } from "./helpers";
+import type { LocationPatch, NewLocation } from "@/lib/types";
+import { keysOf, resetTables, seedLocation, seedTruck } from "./helpers";
 
 // The keys every function's rows must have, WRITTEN OUT rather than derived from a
 // type, which would grow with the table. No `created_by` (Phase 5 plan, #8). `tsc`
@@ -28,10 +28,6 @@ const LOCATION_KEYS = [
   "truck_id",
   "updated_at",
 ];
-
-function keysOf(row: Location): string[] {
-  return Object.keys(row).sort();
-}
 
 // A Saturday lunch, 11:00–14:00 Stockholm (CEST), stored UTC. Every window here is after
 // 2020, clear of `seedLocation`'s default windows (helpers.ts).
@@ -82,6 +78,17 @@ describe("insertLocation", () => {
     expect(Date.parse(stored.starts_at)).toBe(Date.parse(LUNCH_START));
   });
 
+  it("writes only NewLocation's columns, even from a wider object", async () => {
+    // A variable, not a literal: `tsc` checks excess keys only on a literal, so this
+    // compiles, as a spread in a caller would.
+    const wider = { ...aLocation(), id: randomUUID(), cancelled_at: "2026-08-21T08:00:00.000Z" };
+
+    const stored = await insertLocation(wider);
+
+    expect(stored.id).not.toBe(wider.id);
+    expect(stored.cancelled_at).toBeNull();
+  });
+
   it("lets an overlap's 23P01 through with its code (open decision 5)", async () => {
     await insertLocation(aLocation());
 
@@ -104,6 +111,24 @@ describe("updateLocation", () => {
     expect(updated?.label).toBe("Heden");
     expect(Date.parse(updated!.ends_at)).toBe(Date.parse("2026-08-22T13:00:00.000Z"));
     expect(keysOf(updated!)).toEqual(LOCATION_KEYS);
+  });
+
+  it("writes only LocationPatch's columns, even from a wider object", async () => {
+    const otherTruck = await seedTruck("Other");
+    const row = await seedLocation(truckId);
+    // A variable, not a literal, as in the insert case: `{ ...row, label }` compiles.
+    const wider = {
+      ...row,
+      label: "Heden",
+      truck_id: otherTruck,
+      cancelled_at: "2026-08-21T08:00:00.000Z",
+    };
+
+    const updated = await updateLocation(row.id, wider);
+
+    expect(updated?.label).toBe("Heden");
+    expect(updated?.truck_id).toBe(truckId);
+    expect(updated?.cancelled_at).toBeNull();
   });
 
   it("returns null for an unknown id", async () => {
@@ -176,12 +201,17 @@ describe("findLocationsOverlapping", () => {
     return { rows, ids: rows.filter((row) => trucks.includes(row.truck_id)).map((row) => row.id) };
   }
 
-  it("finds live rows of every truck that overlap the window, with exactly the selected keys", async () => {
+  it("finds live rows of every truck that overlap the window, by starts_at, with exactly the selected keys", async () => {
+    // The later-starting row is inserted first and ends first, so neither insertion order
+    // nor the `ends_at` index gives `starts_at` order: only `.order("starts_at")` does.
     const otherTruck = await seedTruck("Other");
-    const { id: mine } = await seedLocation(truckId, { starts_at: LUNCH_START, ends_at: LUNCH_END });
     const { id: theirs } = await seedLocation(otherTruck, {
       starts_at: "2026-08-22T11:00:00.000Z",
-      ends_at: "2026-08-22T15:00:00.000Z",
+      ends_at: LUNCH_END,
+    });
+    const { id: mine } = await seedLocation(truckId, {
+      starts_at: LUNCH_START,
+      ends_at: "2026-08-22T16:00:00.000Z",
     });
 
     const { rows, ids } = await overlappingIds(
@@ -190,7 +220,7 @@ describe("findLocationsOverlapping", () => {
       [truckId, otherTruck],
     );
 
-    expect(ids.sort()).toEqual([mine, theirs].sort());
+    expect(ids).toEqual([mine, theirs]);
     expect(keysOf(rows.find((row) => row.id === mine)!)).toEqual(LOCATION_KEYS);
   });
 
@@ -228,6 +258,7 @@ describe("listRecentLocationsForTruck", () => {
     const { id: day20 } = await seedLocation(truckId, onDay(20));
     await seedLocation(truckId, { ...onDay(21), cancelled_at: "2026-08-20T08:00:00.000Z" });
     await seedLocation(truckId, onDay(23)); // starts after `before`
+    await seedLocation(truckId, { starts_at: BEFORE, ends_at: "2026-08-22T03:00:00.000Z" }); // starts at `before`
     await seedLocation(otherTruck, onDay(21));
 
     const recent = await listRecentLocationsForTruck(truckId, BEFORE, 10);
@@ -237,4 +268,31 @@ describe("listRecentLocationsForTruck", () => {
     const limited = await listRecentLocationsForTruck(truckId, BEFORE, 2);
     expect(limited.map((row) => row.id)).toEqual([day20, day19]);
   });
+});
+
+// ⚠ LAST IN THE FILE, AND IT HAS TO BE. Its 1001 rows leave the table at 19 pages until
+// autovacuum runs, and on a table that size the planner reads "recent places" off the
+// `(truck_id, starts_at desc)` index, which returns newest first with or without the
+// ORDER BY. Measured 2026-10-19 with `.order(…)` removed from
+// `listRecentLocationsForTruck`: its test failed at 1 page, passed at 19, failed again
+// after `vacuum`. So this test runs after the order tests. A re-run before autovacuum
+// (about a minute) still meets the 19-page table: that run can't catch a missing ORDER BY.
+describe("findLocationsOverlapping at the API's max_rows", () => {
+  it("throws when the API's max_rows would cut the result short", async () => {
+    // 1001 rows, one a day from 2040-01-01: one more than `max_rows` in
+    // `supabase/config.toml`. Without the check, the first 1000 come back with no error.
+    const rows = Array.from({ length: 1001 }, (_, n) => {
+      const day = Date.UTC(2040, 0, 1) + n * 86_400_000;
+      return aLocation({
+        starts_at: new Date(day + 9 * 3_600_000).toISOString(),
+        ends_at: new Date(day + 12 * 3_600_000).toISOString(),
+      });
+    });
+    const { error } = await supabaseAdmin.from("locations").insert(rows);
+    if (error) throw error;
+
+    await expect(
+      findLocationsOverlapping("2040-01-01T00:00:00.000Z", "2043-01-01T00:00:00.000Z"),
+    ).rejects.toThrow(/1000 of 1001 rows/);
+  }, 30_000);
 });

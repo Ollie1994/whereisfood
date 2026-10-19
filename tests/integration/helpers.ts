@@ -119,6 +119,12 @@ export async function seedTruck(name = "Truck"): Promise<string> {
   return id;
 }
 
+// A row's keys, sorted, for the db tests' key-set checks: each compares them with a
+// list written out in the test, the only guard against an extra selected column.
+export function keysOf(row: object): string[] {
+  return Object.keys(row).sort();
+}
+
 // Day *n* of the default windows: each call without its own window gets a day no
 // earlier call used, so two default locations on one truck never overlap (`23P01`).
 let defaultWindowDay = 0;
