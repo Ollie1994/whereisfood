@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { supabaseAdmin } from "@/lib/supabase";
+import type { Location, NewLocation } from "@/lib/types";
 
 // Minimal fixtures for the integration project. Deliberately small — #72 EXTENDS this
 // file rather than replacing it, so what lands here is only what #64 needs.
@@ -8,17 +9,10 @@ import { supabaseAdmin } from "@/lib/supabase";
 // already populated `process.env` and refused any non-local database.
 
 // ⚠ EVERY FIXTURE TRUCK IS NAME-PREFIXED, AND THAT PREFIX IS THE ONLY THING THAT MAKES
-// CLEANUP SAFE. A first version of `resetTables()` deleted ALL of `locations`, `posts`
-// and `trucks` — which destroyed `supabase/seed.sql`'s three fixed-UUID dev trucks
-// (Burgarbilen, Taco Loco Göteborg, and the deliberately INACTIVE Vintervilan that
-// Phase 2's rejection tests need) along with any local `posts` corpus.
-//
-// That is not a tidiness problem. `npm run test:all` is the documented merge gate, so
-// running the gate broke every documented Phase 2 curl flow until someone thought to
-// run `npx supabase db reset` — and the seed comment explains those UUIDs are fixed
-// precisely so curl commands stay copy-pasteable. Confirmed empirically before the fix:
-// after one run the database held one leftover fixture truck and none of the three seed
-// trucks.
+// CLEANUP SAFE. An unscoped `resetTables()` deletes `supabase/seed.sql`'s fixed-UUID
+// trucks and their history, so running `npm run test:all` would break the seed until
+// the next `npx supabase db reset` (observed before the prefix: after one run the
+// database held none of the three seed trucks, PR #106).
 //
 // ⚠ A DELETE CANNOT BE SCOPED BY INTENT, ONLY BY A PREDICATE. "Clean up after the
 // tests" is not something a query can express; "delete the rows whose name starts with
@@ -30,7 +24,7 @@ import { supabaseAdmin } from "@/lib/supabase";
 // `__itest__`, and `_` is a SINGLE-CHARACTER WILDCARD in SQL LIKE — so `__itest__%` is
 // not a prefix match at all. Verified against the local database: it matched
 // `XXitestYYnot-a-fixture` and `A_itest_B real truck`, arbitrary trucks nobody's test
-// created, and would have deleted them with their posts and locations.
+// created, and would have deleted them with their locations.
 //
 // That is the r1 finding a second time: a fix for a destructive scoping bug introduced
 // a different destructive scoping bug, and again nothing went red. The guard test could
@@ -69,14 +63,11 @@ if (WILDCARDS_ON_THE_PATH_TO_POSTGRES.test(FIXTURE_PREFIX)) {
 
 // Remove every row THIS SUITE created, and nothing else.
 //
-// ⚠ CHILDREN FIRST: `locations` and `posts` both reference `trucks`, so the trucks must
-// go last or the delete violates a foreign key. Written as a list so the dependency is
-// visible rather than implied by consecutive statements.
+// ⚠ CHILDREN FIRST: `locations` references `trucks` with no cascade (Phase 5 plan,
+// #7), so deleting a fixture truck that still has locations fails with `23503`.
 //
-// ⚠ NOT `geocoding_cache`. It is keyed on an address rather than a truck, nothing in
-// these tests asserts its contents, and it is expensive to refill — a cleared cache
-// means every later run re-queries Nominatim, a live third party under a usage policy.
-// A test that needs a specific key absent should clear that key.
+// Deleting `locations` rows here is cleanup of fixture rows only; the app never deletes
+// one (`CLAUDE.md`, "Locations").
 export async function resetTables(): Promise<void> {
   const { data, error } = await supabaseAdmin
     .from("trucks")
@@ -90,14 +81,12 @@ export async function resetTables(): Promise<void> {
   // below off an empty array.
   if (fixtureTruckIds.length === 0) return;
 
-  for (const table of ["locations", "posts"] as const) {
-    const { error: childError } = await supabaseAdmin
-      .from(table)
-      .delete()
-      .in("truck_id", fixtureTruckIds);
+  const { error: locationError } = await supabaseAdmin
+    .from("locations")
+    .delete()
+    .in("truck_id", fixtureTruckIds);
 
-    if (childError) throw childError;
-  }
+  if (locationError) throw locationError;
 
   const { error: truckError } = await supabaseAdmin
     .from("trucks")
@@ -127,4 +116,64 @@ export async function seedTruck(name = "Truck"): Promise<string> {
 
   if (error) throw error;
   return id;
+}
+
+// Day *n* of the default windows: each call without its own window gets a day no
+// earlier call used, so two default locations on one truck never overlap (`23P01`).
+let defaultWindowDay = 0;
+
+// Insert a valid location on `truckId` and return its id, so a test states only the
+// columns it is about. Inserts with `supabaseAdmin`, not `insertLocation`, so the db
+// layer's tests don't depend on the code under test for their setup.
+//
+// Without `starts_at`/`ends_at`, the window is 09:00–12:00 UTC on day *n* after
+// 2000-01-01. A test that passes its own window keeps it after 2020, clear of these
+// (the counter reaches 2020 after about 7,300 default calls in one run).
+//
+// ⚠ THROWS IF EXACTLY ONE OF `starts_at`/`ends_at` IS GIVEN: the default for the other
+// would come from the year-2000 window, giving `23514` or a window decades long.
+// `cancelled_at` too, which `NewLocation` leaves out, so a test can seed a cancelled row
+// in one insert.
+type SeedLocationOverrides = Partial<NewLocation> & Partial<Pick<Location, "cancelled_at">>;
+
+export async function seedLocation(
+  truckId: string,
+  overrides: SeedLocationOverrides = {},
+): Promise<string> {
+  const { starts_at, ends_at } = overrides;
+  if ((starts_at === undefined) !== (ends_at === undefined)) {
+    throw new Error("seedLocation: give both starts_at and ends_at, or neither");
+  }
+
+  let window: Pick<NewLocation, "starts_at" | "ends_at">;
+  if (starts_at !== undefined && ends_at !== undefined) {
+    window = { starts_at, ends_at };
+  } else {
+    const day = Date.UTC(2000, 0, 1) + defaultWindowDay * 86_400_000;
+    defaultWindowDay += 1;
+    window = {
+      starts_at: new Date(day + 9 * 3_600_000).toISOString(),
+      ends_at: new Date(day + 12 * 3_600_000).toISOString(),
+    };
+  }
+
+  const location: NewLocation & SeedLocationOverrides = {
+    truck_id: truckId,
+    latitude: 57.6998935,
+    longitude: 11.952503,
+    label: "Järntorget",
+    source: "admin",
+    created_by: null,
+    ...overrides,
+    ...window,
+  };
+
+  const { data, error } = await supabaseAdmin
+    .from("locations")
+    .insert(location)
+    .select("id")
+    .single();
+
+  if (error) throw error;
+  return data.id;
 }

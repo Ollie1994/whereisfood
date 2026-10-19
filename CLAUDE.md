@@ -105,13 +105,13 @@ said otherwise: Phase 4 plan decision #14.
   `/api/live`; the admin screen reads through its own (uncached) API routes; every
   write goes through an API route. Server-side, all of them go route → service → db
   layer, and only the db layer uses `supabaseAdmin`
-- Anon gets **no SELECT on `trucks` or `locations`** (Phase 5). With history kept, anon access
+- Anon gets **no SELECT on `trucks` or `locations`**. With history kept, anon access
   would make every truck's movement history public through Supabase's API
 - RLS on every table, an explicit `GRANT` per table that matches its RLS policies, and
   no owner self-UPDATE on `users` (blocks `is_admin` self-escalation and `truck_id`
-  hijack). **Applies now** to every new migration: a `GRANT` per table, `service_role`
-  included. 0001 has RLS everywhere and no self-UPDATE, but grants `service_role` with
-  one blanket `on all tables` grant that doesn't reach later tables; don't copy it
+  hijack). Every migration grants per table, `service_role` included, after revoking
+  the stack's default privileges on that table, as `0001_baseline.sql` does (Phase 5
+  plan decision #6)
 
 **proxy.ts**
 - File is `src/proxy.ts` — this is the Next.js 16 name for middleware
@@ -141,17 +141,11 @@ said otherwise: Phase 4 plan decision #14.
   column list, never `*`**, so
   `created_by` and future columns can't leak
 
-**Target-design rules, enforced from Phase 5.** The Locations rules below and the
-no-anon-SELECT bullet above describe the Phase 5 schema. Today's schema (0001–0006)
-still breaks them: 0001 grants anon SELECT on `trucks` and `locations`, `ends_at` is
-nullable (0002), there is no exclusion constraint, and `src/lib/db/locations.ts`
-exports `deleteLocations`. Don't "fix" today's code to match; Phase 5 replaces schema,
-db layer and tests together. (Time and Scheduling below apply now.)
-
-**Locations** (Phase 5)
+**Locations**
 - Overlapping non-cancelled entries for a truck are refused by the DB exclusion
   constraint (`23P01` → 409, Swedish "överlappar" message). Never auto-resolve,
-  replace or delete
+  replace or delete. The db layer lets `23P01` through unchanged; the service maps it
+  (Phase 7)
 - Locations are never deleted (except a takedown, which deletes the truck's whole
   history). Ended (`ends_at <= now()`) and cancelled (`cancelled_at`) are filters
 - `starts_at` and `ends_at` are both required; a human always knows the end time

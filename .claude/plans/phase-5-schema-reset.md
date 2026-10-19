@@ -608,7 +608,14 @@ removed; `'owner'` is already planned, so the list isn't expected to shrink.
    extensions install into `extensions` on the local stack and the trigger form works
    (decision #5's probe). Step 2 still runs it for real; a hosted project is Phase 6's
    to check.
-3. **Seed times across DST.** Rows at 11:00–14:00 Stockholm time over four weeks must
+3. ~~**Seed times across DST.**~~ → **answered in step 2 (#161):** `seed.sql` builds
+   the times from a `date` (`(now() at time zone 'Europe/Stockholm')::date - n`, `n` in
+   1–28). The same expression with `now()` replaced by `timestamptz '2026-11-05
+   12:00+01'` covers 2026-10-08 … 11-04, across the 10-25 change: all 28 rows start
+   11:00 and end 14:00 Stockholm (09:00Z before, 10:00Z after). With a `timestamptz`
+   series in place of the date, the starts came out 23:00 and 00:00. The PR records the
+   query. The question as planned:
+   Rows at 11:00–14:00 Stockholm time over four weeks must
    stay at 11:00–14:00 across a DST change. The seed's real window holds a DST change
    only in the four weeks after one (the next is 2026-10-25, a week after this plan
    was written), so a check run on today's seed can pass with no change inside it.
@@ -628,9 +635,10 @@ removed; `'owner'` is already planned, so the list isn't expected to shrink.
    (`GRANT … ON …`) was seen on the local stack's Postgres 17.6; whether it comes from
    upstream Postgres or Supabase's image isn't checked. If an upgrade drops it, the
    tests fail loudly rather than pass, and step 4 then asserts the message instead.
-5. **How `23P01` arrives through supabase-js.** Confirm a PostgREST error on insert and
-   update carries `code: "23P01"`; Phase 7's 409 mapping depends on it. Step 2's tests
-   pin it.
+5. ~~**How `23P01` arrives through supabase-js.**~~ → **answered in step 2 (#161):**
+   yes. `insertLocation` and `updateLocation` reject with an error whose `code` is
+   `"23P01"` (`db-locations.test.ts`, one case each; wrapping the error in
+   `insertLocation` turns its case red). Phase 7's 409 mapping can read `code`.
 6. **`is_active` in the live read.** `findLocationsOverlapping` doesn't filter by the
    truck's state. Whether Phase 6 filters in its service or adds a joined query is
    Phase 6's call; this phase only records that the primitive doesn't.

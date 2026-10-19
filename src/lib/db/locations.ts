@@ -1,123 +1,117 @@
 import { supabaseAdmin } from "@/lib/supabase";
-import type { Location, NewLocation } from "@/lib/types";
+import type { Location, LocationPatch, NewLocation } from "@/lib/types";
 
-// DB access only — no business logic. This layer FINDS and MUTATES rows; whether a
-// found row should be overridden is the locations service's decision (#68), and the
-// separation is what keeps the override matrix in one testable place instead of leaking
-// half of itself into a query.
+// DB access only — this layer finds and mutates rows and decides nothing (Phase 5 plan,
+// #10):
+// - Postgres errors propagate unchanged, so an overlap reaches the service as `23P01`
+//   and an inverted window as `23514` (`db-locations.test.ts` pins the first).
+// - No function reads the clock. The caller passes every timestamp, so time stays in
+//   the service (`CLAUDE.md`, "Time").
+// - No function deletes. Ended and cancelled are filters.
 //
-// Postgres errors propagate unchanged. Interpreting them — a 23505 that means a benign
-// replay, a constraint violation that means a bug — needs context this layer does not
-// have, and `persistPost` already shows what that interpretation looks like one layer
-// up.
-//
-// ⚠ A TIMESTAMP DOES NOT SURVIVE A ROUND TRIP AS THE SAME STRING, and the next module
-// to touch these rows is the one that will trip on it. We send
-// `"2026-08-22T09:00:00.000Z"` (what `toISOString()` produces, and what `time.ts`
-// returns); Postgres gives back `"2026-08-22T09:00:00+00:00"`. Same instant, different
-// text — verified by test rather than assumed.
-//
-// So `stored.expires_at === parsed.startsAt` is FALSE for identical moments, and `<`
-// or `>` between a stored value and a parser-generated one compares text whose ordering
-// is only coincidentally right. Ordering within ONE format is correct, which is exactly
-// what makes this easy to get away with until it is not.
-//
-// The queries below are unaffected — the comparison happens in Postgres, which parses
-// both forms. It is the SERVICE (#68), comparing a stored row against a `ParseResult`
-// in JavaScript, that must compare instants (`Date.parse`) and not strings.
+// ⚠ A timestamp doesn't round-trip as the same string: we send `…T09:00:00.000Z`,
+// Postgres returns `…T09:00:00+00:00` (`db-locations.test.ts`). Compare instants
+// (`Date.parse`) in JavaScript, never the strings.
 
-// Insert and return the stored row, including the generated `id` the caller needs for
-// `locations.post_id` bookkeeping and for a later delete.
-//
-// `.select().single()` rather than a bare insert: without it PostgREST returns no body
-// and the caller would have to re-query for the id it just created.
+// Every column except `created_by`, which no read returns (#8). ONE STRING LITERAL:
+// supabase-js infers the row type from the literal text, and with rows returned uncast
+// `tsc` then fails if a column of `Location` is missing (issue #48). Never cast a row to
+// `Location`: a cast compiles with a column missing (Phase 5 plan, "Functions and
+// types"). An extra column isn't a type error; `db-locations.test.ts`'s key-set test
+// catches that.
+export const LOCATION_COLUMNS =
+  "id, truck_id, latitude, longitude, label, starts_at, ends_at, cancelled_at, source, created_at, updated_at";
+
+// Insert and return the stored row. Raises `23P01` on an overlap with a live row of the
+// same truck, `23514` when `ends_at <= starts_at`.
 export async function insertLocation(location: NewLocation): Promise<Location> {
   const { data, error } = await supabaseAdmin
     .from("locations")
     .insert(location)
-    .select()
+    .select(LOCATION_COLUMNS)
     .single();
 
   if (error) throw error;
-  // The cast narrows `source` from the column's plain `string` to the three-value lane
-  // union. Postgres CHECK constraints carry no type information into the generated
-  // types (only real enum types do), which is the same narrowing `types.ts` applies to
-  // `Location` itself — `locations_source_check` is what actually enforces it.
-  return data as Location;
+  return data;
 }
 
-// Locations for this truck whose live window overlaps [startsAt, effectiveEnd).
+// Edit place, label or times of a row that isn't cancelled. Null when no such row.
+// Raises `23P01` or `23514` like `insertLocation`.
 //
-// ⚠ COMPARES `expires_at`, NEVER `ends_at`, AND THIS IS THE PHASE'S MOST CONSEQUENTIAL
-// CORRECTION (plan hazard H4). The documented predicate was:
-//
-//   existing.starts_at < incoming.ends_at AND existing.ends_at > incoming.starts_at
-//
-// `ends_at` is NULLABLE BY DESIGN — migration 0002 records the reason, "the expiry rule
-// explicitly handles 'no ends_at extracted'". Under SQL's three-valued logic every
-// comparison against NULL yields NULL, and `WHERE NULL` drops the row. So that
-// predicate cannot see a location with no end time, which means:
-//
-//   such a location is NEVER matched as overlapping, so it can never be overridden —
-//   a 0.55 email pin becomes permanently unreplaceable, even by a manual post, and
-//   duplicate pins accumulate for the same truck and window.
-//
-// Not an edge case. It is the `location only (no time)` row of the confidence matrix,
-// produced by an ordinary caption like "Vi står vid Järntorget idag".
-//
-// `expires_at` is NOT NULL and always computed, and by construction IS the effective
-// end: `ends_at` when one was extracted, the capped `posted_at + 8h` otherwise (#5). It
-// means exactly "when this location stops being live", which is what overlap is asking.
-//
-// ⚠ THE CALLER SUPPLIES `effectiveEnd` FOR THE SAME REASON. An incoming location with
-// no `ends_at` cannot form the query at all, so the service passes the incoming row's
-// own `expires_at` — computing it here would put expiry policy in the db layer.
-//
-// HALF-OPEN ON BOTH SIDES, which is what makes adjacent windows not overlap: a location
-// ending at 14:00 and one starting at 14:00 are back-to-back, not in conflict. `lt`/`gt`
-// rather than `lte`/`gte` is what expresses that, and plan decision #6 keeps `>` here
-// while negations compare with `>=` — a distinction that lives in the service.
-//
-// ⚠ NOT FILTERED ON `is_negation`. A negation writes no row (#1), so today nothing here
-// carries `is_negation = true`; the column stays for a possible Phase 5 manual "closed
-// today" toggle. Filtering now would encode an assumption the caller should own.
-export async function findOverlapping(
+// ⚠ THROWS ON AN EMPTY PATCH, before any request: PostgREST answers an empty PATCH by
+// updating no row (probed 2026-10-18: `{}` on an existing truck → `200 []`), so this
+// would return null for a row that exists. A key set to `undefined` is dropped from the
+// JSON body, so it counts as absent.
+export async function updateLocation(
+  id: string,
+  patch: LocationPatch,
+): Promise<Location | null> {
+  if (Object.values(patch).every((value) => value === undefined)) {
+    throw new Error("updateLocation: the patch sets no column");
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("locations")
+    .update(patch)
+    .eq("id", id)
+    .is("cancelled_at", null)
+    .select(LOCATION_COLUMNS)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
+// Cancel a live row: set `cancelled_at` where it is still null. Null when the row is
+// missing or already cancelled, so a second cancel can't move the first's timestamp.
+export async function cancelLocation(
+  id: string,
+  cancelledAt: string,
+): Promise<Location | null> {
+  const { data, error } = await supabaseAdmin
+    .from("locations")
+    .update({ cancelled_at: cancelledAt })
+    .eq("id", id)
+    .is("cancelled_at", null)
+    .select(LOCATION_COLUMNS)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
+// Live rows of every truck overlapping [from, to): `starts_at < to AND ends_at > from`.
+// Half-open, so a row ending exactly at `from` is out. Not filtered on the truck's
+// `is_active` (plan, open decision 6). Ordered by `starts_at`.
+export async function findLocationsOverlapping(from: string, to: string): Promise<Location[]> {
+  const { data, error } = await supabaseAdmin
+    .from("locations")
+    .select(LOCATION_COLUMNS)
+    .is("cancelled_at", null)
+    .lt("starts_at", to)
+    .gt("ends_at", from)
+    .order("starts_at");
+
+  if (error) throw error;
+  return data;
+}
+
+// The truck's latest `limit` live rows that started before `before`, newest `starts_at`
+// first. `before` is usually now, so future entries don't fill "recent places".
+export async function listRecentLocationsForTruck(
   truckId: string,
-  startsAt: string,
-  effectiveEnd: string,
+  before: string,
+  limit: number,
 ): Promise<Location[]> {
   const { data, error } = await supabaseAdmin
     .from("locations")
-    .select("*")
+    .select(LOCATION_COLUMNS)
     .eq("truck_id", truckId)
-    .lt("starts_at", effectiveEnd)
-    .gt("expires_at", startsAt);
+    .is("cancelled_at", null)
+    .lt("starts_at", before)
+    .order("starts_at", { ascending: false })
+    .limit(limit);
 
   if (error) throw error;
-  return (data ?? []) as Location[];
-}
-
-// Delete by id. PLURAL because a cancellation covers a window rather than a row: "inte
-// idag" can supersede several locations for the same truck on the same day (#1).
-//
-// ⚠ THE EMPTY-ARRAY GUARD IS AN OPTIMISATION, AND AN EARLIER VERSION OF THIS COMMENT
-// CLAIMED IT WAS A CORRECTNESS REQUIREMENT — that `.in("id", [])` is a PostgREST syntax
-// error rather than a harmless no-match. Measured against the real database: it returns
-// **204 with no error**, and the equivalent select returns `[]`. Nothing breaks.
-//
-// Found because deleting the guard failed no test, which under the rule adopted at the
-// end of #63 is evidence about the CLAIM rather than a gap in coverage — and the claim
-// was wrong.
-//
-// The guard stays, for the smaller true reason: an empty list is the ORDINARY case — a
-// negation for a truck with nothing scheduled is a silent no-op by design (#1) — and
-// skipping a pointless HTTP round trip for it is worth one line. The test below pins the
-// OUTCOME (no throw, nothing deleted), which is what callers depend on whether this
-// guard or PostgREST provides it.
-export async function deleteLocations(ids: string[]): Promise<void> {
-  if (ids.length === 0) return;
-
-  const { error } = await supabaseAdmin.from("locations").delete().in("id", ids);
-
-  if (error) throw error;
+  return data;
 }

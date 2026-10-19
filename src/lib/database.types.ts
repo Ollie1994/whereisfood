@@ -34,139 +34,52 @@ export type Database = {
   }
   public: {
     Tables: {
-      geocoding_cache: {
-        Row: {
-          address_raw: string
-          cached_at: string
-          latitude: number
-          longitude: number
-        }
-        Insert: {
-          address_raw: string
-          cached_at?: string
-          latitude: number
-          longitude: number
-        }
-        Update: {
-          address_raw?: string
-          cached_at?: string
-          latitude?: number
-          longitude?: number
-        }
-        Relationships: []
-      }
       locations: {
         Row: {
-          address_geocoded: string | null
-          address_raw: string | null
-          confidence: number
+          cancelled_at: string | null
           created_at: string
-          ends_at: string | null
-          expires_at: string
+          created_by: string | null
+          ends_at: string
           id: string
-          is_negation: boolean
+          label: string | null
           latitude: number
           longitude: number
-          parser_confidence: number
-          post_id: string | null
-          source: string
-          source_confidence: number
+          source: Database["public"]["Enums"]["location_source"]
           starts_at: string
           truck_id: string
           updated_at: string
         }
         Insert: {
-          address_geocoded?: string | null
-          address_raw?: string | null
-          confidence: number
+          cancelled_at?: string | null
           created_at?: string
-          ends_at?: string | null
-          expires_at: string
+          created_by?: string | null
+          ends_at: string
           id?: string
-          is_negation?: boolean
+          label?: string | null
           latitude: number
           longitude: number
-          parser_confidence: number
-          post_id?: string | null
-          source: string
-          source_confidence: number
+          source?: Database["public"]["Enums"]["location_source"]
           starts_at: string
           truck_id: string
           updated_at?: string
         }
         Update: {
-          address_geocoded?: string | null
-          address_raw?: string | null
-          confidence?: number
+          cancelled_at?: string | null
           created_at?: string
-          ends_at?: string | null
-          expires_at?: string
+          created_by?: string | null
+          ends_at?: string
           id?: string
-          is_negation?: boolean
+          label?: string | null
           latitude?: number
           longitude?: number
-          parser_confidence?: number
-          post_id?: string | null
-          source?: string
-          source_confidence?: number
+          source?: Database["public"]["Enums"]["location_source"]
           starts_at?: string
           truck_id?: string
           updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "locations_post_id_fkey"
-            columns: ["post_id"]
-            isOneToOne: false
-            referencedRelation: "posts"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "locations_truck_id_fkey"
-            columns: ["truck_id"]
-            isOneToOne: false
-            referencedRelation: "trucks"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      posts: {
-        Row: {
-          caption: string | null
-          created_at: string
-          id: string
-          instagram_post_id: string | null
-          parsing_status: string
-          posted_at: string
-          raw_json: Json
-          source: string
-          truck_id: string
-        }
-        Insert: {
-          caption?: string | null
-          created_at?: string
-          id?: string
-          instagram_post_id?: string | null
-          parsing_status?: string
-          posted_at: string
-          raw_json: Json
-          source: string
-          truck_id: string
-        }
-        Update: {
-          caption?: string | null
-          created_at?: string
-          id?: string
-          instagram_post_id?: string | null
-          parsing_status?: string
-          posted_at?: string
-          raw_json?: Json
-          source?: string
-          truck_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "posts_truck_id_fkey"
             columns: ["truck_id"]
             isOneToOne: false
             referencedRelation: "trucks"
@@ -182,8 +95,6 @@ export type Database = {
           id: string
           instagram_handle: string | null
           is_active: boolean
-          last_known_latitude: number | null
-          last_known_longitude: number | null
           name: string
         }
         Insert: {
@@ -193,8 +104,6 @@ export type Database = {
           id?: string
           instagram_handle?: string | null
           is_active?: boolean
-          last_known_latitude?: number | null
-          last_known_longitude?: number | null
           name: string
         }
         Update: {
@@ -204,8 +113,6 @@ export type Database = {
           id?: string
           instagram_handle?: string | null
           is_active?: boolean
-          last_known_latitude?: number | null
-          last_known_longitude?: number | null
           name?: string
         }
         Relationships: []
@@ -247,7 +154,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      location_source: "admin" | "owner"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -377,7 +284,9 @@ export const Constants = {
     Enums: {},
   },
   public: {
-    Enums: {},
+    Enums: {
+      location_source: ["admin", "owner"],
+    },
   },
 } as const
 

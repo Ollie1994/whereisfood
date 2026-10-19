@@ -1,18 +1,40 @@
+import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it } from "vitest";
-import { deleteLocations, findOverlapping, insertLocation } from "@/lib/db/locations";
-import type { NewLocation } from "@/lib/types";
-import { resetTables, seedTruck } from "./helpers";
+import {
+  cancelLocation,
+  findLocationsOverlapping,
+  insertLocation,
+  listRecentLocationsForTruck,
+  updateLocation,
+} from "@/lib/db/locations";
+import { supabaseAdmin } from "@/lib/supabase";
+import type { Location, LocationPatch, NewLocation } from "@/lib/types";
+import { resetTables, seedLocation, seedTruck } from "./helpers";
 
-// ⚠ INTEGRATION RATHER THAN UNIT, AND THAT IS THE WHOLE POINT OF THE FILE. The defect
-// this PR corrects is SQL's three-valued logic: a comparison against a NULL column
-// yields NULL, and `WHERE NULL` drops the row. A mocked Supabase client cannot exhibit
-// that — it would return whatever the mock was told to, so a unit test here would assert
-// the mock and pass against the broken predicate.
-//
-// Postgres is the thing under test as much as the query is.
+// The keys every function's rows must have, WRITTEN OUT rather than derived from a
+// type, which would grow with the table. No `created_by` (Phase 5 plan, #8). `tsc`
+// catches a column missing from `LOCATION_COLUMNS`; only this catches an extra one
+// (or a `*`).
+const LOCATION_KEYS = [
+  "cancelled_at",
+  "created_at",
+  "ends_at",
+  "id",
+  "label",
+  "latitude",
+  "longitude",
+  "source",
+  "starts_at",
+  "truck_id",
+  "updated_at",
+];
 
-// A Saturday, and the window every case is built around: 11:00–14:00 Stockholm (CEST),
-// stored UTC.
+function keysOf(row: Location): string[] {
+  return Object.keys(row).sort();
+}
+
+// A Saturday lunch, 11:00–14:00 Stockholm (CEST), stored UTC. Every window here is after
+// 2020, clear of `seedLocation`'s default windows (helpers.ts).
 const LUNCH_START = "2026-08-22T09:00:00.000Z";
 const LUNCH_END = "2026-08-22T12:00:00.000Z";
 
@@ -23,224 +45,196 @@ beforeEach(async () => {
   truckId = await seedTruck();
 });
 
-// Every NOT NULL column set explicitly — the phase plan lists that as an acceptance
-// criterion because a silent default is how a row ends up scored 0 or flagged wrong.
 function aLocation(overrides: Partial<NewLocation> = {}): NewLocation {
   return {
     truck_id: truckId,
-    post_id: null,
     latitude: 57.6998935,
     longitude: 11.952503,
-    address_raw: "Järntorget",
-    address_geocoded: "Järntorget, Göteborg",
+    label: "Järntorget",
     starts_at: LUNCH_START,
     ends_at: LUNCH_END,
-    expires_at: LUNCH_END,
-    source: "webhook",
-    confidence: 0.85,
-    parser_confidence: 1.0,
-    source_confidence: 0.85,
-    is_negation: false,
+    source: "admin",
+    created_by: null,
     ...overrides,
   };
 }
 
+async function readRow(id: string) {
+  const { data, error } = await supabaseAdmin
+    .from("locations")
+    .select("label, starts_at, cancelled_at")
+    .eq("id", id)
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 describe("insertLocation", () => {
-  it("returns the stored row including its generated id", async () => {
+  it("returns the stored row, with its generated id and exactly the selected keys", async () => {
     const stored = await insertLocation(aLocation());
 
-    // The id is what the service needs for `locations.post_id` bookkeeping and for a
-    // later delete; without `.select().single()` PostgREST returns no body and the
-    // caller would have to re-query for a row it just created.
     expect(stored.id).toMatch(/^[0-9a-f-]{36}$/);
     expect(stored.truck_id).toBe(truckId);
-
-    // ⚠ COMPARED AS AN INSTANT, NOT AS A STRING, AND THIS IS NOT A TEST DETAIL. At the
-    // time of writing Postgres returns `timestamptz` as `2026-08-22T09:00:00+00:00`
-    // while we sent `2026-08-22T09:00:00.000Z` — same moment, different text, so a round
-    // trip does not preserve the string.
-    //
-    // It matters for #68, which compares an incoming location's window against stored
-    // rows: `stored.expires_at === parsed.startsAt` is false for identical instants, and
-    // `<` / `>` between the two formats compares text that only coincidentally orders
-    // correctly. Ordering within ONE format is fine, which is what makes this easy to
-    // get away with until it is not.
-    //
-    // ⚠ THE DIFFERENCE IS RECORDED HERE AND NOT ASSERTED, AND AN EARLIER VERSION
-    // ASSERTED IT. `expect(stored.starts_at).not.toBe(LUNCH_START)` pins PostgREST's
-    // text rendering, which is not ours to pin: it can only ever fail when nothing is
-    // wrong — a version emitting `…Z` would go red while behaving identically — and
-    // this suite is gated on three consecutive green runs (PR #106 r3).
-    //
-    // Asserting the instants is the claim the code depends on. A test that would stop
-    // #68 comparing strings belongs in #68, not here; this comment is what carries the
-    // fact across.
+    expect(stored.cancelled_at).toBeNull();
+    expect(keysOf(stored)).toEqual(LOCATION_KEYS);
+    // Compared as instants: Postgres returns `…T09:00:00+00:00` for the
+    // `…T09:00:00.000Z` we sent. The text isn't asserted; it is PostgREST's to choose.
     expect(Date.parse(stored.starts_at)).toBe(Date.parse(LUNCH_START));
   });
 
-  it("propagates a Postgres error rather than swallowing it", async () => {
-    // Interpreting an error needs context this layer does not have — a 23505 that means
-    // a benign replay versus a constraint violation that means a bug. `source` is
-    // constrained by `locations_source_check`, so this is a real constraint talking.
+  it("lets an overlap's 23P01 through with its code (open decision 5)", async () => {
+    await insertLocation(aLocation());
+
     await expect(
-      insertLocation(aLocation({ source: "carrier-pigeon" as NewLocation["source"] })),
-    ).rejects.toMatchObject({ code: expect.any(String) });
+      insertLocation(aLocation({ starts_at: "2026-08-22T11:00:00.000Z", ends_at: "2026-08-22T13:00:00.000Z" })),
+    ).rejects.toMatchObject({ code: "23P01" });
   });
 });
 
-describe("findOverlapping", () => {
-  it("⚠ finds a location whose ends_at is NULL — the H4 regression", async () => {
-    // THE REASON THIS PR EXISTS. The documented predicate was
-    //
-    //   existing.starts_at < incoming.ends_at AND existing.ends_at > incoming.starts_at
-    //
-    // and `ends_at` is nullable by design (migration 0002: "the expiry rule explicitly
-    // handles 'no ends_at extracted'"). Under three-valued logic that predicate cannot
-    // see this row, so a 0.55 email pin would be permanently unreplaceable — not even a
-    // manual post could override it — and duplicate pins would accumulate for the same
-    // truck and window.
-    //
-    // Not an edge case: this is the `location only (no time)` row of the confidence
-    // matrix, produced by an ordinary caption like "Vi står vid Järntorget idag".
-    await insertLocation(aLocation({ ends_at: null, expires_at: LUNCH_END }));
+describe("updateLocation", () => {
+  it("edits a live row and returns it with exactly the selected keys", async () => {
+    const id = await seedLocation(truckId, { starts_at: LUNCH_START, ends_at: LUNCH_END });
 
-    const found = await findOverlapping(truckId, LUNCH_START, LUNCH_END);
+    const updated = await updateLocation(id, {
+      label: "Heden",
+      ends_at: "2026-08-22T13:00:00.000Z",
+    });
 
-    expect(found).toHaveLength(1);
-    expect(found[0].ends_at).toBeNull();
+    expect(updated?.id).toBe(id);
+    expect(updated?.label).toBe("Heden");
+    expect(Date.parse(updated!.ends_at)).toBe(Date.parse("2026-08-22T13:00:00.000Z"));
+    expect(keysOf(updated!)).toEqual(LOCATION_KEYS);
   });
 
-  it("finds an ordinary location with an ends_at", async () => {
-    await insertLocation(aLocation());
-
-    expect(await findOverlapping(truckId, LUNCH_START, LUNCH_END)).toHaveLength(1);
+  it("returns null for an unknown id", async () => {
+    expect(await updateLocation(randomUUID(), { label: "Heden" })).toBeNull();
   });
 
-  it.each([
-    ["ends_at set", LUNCH_END],
-    ["ends_at NULL", null],
-  ])("does not find a non-overlapping window — %s", async (_label, endsAt) => {
-    // Dinner, hours after lunch. The NULL row is the one that matters: the fix must not
-    // make every null-ended location match everything, which would be the opposite
-    // error and just as wrong.
-    await insertLocation(
-      aLocation({
-        starts_at: "2026-08-22T16:00:00.000Z",
-        ends_at: endsAt,
-        expires_at: "2026-08-22T19:00:00.000Z",
-      }),
-    );
+  it("returns null for a cancelled row and leaves it unchanged", async () => {
+    const id = await seedLocation(truckId, { cancelled_at: "2026-08-21T08:00:00.000Z" });
 
-    expect(await findOverlapping(truckId, LUNCH_START, LUNCH_END)).toEqual([]);
+    expect(await updateLocation(id, { label: "Heden" })).toBeNull();
+    expect((await readRow(id)).label).toBe("Järntorget");
   });
 
-  it("⚠ does not find a location starting exactly at the incoming end", async () => {
-    // THE OTHER HALF-OPEN BOUND, and it was unpinned. Mutating `.lt("starts_at", …)` to
-    // `.lte(…)` left all twelve tests passing — measured — while the mirror mutation on
-    // `expires_at` failed one. So "inclusive bounds fail a test" was true only when BOTH
-    // were changed together, which tests neither individually (PR #106 review).
-    //
-    // A location starting exactly when the incoming window ends is the NEXT booking,
-    // not a conflict.
-    await insertLocation(
-      aLocation({
-        starts_at: LUNCH_END,
-        ends_at: "2026-08-22T15:00:00.000Z",
-        expires_at: "2026-08-22T15:00:00.000Z",
-      }),
-    );
+  it("lets an overlap's 23P01 through with its code (open decision 5)", async () => {
+    await seedLocation(truckId, { starts_at: LUNCH_START, ends_at: LUNCH_END });
+    const later = await seedLocation(truckId, {
+      starts_at: "2026-08-22T13:00:00.000Z",
+      ends_at: "2026-08-22T15:00:00.000Z",
+    });
 
-    expect(await findOverlapping(truckId, LUNCH_START, LUNCH_END)).toEqual([]);
+    await expect(
+      updateLocation(later, { starts_at: "2026-08-22T11:00:00.000Z" }),
+    ).rejects.toMatchObject({ code: "23P01" });
   });
 
-  it("treats back-to-back windows as not overlapping", async () => {
-    // A location expiring exactly when the incoming one starts is adjacent, not in
-    // conflict. Half-open on both sides (`lt`/`gt`) is what expresses that, and plan
-    // decision #6 keeps `>` here while negations compare with `>=`.
-    await insertLocation(
-      aLocation({
-        starts_at: "2026-08-22T06:00:00.000Z",
-        ends_at: LUNCH_START,
-        expires_at: LUNCH_START,
-      }),
-    );
+  // An empty PATCH updates no row, so without the guard these would return null for a
+  // row that exists.
+  it.each<[string, LocationPatch]>([
+    ["{}", {}],
+    ["a patch whose keys are all undefined", { label: undefined, ends_at: undefined }],
+  ])("throws on %s and leaves the row unchanged", async (_name, patch) => {
+    const id = await seedLocation(truckId);
 
-    expect(await findOverlapping(truckId, LUNCH_START, LUNCH_END)).toEqual([]);
-  });
-
-  it("does not find another truck's location", async () => {
-    const otherTruck = await seedTruck("Other Truck");
-    await insertLocation(aLocation({ truck_id: otherTruck }));
-
-    expect(await findOverlapping(truckId, LUNCH_START, LUNCH_END)).toEqual([]);
-  });
-
-  it("⚠ compares expires_at, not ends_at, when the two differ", async () => {
-    // The mutation-proof row. This location's `ends_at` sits BEFORE the incoming window
-    // while its `expires_at` extends INTO it — the shape produced by #5's
-    // `posted_at + 8h` fallback. A predicate reading `ends_at` returns nothing here and
-    // passes every other test in this block, so without this row the correction is
-    // untested even though it looks covered.
-    await insertLocation(
-      aLocation({
-        starts_at: "2026-08-22T06:00:00.000Z",
-        ends_at: "2026-08-22T07:00:00.000Z",
-        expires_at: "2026-08-22T10:00:00.000Z",
-      }),
-    );
-
-    expect(await findOverlapping(truckId, LUNCH_START, LUNCH_END)).toHaveLength(1);
+    await expect(updateLocation(id, patch)).rejects.toThrow(/sets no column/);
+    expect((await readRow(id)).label).toBe("Järntorget");
   });
 });
 
-describe("deleteLocations", () => {
-  it("deletes the rows it is given and leaves the others", async () => {
-    const doomed = await insertLocation(aLocation());
-    const spared = await insertLocation(
-      aLocation({
-        starts_at: "2026-08-22T16:00:00.000Z",
-        expires_at: "2026-08-22T19:00:00.000Z",
-      }),
-    );
+describe("cancelLocation", () => {
+  it("sets cancelled_at to the caller's timestamp and returns the row", async () => {
+    const id = await seedLocation(truckId);
 
-    await deleteLocations([doomed.id]);
+    const cancelled = await cancelLocation(id, "2026-08-22T08:00:00.000Z");
 
-    const remaining = await findOverlapping(truckId, LUNCH_START, "2026-08-22T23:00:00.000Z");
-    expect(remaining.map((row) => row.id)).toEqual([spared.id]);
+    expect(cancelled?.id).toBe(id);
+    expect(Date.parse(cancelled!.cancelled_at!)).toBe(Date.parse("2026-08-22T08:00:00.000Z"));
+    expect(keysOf(cancelled!)).toEqual(LOCATION_KEYS);
   });
 
-  it("deletes several at once, because a cancellation covers a window", async () => {
-    const first = await insertLocation(aLocation());
-    const second = await insertLocation(
-      aLocation({
-        starts_at: "2026-08-22T16:00:00.000Z",
-        expires_at: "2026-08-22T19:00:00.000Z",
-      }),
+  it("returns null for an already-cancelled row and keeps the first timestamp", async () => {
+    const id = await seedLocation(truckId);
+    await cancelLocation(id, "2026-08-22T08:00:00.000Z");
+
+    expect(await cancelLocation(id, "2026-08-22T10:00:00.000Z")).toBeNull();
+    expect(Date.parse((await readRow(id)).cancelled_at!)).toBe(
+      Date.parse("2026-08-22T08:00:00.000Z"),
     );
-
-    await deleteLocations([first.id, second.id]);
-
-    expect(await findOverlapping(truckId, LUNCH_START, "2026-08-22T23:00:00.000Z")).toEqual([]);
   });
 
-  it("is a safe no-op on an empty array", async () => {
-    // An empty list is the ORDINARY case: a negation for a truck with nothing scheduled
-    // is a silent no-op by design (#1), not an error.
-    //
-    // ⚠ THIS PINS THE OUTCOME, NOT THE MECHANISM, and deliberately so. An earlier
-    // comment here claimed `.in("id", [])` is a PostgREST syntax error and that the
-    // guard in `deleteLocations` is therefore a correctness requirement. Measured
-    // against the real database: it returns 204 with no error, and the equivalent
-    // select returns `[]`. The guard is an optimisation — one skipped round trip.
-    //
-    // So this row passes with or without it, which is correct: callers depend on "no
-    // throw, nothing deleted" regardless of which layer provides it. It was deleting
-    // the guard and seeing NOTHING fail that exposed the false claim.
-    await insertLocation(aLocation());
+  it("returns null for an unknown id", async () => {
+    expect(await cancelLocation(randomUUID(), "2026-08-22T08:00:00.000Z")).toBeNull();
+  });
+});
 
-    await expect(deleteLocations([])).resolves.toBeUndefined();
+describe("findLocationsOverlapping", () => {
+  // Returns every truck's rows, and seed rows may fall in any window a test picks, so
+  // each assertion reads only this test's fixture trucks.
+  async function overlappingIds(from: string, to: string, trucks: string[]) {
+    const rows = await findLocationsOverlapping(from, to);
+    return { rows, ids: rows.filter((row) => trucks.includes(row.truck_id)).map((row) => row.id) };
+  }
 
-    // And it really was a no-op: the existing row is untouched.
-    expect(await findOverlapping(truckId, LUNCH_START, LUNCH_END)).toHaveLength(1);
+  it("finds live rows of every truck that overlap the window, with exactly the selected keys", async () => {
+    const otherTruck = await seedTruck("Other");
+    const mine = await seedLocation(truckId, { starts_at: LUNCH_START, ends_at: LUNCH_END });
+    const theirs = await seedLocation(otherTruck, {
+      starts_at: "2026-08-22T11:00:00.000Z",
+      ends_at: "2026-08-22T15:00:00.000Z",
+    });
+
+    const { rows, ids } = await overlappingIds(
+      "2026-08-22T10:00:00.000Z",
+      "2026-08-22T11:30:00.000Z",
+      [truckId, otherTruck],
+    );
+
+    expect(ids.sort()).toEqual([mine, theirs].sort());
+    expect(keysOf(rows.find((row) => row.id === mine)!)).toEqual(LOCATION_KEYS);
+  });
+
+  it("leaves out a cancelled row", async () => {
+    await seedLocation(truckId, {
+      starts_at: LUNCH_START,
+      ends_at: LUNCH_END,
+      cancelled_at: "2026-08-21T08:00:00.000Z",
+    });
+
+    expect((await overlappingIds(LUNCH_START, LUNCH_END, [truckId])).ids).toEqual([]);
+  });
+
+  it("is half-open: a row ending at `from` or starting at `to` is out", async () => {
+    await seedLocation(truckId, { starts_at: "2026-08-22T06:00:00.000Z", ends_at: LUNCH_START });
+    await seedLocation(truckId, { starts_at: LUNCH_END, ends_at: "2026-08-22T15:00:00.000Z" });
+
+    expect((await overlappingIds(LUNCH_START, LUNCH_END, [truckId])).ids).toEqual([]);
+  });
+});
+
+describe("listRecentLocationsForTruck", () => {
+  const BEFORE = "2026-08-22T00:00:00.000Z";
+
+  // Day `n` of August 2026, 09:00–12:00 UTC.
+  function onDay(n: number): Pick<NewLocation, "starts_at" | "ends_at"> {
+    const day = String(n).padStart(2, "0");
+    return { starts_at: `2026-08-${day}T09:00:00.000Z`, ends_at: `2026-08-${day}T12:00:00.000Z` };
+  }
+
+  it("returns the truck's live rows that started before `before`, newest first, up to `limit`", async () => {
+    const otherTruck = await seedTruck("Other");
+    const day18 = await seedLocation(truckId, onDay(18));
+    const day19 = await seedLocation(truckId, onDay(19));
+    const day20 = await seedLocation(truckId, onDay(20));
+    await seedLocation(truckId, { ...onDay(21), cancelled_at: "2026-08-20T08:00:00.000Z" });
+    await seedLocation(truckId, onDay(23)); // starts after `before`
+    await seedLocation(otherTruck, onDay(21));
+
+    const recent = await listRecentLocationsForTruck(truckId, BEFORE, 10);
+    expect(recent.map((row) => row.id)).toEqual([day20, day19, day18]);
+    expect(keysOf(recent[0])).toEqual(LOCATION_KEYS);
+
+    const limited = await listRecentLocationsForTruck(truckId, BEFORE, 2);
+    expect(limited.map((row) => row.id)).toEqual([day20, day19]);
   });
 });
