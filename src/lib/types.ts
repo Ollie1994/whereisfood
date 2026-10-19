@@ -42,14 +42,3 @@ export type Location = Omit<LocationRow, "source"> & {
 // deliberate: a silent default is how a row ends up with a value nobody chose, so
 // making every column required means a caller cannot forget one.
 export type NewLocation = Omit<Location, "id" | "created_at" | "updated_at">;
-
-// Derived client-side, never persisted — one per truck shown on the map.
-export type MarkerColor = "green" | "yellow" | "grey";
-
-export interface MarkerState {
-  truck: Truck;
-  location: Location | null; // null → grey marker
-  color: MarkerColor;
-  latitude: number; // resolved from location, or truck's last_known
-  longitude: number;
-}

@@ -1,4 +1,4 @@
-import type { Truck, Location } from "@/lib/types";
+import type { MapTruck, MapLocation } from "@/lib/map-types";
 
 // Phase 1 fake data — hardcoded for the map before Supabase is wired up.
 // Real Gothenburg coordinates so markers land on the map (centre 57.7089, 11.9746).
@@ -13,7 +13,7 @@ import type { Truck, Location } from "@/lib/types";
 const now = Date.now();
 const hours = (h: number) => new Date(now + h * 60 * 60 * 1000).toISOString();
 
-export const FAKE_TRUCKS: Truck[] = [
+export const FAKE_TRUCKS: MapTruck[] = [
   // Old-design GREEN marker: `source` manual, active location, confidence 1.0
   {
     id: "11111111-1111-1111-1111-111111111111",
@@ -64,7 +64,7 @@ export const FAKE_TRUCKS: Truck[] = [
   },
 ];
 
-export const FAKE_LOCATIONS: Location[] = [
+export const FAKE_LOCATIONS: MapLocation[] = [
   // Old-design green row: `source` manual, confidence 1.0
   {
     id: "aaaaaaaa-0000-0000-0000-000000000001",

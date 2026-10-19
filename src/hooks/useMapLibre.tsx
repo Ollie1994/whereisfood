@@ -8,7 +8,7 @@ import { layers, namedFlavor } from "@protomaps/basemaps";
 import TruckPopup from "@/components/Map/TruckPopup";
 import { FAKE_TRUCKS, FAKE_LOCATIONS } from "@/lib/fake-data";
 import { workerUrl } from "@/lib/maplibre-worker.mjs";
-import type { Location, MarkerColor, MarkerState, Truck } from "@/lib/types";
+import type { MapLocation, MapTruck, MarkerColor, MarkerState } from "@/lib/map-types";
 
 const GOTHENBURG: [number, number] = [11.9746, 57.7089];
 const PMTILES_URL = process.env.NEXT_PUBLIC_PMTILES_URL;
@@ -32,14 +32,14 @@ const MARKER_COLORS: Record<MarkerColor, string> = {
 // documented Turbopack form does NOT work here: `src/lib/maplibre-worker.mjs`.
 let mapLibreInitialised = false;
 
-function deriveColor(location: Location | null): MarkerColor {
+function deriveColor(location: MapLocation | null): MarkerColor {
   if (!location) return "grey";
   return location.confidence >= 0.9 ? "green" : "yellow";
 }
 
 // Merge trucks + locations into one MarkerState per truck (the Phase 6 `useLocations`
 // hook's job once the map reads `/api/live`).
-function buildMarkerStates(trucks: Truck[], locations: Location[]): MarkerState[] {
+function buildMarkerStates(trucks: MapTruck[], locations: MapLocation[]): MarkerState[] {
   return trucks.flatMap((truck) => {
     const location =
       locations.find(
