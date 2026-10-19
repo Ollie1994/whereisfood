@@ -184,7 +184,7 @@ per follow-up the retrospective opens, which may be none.
    `setup.ts`'s comments.
    *One PR because* it is the smallest unit with green gates (decision #2).
 3. **Constraint tests.** `tests/integration/schema.test.ts`: overlap → `23P01`; a
-   cancelled row doesn't block; back-to-back windows are allowed; `ends_at = starts_at`
+   cancelled row doesn't block; back-to-back windows are allowed; the same window on another truck is allowed and each enum value is accepted (both added in PR #168's review: without them, the constraint without `truck_id with =` and an enum without `'owner'` passed); `ends_at = starts_at`
    and `ends_at < starts_at` are rejected with **`23514`**; a NULL in each NOT NULL
    column of decision #17 except the `id` primary keys is rejected with `23502`
    (`source` included: an enum column accepts NULL, so only NOT NULL stops it; a primary key
