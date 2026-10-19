@@ -3,9 +3,12 @@ import { describe, expect, it } from "vitest";
 import { MAX_ROWS, assertAllRows } from "./complete";
 
 describe("MAX_ROWS", () => {
-  it("equals max_rows in supabase/config.toml", () => {
+  it("equals max_rows in supabase/config.toml's [api] table", () => {
     const config = readFileSync(new URL("../../../supabase/config.toml", import.meta.url), "utf8");
-    const match = /^max_rows\s*=\s*(\d+)\s*$/m.exec(config);
+    // The [api] table only: from its header to the next table header of any kind.
+    const api = /^\[api\]\s*$([\s\S]*?)(?=^\[)/m.exec(config);
+    expect(api).not.toBeNull();
+    const match = /^max_rows\s*=\s*(\d+)\s*$/m.exec(api![1]);
 
     expect(match).not.toBeNull();
     expect(Number(match![1])).toBe(MAX_ROWS);

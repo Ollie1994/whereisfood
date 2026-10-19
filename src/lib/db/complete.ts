@@ -1,6 +1,9 @@
 // The most rows the API returns from one request: `max_rows` in `supabase/config.toml`.
 // `complete.test.ts` fails when the two differ, and `db-locations.test.ts` fails when
-// the running API returns fewer than this (the `limit` = MAX_ROWS case).
+// the local API returns fewer than this (the `limit` = MAX_ROWS case). ⚠ A hosted
+// project's cap is set in its dashboard, not from `config.toml`; checking it is Phase 6's
+// (Phase 5 plan, step 7). Below MAX_ROWS there, `listRecentLocationsForTruck` would
+// return a cut result with no error.
 export const MAX_ROWS = 1000;
 
 // ⚠ POSTGREST RETURNS AT MOST `max_rows` ROWS WITH NO ERROR, so a read without a

@@ -74,8 +74,10 @@ if (WILDCARDS_ON_THE_PATH_TO_POSTGRES.test(FIXTURE_PREFIX)) {
 // ⚠ IN BATCHES, UNTIL NO FIXTURE TRUCK IS LEFT. The select returns at most the API's
 // `max_rows`, and every id goes into the `.in()` filter's URL: with 1001 fixture trucks
 // left by an interrupted run of the `listActiveTrucks` max_rows test, one pass failed
-// with "URI too long" (2026-10-19). A pass that removes fewer trucks than it found
-// throws, so the loop can't spin on the same ids.
+// with "URI too long" (2026-10-19). A pass that removes no truck throws, so the loop
+// can't spin on the same ids (a delete that matches but removes nothing, e.g. under a
+// trigger or policy, returns no error). Fewer than found is progress: another run may
+// have removed some.
 const RESET_BATCH = 100;
 
 export async function resetTables(): Promise<void> {
@@ -107,9 +109,9 @@ export async function resetTables(): Promise<void> {
       .select("id");
 
     if (truckError) throw truckError;
-    if (removed.length !== fixtureTruckIds.length) {
+    if (removed.length === 0) {
       throw new Error(
-        `resetTables: removed ${removed.length} of ${fixtureTruckIds.length} fixture trucks; stopping rather than looping`,
+        `resetTables: removed none of ${fixtureTruckIds.length} fixture trucks; stopping rather than looping`,
       );
     }
   }

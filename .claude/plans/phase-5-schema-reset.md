@@ -248,8 +248,11 @@ per follow-up the retrospective opens, which may be none.
    are the likely one) and **Phase 4's #14 and #15**, which were added after Phase 4's
    reconciliation merged, with the tooling they and #149/#150 brought
    (`scripts/claims.sh`, `process-log.sh add`, the values block, the `Caught by`
-   groups). Decision #19 carries an open hosted check (the `sv-SE-x-icu` collation)
-   that Phase 6 runs, so the reconciliation names it where Phase 6 will read it.
+   groups). Two hosted checks Phase 6 runs, so the reconciliation names them where Phase 6
+   will read them: decision #19's `sv-SE-x-icu` collation, and the hosted Data API's
+   `max_rows` being at least `MAX_ROWS` (`src/lib/db/complete.ts`): it is set in the
+   dashboard, not from `config.toml`, and below `MAX_ROWS` `listRecentLocationsForTruck`
+   returns a cut result with no error (PR #167 round 5).
 
 ---
 

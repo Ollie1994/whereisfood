@@ -151,8 +151,9 @@ export async function findLocationsOverlapping(from: string, to: string): Promis
 //
 // ⚠ `limit` MUST BE AN INTEGER FROM 1 TO `MAX_ROWS`, checked before any request. Above
 // the API's `max_rows` the result is cut with no error (probed 2026-10-19: limit 2000
-// over 1001 rows → 1000), and at or below it a cut can't happen, so no count or second
-// read is needed: an exact count would read the truck's whole history per call, which
+// over 1001 rows → 1000), and at or below it a cut can't happen while the API's cap is
+// MAX_ROWS (`complete.ts` says where that is checked), so no count or second read is
+// needed: an exact count would read the truck's whole history per call, which
 // the `(truck_id, starts_at desc)` index exists to avoid (plan, #14). PostgREST rejects
 // a zero, negative or fractional limit with a 400 that would reach the caller as an
 // opaque error.

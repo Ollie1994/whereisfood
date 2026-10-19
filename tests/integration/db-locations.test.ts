@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   cancelLocation,
   findLocationsOverlapping,
@@ -8,6 +8,7 @@ import {
   updateLocation,
 } from "@/lib/db/locations";
 import { MAX_ROWS } from "@/lib/db/complete";
+import { supabaseAdmin } from "@/lib/supabase";
 import type { LocationPatch, NewLocation } from "@/lib/types";
 import {
   FIXTURE_PLACE,
@@ -47,6 +48,11 @@ let truckId: string;
 beforeEach(async () => {
   await resetTables();
   truckId = await seedTruck();
+});
+
+// A spy left behind by a failing assertion would count the next test's own requests.
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 function aLocation(overrides: Partial<NewLocation> = {}): NewLocation {
@@ -157,8 +163,11 @@ describe("updateLocation", () => {
     ["a patch whose keys are all undefined", { label: undefined, ends_at: undefined }],
   ])("throws on %s and leaves the row unchanged", async (_name, patch) => {
     const { id } = await seedLocation(truckId);
+    const from = vi.spyOn(supabaseAdmin, "from");
 
     await expect(updateLocation(id, patch)).rejects.toThrow(/sets no column/);
+    // Before any request: the guard runs before the query is built.
+    expect(from).not.toHaveBeenCalled();
     expect((await readLocation(id)).label).toBe("Järntorget");
   });
 });
@@ -280,9 +289,12 @@ describe("listRecentLocationsForTruck", () => {
   });
 
   it.each([0, -1, 1.5, 1001])("throws on limit %s before any request", async (limit) => {
+    const from = vi.spyOn(supabaseAdmin, "from");
+
     await expect(listRecentLocationsForTruck(truckId, BEFORE, limit)).rejects.toThrow(
       /integer from 1 to 1000/,
     );
+    expect(from).not.toHaveBeenCalled();
   });
 });
 
