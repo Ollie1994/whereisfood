@@ -102,7 +102,7 @@ and `moddatetime` are Postgres extensions).
 | `listActiveTrucks()` → `Truck[]` | Active trucks, ordered by name in Swedish order (decision #19); throws past `max_rows` (`assertAllRows`). Read by Phase 6's `/api/live` and Phase 7's checklist. |
 | ~~`updateLastKnownPosition`~~ | Removed with its columns. |
 
-**`src/lib/db/locations.ts`** (db layer). Postgres errors propagate unchanged (decision #10). An id that isn't a uuid raises `22P02`, not `null` (probed 2026-10-19, in both db modules); Phase 7's validator checks the shape. The reads without a `limit` select with an exact count and throw through `assertAllRows` (`src/lib/db/complete.ts`) when `max_rows` cuts them (PR #167 rounds 1–3).
+**`src/lib/db/locations.ts`** (db layer). Postgres errors propagate unchanged (decision #10). An id that isn't a uuid raises `22P02`, not `null` (probed 2026-10-19, in both db modules); Phase 7's routes check the shape first with the existing `isUuid` (`src/lib/validators/uuid.ts`). The reads without a `limit` select with an exact count and throw through `assertAllRows` (`src/lib/db/complete.ts`) when `max_rows` cuts them (PR #167 rounds 1–3).
 | Function | Does |
 |---|---|
 | `insertLocation(NewLocation)` → `Location` | Insert and return the stored row. Can raise `23P01` or the CHECK violation. Sends only `NewLocation`'s columns, picked at runtime, so a wider object can't write `id` or `cancelled_at` (PR #167 round 1). |

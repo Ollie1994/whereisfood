@@ -11,8 +11,8 @@ import type { Location, LocationPatch, NewLocation } from "@/lib/types";
 //   the service (`CLAUDE.md`, "Time").
 // - No function deletes. Ended and cancelled are filters.
 // - An id that isn't a uuid raises `22P02` ("invalid input syntax for type uuid"), not
-//   null (probed 2026-10-19 on `updateLocation` and `cancelLocation`). Checking an
-//   id's shape is the validator's job (Phase 7, `src/lib/validators/`).
+//   null (probed 2026-10-19 on `updateLocation` and `cancelLocation`). The caller
+//   checks the shape first with `isUuid` (`src/lib/validators/uuid.ts`).
 //
 // ⚠ A timestamp doesn't round-trip as the same string: we send `…T09:00:00.000Z`,
 // PostgREST returns `…T09:00:00+00:00` (seen in PR #106 and again in this module's
