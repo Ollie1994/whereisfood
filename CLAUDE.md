@@ -95,8 +95,11 @@ said otherwise: Phase 4 plan decision #14.
 
 **Supabase**
 - `supabaseAdmin` (service role) — server only, imported by the db layer (`src/lib/db/`)
-  and the integration test helpers. Routes and services reach the database through the
-  db layer, never this client directly
+  and the integration tests (`tests/integration/`, which `setup.ts` runs only against a
+  local Supabase). Routes and services reach the database through the db layer, never
+  this client directly. Tests create trucks through `seedTruck`, so `resetTables()`
+  can remove them and their rows (`tests/integration/helpers.ts`); a truck made any
+  other way is removed by its own test, as `helpers.test.ts`'s bystanders are
 - `supabaseClient` (anon key) — browser only, and only for Auth (admin login, Phase 7).
   Never for data: see the next rules
 - Never use `supabaseAdmin` in client components
