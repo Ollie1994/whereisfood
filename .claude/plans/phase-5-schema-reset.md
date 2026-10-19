@@ -68,6 +68,7 @@ gates green and the fake-data map unchanged.
 | `src/lib/map-types.ts` | The fake-data map's **frozen, hand-written** types: `MapTruck` (today's `Truck`, `last_known_*` included), `MapLocation` (today's `Location`: `confidence`, `is_negation`, the old `source` lanes and the rest), `MarkerColor`, `MarkerState`. Deleted in Phase 6 (decision #1). |
 | `tests/integration/schema.test.ts` | Constraint, CHECK and trigger tests (step 3). |
 | `tests/integration/rls.test.ts` | RLS and grant tests (step 4). |
+| `src/lib/db/complete.ts`, `src/lib/db/complete.test.ts` | `MAX_ROWS` and `assertAllRows`, the `max_rows` check for reads without a `limit`; the unit test pins `MAX_ROWS` to `config.toml`'s `max_rows` (PR #167 rounds 3–4). |
 | `tests/integration/db-trucks.test.ts` | Tests for the rewritten `db/trucks.ts`. |
 | `.claude/plans/phase-5-schema-reset.md` | This plan. |
 
@@ -99,17 +100,17 @@ and `moddatetime` are Postgres extensions).
 | Function | Does |
 |---|---|
 | `getActiveTruckById(id)` → `Truck \| null` | Kept; selects an explicit column list. Phase 7's admin writes use it to check the truck id. |
-| `listActiveTrucks()` → `Truck[]` | Active trucks, ordered by name. Read by Phase 6's `/api/live` and Phase 7's checklist. |
+| `listActiveTrucks()` → `Truck[]` | Active trucks, ordered by name in Swedish order (decision #19); throws past `max_rows` (`assertAllRows`). Read by Phase 6's `/api/live` and Phase 7's checklist. |
 | ~~`updateLastKnownPosition`~~ | Removed with its columns. |
 
-**`src/lib/db/locations.ts`** (db layer). Postgres errors propagate unchanged (decision #10).
+**`src/lib/db/locations.ts`** (db layer). Postgres errors propagate unchanged (decision #10). An id that isn't a uuid raises `22P02`, not `null` (probed 2026-10-19, in both db modules); Phase 7's routes check the shape first with the existing `isUuid` (`src/lib/validators/uuid.ts`). The reads without a `limit` select with an exact count and throw through `assertAllRows` (`src/lib/db/complete.ts`) when `max_rows` cuts them (PR #167 rounds 1–3).
 | Function | Does |
 |---|---|
-| `insertLocation(NewLocation)` → `Location` | Insert and return the stored row. Can raise `23P01` or the CHECK violation. |
-| `updateLocation(id, LocationPatch)` → `Location \| null` | Edits place, label or times of a row that isn't cancelled; `null` when no such row. Can raise `23P01` or the CHECK violation. **Throws before any request on an empty patch** (no key with a defined value): PostgREST answers an empty PATCH by updating no row (probed 2026-10-18: `{}` on an existing truck → `200 []`), so it would return `null` for a row that exists. |
+| `insertLocation(NewLocation)` → `Location` | Insert and return the stored row. Can raise `23P01` or the CHECK violation. Sends only `NewLocation`'s columns, picked at runtime, so a wider object can't write `id` or `cancelled_at` (PR #167 round 1). |
+| `updateLocation(id, LocationPatch)` → `Location \| null` | Edits place, label or times of a row that isn't cancelled; `null` when no such row. Can raise `23P01` or the CHECK violation. **Throws before any request on an empty patch** (no key with a defined value): PostgREST answers an empty PATCH by updating no row (probed 2026-10-18: `{}` on an existing truck → `200 []`), so it would return `null` for a row that exists. Sends only `LocationPatch`'s columns, picked at runtime: a key it doesn't list counts as absent, so `{ ...row, label }` can't rewrite `truck_id`, `cancelled_at` or `created_by` (PR #167 round 1). |
 | `cancelLocation(id, cancelledAt)` → `Location \| null` | Sets `cancelled_at` where it is still null; `null` when the row is missing or already cancelled. The caller passes the timestamp (decision #10). |
-| `findLocationsOverlapping(from, to)` → `Location[]` | Non-cancelled rows with `starts_at < to AND ends_at > from`, all trucks (decision #9). |
-| `listRecentLocationsForTruck(truckId, before, limit)` → `Location[]` | The truck's latest non-cancelled rows with `starts_at < before`, newest `starts_at` first. The caller passes `before` (usually now), so future entries don't fill "recent places" and the clock stays in the service (decision #10). Phase 7's service dedupes them into "recent places". |
+| `findLocationsOverlapping(from, to)` → `Location[]` | Non-cancelled rows with `starts_at < to AND ends_at > from`, all trucks (decision #9), ordered by `starts_at` and then `id`, so rows sharing a start time keep one order (PR #167 round 2). **Throws when more rows match than the API returns** (`max_rows`, 1000 locally): the exact count is compared with the rows received, so a wide window fails loudly instead of losing its latest rows (PR #167 round 1). |
+| `listRecentLocationsForTruck(truckId, before, limit)` → `Location[]` | The truck's latest non-cancelled rows with `starts_at < before`, newest `starts_at` first. The caller passes `before` (usually now), so future entries don't fill "recent places" and the clock stays in the service (decision #10). Phase 7's service dedupes them into "recent places". Throws before any request on a `limit` that isn't an integer from 1 to `MAX_ROWS` (1000, `src/lib/db/complete.ts`): above the API's `max_rows` the result would be cut with no error, and at or below it can't be, so there is no count and no second read (decision #14; PR #167 rounds 2–4). |
 | ~~`findOverlapping`, `deleteLocations`~~ | Removed: the constraint replaces the first; rows are never deleted. |
 
 Every select names its columns through one `LOCATION_COLUMNS` constant, which leaves
@@ -143,12 +144,13 @@ makes it required. Copying the whole shape keeps step 1 a type-only move.
 **`tests/integration/helpers.ts`**
 | Helper | Does |
 |---|---|
-| `seedTruck(name)` | Kept. |
-| `seedLocation(truckId, overrides?)` | Inserts a valid location with defaults, so a test states only what it is about. **It throws if exactly one of `starts_at`/`ends_at` is given**: a default for the other would come from the year-2000 window below, giving `23514` or a window spanning decades. A call without `starts_at`/`ends_at` gets a window on a day no earlier call used: day *n* after 2000-01-01, *n* a counter in the module. So two default calls on one truck don't raise `23P01`; a test that passes its own window keeps it after 2020 (a rule for the tests; the counter would need 7,000-odd default calls in one run to get there). |
+| `seedTruck(name, isActive?)` | Kept; `isActive` (default `true`) seeds an inactive truck in one insert (PR #167 round 2). |
+| `seedLocation(truckId, overrides?)` | Inserts a valid location with defaults, so a test states only what it is about, and returns the stored row. `overrides` also takes `id` and `cancelled_at`, and never `truck_id`: a row moved to a seed truck would leak past `resetTables()` (PR #167 round 2). **It throws if exactly one of `starts_at`/`ends_at` is given**: a default for the other would come from the year-2000 window below, giving `23514` or a window spanning decades. A call without `starts_at`/`ends_at` gets a window on a day no earlier call used: day *n* after 2000-01-01, *n* a counter in the module. So two default calls on one truck don't raise `23P01`; a test that passes its own window keeps it after 2020 (a rule for the tests; the counter would need 7,000-odd default calls in one run to get there). |
+| `FIXTURE_PREFIX` (exported), `seedDailyLocations(truckId, firstDay, count)`, `seedTrucks(name, count)`, `readLocation(id)`, `keysOf(row)`, `FIXTURE_PLACE`, `dayWindow(dayMs)` | One-request bulk inserts (for the `max_rows` tests), a stored row read back, a row's sorted keys for the key-set tests, and the default place and 09:00–12:00 UTC window every location helper uses. Shared rather than written in each test file (PR #167 round 2). |
 | `anonClient()` | A supabase-js client with the anon key. Not `supabaseClient` from `supabase.ts`: `CLAUDE.md` keeps that one for browser Auth, and Phase 7 splits the file. |
 | `createFixtureAuthUser()` | The **only** way a test creates an auth user: `supabaseAdmin.auth.admin.createUser` with an email carrying the fixture prefix, so `resetTables()` finds it even when the test fails before its own cleanup. Returns the user id. Step 4's bare authors (no `users` row) come from it directly. |
 | `signedInClient()` | Creates a prefixed auth user with `createFixtureAuthUser()`, then its `users` row with `supabaseAdmin.from("users").insert` (the Auth admin API doesn't write `public` tables); signs in; returns an `authenticated` client and its user id. |
-| `resetTables()` | Also removes fixture `users` rows and fixture auth users. They are found through the admin API, not PostgREST (`public.users` has no email, and `auth` isn't exposed): `auth.admin.listUsers({ page, perPage })`, **every page until a short one** (one page holds 50 by default, and leaked fixtures from interrupted runs are the case cleanup exists for), filtered in JS with `startsWith` on the email prefix; their ids give the `users` rows. Children first: `users` rows before trucks (`users.truck_id` references `trucks`, decision #7) and before their auth users (`users.id` references `auth.users`). ⚠ Today's version returns early when no fixture truck exists (`helpers.ts:91`); the user cleanup must run before that return or without it, or a test that creates a user and no truck leaks the user. |
+| `resetTables()` | Also removes fixture `users` rows and fixture auth users. They are found through the admin API, not PostgREST (`public.users` has no email, and `auth` isn't exposed): `auth.admin.listUsers({ page, perPage })`, **every page until a short one** (one page holds 50 by default, and leaked fixtures from interrupted runs are the case cleanup exists for), filtered in JS with `startsWith` on the email prefix; their ids give the `users` rows. Children first: `users` rows before trucks (`users.truck_id` references `trucks`, decision #7) and before their auth users (`users.id` references `auth.users`). ⚠ Today's version removes fixture trucks in batches of 100 in a loop, throws if a pass removes no truck (no progress), and returns when no fixture truck is left (`if (fixtureTruckIds.length === 0) return`; batched since PR #167 round 3). The user cleanup must run before that loop, or a test that creates a user and no truck leaks the user. |
 
 ⚠ `resetTables()` removes only `itest-fixture-` trucks and their children, so the
 seed's history survives a test run, as intended. A test that counts rows must scope to
@@ -246,7 +248,11 @@ per follow-up the retrospective opens, which may be none.
    are the likely one) and **Phase 4's #14 and #15**, which were added after Phase 4's
    reconciliation merged, with the tooling they and #149/#150 brought
    (`scripts/claims.sh`, `process-log.sh add`, the values block, the `Caught by`
-   groups).
+   groups). Two hosted checks Phase 6 runs, so the reconciliation names them where Phase 6
+   will read them: decision #19's `sv-SE-x-icu` collation, and the hosted Data API's
+   `max_rows` being at least `MAX_ROWS` (`src/lib/db/complete.ts`): it is set in the
+   dashboard, not from `config.toml`, and below `MAX_ROWS` `listRecentLocationsForTruck`
+   returns a cut result with no error (PR #167 round 5).
 
 ---
 
@@ -317,8 +323,8 @@ trigger the `SET NULL` moved `updated_at`; with this clause it didn't, and a pla
 edit, an edit of an unattributed row, and an attribution with a label edit each did.
 **The limit:** the clause skips *any* UPDATE that clears `created_by`, not only the
 FK's, so an edit that also clears it leaves `updated_at` stale. The db layer never
-writes `created_by` on an update (`LocationPatch` omits it; `cancelLocation` sets
-`cancelled_at` only), so only hand-written SQL can do that, and **SQL that clears
+writes `created_by` on an update (`updateLocation` sends only `LocationPatch`'s
+columns, picked at runtime; `cancelLocation` sets `cancelled_at` only), so only hand-written SQL can do that, and **SQL that clears
 `created_by` while editing sets `updated_at = now()` itself**.
 **Rejected:** `when (old.created_by is not distinct from new.created_by)` (PR #159
 round 6), which also skips that attribution-with-edit (probed: `updated_at` didn't
@@ -442,6 +448,7 @@ covers DST.
 with their defaults (`project-context.md`'s Data model lists the same). `users`:
 `id` references `auth.users`, `truck_id` nullable, `is_admin` and `created_at` not null.
 Nothing in the target design changes them; owner claim columns are the Owners phase's.
+**Amended by #19:** `name` gains the Swedish collation.
 
 ### #17 — Every column's nullability is stated; NOT NULL unless named here
 Every column of the three tables is NOT NULL, except `trucks.instagram_handle`,
@@ -476,6 +483,18 @@ round 8), which needed a cast or a typed spread in each of five functions, and a
 them slipping back to `as Location` loses `tsc`'s check of the select. The cost
 accepted: an enum value can be added (`alter type … add value`) but not easily
 removed; `'owner'` is already planned, so the list isn't expected to shrink.
+
+### #19 — `trucks.name` sorts in Swedish (added in PR #167 round 2)
+`name text collate "sv-SE-x-icu" not null`. The stack's default collation sorted
+`Åkes < Alpha < Ärtsoppan < burgare < Öl < Zebra`, Å and Ä as A; with `sv-SE-x-icu`,
+`Alpha < burgare < Zebra < Åkes < Ärtsoppan < Öl` (checked 2026-10-19, and the collation
+exists on the local stack's Postgres 17.6). The UI is Swedish-only, so `listActiveTrucks`'s
+"ordered by name" means Swedish order wherever it is read. `db-trucks.test.ts` pins it;
+without the collation it fails. **Rejected:** sorting in Phase 7's service with
+`Intl.Collator('sv')`: every reader of `listActiveTrucks` would have to remember to.
+**Open:** whether a hosted project has `sv-SE-x-icu` is Phase 6's to check, with the
+other hosted checks; a missing collation fails the `create table` (`42704`, probed
+locally 2026-10-19 with a made-up `xx-XX-x-icu`).
 
 ---
 
@@ -608,7 +627,14 @@ removed; `'owner'` is already planned, so the list isn't expected to shrink.
    extensions install into `extensions` on the local stack and the trigger form works
    (decision #5's probe). Step 2 still runs it for real; a hosted project is Phase 6's
    to check.
-3. **Seed times across DST.** Rows at 11:00–14:00 Stockholm time over four weeks must
+3. ~~**Seed times across DST.**~~ → **answered in step 2 (#161):** `seed.sql` builds
+   the times from a `date` (`(now() at time zone 'Europe/Stockholm')::date - n`, `n` in
+   1–28). The same expression with `now()` replaced by `timestamptz '2026-11-05
+   12:00+01'` covers 2026-10-08 … 11-04, across the 10-25 change: all 28 rows start
+   11:00 and end 14:00 Stockholm (09:00Z before, 10:00Z after). With a `timestamptz`
+   series in place of the date, the starts came out 23:00 and 00:00. The PR records the
+   query. The question as planned:
+   Rows at 11:00–14:00 Stockholm time over four weeks must
    stay at 11:00–14:00 across a DST change. The seed's real window holds a DST change
    only in the four weeks after one (the next is 2026-10-25, a week after this plan
    was written), so a check run on today's seed can pass with no change inside it.
@@ -628,9 +654,10 @@ removed; `'owner'` is already planned, so the list isn't expected to shrink.
    (`GRANT … ON …`) was seen on the local stack's Postgres 17.6; whether it comes from
    upstream Postgres or Supabase's image isn't checked. If an upgrade drops it, the
    tests fail loudly rather than pass, and step 4 then asserts the message instead.
-5. **How `23P01` arrives through supabase-js.** Confirm a PostgREST error on insert and
-   update carries `code: "23P01"`; Phase 7's 409 mapping depends on it. Step 2's tests
-   pin it.
+5. ~~**How `23P01` arrives through supabase-js.**~~ → **answered in step 2 (#161):**
+   yes. `insertLocation` and `updateLocation` reject with an error whose `code` is
+   `"23P01"` (`db-locations.test.ts`, one case each; wrapping the error in
+   `insertLocation` turns its case red). Phase 7's 409 mapping can read `code`.
 6. **`is_active` in the live read.** `findLocationsOverlapping` doesn't filter by the
    truck's state. Whether Phase 6 filters in its service or adds a joined query is
    Phase 6's call; this phase only records that the primitive doesn't.

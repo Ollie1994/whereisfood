@@ -1,6 +1,6 @@
-import { afterEach, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { supabaseAdmin } from "@/lib/supabase";
-import { resetTables, seedTruck } from "./helpers";
+import { FIXTURE_PREFIX, resetTables, seedLocation, seedTruck, seedTrucks } from "./helpers";
 
 // ⚠ EVERY BYSTANDER IS ADVERSARIAL, AND THE FIRST VERSION'S WAS NOT. It was named
 // "Seed-like Truck", which stands in for `seed.sql`'s dev trucks — and that is exactly
@@ -38,16 +38,10 @@ afterEach(async () => {
 });
 
 it("⚠ resetTables deletes only what this suite created", async () => {
-  // THE REGRESSION THIS FILE EXISTS FOR, now hit twice. A first version deleted ALL of
-  // `locations`, `posts` and `trucks`, destroying `seed.sql`'s three fixed-UUID dev
-  // trucks — including the deliberately INACTIVE one Phase 2's rejection tests need.
-  // `npm run test:all` is the documented merge gate, so running the gate broke every
-  // documented curl flow (r1). The fix for that then used a prefix containing LIKE
-  // wildcards, which matched unrelated trucks (r2).
-  //
-  // Both times nothing went red. A destructive side effect produces no failure, which
-  // is why the assertion has to be that the bystanders SURVIVE rather than that the
-  // fixtures are gone.
+  // The assertion is that the bystanders SURVIVE, not only that the fixture is gone: an
+  // over-wide delete fails no test of its own. Two earlier predicates (every row, then a
+  // prefix with LIKE wildcards) deleted trucks this suite never made, with every test
+  // green (PR #106).
   await supabaseAdmin
     .from("trucks")
     .upsert(BYSTANDERS.map((truck) => ({ ...truck, is_active: true })));
@@ -68,33 +62,85 @@ it("⚠ resetTables deletes only what this suite created", async () => {
   expect(removed.data).toBeNull();
 }, 20_000);
 
-it("removes a fixture's children before the fixture itself", async () => {
-  // `locations` and `posts` reference `trucks`, so a cleanup that deletes trucks first
-  // fails on a foreign key rather than leaving orphans. This passes only if the order
-  // is right, and it is the reason `resetTables` iterates a list rather than running
-  // three statements whose order reads as incidental.
-  const fixture = await seedTruck();
+it("removes more fixture trucks than the API's max_rows", async () => {
+  // In one pass, the ids of 1001 trucks overflow the `.in()` filter's URL ("URI too
+  // long") and the select stops at max_rows; `resetTables` loops in batches.
+  await seedTrucks("Bulk", 1001);
 
-  // ⚠ CHECKED. supabase-js returns `{ error }` rather than throwing, so an unchecked
-  // insert makes this test VACUOUS the moment a migration adds a NOT NULL column: the
-  // insert 400s, there is no child row for `resetTables()` to order around, and the
-  // test passes green while asserting nothing (PR #106 r3).
-  const { error: insertError } = await supabaseAdmin.from("locations").insert({
-    truck_id: fixture,
-    latitude: 57.6998935,
-    longitude: 11.952503,
-    starts_at: "2026-08-22T09:00:00.000Z",
-    expires_at: "2026-08-22T12:00:00.000Z",
-    source: "webhook",
-    confidence: 0.85,
-    parser_confidence: 1.0,
-    source_confidence: 0.85,
-    is_negation: false,
-  });
-  if (insertError) throw insertError;
+  await resetTables();
+
+  const { count, error } = await supabaseAdmin
+    .from("trucks")
+    .select("id", { count: "exact", head: true })
+    .like("name", `${FIXTURE_PREFIX}%`);
+  if (error) throw error;
+  expect(count).toBe(0);
+}, 30_000);
+
+it("removes a fixture's children before the fixture itself", async () => {
+  // `locations.truck_id` references `trucks` with no cascade, so a cleanup that deletes
+  // trucks first fails on the foreign key (`23503`). This passes only if the order is
+  // right. `seedLocation` throws on a failed insert, so the child row exists.
+  const fixture = await seedTruck();
+  await seedLocation(fixture);
 
   await expect(resetTables()).resolves.toBeUndefined();
 
   const orphans = await supabaseAdmin.from("locations").select("id").eq("truck_id", fixture);
   expect(orphans.data).toEqual([]);
 }, 20_000);
+
+describe("seedLocation", () => {
+  async function windowsOf(truckId: string) {
+    const { data, error } = await supabaseAdmin
+      .from("locations")
+      .select("starts_at, ends_at")
+      .eq("truck_id", truckId)
+      .order("starts_at");
+    if (error) throw error;
+    return data;
+  }
+
+  it("gives two default calls on one truck windows that don't overlap", async () => {
+    // Both inserts succeeding is the claim: on one window the second raises 23P01.
+    const truckId = await seedTruck();
+    await seedLocation(truckId);
+    await seedLocation(truckId);
+
+    const [first, second] = await windowsOf(truckId);
+    expect(Date.parse(second.starts_at)).toBeGreaterThanOrEqual(Date.parse(first.ends_at));
+  });
+
+  it("keeps a window the test passes", async () => {
+    const truckId = await seedTruck();
+    await seedLocation(truckId, {
+      starts_at: "2026-08-22T09:00:00.000Z",
+      ends_at: "2026-08-22T12:00:00.000Z",
+    });
+
+    const [row] = await windowsOf(truckId);
+    expect(Date.parse(row.starts_at)).toBe(Date.parse("2026-08-22T09:00:00.000Z"));
+    expect(Date.parse(row.ends_at)).toBe(Date.parse("2026-08-22T12:00:00.000Z"));
+  });
+
+  it.each([
+    ["starts_at", { starts_at: "2026-08-22T09:00:00.000Z" }],
+    ["ends_at", { ends_at: "2026-08-22T12:00:00.000Z" }],
+  ])("throws when only %s is given, and inserts nothing", async (_bound, overrides) => {
+    const truckId = await seedTruck();
+
+    await expect(seedLocation(truckId, overrides)).rejects.toThrow(/both starts_at and ends_at/);
+    expect(await windowsOf(truckId)).toEqual([]);
+  });
+
+  it("puts the row on the truck it is given, whatever the overrides say", async () => {
+    // A row on another truck (a seed truck, say) would leak past `resetTables()`.
+    const truckId = await seedTruck();
+    const otherTruck = await seedTruck("Other");
+
+    // @ts-expect-error `truck_id` isn't an override; `tsc` fails here if it becomes one.
+    const row = await seedLocation(truckId, { truck_id: otherTruck });
+
+    expect(row.truck_id).toBe(truckId);
+  });
+});

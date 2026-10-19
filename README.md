@@ -11,10 +11,11 @@ themselves later.
 It fills a real gap: Gothenburg has had no central food-truck map since Streetkäk
 shut down in 2017.
 
-> **Status: Phase 4 of 8 (housekeeping).** The map renders in the browser from
+> **Status: Phase 5 of 8 (schema reset).** The map renders in the browser from
 > **fake data**; the app doesn't read from or write to the database yet. Phase 4 removed the
 > old design (automatic ingestion from Make.com and email, plus a Swedish text
-> parser); see [Project status](#project-status).
+> parser), and Phase 5 replaces its database schema; see
+> [Project status](#project-status).
 
 ---
 
@@ -86,10 +87,10 @@ The working rules live in [`CLAUDE.md`](CLAUDE.md) and the design reference in
 | Phase | Scope | Status |
 |-------|-------|--------|
 | 1 · Foundation       | Map renders (MapLibre + a local PMTiles file) with fake data | ✅ Done |
-| 2 · Ingestion        | Email and webhook endpoints, Supabase schema and seed | ✅ Done; endpoints removed in Phase 4, schema kept until Phase 5 |
+| 2 · Ingestion        | Email and webhook endpoints, Supabase schema and seed | ✅ Done; endpoints removed in Phase 4, schema replaced in Phase 5 |
 | 3 · Parser           | Swedish text parser for social-media captions | Stopped and removed in Phase 4 |
-| 4 · Housekeeping     | Remove the old design, upgrade dependencies, rewrite the docs | 🟡 In progress |
-| 5 · Schema reset     | A fresh 3-table schema (`trucks`, `locations`, `users`) | ⬜ Not started |
+| 4 · Housekeeping     | Remove the old design, upgrade dependencies, rewrite the docs | ✅ Done |
+| 5 · Schema reset     | A fresh 3-table schema (`trucks`, `locations`, `users`) | 🟡 In progress |
 | 6 · Live read path   | `/api/live`, polling, first preview deploy | ⬜ Not started |
 | 7 · Admin            | Admin login and location entry | ⬜ Not started |
 | 8 · Launch           | Map tiles on Cloudflare R2, production deploy | ⬜ Not started |
@@ -106,8 +107,14 @@ branch and tag.
 - HTML markers and clickable truck popups (React rendered into MapLibre popups),
   from fake data in [`src/lib/fake-data.ts`](src/lib/fake-data.ts). The markers still
   use the old design's colours; Phase 6 replaces them.
-- A Supabase schema with migrations, row-level security and a dev seed. It is still
-  the old design's schema; Phase 5 replaces it.
+- The new design's Supabase schema, in one migration
+  ([`supabase/migrations/0001_baseline.sql`](supabase/migrations/0001_baseline.sql)):
+  `trucks`, `locations` and `users`. The database refuses overlapping entries for a
+  truck, entries are cancelled rather than deleted, and the public API roles (`anon`
+  and `authenticated`) get no access to `trucks` or `locations`: only the server-side
+  database layer reads them, with the `service_role` key. The dev seed has
+  three trucks and four weeks of location history relative to the day it is loaded.
+- The database layer (`src/lib/db/`) the live read path and the admin screen will use.
 - Unit tests, and integration tests for the database layer against a local Supabase.
 
 ### What does not exist yet
@@ -166,7 +173,8 @@ command fetches only the tiles inside the box: about 36 MB, in under a minute. A
 
 Start the local Supabase stack first with `npx supabase start` (needs Docker). On a
 fresh database it applies the migrations and `supabase/seed.sql`; `npx supabase db
-reset` re-applies both later. Then:
+reset` re-applies both later. A local database created before Phase 5 still records
+the old migrations as applied: run `npx supabase db reset` once. Then:
 
 ```bash
 cp .env.example .env.local

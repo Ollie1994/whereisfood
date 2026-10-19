@@ -70,7 +70,7 @@ function loadEnvLocal(): void {
     const match = /^\s*([A-Z0-9_]+)\s*=\s*("[^"]*"|'[^']*'|[^#]*)/.exec(line);
     if (match === null) continue;
     // Do not clobber a variable the shell already set — an explicit
-    // `NOMINATIM_BASE_URL=… npm run test:integration` should win over the file.
+    // `NEXT_PUBLIC_SUPABASE_URL=… npm run test:integration` should win over the file.
     if (process.env[match[1]] !== undefined) continue;
     process.env[match[1]] = unquote(match[2].trim());
   }
@@ -83,9 +83,7 @@ function loadEnvLocal(): void {
 // `.env.local` is for — would take rows with it, with no confirmation and no undo.
 //
 // Checked on the HOST rather than on a substring of the URL: `https://prod.example.com/
-// ?x=localhost` contains "localhost" and is not local. `new URL` is what makes the
-// question answerable rather than guessable — the same lesson as `geocoding.ts`'s
-// base-URL handling, where two successive string predicates were both wrong.
+// ?x=localhost` contains "localhost" and is not local; `new URL` reads the host itself.
 function assertLocal(): void {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   if (!url) throw new Error("Integration tests need NEXT_PUBLIC_SUPABASE_URL");
