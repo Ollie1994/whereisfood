@@ -1076,9 +1076,8 @@ a row with an author.
 #167 r1–r2. That reads as `/code-review`'s findings limit, so those rounds may have
 had more and the table undercounts where it reads highest. The rows don't record a
 round's effort level or its limit, so which rounds were cut can't be read back (#171
-adds both to a review row). **The owner keeps the default limit** (plan decision #20):
-`--max-findings all` costs far more tokens, and repeated rounds reach the findings
-anyway.
+adds both to a review row). **The owner keeps the default limit** (plan decision #20), reasoning that
+`--max-findings all` costs far more tokens and that repeated rounds get there.
 
 **Scoped rounds found less.** The four rounds scoped to the previous round's diff found
 9, 4, 2 and 4 (#167 r4–r5, #168 r2, #169 r3); full rounds after r1 found 6–10. Two

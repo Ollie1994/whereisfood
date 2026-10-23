@@ -502,9 +502,9 @@ locally 2026-10-19 with a made-up `xx-XX-x-icu`).
 ### #20 — Review rounds keep `/code-review`'s default findings limit (added in PR #172)
 The owner's call, 2026-10-23, in the Phase 5 retrospective. 12 of Phase 5's 38 review
 rounds found exactly 10 and none more (the retrospective's "Review rounds"), so the
-default limit cuts some rounds. `--max-findings all` would report every finding, but
-costs far more tokens; repeated capped rounds, scoped to the previous round's fixes
-after the first, reach the findings anyway. **Rejected:** `--max-findings all` by
+default limit may cut some rounds; the rows can't show which. `--max-findings all` would
+report every finding. The owner's reasoning: it costs far more tokens, and running a
+round, fixing, and repeating (scoped to the fixes after the first) gets there. **Rejected:** `--max-findings all` by
 default. A process decision that outlives the phase: step 7 carries it forward.
 
 ### #21 — A `/code-review` round on a PR is grouped `code-review` (added in PR #172)
