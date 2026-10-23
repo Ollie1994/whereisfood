@@ -298,7 +298,7 @@ outside a review):
    new text. If `dev` was merged into or rebased under the branch since that commit,
    the diff also holds `dev`'s changes: list only this PR's. **List each code pattern
    a fix guards too** (a read `max_rows` can cut, a query with no tie-break): the same
-   defect in sibling code is a copy the claims never name (rows 340, 342, 343).
+   defect in sibling code is a copy no listed claim names (rows 340, 342, 343).
 2. **Grep every mention** of each across the tracked docs (`CLAUDE.md`, `README.md`,
    `.claude/`), code comments and tests, **every open issue body**, and the PR body if
    there is one. For a code pattern, grep the code for its other uses (the call, the
