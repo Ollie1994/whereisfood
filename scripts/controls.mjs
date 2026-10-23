@@ -18,14 +18,14 @@
 //                               (`describe > test`)
 //   -- green: <reason>          instead of `red:`: every test in the run must pass
 //   -- setup-fails: <text>      instead of `red:`: a file's setup must fail with an
-//                               error containing <text>, and no test in the run pass.
+//                               error containing <text>, and every test be skipped.
 //                               For a term the fixtures themselves need (a
 //                               `service_role` privilege): the suite fails, no test does
 // Any other `-- word:` key in the header, or a known key below it, is an error (exit 2).
 //
 // Exit codes: 0 when every control behaved as its header says; 1 when one didn't (a
 // `red:` test passed or matched no test, a `green:` control turned a test red, a run
-// collected no test, a `setup-fails:` control had a passing test or no matching error, its
+// collected no test, a `setup-fails:` control had a test that ran or no matching error, its
 // SQL failed, or a reset failed: the run stops there, since the database is then in an
 // unknown state); 2 for a bad argument, an unreadable or malformed control file, or no
 // local database container; 130 on Ctrl-C, which can leave a control's change behind.
