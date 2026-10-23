@@ -242,6 +242,17 @@ a popup. MapLibre's worker 404'd with all four gates green (process-log row 282)
 Headless Edge on this machine doesn't load the style at all, even on a working build,
 so it is no substitute (PR #138).
 
+**Schema controls: `node scripts/controls.mjs`, not a gate.** Each `tests/controls/*.sql`
+removes or narrows one term of a guard in the schema; the runner applies it, runs the
+integration tests its header names, checks they went red (or, for a `green:` control,
+stayed green), and restores the database with `npx supabase db reset`. Run it after a
+change to `supabase/migrations/` or to a test a control names (one file:
+`node scripts/controls.mjs tests/controls/<name>.sql`; `--check` parses the files and
+touches nothing). A new schema guard adds its
+controls by the rule in `.claude/commands/create-issues.md`'s Failure modes. About
+45 s a control, mostly the reset (64 took 48 minutes, 2026-10-23); the script's header
+says what it can't see.
+
 **`test:all` fails if any project collects zero test files** (fixed by #99). Vitest's
 empty-match check is per-**run**, not per-project, so `test:all` (`scripts/test-all.mjs`)
 runs each project in its own `vitest run` (via `test:run` and `test:integration`),

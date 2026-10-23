@@ -9,6 +9,7 @@ import {
   LUNCH_END,
   LUNCH_START,
   createFixtureAuthUser,
+  createFixtureUser,
   dayWindow,
   readLocation,
   resetTables,
@@ -255,5 +256,66 @@ describe("the updated_at trigger and created_by (decision #5)", () => {
 
     expect(after.created_by).toBe(author);
     expect(micros(after.updated_at)).toBeGreaterThan(micros(row.updated_at));
+  });
+});
+
+describe("foreign keys and the unique Instagram handle (decisions #7, #8)", () => {
+  // NO ACTION on each foreign key, so only the takedown removes a truck's history
+  // (decision #7). Each case asserts the SQLSTATE and the constraint the message names.
+  async function deleteTruck(id: string): Promise<PostgrestError | null> {
+    const { error } = await supabaseAdmin.from("trucks").delete().eq("id", id);
+    return error;
+  }
+
+  async function truckExists(id: string): Promise<boolean> {
+    const { data, error } = await supabaseAdmin.from("trucks").select("id").eq("id", id);
+    if (error) throw error;
+    return data.length === 1;
+  }
+
+  it("refuses deleting a truck that has a location with 23503", async () => {
+    await seedLocation(truckId);
+
+    const error = await deleteTruck(truckId);
+
+    expect(error).toMatchObject({ code: "23503" });
+    expect(error?.message).toContain("locations_truck_id_fkey");
+    expect(await truckExists(truckId)).toBe(true);
+  });
+
+  it("refuses deleting a truck a users row points at with 23503", async () => {
+    await createFixtureUser(truckId);
+
+    const error = await deleteTruck(truckId);
+
+    expect(error).toMatchObject({ code: "23503" });
+    expect(error?.message).toContain("users_truck_id_fkey");
+    expect(await truckExists(truckId)).toBe(true);
+  });
+
+  it("refuses deleting an auth user that has a users row, and keeps both", async () => {
+    // The Auth admin API reports the database's refusal as its own error, without the
+    // SQLSTATE, so the case checks that both rows are still there.
+    const id = await createFixtureUser();
+
+    const { error } = await supabaseAdmin.auth.admin.deleteUser(id);
+    const row = await supabaseAdmin.from("users").select("id").eq("id", id);
+    const authUser = await supabaseAdmin.auth.admin.getUserById(id);
+
+    expect(error).not.toBeNull();
+    expect(row.data).toEqual([{ id }]);
+    expect(authUser.data.user?.id).toBe(id);
+  });
+
+  it("refuses a second truck with the same instagram_handle with 23505", async () => {
+    const handle = `itest_${randomUUID().slice(0, 8)}`;
+    const otherTruck = await seedTruck("Same handle");
+    const first = await supabaseAdmin.from("trucks").update({ instagram_handle: handle }).eq("id", truckId);
+    if (first.error) throw first.error;
+
+    const { error } = await supabaseAdmin.from("trucks").update({ instagram_handle: handle }).eq("id", otherTruck);
+
+    expect(error).toMatchObject({ code: "23505" });
+    expect(error?.message).toContain("trucks_instagram_handle_key");
   });
 });
