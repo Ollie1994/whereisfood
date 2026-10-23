@@ -1,4 +1,4 @@
-// `node scripts/controls.mjs [<file>...]` — re-runs the schema's negative controls (#170).
+// `node scripts/controls.mjs [--check] [<file>...]` — re-runs the schema's negative controls (#170).
 //
 // A control is a file in `tests/controls/`: a header, then SQL that removes or narrows
 // one term of a guard in the schema. For each control the runner applies the SQL to
@@ -28,7 +28,7 @@
 // collected no test, a `setup-fails:` control had a passing test or no matching error, its
 // SQL failed, or a reset failed: the run stops there, since the database is then in an
 // unknown state); 2 for a bad argument, an unreadable or malformed control file, or no
-// local database container; 130 when stopped by Ctrl-C (after the current reset).
+// local database container; 130 on Ctrl-C, which can leave a control's change behind.
 //
 // What it can't see: a term left off the list (the list is written by hand from the
 // rule); guards in code, such as the db layer's `max_rows` checks; bypass inputs rather
@@ -51,7 +51,7 @@ const sh = (command, options = {}) =>
   spawnSync(command, { shell: true, cwd: ROOT, encoding: "utf8", ...options });
 
 function usage(message) {
-  console.error(`✖ controls: ${message}\n  usage: node scripts/controls.mjs [<control file>...]`);
+  console.error(`✖ controls: ${message}\n  usage: node scripts/controls.mjs [--check] [<control file>...]`);
   process.exit(2);
 }
 
@@ -67,22 +67,23 @@ function parseControl(path) {
   const lines = text.split("\n");
   const name = path.split(/[\\/]/).pop();
   const header = { run: [], red: [], green: [], "setup-fails": [] };
-  // The header is the leading `-- word: value` lines. ⚠ A KEY IT DOESN'T KNOW, OR A KNOWN
-  // KEY BELOW THE HEADER, IS AN ERROR, not SQL: psql would run it as a comment, and the
-  // control would check one expectation fewer with nothing saying so.
+  // The header is every line before the first blank line, and each must be a known
+  // `-- key: value`. ⚠ ANY OTHER LINE THERE, OR A HEADER-LIKE LINE BELOW IT, IS AN ERROR,
+  // not SQL: psql would run it as a comment, and the control would check one expectation
+  // fewer with nothing saying so.
   const KEY = /^--\s*([A-Za-z-]+)\s*:\s*(.*\S)?\s*$/;
+  const HEADER_LIKE = /^\s*--\s*(run|red|green|setup[-_ ]?fails)\b/i;
   let i = 0;
-  for (; i < lines.length; i += 1) {
+  for (; i < lines.length && lines[i].trim() !== ""; i += 1) {
     const match = KEY.exec(lines[i]);
-    if (match === null) break;
-    if (!(match[1] in header)) usage(`${name}:${i + 1}: unknown header key \`${match[1]}\``);
+    if (match === null) usage(`${name}:${i + 1}: not a \`-- key: value\` header line (end the header with a blank line)`);
+    if (!Object.hasOwn(header, match[1])) usage(`${name}:${i + 1}: unknown header key \`${match[1]}\``);
     if (match[2] === undefined) usage(`${name}:${i + 1}: \`${match[1]}:\` has no value`);
     header[match[1]].push(match[2]);
   }
   for (let j = i; j < lines.length; j += 1) {
-    const match = KEY.exec(lines[j]);
-    if (match !== null && match[1].toLowerCase() in header) {
-      usage(`${name}:${j + 1}: \`${match[1]}:\` below the header (the header is the file's first lines)`);
+    if (HEADER_LIKE.test(lines[j])) {
+      usage(`${name}:${j + 1}: a header line below the header (the header ends at the first blank line)`);
     }
   }
   const sql = lines.slice(i).join("\n").trim();
@@ -105,7 +106,10 @@ function parseControl(path) {
   };
 }
 
-const args = process.argv.slice(2);
+// `--check`: parse every control and stop, touching nothing (exit 0, or 2 on a bad file).
+const argv = process.argv.slice(2);
+const checkOnly = argv.includes("--check");
+const args = argv.filter((arg) => arg !== "--check");
 if (args.some((arg) => arg.startsWith("-"))) usage(`unknown option ${args.find((a) => a.startsWith("-"))}`);
 let files;
 if (args.length > 0) {
@@ -120,6 +124,10 @@ if (args.length > 0) {
 }
 // Parsed before anything runs, so a malformed file stops the run before the first reset.
 const controls = files.map(parseControl);
+if (checkOnly) {
+  console.log(`✔ controls: ${controls.length} control file(s) parse`);
+  process.exit(0);
+}
 
 // --- the database ----------------------------------------------------------------------
 
@@ -221,9 +229,10 @@ function judge(control, tests) {
   if (tests.size === 0) return `\`${control.run}\` collected no test`;
   if (control.setupFails !== null) {
     // ⚠ SETUP, NOT CLEANUP: a file-level error also comes from `setup.ts`'s `afterAll`,
-    // after the tests ran. Only a run where no test passed failed before them.
-    const passed = [...tests].filter(([, status]) => status === "passed").length;
-    if (passed > 0) return `${passed} test(s) passed, so setup didn't fail (expected "${control.setupFails}")`;
+    // after the tests ran. A setup that threw skips every test (rls.test.ts: 30 skipped), so
+    // only a run where every test was skipped counts.
+    const notSkipped = [...tests].filter(([, status]) => status !== "skipped").length;
+    if (notSkipped > 0) return `${notSkipped} test(s) ran (not skipped), so setup didn't fail (expected "${control.setupFails}")`;
     if (tests.setupErrors.some((message) => message.includes(control.setupFails))) return null;
     return tests.setupErrors.length === 0
       ? `no setup failed (expected "${control.setupFails}")`
@@ -249,19 +258,14 @@ function judge(control, tests) {
 
 // --- the run -----------------------------------------------------------------------------
 
-// ⚠ CTRL-C STOPS AFTER THE CURRENT CONTROL'S RESET. With no SIGINT listener Node exits at
-// once (Node's docs, "Signal events"), and the control's change stays in the database. A
-// second Ctrl-C exits at once and says so. A reset cut off by it reports as failed, with
-// the command to run. Not exercised here: Git Bash's `kill -INT` doesn't deliver a
-// console Ctrl-C to a Windows process (the handler printed nothing, 2026-10-23).
-let interrupted = false;
+// ⚠ CTRL-C CAN LEAVE A CONTROL'S CHANGE IN THE DATABASE: it also reaches the child
+// running then (`db reset` most of the time), so the runner can't finish the reset
+// itself. It says so, removes its scratch files and exits 130. Not exercised on this
+// machine: Git Bash's `kill -INT` doesn't deliver a console Ctrl-C to a Windows process.
 process.on("SIGINT", () => {
-  if (interrupted) {
-    console.error("\n✖ interrupted again: the database may hold a control's change; run `npx supabase db reset`");
-    process.exit(130);
-  }
-  interrupted = true;
-  console.error("\n… interrupted: stopping after this control's reset (Ctrl-C again to exit now)");
+  console.error("\n✖ interrupted: the database may hold a control's change; run `npx supabase db reset`");
+  rmSync(scratch, { recursive: true, force: true });
+  process.exit(130);
 });
 
 console.log(`▶ controls: ${controls.length} control(s); a db reset first, then one after each.\n`);
@@ -307,13 +311,9 @@ for (const [index, control] of controls.entries()) {
     console.error("\n✖ stopping: the database may not match the migrations; run `npx supabase db reset`");
     break;
   }
-  if (interrupted) {
-    console.error("\n✖ stopped by Ctrl-C, after this control's reset");
-    break;
-  }
 }
 
 rmSync(scratch, { recursive: true, force: true });
 const notRun = controls.length - ran;
 console.log(`\n${failures === 0 ? "✔" : "✖"} controls: ${ran - failures} of ${ran} as listed${notRun > 0 ? `, ${notRun} not run` : ""}`);
-process.exit(interrupted ? 130 : failures === 0 ? 0 : 1);
+process.exit(failures === 0 ? 0 : 1);

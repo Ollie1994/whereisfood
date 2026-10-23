@@ -247,7 +247,8 @@ removes or narrows one term of a guard in the schema; the runner applies it, run
 integration tests its header names, checks they went red (or, for a `green:` control,
 stayed green), and restores the database with `npx supabase db reset`. Run it after a
 change to `supabase/migrations/` or to a test a control names (one file:
-`node scripts/controls.mjs tests/controls/<name>.sql`). A new schema guard adds its
+`node scripts/controls.mjs tests/controls/<name>.sql`; `--check` parses the files and
+touches nothing). A new schema guard adds its
 controls by the rule in `.claude/commands/create-issues.md`'s Failure modes. About
 45 s a control, mostly the reset (64 took 48 minutes, 2026-10-23); the script's header
 says what it can't see.
