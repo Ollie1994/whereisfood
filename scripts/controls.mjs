@@ -21,22 +21,23 @@
 //                               error containing <text>, and every test be skipped.
 //                               For a term the fixtures themselves need (a
 //                               `service_role` privilege): the suite fails, no test does
-// Any other line before the blank one, or a comment below it that reads `-- words:`, is
-// an error (exit 2).
+// Any other line before the blank one is an error (exit 2), and so is a comment below it,
+// `--` or `/*`, anywhere on a line, whose first one to three words end in a colon.
 //
 // Exit codes: 0 when every control behaved as its header says; 1 when one didn't (a
 // `red:` test passed or matched no test, a `green:` control turned a test red, a run
 // collected no test, a `setup-fails:` control had a test that ran or no matching error, its
 // SQL failed, or a reset failed: the run stops there, since the database is then in an
 // unknown state); 2 for a bad argument, an unreadable or malformed control file, or no
-// local database container; 130 when stopped by Ctrl-C after a reset completed.
+// local database container. Ctrl-C stops the run at once (no listener); a control's
+// change may then still be applied, so the run's first line says to reset.
 //
 // What it can't see: a term left off the list (the list is written by hand from the
 // rule); guards in code, such as the db layer's `max_rows` checks; bypass inputs rather
-// than removed terms; the hosted project (Phase 6); and one term of decision #6, the
-// stack's default TRUNCATE, REFERENCES, TRIGGER and MAINTAIN that `revoke all` removes:
-// no API request uses them, so no integration test can see them, and the plan's `relacl`
-// acceptance criterion is the check. About 45 s a control: one
+// than removed terms; the hosted project (Phase 6); and one term of decision #6 with no
+// control: the stack's default TRUNCATE, REFERENCES, TRIGGER and MAINTAIN that
+// `revoke all` removes, which the plan's `relacl` acceptance criterion checks (PR #174
+// says why it has no control). About 45 s a control: one
 // `db reset` (41 s, measured 2026-10-23) and one integration file.
 //
 // Not a gate (CLAUDE.md, "Testing"): run it after a change to `supabase/migrations/` or
@@ -76,10 +77,9 @@ function parseControl(path) {
   // not SQL: psql would run it as a comment, and the control would check one expectation
   // fewer with nothing saying so.
   const KEY = /^--\s*([A-Za-z-]+)\s*:\s*(.*\S)?\s*$/;
-  // Below the header, any comment that reads `-- words:` (a key, misspelt or not), so no
-  // second key list has to match the first. Prose comments here have no colon after
-  // their first words.
-  const HEADER_LIKE = /^\s*--\s*[A-Za-z][A-Za-z_ -]*:/;
+  // Below the header: a comment (`--` or `/*`, anywhere on the line) whose first one to
+  // three words end in a colon, the shape of a header line, misspelt or not.
+  const HEADER_LIKE = /(?:--|\/\*)\s*[^\s:]+(?:[ \t]+[^\s:]+){0,2}\s*:/;
   let i = 0;
   for (; i < lines.length && lines[i].trim() !== ""; i += 1) {
     const match = KEY.exec(lines[i]);
@@ -90,7 +90,7 @@ function parseControl(path) {
   }
   for (let j = i; j < lines.length; j += 1) {
     if (HEADER_LIKE.test(lines[j])) {
-      usage(`${name}:${j + 1}: a comment that reads "-- words:" below the header (header lines go first; reword a prose comment)`);
+      usage(`${name}:${j + 1}: a comment whose first words end in a colon, below the header (header lines go first; reword a prose comment)`);
     }
   }
   const sql = lines.slice(i).join("\n").trim();
@@ -265,33 +265,21 @@ function judge(control, tests) {
 
 // --- the run -----------------------------------------------------------------------------
 
-// ⚠ CTRL-C, AND WHEN THIS LISTENER RUNS. A console Ctrl-C also kills the child running
-// at that moment, and a listener only runs on an event-loop turn, never while
-// `spawnSync` blocks. The only turns are `apiUp`'s waits, right after a reset completed.
-// So: a Ctrl-C during a reset kills it, `reset()` fails before any turn, and the run
-// stops on "db reset failed … run `npx supabase db reset`" (exit 1). A Ctrl-C at any
-// other moment kills that step's child; the control's reset still runs, and then this
-// flag stops the run, without judging the interrupted control (exit 130). Reasoned from
-// Node's event loop; not exercised on this machine, where Git Bash's `kill -INT`
-// doesn't deliver a console Ctrl-C to a Windows process.
-let interrupted = false;
-process.on("SIGINT", () => {
-  interrupted = true;
-});
-
-console.log(`▶ controls: ${controls.length} control(s); a db reset first, then one after each.\n`);
+console.log(
+  `▶ controls: ${controls.length} control(s); a db reset first, then one after each.\n` +
+    "  If you stop the run, run `npx supabase db reset`: a control's change may still be applied.\n",
+);
 let failures = 0;
 let ran = 0;
 let stopped = false;
 const initial = await reset();
 if (initial !== null) {
-  console.error(`✖ the first db reset failed (${initial}); nothing ran`);
+  console.error(`✖ the first db reset failed (${initial}); nothing ran. Run \`npx supabase db reset\``);
   rmSync(scratch, { recursive: true, force: true });
   process.exit(1);
 }
 
 for (const [index, control] of controls.entries()) {
-  if (interrupted) break;
   let verdict;
   let extra = 0;
   try {
@@ -309,10 +297,6 @@ for (const [index, control] of controls.entries()) {
       verdict = `${verdict ? `${verdict}; ` : ""}db reset failed (${resetError})`;
       stopped = true;
     }
-  }
-  if (interrupted && !stopped) {
-    console.log(`◼ ${control.name}: interrupted by Ctrl-C (not judged); its reset completed`);
-    break;
   }
   ran += 1;
   const expected =
@@ -332,5 +316,4 @@ for (const [index, control] of controls.entries()) {
 rmSync(scratch, { recursive: true, force: true });
 const notRun = controls.length - ran;
 console.log(`\n${failures === 0 ? "✔" : "✖"} controls: ${ran - failures} of ${ran} as listed${notRun > 0 ? `, ${notRun} not run` : ""}`);
-if (interrupted && !stopped) console.error("✖ stopped by Ctrl-C after a completed reset");
-process.exit(interrupted && !stopped ? 130 : failures === 0 ? 0 : 1);
+process.exit(failures === 0 ? 0 : 1);
