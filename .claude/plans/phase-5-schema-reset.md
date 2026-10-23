@@ -544,8 +544,9 @@ checked row (315 onward) ever used `plan-review` (`tally 7 315 355`: `code-revie
 rounds 1–3, PR #173 round 1). **Rejected:** keeping it, with a rule for which reviews are
 plan reviews; and recording every review as "a `/code-review` round", which would be
 false in a row for a read-through. **Not** a reason: the `Artifact` column, which names
-the process file that was wrong, not what was reviewed (rows 320, 322 and 349 are
-reviews of non-plan PRs with `Artifact` `plan`). PR #173 round 2 corrected that claim.
+the process file that was wrong, not what was reviewed: row 353, a round on PR #172,
+which changed only the plan and the log, has `Artifact` `CLAUDE.md`. PR #173 round 2
+corrected that claim.
 A retrospective that wants plan reviews counts review rows whose `Where` PR changed a
 plan.
 A process decision that outlives the phase: step 7 carries it forward.
