@@ -146,6 +146,13 @@ Rules for issue breakdown:
   with a **negative control**: break the guard (or feed it the bad case) and watch it
   fail. The classes it **doesn't catch** are named too, with a reason ("none" only
   when there are none). Why: the process log's Phase 3 retrospective (its Action 2).
+  **For a guard written as a condition or a list** (a constraint, CHECK, `WHEN`, enum,
+  grant set, policy or filter), the classes come from a rule, not from what comes to
+  mind: **one per term, that term removed or narrowed.** A term whose control turns
+  nothing red has no test, so the issue adds one. A schema guard's controls are files
+  in `tests/controls/`, run by `node scripts/controls.mjs`; other guards' controls go
+  in the PR body. Why: the Phase 5 retrospective (rows 346 and 349: a term no control
+  removed).
 
 ---
 
