@@ -8,7 +8,9 @@ import {
   FIXTURE_PREFIX,
   LUNCH_END,
   LUNCH_START,
+  createFixtureAuthUser,
   dayWindow,
+  readLocation,
   resetTables,
   seedLocation,
   seedTruck,
@@ -203,5 +205,55 @@ describe("the updated_at trigger", () => {
 
     expect(micros(after.updated_at)).toBeGreaterThan(micros(row.updated_at));
     expect(micros(after.created_at)).toBe(micros(row.created_at));
+  });
+});
+
+describe("the updated_at trigger and created_by (decision #5)", () => {
+  it("leaves updated_at when deleting the author sets created_by to NULL", async () => {
+    // `on delete set null` runs an UPDATE on every row the user wrote; without the
+    // trigger's WHEN clause it would mark them all as just updated. The author is a bare
+    // auth user: a `users` row would block the delete (`users.id` is NO ACTION).
+    const author = await createFixtureAuthUser();
+    const row = await seedLocation(truckId, { created_by: author });
+
+    const { error } = await supabaseAdmin.auth.admin.deleteUser(author);
+    if (error) throw error;
+    const after = await readLocation(row.id);
+
+    // The SET NULL ran, so the UPDATE the trigger saw happened.
+    expect(after.created_by).toBeNull();
+    expect(micros(after.updated_at)).toBe(micros(row.updated_at));
+  });
+
+  it("moves updated_at on an edit of a row that has an author", async () => {
+    // Entries made in the admin screen will carry their author (decision #8; seed rows
+    // and hand-written SQL don't), so this is the edit production will make. A clause
+    // that fires only while `created_by` is NULL passes every other case here.
+    const author = await createFixtureAuthUser();
+    const row = await seedLocation(truckId, { created_by: author });
+
+    const { error } = await supabaseAdmin.from("locations").update({ label: "Heden" }).eq("id", row.id);
+    if (error) throw error;
+    const after = await readLocation(row.id);
+
+    expect(after.created_by).toBe(author);
+    expect(micros(after.updated_at)).toBeGreaterThan(micros(row.updated_at));
+  });
+
+  it("moves updated_at on an edit that also sets a NULL created_by to a user", async () => {
+    // The WHEN clause skips only an UPDATE that takes `created_by` from a value to NULL.
+    // A clause skipping every UPDATE that changes `created_by` would skip this one too.
+    const author = await createFixtureAuthUser();
+    const row = await seedLocation(truckId);
+
+    const { error } = await supabaseAdmin
+      .from("locations")
+      .update({ label: "Heden", created_by: author })
+      .eq("id", row.id);
+    if (error) throw error;
+    const after = await readLocation(row.id);
+
+    expect(after.created_by).toBe(author);
+    expect(micros(after.updated_at)).toBeGreaterThan(micros(row.updated_at));
   });
 });

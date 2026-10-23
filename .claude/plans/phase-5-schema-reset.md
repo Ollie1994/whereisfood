@@ -149,8 +149,10 @@ makes it required. Copying the whole shape keeps step 1 a type-only move.
 | `FIXTURE_PREFIX` (exported), `seedDailyLocations(truckId, firstDay, count)`, `seedTrucks(name, count)`, `readLocation(id)`, `keysOf(row)`, `FIXTURE_PLACE`, `dayWindow(dayMs)` | One-request bulk inserts (for the `max_rows` tests), a stored row read back, a row's sorted keys for the key-set tests, and the default place and 09:00–12:00 UTC window every location helper uses. Shared rather than written in each test file (PR #167 round 2). |
 | `anonClient()` | A supabase-js client with the anon key. Not `supabaseClient` from `supabase.ts`: `CLAUDE.md` keeps that one for browser Auth, and Phase 7 splits the file. |
 | `createFixtureAuthUser()` | The **only** way a test creates an auth user: `supabaseAdmin.auth.admin.createUser` with an email carrying the fixture prefix, so `resetTables()` finds it even when the test fails before its own cleanup. Returns the user id. Step 4's bare authors (no `users` row) come from it directly. |
-| `signedInClient()` | Creates a prefixed auth user with `createFixtureAuthUser()`, then its `users` row with `supabaseAdmin.from("users").insert` (the Auth admin API doesn't write `public` tables); signs in; returns an `authenticated` client and its user id. |
-| `resetTables()` | Also removes fixture `users` rows and fixture auth users. They are found through the admin API, not PostgREST (`public.users` has no email, and `auth` isn't exposed): `auth.admin.listUsers({ page, perPage })`, **every page until a short one** (one page holds 50 by default, and leaked fixtures from interrupted runs are the case cleanup exists for), filtered in JS with `startsWith` on the email prefix; their ids give the `users` rows. Children first: `users` rows before trucks (`users.truck_id` references `trucks`, decision #7) and before their auth users (`users.id` references `auth.users`). ⚠ Today's version removes fixture trucks in batches of 100 in a loop, throws if a pass removes no truck (no progress), and returns when no fixture truck is left (`if (fixtureTruckIds.length === 0) return`; batched since PR #167 round 3). The user cleanup must run before that loop, or a test that creates a user and no truck leaks the user. |
+| `createFixtureUser(truckId?)` | `createFixtureAuthUser()`, then its `users` row with `supabaseAdmin.from("users").insert` (the Auth admin API doesn't write `public` tables). Returns the id. Shared by `signedInClient()` and `helpers.test.ts` (PR #169 round 1). |
+| `signedInClient({ usersRow? })` | Creates a prefixed auth user and its `users` row with `createFixtureUser()`; signs in; returns an `authenticated` client and its user id. With `usersRow: false`, the user has no `users` row: the caller of `rls.test.ts`'s self-escalation case, who inserts its own row as an admin (PR #169 round 2). |
+| `AUTH_PAGE`, `authUserIdsWhere(matches)`, `deleteAuthUsers(ids)` | The `listUsers` page size, every page's matching ids, and deletes ten at a time: what `resetTables()` uses, exported for `helpers.test.ts`'s pagination case and bystander sweep (PR #169 round 1). |
+| `resetTables()` | Also removes fixture `users` rows and fixture auth users. They are found through the admin API, not PostgREST (`public.users` has no email, and `auth` isn't exposed): `auth.admin.listUsers({ page, perPage })`, **every page until a short one** (one page holds 50 by default, and leaked fixtures from interrupted runs are the case cleanup exists for), filtered in JS with `startsWith` on the email prefix; their ids give the `users` rows. Children first: `users` rows before trucks (`users.truck_id` references `trucks`, decision #7) and before their auth users (`users.id` references `auth.users`). ⚠ The truck cleanup is a loop in batches of 100 that throws if a pass removes no truck (no progress) and returns when no fixture truck is left (`if (fixtureTruckIds.length === 0) return`; batched since PR #167 round 3). The user cleanup runs before that loop, or a test that creates a user and no truck leaks the user (step 4, `helpers.test.ts`'s "when no fixture truck exists" case). |
 
 ⚠ `resetTables()` removes only `itest-fixture-` trucks and their children, so the
 seed's history survives a test run, as intended. A test that counts rows must scope to
@@ -208,14 +210,15 @@ per follow-up the retrospective opens, which may be none.
 4. **RLS and grant tests.** `anonClient()`, `signedInClient()` and auth-user cleanup in
    `resetTables()` (with `helpers.test.ts` cases for the new cleanup);
    `tests/integration/rls.test.ts`. With the auth fixtures in place, `schema.test.ts`
-   gains step 3's two `created_by` cases (decision #5): `updated_at` **doesn't** move
+   gains step 3's two `created_by` cases and a third (decision #5): `updated_at` **doesn't** move
    when deleting an auth user sets its rows' `created_by` to NULL (control: the
    trigger without its `WHEN` clause; the author is a bare auth user from
    `createFixtureAuthUser()`, with no `users` row, because `users.id → auth.users` is NO
    ACTION and its row would block the delete: `confdeltype = 'a'` on today's
    `users_id_fkey`, read 2026-10-18), and **does** move on an edit that also sets a
    NULL `created_by` to a user (control: round 6's `old … is not distinct from new …`
-   clause). What each case sees, probed in rolled-back
+   clause), and **does** move on an edit of a row that has an author (control:
+   `when (old.created_by is null)`, which passes the other cases; PR #169 round 2). What each case sees, probed in rolled-back
    transactions on 2026-10-18:
    - no grant: `42501` "permission denied for table …", with a hint listing every
      missing privilege: `GRANT SELECT ON …`, `GRANT INSERT ON …`, and for a filtered
@@ -525,9 +528,9 @@ locally 2026-10-19 with a made-up `xx-XX-x-icu`).
   also its message's `location_source`), and the PR records a negative control per
   case (constraint dropped or altered locally, or `source` altered to `text`; test
   red; restored with `npx supabase db reset`).
-- [ ] `schema.test.ts` also covers step 4's two `created_by` cases: deleting an auth
-  user leaves `updated_at` on its rows unchanged, and an edit that sets a NULL
-  `created_by` to a user moves it; each case's negative control (step 4) turns it red.
+- [ ] `schema.test.ts` also covers step 4's three `created_by` cases: deleting an auth
+  user leaves `updated_at` on its rows unchanged, an edit that sets a NULL
+  `created_by` to a user moves it, and an edit of a row that has an author moves it; each case's negative control (step 4) turns it red.
 - [ ] `rls.test.ts` shows, each refusal asserted as `42501` **plus a hint whose
   privilege list contains that operation's privilege** (step 4):
   - anon and `authenticated` are refused SELECT, INSERT, UPDATE and DELETE on `trucks`
@@ -537,8 +540,10 @@ locally 2026-10-19 with a made-up `xx-XX-x-icu`).
     filtered → `42501`);
   - anon is refused SELECT, INSERT, UPDATE and DELETE on `users`;
   - `authenticated` reads its own `users` row and not another's (rows, filtered by the
-    policy); is refused an INSERT into `users`, including its own id with
-    `is_admin = true` (the other self-escalation path); is refused UPDATE of
+    policy); is refused an INSERT into `users`, including its own row with
+    `is_admin = true` by a caller with **no** `users` row (the other self-escalation
+    path; a caller with a row gets `23505` under an INSERT grant and policy, so it doesn't
+    exercise the path, PR #169 rounds 2–3); is refused UPDATE of
     `is_admin` or `truck_id` on its own row, which is unchanged afterwards (read with
     `service_role`); is refused DELETE of its own row, which still exists afterwards;
   - `service_role` reads and writes all three.
@@ -645,7 +650,14 @@ locally 2026-10-19 with a made-up `xx-XX-x-icu`).
    09:00Z, then 10:00Z, 11:00 Stockholm on both sides). Check the expression on
    a fixed anchor that puts a change inside the series (e.g. `now()` replaced by
    `timestamptz '2026-11-05 12:00+01'`): every row's Stockholm start must be 11:00.
-4. **Auth fixtures for `rls.test.ts`.** Does local Auth accept
+4. ~~**Auth fixtures for `rls.test.ts`.**~~ → **answered in step 4 (#163):** yes, no
+   OTP. On the local stack (2026-10-23), `admin.createUser({ email_confirm: true })`
+   returned a user with `email_confirmed_at` set, `signInWithPassword` on an anon-key
+   client gave an `authenticated` session, and that client read its own `users` row.
+   The hints matched the ones step 4 lists. Each sign-in counts against
+   `[auth.rate_limit] sign_in_sign_ups` (30 per 5 minutes per IP, `config.toml`), so
+   `rls.test.ts` signs in three times per run, in `beforeAll`. The question as planned:
+   Does local Auth accept
    `admin.createUser({ email_confirm: true })` and a password sign-in, or does the test
    need OTP? Delete order: the `users` row, then the auth user (`users.id` references
    `auth.users` with no cascade). Fixture users are matched in JS with `startsWith` on

@@ -1,6 +1,17 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { supabaseAdmin } from "@/lib/supabase";
-import { FIXTURE_PREFIX, resetTables, seedLocation, seedTruck, seedTrucks } from "./helpers";
+import {
+  AUTH_PAGE,
+  FIXTURE_PREFIX,
+  authUserIdsWhere,
+  createFixtureAuthUser,
+  createFixtureUser,
+  deleteAuthUsers,
+  resetTables,
+  seedLocation,
+  seedTruck,
+  seedTrucks,
+} from "./helpers";
 
 // ⚠ EVERY BYSTANDER IS ADVERSARIAL, AND THE FIRST VERSION'S WAS NOT. It was named
 // "Seed-like Truck", which stands in for `seed.sql`'s dev trucks — and that is exactly
@@ -142,5 +153,89 @@ describe("seedLocation", () => {
     const row = await seedLocation(truckId, { truck_id: otherTruck });
 
     expect(row.truck_id).toBe(truckId);
+  });
+});
+
+describe("resetTables and fixture auth users", () => {
+  async function authUserExists(id: string): Promise<boolean> {
+    const { data, error } = await supabaseAdmin.auth.admin.getUserById(id);
+    if (error && error.status !== 404) throw error;
+    return data.user !== null;
+  }
+
+  async function usersRowExists(id: string): Promise<boolean> {
+    const { data, error } = await supabaseAdmin.from("users").select("id").eq("id", id);
+    if (error) throw error;
+    return data.length > 0;
+  }
+
+  it("removes a fixture auth user and its users row when no fixture truck exists", async () => {
+    // The truck loop returns as soon as no fixture truck is left, so a user cleanup
+    // placed after it never runs here.
+    await resetTables();
+    const id = await createFixtureUser();
+
+    await resetTables();
+
+    expect(await usersRowExists(id)).toBe(false);
+    expect(await authUserExists(id)).toBe(false);
+  });
+
+  it("removes a users row that points at a fixture truck before the truck", async () => {
+    // `users.truck_id` references `trucks` with no cascade: removing the truck first
+    // fails with 23503.
+    const truckId = await seedTruck();
+    const id = await createFixtureUser(truckId);
+
+    await expect(resetTables()).resolves.toBeUndefined();
+
+    expect(await usersRowExists(id)).toBe(false);
+    expect(await authUserExists(id)).toBe(false);
+  });
+
+  it("removes fixture auth users across more than one page of listUsers", async () => {
+    // One more than a page, so a cleanup that reads only the first leaves some.
+    const ids: string[] = [];
+    for (let n = 0; n <= AUTH_PAGE; n += 1) ids.push(await createFixtureAuthUser());
+
+    await resetTables();
+
+    const left = [];
+    for (const id of ids) if (await authUserExists(id)) left.push(id);
+    expect(left).toEqual([]);
+  }, 30_000);
+
+  describe("with a bystander auth user", () => {
+    // Contains the prefix but doesn't START with it, so it is matched by `includes`
+    // and by no filter at all, the two plausible ways the predicate goes wide. Born a
+    // fixture (`createFixtureAuthUser` is the only way to make one) and renamed, so a
+    // crash before the rename still leaves something `resetTables()` collects.
+    //
+    // ⚠ ONE EMAIL PER BYSTANDER, AND SWEPT BEFORE AND AFTER. `resetTables()` never
+    // collects a bystander, so one a crashed run leaves after the rename is removed by
+    // the next run's sweep. With one fixed email, a leftover makes the next rename fail
+    // with `AuthApiError: Error updating user` (observed on the local stack, 2026-10-23).
+    const BYSTANDER_EMAIL = `not-${FIXTURE_PREFIX}bystander-`;
+
+    async function removeBystanders(): Promise<void> {
+      await deleteAuthUsers(await authUserIdsWhere((email) => email.startsWith(BYSTANDER_EMAIL)));
+    }
+
+    beforeEach(removeBystanders);
+    afterEach(removeBystanders);
+
+    it("⚠ leaves an auth user whose email doesn't start with the prefix", async () => {
+      const bystander = await createFixtureAuthUser();
+      const { error } = await supabaseAdmin.auth.admin.updateUserById(bystander, {
+        email: `${BYSTANDER_EMAIL}${bystander}@example.test`,
+      });
+      if (error) throw error;
+      const fixture = await createFixtureAuthUser();
+
+      await resetTables();
+
+      expect(await authUserExists(bystander)).toBe(true);
+      expect(await authUserExists(fixture)).toBe(false);
+    });
   });
 });
