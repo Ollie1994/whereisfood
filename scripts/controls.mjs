@@ -151,8 +151,8 @@ async function apiUp(seconds) {
 // can come back on a new address while Kong keeps routing to the old one: Kong's log
 // showed "connect() failed (111: Connection refused) … upstream: http://172.19.0.11"
 // with Auth at 172.19.0.10, and /auth/v1/health answered 502 for over a minute while
-// Auth itself was healthy (2026-10-23). Every test then fails in its fixtures, which a
-// control would read as red. So after each reset the API must answer, restarting Kong
+// Auth itself was healthy (2026-10-23). Fixtures that list or sign in users then throw,
+// and the file's tests are skipped (rls.test.ts: 30 skipped). So after each reset the API must answer, restarting Kong
 // once if it doesn't (that brought /auth/v1/health to 200 within 3 s).
 async function reset() {
   const result = sh("npx supabase db reset");
