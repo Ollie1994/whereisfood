@@ -18,15 +18,17 @@
 //                               (`describe > test`)
 //   -- green: <reason>          instead of `red:`: every test in the run must pass
 //   -- setup-fails: <text>      instead of `red:`: a file's setup must fail with an
-//                               error containing <text>, so its tests are skipped. For
-//                               a term the fixtures themselves need (a `service_role`
-//                               privilege): the suite fails loudly, but no test does
+//                               error containing <text>, and no test in the run pass.
+//                               For a term the fixtures themselves need (a
+//                               `service_role` privilege): the suite fails, no test does
+// Any other `-- word:` key in the header, or a known key below it, is an error (exit 2).
 //
 // Exit codes: 0 when every control behaved as its header says; 1 when one didn't (a
 // `red:` test passed or matched no test, a `green:` control turned a test red, a run
-// collected no test, a `setup-fails:` text matched no setup error, its SQL failed, or a reset failed: the run stops there, since the
-// database is then in an unknown state); 2 for a bad argument, an unreadable or
-// malformed control file, or no local database container.
+// collected no test, a `setup-fails:` control had a passing test or no matching error, its
+// SQL failed, or a reset failed: the run stops there, since the database is then in an
+// unknown state); 2 for a bad argument, an unreadable or malformed control file, or no
+// local database container; 130 when stopped by Ctrl-C (after the current reset).
 //
 // What it can't see: a term left off the list (the list is written by hand from the
 // rule); guards in code, such as the db layer's `max_rows` checks; bypass inputs rather
@@ -63,15 +65,27 @@ function parseControl(path) {
     usage(`can't read ${path} (${error.message})`);
   }
   const lines = text.split("\n");
+  const name = path.split(/[\\/]/).pop();
   const header = { run: [], red: [], green: [], "setup-fails": [] };
+  // The header is the leading `-- word: value` lines. ⚠ A KEY IT DOESN'T KNOW, OR A KNOWN
+  // KEY BELOW THE HEADER, IS AN ERROR, not SQL: psql would run it as a comment, and the
+  // control would check one expectation fewer with nothing saying so.
+  const KEY = /^--\s*([A-Za-z-]+)\s*:\s*(.*\S)?\s*$/;
   let i = 0;
   for (; i < lines.length; i += 1) {
-    const match = /^--\s*(run|red|green|setup-fails):\s*(.*\S)\s*$/.exec(lines[i]);
+    const match = KEY.exec(lines[i]);
     if (match === null) break;
+    if (!(match[1] in header)) usage(`${name}:${i + 1}: unknown header key \`${match[1]}\``);
+    if (match[2] === undefined) usage(`${name}:${i + 1}: \`${match[1]}:\` has no value`);
     header[match[1]].push(match[2]);
   }
+  for (let j = i; j < lines.length; j += 1) {
+    const match = KEY.exec(lines[j]);
+    if (match !== null && match[1].toLowerCase() in header) {
+      usage(`${name}:${j + 1}: \`${match[1]}:\` below the header (the header is the file's first lines)`);
+    }
+  }
   const sql = lines.slice(i).join("\n").trim();
-  const name = path.split(/[\\/]/).pop();
 
   if (header.run.length !== 1) usage(`${name}: needs exactly one \`-- run:\` line`);
   const kinds = ["red", "green", "setup-fails"].filter((kind) => header[kind].length > 0);
@@ -109,7 +123,8 @@ const controls = files.map(parseControl);
 
 // --- the database ----------------------------------------------------------------------
 
-const projectId = /^project_id\s*=\s*"([^"]+)"/m.exec(readFileSync(join(ROOT, "supabase", "config.toml"), "utf8"))?.[1];
+const CONFIG = readFileSync(join(ROOT, "supabase", "config.toml"), "utf8").replace(/\r\n/g, "\n");
+const projectId = /^project_id\s*=\s*"([^"]+)"/m.exec(CONFIG)?.[1];
 if (!projectId) usage("no project_id in supabase/config.toml");
 const CONTAINER = `supabase_db_${projectId}`;
 const running = sh(`docker inspect -f "{{.State.Running}}" ${CONTAINER}`);
@@ -126,8 +141,10 @@ function applySql(sql) {
   return result.status === 0 ? null : (result.stderr || result.stdout || `exit ${result.status}`).trim();
 }
 
-// The API through Kong, as the tests reach it.
-const API_PORT = /^\[api\][^[]*?^port\s*=\s*(\d+)/ms.exec(readFileSync(join(ROOT, "supabase", "config.toml"), "utf8"))?.[1];
+// The API through Kong, on `config.toml`'s [api] port (the table sliced as
+// `src/lib/db/complete.test.ts` slices it: up to the next table header).
+const API_TABLE = /^\[api\]\s*$([\s\S]*?)(?=^\[)/m.exec(CONFIG)?.[1] ?? "";
+const API_PORT = /^port\s*=\s*(\d+)/m.exec(API_TABLE)?.[1];
 if (!API_PORT) usage("no [api] port in supabase/config.toml");
 const API = `http://127.0.0.1:${API_PORT}`;
 
@@ -139,8 +156,10 @@ async function status(path) {
   }
 }
 
+// Wall-clock: each check can take up to 5 s per request, so the deadline is a time.
 async function apiUp(seconds) {
-  for (let waited = 0; waited < seconds; waited += 2) {
+  const deadline = Date.now() + seconds * 1_000;
+  while (Date.now() < deadline) {
     if ((await status("/auth/v1/health")) === 200 && (await status("/rest/v1/")) === 200) return true;
     await new Promise((resolve) => setTimeout(resolve, 2_000));
   }
@@ -152,14 +171,16 @@ async function apiUp(seconds) {
 // showed "connect() failed (111: Connection refused) … upstream: http://172.19.0.11"
 // with Auth at 172.19.0.10, and /auth/v1/health answered 502 for over a minute while
 // Auth itself was healthy (2026-10-23). Fixtures that list or sign in users then throw,
-// and the file's tests are skipped (rls.test.ts: 30 skipped). So after each reset the API must answer, restarting Kong
-// once if it doesn't (that brought /auth/v1/health to 200 within 3 s).
+// and the file's tests are skipped (rls.test.ts: 30 skipped). So after each reset the
+// API must answer, restarting Kong once if it doesn't (that brought /auth/v1/health to
+// 200 within 3 s).
 async function reset() {
   const result = sh("npx supabase db reset");
   if (result.status !== 0) return `exit ${result.status}: ${(result.stderr || "").trim().split("\n").pop()}`;
   if (await apiUp(20)) return null;
   console.log("  (the API didn't answer after the reset: restarting Kong)");
-  sh(`docker restart supabase_kong_${projectId}`);
+  const restart = sh(`docker restart supabase_kong_${projectId}`);
+  if (restart.status !== 0) return `restarting Kong failed: ${(restart.stderr || "").trim()}`;
   return (await apiUp(30)) ? null : `the API didn't answer after the reset (${API}/auth/v1/health, /rest/v1/)`;
 }
 
@@ -188,8 +209,8 @@ function runTests(filter, index) {
   return tests;
 }
 
-// Tests that went red without being listed: a control that breaks a file's setup turns
-// every test red, the listed ones included, so the count is shown, not judged.
+// Tests that went red without being listed: shown, not judged. A control that breaks a
+// file's setup doesn't show here: its tests come back "skipped", not "failed".
 function othersRed(control, tests) {
   if (tests === null || control.red.length === 0) return 0;
   return [...tests].filter(([name, status]) => status === "failed" && !control.red.includes(name)).length;
@@ -199,14 +220,17 @@ function judge(control, tests) {
   if (tests === null) return "the test run wrote no report";
   if (tests.size === 0) return `\`${control.run}\` collected no test`;
   if (control.setupFails !== null) {
+    // ⚠ SETUP, NOT CLEANUP: a file-level error also comes from `setup.ts`'s `afterAll`,
+    // after the tests ran. Only a run where no test passed failed before them.
+    const passed = [...tests].filter(([, status]) => status === "passed").length;
+    if (passed > 0) return `${passed} test(s) passed, so setup didn't fail (expected "${control.setupFails}")`;
     if (tests.setupErrors.some((message) => message.includes(control.setupFails))) return null;
     return tests.setupErrors.length === 0
       ? `no setup failed (expected "${control.setupFails}")`
       : `setup failed, but not with "${control.setupFails}": ${tests.setupErrors.map((m) => m.split("\n")[0]).join("; ")}`;
   }
   // ⚠ ONLY "passed" IS GREEN AND ONLY "failed" IS RED. When a file's setup throws, its
-  // tests come back "skipped", and a first version read that as green (2026-10-23, with
-  // Auth unreachable after a reset).
+  // tests come back "skipped" (rls.test.ts with Auth unreachable: 30 skipped).
   if (control.green !== null) {
     const notPassed = [...tests].filter(([, status]) => status !== "passed");
     return notPassed.length === 0
@@ -224,6 +248,21 @@ function judge(control, tests) {
 }
 
 // --- the run -----------------------------------------------------------------------------
+
+// ⚠ CTRL-C STOPS AFTER THE CURRENT CONTROL'S RESET. With no SIGINT listener Node exits at
+// once (Node's docs, "Signal events"), and the control's change stays in the database. A
+// second Ctrl-C exits at once and says so. A reset cut off by it reports as failed, with
+// the command to run. Not exercised here: Git Bash's `kill -INT` doesn't deliver a
+// console Ctrl-C to a Windows process (the handler printed nothing, 2026-10-23).
+let interrupted = false;
+process.on("SIGINT", () => {
+  if (interrupted) {
+    console.error("\n✖ interrupted again: the database may hold a control's change; run `npx supabase db reset`");
+    process.exit(130);
+  }
+  interrupted = true;
+  console.error("\n… interrupted: stopping after this control's reset (Ctrl-C again to exit now)");
+});
 
 console.log(`▶ controls: ${controls.length} control(s); a db reset first, then one after each.\n`);
 let failures = 0;
@@ -265,7 +304,11 @@ for (const [index, control] of controls.entries()) {
     console.log(`✖ ${control.name}: ${verdict}`);
   }
   if (stopped) {
-    console.error("\n✖ stopping: the database may not match the migrations");
+    console.error("\n✖ stopping: the database may not match the migrations; run `npx supabase db reset`");
+    break;
+  }
+  if (interrupted) {
+    console.error("\n✖ stopped by Ctrl-C, after this control's reset");
     break;
   }
 }
@@ -273,4 +316,4 @@ for (const [index, control] of controls.entries()) {
 rmSync(scratch, { recursive: true, force: true });
 const notRun = controls.length - ran;
 console.log(`\n${failures === 0 ? "✔" : "✖"} controls: ${ran - failures} of ${ran} as listed${notRun > 0 ? `, ${notRun} not run` : ""}`);
-process.exit(failures === 0 ? 0 : 1);
+process.exit(interrupted ? 130 : failures === 0 ? 0 : 1);
