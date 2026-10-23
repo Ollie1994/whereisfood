@@ -499,6 +499,24 @@ without the collation it fails. **Rejected:** sorting in Phase 7's service with
 other hosted checks; a missing collation fails the `create table` (`42704`, probed
 locally 2026-10-19 with a made-up `xx-XX-x-icu`).
 
+### #20 — Review rounds keep `/code-review`'s default findings limit (added in PR #172)
+The owner's call, 2026-10-23, in the Phase 5 retrospective. 12 of Phase 5's 38 review
+rounds found exactly 10 and none more (the retrospective's "Review rounds"), so the
+default limit cuts some rounds. `--max-findings all` would report every finding, but
+costs far more tokens; repeated capped rounds, scoped to the previous round's fixes
+after the first, reach the findings anyway. **Rejected:** `--max-findings all` by
+default. A process decision that outlives the phase: step 7 carries it forward.
+
+### #21 — A `/code-review` round on a PR is grouped `code-review` (added in PR #172)
+The owner's call, 2026-10-23, after review round 1 on PR #172. The log's `Caught by`
+bullet defines `code-review` as "a review of code or a PR (`/code-review` rounds)", and
+Phase 4 grouped row 304 (a round on PR #145, which changed plans) that way. So the nine
+rounds on PR #159, the plan, stay `code-review`; `plan-review` is for reviews outside a
+PR (rows 266–267). **Rejected:** grouping by what the PR changes, which the
+retrospective's first draft applied: it would regroup rows 304 and 309–311 too, and
+Phase 4's counts would stop comparing. #171 makes the rule's lead sentence say this.
+A process decision that outlives the phase: step 7 carries it forward.
+
 ---
 
 ## Acceptance Criteria
