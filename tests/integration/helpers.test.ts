@@ -213,8 +213,8 @@ describe("resetTables and fixture auth users", () => {
     //
     // ⚠ ONE EMAIL PER BYSTANDER, AND SWEPT BEFORE AND AFTER. `resetTables()` never
     // collects a bystander, so one a crashed run leaves after the rename is removed by
-    // the next run's sweep. With one fixed email, it also failed every later rename with
-    // `AuthApiError: Error updating user` (PR #169 round 1).
+    // the next run's sweep. With one fixed email, a leftover makes the next rename fail
+    // with `AuthApiError: Error updating user` (observed on the local stack, 2026-10-23).
     const BYSTANDER_EMAIL = `not-${FIXTURE_PREFIX}bystander-`;
 
     async function removeBystanders(): Promise<void> {

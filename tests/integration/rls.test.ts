@@ -50,8 +50,8 @@ function expectRefused(error: PostgrestError | null, operation: Operation): void
 let anon: Client;
 let me: { client: Client; userId: string };
 let other: { client: Client; userId: string };
-// A bare auth user (no `users` row), for the INSERTs into `users`.
-let rowless: string;
+// Signed in with no `users` row: the one who could insert its own row as an admin.
+let rowless: { client: Client; userId: string };
 let truckId: string;
 let locationId: string;
 
@@ -59,10 +59,10 @@ beforeAll(async () => {
   await resetTables();
   truckId = await seedTruck("Rls");
   locationId = (await seedLocation(truckId)).id;
-  rowless = await createFixtureAuthUser();
   anon = anonClient();
   me = await signedInClient();
   other = await signedInClient();
+  rowless = await signedInClient({ usersRow: false });
 }, 30_000);
 
 // A valid row for `table`, which `service_role` could insert: with the INSERT grant (a
@@ -75,7 +75,7 @@ function newRow(table: Table): Record<string, unknown> {
     case "locations":
       return { truck_id: truckId, ...FIXTURE_PLACE, ...dayWindow(Date.UTC(2031, 0, 1)) };
     case "users":
-      return { id: rowless };
+      return { id: rowless.userId };
   }
 }
 
@@ -145,13 +145,21 @@ describe("authenticated on users", () => {
     expect(data).toEqual([]);
   });
 
-  it.each<[string, () => Record<string, unknown>]>([
-    ["a row for an auth user that has none", () => ({ id: rowless })],
-    ["its own id with is_admin = true", () => ({ id: me.userId, is_admin: true })],
-  ])("is refused INSERT of %s", async (_case, row) => {
-    const { error } = await me.client.from("users").insert(row() as never);
+  it("is refused INSERT of a row for another auth user, which has none", async () => {
+    const { error } = await me.client.from("users").insert({ id: rowless.userId });
 
     expectRefused(error, "INSERT");
+  });
+
+  it("is refused INSERT of its own row with is_admin = true, when it has none", async () => {
+    // Self-escalation. The caller has no row, so a primary-key conflict can't stop it:
+    // only the missing grant does. Not one row for the caller afterwards.
+    const { error } = await rowless.client
+      .from("users")
+      .insert({ id: rowless.userId, is_admin: true });
+
+    expectRefused(error, "INSERT");
+    expect(await storedRow(rowless.userId)).toBeNull();
   });
 
   it.each<[string, () => Record<string, unknown>]>([

@@ -225,6 +225,20 @@ describe("the updated_at trigger and created_by (decision #5)", () => {
     expect(micros(after.updated_at)).toBe(micros(row.updated_at));
   });
 
+  it("moves updated_at on an edit of a row that has an author", async () => {
+    // Every admin entry has an author, so this is the edit production makes. A clause
+    // that fires only while `created_by` is NULL passes every other case here.
+    const author = await createFixtureAuthUser();
+    const row = await seedLocation(truckId, { created_by: author });
+
+    const { error } = await supabaseAdmin.from("locations").update({ label: "Heden" }).eq("id", row.id);
+    if (error) throw error;
+    const after = await readLocation(row.id);
+
+    expect(after.created_by).toBe(author);
+    expect(micros(after.updated_at)).toBeGreaterThan(micros(row.updated_at));
+  });
+
   it("moves updated_at on an edit that also sets a NULL created_by to a user", async () => {
     // The WHEN clause skips only an UPDATE that takes `created_by` from a value to NULL.
     // A clause skipping every UPDATE that changes `created_by` would skip this one too.

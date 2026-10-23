@@ -95,8 +95,9 @@ export async function authUserIdsWhere(matches: (email: string) => boolean): Pro
 }
 
 // Ten at a time: one `deleteUser` took about 30 ms in sequence and 7 ms each ten at a
-// time (local stack, 2026-10-23), so a few hundred leaked users stay inside a hook's
-// default 10 s timeout. An auth user with a `users` row can't be deleted.
+// time (local stack, 2026-10-23), so 300 leaked users take about 2 s, inside vitest's
+// default 5 s for a test and 10 s for a hook. An auth user with a `users` row can't be
+// deleted.
 const AUTH_DELETE_CONCURRENCY = 10;
 
 export async function deleteAuthUsers(ids: string[]): Promise<void> {
@@ -379,15 +380,17 @@ export async function createFixtureUser(truckId: string | null = null): Promise<
 }
 
 // A `createFixtureUser()`, signed in: an `authenticated` client and the user's id.
+// With `{ usersRow: false }`, a bare `createFixtureAuthUser()` instead: a signed-in
+// user with no `users` row, who could try to insert its own.
 //
 // ⚠ EACH CALL IS ONE SIGN-IN, and local Auth limits sign-ins and sign-ups to
 // `sign_in_sign_ups` per 5 minutes per IP (`supabase/config.toml`, `[auth.rate_limit]`).
 // Call it once per file or describe, not per test.
-export async function signedInClient(): Promise<{
+export async function signedInClient({ usersRow = true } = {}): Promise<{
   client: SupabaseClient<Database>;
   userId: string;
 }> {
-  const userId = await createFixtureUser();
+  const userId = usersRow ? await createFixtureUser() : await createFixtureAuthUser();
 
   const client = anonClient();
   const { error } = await client.auth.signInWithPassword({
