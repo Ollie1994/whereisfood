@@ -131,11 +131,14 @@ that a later round also touches (rows 289, 296). This is the practice since row 
 rows 268 and 270 predate the counting rule, and the Phase 4 retrospective counts them as
 8 and 9. Most Phase 3 review rows recorded one finding each, so tallies across that
 boundary don't compare (row 308). **A review row says whether its count may be cut:**
-its `Caught by` names the effort level passed to the review, or "default"
-(`` `code-review` r2 (default, user-requested) ``), and a count at the round's findings
-limit reads "found 10 (at the limit)". The review doesn't print its limit; 10 is the
-most any Phase 5 round found, and 12 of 38 found exactly that (the Phase 5
-retrospective, plan decision #20).
+its `Caught by` names the effort level the round ran at (`` `code-review` r2 (high,
+user-requested) ``), or "level unknown": with no level typed, `/code-review` reuses
+the last one typed, so "default" names nothing. A count that reached the round's
+findings limit reads "found 10 (at the limit)": the `--max-findings` value when one was
+passed, else the level's own limit, which the output doesn't show (PR #173's round-1
+reviewer reported its instructions as "≤10 findings"). 12 of the 38 rounds in the
+Phase 5 retrospective's range (rows 308–350) found exactly 10 and none more (plan
+decision #20).
 
 **`Where`** — exactly one of these three forms, no variants:
 
@@ -195,20 +198,22 @@ Required from the row on the values block's `caught-by-from-row` line, and `chec
 enforces it; the groups are its `caught-by` line. Earlier rows stay as written and
 are grouped by hand: rows 308–314 are the first
 range that needs it (the Phase 5 retrospective). The groups follow the Phase 3
-retrospective's rule, as its Phase 4 count applied it. **A review is grouped by what was
-reviewed**, whoever asked for it: a `/code-review` round on a PR is `code-review`,
-whatever the PR changes, and a review outside a PR is `plan-review` (Phase 5 plan
-decision #21: PR #159's plan rounds, rows 323, 324 and 326–332, are `code-review`).
+retrospective's rule, as its Phase 4 count applied it. **A review is grouped by how it
+was done**, whoever asked for it: a `/code-review` round is `code-review`, whatever it
+reviewed (a PR, a branch or a working tree, plans included), and any other review of a
+plan, an issue, the context or a design doc is `plan-review` (Phase 5 plan decision
+#21: PR #159's plan rounds, rows 323, 324 and 326–332, are `code-review`).
 **Anything else is
 grouped by who found it**: `self` while doing the work, `user` the owner. So the
 owner's browser check (row 282) is `user`, and the end-of-phase check run while working
 (row 303) is `self`. If two found it, the group is the one that found it first, and the
 other goes in the text. Older free-text rows name that one first (rows 289, 296).
 
-- **code-review:** a review of code or a PR (`/code-review` rounds), whoever asked for
-  it. Put the round in the text (`r2`).
-- **plan-review:** a review of a plan, an issue, the context or a design doc outside
-  a PR, whoever asked for it (rows 266–267, the owner's reviews of a draft).
+- **code-review:** a `/code-review` round, whatever it reviewed, whoever asked for it.
+  Put the round in the text (`r2`).
+- **plan-review:** a review of a plan, an issue, the context or a design doc that
+  isn't a `/code-review` round, whoever asked for it (rows 266–267: read-throughs of
+  the Phase 4 plan draft, which the Phase 4 retrospective grouped as plan review).
 - **self:** found while doing the work: writing, running, probing, mutation testing,
   re-reading output, or a check run as part of it (the gates, the end-of-phase check of
   row 303).
@@ -622,6 +627,7 @@ Old rows that point at them are now pointing there: "see note" (rows 14, 15, 17,
 | 352 | 2026-10-23 | PR #172 / IS #164 | `process-log` | `/code-review` round 2 on #172, scoped to round 1's diff, found 10; all applied. **Round 1's fix repeated the miss it logged:** its account of the rule named the lead sentence and left out the `plan-review` bullet that also supported the first draft, so #171 would have kept the conflict; and its "couldn't go red" grep was fitted to the hand list (three phrases matched no row; "pass blind" was missed). Also: #21's rejected-option cost unbacked; #20 called the range "Phase 5's" and left out #168's scoped miss; row 308's attribution; "adds both"; "323–332" took in 325; #171's title. | `code-review` r2 (scoped to round 1's diff, user-requested) | `pre-merge` | `overcorrection` | Both readings stated in section 5, row 351, #21 and #171, which now aligns the `plan-review` bullet too; each grep phrase listed with its rows (14, a floor); #20's range and counter-evidence; attributions fixed; #171 retitled. |
 | 353 | 2026-10-23 | PR #172 / IS #164 | `CLAUDE.md` | `/code-review` round 3 on #172, scoped to round 2's diff, found 10; all applied. **Round 2 rewrote row 351's Fix to describe round 2's change**, against CLAUDE.md's "a row this PR added records what its round did", and dated decision #21 "after review rounds 1–2", though the owner was asked only after round 1 and round 2's wider #171 scope was a review finding. Also: #20's counter-evidence answered scoped repeats, not the limit; row 348 has the "couldn't fail" shape; missed copies; a miscount; PR #145's file list. | `code-review` r3 (scoped to round 2's diff, user-requested) | `pre-merge` | `imprecise-claim` | Row 351's Fix restored to round 1's change; #21 dated after round 1, with round 2's #171 addition named as a review finding; #20's evidence tied to the reasoning it answers; 348 named; the copies, the count and #145's files fixed. |
 | 354 | 2026-10-23 | PR #172 / IS #164 | `process-log` | **Row 325's miss, again:** `process-log.sh add` refused row 353 (Miss 604 characters, cap 600) and the commit ran anyway, chained with `;`, so commit `a22da68` says "row 353" and doesn't hold it. Row 325's fix was to gate the commit on the exit; this command didn't. Not pushed. | `self`, reading the add output after the commit | `pre-merge` | `gate-skipped` | Row 353 shortened and added in its own commit, with the commit run only on `add` and `check` exiting 0 (`&&`). A pre-commit `check` would not catch it: the log stayed valid; what was wrong was the commit message. |
+| 355 | 2026-10-23 | PR #173 / IS #171 | `CLAUDE.md` | `/code-review` round 1 on #173 found 9; 8 applied, 1 declined. **The new rules broke on the cases next to theirs:** rewording "only for a claim no command can check" forbade correcting a claim a command showed false; "a review outside a PR is `plan-review`" sent pre-PR `/code-review` rounds there; "default" names no level (a bare `/code-review` reuses the last). "The review doesn't print its limit" was unprobed, against the rule this PR added. Also: the bold lead kept; "Phase 5's" 38; rows 266–267; tests left out. Declined: a `check` key (#171's non-goal). | `code-review` r1 (level unknown, user-requested) | `pre-merge` | `overcorrection` | Reword "to what a command showed"; a review grouped by how it was done, any `/code-review` round `code-review`; a level or "level unknown"; the limit from `--max-findings` or the level; the range labelled; rows 266–267 described; tests grepped. #21 marks the refinement. |
 
 ---
 

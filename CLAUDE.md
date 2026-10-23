@@ -301,16 +301,16 @@ outside a review):
    defect in sibling code is a copy no listed claim names (rows 340, 342, 343).
 2. **Grep every mention** of each across the tracked docs (`CLAUDE.md`, `README.md`,
    `.claude/`), code comments and tests, **every open issue body**, and the PR body if
-   there is one. For a code pattern, grep the code for its other uses (the call, the
-   query shape) and read each.
+   there is one. For a code pattern, grep the code **and the tests** for its other uses
+   (the call, the query shape) and read each: row 343's copy was in a test helper.
 3. **Read every hit.** Fix the stale ones. A hit that restates a rule owned elsewhere
    becomes a pointer to that copy, not a second edit (row 307; rows 294–295 went part
    of the way). History (process-log rows from earlier work, dated entries) stays as
    written. A row this PR added records what its round did: fix it if it's false
    about that round, not to match what a later round changed.
 4. **Record the sweep** where the correction lives: that round's section of the PR
-   body, or a comment on the issue when only an issue body was corrected. Claim →
-   where it was checked → result.
+   body, or a comment on the issue when only an issue body was corrected. Claim or
+   pattern → where it was checked → result.
 
 Fixing only the lines a finding names is what let one correction miss its copies three
 rounds running; the sweep found the copy no finding had named (process-log row 295).
@@ -335,8 +335,9 @@ hit, do one of three things:
 - back it with a command whose result is in the PR body, and whose output **could
   have shown the claim false** (a read of `default` lines can't show a column with
   none, row 331);
-- reword it, for a claim no command can check. A claim about behaviour that a probe
-  can settle is **probed, not reworded into a hedge** ("could … (not probed)", row 350);
+- reword it: to what a command showed (then back the new wording), or, for a claim
+  no command can check, to what you know. A claim about behaviour that a probe can
+  settle is **probed, not reworded into a hedge** ("could … (not probed)", row 350);
 - or note it is a rule, not a claim of fact.
 
 Record the hit count and how each was settled in the PR body, under the round the

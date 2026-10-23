@@ -526,6 +526,9 @@ that change docs other than plans (PR #151's log-only retrospective, rows 309–
 PR #145's log change), which neither bullet has. #171 makes the lead sentence say this;
 review round 2 on PR #172 added the `plan-review` bullet to #171, which the owner's
 reading needs (a review finding; the owner approved it after round 3, 2026-10-23).
+*Refined in PR #173 round 1:* "outside a PR" became "a review that isn't a
+`/code-review` round", since rounds also run on a branch before its PR exists, and the
+lead sentence became "grouped by how it was done"; both keep the owner's reading.
 A process decision that outlives the phase: step 7 carries it forward.
 
 ---
