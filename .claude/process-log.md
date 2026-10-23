@@ -197,23 +197,20 @@ then free text: `` `code-review` r2 (user-requested) ``, `` `self` counting for 
 Required from the row on the values block's `caught-by-from-row` line, and `check`
 enforces it; the groups are its `caught-by` line. Earlier rows stay as written and
 are grouped by hand: rows 308–314 are the first
-range that needs it (the Phase 5 retrospective). The groups follow the Phase 3
-retrospective's rule, as its Phase 4 count applied it. **A review is grouped by how it
-was done**, whoever asked for it: a `/code-review` round is `code-review`, whatever it
-reviewed (a PR, a branch or a working tree, plans included), and any other review of a
-plan, an issue, the context or a design doc is `plan-review` (Phase 5 plan decision
-#21: PR #159's plan rounds, rows 323, 324 and 326–332, are `code-review`).
-**Anything else is
-grouped by who found it**: `self` while doing the work, `user` the owner. So the
+range that needs it (the Phase 5 retrospective). **Every review is `code-review`**,
+however it was done and whatever it reviewed: a `/code-review` round, or a read-through
+of a plan, an issue or a doc someone asked for. The text says which (`/code-review` r2,
+or "plan read-through"), and the `Artifact` column says what it reviewed (Phase 5 plan
+decision #21). A `plan-review` group existed until PR #173; no checked row used it,
+and the Phase 3 and 4 retrospectives' "plan / issue review" counts are dated records of
+the rule it came from. **Anything else is grouped by who found it**: `self` while doing
+the work, `user` the owner. So the
 owner's browser check (row 282) is `user`, and the end-of-phase check run while working
 (row 303) is `self`. If two found it, the group is the one that found it first, and the
 other goes in the text. Older free-text rows name that one first (rows 289, 296).
 
-- **code-review:** a `/code-review` round, whatever it reviewed, whoever asked for it.
-  Put the round in the text (`r2`).
-- **plan-review:** a review of a plan, an issue, the context or a design doc that
-  isn't a `/code-review` round, whoever asked for it (rows 266–267: read-throughs of
-  the Phase 4 plan draft, which the Phase 4 retrospective grouped as plan review).
+- **code-review:** any review round, whoever asked for it. Put the round in the text
+  (`r2`).
 - **self:** found while doing the work: writing, running, probing, mutation testing,
   re-reading output, or a check run as part of it (the gates, the end-of-phase check of
   row 303).
@@ -232,7 +229,7 @@ when they don't.
 artifact: CLAUDE.md project-context README process-log command plan issue process docs code-only
 escaped: pre-commit pre-merge merged crossed-phase production n/a
 cause: stale-doc missing-gate gate-skipped unverified-assumption incomplete-guard overcorrection imprecise-claim manual-drift
-caught-by: code-review plan-review self user
+caught-by: code-review self user
 caught-by-from-row: 315
 artifact-drift-rows: 197-267
 cap-from-row: 321
@@ -1182,6 +1179,8 @@ new ones. Each verdict cites rows found by the grep or criterion it names.
 - **The adjustment (#171):** the lead sentence and the `plan-review` bullet say what the
   `code-review` bullet says: a `/code-review` round on a PR is `code-review`, whatever
   the PR changes; `plan-review` is a review outside a PR.
+  *(Superseded in PR #173, the owner's call: every review is `code-review`, and the
+  `plan-review` group is gone; plan decision #21.)*
 
 ### New actions (one)
 
