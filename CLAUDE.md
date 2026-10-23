@@ -304,8 +304,9 @@ outside a review):
    there is one. For a code pattern, grep the code **and the tests** for its other uses
    (the call, the query shape) and read each: row 343's copy was in a test helper.
 3. **Read every hit.** Fix the stale ones. A sibling with the same defect gets fixed in
-   the PR, or an issue named in the sweep record (row 342: named, not fixed, then found
-   again). A hit that restates a rule owned elsewhere
+   the PR; only one outside the PR's scope gets an issue instead, named in the sweep
+   record. Rows 340 and 342: a fix guarded one read, and its siblings were found a round
+   later each. A hit that restates a rule owned elsewhere
    becomes a pointer to that copy, not a second edit (row 307; rows 294–295 went part
    of the way). History (process-log rows from earlier work, dated entries) stays as
    written. A row this PR added records what its round did: fix it if it's false

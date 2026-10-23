@@ -512,7 +512,7 @@ merged; it sat outside round 1's diff, and #168's full round 1 (8 found, under t
 limit) missed it too. A later full round, on #169, found it (row 349). **Rejected:** `--max-findings all` by
 default. A process decision that outlives the phase: step 7 carries it forward.
 
-### #21 — A `/code-review` round on a PR is grouped `code-review` (added in PR #172; superseded by #22)
+### #21 — A `/code-review` round on a PR is grouped `code-review` (added in PR #172)
 The owner's call, 2026-10-23, after review round 1 on PR #172. The log's `Caught
 by` rule reads two ways for a `/code-review` round on a plan PR: its `code-review`
 bullet says "a review of code or a PR (`/code-review` rounds)"; its lead sentence
@@ -529,27 +529,31 @@ reading needs (a review finding; the owner approved it after round 3, 2026-10-23
 *Refined in PR #173 round 1:* "outside a PR" became "a review that isn't a
 `/code-review` round", since rounds also run on a branch before its PR exists, and the
 lead sentence became "grouped by how it was done"; both keep the owner's reading.
-**Superseded by #22** (PR #173): the `plan-review` group is gone, so this rule for telling it from `code-review` no longer applies. Kept as the record of the call.
+A process decision that outlives the phase: step 7 carries it forward.
+**Superseded by #22** (PR #173): the `plan-review` group is gone, so this rule for telling
+it from `code-review` no longer applies; step 7 carries #22 forward in its place. The
+text above is as recorded.
 
-
-### #22 — Every review Claude runs is `code-review`; `plan-review` is gone (added in PR #173)
+### #22 — Every review Claude was asked to run is `code-review`; `plan-review` is gone (added in PR #173)
 The owner's call, 2026-10-23, during PR #173's review; supersedes #21. The log's
 `Caught by` groups are `code-review`, `self` and `user`. **A review Claude was asked
 to run is `code-review`**, however it was done (a `/code-review` round or a
-read-through) and whatever it reviewed; the text says which. What it reviewed is the
-row's `Where`: the PR's files (`gh pr view <n> --json files`). The owner's own findings,
-their own read of a plan included, are `user`, as rows 266–267's cells are. Why: no
-checked row (315 onward) ever used `plan-review` (`tally 7 315 355`: `code-review` 36,
-`self` 5), and deciding which reviews it covered took four review rounds (PR #172
-rounds 1–3, PR #173 round 1). **Rejected:** keeping it, with a rule for which reviews are
-plan reviews; and recording every review as "a `/code-review` round", which would be
-false in a row for a read-through. **Not** a reason: the `Artifact` column, which names
-the process file that was wrong, not what was reviewed: row 353, a round on PR #172,
-which changed only the plan and the log, has `Artifact` `CLAUDE.md`. PR #173 round 2
-corrected that claim.
-A retrospective that wants plan reviews counts review rows whose `Where` PR changed a
-plan.
+read-through) and whatever it reviewed. The row's text says how and what: the round
+and its target (the PR, the diff it was scoped to, or the doc read). The owner's own
+findings, their own read of a plan included, are `user`. (Rows 266–267, written before
+the groups, say `user` in their free text; they are reviews Claude ran at the owner's
+request, so under this rule they would be `code-review`.) Why: no checked row (315
+onward) ever used `plan-review` (`tally 7 315 355`: `code-review` 36, `self` 5), and
+deciding which reviews it covered took five review rounds (PR #172 rounds 1–3, PR #173
+rounds 1–2). **Rejected:** keeping it, with a rule for which reviews are plan reviews;
+and recording every review as "a `/code-review` round", which would be false in a row
+for a read-through. **Not** a reason: the `Artifact` column, which names the process
+file that was wrong, not what was reviewed (row 353, a round on PR #172, which changed
+only the plan and the log, has `Artifact` `CLAUDE.md`); nor the `Where`, which names
+no PR for two of its three forms and the whole PR for a scoped round. PR #173 rounds 2–3
+corrected both. A retrospective that wants plan reviews reads each review row's target.
 A process decision that outlives the phase: step 7 carries it forward.
+
 ---
 
 ## Acceptance Criteria
