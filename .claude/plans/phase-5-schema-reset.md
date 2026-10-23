@@ -506,24 +506,26 @@ more (the retrospective's "Review rounds"), so the default limit may cut some ro
 the rows can't show which. `--max-findings all` would
 report every finding. The owner's reasoning: it costs far more tokens, and running a
 round, fixing, and repeating (scoped to the fixes after the first) gets there.
-**Against it,** recorded with it: #168's round 2, scoped to round 1's fixes, found 2,
-and the trigger gap in #168's cases merged; a later full round, on #169, found it
-(row 349). **Rejected:** `--max-findings all` by
+**Against the reasoning's second half** (scoped repeats get there), not the limit:
+#168's round 2, scoped to round 1's fixes, found 2, and the trigger gap in #168's cases
+merged; it sat outside round 1's diff, and #168's full round 1 (8 found, under the
+limit) missed it too. A later full round, on #169, found it (row 349). **Rejected:** `--max-findings all` by
 default. A process decision that outlives the phase: step 7 carries it forward.
 
 ### #21 — A `/code-review` round on a PR is grouped `code-review` (added in PR #172)
-The owner's call, 2026-10-23, after review rounds 1–2 on PR #172. The log's `Caught
+The owner's call, 2026-10-23, after review round 1 on PR #172. The log's `Caught
 by` rule reads two ways for a `/code-review` round on a plan PR: its `code-review`
 bullet says "a review of code or a PR (`/code-review` rounds)"; its lead sentence
 ("grouped by what was reviewed") and `plan-review` bullet ("a review of a plan, …") say
 the other. The owner chose the bullet's: a `/code-review` round on a PR is
 `code-review`, so the nine rounds on PR #159 stay as written, and `plan-review` is
 for reviews outside a PR (rows 266–267). Row 304 (a round on PR #145, which changed
-plans and `fake-data.ts`) is a partial precedent. **Rejected:** grouping by what the
+four plans, the log and `fake-data.ts`) is a partial precedent. **Rejected:** grouping by what the
 PR changes, which the retrospective's first draft applied: it needs a rule for PRs
-that change docs other than plans (PR #151's log-only retrospective, rows 309–311),
-which neither bullet has. #171 makes the lead sentence and the `plan-review` bullet
-say this.
+that change docs other than plans (PR #151's log-only retrospective, rows 309–311;
+PR #145's log change), which neither bullet has. #171 makes the lead sentence say this;
+review round 2 on PR #172 added the `plan-review` bullet to #171, which the owner's
+reading needs (a review finding, not a second owner call).
 A process decision that outlives the phase: step 7 carries it forward.
 
 ---
