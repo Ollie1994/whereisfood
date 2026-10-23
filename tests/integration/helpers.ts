@@ -74,21 +74,39 @@ function fixtureEmail(userId: string): string {
 
 const FIXTURE_PASSWORD = "itest-fixture-password";
 
-// One page of `auth.admin.listUsers`, which is also its default size.
-const AUTH_PAGE = 50;
+// One page of `auth.admin.listUsers`, which is also its default size. Exported for the
+// test that creates one page and one more.
+export const AUTH_PAGE = 50;
 
-// Every fixture auth user's id. Every page until a short one: leaked fixtures from
-// interrupted runs are what cleanup is for, and they can fill more than one page.
-async function fixtureAuthUserIds(): Promise<string[]> {
+// The ids of the auth users whose email `matches`. Every page until a short one:
+// leaked fixtures from interrupted runs are what cleanup is for, and they can fill more
+// than one page.
+export async function authUserIdsWhere(matches: (email: string) => boolean): Promise<string[]> {
   const ids: string[] = [];
   for (let page = 1; ; page += 1) {
     const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: AUTH_PAGE });
     if (error) throw error;
 
     for (const user of data.users) {
-      if (user.email?.startsWith(FIXTURE_PREFIX)) ids.push(user.id);
+      if (user.email !== undefined && matches(user.email)) ids.push(user.id);
     }
     if (data.users.length < AUTH_PAGE) return ids;
+  }
+}
+
+// Ten at a time: one `deleteUser` took about 30 ms in sequence and 7 ms each ten at a
+// time (local stack, 2026-10-23), so a few hundred leaked users stay inside a hook's
+// default 10 s timeout. An auth user with a `users` row can't be deleted.
+const AUTH_DELETE_CONCURRENCY = 10;
+
+export async function deleteAuthUsers(ids: string[]): Promise<void> {
+  for (let i = 0; i < ids.length; i += AUTH_DELETE_CONCURRENCY) {
+    await Promise.all(
+      ids.slice(i, i + AUTH_DELETE_CONCURRENCY).map(async (id) => {
+        const { error } = await supabaseAdmin.auth.admin.deleteUser(id);
+        if (error) throw error;
+      }),
+    );
   }
 }
 
@@ -97,7 +115,7 @@ async function fixtureAuthUserIds(): Promise<string[]> {
 // since `users.truck_id` references `trucks` (Phase 5 plan, #7). The Auth admin API
 // doesn't touch `public` tables, so the rows go through PostgREST.
 async function removeFixtureUsers(): Promise<void> {
-  const ids = await fixtureAuthUserIds();
+  const ids = await authUserIdsWhere((email) => email.startsWith(FIXTURE_PREFIX));
 
   for (let i = 0; i < ids.length; i += RESET_BATCH) {
     const { error } = await supabaseAdmin
@@ -107,10 +125,7 @@ async function removeFixtureUsers(): Promise<void> {
     if (error) throw error;
   }
 
-  for (const id of ids) {
-    const { error } = await supabaseAdmin.auth.admin.deleteUser(id);
-    if (error) throw error;
-  }
+  await deleteAuthUsers(ids);
 }
 
 // Remove every row THIS SUITE created, and nothing else.
@@ -336,8 +351,8 @@ export function anonClient(): SupabaseClient<Database> {
 // 2026-10-23). Returns the id, which is generated here so the email can be derived
 // from it, as `seedTruck` generates its truck's.
 //
-// The user has no `users` row: that is what `signedInClient()` adds. A bare author is
-// what the `created_by` trigger cases need, since a `users` row blocks deleting its
+// The user has no `users` row: that is what `createFixtureUser()` adds. A bare author
+// is what the `created_by` trigger cases need, since a `users` row blocks deleting its
 // auth user.
 export async function createFixtureAuthUser(): Promise<string> {
   const id = randomUUID();
@@ -352,8 +367,18 @@ export async function createFixtureAuthUser(): Promise<string> {
   return id;
 }
 
-// A fixture auth user with a `users` row (not an admin, no truck), signed in: an
-// `authenticated` client and the user's id.
+// A fixture auth user with a `users` row: not an admin, on `truckId` or on no truck.
+// Inserted with `supabaseAdmin`, since the Auth admin API doesn't write `public`
+// tables. Returns the id.
+export async function createFixtureUser(truckId: string | null = null): Promise<string> {
+  const id = await createFixtureAuthUser();
+
+  const { error } = await supabaseAdmin.from("users").insert({ id, truck_id: truckId });
+  if (error) throw error;
+  return id;
+}
+
+// A `createFixtureUser()`, signed in: an `authenticated` client and the user's id.
 //
 // ⚠ EACH CALL IS ONE SIGN-IN, and local Auth limits sign-ins and sign-ups to
 // `sign_in_sign_ups` per 5 minutes per IP (`supabase/config.toml`, `[auth.rate_limit]`).
@@ -362,10 +387,7 @@ export async function signedInClient(): Promise<{
   client: SupabaseClient<Database>;
   userId: string;
 }> {
-  const userId = await createFixtureAuthUser();
-
-  const { error: rowError } = await supabaseAdmin.from("users").insert({ id: userId });
-  if (rowError) throw rowError;
+  const userId = await createFixtureUser();
 
   const client = anonClient();
   const { error } = await client.auth.signInWithPassword({

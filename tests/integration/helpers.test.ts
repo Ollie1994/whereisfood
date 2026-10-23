@@ -1,8 +1,12 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { supabaseAdmin } from "@/lib/supabase";
 import {
+  AUTH_PAGE,
   FIXTURE_PREFIX,
+  authUserIdsWhere,
   createFixtureAuthUser,
+  createFixtureUser,
+  deleteAuthUsers,
   resetTables,
   seedLocation,
   seedTruck,
@@ -165,18 +169,11 @@ describe("resetTables and fixture auth users", () => {
     return data.length > 0;
   }
 
-  async function fixtureUserWithRow(truckId: string | null = null): Promise<string> {
-    const id = await createFixtureAuthUser();
-    const { error } = await supabaseAdmin.from("users").insert({ id, truck_id: truckId });
-    if (error) throw error;
-    return id;
-  }
-
   it("removes a fixture auth user and its users row when no fixture truck exists", async () => {
     // The truck loop returns as soon as no fixture truck is left, so a user cleanup
     // placed after it never runs here.
     await resetTables();
-    const id = await fixtureUserWithRow();
+    const id = await createFixtureUser();
 
     await resetTables();
 
@@ -188,7 +185,7 @@ describe("resetTables and fixture auth users", () => {
     // `users.truck_id` references `trucks` with no cascade: removing the truck first
     // fails with 23503.
     const truckId = await seedTruck();
-    const id = await fixtureUserWithRow(truckId);
+    const id = await createFixtureUser(truckId);
 
     await expect(resetTables()).resolves.toBeUndefined();
 
@@ -197,9 +194,9 @@ describe("resetTables and fixture auth users", () => {
   });
 
   it("removes fixture auth users across more than one page of listUsers", async () => {
-    // 51 is one more than a page, so a cleanup that reads only the first leaves some.
+    // One more than a page, so a cleanup that reads only the first leaves some.
     const ids: string[] = [];
-    for (let n = 0; n < 51; n += 1) ids.push(await createFixtureAuthUser());
+    for (let n = 0; n <= AUTH_PAGE; n += 1) ids.push(await createFixtureAuthUser());
 
     await resetTables();
 
@@ -213,19 +210,24 @@ describe("resetTables and fixture auth users", () => {
     // and by no filter at all, the two plausible ways the predicate goes wide. Born a
     // fixture (`createFixtureAuthUser` is the only way to make one) and renamed, so a
     // crash before the rename still leaves something `resetTables()` collects.
-    let bystander: string | null = null;
+    //
+    // ⚠ ONE EMAIL PER BYSTANDER, AND SWEPT BEFORE AND AFTER. `resetTables()` never
+    // collects a bystander, so one a crashed run leaves after the rename is removed by
+    // the next run's sweep. With one fixed email, it also failed every later rename with
+    // `AuthApiError: Error updating user` (PR #169 round 1).
+    const BYSTANDER_EMAIL = `not-${FIXTURE_PREFIX}bystander-`;
 
-    afterEach(async () => {
-      if (bystander === null) return;
-      const { error } = await supabaseAdmin.auth.admin.deleteUser(bystander);
-      bystander = null;
-      if (error) throw error;
-    });
+    async function removeBystanders(): Promise<void> {
+      await deleteAuthUsers(await authUserIdsWhere((email) => email.startsWith(BYSTANDER_EMAIL)));
+    }
+
+    beforeEach(removeBystanders);
+    afterEach(removeBystanders);
 
     it("⚠ leaves an auth user whose email doesn't start with the prefix", async () => {
-      bystander = await createFixtureAuthUser();
+      const bystander = await createFixtureAuthUser();
       const { error } = await supabaseAdmin.auth.admin.updateUserById(bystander, {
-        email: `not-${FIXTURE_PREFIX}bystander@example.test`,
+        email: `${BYSTANDER_EMAIL}${bystander}@example.test`,
       });
       if (error) throw error;
       const fixture = await createFixtureAuthUser();
