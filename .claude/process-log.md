@@ -610,7 +610,7 @@ Old rows that point at them are now pointing there: "see note" (rows 14, 15, 17,
 | 348 | 2026-10-23 | PR #169 / IS #163 | `code-only` | `/code-review` round 1 on #169 found 8; 4 applied (one in part), 4 declined. **The bystander's guard covered a crash before its rename, not after:** one fixed email, which `resetTables()` never collects, so an interrupted run failed every later run (reproduced: `Error updating user`). The pagination case hard-coded 51 while the page size is a constant, so raising it would blind the case. Also: `deleteUser` one at a time; the `users` row recipe copied. Declined with measurements: page-boundary ties, a `listUsers` per reset, bcrypt cost, the 51-user test's time. | `code-review` r1 | `pre-merge` | `incomplete-guard` | A bystander email per id, swept before and after the case; `AUTH_PAGE + 1` users; deletes ten at a time; `createFixtureUser()` shared. Controls: the old case red on a leftover and the new one sweeps it; first page only red at `AUTH_PAGE` 50 and 10. |
 | 349 | 2026-10-23 | PR #169 / IS #163 | `plan` | `/code-review` round 2 on #169 (full, at the owner's request) found 8; 4 applied, 4 declined. **Every trigger case edited a row with no author**, so `when (old.created_by is null)` passed them all, while admin-screen entries will have one: no such edit would move `updated_at`. #168's cases (merged) and the plan's step 3–4 lists both missed it. And the self-escalation INSERT's caller already had a row, so it never exercised that path (under a grant and policy: `23505`, red for another reason). Also: a deletion-budget comment ignored the 5 s test timeout; a comment carried PR history. | `code-review` r2 (full, owner-requested) | `merged` | `incomplete-guard` | An edit of an authored row moves `updated_at` (control: `when (old.created_by is null)` → red); a signed-in caller with no row is refused inserting its own as an admin (control: an insert policy → it inserts, red). Comments reworded. |
 | 350 | 2026-10-23 | PR #169 / IS #163 | `process-log` | `/code-review` round 3 on #169, scoped to round 2's diff, found 4; all applied. **Round 2's record claimed a gap that didn't exist:** row 349 and the PR body said a key conflict, not a grant, stopped the old self-escalation case, but it could always go red (`42501` with no grant; `23505` under a grant and policy, run on the old file). Round 2's claims check had flagged the claim as not probed and only softened it. Also: the new case's row check couldn't fail on its own insert; the plan's step 4 and AC lists didn't name round 2's cases. | `code-review` r3 (scoped to round 2's diff) | `pre-merge` | `imprecise-claim` | Row 349 and the body corrected from the old file's run under the control; the row check removed; the plan's step 4 and AC name the authored-row case and the no-row caller. An unprobed claim is probed, not softened. |
-| 351 | 2026-10-23 | PR #172 / IS #164 | `process-log` | `/code-review` round 1 on #172 found 10; 8 applied, 2 moot. **I asked the owner to approve a regrouping on a one-sided reading of the rule:** I quoted its lead sentence ("grouped by what was reviewed") and rows 266–267, and left out the `code-review` bullet ("`/code-review` rounds"), the Phase 3 rule and row 304. Nine cells were rewritten and logged as a miss; the owner reverted it when asked again. Also: two issues called follow-ups that weren't; the cap list named 8 of 12; owner decisions in the log, not the plan; "count is complete" unbacked; a hand-picked 13. | `code-review` r1 (user-requested) | `pre-merge` | `imprecise-claim` | Cells reverted and the false row dropped; plan decisions #20 (review cap) and #21 (grouping); range, cap list and the 13's grep stated; #171 adds the effort level and limit to a review row and makes the rule's lead sentence match its bullet. |
+| 351 | 2026-10-23 | PR #172 / IS #164 | `process-log` | `/code-review` round 1 on #172 found 10; 8 applied, 2 moot. **I asked the owner to approve a regrouping on one of the rule's two readings, given as the rule:** I quoted its lead sentence ("grouped by what was reviewed") and rows 266–267, and left out the `code-review` bullet ("`/code-review` rounds"), the Phase 3 rule and row 304. Nine cells were rewritten and logged as a miss; the owner reverted it when asked again. Also: two issues called follow-ups that weren't; the cap list named 8 of 12; owner decisions in the log, not the plan; "count is complete" unbacked; a hand-picked 13. | `code-review` r1 (user-requested) | `pre-merge` | `imprecise-claim` | Cells reverted and the false row dropped; plan decisions #20 (review cap) and #21 (grouping); range, cap list and the 13's grep stated; #171 marks a review row's effort level and limit hits, and makes the rule's readings agree. |
 
 ---
 
@@ -1008,7 +1008,8 @@ milestone. Both are finished before the Phase 5 plan is written, and its
 **Rows counted: 308–350 (43 rows).** These run from the Phase 4 retrospective's own
 row (308, 2026-10-17) to the last row written before this retrospective started (PR
 #169, 2026-10-23). Rows 308–322 came before the Phase 5 plan: the Phase 4
-retrospective itself (308–311, PR #151), its follow-ups #149 and #150 (312–317), and
+retrospective itself (308, found counting for it and filed under IS #150; 309–311, PR
+#151), its follow-ups #149 and #150 (312–317), and
 #152 and #155, the log changes finished before the plan (318–322). Rows 323–350 are
 Phase 5 itself: the plan (PR #159) and steps 1–4 (PRs #166–#169). Row 351 onward
 belong to the next range, this retrospective's own rows included.
@@ -1051,10 +1052,11 @@ cells by a script, not listed by hand.
 | `plan-review` | 0 | |
 | `user` | 0 | |
 
-The plan's nine review rounds (PR #159, rows 323, 324, 326–332) are `code-review`: the
-bullet defines it as "a review of code or a PR (`/code-review` rounds)", as Phase 4
-grouped row 304 (a round on PR #145, which changed plans). `plan-review` is for reviews
-outside a PR, such as rows 266–267 (plan decision #21).
+The plan's nine review rounds (PR #159, rows 323, 324, 326–332) are `code-review` (plan
+decision #21). The rule reads both ways for them: the `code-review` bullet says "a
+review of code or a PR (`/code-review` rounds)", while the lead sentence ("grouped by
+what was reviewed") and the `plan-review` bullet ("a review of a plan, …") point the
+other way. #171 makes the three agree.
 
 **`Escaped`:** 39 `pre-merge`, 3 `merged` (341, 343, 349), 1 `crossed-phase` (308).
 Of the three that merged, row 349 is a guard's gap: #168's trigger cases never edited
@@ -1075,8 +1077,8 @@ a row with an author.
 (`grep -oE "found [0-9]+"` over the rows): #151 r3, #153 r1–r3, #157 r1, #159 r1–r5,
 #167 r1–r2. That reads as `/code-review`'s findings limit, so those rounds may have
 had more and the table undercounts where it reads highest. The rows don't record a
-round's effort level or its limit, so which rounds were cut can't be read back (#171
-adds both to a review row). **The owner keeps the default limit** (plan decision #20), reasoning that
+round's effort level or its limit, so which rounds were cut can't be read back (#171 adds
+the effort level to a review row, and a mark when its count equals the limit). **The owner keeps the default limit** (plan decision #20), reasoning that
 `--max-findings all` costs far more tokens and that repeated rounds get there.
 
 **Scoped rounds found less.** The four rounds scoped to the previous round's diff found
@@ -1118,12 +1120,12 @@ new ones. Each verdict cites rows found by the grep or criterion it names.
   and for guards an issue's field had listed (rows 312, 339, 346: "#161's Failure modes
   named neither", "#162's case list named neither"; and 349).
 - **Its target is the biggest `Cause`:** `incomplete-guard`, 22 of 43. A grep for the
-  words rows use for a check that couldn't fail ("couldn't go red", "could never go
-  red", "couldn't fail", "can't fail", "passed them all", "stays green", "stayed green",
-  "still green", "passed blind") finds 13 rows: 323, 326–329, 333–335, 339, 346, 347,
-  349 and 350 (its "Also": a row check that couldn't fail on its own insert). Rows 316
-  and 345 say it in other words ("switched the group check off", "pass blind"), so 13
-  is a floor. Five of the 13 are among the plan's own planned checks (323, 326–329).
+  phrases rows use for a check that couldn't fail finds 14 rows, each phrase with its
+  matches: "couldn't go red" (328, 329, 333–335, 339, 346), "could never go red" (323,
+  327), "couldn't fail" (347, 350: its "Also", a row check that couldn't fail on its own
+  insert), "passed them all" (349), "stays green" (326), "stayed green" (339), "pass
+  blind" (345). Row 316 says it in other words ("switched the group check off"), so 14
+  is a floor. Five of the 14 are among the plan's own planned checks (323, 326–329).
 - **Why it misses.** The field asks for the classes "derived from the change", which in
   practice means the ones the author thinks of. Rows 346 and 349 have one shape: a term
   of a guard that no control removed (`truck_id with =` in the exclusion constraint,
@@ -1154,13 +1156,15 @@ new ones. Each verdict cites rows found by the grep or criterion it names.
 **5. `Caught by` groups (#150). Keep, adjusted (#171).**
 - Rows 315–350 all start with a listed group, and `tally 7` counted them with no hand
   grouping.
-- **The rule reads two ways.** Its lead sentence says a review "is grouped by what was
-  reviewed"; its `code-review` bullet says "a review of code or a PR (`/code-review`
-  rounds)". This retrospective's first draft read the sentence alone and moved the nine
-  plan rounds to `plan-review`; review round 1 on PR #172 read the bullet and row 304's
-  precedent, and the owner reverted it (row 351, plan decision #21).
-- **The adjustment (#171):** the lead sentence says what the bullet says: a
-  `/code-review` round on a PR is `code-review`, whatever the PR changes.
+- **The rule reads two ways.** Its lead sentence ("grouped by what was reviewed") and
+  its `plan-review` bullet ("a review of a plan, …") put a plan PR's rounds in
+  `plan-review`; its `code-review` bullet ("a review of code or a PR (`/code-review`
+  rounds)") puts them in `code-review`. This retrospective's first draft took the first
+  reading and moved the nine plan rounds; review round 1 on PR #172 took the second,
+  and the owner chose it (row 351, plan decision #21).
+- **The adjustment (#171):** the lead sentence and the `plan-review` bullet say what the
+  `code-review` bullet says: a `/code-review` round on a PR is `code-review`, whatever
+  the PR changes; `plan-review` is a review outside a PR.
 
 ### New actions (one)
 

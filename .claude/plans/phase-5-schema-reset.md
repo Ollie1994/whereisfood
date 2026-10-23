@@ -500,21 +500,30 @@ other hosted checks; a missing collation fails the `create table` (`42704`, prob
 locally 2026-10-19 with a made-up `xx-XX-x-icu`).
 
 ### #20 — Review rounds keep `/code-review`'s default findings limit (added in PR #172)
-The owner's call, 2026-10-23, in the Phase 5 retrospective. 12 of Phase 5's 38 review
-rounds found exactly 10 and none more (the retrospective's "Review rounds"), so the
-default limit may cut some rounds; the rows can't show which. `--max-findings all` would
+The owner's call, 2026-10-23, in the Phase 5 retrospective. 12 of the 38 review rounds
+in its range (rows 308–350; 7 of the 24 from the plan on) found exactly 10 and none
+more (the retrospective's "Review rounds"), so the default limit may cut some rounds;
+the rows can't show which. `--max-findings all` would
 report every finding. The owner's reasoning: it costs far more tokens, and running a
-round, fixing, and repeating (scoped to the fixes after the first) gets there. **Rejected:** `--max-findings all` by
+round, fixing, and repeating (scoped to the fixes after the first) gets there.
+**Against it,** recorded with it: #168's round 2, scoped to round 1's fixes, found 2,
+and the trigger gap in #168's cases merged; a later full round, on #169, found it
+(row 349). **Rejected:** `--max-findings all` by
 default. A process decision that outlives the phase: step 7 carries it forward.
 
 ### #21 — A `/code-review` round on a PR is grouped `code-review` (added in PR #172)
-The owner's call, 2026-10-23, after review round 1 on PR #172. The log's `Caught by`
-bullet defines `code-review` as "a review of code or a PR (`/code-review` rounds)", and
-Phase 4 grouped row 304 (a round on PR #145, which changed plans) that way. So the nine
-rounds on PR #159, the plan, stay `code-review`; `plan-review` is for reviews outside a
-PR (rows 266–267). **Rejected:** grouping by what the PR changes, which the
-retrospective's first draft applied: it would regroup rows 304 and 309–311 too, and
-Phase 4's counts would stop comparing. #171 makes the rule's lead sentence say this.
+The owner's call, 2026-10-23, after review rounds 1–2 on PR #172. The log's `Caught
+by` rule reads two ways for a `/code-review` round on a plan PR: its `code-review`
+bullet says "a review of code or a PR (`/code-review` rounds)"; its lead sentence
+("grouped by what was reviewed") and `plan-review` bullet ("a review of a plan, …") say
+the other. The owner chose the bullet's: a `/code-review` round on a PR is
+`code-review`, so the nine rounds on PR #159 stay as written, and `plan-review` is
+for reviews outside a PR (rows 266–267). Row 304 (a round on PR #145, which changed
+plans and `fake-data.ts`) is a partial precedent. **Rejected:** grouping by what the
+PR changes, which the retrospective's first draft applied: it needs a rule for PRs
+that change docs other than plans (PR #151's log-only retrospective, rows 309–311),
+which neither bullet has. #171 makes the lead sentence and the `plan-review` bullet
+say this.
 A process decision that outlives the phase: step 7 carries it forward.
 
 ---
