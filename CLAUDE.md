@@ -296,10 +296,13 @@ outside a review):
    is what let the sweep miss copies in PRs #143 and #147 (rows 301, 306). A
    correction with no commit (an issue body) lists from the edit itself: the old and
    new text. If `dev` was merged into or rebased under the branch since that commit,
-   the diff also holds `dev`'s changes: list only this PR's.
+   the diff also holds `dev`'s changes: list only this PR's. **List each code pattern
+   a fix guards too** (a read `max_rows` can cut, a query with no tie-break): the same
+   defect in sibling code is a copy the claims never name (rows 340, 342, 343).
 2. **Grep every mention** of each across the tracked docs (`CLAUDE.md`, `README.md`,
    `.claude/`), code comments and tests, **every open issue body**, and the PR body if
-   there is one.
+   there is one. For a code pattern, grep the code for its other uses (the call, the
+   query shape) and read each.
 3. **Read every hit.** Fix the stale ones. A hit that restates a rule owned elsewhere
    becomes a pointer to that copy, not a second edit (row 307; rows 294–295 went part
    of the way). History (process-log rows from earlier work, dated entries) stays as
@@ -329,8 +332,11 @@ bash scripts/claims.sh "<rev>" --was <body as last posted> <body now> [--was <ol
 
 It lists added lines with words like "every", "only", "always" or "checked". For each
 hit, do one of three things:
-- back it with a command whose result is in the PR body;
-- reword it;
+- back it with a command whose result is in the PR body, and whose output **could
+  have shown the claim false** (a read of `default` lines can't show a column with
+  none, row 331);
+- reword it, for a claim no command can check. A claim about behaviour that a probe
+  can settle is **probed, not reworded into a hedge** ("could … (not probed)", row 350);
 - or note it is a rule, not a claim of fact.
 
 Record the hit count and how each was settled in the PR body, under the round the

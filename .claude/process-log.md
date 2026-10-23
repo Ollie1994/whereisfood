@@ -130,7 +130,12 @@ findings under "Also". Any other miss is one row, including one found while work
 that a later round also touches (rows 289, 296). This is the practice since row 268;
 rows 268 and 270 predate the counting rule, and the Phase 4 retrospective counts them as
 8 and 9. Most Phase 3 review rows recorded one finding each, so tallies across that
-boundary don't compare (row 308).
+boundary don't compare (row 308). **A review row says whether its count may be cut:**
+its `Caught by` names the effort level passed to the review, or "default"
+(`` `code-review` r2 (default, user-requested) ``), and a count at the round's findings
+limit reads "found 10 (at the limit)". The review doesn't print its limit; 10 is the
+most any Phase 5 round found, and 12 of 38 found exactly that (the Phase 5
+retrospective, plan decision #20).
 
 **`Where`** — exactly one of these three forms, no variants:
 
@@ -191,7 +196,10 @@ enforces it; the groups are its `caught-by` line. Earlier rows stay as written a
 are grouped by hand: rows 308–314 are the first
 range that needs it (the Phase 5 retrospective). The groups follow the Phase 3
 retrospective's rule, as its Phase 4 count applied it. **A review is grouped by what was
-reviewed**, whoever asked for it (`code-review`, `plan-review`). **Anything else is
+reviewed**, whoever asked for it: a `/code-review` round on a PR is `code-review`,
+whatever the PR changes, and a review outside a PR is `plan-review` (Phase 5 plan
+decision #21: PR #159's plan rounds, rows 323, 324 and 326–332, are `code-review`).
+**Anything else is
 grouped by who found it**: `self` while doing the work, `user` the owner. So the
 owner's browser check (row 282) is `user`, and the end-of-phase check run while working
 (row 303) is `self`. If two found it, the group is the one that found it first, and the
@@ -199,8 +207,8 @@ other goes in the text. Older free-text rows name that one first (rows 289, 296)
 
 - **code-review:** a review of code or a PR (`/code-review` rounds), whoever asked for
   it. Put the round in the text (`r2`).
-- **plan-review:** a review of a plan, an issue, the context or a design doc, whoever
-  asked for it (rows 266–267).
+- **plan-review:** a review of a plan, an issue, the context or a design doc outside
+  a PR, whoever asked for it (rows 266–267, the owner's reviews of a draft).
 - **self:** found while doing the work: writing, running, probing, mutation testing,
   re-reading output, or a check run as part of it (the gates, the end-of-phase check of
   row 303).
