@@ -65,9 +65,9 @@ beforeAll(async () => {
   other = await signedInClient();
 }, 30_000);
 
-// A valid row for `table`, so a refusal can only come from a privilege or a policy:
-// with the grant (a control), an insert that would otherwise succeed gets the RLS
-// message instead. Prefixed and on the fixture truck, so one that does insert is removed.
+// A valid row for `table`, which `service_role` could insert: with the INSERT grant (a
+// control), the case got the RLS message with no hint. Prefixed and on the fixture
+// truck, so one that does insert is removed.
 function newRow(table: Table): Record<string, unknown> {
   switch (table) {
     case "trucks":
@@ -79,8 +79,9 @@ function newRow(table: Table): Record<string, unknown> {
   }
 }
 
-// A change to an existing row, and that row's id. Filtered with `.eq("id", …)`: an
-// unfiltered UPDATE or DELETE is refused with `21000` before any privilege is checked.
+// A change to an existing row, and that row's id. Filtered with `.eq("id", …)`: unfiltered,
+// anon's UPDATE and DELETE on `locations` got `21000` ("… requires a WHERE clause"), not
+// `42501` (probed 2026-10-23).
 function target(table: Table): { id: string; change: Record<string, unknown> } {
   switch (table) {
     case "trucks":
@@ -136,7 +137,8 @@ describe("authenticated on users", () => {
   });
 
   it("gets no row when it asks for another user's", async () => {
-    // Apart from the case above, so a policy that hides every row still fails there.
+    // Stays green under a policy that hides every row (the policy dropped, as a control);
+    // the case above is the one that catches that.
     const { data, error } = await me.client.from("users").select("id").eq("id", other.userId);
 
     expect(error).toBeNull();
