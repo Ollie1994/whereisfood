@@ -526,6 +526,32 @@ that change docs other than plans (PR #151's log-only retrospective, rows 309–
 PR #145's log change), which neither bullet has. #171 makes the lead sentence say this;
 review round 2 on PR #172 added the `plan-review` bullet to #171, which the owner's
 reading needs (a review finding; the owner approved it after round 3, 2026-10-23).
+*Refined in PR #173 round 1:* "outside a PR" became "a review that isn't a
+`/code-review` round", since rounds also run on a branch before its PR exists, and the
+lead sentence became "grouped by how it was done"; both keep the owner's reading.
+A process decision that outlives the phase: step 7 carries it forward.
+**Superseded by #22** (PR #173): the `plan-review` group is gone, so this rule for telling
+it from `code-review` no longer applies; step 7 carries #22 forward in its place. The
+text above is as recorded.
+
+### #22 — Every review Claude was asked to run is `code-review`; `plan-review` is gone (added in PR #173)
+The owner's call, 2026-10-23, during PR #173's review; supersedes #21. The log's
+`Caught by` groups are `code-review`, `self` and `user`. **A review Claude was asked
+to run is `code-review`**, however it was done (a `/code-review` round or a
+read-through) and whatever it reviewed. The row's text says how and what: the round
+and its target (the PR, the diff it was scoped to, or the doc read). The owner's own
+findings, their own read of a plan included, are `user`. (Rows 266–267, written before
+the groups, say `user` in their free text; they are reviews Claude ran at the owner's
+request, so under this rule they would be `code-review`.) Why: no checked row (315
+onward) ever used `plan-review` (`tally 7 315 355`: `code-review` 36, `self` 5), and
+deciding which reviews it covered took five review rounds (PR #172 rounds 1–3, PR #173
+rounds 1–2). **Rejected:** keeping it, with a rule for which reviews are plan reviews;
+and recording every review as "a `/code-review` round", which would be false in a row
+for a read-through. **Not** a reason: the `Artifact` column, which names the process
+file that was wrong, not what was reviewed (row 353, a round on PR #172, which changed
+only the plan and the log, has `Artifact` `CLAUDE.md`); nor the `Where`, which names
+no PR for two of its three forms and the whole PR for a scoped round. PR #173 rounds 2–3
+corrected both. A retrospective that wants plan reviews reads each review row's target.
 A process decision that outlives the phase: step 7 carries it forward.
 
 ---
