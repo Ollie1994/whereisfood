@@ -226,7 +226,8 @@ describe("the updated_at trigger and created_by (decision #5)", () => {
   });
 
   it("moves updated_at on an edit of a row that has an author", async () => {
-    // Every admin entry has an author, so this is the edit production makes. A clause
+    // Entries made in the admin screen will carry their author (decision #8; seed rows
+    // and hand-written SQL don't), so this is the edit production will make. A clause
     // that fires only while `created_by` is NULL passes every other case here.
     const author = await createFixtureAuthUser();
     const row = await seedLocation(truckId, { created_by: author });
