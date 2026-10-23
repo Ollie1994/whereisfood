@@ -1,11 +1,13 @@
 import { randomUUID } from "node:crypto";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabase";
-import type { Tables } from "@/lib/database.types";
+import type { Database, Tables } from "@/lib/database.types";
 import type { Location, NewLocation } from "@/lib/types";
 
-// Fixtures and checks more than one integration test file needs: fixture trucks and
-// locations, their cleanup, bulk inserts and the key-set helper. The Phase 5 plan's
-// "`tests/integration/helpers.ts`" table lists them, with the ones step 4 adds.
+// Fixtures and checks more than one integration test file needs: fixture trucks,
+// locations and auth users, their cleanup, the anon and signed-in clients, bulk inserts
+// and the key-set helper. The Phase 5 plan's "`tests/integration/helpers.ts`" table
+// lists them.
 //
 // Safe to import `supabaseAdmin` at module scope because `setup.ts` runs first and has
 // already populated `process.env` and refused any non-local database.
@@ -63,10 +65,61 @@ if (WILDCARDS_ON_THE_PATH_TO_POSTGRES.test(FIXTURE_PREFIX)) {
   );
 }
 
+// Fixture auth users carry the prefix at the start of their email. They are matched in
+// JS with `startsWith`, not with LIKE, so the wildcard guard above doesn't bear on them.
+// `.test` is a reserved TLD: no mail can reach a real inbox.
+function fixtureEmail(userId: string): string {
+  return `${FIXTURE_PREFIX}${userId}@example.test`;
+}
+
+const FIXTURE_PASSWORD = "itest-fixture-password";
+
+// One page of `auth.admin.listUsers`, which is also its default size.
+const AUTH_PAGE = 50;
+
+// Every fixture auth user's id. Every page until a short one: leaked fixtures from
+// interrupted runs are what cleanup is for, and they can fill more than one page.
+async function fixtureAuthUserIds(): Promise<string[]> {
+  const ids: string[] = [];
+  for (let page = 1; ; page += 1) {
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: AUTH_PAGE });
+    if (error) throw error;
+
+    for (const user of data.users) {
+      if (user.email?.startsWith(FIXTURE_PREFIX)) ids.push(user.id);
+    }
+    if (data.users.length < AUTH_PAGE) return ids;
+  }
+}
+
+// ⚠ `users` ROWS BEFORE THEIR AUTH USERS: `users.id` references `auth.users` with no
+// cascade, so deleting an auth user that still has a row fails. Also before any truck,
+// since `users.truck_id` references `trucks` (Phase 5 plan, #7). The Auth admin API
+// doesn't touch `public` tables, so the rows go through PostgREST.
+async function removeFixtureUsers(): Promise<void> {
+  const ids = await fixtureAuthUserIds();
+
+  for (let i = 0; i < ids.length; i += RESET_BATCH) {
+    const { error } = await supabaseAdmin
+      .from("users")
+      .delete()
+      .in("id", ids.slice(i, i + RESET_BATCH));
+    if (error) throw error;
+  }
+
+  for (const id of ids) {
+    const { error } = await supabaseAdmin.auth.admin.deleteUser(id);
+    if (error) throw error;
+  }
+}
+
 // Remove every row THIS SUITE created, and nothing else.
 //
 // ⚠ CHILDREN FIRST: `locations` references `trucks` with no cascade (Phase 5 plan,
 // #7), so deleting a fixture truck that still has locations fails with `23503`.
+//
+// ⚠ FIXTURE USERS BEFORE THE TRUCK LOOP, which returns as soon as no fixture truck is
+// left: after it, a test that made a user and no truck would leak the user.
 //
 // Deleting `locations` rows here is cleanup of fixture rows only; the app never deletes
 // one (`CLAUDE.md`, "Locations").
@@ -81,6 +134,8 @@ if (WILDCARDS_ON_THE_PATH_TO_POSTGRES.test(FIXTURE_PREFIX)) {
 const RESET_BATCH = 100;
 
 export async function resetTables(): Promise<void> {
+  await removeFixtureUsers();
+
   for (;;) {
     const { data, error } = await supabaseAdmin
       .from("trucks")
@@ -258,4 +313,66 @@ export async function readLocation(id: string): Promise<Tables<"locations">> {
   const { data, error } = await supabaseAdmin.from("locations").select().eq("id", id).single();
   if (error) throw error;
   return data;
+}
+
+// A supabase-js client with the anon key and no session: what the browser has before
+// anyone signs in. Not `supabaseClient` from `@/lib/supabase`, which `CLAUDE.md` keeps
+// for browser Auth (Phase 7 splits that file). A new client per call, because
+// `signedInClient()` signs one in and the session lives on the client.
+export function anonClient(): SupabaseClient<Database> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !anonKey) throw new Error("anonClient: missing the Supabase URL or anon key");
+
+  return createClient<Database>(url, anonKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
+
+// ⚠ THE ONLY WAY A TEST CREATES AN AUTH USER. Its email starts with the fixture
+// prefix, so `resetTables()` finds it even when the test fails before its own cleanup;
+// an auth user made any other way leaks. Confirmed at creation, so a password sign-in
+// works with no OTP (Phase 5 plan, open decision 4: checked on the local stack,
+// 2026-10-23). Returns the id, which is generated here so the email can be derived
+// from it, as `seedTruck` generates its truck's.
+//
+// The user has no `users` row: that is what `signedInClient()` adds. A bare author is
+// what the `created_by` trigger cases need, since a `users` row blocks deleting its
+// auth user.
+export async function createFixtureAuthUser(): Promise<string> {
+  const id = randomUUID();
+  const { error } = await supabaseAdmin.auth.admin.createUser({
+    id,
+    email: fixtureEmail(id),
+    password: FIXTURE_PASSWORD,
+    email_confirm: true,
+  });
+
+  if (error) throw error;
+  return id;
+}
+
+// A fixture auth user with a `users` row (not an admin, no truck), signed in: an
+// `authenticated` client and the user's id.
+//
+// ⚠ EACH CALL IS ONE SIGN-IN, and local Auth limits sign-ins and sign-ups to
+// `sign_in_sign_ups` per 5 minutes per IP (`supabase/config.toml`, `[auth.rate_limit]`).
+// Call it once per file or describe, not per test.
+export async function signedInClient(): Promise<{
+  client: SupabaseClient<Database>;
+  userId: string;
+}> {
+  const userId = await createFixtureAuthUser();
+
+  const { error: rowError } = await supabaseAdmin.from("users").insert({ id: userId });
+  if (rowError) throw rowError;
+
+  const client = anonClient();
+  const { error } = await client.auth.signInWithPassword({
+    email: fixtureEmail(userId),
+    password: FIXTURE_PASSWORD,
+  });
+
+  if (error) throw error;
+  return { client, userId };
 }
