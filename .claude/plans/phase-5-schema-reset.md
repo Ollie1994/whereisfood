@@ -210,14 +210,15 @@ per follow-up the retrospective opens, which may be none.
 4. **RLS and grant tests.** `anonClient()`, `signedInClient()` and auth-user cleanup in
    `resetTables()` (with `helpers.test.ts` cases for the new cleanup);
    `tests/integration/rls.test.ts`. With the auth fixtures in place, `schema.test.ts`
-   gains step 3's two `created_by` cases (decision #5): `updated_at` **doesn't** move
+   gains step 3's two `created_by` cases and a third (decision #5): `updated_at` **doesn't** move
    when deleting an auth user sets its rows' `created_by` to NULL (control: the
    trigger without its `WHEN` clause; the author is a bare auth user from
    `createFixtureAuthUser()`, with no `users` row, because `users.id → auth.users` is NO
    ACTION and its row would block the delete: `confdeltype = 'a'` on today's
    `users_id_fkey`, read 2026-10-18), and **does** move on an edit that also sets a
    NULL `created_by` to a user (control: round 6's `old … is not distinct from new …`
-   clause). What each case sees, probed in rolled-back
+   clause), and **does** move on an edit of a row that has an author (control:
+   `when (old.created_by is null)`, which passes the other cases; PR #169 round 2). What each case sees, probed in rolled-back
    transactions on 2026-10-18:
    - no grant: `42501` "permission denied for table …", with a hint listing every
      missing privilege: `GRANT SELECT ON …`, `GRANT INSERT ON …`, and for a filtered
@@ -527,9 +528,9 @@ locally 2026-10-19 with a made-up `xx-XX-x-icu`).
   also its message's `location_source`), and the PR records a negative control per
   case (constraint dropped or altered locally, or `source` altered to `text`; test
   red; restored with `npx supabase db reset`).
-- [ ] `schema.test.ts` also covers step 4's two `created_by` cases: deleting an auth
-  user leaves `updated_at` on its rows unchanged, and an edit that sets a NULL
-  `created_by` to a user moves it; each case's negative control (step 4) turns it red.
+- [ ] `schema.test.ts` also covers step 4's three `created_by` cases: deleting an auth
+  user leaves `updated_at` on its rows unchanged, an edit that sets a NULL
+  `created_by` to a user moves it, and an edit of a row that has an author moves it; each case's negative control (step 4) turns it red.
 - [ ] `rls.test.ts` shows, each refusal asserted as `42501` **plus a hint whose
   privilege list contains that operation's privilege** (step 4):
   - anon and `authenticated` are refused SELECT, INSERT, UPDATE and DELETE on `trucks`
@@ -539,8 +540,10 @@ locally 2026-10-19 with a made-up `xx-XX-x-icu`).
     filtered → `42501`);
   - anon is refused SELECT, INSERT, UPDATE and DELETE on `users`;
   - `authenticated` reads its own `users` row and not another's (rows, filtered by the
-    policy); is refused an INSERT into `users`, including its own id with
-    `is_admin = true` (the other self-escalation path); is refused UPDATE of
+    policy); is refused an INSERT into `users`, including its own row with
+    `is_admin = true` by a caller with **no** `users` row (the other self-escalation
+    path; a caller with a row gets `23505` under an INSERT grant and policy, so it doesn't
+    exercise the path, PR #169 rounds 2–3); is refused UPDATE of
     `is_admin` or `truck_id` on its own row, which is unchanged afterwards (read with
     `service_role`); is refused DELETE of its own row, which still exists afterwards;
   - `service_role` reads and writes all three.

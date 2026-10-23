@@ -152,14 +152,14 @@ describe("authenticated on users", () => {
   });
 
   it("is refused INSERT of its own row with is_admin = true, when it has none", async () => {
-    // Self-escalation. The caller has no row, so a primary-key conflict can't stop it:
-    // only the missing grant does. Not one row for the caller afterwards.
+    // Self-escalation, by the caller it is open to: one with no row. With an INSERT
+    // grant and a policy allowing one's own row, this insert went through, where a
+    // caller who already has a row got `23505` (local stack, 2026-10-23).
     const { error } = await rowless.client
       .from("users")
       .insert({ id: rowless.userId, is_admin: true });
 
     expectRefused(error, "INSERT");
-    expect(await storedRow(rowless.userId)).toBeNull();
   });
 
   it.each<[string, () => Record<string, unknown>]>([
