@@ -1156,9 +1156,10 @@ Aimed where a miss could have been caught earlier: row 349 reached `dev`, and ro
 and 349 were found by review after every control the author ran had gone red.
 
 **1. Negative controls from a rule, kept and re-runnable (#170).**
-- **The evidence.** Rows 346 and 349 (Action 2 above). And every Phase 5 control lives
-  only in a PR body and was run from a scratch script, so nothing re-runs them when the
-  schema changes (the Owners phase adds columns). A hand-run sequence can also carry
+- **The evidence.** Rows 346 and 349 (Action 2 above). And Phase 5's controls are
+  recorded in PR bodies; none is checked in (`git ls-files` has no control or mutation
+  file), so nothing re-runs them when the schema changes (the Owners phase adds
+  columns). A hand-run sequence can also carry
   state from one control into the next: PR #169's body records two code controls re-run
   for that.
 - **The mechanism.** A runner (`scripts/controls.mjs`) and a checked-in list of SQL
