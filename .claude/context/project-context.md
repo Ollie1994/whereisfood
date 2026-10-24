@@ -499,8 +499,8 @@ before the first production deploy (Phase 8)**. Until then every gate is manual
 
 All of these can be switched off without any change in the repo. The CLI token used
 here gets `403` on the secret-scanning API, so they were checked in the GitHub UI; a
-token with the right scopes could read them, which lets the planned CI check they are
-still on.
+token with the right scopes could read them (GitHub's REST docs; not probed here), which
+would let the planned CI check they are still on.
 
 **To build:**
 - **A pre-commit secret scan** (tool chosen then), run from a tracked hooks folder
