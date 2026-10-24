@@ -126,6 +126,30 @@ said otherwise: Phase 4 plan decision #14.
   the timestamp names `npx supabase migration new` makes, which would mix two naming
   conventions in one folder (Phase 5 plan decision #23, the owner's call, amending #3)
 
+**Secrets** (IS #176; the repo is public)
+- Never commit a `.env*` file except `.env.example`, which holds variable names only.
+  `.gitignore` ignores every other `.env*` file, in every folder
+- Never put a real key, token or password in a tracked file (source, tests, docs, the
+  process log) or in issue or PR text. That covers any hosted project's (Supabase,
+  Vercel, R2), any service or account's (a GitHub or SonarQube token, a CLI login), and
+  anyone's password. Local-stack values aren't secrets: the Supabase CLI's local keys
+  and test fixtures such as `helpers.ts`'s `FIXTURE_PASSWORD`
+- A secret that reaches a commit, or issue or PR text, is **rotated**, not just
+  deleted: history keeps it, and a public repo's history is readable by anyone
+- **Where secrets live:** a hosted project's secrets for deploys and CI live in
+  Vercel's environment variables (marked "Sensitive" where Vercel offers it), GitHub
+  Actions secrets and, for Dependabot's runs, Dependabot secrets. A developer's own
+  copies (preview-project keys in `.env.local`, a CLI login token where the CLI stores
+  it) stay on their machine. None goes in a tracked or shared file
+- Every account that can reach the project (GitHub, Supabase, Vercel, Cloudflare, the
+  registrar, their recovery email) uses two-factor authentication by passkey, hardware
+  key or authenticator app, not SMS: set up when the account is created, all checked
+  before the production deploy (the owner, 2026-10-24, IS #176). Which accounts don't
+  meet it yet is `project-context.md`'s, "Pre-deploy automation (planned)"
+- A push that GitHub's push protection blocks is fixed by removing the value from the
+  commits, not by bypassing the block (what is switched on: `project-context.md`,
+  "Pre-deploy automation (planned)")
+
 **db layer (`src/lib/db/`)**
 - It finds and mutates; it decides nothing. Postgres errors propagate unchanged (for
   `23P01`, see Locations below), no function reads the clock (the caller
@@ -239,11 +263,14 @@ Toolchain: the Node floor and npm ≥ 11 under Dependencies.
 | `npm run test:integration` | integration only (fails if it collects zero files) | yes |
 | `npm run test:all` | **every project in `RUNS`** of `scripts/test-all.mjs` (today `unit` + `integration`), checked against the projects `vitest.config.ts` declares; takes no arguments | yes |
 
-**There is no CI — every gate is manual, until deploy.** CI/CD arrives then as its own
-piece of work, designed together: GitHub Actions workflows for the four gates, SAST,
-and branch protection (a repository setting). Don't re-propose it before then (the
-owner's decision "DECISION — Gates stay manual until deploy", 2026-09-06, archived;
-the note above the process log's table says how to read it).
+**There is no CI — every gate is manual, until the production deploy.** CI/CD is Phase
+8's work, one piece designed together and built before that phase's production deploy.
+What it holds (the four gates in GitHub Actions, SAST, branch protection, a pre-commit
+and CI secret scan, and more) is `project-context.md`'s "Pre-deploy automation
+(planned)". Don't re-propose it for an earlier phase. Sources: the owner's decision
+"DECISION — Gates stay manual until deploy" (2026-09-06, archived; the note above the
+process log's table says how to read it). That "deploy" means the production deploy is
+the owner's reading of 2026-10-24 (IS #176).
 Until then the gates are the only enforcement, and `tsc` is one of them in its own
 right: vitest strips types and never type-checks, so a green test run says nothing
 about types. The gate list is four commands, and

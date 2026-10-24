@@ -319,7 +319,7 @@ authoring tool for `SPOTS`).
 | 5 · Schema reset (done) | Squashed baseline: `trucks`, `locations`, `users`; `btree_gist` + exclusion constraint + `CHECK (ends_at > starts_at)` + `updated_at` trigger; RLS + explicit GRANTs (no anon SELECT on `trucks`/`locations`); regenerate types; rewrite `seed.sql`, `db/trucks.ts`, `db/locations.ts` (with the history queries) and the integration tests (constraint, cancelled rows don't block, CHECK, RLS) |
 | 6 · Live read path | `GET /api/live`; `useLocations` (polling, timer, marker diffing); popup with freshness text and Instagram link; replace `fake-data.ts` and delete `map-types.ts`; decide where the `is_active` filter goes (Phase 5 plan, open decision 6); the popup's text for a NULL `label` (Phase 5 plan decision #12); a hosted Supabase project for previews, with the hosted checks Part 1's "Database" lists; **first preview deploy**: check `x-vercel-cache` MISS → HIT → STALE, measure real requests per visit in Vercel's usage dashboard, record Vercel's build Node/npm (#139) |
 | 7 · Admin | Magic-link login, admin only (public sign-ups disabled); session and `is_admin` checks in `proxy.ts` **and** every admin route; truck CRUD; mobile-first location entry; edit; cancel; overlap → 409; the morning checklist |
-| 8 · Launch | Supabase Pro (backups); tiles on R2 (custom domain, CORS); production env; security headers; Swedish privacy note; takedown procedure (one transaction: delete the truck's locations, clear or delete each `users` row pointing at it, then delete the truck; Phase 5 plan #7); tell trucks they're listed; acquisition plan; runbook (Vercel Attack Mode, usage emails); Vercel Pro + Spend Management before the first marketing push |
+| 8 · Launch | Supabase Pro (backups); tiles on R2 (custom domain, CORS); production env; security headers; Swedish privacy note; takedown procedure (one transaction: delete the truck's locations, clear or delete each `users` row pointing at it, then delete the truck; Phase 5 plan #7); tell trucks they're listed; acquisition plan; runbook (Vercel Attack Mode, usage emails); Vercel Pro + Spend Management before the first marketing push; **before the deploy**, "Pre-deploy automation (planned)": CI/CD, SAST, secret scanning, branch protection, 2FA on every account, and rotating every credential |
 | later | Owners (claim flow, owner dashboard, override rules, custom SMTP); optional automation (Meta Business Discovery captions in the admin screen, a scheduler) |
 
 ## Data model (built in Phase 5)
@@ -480,6 +480,72 @@ Vercel's free cron.
   The browser needs the anon client only for Auth.
 - Admin UI is **mobile-first**: design and test at phone width.
 
+## Pre-deploy automation (planned)
+
+Planned by the owner on 2026-10-24 (IS #176) as **one piece of work, designed together,
+before the first production deploy (Phase 8)**. Until then every gate is manual
+(`CLAUDE.md`, "Testing"). Nothing below exists yet unless marked **on**.
+
+**Already on** (repository and account settings, the owner, 2026-10-24):
+- **GitHub Secret Protection and push protection** on the repository, and push
+  protection for the owner's account. A history scan found no secret.
+- **Dependabot alerts and malware alerts**, with the dependency graph. One auto-triage
+  rule is enabled, GitHub's preset "Dismiss low-impact alerts for development-scoped
+  dependencies" (the owner's screenshot, 2026-10-24). Which alerts it has dismissed,
+  including any on `eslint-config-next`, an exact pin in `devDependencies`, is reviewed
+  when the CI is designed. The preset "Dismiss package malware alerts" is disabled.
+- **Two-factor authentication** on the owner's GitHub account, **by SMS for now**,
+  switched before the production deploy (the rule is `CLAUDE.md`'s, "Secrets").
+
+All of these can be switched off without any change in the repo. They were checked in
+the GitHub UI: the CLI token used here, though it has admin rights, gets `403` from the
+secret-scanning, Dependabot-alerts and vulnerability-alerts APIs, and no
+`security_and_analysis` field (probed 2026-10-24).
+
+**To build:**
+- **A pre-commit secret scan** (tool chosen then), run from a tracked hooks folder
+  through `core.hooksPath`. **The same scan runs in CI**, because `--no-verify`, or a
+  clone that never set `core.hooksPath`, skips a local hook. It covers what
+  `.gitignore` can't: a value pasted into a tracked file, or `git add -f`.
+- **GitHub Actions running the four gates** on every PR into `dev` (and into `main`, if
+  one is created for production). `test:all` needs a local Supabase in the job.
+- **SAST.** SonarQube Cloud is the owner's preferred tool; self-hosted SonarQube would
+  need a server. CodeQL, GitHub's own, is the alternative or a complement. Confirm the
+  free tier for public repositories and the setup when it's built. Plus a dependency
+  check in CI (e.g. `npm audit`).
+- **Dependabot security updates** (automatic PRs), only once the gates run on PRs.
+  `next`, `eslint-config-next` and `maplibre-gl` are exact pins upgraded deliberately,
+  each with a browser check of `/map` (Phase 4 plan decision #10). A Dependabot PR is
+  reviewed like any other, and the pinned packages keep their browser check.
+- **Branch protection** on `dev` (and `main`, if created): PR required, the checks
+  required, no force-push.
+- **Secrets in CI runs:** a workflow that Dependabot triggers reads the Dependabot
+  secrets store, not Actions secrets, and a PR from a fork reads neither. Required
+  checks are set per branch, so a check that needs a token (SonarQube Cloud's, say)
+  fails on those PRs and blocks them. The ways round it: a Dependabot copy of the token,
+  or a job condition (`if:`) that skips the check, which GitHub reports as passing.
+  **A skip means SAST didn't run on that PR**, so Phase 8 decides what covers fork PRs
+  (e.g. CodeQL, which needs no token). GitHub's documented behaviour, not probed: no CI
+  exists yet.
+
+**Before the production deploy:**
+- **Check every account against `CLAUDE.md`'s two-factor rule** ("Secrets"), the
+  owner's GitHub included (off SMS), and keep the recovery codes offline. The other
+  accounts' 2FA hasn't been checked yet.
+- **Rotate every credential**, in case one leaked: every key, token and secret that
+  existed before the deploy, or replace it with a new project's. A new production
+  Supabase project has new keys by construction. Reuse nothing from the preview setup.
+  Local-stack keys aren't secrets and are out of scope. Check Supabase's rotation docs
+  then: its newer and legacy API keys rotate differently.
+
+**Not planned, an option to revisit:** a secrets manager (Doppler, Infisical, 1Password
+CLI, or dotenvx-encrypted env files, which `supabase/.gitignore`'s `.env.keys` line
+anticipates), if several people or environments make Vercel and GitHub secrets hard
+to manage. dotenvx commits its encrypted env files, which the root `.gitignore`'s `.env*`
+ignores, so adopting it means un-ignoring those files there, while `.env.keys`, its
+private key, stays ignored (as `supabase/.gitignore` already has it). The ignore rule and
+where secrets live meanwhile are `CLAUDE.md`'s ("Secrets").
+
 ## Pricing and upgrade triggers (researched 2026-10-10)
 
 | Service | Plan | When | ≈ per month |
@@ -538,7 +604,7 @@ mechanics, hand-off rule, custom SMTP provider.
 
 These hold in both the current state and the target design.
 
-**Owned by `CLAUDE.md`:** Supabase clients and keys, grants and RLS, architecture
+**Owned by `CLAUDE.md`:** Supabase clients and keys, secrets, grants and RLS, architecture
 layers, the db layer, `proxy.ts`, API responses (`withErrorHandling`, the `{ error }`
 shape), the `/api/live` rules, locations, UI rules and time. This part doesn't restate
 them. Part 1's "Database" and Part 2 do describe several of them (the db layer, RLS
@@ -620,7 +686,7 @@ round settled. A trailing "(IS #n)" or "(PR #n)" names the issue or PR that adde
 decision, and any other parenthetical the part of the row that source backs.
 
 Rows for decisions settled between phases are marked as `CLAUDE.md` "Process Log"
-says. None are marked today.
+says.
 
 | Decision or issue | What it settled | Where the rule lives |
 |---|---|---|
@@ -638,4 +704,9 @@ says. None are marked today.
 | Phase 5 #12 | `label` is nullable; the popup's text for a missing one is Phase 6's | Part 2's Phase map (Phase 6 row) |
 | Phase 5 #1, #19; open decisions 2, 6; PR #167 round 5 (`max_rows`) | Phase 6 tasks: delete `map-types.ts`; check `sv-SE-x-icu`, both extensions and `max_rows` on the hosted project; decide where the `is_active` filter goes | Part 1 "Database" (hosted checks); Part 2's Phase map (Phase 6 row) |
 | Phase 5 #9, #11, #13 | Phase 7 tasks: the checklist reuses `findLocationsOverlapping` with its own window; truck writes come with the truck screen; the Gothenburg box is checked by the validator, never a database CHECK | Part 1 "Database" (the db layer, coordinates) |
+| **between phases**, 2026-10-24, IS #176 | The owner's call: CI/CD (the four gates in GitHub Actions), SAST (SonarQube Cloud preferred), a pre-commit and CI secret scan, Dependabot security updates once CI runs, and branch protection are one piece of Phase 8's work, built before its production deploy | Part 2 "Pre-deploy automation (planned)"; `CLAUDE.md` "Testing" |
+| **between phases**, 2026-10-24, IS #176 | The owner's reading: the "deploy" in the 2026-09-06 decision "Gates stay manual until deploy" is the official production deploy, not Phase 6's preview deploy | `CLAUDE.md` "Testing" |
+| **between phases**, 2026-10-24, IS #176 | The owner's call: two-factor authentication on every account that can reach the project, by passkey, hardware key or authenticator app, not SMS; set up as each account is created, checked again before the production deploy | `CLAUDE.md` Hard Rules ("Secrets", the rule); Part 2 "Pre-deploy automation (planned)" (which accounts meet it, and the pre-deploy check) |
+| **between phases**, 2026-10-24, IS #176 | The owner's call: every credential that existed before the production deploy is rotated, or replaced by a new project's, before it | Part 2 "Pre-deploy automation (planned)" (the pre-deploy rotation); `CLAUDE.md` Hard Rules ("Secrets", rotating a secret that reached a commit) |
+| **between phases**, 2026-10-24, IS #176 | The owner's call: hosted secrets for deploys and CI live in Vercel environment variables, GitHub Actions and Dependabot secrets; developers' own copies stay on their machine; none in a tracked or shared file | `CLAUDE.md` Hard Rules ("Secrets") |
 | IS #170 (PR #174) | Schema guards get negative controls in `tests/controls/`, run by `node scripts/controls.mjs` | `CLAUDE.md` "Testing"; `.claude/commands/create-issues.md` "Failure modes" |

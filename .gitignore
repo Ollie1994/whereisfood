@@ -30,11 +30,10 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-# .env.example up to github, but ignore all other .env files
-# .env*
-.env.local
-.env*.local
+# env files: every .env* file is ignored except .env.example, which holds names only
+# (CLAUDE.md, Hard Rules, "Secrets"). No slash, so it matches in every folder.
+.env*
+!.env.example
 
 # vercel
 .vercel
