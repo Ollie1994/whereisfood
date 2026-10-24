@@ -116,6 +116,24 @@ said otherwise: Phase 4 plan decision #14.
   the stack's default privileges on that table, as `0001_baseline.sql` does (Phase 5
   plan decision #6)
 
+**db layer (`src/lib/db/`)**
+- It finds and mutates; it decides nothing. Postgres errors propagate unchanged (a
+  `23P01` reaches the service with its code), no function reads the clock (the caller
+  passes `cancelledAt`, a window, a `before`), and no function deletes (Phase 5 plan
+  decision #10)
+- Return the selected row **uncast, never `as Location`**: uncast, `tsc` checks that
+  the select has every key of `Location`; a cast also compiles when the column list
+  leaves one out (decision #18). `tsc` doesn't see an *extra* column, so the key-set
+  tests in `db-locations.test.ts` and `db-trucks.test.ts` guard that side
+- Every `locations` select names its columns through `LOCATION_COLUMNS`: one string
+  literal (a computed string loses supabase-js's row-type inference), without
+  `created_by` (decision #8)
+- A read without a `limit` selects with an exact count and calls `assertAllRows`
+  (`src/lib/db/complete.ts`), so `max_rows` can't cut it silently (PR #167)
+- Hand-written SQL that clears `created_by` while editing a row sets `updated_at =
+  now()` itself: the `locations_updated_at` trigger skips every UPDATE that clears
+  `created_by`, not only the one an auth user's deletion runs (decision #5)
+
 **proxy.ts**
 - File is `src/proxy.ts` — this is the Next.js 16 name for middleware
 - **Never** export `runtime` (or any route segment config) from this file. Next 16
@@ -151,6 +169,9 @@ said otherwise: Phase 4 plan decision #14.
   (Phase 7)
 - Locations are never deleted (except a takedown, which deletes the truck's whole
   history). Ended (`ends_at <= now()`) and cancelled (`cancelled_at`) are filters
+- Foreign keys to `trucks` stay `NO ACTION`, never `ON DELETE CASCADE`: deleting a
+  truck with history then fails (`23503`), so no "delete truck" action can wipe its
+  history silently (Phase 5 plan decision #7)
 - `starts_at` and `ends_at` are both required; a human always knows the end time
 
 **Time**
@@ -358,6 +379,11 @@ Record the hit count and how each was settled in the PR body, under the round th
 check comes before (the first round's goes in the body as opened). The script lists
 claims, it doesn't judge them; its header says what it can't see.
 
+**The round itself: `/code-review` at its default findings limit**, not `--max-findings
+all` (the owner's call, Phase 5 plan decision #20): fix and repeat, each later round
+scoped to the previous round's fixes. A round that finds as many as the limit may have
+been cut; its log row records the level and limit (the log's "Columns", `Caught by`).
+
 ---
 
 ## Process Log — always record misses
@@ -382,8 +408,9 @@ when the miss is mine:**
 work. The bar is *"this says something about the process."* Bugs belong in GitHub
 issues; this file is for what the bug reveals about how we work.
 
-**Settled decisions go in the current plan's numbered decisions**, with their rationale,
-so a resolved question stays resolved and is not re-litigated next session. The
+**Settled decisions go in the current plan's numbered decisions** (Phase 4 plan
+decision #14), with their rationale, so a resolved question stays resolved and is not
+re-litigated next session. The
 end-of-phase reconciliation carries forward the ones that outlive the phase (the
 milestone-retrospective procedure's part 6, in the log's "How to use it"). New
 decisions don't go in the process log; the dated ones already in it stay as written,

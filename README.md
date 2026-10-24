@@ -11,10 +11,10 @@ themselves later.
 It fills a real gap: Gothenburg has had no central food-truck map since Streetkäk
 shut down in 2017.
 
-> **Status: Phase 5 of 8 (schema reset).** The map renders in the browser from
-> **fake data**; the app doesn't read from or write to the database yet. Phase 4 removed the
-> old design (automatic ingestion from Make.com and email, plus a Swedish text
-> parser), and Phase 5 replaces its database schema; see
+> **Status: Phase 5 of 8 (schema reset) done; Phase 6 (live read path) next.** The map
+> renders in the browser from **fake data**; the app doesn't read from or write to the
+> database yet. Phase 4 removed the old design (automatic ingestion from Make.com and
+> email, plus a Swedish text parser), and Phase 5 replaced its database schema; see
 > [Project status](#project-status).
 
 ---
@@ -90,7 +90,7 @@ The working rules live in [`CLAUDE.md`](CLAUDE.md) and the design reference in
 | 2 · Ingestion        | Email and webhook endpoints, Supabase schema and seed | ✅ Done; endpoints removed in Phase 4, schema replaced in Phase 5 |
 | 3 · Parser           | Swedish text parser for social-media captions | Stopped and removed in Phase 4 |
 | 4 · Housekeeping     | Remove the old design, upgrade dependencies, rewrite the docs | ✅ Done |
-| 5 · Schema reset     | A fresh 3-table schema (`trucks`, `locations`, `users`) | 🟡 In progress |
+| 5 · Schema reset     | A fresh 3-table schema (`trucks`, `locations`, `users`) | ✅ Done |
 | 6 · Live read path   | `/api/live`, polling, first preview deploy | ⬜ Not started |
 | 7 · Admin            | Admin login and location entry | ⬜ Not started |
 | 8 · Launch           | Map tiles on Cloudflare R2, production deploy | ⬜ Not started |
@@ -115,7 +115,8 @@ branch and tag.
   database layer reads them, with the `service_role` key. The dev seed has
   three trucks and four weeks of location history relative to the day it is loaded.
 - The database layer (`src/lib/db/`) the live read path and the admin screen will use.
-- Unit tests, and integration tests for the database layer against a local Supabase.
+- Unit tests, and integration tests against a local Supabase for the schema (its
+  constraints, grants and row-level security) and the database layer.
 
 ### What does not exist yet
 

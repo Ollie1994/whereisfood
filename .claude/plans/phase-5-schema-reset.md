@@ -1,8 +1,9 @@
 # Phase 5 — Schema reset
 
-**Planned:** 2026-10-18 · **Status:** agreed through PR #159's review (its
+**Planned:** 2026-10-18 · **Status:** **done.** Agreed through PR #159's review (its
 `/code-review` rounds are in the PR body and the process log from row 323); in progress
-from its merge
+from its merge; done with step 7's reconciliation (#165), which carried the decisions
+that outlive the phase into `project-context.md` and `CLAUDE.md`
 **Source:** `project-context.md` Part 2 ("Phase map", "Data model (Phase 5)", "RLS and
 grants (Phase 5)") and the `/create-milestone` conversation of 2026-10-18. Where this
 plan and `project-context.md` disagree, **this plan wins** until step 7 reconciles the
