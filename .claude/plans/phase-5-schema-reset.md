@@ -1,9 +1,11 @@
 # Phase 5 — Schema reset
 
-**Planned:** 2026-10-18 · **Status:** **done.** Agreed through PR #159's review (its
-`/code-review` rounds are in the PR body and the process log from row 323); in progress
-from its merge; done with step 7's reconciliation (#165), which carried the decisions
-that outlive the phase into `project-context.md` and `CLAUDE.md`
+**Planned:** 2026-10-18 · **Status:** **done when PR #175 merges.** Agreed through PR
+#159's review (its `/code-review` rounds are in the PR body and the process log from
+row 323); in progress from its merge. Step 7's reconciliation (#165, PR #175), the last
+step, carries the decisions that outlive the phase into `project-context.md` and
+`CLAUDE.md`; this line and the ticked Closing criterion describe the plan as of that
+merge
 **Source:** `project-context.md` Part 2 ("Phase map", "Data model (Phase 5)", "RLS and
 grants (Phase 5)") and the `/create-milestone` conversation of 2026-10-18. Where this
 plan and `project-context.md` disagree, **this plan wins** until step 7 reconciles the
@@ -288,7 +290,7 @@ and `npx supabase db reset` rebuilds them. A baseline written fresh is readable 
 schema; today's `0001` warns that it isn't the current schema and must be read with
 `0002`/`0003`. **Rejected:** a `0007` that drops the old tables (six files of dead
 history stay as the record of the schema), and a timestamp name (mixes two naming
-conventions in one folder).
+conventions in one folder). **Amended by #23:** later migrations are `0002_…`.
 
 ### #4 — The overlap constraint, and why the CHECK is part of it
 ```sql
@@ -555,6 +557,27 @@ no PR for two of its three forms and the whole PR for a scoped round. PR #173 ro
 corrected both. A retrospective that wants plan reviews reads each review row's target.
 A process decision that outlives the phase: step 7 carries it forward.
 
+### #23 — Later migrations are numbered `0002_…`; amends #3 (added in PR #175)
+The owner's call, 2026-10-24, taking Claude's recommendation in PR #175 (after its
+round 2). #3 named the baseline and rejected a timestamp name for it; it didn't say
+how later migrations are named, and round 1 of PR #175 asked. Later migrations are
+`0002_<name>.sql`, `0003_…`, so the folder keeps one convention, #3's reason. The CLI
+applies numbered names: it applied `0001`–`0006` before the squash. **Rejected:** the
+timestamp names `npx supabase migration new` makes (`<YYYYMMDDHHMMSS>_name.sql`): they
+sort after `0001`, so they'd work, but they mix two conventions in one folder. A rule
+that outlives the phase: step 7 carries it into `CLAUDE.md`.
+
+### #24 — Between phases, a decision waits in the context's table (added in PR #175)
+The owner's call, 2026-10-24, taking Claude's recommendation in PR #175 (after its
+round 2). After a reconciliation merges and before the next plan exists, there is no
+current plan (`CLAUDE.md`'s header, PR #175 round 1), so "the current plan's numbered
+decisions" has no home. A decision settled then goes into `project-context.md`'s
+"Decisions carried forward" table, through an issue and PR. The next plan numbers it
+(`/create-milestone`'s Output Format), and that plan's reconciliation carries it
+(part 6 of the milestone-retrospective procedure). **Rejected:** appending it to the
+finished plan, which `CLAUDE.md` then calls history. A process decision that outlives
+the phase: step 7 carries it forward.
+
 ---
 
 ## Acceptance Criteria
@@ -566,7 +589,8 @@ types` diff (clean), both greps (no hits), and the seed check (as SQL with
 `findLocationsOverlapping`'s predicate: a live-window row on Burgarbilen, one a week
 earlier on Taco Loco, none on Vintervilan). The schema, RLS and control criteria rest on
 PRs #168, #169 and #174's records; the map's on #166's; the DST criterion on open
-decision 3. Closing: steps 5–6 merged (PRs #172, #173, #174); step 7 is PR #175, so
+decision 3. The Docs criteria describe step 2 and rest on PR #167, which made them
+true; PR #175 since moved `README.md`'s status to Phase 5 done, as step 7 should. Closing: steps 5–6 merged (PRs #172, #173, #174); step 7 is PR #175, so
 that box holds once it merges. PR #175's body has the outputs.
 
 **Schema (steps 2–4)**

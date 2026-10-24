@@ -20,7 +20,9 @@ design**, which Phase 4 removed.
 
 The plan is also where the numbered decision records live (`#1`, `#2`, …) —
 those are the reasoning behind rules the context states as bare facts, and an issue
-saying "see the plan" means that section.
+saying "see the plan" means that section. A decision settled between phases waits in
+the context's "Decisions carried forward" table until the next plan numbers it
+(Phase 5 plan decision #24).
 
 The removed design (ingestion lanes, parser, geocoding) is archived on the
 `archive/parser-lanes` branch and tag. Don't re-add any of it, or Realtime, cron or
@@ -121,21 +123,23 @@ said otherwise: Phase 4 plan decision #14.
   plan decision #6)
 - New migrations are numbered after the baseline: `0002_<name>.sql`, `0003_…`, never
   the timestamp names `npx supabase migration new` makes, which would mix two naming
-  conventions in one folder (the owner's call, 2026-10-24, PR #175, extending Phase 5
-  plan decision #3)
+  conventions in one folder (Phase 5 plan decision #23, the owner's call, amending #3)
 
 **db layer (`src/lib/db/`)**
 - It finds and mutates; it decides nothing. Postgres errors propagate unchanged (for
   `23P01`, see Locations below), no function reads the clock (the caller
   passes `cancelledAt`, a window, a `before`), and no function deletes (Phase 5 plan
-  decision #10)
-- Return the selected row **uncast, never `as Location`**: uncast, `tsc` checks that
-  the select has every key of `Location`; a cast also compiles when the column list
-  leaves one out (Phase 5 plan decision #18). `tsc` doesn't see an *extra* column, so the key-set
-  tests in `db-locations.test.ts` and `db-trucks.test.ts` guard that side
-- Every `locations` select names its columns through `LOCATION_COLUMNS`: one string
-  literal (a computed string loses supabase-js's row-type inference), without
-  `created_by` (Phase 5 plan decision #8)
+  decision #10). The one delete, a takedown, is a manual SQL procedure Phase 8 writes
+  (Phase 5 plan decision #7), not app code
+- Return the selected row **uncast, never `as Location` or `as Truck`**: uncast, `tsc`
+  checks that the select has every key of the row type; a cast also compiles when the
+  column list leaves one out (Phase 5 plan decision #18). `tsc` doesn't see an *extra*
+  column, so a key-set test per table guards that side (`db-locations.test.ts`,
+  `db-trucks.test.ts`), and a new table's reads get one
+- Every select names its columns through its table's constant, `LOCATION_COLUMNS` or
+  `TRUCK_COLUMNS`: one string literal each (a computed string loses supabase-js's
+  row-type inference, issue #48). `LOCATION_COLUMNS` leaves out `created_by` (Phase 5
+  plan decision #8)
 - **`max_rows` cuts a list read with no error** (limit 2000 over 1001 rows returned
   1000, `locations.ts`'s probe). So a list read without a `limit` selects with an exact
   count and calls `assertAllRows` (`src/lib/db/complete.ts`), and one with a `limit`
@@ -430,7 +434,8 @@ issues; this file is for what the bug reveals about how we work.
 decision #14), with their rationale, so a resolved question stays resolved and is not
 re-litigated next session. **Between phases, with no current plan**, one goes into
 `project-context.md`'s "Decisions carried forward" table, through an issue and PR like
-any doc change, and the next plan takes it up (the owner's call, 2026-10-24, PR #175). The
+any doc change, and the next plan takes it up as a numbered decision (Phase 5 plan
+decision #24, the owner's call). The
 end-of-phase reconciliation carries forward the ones that outlive the phase (the
 milestone-retrospective procedure's part 6, in the log's "How to use it"). New
 decisions don't go in the process log; the dated ones already in it stay as written,

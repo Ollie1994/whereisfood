@@ -63,6 +63,8 @@ Save the plan to `.claude/plans/phase-<N>-<short-name>.md` using this structure:
 <every file touched or created, with a one-line description>
 
 ## Steps
+<first, always: step 0, this plan file, and CLAUDE.md's "Current phase plan" line
+pointing at it (between phases that line says there is none)>
 <strict ordered list — each step names the file and function being worked on>
 <then, always: the closing steps of the milestone-retrospective procedure in
 `.claude/process-log.md` ("How to use it"), as that procedure orders them>
@@ -70,7 +72,9 @@ Save the plan to `.claude/plans/phase-<N>-<short-name>.md` using this structure:
 ## Rationale
 <key decisions and why, numbered: one `### #N — <decision>` heading per decision.
 These numbered decisions are where settled decisions live (CLAUDE.md, "Process Log"):
-one settled mid-phase is appended with the next number.>
+one settled mid-phase is appended with the next number. The first ones take up each
+row of project-context.md's "Decisions carried forward" table added since the last
+plan's reconciliation, one decision per row, citing it (Phase 5 plan decision #24).>
 
 ## Acceptance Criteria
 <one bullet per item — specific and unambiguous>

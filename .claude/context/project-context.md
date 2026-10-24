@@ -145,8 +145,10 @@ below as "#n".
 - Foreign keys to `trucks` (`locations.truck_id`, `users.truck_id`) and `users.id →
   auth.users` are `NO ACTION`: deleting a truck with history fails with `23503`, so
   only the takedown removes history (#7). **The exception is `locations.created_by →
-  auth.users`, `on delete set null`** (#8): deleting an auth user clears `created_by`
-  on every row they wrote, and doesn't fail.
+  auth.users`, `on delete set null`** (#8): deleting an auth user with no `users` row
+  clears `created_by` on every row they wrote. One who has a `users` row (every admin
+  and owner) can't be deleted until that row is: `users_id_fkey` refuses it, `23503`,
+  and `created_by` stays (probed in a rolled-back transaction, 2026-10-24).
 - RLS on all three; per table, `revoke all` from `anon`, `authenticated` and
   `service_role`, then the grants of Part 2's table (#6). The one policy is
   `users_select_own`.
@@ -619,8 +621,8 @@ Log").
 | IS #150, Phase 5 #22 (PR #173) | `Caught by` starts with one group: `code-review`, `self` or `user`. Every review Claude was asked to run is `code-review`, however it was done; `plan-review` is gone | the log's "Columns" (`Caught by`) and its `values` block |
 | Phase 5 #20 (PR #172) | Review rounds keep `/code-review`'s default findings limit; a row records the round's level and limit | `CLAUDE.md` "Review rounds"; the log's "Columns" |
 | Phase 5 #5, #8, #10, #18 | The db layer's rules, and the SQL rule the `updated_at` trigger's `WHEN` needs | `CLAUDE.md` "Hard Rules" ("db layer") |
-| Phase 5 #3; owner, 2026-10-24 (PR #175) | The baseline is `0001_baseline.sql`; a timestamp name was rejected for it ("mixes two naming conventions in one folder"). The owner extended it: later migrations are `0002_<name>.sql`, `0003_…`, never `npx supabase migration new`'s timestamp names | `CLAUDE.md` "Hard Rules" ("Supabase") |
-| Owner, 2026-10-24 (PR #175) | Between phases, with no current plan, a settled decision goes in this table through an issue and PR, and the next plan takes it up | `CLAUDE.md` "Process Log" |
+| Phase 5 #3, #23 (PR #175) | The baseline is `0001_baseline.sql`; later migrations are `0002_<name>.sql`, `0003_…`, never `npx supabase migration new`'s timestamp names | `CLAUDE.md` "Hard Rules" ("Supabase") |
+| Phase 5 #24 (PR #175) | Between phases, with no current plan, a settled decision goes in this table through an issue and PR; the next plan takes it up as a numbered decision, and its reconciliation carries it | `CLAUDE.md` "Process Log"; the log's "How to use it", part 6; `/create-milestone`'s Output Format |
 | Phase 5 #6, #7 | Revoke, then grant per table; foreign keys to `trucks` stay `NO ACTION` | `CLAUDE.md` "Hard Rules" ("Supabase", "Locations") |
 | Phase 5 #12 | `label` is nullable; the popup's text for a missing one is Phase 6's | Part 2's Phase map (Phase 6 row) |
 | IS #170 (PR #174) | Schema guards get negative controls in `tests/controls/`, run by `node scripts/controls.mjs` | `CLAUDE.md` "Testing"; `.claude/commands/create-issues.md` "Failure modes" |
