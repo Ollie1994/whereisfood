@@ -132,9 +132,15 @@ said otherwise: Phase 4 plan decision #14.
 - Every `locations` select names its columns through `LOCATION_COLUMNS`: one string
   literal (a computed string loses supabase-js's row-type inference), without
   `created_by` (Phase 5 plan decision #8)
-- A list read without a `limit` selects with an exact count and calls `assertAllRows`
-  (`src/lib/db/complete.ts`), so `max_rows` can't cut it silently (PR #167). A
-  single-row read (`.single()`, `.maybeSingle()`) needs neither
+- **`max_rows` cuts a list read with no error** (limit 2000 over 1001 rows returned
+  1000, `locations.ts`'s probe). So a list read without a `limit` selects with an exact
+  count and calls `assertAllRows` (`src/lib/db/complete.ts`), and one with a `limit`
+  throws before the request unless it is an integer from 1 to `MAX_ROWS`, as
+  `listRecentLocationsForTruck` does (PR #167). That bound holds only while the API's
+  `max_rows` is at least `MAX_ROWS`: locally `complete.test.ts` pins `MAX_ROWS` to
+  `config.toml` and `db-locations.test.ts` fails if the API returns fewer; a hosted
+  project is Phase 6's to check. A single-row read (`.single()`, `.maybeSingle()`)
+  needs neither
 - Hand-written SQL that clears `created_by` while editing a row sets `updated_at =
   now()` itself: the `locations_updated_at` trigger skips every UPDATE that clears
   `created_by`, not only the one an auth user's deletion runs (Phase 5 plan decision #5)
@@ -418,7 +424,9 @@ issues; this file is for what the bug reveals about how we work.
 
 **Settled decisions go in the current plan's numbered decisions** (Phase 4 plan
 decision #14), with their rationale, so a resolved question stays resolved and is not
-re-litigated next session. The
+re-litigated next session. **Between phases, with no current plan**, one goes into
+`project-context.md`'s "Decisions carried forward" table, through an issue and PR like
+any doc change, and the next plan takes it up. The
 end-of-phase reconciliation carries forward the ones that outlive the phase (the
 milestone-retrospective procedure's part 6, in the log's "How to use it"). New
 decisions don't go in the process log; the dated ones already in it stay as written,

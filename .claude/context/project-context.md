@@ -13,8 +13,9 @@ reconciled at the end of Phase 5 (#165). It has three parts:
    code doing today".
 2. **Target design** — what Phases 5–8 build, condensed from `.claude/transition.md`
    (now history). Trust it for "what are we building", never as a description of the
-   code, except the sections marked "built in Phase 5", which Part 1 says the schema
-   matches.
+   code. The sections marked "built in Phase 5" are the exception for what they say
+   about the **schema** (Part 1's "Database" says it matches them); what they say about
+   services, routes and the 409 mapping is still target design.
 3. **Standing rules** — conventions that hold in both.
 
 The current phase plan wins over this file. This file is reconciled with reality at
@@ -339,7 +340,7 @@ columns come with the Owners phase.
     tstzrange(starts_at, ends_at) WITH &&
   ) WHERE (cancelled_at IS NULL)
   ```
-  A violation raises SQLSTATE `23P01`; the service maps it to **409** with the
+  A violation raises SQLSTATE `23P01`; the service (Phase 7) maps it to **409** with the
   Swedish "överlappar" message. Never auto-resolve, replace or delete.
 - Rows are **never deleted**, except a takedown. "Ended" (`ends_at <= now()`) and
   "cancelled" (`cancelled_at IS NOT NULL`) are filters.
@@ -384,7 +385,7 @@ powers the checklist, "recent places" and proof of value to trucks.
   table above, **`service_role` included**, as `0001_baseline.sql` does: the result
   doesn't depend on the defaults. No `service_role` policies:
   it bypasses RLS. The rule itself is `CLAUDE.md`'s.
-- All writes, `/api/live` and the admin screen's reads go through server-side routes
+- (Target, Phases 6–7: no route exists yet.) All writes, `/api/live` and the admin screen's reads go through server-side routes
   (route → service → db layer; only the db layer uses `supabaseAdmin`).
 - Unverified third-party reports say free projects need explicit GRANTs for API access
   from 2026-10-30; already covered by the rule above.
@@ -532,12 +533,13 @@ mechanics, hand-off rule, custom SMTP provider.
 
 These hold in both the current state and the target design.
 
-**Owned by `CLAUDE.md`:** Supabase clients and keys, architecture layers, `proxy.ts`,
-API responses (`withErrorHandling`, the `{ error }` shape), the `/api/live` rules, UI
-rules and time. This part doesn't restate them. Part 2 does describe several of them
-(RLS and grants, `/api/live`, the auth check order) **together with their reasons**;
-where a Part 2 statement and a `CLAUDE.md` rule disagree, the `CLAUDE.md` rule wins and
-Part 2 is corrected. A rule restated in two files drifts (process-log rows 291, 293,
+**Owned by `CLAUDE.md`:** Supabase clients and keys, grants and RLS, architecture
+layers, the db layer, `proxy.ts`, API responses (`withErrorHandling`, the `{ error }`
+shape), the `/api/live` rules, locations, UI rules and time. This part doesn't restate
+them. Part 1's "Database" and Part 2 do describe several of them (the db layer, RLS
+and grants, the trigger's SQL rule, `/api/live`, the auth check order) **together with
+their reasons**; where one of those statements and a `CLAUDE.md` rule disagree, the
+`CLAUDE.md` rule wins and the statement is corrected. A rule restated in two files drifts (process-log rows 291, 293,
 294, 295).
 
 ## Map behaviour
@@ -603,18 +605,21 @@ not admin) · `409` conflict (an overlapping entry, from `23P01`) · `500` unexp
 
 Numbered decisions that outlive their phase as a rule or a task for a later phase,
 carried by the end-of-phase reconciliation (the milestone-retrospective procedure's part 6, in the process log's
-"How to use it"). Each rule's text lives in one file; this list says which, so a later
-plan doesn't drop it as "the old plan's".
+"How to use it"). The last column says where each rule's text lives, so a later plan
+doesn't drop it as "the old plan's"; where it names two places, each holds a part of
+it, so a change to the rule checks both. Plan decisions are "Phase N #n"; issues are "IS #n".
+Between phases, a newly settled decision is added here too (`CLAUDE.md`, "Process
+Log").
 
-| Decision | What it settled | Where the rule lives |
+| Decision or issue | What it settled | Where the rule lives |
 |---|---|---|
-| Phase 4 #14 (#152) | Settled decisions go in the current plan's numbered decisions; the log's old detail entries are on the `archive/process-log-details` tag | `CLAUDE.md` "Process Log"; the log's "How to use it" |
-| Phase 4 #15 (#155) | Log rows are written with `bash scripts/process-log.sh add`; every checked value is in the log's one `values` block; Miss ≤ 600 and Fix ≤ 300 characters from row 321 | `CLAUDE.md` "Process Log"; the log's "Columns" |
-| #149 | The pre-review claims check (`scripts/claims.sh`) and the sweep listed from the diff | `CLAUDE.md` "Review rounds" |
-| #150, Phase 5 #22 (PR #173) | `Caught by` starts with one group: `code-review`, `self` or `user`. Every review Claude was asked to run is `code-review`, however it was done; `plan-review` is gone | the log's "Columns" (`Caught by`) and its `values` block |
+| Phase 4 #14 (IS #152) | Settled decisions go in the current plan's numbered decisions; the log's old detail entries are on the `archive/process-log-details` tag | `CLAUDE.md` "Process Log"; the log's "How to use it" |
+| Phase 4 #15 (IS #155) | Log rows are written with `bash scripts/process-log.sh add`; every checked value is in the log's one `values` block; Miss ≤ 600 and Fix ≤ 300 characters from row 321 | `CLAUDE.md` "Process Log"; the log's "Columns" |
+| IS #149 | The pre-review claims check (`scripts/claims.sh`) and the sweep listed from the diff | `CLAUDE.md` "Review rounds" |
+| IS #150, Phase 5 #22 (PR #173) | `Caught by` starts with one group: `code-review`, `self` or `user`. Every review Claude was asked to run is `code-review`, however it was done; `plan-review` is gone | the log's "Columns" (`Caught by`) and its `values` block |
 | Phase 5 #20 (PR #172) | Review rounds keep `/code-review`'s default findings limit; a row records the round's level and limit | `CLAUDE.md` "Review rounds"; the log's "Columns" |
 | Phase 5 #5, #8, #10, #18 | The db layer's rules, and the SQL rule the `updated_at` trigger's `WHEN` needs | `CLAUDE.md` "Hard Rules" ("db layer") |
 | Phase 5 #3 | The baseline is `0001_baseline.sql`; a timestamp name was rejected for it ("mixes two naming conventions in one folder"). **Not decided:** whether later migrations are `0002_…` or the timestamp names `npx supabase migration new` makes; the first plan that adds one decides | this table, until then |
 | Phase 5 #6, #7 | Revoke, then grant per table; foreign keys to `trucks` stay `NO ACTION` | `CLAUDE.md` "Hard Rules" ("Supabase", "Locations") |
 | Phase 5 #12 | `label` is nullable; the popup's text for a missing one is Phase 6's | Part 2's Phase map (Phase 6 row) |
-| #170 (PR #174) | Schema guards get negative controls in `tests/controls/`, run by `node scripts/controls.mjs` | `CLAUDE.md` "Testing"; `.claude/commands/create-issues.md` "Failure modes" |
+| IS #170 (PR #174) | Schema guards get negative controls in `tests/controls/`, run by `node scripts/controls.mjs` | `CLAUDE.md` "Testing"; `.claude/commands/create-issues.md` "Failure modes" |
