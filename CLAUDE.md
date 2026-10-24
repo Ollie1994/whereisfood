@@ -144,8 +144,8 @@ said otherwise: Phase 4 plan decision #14.
 - Every account that can reach the project (GitHub, Supabase, Vercel, Cloudflare, the
   registrar, their recovery email) uses two-factor authentication by passkey, hardware
   key or authenticator app, not SMS: set up when the account is created, all checked
-  before the production deploy (the owner, 2026-10-24, IS #176). The one exception
-  today is the owner's GitHub 2FA, still SMS, switched before that deploy
+  before the production deploy (the owner, 2026-10-24, IS #176). Which accounts don't
+  meet it yet is `project-context.md`'s, "Pre-deploy automation (planned)"
 - A push that GitHub's push protection blocks is fixed by removing the value from the
   commits, not by bypassing the block (what is switched on: `project-context.md`,
   "Pre-deploy automation (planned)")

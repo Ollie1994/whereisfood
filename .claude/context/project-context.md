@@ -491,19 +491,16 @@ before the first production deploy (Phase 8)**. Until then every gate is manual
   protection for the owner's account. A history scan found no secret.
 - **Dependabot alerts and malware alerts**, with the dependency graph. One auto-triage
   rule is enabled, GitHub's preset "Dismiss low-impact alerts for development-scoped
-  dependencies" (seen in the UI by the owner, 2026-10-24). It covers `eslint-config-next`,
-  an exact pin in `devDependencies`, and the accepted `braces` chain under it.
-  Auto-dismissed alerts stay listed as closed. The rule doesn't touch alerts on runtime
-  packages (`dependencies`), being scoped to development ones. The preset "Dismiss
-  package malware alerts" is disabled, so no rule dismisses malware alerts.
-- **Two-factor authentication** on the owner's GitHub account, **by SMS for now**: SMS
-  is too weak, and it is switched to a passkey, hardware key or authenticator app
-  before the production deploy (the owner, 2026-10-24).
+  dependencies" (the owner's screenshot, 2026-10-24). Which alerts it has dismissed,
+  including any on `eslint-config-next`, an exact pin in `devDependencies`, is reviewed
+  when the CI is designed. The preset "Dismiss package malware alerts" is disabled.
+- **Two-factor authentication** on the owner's GitHub account, **by SMS for now**,
+  switched before the production deploy (the rule is `CLAUDE.md`'s, "Secrets").
 
-All of these can be switched off without any change in the repo. The CLI token used
-here gets `403` on the secret-scanning API, so they were checked in the GitHub UI; a
-token with the right scopes could read them (GitHub's REST docs; not probed here), which
-would let the planned CI check they are still on.
+All of these can be switched off without any change in the repo. They were checked in
+the GitHub UI: the CLI token used here, though it has admin rights, gets `403` from the
+secret-scanning, Dependabot-alerts and vulnerability-alerts APIs, and no
+`security_and_analysis` field (probed 2026-10-24).
 
 **To build:**
 - **A pre-commit secret scan** (tool chosen then), run from a tracked hooks folder
@@ -524,18 +521,17 @@ would let the planned CI check they are still on.
   required, no force-push.
 - **Secrets in CI runs:** a workflow that Dependabot triggers reads the Dependabot
   secrets store, not Actions secrets, and a PR from a fork reads neither. Required
-  checks are set per branch, not per PR, so a check that needs a token (SonarQube
-  Cloud's, say) needs a Dependabot copy of it for Dependabot's PRs. For forks, a job
-  condition (`if:`) skips it, and GitHub reports a skipped required job as passing.
-  Otherwise the check would fail on those PRs and branch protection would block them.
-  All of this is GitHub's documented behaviour, not probed, as no CI exists yet.
+  checks are set per branch, so a check that needs a token (SonarQube Cloud's, say)
+  fails on those PRs and blocks them. The ways round it: a Dependabot copy of the token,
+  or a job condition (`if:`) that skips the check, which GitHub reports as passing.
+  **A skip means SAST didn't run on that PR**, so Phase 8 decides what covers fork PRs
+  (e.g. CodeQL, which needs no token). GitHub's documented behaviour, not probed: no CI
+  exists yet.
 
 **Before the production deploy:**
-- **Two-factor authentication on every account that can reach the project:** GitHub,
-  Supabase, Vercel, Cloudflare (R2 and DNS), the domain registrar, and the email
-  account they use for recovery. Passkeys, a hardware key or an authenticator app,
-  **not SMS** (the owner, 2026-10-24), with recovery codes kept offline. Each account is set up this way when
-  it's created, and all are checked again before the deploy.
+- **Check every account against `CLAUDE.md`'s two-factor rule** ("Secrets"), the
+  owner's GitHub included (off SMS), and keep the recovery codes offline. The other
+  accounts' 2FA hasn't been checked yet.
 - **Rotate every credential**, in case one leaked: every key, token and secret that
   existed before the deploy, or replace it with a new project's. A new production
   Supabase project has new keys by construction. Reuse nothing from the preview setup.
@@ -545,9 +541,10 @@ would let the planned CI check they are still on.
 **Not planned, an option to revisit:** a secrets manager (Doppler, Infisical, 1Password
 CLI, or dotenvx-encrypted env files, which `supabase/.gitignore`'s `.env.keys` line
 anticipates), if several people or environments make Vercel and GitHub secrets hard
-to manage. dotenvx commits its encrypted env files, so adopting it means un-ignoring
-them in both `.gitignore` files (the root's and `supabase/`'s; the ignore rule is
-`CLAUDE.md`'s, "Secrets"). Where secrets live meanwhile is `CLAUDE.md`'s rule too.
+to manage. dotenvx commits its encrypted env files, which the root `.gitignore`'s `.env*`
+ignores, so adopting it means un-ignoring those files there, while `.env.keys`, its
+private key, stays ignored (as `supabase/.gitignore` already has it). The ignore rule and
+where secrets live meanwhile are `CLAUDE.md`'s ("Secrets").
 
 ## Pricing and upgrade triggers (researched 2026-10-10)
 
@@ -709,7 +706,7 @@ says.
 | Phase 5 #9, #11, #13 | Phase 7 tasks: the checklist reuses `findLocationsOverlapping` with its own window; truck writes come with the truck screen; the Gothenburg box is checked by the validator, never a database CHECK | Part 1 "Database" (the db layer, coordinates) |
 | **between phases**, 2026-10-24, IS #176 | The owner's call: CI/CD (the four gates in GitHub Actions), SAST (SonarQube Cloud preferred), a pre-commit and CI secret scan, Dependabot security updates once CI runs, and branch protection are one piece of Phase 8's work, built before its production deploy | Part 2 "Pre-deploy automation (planned)"; `CLAUDE.md` "Testing" |
 | **between phases**, 2026-10-24, IS #176 | The owner's reading: the "deploy" in the 2026-09-06 decision "Gates stay manual until deploy" is the official production deploy, not Phase 6's preview deploy | `CLAUDE.md` "Testing" |
-| **between phases**, 2026-10-24, IS #176 | The owner's call: two-factor authentication on every account that can reach the project, by passkey, hardware key or authenticator app, not SMS; set up as each account is created, checked again before the production deploy | `CLAUDE.md` Hard Rules ("Secrets"); Part 2 "Pre-deploy automation (planned)" |
-| **between phases**, 2026-10-24, IS #176 | The owner's call: every credential that existed before the production deploy is rotated, or replaced by a new project's, before it | Part 2 "Pre-deploy automation (planned)" (a one-time Phase 8 task, not a standing rule, so not in `CLAUDE.md`) |
+| **between phases**, 2026-10-24, IS #176 | The owner's call: two-factor authentication on every account that can reach the project, by passkey, hardware key or authenticator app, not SMS; set up as each account is created, checked again before the production deploy | `CLAUDE.md` Hard Rules ("Secrets", the rule); Part 2 "Pre-deploy automation (planned)" (which accounts meet it, and the pre-deploy check) |
+| **between phases**, 2026-10-24, IS #176 | The owner's call: every credential that existed before the production deploy is rotated, or replaced by a new project's, before it | Part 2 "Pre-deploy automation (planned)" (the pre-deploy rotation); `CLAUDE.md` Hard Rules ("Secrets", rotating a secret that reached a commit) |
 | **between phases**, 2026-10-24, IS #176 | The owner's call: hosted secrets for deploys and CI live in Vercel environment variables, GitHub Actions and Dependabot secrets; developers' own copies stay on their machine; none in a tracked or shared file | `CLAUDE.md` Hard Rules ("Secrets") |
 | IS #170 (PR #174) | Schema guards get negative controls in `tests/controls/`, run by `node scripts/controls.mjs` | `CLAUDE.md` "Testing"; `.claude/commands/create-issues.md` "Failure modes" |
