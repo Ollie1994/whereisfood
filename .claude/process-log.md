@@ -113,12 +113,15 @@ quoting the one-line rule this replaced.)
    the changed process. **The reconciliation also carries forward each numbered
    decision that outlives the phase** (a process, tooling or standing rule): the
    plan's own, any added to an earlier plan after that plan's reconciliation
-   merged (Phase 4's #14 is the first), and any row added between phases to
-   `project-context.md`'s "Decisions carried forward" table, which the plan has also
-   numbered (Phase 5 plan decision #24). Each goes into `project-context.md`, or into
-   CLAUDE.md when it is a rule, citing the plan decision. Without that, the next plan
-   replaces it as "the current plan" and the decision stops being read. The milestone
-   closes once the reconciliation merges.
+   merged (Phase 4's #14 is the first), and the plan's numbering of any row marked
+   "between phases" in `project-context.md`'s "Decisions carried forward" table
+   (Phase 5 plan decision #24). Each goes into `project-context.md`, or into CLAUDE.md
+   when it is a rule, citing the plan decision, and gets a row in that table (a marked
+   row loses its marker and cites the plan decision instead). Without that, the next
+   plan replaces it as "the current plan" and the decision stops being read. **The
+   reconciliation also sets CLAUDE.md's "Current phase plan" line to none**, since
+   between phases the reconciled context is current (`/create-milestone`'s step 0 sets
+   it again). The milestone closes once the reconciliation merges.
 7. **An already-closed milestone** (Phase 4's case when this was added): create the
    retrospective issue and its follow-ups the way part 5 creates follow-ups, with no
    milestone (skip Step 6's milestone check), and finish them before the next plan is
@@ -641,6 +644,7 @@ Old rows that point at them are now pointing there: "see note" (rows 14, 15, 17,
 | 363 | 2026-10-24 | PR #175 / IS #165 | `docs` | `/code-review` round 1 on #175 found 10; all applied. **The reconciliation's summaries said more than the schema does:** "foreign keys are `NO ACTION`" (but `created_by` is `on delete set null`), and the trigger "skips the UPDATE an auth user's deletion runs" (it skips every UPDATE that clears `created_by`). Also: CLAUDE.md still named the done plan as the one that wins; bare "decision #n" citations; the controls rule restated narrower; `assertAllRows` worded for every read; #20's caveat dropped; #3, #6 and #12 not carried. | `code-review` r1 on PR #175 (level unknown, limit unknown: not asked, against the Columns rule; round 2, run the same way, stated high, limit 10) | `pre-merge` | `imprecise-claim` | All ten applied (PR #175 round 1). #3 is carried as an open question, not a rule: it named only the baseline. The sweep also fixed the `assertAllRows` copy at `project-context.md:172` and `label`'s nullability in the Data model. |
 | 364 | 2026-10-24 | PR #175 / IS #165 | `docs` | `/code-review` round 2 on #175 (full) found 10 (at the limit); all applied. **The new db-layer rule dropped the bound it rests on:** it exempted any read with a `limit`, though only a limit from 1 to `MAX_ROWS`, checked first, can't be cut. Also: round 1's header fix left a decision settled between phases with nowhere to go (overcorrection); Status "done" with every AC unticked; "built in Phase 5" read as covering routes; and **I hadn't asked round 1 for its level and limit**, as the Columns require, so row 363 said "unknown". | `code-review` r2 on PR #175 (high, limit 10, as the round stated) | `pre-merge` | `imprecise-claim` | All ten applied (PR #175 round 2): the bound and its hosted check in the rule, a between-phases home for decisions, the ACs re-run and ticked, row 363 corrected by hand (`docs`, #6, the level note). The sweep fixed which test checks the local `max_rows`. |
 | 365 | 2026-10-24 | PR #175 / IS #165 | `docs` | `/code-review` round 3 on #175 (full) found 10 (at the limit); all applied. **Round 1's `created_by` fix was itself wrong:** "deleting an auth user … doesn't fail" holds only with no `users` row; an admin's delete fails on `users_id_fkey` (probed). **And row 319 again:** I recorded the owner's two calls outside the still-current plan, and gave the reconciliation and `/create-milestone` a new job without updating part 6 or the command. Also: the body wasn't swept after `94ca7ee`; "no function deletes" vs the takedown; `TRUCK_COLUMNS` not carried. | `code-review` r3 on PR #175 (high, limit 10, as the round stated) | `pre-merge` | `overcorrection` | All ten applied (PR #175 round 3): the deletion stated both ways, the two calls as plan #23 and #24, part 6 and `/create-milestone` given the table, the body swept, the Status made conditional on this merge. |
+| 366 | 2026-10-24 | PR #175 / IS #165 | `docs` | `/code-review` round 3's fixes left the mechanism #24 needs half built; round 4 on #175 (full) found 10 (at the limit), all applied. **No rule had the next reconciliation reset CLAUDE.md's plan pointer or add table rows, and nothing marked which rows were added between phases.** Also: CLAUDE.md made "scoped repeats" and "record level at the limit" rules, narrower than #20 and the Columns; the table missed #1, #9, #11, #13, #19; #7's takedown order wasn't carried; the hosted `max_rows` claim was unconditional. | `code-review` r4 on PR #175 (high, limit 10, as the round stated) | `pre-merge` | `incomplete-guard` | All ten applied (PR #175 round 4): part 6 resets the pointer and adds rows; a "between phases" marker; a between-phases rule goes into CLAUDE.md at once; the round rule follows #20 and the Columns; the table and the Phase 8 row completed. |
 
 ---
 

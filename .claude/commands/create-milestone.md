@@ -73,8 +73,8 @@ pointing at it (between phases that line says there is none)>
 <key decisions and why, numbered: one `### #N — <decision>` heading per decision.
 These numbered decisions are where settled decisions live (CLAUDE.md, "Process Log"):
 one settled mid-phase is appended with the next number. The first ones take up each
-row of project-context.md's "Decisions carried forward" table added since the last
-plan's reconciliation, one decision per row, citing it (Phase 5 plan decision #24).>
+row of project-context.md's "Decisions carried forward" table marked "between phases",
+one decision per row, citing it (Phase 5 plan decision #24).>
 
 ## Acceptance Criteria
 <one bullet per item — specific and unambiguous>

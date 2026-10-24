@@ -5,9 +5,10 @@
 row 323); in progress from its merge. Step 7's reconciliation (#165, PR #175), the last
 step, carries the decisions that outlive the phase into `project-context.md` and
 `CLAUDE.md`; this line and the ticked Closing criterion describe the plan as of that
-merge
+merge.
+
 **Source:** `project-context.md` Part 2 ("Phase map", "Data model (Phase 5)", "RLS and
-grants (Phase 5)") and the `/create-milestone` conversation of 2026-10-18. Where this
+grants (Phase 5)"; renamed "… (built in Phase 5)" by step 7) and the `/create-milestone` conversation of 2026-10-18. Where this
 plan and `project-context.md` disagree, **this plan wins** until step 7 reconciles the
 context.
 
@@ -242,7 +243,8 @@ per follow-up the retrospective opens, which may be none.
 7. **Reconcile `project-context.md`** (the end-of-phase task).
 
    Steps 5–7 are ordered, blocked and closed as that procedure's part 6 says; this plan
-   doesn't restate it. Step 7's content: it covers Part 1's "Database", "Modules kept on
+   doesn't restate it. Step 7's content (line numbers as of this plan; step 7 moved
+   them): it covers Part 1's "Database", "Modules kept on
    purpose" (its `types.ts` row, `project-context.md:152`, describes "CHECK columns
    narrowed by hand (e.g. `source`)", which decision #18's enum removes), "Folder
    structure", "Tests and gates" and the Roadmap row; Part 3's
@@ -572,9 +574,13 @@ The owner's call, 2026-10-24, taking Claude's recommendation in PR #175 (after i
 round 2). After a reconciliation merges and before the next plan exists, there is no
 current plan (`CLAUDE.md`'s header, PR #175 round 1), so "the current plan's numbered
 decisions" has no home. A decision settled then goes into `project-context.md`'s
-"Decisions carried forward" table, through an issue and PR. The next plan numbers it
-(`/create-milestone`'s Output Format), and that plan's reconciliation carries it
-(part 6 of the milestone-retrospective procedure). **Rejected:** appending it to the
+"Decisions carried forward" table as a row marked "between phases", through an issue
+and PR; a rule also goes into `CLAUDE.md` in that PR, so it holds before the next plan
+exists. The next plan numbers each marked row (`/create-milestone`'s Output Format),
+and that plan's reconciliation replaces the marker with the plan decision (part 6 of
+the milestone-retrospective procedure, which also has the reconciliation set
+`CLAUDE.md`'s "Current phase plan" line to none). *The marker, the `CLAUDE.md` copy and
+part 6's two additions came from PR #175 round 4, after the owner's call.* **Rejected:** appending it to the
 finished plan, which `CLAUDE.md` then calls history. A process decision that outlives
 the phase: step 7 carries it forward.
 
@@ -703,7 +709,8 @@ that box holds once it merges. PR #175's body has the outputs.
   `service_role` grant.
 - [x] `README.md`'s "What works today" describes the new schema, its status line names
   Phase 5, and its "Project status" table shows Phase 4 done, Phase 5 in progress, and
-  no Phase 2 schema kept.
+  no Phase 2 schema kept. *(True as of step 2, PR #167; step 7, PR #175, then set Phase
+  5 to done, so "in progress" no longer holds at HEAD.)*
 
 **Closing**
 - [x] The closing steps of the milestone-retrospective procedure are done: the Phase 5

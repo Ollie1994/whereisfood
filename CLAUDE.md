@@ -399,12 +399,12 @@ check comes before (the first round's goes in the body as opened). The script li
 claims, it doesn't judge them; its header says what it can't see.
 
 **The round itself: `/code-review` at its default findings limit**, not `--max-findings
-all` (the owner's call, Phase 5 plan decision #20): fix and repeat, each later round
-scoped to the previous round's fixes. A round that finds as many as the limit may have
-been cut; its log row records the level and limit (the log's "Columns", `Caught by`).
-A scoped round sees only the fixes: #20 also records a defect outside them that a
-scoped round and the full round 1 on PR #168 both missed, and a later full round, on
-PR #169, found (row 349).
+all` (the owner's call, Phase 5 plan decision #20): fix, then repeat, scoped to the
+previous round's fixes or full. A scoped round sees only the fixes: #20 records a
+defect outside them that a scoped round and the full round 1 on PR #168 both missed,
+and a later full round, on PR #169, found (row 349). **Every round** is asked for its
+level and limit when it starts, and its log row records them; one that finds as many
+as the limit may have been cut (the log's "Columns", `Caught by`, owns this).
 
 ---
 
@@ -433,9 +433,10 @@ issues; this file is for what the bug reveals about how we work.
 **Settled decisions go in the current plan's numbered decisions** (Phase 4 plan
 decision #14), with their rationale, so a resolved question stays resolved and is not
 re-litigated next session. **Between phases, with no current plan**, one goes into
-`project-context.md`'s "Decisions carried forward" table, through an issue and PR like
-any doc change, and the next plan takes it up as a numbered decision (Phase 5 plan
-decision #24, the owner's call). The
+`project-context.md`'s "Decisions carried forward" table as a row marked "between
+phases", through an issue and PR like any doc change; a rule also goes into this file
+in the same PR, so it holds at once. The next plan numbers each marked row (Phase 5
+plan decision #24, the owner's call). The
 end-of-phase reconciliation carries forward the ones that outlive the phase (the
 milestone-retrospective procedure's part 6, in the log's "How to use it"). New
 decisions don't go in the process log; the dated ones already in it stay as written,

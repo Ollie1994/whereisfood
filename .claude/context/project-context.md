@@ -183,8 +183,10 @@ types" section has each function's contract.
 - that both extensions install into `extensions` and the trigger form is accepted
   (#5, the plan's open decision 2);
 - that the Data API's `max_rows` is at least `MAX_ROWS`. It is set in the dashboard,
-  not from `config.toml`, and below `MAX_ROWS` `listRecentLocationsForTruck` returns a
-  cut result with no error (PR #167 round 5).
+  not from `config.toml`. Below `MAX_ROWS`, a `listRecentLocationsForTruck` call whose
+  `limit` is above the hosted cap, on a truck with more matching rows than the cap,
+  would return a cut result with no error (PR #167 round 5); the two other list reads
+  would throw through `assertAllRows` on any result above the cap.
 
 ## Modules kept on purpose
 
@@ -316,7 +318,7 @@ authoring tool for `SPOTS`).
 | 5 · Schema reset (done) | Squashed baseline: `trucks`, `locations`, `users`; `btree_gist` + exclusion constraint + `CHECK (ends_at > starts_at)` + `updated_at` trigger; RLS + explicit GRANTs (no anon SELECT on `trucks`/`locations`); regenerate types; rewrite `seed.sql`, `db/trucks.ts`, `db/locations.ts` (with the history queries) and the integration tests (constraint, cancelled rows don't block, CHECK, RLS) |
 | 6 · Live read path | `GET /api/live`; `useLocations` (polling, timer, marker diffing); popup with freshness text and Instagram link; replace `fake-data.ts` and delete `map-types.ts`; decide where the `is_active` filter goes (Phase 5 plan, open decision 6); the popup's text for a NULL `label` (Phase 5 plan decision #12); a hosted Supabase project for previews, with the hosted checks Part 1's "Database" lists; **first preview deploy**: check `x-vercel-cache` MISS → HIT → STALE, measure real requests per visit in Vercel's usage dashboard, record Vercel's build Node/npm (#139) |
 | 7 · Admin | Magic-link login, admin only (public sign-ups disabled); session and `is_admin` checks in `proxy.ts` **and** every admin route; truck CRUD; mobile-first location entry; edit; cancel; overlap → 409; the morning checklist |
-| 8 · Launch | Supabase Pro (backups); tiles on R2 (custom domain, CORS); production env; security headers; Swedish privacy note; takedown procedure; tell trucks they're listed; acquisition plan; runbook (Vercel Attack Mode, usage emails); Vercel Pro + Spend Management before the first marketing push |
+| 8 · Launch | Supabase Pro (backups); tiles on R2 (custom domain, CORS); production env; security headers; Swedish privacy note; takedown procedure (one transaction: delete the truck's locations, clear or delete each `users` row pointing at it, then delete the truck; Phase 5 plan #7); tell trucks they're listed; acquisition plan; runbook (Vercel Attack Mode, usage emails); Vercel Pro + Spend Management before the first marketing push |
 | later | Owners (claim flow, owner dashboard, override rules, custom SMTP); optional automation (Meta Business Discovery captions in the admin screen, a scheduler) |
 
 ## Data model (built in Phase 5)
@@ -607,11 +609,16 @@ not admin) · `409` conflict (an overlapping entry, from `23P01`) · `500` unexp
 
 Numbered decisions that outlive their phase as a rule or a task for a later phase,
 carried by the end-of-phase reconciliation (the milestone-retrospective procedure's part 6, in the process log's
-"How to use it"). The last column says where each rule's text lives, so a later plan
-doesn't drop it as "the old plan's"; where it names two places, each holds a part of
-it, so a change to the rule checks both. Plan decisions are "Phase N #n"; issues are "IS #n".
-Between phases, a newly settled decision is added here too (`CLAUDE.md`, "Process
-Log").
+"How to use it"), from Phase 5's on. Earlier phases' carried decisions are cited where
+they live (e.g. Phase 4 #10–#13 in `CLAUDE.md` "Dependencies"). The last column says
+where each rule's text lives, so a later plan doesn't drop it as "the old plan's";
+where it names two places, each holds a part of it, so a change to the rule checks
+both. Plan decisions are "Phase N #n"; issues are "IS #n".
+
+Between phases, a newly settled decision is added as a row whose first cell starts
+"**between phases**", with its date and issue (`CLAUDE.md`, "Process Log"); the next
+plan numbers each such row, and that plan's reconciliation replaces the marker with
+the plan decision. None are marked today.
 
 | Decision or issue | What it settled | Where the rule lives |
 |---|---|---|
@@ -622,7 +629,9 @@ Log").
 | Phase 5 #20 (PR #172) | Review rounds keep `/code-review`'s default findings limit; a row records the round's level and limit | `CLAUDE.md` "Review rounds"; the log's "Columns" |
 | Phase 5 #5, #8, #10, #18 | The db layer's rules, and the SQL rule the `updated_at` trigger's `WHEN` needs | `CLAUDE.md` "Hard Rules" ("db layer") |
 | Phase 5 #3, #23 (PR #175) | The baseline is `0001_baseline.sql`; later migrations are `0002_<name>.sql`, `0003_…`, never `npx supabase migration new`'s timestamp names | `CLAUDE.md` "Hard Rules" ("Supabase") |
-| Phase 5 #24 (PR #175) | Between phases, with no current plan, a settled decision goes in this table through an issue and PR; the next plan takes it up as a numbered decision, and its reconciliation carries it | `CLAUDE.md` "Process Log"; the log's "How to use it", part 6; `/create-milestone`'s Output Format |
-| Phase 5 #6, #7 | Revoke, then grant per table; foreign keys to `trucks` stay `NO ACTION` | `CLAUDE.md` "Hard Rules" ("Supabase", "Locations") |
+| Phase 5 #24 (PR #175) | Between phases, with no current plan, a settled decision goes in this table as a row marked "between phases", through an issue and PR (a rule also into `CLAUDE.md` at once); the next plan numbers it, and its reconciliation replaces the marker and sets `CLAUDE.md`'s plan pointer to none | `CLAUDE.md` "Process Log"; the log's "How to use it", part 6; `/create-milestone`'s Output Format |
+| Phase 5 #6, #7 | Revoke, then grant per table; foreign keys to `trucks` stay `NO ACTION`. **The takedown (Phase 8) is one transaction:** delete the truck's locations, clear or delete each `users` row whose `truck_id` points at it, then delete the truck | `CLAUDE.md` "Hard Rules" ("Supabase", "Locations"); Part 2's Phase map (Phase 8 row) |
 | Phase 5 #12 | `label` is nullable; the popup's text for a missing one is Phase 6's | Part 2's Phase map (Phase 6 row) |
+| Phase 5 #1, #19; open decisions 2, 6 | Phase 6 tasks: delete `map-types.ts`; check `sv-SE-x-icu`, both extensions and `max_rows` on the hosted project; decide where the `is_active` filter goes | Part 1 "Database" (hosted checks); Part 2's Phase map (Phase 6 row) |
+| Phase 5 #9, #11, #13 | Phase 7 tasks: the checklist reuses `findLocationsOverlapping` with its own window; truck writes come with the truck screen; the Gothenburg box is checked by the validator, never a database CHECK | Part 1 "Database" (the db layer, coordinates) |
 | IS #170 (PR #174) | Schema guards get negative controls in `tests/controls/`, run by `node scripts/controls.mjs` | `CLAUDE.md` "Testing"; `.claude/commands/create-issues.md` "Failure modes" |
