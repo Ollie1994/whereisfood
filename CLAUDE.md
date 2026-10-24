@@ -129,10 +129,11 @@ said otherwise: Phase 4 plan decision #14.
 **Secrets** (IS #176; the repo is public)
 - Never commit a `.env*` file except `.env.example`, which holds variable names only.
   `.gitignore` ignores every other `.env*` file, in every folder
-- Never put a hosted project's key, token or password in a tracked file (source, tests,
-  docs, the process log) or in issue or PR text, which no scan covers. Local-stack
-  values aren't secrets: the Supabase CLI's local keys and test fixtures such as
-  `helpers.ts`'s `FIXTURE_PASSWORD`
+- Never put a real key, token or password in a tracked file (source, tests, docs, the
+  process log) or in issue or PR text. That covers any hosted project's (Supabase,
+  Vercel, R2), any service or account's (a GitHub or SonarQube token, a CLI login), and
+  anyone's password. Local-stack values aren't secrets: the Supabase CLI's local keys
+  and test fixtures such as `helpers.ts`'s `FIXTURE_PASSWORD`
 - A secret that reaches a commit, or issue or PR text, is **rotated**, not just
   deleted: history keeps it, and a public repo's history is readable by anyone
 - **Where secrets live:** a hosted project's secrets for deploys and CI live in
@@ -140,6 +141,11 @@ said otherwise: Phase 4 plan decision #14.
   Actions secrets and, for Dependabot's runs, Dependabot secrets. A developer's own
   copies (preview-project keys in `.env.local`, a CLI login token where the CLI stores
   it) stay on their machine. None goes in a tracked or shared file
+- Every account that can reach the project (GitHub, Supabase, Vercel, Cloudflare, the
+  registrar, their recovery email) uses two-factor authentication by passkey, hardware
+  key or authenticator app, not SMS: set up when the account is created, all checked
+  before the production deploy (the owner, 2026-10-24, IS #176). The one exception
+  today is the owner's GitHub 2FA, still SMS, switched before that deploy
 - A push that GitHub's push protection blocks is fixed by removing the value from the
   commits, not by bypassing the block (what is switched on: `project-context.md`,
   "Pre-deploy automation (planned)")
