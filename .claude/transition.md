@@ -15,7 +15,7 @@
 > references in §7 and §9 use the new numbers; mentions of "the old roadmap" (§11, §13,
 > §14) mean the numbering before this file. Phases 1–3 kept their numbers.
 > **Facts in the body are as of 2026-10-10** (the status and precedence notes just below,
-> versions, "today"): e.g. §7's "the project pins `next` 16.2.6" is 16.3.8 now. The
+> versions, "today"): e.g. §7's "the project pins `next` 16.2.6" is out of date (`package.json` has the pin). The
 > context has current values. The removed code is archived on
 > `archive/parser-lanes` (commit `b089fd0`, see §15).
 

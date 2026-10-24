@@ -99,28 +99,33 @@ the bounding box from `src/lib/geo.ts`. `NEXT_PUBLIC_PMTILES_URL=/gothenburg.pmt
 MapLibre's worker is copied from `node_modules` into the gitignored
 `public/maplibre/<version>/` by `scripts/copy-maplibre-worker.mjs`, run as the
 `postinstall`, `predev` and `prebuild` hooks. MapLibre's documented
-`setWorkerUrl(new URL(…, import.meta.url))` form 404s under Next 16.3's Turbopack, with
-every gate green (Phase 4 plan decision #13, process-log row 282).
+`setWorkerUrl(new URL(…, import.meta.url))` form 404'd under Next 16.3's Turbopack, with
+every gate green (Phase 4 plan decision #13, process-log row 282). It wasn't retested on
+16.4, where the copied worker loads (IS #178).
 
 ## Versions
 
 | Package | Version | Note |
 |---|---|---|
-| `next`, `eslint-config-next` | 16.3.8 | exact pins; upgrade together |
+| `next`, `eslint-config-next` | 16.4.3 | exact pins; upgrade together |
 | `react`, `react-dom` | 19.2.4 | |
 | `maplibre-gl` | 6.11.2 | exact pin |
 | `@protomaps/basemaps` | ^5.7.2 | replaced the deprecated `protomaps-themes-base` |
 | `pmtiles` | ^4.5.0 | |
 | `@supabase/supabase-js` | ^2.106 | |
 | `date-fns-tz` (+ `date-fns`, its peer) | ^3.2 / ^4.3 | |
-| `vitest` | ^4.1.11 | pulls in `vite` 8 |
+| `vitest` | ^4.1.12 | pulls in `vite` 8 |
 | `supabase` CLI | ^2.109 | dev dependency |
 
 Toolchain: Node `^20.19.0 || >=22.12.0` and **npm ≥ 11** (npm 10.9.2 crashes on
 vitest 4's optional peers). Both are prose only; enforcing them in `package.json` waits
-for Vercel's build versions (#139, Phase 6). `npm audit --omit=dev` is clean; full
-`npm audit` shows one accepted dev-only chain (`braces` via `eslint-config-next`,
-GHSA-vfj7-8cjw-p6xm). `next.config.ts` sets `agentRules: false` (Phase 4 plan decision #12).
+for Vercel's build versions (#139, Phase 6). `npm audit` and `npm audit --omit=dev` both
+report 0 vulnerabilities (2026-10-24, after IS #178's upgrade). That is a dated result:
+re-run `npm audit` before relying on it. Dependabot alerts are on, but an auto-triage
+rule can dismiss low-impact alerts on development dependencies ("Pre-deploy automation
+(planned)", "Already on"). `next.config.ts` sets `agentRules: false` (Phase 4 plan
+decision #12) and `experimental.agentUpgrade: false` (IS #178; `CLAUDE.md`
+"Dependencies").
 
 ## Database (the Phase 5 baseline)
 
@@ -709,4 +714,5 @@ says.
 | **between phases**, 2026-10-24, IS #176 | The owner's call: two-factor authentication on every account that can reach the project, by passkey, hardware key or authenticator app, not SMS; set up as each account is created, checked again before the production deploy | `CLAUDE.md` Hard Rules ("Secrets", the rule); Part 2 "Pre-deploy automation (planned)" (which accounts meet it, and the pre-deploy check) |
 | **between phases**, 2026-10-24, IS #176 | The owner's call: every credential that existed before the production deploy is rotated, or replaced by a new project's, before it | Part 2 "Pre-deploy automation (planned)" (the pre-deploy rotation); `CLAUDE.md` Hard Rules ("Secrets", rotating a secret that reached a commit) |
 | **between phases**, 2026-10-24, IS #176 | The owner's call: hosted secrets for deploys and CI live in Vercel environment variables, GitHub Actions and Dependabot secrets; developers' own copies stay on their machine; none in a tracked or shared file | `CLAUDE.md` Hard Rules ("Secrets") |
+| **between phases**, 2026-10-24, IS #178 | The owner's call: `next.config.ts` sets `experimental.agentUpgrade: false`, so an agent-run build or dev server doesn't fail, or query the advisory source, when an advisory covers the installed Next; advisories come through Dependabot alerts and `npm audit` | `CLAUDE.md` "Dependencies"; the comment in `next.config.ts` |
 | IS #170 (PR #174) | Schema guards get negative controls in `tests/controls/`, run by `node scripts/controls.mjs` | `CLAUDE.md` "Testing"; `.claude/commands/create-issues.md` "Failure modes" |
