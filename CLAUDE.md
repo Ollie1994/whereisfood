@@ -126,6 +126,21 @@ said otherwise: Phase 4 plan decision #14.
   the timestamp names `npx supabase migration new` makes, which would mix two naming
   conventions in one folder (Phase 5 plan decision #23, the owner's call, amending #3)
 
+**Secrets** (IS #176; the repo is public)
+- Never commit a `.env*` file except `.env.example`, which holds variable names only.
+  `.gitignore` ignores every other `.env*` file, in every folder
+- Never put a key, token or password value in any tracked text: source, tests, docs,
+  the process log, or issue and PR text
+- A value that reaches a commit is **rotated**, not just deleted: history keeps it, and
+  a public repo's history is readable by anyone
+- **Where secrets live:** a hosted project's secrets (Supabase, Vercel, R2, access
+  tokens) live only in Vercel's environment variables (marked "Sensitive" where Vercel
+  offers it) and GitHub Actions secrets, never in a tracked or shared file.
+  `.env.local` holds only local-stack keys, or at most a developer's own
+  preview-project keys
+- GitHub Secret Protection and push protection are on (since 2026-10-24); a push they
+  block is fixed by removing the value from the commits, not by bypassing the block
+
 **db layer (`src/lib/db/`)**
 - It finds and mutates; it decides nothing. Postgres errors propagate unchanged (for
   `23P01`, see Locations below), no function reads the clock (the caller
@@ -240,10 +255,12 @@ Toolchain: the Node floor and npm ≥ 11 under Dependencies.
 | `npm run test:all` | **every project in `RUNS`** of `scripts/test-all.mjs` (today `unit` + `integration`), checked against the projects `vitest.config.ts` declares; takes no arguments | yes |
 
 **There is no CI — every gate is manual, until deploy.** CI/CD arrives then as its own
-piece of work, designed together: GitHub Actions workflows for the four gates, SAST,
-and branch protection (a repository setting). Don't re-propose it before then (the
-owner's decision "DECISION — Gates stay manual until deploy", 2026-09-06, archived;
-the note above the process log's table says how to read it).
+piece of work, designed together, before the first production deploy (Phase 8): what it
+holds (the four gates in GitHub Actions, SAST, branch protection, a pre-commit and CI
+secret scan, and more) is `project-context.md`'s "Pre-deploy automation (planned)".
+Don't re-propose it before then (the owner's decision "DECISION — Gates stay manual
+until deploy", 2026-09-06, archived, the note above the process log's table says how to
+read it; "deploy" is the production deploy, the owner, 2026-10-24, IS #176).
 Until then the gates are the only enforcement, and `tsc` is one of them in its own
 right: vitest strips types and never type-checks, so a green test run says nothing
 about types. The gate list is four commands, and
