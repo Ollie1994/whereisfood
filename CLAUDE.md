@@ -3,11 +3,17 @@
 Full project reference: `.claude/context/project-context.md`
 Read it at the start of any non-trivial task.
 
-**Current phase plan: `.claude/plans/phase-5-schema-reset.md` — read it too, and when
-the two disagree, THE PLAN WINS.**
+**Current phase plan: none (the last one: `.claude/plans/phase-5-schema-reset.md`).**
+
+While that line names no plan (between phases, after a reconciliation and before the
+next plan's step 0), the reconciled `project-context.md` is current and wins over the
+last plan, whose step text is history; its numbered decisions remain the reasoning
+behind the rules that cite them. **While it names a plan, read that plan too, and when
+the two disagree, THE PLAN WINS.** Of this header, a phase boundary (a reconciliation,
+or the next plan's step 0) edits only the bold line.
 
 `project-context.md` is only reconciled with reality at the END of a phase (it is a
-tracked task in each plan — Phase 4's was issue #127, Phase 5's is its step 7). So for
+tracked task in each plan — Phase 4's was issue #127, Phase 5's was #165). So for
 the whole duration of a phase it is a snapshot of the phase *before* it, while the plan
 carries the decisions that were actually settled. Reading only the context is how a
 resolved question gets re-litigated with a stale answer. **If it has no "Current state"
@@ -16,7 +22,8 @@ design**, which Phase 4 removed.
 
 The plan is also where the numbered decision records live (`#1`, `#2`, …) —
 those are the reasoning behind rules the context states as bare facts, and an issue
-saying "see the plan" means that section.
+saying "see the plan" means that section. Between phases, decisions wait elsewhere:
+see "Process Log".
 
 The removed design (ingestion lanes, parser, geocoding) is archived on the
 `archive/parser-lanes` branch and tag. Don't re-add any of it, or Realtime, cron or
@@ -115,6 +122,37 @@ said otherwise: Phase 4 plan decision #14.
   hijack). Every migration grants per table, `service_role` included, after revoking
   the stack's default privileges on that table, as `0001_baseline.sql` does (Phase 5
   plan decision #6)
+- New migrations are numbered after the baseline: `0002_<name>.sql`, `0003_…`, never
+  the timestamp names `npx supabase migration new` makes, which would mix two naming
+  conventions in one folder (Phase 5 plan decision #23, the owner's call, amending #3)
+
+**db layer (`src/lib/db/`)**
+- It finds and mutates; it decides nothing. Postgres errors propagate unchanged (for
+  `23P01`, see Locations below), no function reads the clock (the caller
+  passes `cancelledAt`, a window, a `before`), and no function deletes (Phase 5 plan
+  decision #10). The one delete, a takedown, is a manual SQL procedure Phase 8 writes
+  (Phase 5 plan decision #7), not app code
+- Return the selected row **uncast, never `as Location` or `as Truck`**: uncast, `tsc`
+  checks that the select has every key of the row type; a cast also compiles when the
+  column list leaves one out (Phase 5 plan decision #18). `tsc` doesn't see an *extra*
+  column, so a key-set test per table guards that side (`db-locations.test.ts`,
+  `db-trucks.test.ts`), and a new table's reads get one
+- Every select names its columns through its table's constant, `LOCATION_COLUMNS` or
+  `TRUCK_COLUMNS`: one string literal each (a computed string loses supabase-js's
+  row-type inference, issue #48). `LOCATION_COLUMNS` leaves out `created_by` (Phase 5
+  plan decision #8)
+- **`max_rows` cuts a list read with no error** (limit 2000 over 1001 rows returned
+  1000, `locations.ts`'s probe). So a list read without a `limit` selects with an exact
+  count and calls `assertAllRows` (`src/lib/db/complete.ts`), and one with a `limit`
+  throws before the request unless it is an integer from 1 to `MAX_ROWS`, as
+  `listRecentLocationsForTruck` does (PR #167). That bound holds only while the API's
+  `max_rows` is at least `MAX_ROWS`: locally `complete.test.ts` pins `MAX_ROWS` to
+  `config.toml` and `db-locations.test.ts` fails if the API returns fewer; a hosted
+  project is Phase 6's to check. A single-row read (`.single()`, `.maybeSingle()`)
+  needs neither
+- Hand-written SQL that clears `created_by` while editing a row sets `updated_at =
+  now()` itself: the `locations_updated_at` trigger skips every UPDATE that clears
+  `created_by`, not only the one an auth user's deletion runs (Phase 5 plan decision #5)
 
 **proxy.ts**
 - File is `src/proxy.ts` — this is the Next.js 16 name for middleware
@@ -151,6 +189,9 @@ said otherwise: Phase 4 plan decision #14.
   (Phase 7)
 - Locations are never deleted (except a takedown, which deletes the truck's whole
   history). Ended (`ends_at <= now()`) and cancelled (`cancelled_at`) are filters
+- Foreign keys to `trucks` stay `NO ACTION`, never `ON DELETE CASCADE`: deleting a
+  truck with history then fails (`23503`), so no "delete truck" action can wipe its
+  history silently (Phase 5 plan decision #7)
 - `starts_at` and `ends_at` are both required; a human always knows the end time
 
 **Time**
@@ -358,6 +399,14 @@ Record the hit count and how each was settled in the PR body, under the round th
 check comes before (the first round's goes in the body as opened). The script lists
 claims, it doesn't judge them; its header says what it can't see.
 
+**The round itself: `/code-review` at its default findings limit**, not `--max-findings
+all` (the owner's call, Phase 5 plan decision #20): fix, then repeat, scoped to the
+previous round's fixes or full. A scoped round sees only the fixes: #20 records a
+defect outside them that a scoped round and the full round 1 on PR #168 both missed,
+and a later full round, on PR #169, found (row 349). The log's "Columns" ("What one row
+is", then `Caught by`) say what to ask each round for when it starts and how its row
+records it.
+
 ---
 
 ## Process Log — always record misses
@@ -382,12 +431,25 @@ when the miss is mine:**
 work. The bar is *"this says something about the process."* Bugs belong in GitHub
 issues; this file is for what the bug reveals about how we work.
 
-**Settled decisions go in the current plan's numbered decisions**, with their rationale,
-so a resolved question stays resolved and is not re-litigated next session. The
-end-of-phase reconciliation carries forward the ones that outlive the phase (the
-milestone-retrospective procedure's part 6, in the log's "How to use it"). New
-decisions don't go in the process log; the dated ones already in it stay as written,
-and its old detail entries are archived (the note above its table says where).
+**Settled decisions go in the current plan's numbered decisions** (Phase 4 plan
+decision #14), with their rationale, so a resolved question stays resolved and is not
+re-litigated next session. The end-of-phase reconciliation carries forward the ones
+that outlive the phase (the milestone-retrospective procedure's part 6, in the log's
+"How to use it"). New decisions don't go in the process log; the dated ones already in
+it stay as written, and its old detail entries are archived (the note above its table
+says where).
+
+**Between phases, with no current plan** (Phase 5 plan decision #24, the owner's call;
+this paragraph is the procedure's one copy, and the other files point here):
+- A settled decision goes into `project-context.md`'s "Decisions carried forward" table
+  as a row whose first cell starts `**between phases**, <date>, IS #<n>`, through an
+  issue and PR like any doc change. A rule also goes into this file in that PR, so it
+  holds at once.
+- The next plan gives each marked row a decision of its own, one per row, citing the
+  row's IS # (`/create-milestone` adds them to the plan's Rationale).
+- That plan's reconciliation replaces each marker with the plan decision, and the rule
+  text here cites it. When the decision didn't outlive the phase, the reconciliation
+  removes the row and the rule text with it.
 
 **Every milestone includes a retrospective.** The procedure, with its order,
 blocking and closing rules, is in the log's "How to use it" section;

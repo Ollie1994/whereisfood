@@ -6,18 +6,22 @@
 > triggers. That file is how we find out which parts of this one keep failing;
 > `project-context` and `CLAUDE.md` are both already named in it.
 
-**How to read this file.** It was rewritten at the end of Phase 4 (#127), not
-reconciled, and has three parts:
+**How to read this file.** It was rewritten at the end of Phase 4 (#127) and
+reconciled at the end of Phase 5 (#165). It has three parts:
 
-1. **Current state** — what exists on `dev` after Phase 4. Trust it for "what is the
+1. **Current state** — what exists on `dev` after Phase 5. Trust it for "what is the
    code doing today".
 2. **Target design** — what Phases 5–8 build, condensed from `.claude/transition.md`
    (now history). Trust it for "what are we building", never as a description of the
-   code.
+   code. The sections marked "built in Phase 5" are the exception for what they say
+   about the **schema** (Part 1's "Database" says it matches them); what they say about
+   services, routes and the 409 mapping is still target design.
 3. **Standing rules** — conventions that hold in both.
 
 The current phase plan wins over this file. This file is reconciled with reality at
-the end of each phase; between those points the plan carries what was settled.
+the end of each phase; between those points the plan carries what was settled. Between
+phases (after a reconciliation, before the next plan) there is no current plan, and
+this file is current.
 
 ---
 
@@ -41,11 +45,11 @@ open.
 | Phase | Name | Status |
 |---|---|---|
 | 1 | Foundation: map with fake data | done |
-| 2 | Ingestion: email and webhook lanes | done; removed in Phase 4 (schema kept until Phase 5) |
+| 2 | Ingestion: email and webhook lanes | done; removed in Phase 4, schema replaced in Phase 5 |
 | 3 | Parser: Swedish caption parser | stopped; removed in Phase 4 |
-| 4 | Housekeeping: remove the old design, upgrade dependencies, rewrite the docs | finishing |
-| 5 | Schema reset | not started |
-| 6 | Live read path (first preview deploy) | not started |
+| 4 | Housekeeping: remove the old design, upgrade dependencies, rewrite the docs | done |
+| 5 | Schema reset | done |
+| 6 | Live read path (first preview deploy) | next; no plan yet |
 | 7 | Admin | not started |
 | 8 | Launch (first production deploy) | not started |
 | later | Owners; optional automation | — |
@@ -66,14 +70,16 @@ save-triggered cache purges, grey markers) without a concrete problem that needs
 
 ---
 
-# Part 1 — Current state (after Phase 4)
+# Part 1 — Current state (after Phase 5)
 
 ## What runs
 
 - `/` redirects to `/map`. `/map` renders MapLibre over a local PMTiles file with
   Swedish labels (`@protomaps/basemaps`, `lang: "sv"`), centred on Gothenburg.
-- Markers and popups come from **fake data** (`src/lib/fake-data.ts`). The app reads
-  nothing from the database and has **no API routes**.
+- Markers and popups come from **fake data** (`src/lib/fake-data.ts`), typed by the
+  frozen `src/lib/map-types.ts`. The app reads nothing from the database and has **no
+  API routes**: the schema and db layer below are called only by the integration
+  tests.
 - The fake-data map still behaves like the **old** design: marker colour from
   `confidence` (green ≥ 0.9, yellow ≥ 0.45; grey, drawn at `last_known_*`, for a truck
   whose location is missing, below 0.45 or a negation; **no marker at all** when
@@ -116,27 +122,72 @@ for Vercel's build versions (#139, Phase 6). `npm audit --omit=dev` is clean; fu
 `npm audit` shows one accepted dev-only chain (`braces` via `eslint-config-next`,
 GHSA-vfj7-8cjw-p6xm). `next.config.ts` sets `agentRules: false` (Phase 4 plan decision #12).
 
-## Database (the old schema, kept until Phase 5)
+## Database (the Phase 5 baseline)
 
-Migrations `0001`–`0006` still describe the old design, and stay until Phase 5
-replaces them with a squashed baseline:
+One migration, `supabase/migrations/0001_baseline.sql`, creates the target design's
+schema: Part 2's "Data model" and "RLS and grants" describe it, and the integration
+tests hold it there. The reasons are the Phase 5 plan's numbered decisions, cited
+below as "#n".
 
-- Five tables: `trucks` (with `last_known_latitude/longitude`), `posts`, `locations`
-  (with `confidence`, `parser_confidence`, `source_confidence`, `is_negation`,
-  `post_id`, `address_*`, `expires_at`, and a **nullable** `ends_at`),
-  `geocoding_cache`, `users`.
-- RLS is enabled on all five. Grants: `service_role` gets one blanket `grant … on all
-  tables in schema public` (it covers only tables that existed at that point); `anon`
-  and `authenticated` get SELECT on `trucks` and `locations` (the target design removes
-  this); `authenticated` gets SELECT on `users` and no UPDATE (no owner self-UPDATE).
-- `0004` is the email replay index, `0005` adds `parsing_status = 'duplicate'`, `0006`
-  reshapes the overlap index. All three go in Phase 5.
-- `supabase/seed.sql` seeds dev trucks against these columns.
+- Three tables, `trucks`, `locations`, `users`, with every column's nullability and
+  default stated (#16, #17). `locations.source` is the enum `location_source`
+  (`'admin' | 'owner'`, #18); `trucks.name` is `collate "sv-SE-x-icu"`, so "ordered
+  by name" is Swedish order (#19).
+- `locations_no_overlap`, the exclusion constraint, and `CHECK (ends_at > starts_at)`,
+  which the constraint needs: an empty range overlaps nothing, so a row with `ends_at =
+  starts_at` would pass the constraint without it. Never relax the CHECK (#4).
+- The `locations_updated_at` trigger (`moddatetime`, #5). Its `WHEN` skips every
+  UPDATE that clears `created_by`: it exists for the one an auth user's deletion runs
+  through `created_by … on delete set null`, but it can't tell that one from an edit
+  (the SQL rule for that is `CLAUDE.md`'s, "db layer").
+  `btree_gist` and `moddatetime` both live in the `extensions` schema.
+- Two partial btrees, one per read; the constraint's GiST index serves overlap checks.
+  Another index waits for a measured query that needs it (#14).
+- Foreign keys to `trucks` (`locations.truck_id`, `users.truck_id`) and `users.id →
+  auth.users` are `NO ACTION`: deleting a truck with history fails with `23503`, so
+  only the takedown removes history (#7). **The exception is `locations.created_by →
+  auth.users`, `on delete set null`** (#8): deleting an auth user with no `users` row
+  clears `created_by` on every row they wrote. One who has a `users` row (every admin
+  and owner) can't be deleted until that row is: `users_id_fkey` refuses it, `23503`,
+  and `created_by` stays (probed in a rolled-back transaction, 2026-10-24).
+- RLS on all three; per table, `revoke all` from `anon`, `authenticated` and
+  `service_role`, then the grants of Part 2's table (#6). The one policy is
+  `users_select_own`.
+- Coordinates are `float8` with no CHECK; the Gothenburg box is Phase 7's validator
+  (#13).
+- `supabase/seed.sql`: three fixed-UUID trucks (Vintervilan inactive, with no rows)
+  and four weeks of 11:00–14:00 Stockholm history ending yesterday, plus one row
+  spanning `now()`, all relative to the reset (#15).
 
-`src/lib/database.types.ts`, `src/lib/db/locations.ts`, `src/lib/db/trucks.ts` and
-`tests/integration/*` match this schema, so they keep its vocabulary until Phase 5
-replaces schema, types, db layer and tests together. Don't "fix" them toward the
-target design before that.
+`src/lib/database.types.ts` is generated from it, **in Git Bash** (PowerShell 5.1's
+`>` re-encodes the file): `npx supabase gen types typescript --local >
+src/lib/database.types.ts`. `src/lib/types.ts` derives `Truck`, `Location` (without
+`created_by`), `NewLocation` and `LocationPatch` from it with no narrowing by hand.
+
+**The db layer** (`src/lib/db/`):
+- `trucks.ts`: `getActiveTruckById`, `listActiveTrucks`. No truck writes yet: they
+  come with Phase 7's truck screen (#11).
+- `locations.ts`: `insertLocation`, `updateLocation`, `cancelLocation`,
+  `findLocationsOverlapping`, `listRecentLocationsForTruck`. No delete.
+  `findLocationsOverlapping(from, to)` serves both Phase 6's live window and Phase 7's
+  checklist (#9), and **doesn't filter on `is_active`** (the plan's open decision 6:
+  Phase 6 decides where that filter goes).
+- `complete.ts`: `MAX_ROWS` (pinned to `config.toml`'s `max_rows` by its unit test)
+  and `assertAllRows`, which list reads without a `limit` use to throw when `max_rows`
+  cuts them.
+
+Its rules are `CLAUDE.md`'s ("db layer" under Hard Rules); the plan's "Functions and
+types" section has each function's contract.
+
+**Checked only on the local stack.** Phase 6's hosted project must check:
+- that `sv-SE-x-icu` exists (#19): without it the `create table` fails, `42704`;
+- that both extensions install into `extensions` and the trigger form is accepted
+  (#5, the plan's open decision 2);
+- that the Data API's `max_rows` is at least `MAX_ROWS`. It is set in the dashboard,
+  not from `config.toml`. Below `MAX_ROWS`, a `listRecentLocationsForTruck` call whose
+  `limit` is above the hosted cap, on a truck with more matching rows than the cap,
+  would return a cut result with no error (PR #167 round 5); the two other list reads
+  would throw through `assertAllRows` on any result above the cap.
 
 ## Modules kept on purpose
 
@@ -146,14 +197,18 @@ target design before that.
 | `src/lib/geo.ts` | `GOTHENBURG_BBOX` and `isInGothenburg()` (+ test) | Phase 7: validate map taps and GPS |
 | `src/lib/spots.ts` | `SPOTS`: known Gothenburg places with coordinates (+ test) | Phase 7: "known spot" entry |
 | `src/lib/validators/uuid.ts` | UUID check (+ test) | Phase 7: truck id on admin writes |
-| `src/lib/db/trucks.ts`, `src/lib/db/locations.ts` | primitives on the old schema | rewritten in Phase 5 |
+| `src/lib/db/trucks.ts`, `locations.ts`, `complete.ts` | the db layer on the Phase 5 schema (see "Database") | Phase 6 (`/api/live`), Phase 7 |
 | `src/lib/supabase.ts` | `supabaseAdmin` and `supabaseClient` | Phase 6/7 (see "Admin and auth") |
-| `src/lib/database.types.ts` | generated (`npx supabase gen types typescript --local`) | regenerated in Phase 5 |
-| `src/lib/types.ts` | hand-written row types **derived** from the generated ones, with CHECK columns narrowed by hand (e.g. `source`) | re-derived **and its narrowings edited by hand** in Phase 5 |
+| `src/lib/database.types.ts` | generated from the baseline (see "Database") | regenerated with each migration |
+| `src/lib/types.ts` | row types **derived** from the generated ones, no narrowing by hand (`source` is an enum, Phase 5 plan #18) | Phase 6, Phase 7 |
+| `src/lib/map-types.ts` | the fake-data map's **frozen, hand-written** types: the old `Truck` and `Location` shapes (`MapTruck`, `MapLocation`), `MarkerColor`, `MarkerState`. Imports nothing, so the schema can't change it (Phase 5 plan #1) | deleted in Phase 6 |
 | `src/lib/fake-data.ts` | the map's data source | replaced in Phase 6 |
 | `src/lib/maplibre-worker.mjs` | worker folder and file list (+ test) | — |
 | `scripts/seed-dictionary.mjs` | prints `Spot` stubs from OpenStreetMap for **human review**; never paste its output over `SPOTS`, which reverts hand-corrected pins | when adding spots |
 | `scripts/test-all.mjs` | the `test:all` gate | — |
+| `scripts/controls.mjs`, `tests/controls/*.sql` | the schema's negative controls; not a gate | when `CLAUDE.md` "Testing" says |
+| `scripts/claims.sh` | the pre-review claims check (`CLAUDE.md`, "Review rounds") | every review round |
+| `scripts/process-log.sh` | `add` and `check` for the process log (`CLAUDE.md`, "Process Log") | every log row |
 
 ## Folder structure
 
@@ -174,18 +229,21 @@ src/
 │   ├── useMapLibre.tsx
 │   └── useLocations.ts           ← Phase 6
 ├── lib/
-│   ├── db/                       ← trucks.ts, locations.ts (rewritten in Phase 5)
+│   ├── db/                       ← trucks.ts, locations.ts, complete.ts (+ test)
 │   ├── services/                 ← Phase 7 (doesn't exist yet): a small locations service
 │   ├── http/handler.ts           ← withErrorHandling (+ test)
 │   ├── validators/uuid.ts        ← (+ test)
 │   ├── geo.ts, spots.ts          ← (+ tests)
 │   ├── supabase.ts, types.ts, database.types.ts
-│   ├── fake-data.ts              ← replaced in Phase 6
+│   ├── map-types.ts, fake-data.ts ← deleted and replaced in Phase 6
 │   └── maplibre-worker.mjs       ← (+ test)
 └── proxy.ts                      ← stub until Phase 7
-scripts/                          ← copy-maplibre-worker.mjs, seed-dictionary.mjs, test-all.mjs
-supabase/                         ← config.toml, migrations/0001–0006 (squashed in Phase 5), seed.sql
-tests/integration/                ← setup.ts, helpers.ts (+ test), db-locations.test.ts
+scripts/                          ← copy-maplibre-worker.mjs, seed-dictionary.mjs, test-all.mjs,
+                                    controls.mjs, claims.sh, process-log.sh
+supabase/                         ← config.toml, migrations/0001_baseline.sql, seed.sql
+tests/integration/                ← setup.ts, helpers.ts (+ test), schema, rls, db-trucks and
+                                    db-locations tests
+tests/controls/                   ← one .sql per negative control, run by controls.mjs
 public/                           ← gothenburg.pmtiles and maplibre/ (both gitignored)
 .claude/                          ← plans, context, commands, process-log.md, transition.md
 ```
@@ -202,10 +260,14 @@ prints them under other names: `API_URL` → `NEXT_PUBLIC_SUPABASE_URL`, `ANON_K
 ## Tests and gates
 
 Vitest with two projects, `unit` and `integration` (local Supabase, files run
-sequentially). There is no CI; the four gates are run by hand: `npx tsc --noEmit`,
-`npm run lint`, `npm run test:all`, `npm run build`. Details, and what the gates can't
-see, are in `CLAUDE.md` "Testing". Green gates don't show the map renders: look at
-`/map` in a browser after any map, dependency or tile change.
+sequentially). The integration project has five test files: `schema` (constraint,
+CHECK, NOT NULL, enum, trigger, foreign keys, the unique Instagram handle), `rls` (grants and the one policy, with signed-in
+auth-user fixtures), `db-trucks`, `db-locations` and `helpers`. There is no CI; the four
+gates are run by hand: `npx tsc --noEmit`, `npm run lint`, `npm run test:all`, `npm run
+build`. Details, and what the gates can't see, are in `CLAUDE.md` "Testing", which also
+covers the schema controls (`node scripts/controls.mjs`: not a gate; when to run them
+is there). Green gates don't show the map renders: look at `/map` in a browser after
+any map, dependency or tile change.
 
 ---
 
@@ -254,26 +316,28 @@ authoring tool for `SPOTS`).
 
 | Phase | Builds |
 |---|---|
-| 5 · Schema reset | Squashed baseline: `trucks`, `locations`, `users`; `btree_gist` + exclusion constraint + `CHECK (ends_at > starts_at)` + `updated_at` trigger; RLS + explicit GRANTs (no anon SELECT on `trucks`/`locations`); regenerate types; rewrite `seed.sql`, `db/trucks.ts`, `db/locations.ts` (with the history queries) and the integration tests (constraint, cancelled rows don't block, CHECK, RLS) |
-| 6 · Live read path | `GET /api/live`; `useLocations` (polling, timer, marker diffing); popup with freshness text and Instagram link; replace `fake-data.ts`; a hosted Supabase project for previews; **first preview deploy**: check `x-vercel-cache` MISS → HIT → STALE, measure real requests per visit in Vercel's usage dashboard, record Vercel's build Node/npm (#139) |
+| 5 · Schema reset (done) | Squashed baseline: `trucks`, `locations`, `users`; `btree_gist` + exclusion constraint + `CHECK (ends_at > starts_at)` + `updated_at` trigger; RLS + explicit GRANTs (no anon SELECT on `trucks`/`locations`); regenerate types; rewrite `seed.sql`, `db/trucks.ts`, `db/locations.ts` (with the history queries) and the integration tests (constraint, cancelled rows don't block, CHECK, RLS) |
+| 6 · Live read path | `GET /api/live`; `useLocations` (polling, timer, marker diffing); popup with freshness text and Instagram link; replace `fake-data.ts` and delete `map-types.ts`; decide where the `is_active` filter goes (Phase 5 plan, open decision 6); the popup's text for a NULL `label` (Phase 5 plan decision #12); a hosted Supabase project for previews, with the hosted checks Part 1's "Database" lists; **first preview deploy**: check `x-vercel-cache` MISS → HIT → STALE, measure real requests per visit in Vercel's usage dashboard, record Vercel's build Node/npm (#139) |
 | 7 · Admin | Magic-link login, admin only (public sign-ups disabled); session and `is_admin` checks in `proxy.ts` **and** every admin route; truck CRUD; mobile-first location entry; edit; cancel; overlap → 409; the morning checklist |
-| 8 · Launch | Supabase Pro (backups); tiles on R2 (custom domain, CORS); production env; security headers; Swedish privacy note; takedown procedure; tell trucks they're listed; acquisition plan; runbook (Vercel Attack Mode, usage emails); Vercel Pro + Spend Management before the first marketing push |
+| 8 · Launch | Supabase Pro (backups); tiles on R2 (custom domain, CORS); production env; security headers; Swedish privacy note; takedown procedure (one transaction: delete the truck's locations, clear or delete each `users` row pointing at it, then delete the truck; Phase 5 plan #7); tell trucks they're listed; acquisition plan; runbook (Vercel Attack Mode, usage emails); Vercel Pro + Spend Management before the first marketing push |
 | later | Owners (claim flow, owner dashboard, override rules, custom SMTP); optional automation (Meta Business Discovery captions in the admin screen, a scheduler) |
 
-## Data model (Phase 5)
+## Data model (built in Phase 5)
 
-**`trucks`:** `id`, `name`, `instagram_handle`, `cuisine_type`, `description`,
-`is_active`, `created_at`. No `last_known_*`. Claim columns come with the Owners phase.
+**`trucks`:** `id`, `name` (Swedish collation), `instagram_handle` (unique),
+`cuisine_type`, `description`, `is_active`, `created_at`. No `last_known_*`. Claim
+columns come with the Owners phase.
 
 **`locations`:**
 - `id`, `truck_id`, `latitude`, `longitude`
-- `label` text (e.g. "Heden": a known spot, a recent place, or typed)
+- `label` text, nullable (e.g. "Heden": a known spot, a recent place, or typed; a pin
+  dropped on the map may have none)
 - `starts_at` **NOT NULL**, `ends_at` **NOT NULL**, `CHECK (ends_at > starts_at)`
 - `cancelled_at` (nullable)
-- `source` `'admin' | 'owner'`, default `'admin'`
-- `created_by` (user id), `created_at`, `updated_at` — **`updated_at` needs a
-  trigger** (e.g. `moddatetime`); a bare `default now()` never changes on UPDATE, and
-  the popup's freshness text reads it
+- `source`, the enum `location_source` (`'admin' | 'owner'`), default `'admin'`
+- `created_by` (nullable auth user id, `on delete set null`, never selected),
+  `created_at`, `updated_at` — **`updated_at` moves by a `moddatetime` trigger**; a
+  bare `default now()` never changes on UPDATE, and the popup's freshness text reads it
 - Overlap constraint:
   ```sql
   EXCLUDE USING gist (
@@ -281,27 +345,28 @@ authoring tool for `SPOTS`).
     tstzrange(starts_at, ends_at) WITH &&
   ) WHERE (cancelled_at IS NULL)
   ```
-  A violation raises SQLSTATE `23P01`; the service maps it to **409** with the
+  A violation raises SQLSTATE `23P01`; the service (Phase 7) maps it to **409** with the
   Swedish "överlappar" message. Never auto-resolve, replace or delete.
 - Rows are **never deleted**, except a takedown. "Ended" (`ends_at <= now()`) and
   "cancelled" (`cancelled_at IS NOT NULL`) are filters.
 
-**`users`:** as today (`id`, `truck_id` nullable, `is_admin`, `created_at`), with no
-owner self-UPDATE.
+**`users`:** unchanged from the old schema as `0003` left it (`id`, `truck_id`
+nullable, `is_admin` and `created_at` NOT NULL), with no owner self-UPDATE.
 
 **Gone:** `posts`, `geocoding_cache`, the replay index (0004), the `parsing_status`
 values (0005), the overlap index (0006; the constraint's GiST index replaces it), and
 on `locations`: `confidence`, `parser_confidence`, `source_confidence`,
 `is_negation`, `post_id`, `address_raw`, `address_geocoded`, `expires_at`.
 
-**Migrations:** squash 0001–0006 into a fresh baseline (no production database
-exists). Keep the lessons: an explicit `GRANT` per table, RLS on every table,
-atomicity earned rather than assumed, no Realtime publication.
+**Migrations:** Phase 5 squashed 0001–0006 into `0001_baseline.sql` (no hosted
+database existed). Its lessons stand for every later migration: an explicit `GRANT` per
+table, RLS on every table, atomicity earned rather than assumed, no Realtime
+publication.
 
 **History volume:** ~22k location rows a year, far below the 500 MB free database. It
 powers the checklist, "recent places" and proof of value to trucks.
 
-## RLS and grants (Phase 5)
+## RLS and grants (built in Phase 5)
 
 | Table | anon | authenticated | service_role |
 |---|---|---|---|
@@ -315,11 +380,17 @@ powers the checklist, "recent places" and proof of value to trucks.
   `is_admin = true` self-escalation and `truck_id` hijack (both confirmed via PostgREST
   earlier). A future editable profile field gets a **column-scoped** grant that never
   covers `is_admin` or `truck_id`.
-- **Explicit GRANTs.** Policies only filter rows; a role still needs a table `GRANT`,
-  and Supabase doesn't auto-expose new tables to the API roles. Every migration grants
-  explicitly, **per table, `service_role` included**, to match the table above. 0001's
-  blanket `grant … on all tables` doesn't reach tables created later, so don't copy it.
-- All writes, `/api/live` and the admin screen's reads go through server-side routes
+- **Revoke, then grant exactly the table.** Policies only filter rows; a role still
+  needs a table `GRANT`. On the local stack (`pg_default_acl`, read 2026-10-24) a
+  table `postgres` creates in `public`, as the migrations do, gets no SELECT, INSERT,
+  UPDATE or DELETE for the API roles, but does give `anon`, `authenticated` and
+  `service_role` TRUNCATE, REFERENCES, TRIGGER and MAINTAIN (Phase 5 plan decision
+  #6); one `supabase_admin` creates gets all of them, `anon` included. So every
+  migration, per table, revokes all from those three roles and then grants exactly the
+  table above, **`service_role` included**, as `0001_baseline.sql` does: the result
+  doesn't depend on the defaults. No `service_role` policies:
+  it bypasses RLS. The rule itself is `CLAUDE.md`'s.
+- (Target, Phases 6–7: no route exists yet.) All writes, `/api/live` and the admin screen's reads go through server-side routes
   (route → service → db layer; only the db layer uses `supabaseAdmin`).
 - Unverified third-party reports say free projects need explicit GRANTs for API access
   from 2026-10-30; already covered by the rule above.
@@ -348,6 +419,9 @@ Visitor's map ──► GET /api/live (every 60 s, and when the tab regains focu
   list, never `*`**, so `created_by` and future columns can't leak.
 - Returns active trucks plus locations with `cancelled_at IS NULL AND ends_at > now()
   AND starts_at < now() + interval '1 day'`. The client handles minute-level edges.
+  The db layer has both halves: `listActiveTrucks()` and
+  `findLocationsOverlapping(now, now + 1 day)`, which returns every truck's rows,
+  inactive ones included, so Phase 6 decides where the `is_active` filter goes.
 - **Errors are never cached:** a DB error goes through `withErrorHandling` → 500, which
   Vercel doesn't cache. **Never return `[]` on error**: that is a cacheable 200 and
   wipes the map for a minute.
@@ -464,12 +538,13 @@ mechanics, hand-off rule, custom SMTP provider.
 
 These hold in both the current state and the target design.
 
-**Owned by `CLAUDE.md`:** Supabase clients and keys, architecture layers, `proxy.ts`,
-API responses (`withErrorHandling`, the `{ error }` shape), the `/api/live` rules, UI
-rules and time. This part doesn't restate them. Part 2 does describe several of them
-(RLS and grants, `/api/live`, the auth check order) **together with their reasons**;
-where a Part 2 statement and a `CLAUDE.md` rule disagree, the `CLAUDE.md` rule wins and
-Part 2 is corrected. A rule restated in two files drifts (process-log rows 291, 293,
+**Owned by `CLAUDE.md`:** Supabase clients and keys, grants and RLS, architecture
+layers, the db layer, `proxy.ts`, API responses (`withErrorHandling`, the `{ error }`
+shape), the `/api/live` rules, locations, UI rules and time. This part doesn't restate
+them. Part 1's "Database" and Part 2 do describe several of them (the db layer, RLS
+and grants, the trigger's SQL rule, `/api/live`, the auth check order) **together with
+their reasons**; where one of those statements and a `CLAUDE.md` rule disagree, the
+`CLAUDE.md` rule wins and the statement is corrected. A rule restated in two files drifts (process-log rows 291, 293,
 294, 295).
 
 ## Map behaviour
@@ -497,15 +572,19 @@ import { Truck } from "@/lib/types";             // ❌ a type imported as a val
 
 ## Component structure
 
+An example of the convention, not today's `TruckPopup` (which types its props from the
+frozen `map-types.ts` until Phase 6):
+
 ```tsx
-import type { MarkerState } from "@/lib/types";
+import type { Location, Truck } from "@/lib/types";
 
 interface TruckPopupProps {
-  marker: MarkerState;
+  truck: Truck;
+  location: Location;
   onClose: () => void;
 }
 
-export default function TruckPopup({ marker, onClose }: TruckPopupProps) {
+export default function TruckPopup({ truck, location, onClose }: TruckPopupProps) {
   return <div>{/* render only */}</div>;
 }
 ```
@@ -526,3 +605,37 @@ are decided when built.
 
 `400` bad input · `401` not authenticated · `403` authenticated but not allowed (e.g.
 not admin) · `409` conflict (an overlapping entry, from `23P01`) · `500` unexpected.
+
+## Decisions carried forward
+
+Numbered decisions that outlive their phase as a rule or a task for a later phase,
+carried by the end-of-phase reconciliation (the milestone-retrospective procedure's part 6, in the process log's
+"How to use it"), from Phase 5's on. Earlier phases' carried decisions are cited where
+they live (e.g. Phase 4 #10–#13 in `CLAUDE.md` "Dependencies"). The last column says
+where each rule's text lives, so a later plan doesn't drop it as "the old plan's";
+where it names two places, each holds a part of it, so a change to the rule checks
+both. The first column names each row's source: "Phase N #n" a plan decision, "open
+decision n" a plan's open decision, "IS #n" an issue, "PR #n round r" a check a review
+round settled. A trailing "(IS #n)" or "(PR #n)" names the issue or PR that added the
+decision, and any other parenthetical the part of the row that source backs.
+
+Rows for decisions settled between phases are marked as `CLAUDE.md` "Process Log"
+says. None are marked today.
+
+| Decision or issue | What it settled | Where the rule lives |
+|---|---|---|
+| Phase 4 #14 (IS #152) | Settled decisions go in the current plan's numbered decisions; the log's old detail entries are on the `archive/process-log-details` tag | `CLAUDE.md` "Process Log"; the log's "How to use it" |
+| Phase 4 #15 (IS #155) | Log rows are written with `bash scripts/process-log.sh add`; every checked value is in the log's one `values` block; Miss ≤ 600 and Fix ≤ 300 characters from row 321 | `CLAUDE.md` "Process Log"; the log's "Columns" |
+| IS #149 | The pre-review claims check (`scripts/claims.sh`) and the sweep listed from the diff | `CLAUDE.md` "Review rounds" |
+| IS #150, Phase 5 #22 (PR #173) | `Caught by` starts with one group: `code-review`, `self` or `user`. Every review Claude was asked to run is `code-review`, however it was done; `plan-review` is gone | the log's "Columns" (`Caught by`) and its `values` block |
+| Phase 5 #20 (PR #172) | Review rounds keep `/code-review`'s default findings limit, and repeat scoped or full | `CLAUDE.md` "Review rounds" |
+| Phase 5 #5, #8, #10, #18 | The db layer's rules, and the SQL rule the `updated_at` trigger's `WHEN` needs | `CLAUDE.md` "Hard Rules" ("db layer") |
+| Phase 5 #3, #23 (PR #175) | The baseline is `0001_baseline.sql`; later migrations are `0002_<name>.sql`, `0003_…`, never `npx supabase migration new`'s timestamp names | `CLAUDE.md` "Hard Rules" ("Supabase") |
+| Phase 5 #24 (PR #175) | Where a decision settled between phases goes, and how the next plan and reconciliation take it up | `CLAUDE.md` "Process Log" (the one copy) |
+| IS #171 (PR #173) | The sweep also lists each code pattern a fix guards; a claim is backed by a command that could show it false, and a behaviour a probe can settle is probed, not hedged; a review row records the round's level and limit | `CLAUDE.md` "Review rounds"; the log's "Columns" ("What one row is", `Caught by`) |
+| Phase 5 #4, #14 | The CHECK is part of the overlap guard (an empty range overlaps nothing), so it is never relaxed; indexes are the constraint's plus one per read, and another needs a measured query | Part 1 "Database" |
+| Phase 5 #6, #7 | Revoke, then grant per table; foreign keys to `trucks` stay `NO ACTION`. **The takedown (Phase 8) is one transaction:** delete the truck's locations, clear or delete each `users` row whose `truck_id` points at it, then delete the truck | `CLAUDE.md` "Hard Rules" ("Supabase", "Locations"); Part 2's Phase map (Phase 8 row) |
+| Phase 5 #12 | `label` is nullable; the popup's text for a missing one is Phase 6's | Part 2's Phase map (Phase 6 row) |
+| Phase 5 #1, #19; open decisions 2, 6; PR #167 round 5 (`max_rows`) | Phase 6 tasks: delete `map-types.ts`; check `sv-SE-x-icu`, both extensions and `max_rows` on the hosted project; decide where the `is_active` filter goes | Part 1 "Database" (hosted checks); Part 2's Phase map (Phase 6 row) |
+| Phase 5 #9, #11, #13 | Phase 7 tasks: the checklist reuses `findLocationsOverlapping` with its own window; truck writes come with the truck screen; the Gothenburg box is checked by the validator, never a database CHECK | Part 1 "Database" (the db layer, coordinates) |
+| IS #170 (PR #174) | Schema guards get negative controls in `tests/controls/`, run by `node scripts/controls.mjs` | `CLAUDE.md` "Testing"; `.claude/commands/create-issues.md` "Failure modes" |
