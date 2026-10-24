@@ -62,10 +62,15 @@ describe a different one.
   optional peers, Phase 4 decision #11). Prose only: `package.json` doesn't enforce either.
 - `next.config.ts` sets `agentRules: false`. Don't remove it without the owner
   (Phase 4 decision #12).
+- `next.config.ts` sets `experimental.agentUpgrade: false`. With 16.4's default, an
+  agent-run `next build` fails when an advisory covers the installed Next, so a gate's
+  result would depend on the advisory feed, not the code. Don't remove it without the
+  owner (the owner's call, 2026-10-24, IS #178)
 - MapLibre's worker is copied into `public/maplibre/<version>/` by the
   `postinstall`/`predev`/`prebuild` hooks. Don't switch to MapLibre's documented
-  `setWorkerUrl(new URL(…, import.meta.url))` form: on Next 16.3 the worker 404s and
-  the map draws only its background, with every gate green (Phase 4 decision #13).
+  `setWorkerUrl(new URL(…, import.meta.url))` form: on Next 16.3 the worker 404'd and
+  the map drew only its background, with every gate green (Phase 4 decision #13; not
+  retested on 16.4, where the copied worker loads, IS #178).
 
 ---
 
