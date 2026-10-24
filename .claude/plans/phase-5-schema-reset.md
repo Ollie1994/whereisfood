@@ -580,7 +580,8 @@ exists. The next plan numbers each marked row (`/create-milestone`'s Output Form
 and that plan's reconciliation replaces the marker with the plan decision (part 6 of
 the milestone-retrospective procedure, which also has the reconciliation set
 `CLAUDE.md`'s "Current phase plan" line to none). *The marker, the `CLAUDE.md` copy and
-part 6's two additions came from PR #175 round 4, after the owner's call.* **Rejected:** appending it to the
+part 6's two additions came from PR #175 round 4, after the owner's call; round 5
+made `CLAUDE.md` "Process Log" the procedure's one copy and the rest pointers to it.* **Rejected:** appending it to the
 finished plan, which `CLAUDE.md` then calls history. A process decision that outlives
 the phase: step 7 carries it forward.
 
@@ -707,13 +708,14 @@ that box holds once it merges. PR #175's body has the outputs.
   paragraph listing what today's schema breaks; the Locations and anon-SELECT rules
   read as current; the Hard Rules' grants bullet no longer describes `0001`'s blanket
   `service_role` grant.
-- [x] `README.md`'s "What works today" describes the new schema, its status line names
-  Phase 5, and its "Project status" table shows Phase 4 done, Phase 5 in progress, and
-  no Phase 2 schema kept. *(True as of step 2, PR #167; step 7, PR #175, then set Phase
-  5 to done, so "in progress" no longer holds at HEAD.)*
+- [x] **Held at step 2 (PR #167); step 7 (PR #175) then set Phase 5 to done, so "in
+  progress" no longer holds.** `README.md`'s "What works today" describes the new
+  schema, its status line names Phase 5, and its "Project status" table shows Phase 4
+  done, Phase 5 in progress, and no Phase 2 schema kept.
 
 **Closing**
-- [x] The closing steps of the milestone-retrospective procedure are done: the Phase 5
+- [x] **Holds once PR #175 (step 7) merges.** The closing steps of the
+  milestone-retrospective procedure are done: the Phase 5
   retrospective (step 5), its follow-ups merged (step 6), and the `project-context.md`
   reconciliation merged (step 7).
 

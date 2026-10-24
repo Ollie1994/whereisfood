@@ -3,12 +3,13 @@
 Full project reference: `.claude/context/project-context.md`
 Read it at the start of any non-trivial task.
 
-**Current phase plan: none until the Phase 6 plan exists.** Phase 5 is done and its
-reconciliation (#165) brought `project-context.md` up to date, so between phases the
-context is current and wins over the Phase 5 plan
-(`.claude/plans/phase-5-schema-reset.md`), whose step text is history. Its numbered
-decisions remain the reasoning behind the rules that cite them. **Once a phase plan
-exists, read it too, and when the two disagree, THE PLAN WINS.**
+**Current phase plan: none (the last one: `.claude/plans/phase-5-schema-reset.md`).**
+
+While that line names no plan (between phases, after a reconciliation and before the
+next plan's step 0), the reconciled `project-context.md` is current and wins over the
+last plan, whose step text is history; its numbered decisions remain the reasoning
+behind the rules that cite them. **While it names a plan, read that plan too, and when
+the two disagree, THE PLAN WINS.** Only the bold line changes between phases.
 
 `project-context.md` is only reconciled with reality at the END of a phase (it is a
 tracked task in each plan — Phase 4's was issue #127, Phase 5's was #165). So for
@@ -20,9 +21,8 @@ design**, which Phase 4 removed.
 
 The plan is also where the numbered decision records live (`#1`, `#2`, …) —
 those are the reasoning behind rules the context states as bare facts, and an issue
-saying "see the plan" means that section. A decision settled between phases waits in
-the context's "Decisions carried forward" table until the next plan numbers it
-(Phase 5 plan decision #24).
+saying "see the plan" means that section. Between phases, decisions wait elsewhere:
+see "Process Log".
 
 The removed design (ingestion lanes, parser, geocoding) is archived on the
 `archive/parser-lanes` branch and tag. Don't re-add any of it, or Realtime, cron or
@@ -402,9 +402,8 @@ claims, it doesn't judge them; its header says what it can't see.
 all` (the owner's call, Phase 5 plan decision #20): fix, then repeat, scoped to the
 previous round's fixes or full. A scoped round sees only the fixes: #20 records a
 defect outside them that a scoped round and the full round 1 on PR #168 both missed,
-and a later full round, on PR #169, found (row 349). **Every round** is asked for its
-level and limit when it starts, and its log row records them; one that finds as many
-as the limit may have been cut (the log's "Columns", `Caught by`, owns this).
+and a later full round, on PR #169, found (row 349). The log's "Columns" (`Caught by`)
+say what to ask each round for when it starts and how its row records it.
 
 ---
 
@@ -432,11 +431,19 @@ issues; this file is for what the bug reveals about how we work.
 
 **Settled decisions go in the current plan's numbered decisions** (Phase 4 plan
 decision #14), with their rationale, so a resolved question stays resolved and is not
-re-litigated next session. **Between phases, with no current plan**, one goes into
-`project-context.md`'s "Decisions carried forward" table as a row marked "between
-phases", through an issue and PR like any doc change; a rule also goes into this file
-in the same PR, so it holds at once. The next plan numbers each marked row (Phase 5
-plan decision #24, the owner's call). The
+re-litigated next session.
+
+**Between phases, with no current plan** (Phase 5 plan decision #24, the owner's call;
+this paragraph is the procedure's one copy, and the other files point here):
+- A settled decision goes into `project-context.md`'s "Decisions carried forward" table
+  as a row whose first cell starts `**between phases**, <date>, IS #<n>`, through an
+  issue and PR like any doc change. A rule also goes into this file in that PR, so it
+  holds at once.
+- The next plan numbers each marked row as one of its decisions (`/create-milestone`).
+- That plan's reconciliation replaces each marker with the plan decision, or removes
+  the row when the decision didn't outlive the phase.
+
+The
 end-of-phase reconciliation carries forward the ones that outlive the phase (the
 milestone-retrospective procedure's part 6, in the log's "How to use it"). New
 decisions don't go in the process log; the dated ones already in it stay as written,
