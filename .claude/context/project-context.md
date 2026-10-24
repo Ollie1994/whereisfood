@@ -614,8 +614,10 @@ carried by the end-of-phase reconciliation (the milestone-retrospective procedur
 they live (e.g. Phase 4 #10–#13 in `CLAUDE.md` "Dependencies"). The last column says
 where each rule's text lives, so a later plan doesn't drop it as "the old plan's";
 where it names two places, each holds a part of it, so a change to the rule checks
-both. Plan decisions are "Phase N #n"; issues are "IS #n"; a check a PR settled (no decision
-number) is "PR #n round r".
+both. The first column names each row's source: "Phase N #n" a plan decision, "open
+decision n" a plan's open decision, "IS #n" an issue, "PR #n round r" a check a review
+round settled. A trailing "(IS #n)" or "(PR #n)" names the issue or PR that added the
+decision, and any other parenthetical the part of the row that source backs.
 
 Rows for decisions settled between phases are marked as `CLAUDE.md` "Process Log"
 says. None are marked today.

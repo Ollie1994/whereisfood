@@ -573,10 +573,10 @@ that outlives the phase: step 7 carries it into `CLAUDE.md`.
 The owner's call, 2026-10-24, taking Claude's recommendation in PR #175 (after its
 round 2). After a reconciliation merges and before the next plan exists, there is no
 current plan (`CLAUDE.md`'s header, PR #175 round 1), so "the current plan's numbered
-decisions" has no home. **Settled:** such a decision waits in `project-context.md`'s
-"Decisions carried forward" table, as a marked row, until the next plan numbers it.
-The procedure itself is `CLAUDE.md` "Process Log"'s, its one copy; this record keeps
-only the reasoning. *Rounds 4–6 of PR #175, after the owner's call, added the marker,
+decisions" has no home. **Settled:** such a decision is recorded in
+`project-context.md`'s "Decisions carried forward" table; how, and how the next plan
+and its reconciliation take it up, is `CLAUDE.md` "Process Log"'s procedure, its one
+copy. This record keeps what was settled and why, not the steps. *Rounds 4–6 of PR #175, after the owner's call, added the marker,
 the immediate `CLAUDE.md` copy of a rule, and the removal of rows that don't outlive
 the next phase, and made `CLAUDE.md` the one copy.* **Rejected:** appending it to the
 finished plan, which `CLAUDE.md` then calls history. A process decision that outlives
@@ -594,7 +594,8 @@ types` diff (clean), both greps (no hits), and the seed check (as SQL with
 earlier on Taco Loco, none on Vintervilan). The schema, RLS and control criteria rest on
 PRs #168, #169 and #174's records; the map's on #166's; the DST criterion on open
 decision 3. The Docs criteria describe step 2 and rest on PR #167, which made them
-true; PR #175 since moved `README.md`'s status to Phase 5 done, as step 7 should. Closing: steps 5–6 merged (PRs #172, #173, #174); step 7 is PR #175, so
+true; PR #175 since moved `README.md`'s status to Phase 5 done, as step 7 should, so
+the README criterion is the one box left unticked, as superseded. Closing: steps 5–6 merged (PRs #172, #173, #174); step 7 is PR #175, so
 that box holds once it merges. PR #175's body has the outputs.
 
 **Schema (steps 2–4)**

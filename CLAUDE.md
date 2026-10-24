@@ -9,8 +9,8 @@ While that line names no plan (between phases, after a reconciliation and before
 next plan's step 0), the reconciled `project-context.md` is current and wins over the
 last plan, whose step text is history; its numbered decisions remain the reasoning
 behind the rules that cite them. **While it names a plan, read that plan too, and when
-the two disagree, THE PLAN WINS.** At a phase boundary (a reconciliation, or the next
-plan's step 0) only the bold line is edited.
+the two disagree, THE PLAN WINS.** Of this header, a phase boundary (a reconciliation,
+or the next plan's step 0) edits only the bold line.
 
 `project-context.md` is only reconciled with reality at the END of a phase (it is a
 tracked task in each plan — Phase 4's was issue #127, Phase 5's was #165). So for
@@ -433,7 +433,11 @@ issues; this file is for what the bug reveals about how we work.
 
 **Settled decisions go in the current plan's numbered decisions** (Phase 4 plan
 decision #14), with their rationale, so a resolved question stays resolved and is not
-re-litigated next session.
+re-litigated next session. The end-of-phase reconciliation carries forward the ones
+that outlive the phase (the milestone-retrospective procedure's part 6, in the log's
+"How to use it"). New decisions don't go in the process log; the dated ones already in
+it stay as written, and its old detail entries are archived (the note above its table
+says where).
 
 **Between phases, with no current plan** (Phase 5 plan decision #24, the owner's call;
 this paragraph is the procedure's one copy, and the other files point here):
@@ -446,15 +450,6 @@ this paragraph is the procedure's one copy, and the other files point here):
 - That plan's reconciliation replaces each marker with the plan decision, and the rule
   text here cites it. When the decision didn't outlive the phase, the reconciliation
   removes the row and the rule text with it.
-
-The plan pointer at the top of this file is part 6's and `/create-milestone`'s step 0's,
-not this procedure's.
-
-The
-end-of-phase reconciliation carries forward the ones that outlive the phase (the
-milestone-retrospective procedure's part 6, in the log's "How to use it"). New
-decisions don't go in the process log; the dated ones already in it stay as written,
-and its old detail entries are archived (the note above its table says where).
 
 **Every milestone includes a retrospective.** The procedure, with its order,
 blocking and closing rules, is in the log's "How to use it" section;
