@@ -9,7 +9,8 @@ While that line names no plan (between phases, after a reconciliation and before
 next plan's step 0), the reconciled `project-context.md` is current and wins over the
 last plan, whose step text is history; its numbered decisions remain the reasoning
 behind the rules that cite them. **While it names a plan, read that plan too, and when
-the two disagree, THE PLAN WINS.** Only the bold line changes between phases.
+the two disagree, THE PLAN WINS.** At a phase boundary (a reconciliation, or the next
+plan's step 0) only the bold line is edited.
 
 `project-context.md` is only reconciled with reality at the END of a phase (it is a
 tracked task in each plan — Phase 4's was issue #127, Phase 5's was #165). So for
@@ -402,8 +403,9 @@ claims, it doesn't judge them; its header says what it can't see.
 all` (the owner's call, Phase 5 plan decision #20): fix, then repeat, scoped to the
 previous round's fixes or full. A scoped round sees only the fixes: #20 records a
 defect outside them that a scoped round and the full round 1 on PR #168 both missed,
-and a later full round, on PR #169, found (row 349). The log's "Columns" (`Caught by`)
-say what to ask each round for when it starts and how its row records it.
+and a later full round, on PR #169, found (row 349). The log's "Columns" ("What one row
+is", then `Caught by`) say what to ask each round for when it starts and how its row
+records it.
 
 ---
 
@@ -439,9 +441,14 @@ this paragraph is the procedure's one copy, and the other files point here):
   as a row whose first cell starts `**between phases**, <date>, IS #<n>`, through an
   issue and PR like any doc change. A rule also goes into this file in that PR, so it
   holds at once.
-- The next plan numbers each marked row as one of its decisions (`/create-milestone`).
-- That plan's reconciliation replaces each marker with the plan decision, or removes
-  the row when the decision didn't outlive the phase.
+- The next plan gives each marked row a decision of its own, one per row, citing the
+  row's IS # (`/create-milestone` adds them to the plan's Rationale).
+- That plan's reconciliation replaces each marker with the plan decision, and the rule
+  text here cites it. When the decision didn't outlive the phase, the reconciliation
+  removes the row and the rule text with it.
+
+The plan pointer at the top of this file is part 6's and `/create-milestone`'s step 0's,
+not this procedure's.
 
 The
 end-of-phase reconciliation carries forward the ones that outlive the phase (the

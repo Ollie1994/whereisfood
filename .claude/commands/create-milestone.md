@@ -64,7 +64,8 @@ Save the plan to `.claude/plans/phase-<N>-<short-name>.md` using this structure:
 
 ## Steps
 <first, always: step 0, this plan file, and CLAUDE.md's bold "Current phase plan" line
-naming it (between phases that line says none); only that line changes>
+naming it, where between phases it reads `none (the last one: <path>)`; only that
+line changes>
 <strict ordered list — each step names the file and function being worked on>
 <then, always: the closing steps of the milestone-retrospective procedure in
 `.claude/process-log.md` ("How to use it"), as that procedure orders them>

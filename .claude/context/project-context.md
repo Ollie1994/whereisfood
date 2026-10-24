@@ -614,7 +614,8 @@ carried by the end-of-phase reconciliation (the milestone-retrospective procedur
 they live (e.g. Phase 4 #10–#13 in `CLAUDE.md` "Dependencies"). The last column says
 where each rule's text lives, so a later plan doesn't drop it as "the old plan's";
 where it names two places, each holds a part of it, so a change to the rule checks
-both. Plan decisions are "Phase N #n"; issues are "IS #n".
+both. Plan decisions are "Phase N #n"; issues are "IS #n"; a check a PR settled (no decision
+number) is "PR #n round r".
 
 Rows for decisions settled between phases are marked as `CLAUDE.md` "Process Log"
 says. None are marked today.
@@ -629,7 +630,7 @@ says. None are marked today.
 | Phase 5 #5, #8, #10, #18 | The db layer's rules, and the SQL rule the `updated_at` trigger's `WHEN` needs | `CLAUDE.md` "Hard Rules" ("db layer") |
 | Phase 5 #3, #23 (PR #175) | The baseline is `0001_baseline.sql`; later migrations are `0002_<name>.sql`, `0003_…`, never `npx supabase migration new`'s timestamp names | `CLAUDE.md` "Hard Rules" ("Supabase") |
 | Phase 5 #24 (PR #175) | Where a decision settled between phases goes, and how the next plan and reconciliation take it up | `CLAUDE.md` "Process Log" (the one copy) |
-| IS #171 (PR #173) | The sweep also lists each code pattern a fix guards; a claim is backed by a command that could show it false, and a behaviour a probe can settle is probed, not hedged; a review row records the round's level and limit | `CLAUDE.md` "Review rounds"; the log's "Columns" (`Caught by`) |
+| IS #171 (PR #173) | The sweep also lists each code pattern a fix guards; a claim is backed by a command that could show it false, and a behaviour a probe can settle is probed, not hedged; a review row records the round's level and limit | `CLAUDE.md` "Review rounds"; the log's "Columns" ("What one row is", `Caught by`) |
 | Phase 5 #4, #14 | The CHECK is part of the overlap guard (an empty range overlaps nothing), so it is never relaxed; indexes are the constraint's plus one per read, and another needs a measured query | Part 1 "Database" |
 | Phase 5 #6, #7 | Revoke, then grant per table; foreign keys to `trucks` stay `NO ACTION`. **The takedown (Phase 8) is one transaction:** delete the truck's locations, clear or delete each `users` row whose `truck_id` points at it, then delete the truck | `CLAUDE.md` "Hard Rules" ("Supabase", "Locations"); Part 2's Phase map (Phase 8 row) |
 | Phase 5 #12 | `label` is nullable; the popup's text for a missing one is Phase 6's | Part 2's Phase map (Phase 6 row) |

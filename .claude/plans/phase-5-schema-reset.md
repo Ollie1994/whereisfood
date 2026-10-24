@@ -573,15 +573,12 @@ that outlives the phase: step 7 carries it into `CLAUDE.md`.
 The owner's call, 2026-10-24, taking Claude's recommendation in PR #175 (after its
 round 2). After a reconciliation merges and before the next plan exists, there is no
 current plan (`CLAUDE.md`'s header, PR #175 round 1), so "the current plan's numbered
-decisions" has no home. A decision settled then goes into `project-context.md`'s
-"Decisions carried forward" table as a row marked "between phases", through an issue
-and PR; a rule also goes into `CLAUDE.md` in that PR, so it holds before the next plan
-exists. The next plan numbers each marked row (`/create-milestone`'s Output Format),
-and that plan's reconciliation replaces the marker with the plan decision (part 6 of
-the milestone-retrospective procedure, which also has the reconciliation set
-`CLAUDE.md`'s "Current phase plan" line to none). *The marker, the `CLAUDE.md` copy and
-part 6's two additions came from PR #175 round 4, after the owner's call; round 5
-made `CLAUDE.md` "Process Log" the procedure's one copy and the rest pointers to it.* **Rejected:** appending it to the
+decisions" has no home. **Settled:** such a decision waits in `project-context.md`'s
+"Decisions carried forward" table, as a marked row, until the next plan numbers it.
+The procedure itself is `CLAUDE.md` "Process Log"'s, its one copy; this record keeps
+only the reasoning. *Rounds 4–6 of PR #175, after the owner's call, added the marker,
+the immediate `CLAUDE.md` copy of a rule, and the removal of rows that don't outlive
+the next phase, and made `CLAUDE.md` the one copy.* **Rejected:** appending it to the
 finished plan, which `CLAUDE.md` then calls history. A process decision that outlives
 the phase: step 7 carries it forward.
 
@@ -708,8 +705,8 @@ that box holds once it merges. PR #175's body has the outputs.
   paragraph listing what today's schema breaks; the Locations and anon-SELECT rules
   read as current; the Hard Rules' grants bullet no longer describes `0001`'s blanket
   `service_role` grant.
-- [x] **Held at step 2 (PR #167); step 7 (PR #175) then set Phase 5 to done, so "in
-  progress" no longer holds.** `README.md`'s "What works today" describes the new
+- [ ] **Superseded: held at step 2 (PR #167), and step 7 (PR #175) then set Phase 5 to
+  done, so "in progress" no longer holds; unticked for that reason, not as a miss.** `README.md`'s "What works today" describes the new
   schema, its status line names Phase 5, and its "Project status" table shows Phase 4
   done, Phase 5 in progress, and no Phase 2 schema kept.
 
