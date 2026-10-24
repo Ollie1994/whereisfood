@@ -119,6 +119,10 @@ said otherwise: Phase 4 plan decision #14.
   hijack). Every migration grants per table, `service_role` included, after revoking
   the stack's default privileges on that table, as `0001_baseline.sql` does (Phase 5
   plan decision #6)
+- New migrations are numbered after the baseline: `0002_<name>.sql`, `0003_…`, never
+  the timestamp names `npx supabase migration new` makes, which would mix two naming
+  conventions in one folder (the owner's call, 2026-10-24, PR #175, extending Phase 5
+  plan decision #3)
 
 **db layer (`src/lib/db/`)**
 - It finds and mutates; it decides nothing. Postgres errors propagate unchanged (for
@@ -426,7 +430,7 @@ issues; this file is for what the bug reveals about how we work.
 decision #14), with their rationale, so a resolved question stays resolved and is not
 re-litigated next session. **Between phases, with no current plan**, one goes into
 `project-context.md`'s "Decisions carried forward" table, through an issue and PR like
-any doc change, and the next plan takes it up. The
+any doc change, and the next plan takes it up (the owner's call, 2026-10-24, PR #175). The
 end-of-phase reconciliation carries forward the ones that outlive the phase (the
 milestone-retrospective procedure's part 6, in the log's "How to use it"). New
 decisions don't go in the process log; the dated ones already in it stay as written,

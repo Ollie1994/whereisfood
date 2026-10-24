@@ -619,7 +619,8 @@ Log").
 | IS #150, Phase 5 #22 (PR #173) | `Caught by` starts with one group: `code-review`, `self` or `user`. Every review Claude was asked to run is `code-review`, however it was done; `plan-review` is gone | the log's "Columns" (`Caught by`) and its `values` block |
 | Phase 5 #20 (PR #172) | Review rounds keep `/code-review`'s default findings limit; a row records the round's level and limit | `CLAUDE.md` "Review rounds"; the log's "Columns" |
 | Phase 5 #5, #8, #10, #18 | The db layer's rules, and the SQL rule the `updated_at` trigger's `WHEN` needs | `CLAUDE.md` "Hard Rules" ("db layer") |
-| Phase 5 #3 | The baseline is `0001_baseline.sql`; a timestamp name was rejected for it ("mixes two naming conventions in one folder"). **Not decided:** whether later migrations are `0002_…` or the timestamp names `npx supabase migration new` makes; the first plan that adds one decides | this table, until then |
+| Phase 5 #3; owner, 2026-10-24 (PR #175) | The baseline is `0001_baseline.sql`; a timestamp name was rejected for it ("mixes two naming conventions in one folder"). The owner extended it: later migrations are `0002_<name>.sql`, `0003_…`, never `npx supabase migration new`'s timestamp names | `CLAUDE.md` "Hard Rules" ("Supabase") |
+| Owner, 2026-10-24 (PR #175) | Between phases, with no current plan, a settled decision goes in this table through an issue and PR, and the next plan takes it up | `CLAUDE.md` "Process Log" |
 | Phase 5 #6, #7 | Revoke, then grant per table; foreign keys to `trucks` stay `NO ACTION` | `CLAUDE.md` "Hard Rules" ("Supabase", "Locations") |
 | Phase 5 #12 | `label` is nullable; the popup's text for a missing one is Phase 6's | Part 2's Phase map (Phase 6 row) |
 | IS #170 (PR #174) | Schema guards get negative controls in `tests/controls/`, run by `node scripts/controls.mjs` | `CLAUDE.md` "Testing"; `.claude/commands/create-issues.md` "Failure modes" |
