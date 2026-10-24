@@ -494,8 +494,8 @@ before the first production deploy (Phase 8)**. Until then every gate is manual
   dependencies" (seen in the UI by the owner, 2026-10-24). It covers `eslint-config-next`,
   an exact pin in `devDependencies`, and the accepted `braces` chain under it.
   Auto-dismissed alerts stay listed as closed. The rule doesn't touch alerts on runtime
-  packages (`dependencies`), being scoped to development ones. The preset "Dismiss package malware alerts" is disabled, so malware
-  alerts always surface.
+  packages (`dependencies`), being scoped to development ones. The preset "Dismiss
+  package malware alerts" is disabled, so no rule dismisses malware alerts.
 - **Two-factor authentication** on the owner's GitHub account, **by SMS for now**: SMS
   is too weak, and it is switched to a passkey, hardware key or authenticator app
   before the production deploy (the owner, 2026-10-24).
