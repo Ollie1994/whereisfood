@@ -491,7 +491,9 @@ before the first production deploy (Phase 8)**. Until then every gate is manual
   protection for the owner's account. A history scan found no secret.
 - **Dependabot alerts and malware alerts**, with the dependency graph. One auto-triage
   rule is enabled.
-- **Two-factor authentication** on the owner's GitHub account.
+- **Two-factor authentication** on the owner's GitHub account, **by SMS for now**: SMS
+  is too weak, and it is switched to a passkey, hardware key or authenticator app
+  before the production deploy (the owner, 2026-10-24).
 
 **To build:**
 - **A pre-commit secret scan** (tool chosen then), run from a tracked hooks folder
