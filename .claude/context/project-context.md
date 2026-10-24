@@ -490,9 +490,12 @@ before the first production deploy (Phase 8)**. Until then every gate is manual
 - **GitHub Secret Protection and push protection** on the repository, and push
   protection for the owner's account. A history scan found no secret.
 - **Dependabot alerts and malware alerts**, with the dependency graph. One auto-triage
-  rule is enabled, not yet inspected: the owner checks it in the UI (IS #176). GitHub's
-  preset dismisses low-impact alerts on development dependencies, which would include
-  `eslint-config-next`, an exact pin in `devDependencies`.
+  rule is enabled, GitHub's preset "Dismiss low-impact alerts for development-scoped
+  dependencies" (seen in the UI by the owner, 2026-10-24). It covers `eslint-config-next`,
+  an exact pin in `devDependencies`, and the accepted `braces` chain under it.
+  Auto-dismissed alerts stay listed as closed. The rule doesn't touch alerts on runtime
+  packages (`dependencies`), being scoped to development ones. The preset "Dismiss package malware alerts" is disabled, so malware
+  alerts always surface.
 - **Two-factor authentication** on the owner's GitHub account, **by SMS for now**: SMS
   is too weak, and it is switched to a passkey, hardware key or authenticator app
   before the production deploy (the owner, 2026-10-24).
