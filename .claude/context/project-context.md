@@ -519,7 +519,9 @@ token gets `403`). They can be switched off without any change in the repo.
 - **Secrets in CI runs:** a workflow that Dependabot triggers reads the Dependabot
   secrets store, not Actions secrets, and a PR from a fork reads neither. So a check
   that needs a token (SonarQube Cloud's, say) needs a Dependabot copy of it, or isn't a
-  required check on those PRs. Otherwise branch protection blocks every Dependabot PR.
+  required check on those PRs. Otherwise that check would fail on them, and branch
+  protection would block them (GitHub's documented secrets behaviour; not probed, as no
+  CI exists yet).
 
 **Before the production deploy:**
 - **Two-factor authentication on every account that can reach the project:** GitHub,
