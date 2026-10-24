@@ -18,7 +18,9 @@ reconciled at the end of Phase 5 (#165). It has three parts:
 3. **Standing rules** — conventions that hold in both.
 
 The current phase plan wins over this file. This file is reconciled with reality at
-the end of each phase; between those points the plan carries what was settled.
+the end of each phase; between those points the plan carries what was settled. Between
+phases (after a reconciliation, before the next plan) there is no current plan, and
+this file is current.
 
 ---
 
@@ -132,13 +134,18 @@ below as "#n".
   by name" is Swedish order (#19).
 - `locations_no_overlap`, the exclusion constraint, and `CHECK (ends_at > starts_at)`,
   which the constraint needs: an empty range overlaps nothing (#4).
-- The `locations_updated_at` trigger (`moddatetime`, with a `WHEN` that skips the
-  UPDATE an auth user's deletion runs through `created_by … on delete set null`, #5).
+- The `locations_updated_at` trigger (`moddatetime`, #5). Its `WHEN` skips every
+  UPDATE that clears `created_by`: it exists for the one an auth user's deletion runs
+  through `created_by … on delete set null`, but it can't tell that one from an edit
+  (the SQL rule for that is `CLAUDE.md`'s, "db layer").
   `btree_gist` and `moddatetime` both live in the `extensions` schema.
 - Two partial btrees, one per read; the constraint's GiST index serves overlap checks
   (#14).
-- Foreign keys are `NO ACTION`: deleting a truck with history fails with `23503`, so
-  only the takedown removes history (#7).
+- Foreign keys to `trucks` (`locations.truck_id`, `users.truck_id`) and `users.id →
+  auth.users` are `NO ACTION`: deleting a truck with history fails with `23503`, so
+  only the takedown removes history (#7). **The exception is `locations.created_by →
+  auth.users`, `on delete set null`** (#8): deleting an auth user clears `created_by`
+  on every row they wrote, and doesn't fail.
 - RLS on all three; per table, `revoke all` from `anon`, `authenticated` and
   `service_role`, then the grants of Part 2's table (#6). The one policy is
   `users_select_own`.
@@ -162,8 +169,8 @@ src/lib/database.types.ts`. `src/lib/types.ts` derives `Truck`, `Location` (with
   checklist (#9), and **doesn't filter on `is_active`** (the plan's open decision 6:
   Phase 6 decides where that filter goes).
 - `complete.ts`: `MAX_ROWS` (pinned to `config.toml`'s `max_rows` by its unit test)
-  and `assertAllRows`, which reads without a `limit` use to throw when `max_rows` cuts
-  them.
+  and `assertAllRows`, which list reads without a `limit` use to throw when `max_rows`
+  cuts them.
 
 Its rules are `CLAUDE.md`'s ("db layer" under Hard Rules); the plan's "Functions and
 types" section has each function's contract.
@@ -193,7 +200,7 @@ types" section has each function's contract.
 | `src/lib/maplibre-worker.mjs` | worker folder and file list (+ test) | — |
 | `scripts/seed-dictionary.mjs` | prints `Spot` stubs from OpenStreetMap for **human review**; never paste its output over `SPOTS`, which reverts hand-corrected pins | when adding spots |
 | `scripts/test-all.mjs` | the `test:all` gate | — |
-| `scripts/controls.mjs`, `tests/controls/*.sql` | the schema's negative controls; not a gate (`CLAUDE.md`, "Testing") | after a migration change |
+| `scripts/controls.mjs`, `tests/controls/*.sql` | the schema's negative controls; not a gate | when `CLAUDE.md` "Testing" says |
 | `scripts/claims.sh` | the pre-review claims check (`CLAUDE.md`, "Review rounds") | every review round |
 | `scripts/process-log.sh` | `add` and `check` for the process log (`CLAUDE.md`, "Process Log") | every log row |
 
@@ -222,7 +229,7 @@ src/
 │   ├── validators/uuid.ts        ← (+ test)
 │   ├── geo.ts, spots.ts          ← (+ tests)
 │   ├── supabase.ts, types.ts, database.types.ts
-│   ├── map-types.ts, fake-data.ts ← replaced in Phase 6
+│   ├── map-types.ts, fake-data.ts ← deleted and replaced in Phase 6
 │   └── maplibre-worker.mjs       ← (+ test)
 └── proxy.ts                      ← stub until Phase 7
 scripts/                          ← copy-maplibre-worker.mjs, seed-dictionary.mjs, test-all.mjs,
@@ -252,8 +259,8 @@ CHECK, NOT NULL, enum, trigger, foreign keys, the unique Instagram handle), `rls
 auth-user fixtures), `db-trucks`, `db-locations` and `helpers`. There is no CI; the four
 gates are run by hand: `npx tsc --noEmit`, `npm run lint`, `npm run test:all`, `npm run
 build`. Details, and what the gates can't see, are in `CLAUDE.md` "Testing", which also
-covers the schema controls (`node scripts/controls.mjs`, run after a migration change;
-not a gate). Green gates don't show the map renders: look at `/map` in a browser after
+covers the schema controls (`node scripts/controls.mjs`: not a gate; when to run them
+is there). Green gates don't show the map renders: look at `/map` in a browser after
 any map, dependency or tile change.
 
 ---
@@ -304,7 +311,7 @@ authoring tool for `SPOTS`).
 | Phase | Builds |
 |---|---|
 | 5 · Schema reset (done) | Squashed baseline: `trucks`, `locations`, `users`; `btree_gist` + exclusion constraint + `CHECK (ends_at > starts_at)` + `updated_at` trigger; RLS + explicit GRANTs (no anon SELECT on `trucks`/`locations`); regenerate types; rewrite `seed.sql`, `db/trucks.ts`, `db/locations.ts` (with the history queries) and the integration tests (constraint, cancelled rows don't block, CHECK, RLS) |
-| 6 · Live read path | `GET /api/live`; `useLocations` (polling, timer, marker diffing); popup with freshness text and Instagram link; replace `fake-data.ts` and delete `map-types.ts`; decide where the `is_active` filter goes (Phase 5 plan, open decision 6); a hosted Supabase project for previews, with the hosted checks Part 1's "Database" lists; **first preview deploy**: check `x-vercel-cache` MISS → HIT → STALE, measure real requests per visit in Vercel's usage dashboard, record Vercel's build Node/npm (#139) |
+| 6 · Live read path | `GET /api/live`; `useLocations` (polling, timer, marker diffing); popup with freshness text and Instagram link; replace `fake-data.ts` and delete `map-types.ts`; decide where the `is_active` filter goes (Phase 5 plan, open decision 6); the popup's text for a NULL `label` (Phase 5 plan decision #12); a hosted Supabase project for previews, with the hosted checks Part 1's "Database" lists; **first preview deploy**: check `x-vercel-cache` MISS → HIT → STALE, measure real requests per visit in Vercel's usage dashboard, record Vercel's build Node/npm (#139) |
 | 7 · Admin | Magic-link login, admin only (public sign-ups disabled); session and `is_admin` checks in `proxy.ts` **and** every admin route; truck CRUD; mobile-first location entry; edit; cancel; overlap → 409; the morning checklist |
 | 8 · Launch | Supabase Pro (backups); tiles on R2 (custom domain, CORS); production env; security headers; Swedish privacy note; takedown procedure; tell trucks they're listed; acquisition plan; runbook (Vercel Attack Mode, usage emails); Vercel Pro + Spend Management before the first marketing push |
 | later | Owners (claim flow, owner dashboard, override rules, custom SMTP); optional automation (Meta Business Discovery captions in the admin screen, a scheduler) |
@@ -317,7 +324,8 @@ columns come with the Owners phase.
 
 **`locations`:**
 - `id`, `truck_id`, `latitude`, `longitude`
-- `label` text (e.g. "Heden": a known spot, a recent place, or typed)
+- `label` text, nullable (e.g. "Heden": a known spot, a recent place, or typed; a pin
+  dropped on the map may have none)
 - `starts_at` **NOT NULL**, `ends_at` **NOT NULL**, `CHECK (ends_at > starts_at)`
 - `cancelled_at` (nullable)
 - `source`, the enum `location_source` (`'admin' | 'owner'`), default `'admin'`
@@ -591,10 +599,10 @@ are decided when built.
 `400` bad input · `401` not authenticated · `403` authenticated but not allowed (e.g.
 not admin) · `409` conflict (an overlapping entry, from `23P01`) · `500` unexpected.
 
-## Process decisions carried forward
+## Decisions carried forward
 
-Numbered decisions that outlive their phase, carried here by the end-of-phase
-reconciliation (the milestone-retrospective procedure's part 6, in the process log's
+Numbered decisions that outlive their phase as a rule or a task for a later phase,
+carried by the end-of-phase reconciliation (the milestone-retrospective procedure's part 6, in the process log's
 "How to use it"). Each rule's text lives in one file; this list says which, so a later
 plan doesn't drop it as "the old plan's".
 
@@ -605,5 +613,8 @@ plan doesn't drop it as "the old plan's".
 | #149 | The pre-review claims check (`scripts/claims.sh`) and the sweep listed from the diff | `CLAUDE.md` "Review rounds" |
 | #150, Phase 5 #22 (PR #173) | `Caught by` starts with one group: `code-review`, `self` or `user`. Every review Claude was asked to run is `code-review`, however it was done; `plan-review` is gone | the log's "Columns" (`Caught by`) and its `values` block |
 | Phase 5 #20 (PR #172) | Review rounds keep `/code-review`'s default findings limit; a row records the round's level and limit | `CLAUDE.md` "Review rounds"; the log's "Columns" |
-| Phase 5 #5, #10, #18 (with #7, #8) | The db layer's rules, the foreign keys' `NO ACTION`, and the SQL rule the `updated_at` trigger's `WHEN` needs | `CLAUDE.md` "Hard Rules" ("db layer", "Locations") |
+| Phase 5 #5, #8, #10, #18 | The db layer's rules, and the SQL rule the `updated_at` trigger's `WHEN` needs | `CLAUDE.md` "Hard Rules" ("db layer") |
+| Phase 5 #3 | The baseline is `0001_baseline.sql`; a timestamp name was rejected for it ("mixes two naming conventions in one folder"). **Not decided:** whether later migrations are `0002_…` or the timestamp names `npx supabase migration new` makes; the first plan that adds one decides | this table, until then |
+| Phase 5 #6, #7 | Revoke, then grant per table; foreign keys to `trucks` stay `NO ACTION` | `CLAUDE.md` "Hard Rules" ("Supabase", "Locations") |
+| Phase 5 #12 | `label` is nullable; the popup's text for a missing one is Phase 6's | Part 2's Phase map (Phase 6 row) |
 | #170 (PR #174) | Schema guards get negative controls in `tests/controls/`, run by `node scripts/controls.mjs` | `CLAUDE.md` "Testing"; `.claude/commands/create-issues.md` "Failure modes" |

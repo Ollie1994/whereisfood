@@ -3,11 +3,15 @@
 Full project reference: `.claude/context/project-context.md`
 Read it at the start of any non-trivial task.
 
-**Current phase plan: `.claude/plans/phase-5-schema-reset.md` — read it too, and when
-the two disagree, THE PLAN WINS.**
+**Current phase plan: none until the Phase 6 plan exists.** Phase 5 is done and its
+reconciliation (#165) brought `project-context.md` up to date, so between phases the
+context is current and wins over the Phase 5 plan
+(`.claude/plans/phase-5-schema-reset.md`), whose step text is history. Its numbered
+decisions remain the reasoning behind the rules that cite them. **Once a phase plan
+exists, read it too, and when the two disagree, THE PLAN WINS.**
 
 `project-context.md` is only reconciled with reality at the END of a phase (it is a
-tracked task in each plan — Phase 4's was issue #127, Phase 5's is its step 7). So for
+tracked task in each plan — Phase 4's was issue #127, Phase 5's was #165). So for
 the whole duration of a phase it is a snapshot of the phase *before* it, while the plan
 carries the decisions that were actually settled. Reading only the context is how a
 resolved question gets re-litigated with a stale answer. **If it has no "Current state"
@@ -117,22 +121,23 @@ said otherwise: Phase 4 plan decision #14.
   plan decision #6)
 
 **db layer (`src/lib/db/`)**
-- It finds and mutates; it decides nothing. Postgres errors propagate unchanged (a
-  `23P01` reaches the service with its code), no function reads the clock (the caller
+- It finds and mutates; it decides nothing. Postgres errors propagate unchanged (for
+  `23P01`, see Locations below), no function reads the clock (the caller
   passes `cancelledAt`, a window, a `before`), and no function deletes (Phase 5 plan
   decision #10)
 - Return the selected row **uncast, never `as Location`**: uncast, `tsc` checks that
   the select has every key of `Location`; a cast also compiles when the column list
-  leaves one out (decision #18). `tsc` doesn't see an *extra* column, so the key-set
+  leaves one out (Phase 5 plan decision #18). `tsc` doesn't see an *extra* column, so the key-set
   tests in `db-locations.test.ts` and `db-trucks.test.ts` guard that side
 - Every `locations` select names its columns through `LOCATION_COLUMNS`: one string
   literal (a computed string loses supabase-js's row-type inference), without
-  `created_by` (decision #8)
-- A read without a `limit` selects with an exact count and calls `assertAllRows`
-  (`src/lib/db/complete.ts`), so `max_rows` can't cut it silently (PR #167)
+  `created_by` (Phase 5 plan decision #8)
+- A list read without a `limit` selects with an exact count and calls `assertAllRows`
+  (`src/lib/db/complete.ts`), so `max_rows` can't cut it silently (PR #167). A
+  single-row read (`.single()`, `.maybeSingle()`) needs neither
 - Hand-written SQL that clears `created_by` while editing a row sets `updated_at =
   now()` itself: the `locations_updated_at` trigger skips every UPDATE that clears
-  `created_by`, not only the one an auth user's deletion runs (decision #5)
+  `created_by`, not only the one an auth user's deletion runs (Phase 5 plan decision #5)
 
 **proxy.ts**
 - File is `src/proxy.ts` — this is the Next.js 16 name for middleware
@@ -383,6 +388,9 @@ claims, it doesn't judge them; its header says what it can't see.
 all` (the owner's call, Phase 5 plan decision #20): fix and repeat, each later round
 scoped to the previous round's fixes. A round that finds as many as the limit may have
 been cut; its log row records the level and limit (the log's "Columns", `Caught by`).
+A scoped round sees only the fixes: #20 also records a defect outside them that a
+scoped round and the full round 1 on PR #168 both missed, and a later full round, on
+PR #169, found (row 349).
 
 ---
 
