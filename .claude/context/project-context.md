@@ -106,21 +106,22 @@ every gate green (Phase 4 plan decision #13, process-log row 282).
 
 | Package | Version | Note |
 |---|---|---|
-| `next`, `eslint-config-next` | 16.3.8 | exact pins; upgrade together |
+| `next`, `eslint-config-next` | 16.4.3 | exact pins; upgrade together |
 | `react`, `react-dom` | 19.2.4 | |
 | `maplibre-gl` | 6.11.2 | exact pin |
 | `@protomaps/basemaps` | ^5.7.2 | replaced the deprecated `protomaps-themes-base` |
 | `pmtiles` | ^4.5.0 | |
 | `@supabase/supabase-js` | ^2.106 | |
 | `date-fns-tz` (+ `date-fns`, its peer) | ^3.2 / ^4.3 | |
-| `vitest` | ^4.1.11 | pulls in `vite` 8 |
+| `vitest` | ^4.1.12 | pulls in `vite` 8 |
 | `supabase` CLI | ^2.109 | dev dependency |
 
 Toolchain: Node `^20.19.0 || >=22.12.0` and **npm ≥ 11** (npm 10.9.2 crashes on
 vitest 4's optional peers). Both are prose only; enforcing them in `package.json` waits
-for Vercel's build versions (#139, Phase 6). `npm audit --omit=dev` is clean; full
-`npm audit` shows one accepted dev-only chain (`braces` via `eslint-config-next`,
-GHSA-vfj7-8cjw-p6xm). `next.config.ts` sets `agentRules: false` (Phase 4 plan decision #12).
+for Vercel's build versions (#139, Phase 6). `npm audit` and `npm audit --omit=dev` both
+report 0 vulnerabilities (2026-10-24, after IS #178's upgrade; Dependabot alerts now
+report new ones, "Pre-deploy automation (planned)"). `next.config.ts` sets
+`agentRules: false` (Phase 4 plan decision #12).
 
 ## Database (the Phase 5 baseline)
 
