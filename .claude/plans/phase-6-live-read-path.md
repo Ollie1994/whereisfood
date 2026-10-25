@@ -78,11 +78,11 @@ cleaner there than in the integration file; step 2's PR says which.
 | File | What |
 |---|---|
 | `src/hooks/useMapLibre.tsx` | Drops fake data, confidence colours, grey markers and `last_known_*`. Keeps map init; takes `markers` and `now`, and applies `diffMarkers` to the live `maplibregl.Marker`s |
-| `src/components/Map/MapClient.tsx` | `const { markers, now, status } = useLocations(); useMapLibre(containerRef, markers, now)`; renders the empty state and stale notice from `status` (open decisions 6, 7) |
+| `src/components/Map/MapClient.tsx` | `const { markers, now, fetchState } = useLocations(); useMapLibre(containerRef, markers, now)`; renders the empty state and stale notice from `fetchState` and `markers` (open decisions 6, 7) |
 | `src/components/Map/TruckPopup.tsx` | New props (`marker`, `now`, `onClose`); label, status, hours, freshness text, Instagram link; the confidence labels go |
 | `.env.example` | `NEXT_PUBLIC_PMTILES_URL`'s comment: R2 for deploys, the local file in dev |
-| `README.md` | Tiles on R2 (bucket, access, CORS, upload); the hosted Supabase and Vercel preview setup; status line, "What works today", "Project status" |
-| `CLAUDE.md` | Step 0: the bold "Current phase plan" line. Step 3: the UI Rules' "(Phase 6)" paragraph stops describing the fake-data map. Step 4: the Tech Stack's tile line. Step 10: the bold line back to none, and the rules the reconciliation carries |
+| `README.md` | Tiles on R2 (bucket, access, CORS, upload); the hosted Supabase and Vercel preview setup; status line, "What works today", "Project status"; step 7: "Prerequisites" points at `package.json` (#139) |
+| `CLAUDE.md` | Step 0: the bold "Current phase plan" line. Step 3: the UI Rules' "(Phase 6)" paragraph stops describing the fake-data map. Step 4: the Tech Stack's tile line. Step 7: "Dependencies" points at `package.json` for the Node and npm minimums (#139). Step 10: the bold line back to none, and the rules the reconciliation carries |
 | `src/lib/db/complete.ts` | Step 5: its comment's "checking it is Phase 6's" becomes the hosted result |
 | `package.json` | Step 7 (#139): `devEngines` / `engines` |
 | `.claude/process-log.md`, `.claude/context/project-context.md` | The closing steps |
@@ -139,10 +139,14 @@ cleaner there than in the integration file; step 2's PR says which.
 
 **`src/lib/services/live.ts`**
 - `getLiveMap(now = new Date()): Promise<LiveResponse>`: the only clock read on the
-  server. Its window ends at the later of `now + 24 h` and the next Stockholm midnight
-  after `now` (via `date-fns-tz`): on the 25-hour fall-back day, the client's "before
-  the next Stockholm midnight" reaches past `now + 24 h`. Runs `listActiveTrucks()`
-  and `findLocationsOverlapping(now, windowEnd)` in parallel, drops rows whose `truck_id` isn't an active truck (#9), and builds each
+  server. Its window is `[now, now + 26 h)`: the client keeps entries starting before
+  the next Stockholm midnight, which can be up to 25 h away on the fall-back day, and a
+  response can be about 3 min old when the client last uses it (up to 120 s in the CDN,
+  `s-maxage=60` plus `stale-while-revalidate=60`, then up to 60 s until the next poll),
+  so 26 h is a superset while polls succeed. While they fail, the client keeps older
+  data (#16) and `fetchState` says so. The client's
+  `todaysEntries` does the Stockholm cut; the service needs no time zone. Runs
+  `listActiveTrucks()` and `findLocationsOverlapping(now, now + 26 h)` in parallel, drops rows whose `truck_id` isn't an active truck (#9), and builds each
   entry field by field, never by spreading a row (#11). Errors propagate.
 
 **`src/app/api/live/route.ts`**
@@ -151,13 +155,15 @@ cleaner there than in the integration file; step 2's PR says which.
   Doesn't read the request; exports nothing but `GET` (#17).
 
 **`src/hooks/useLocations.ts`**
-- `useLocations(): { markers: Map<truckId, MarkerEntry>, now: Date, status: "loading"
-  | "ok" | "failing" }`: fetch on mount; every 60 s while visible; at once on
+- `useLocations(): { markers: Map<truckId, MarkerEntry>, now: Date, fetchState:
+  "loading" | "ok" | "failing" }`: fetch on mount; every 60 s while visible; at once on
   `visibilitychange` → visible; paused while hidden. An `AbortController` per request:
   starting a fetch aborts the one in flight, and unmount aborts the last, so only the
-  newest request can apply its result. `status` is `loading` until the first good
-  response, `failing` after a failed fetch until the next good one, else `ok`; open
-  decisions 6 and 7 render from it (no empty state while `loading`). **A failed fetch is a rejected `fetch`, a non-2xx
+  newest request can apply its result. **An aborted request is neither a result nor a
+  failure:** its `AbortError` changes nothing. `fetchState` is `loading` before any
+  request has finished, `failing` after a failed fetch (the first one included) until
+  the next good one, and `ok` after a good one. Open decisions 6 and 7 render from it:
+  the empty state only when `ok` with no markers, never while `loading` or `failing`. **A failed fetch is a rejected `fetch`, a non-2xx
   status (the route's 500 `{ error }` included), a body `res.json()` can't parse, or
   one `isLiveResponse` rejects**, and it
   keeps the last good entries (#16): it never replaces them with an empty list. A 30 s
@@ -195,8 +201,10 @@ cleaner there than in the integration file; step 2's PR says which.
     dependence on effect order.
   - **Click handler:** calls `event.stopPropagation()` first (as today, so the map's
     `closeOnClick` doesn't close the popup it opens), closes any open popup, creates
-    one for its truck, sets the open-popup ref, calls `renderOpenPopup({ sync: true })`,
-    then adds the popup to the map. It reads the entry and `now` from the refs, never
+    one for its truck with a content element and its React root, registers its `close`
+    handler (clear the open-popup ref, then `queueMicrotask(() => root.unmount())`, as
+    today defers it), sets the open-popup ref, calls `renderOpenPopup({ sync: true })`,
+    then `setDOMContent(content)` and adds the popup to the map. It reads the entry and `now` from the refs, never
     values captured at add.
   - **`now` effect:** stores `now` in its ref and calls `renderOpenPopup()`, so the
     open popup's freshness and status text follow the tick (e.g. across Stockholm
@@ -208,7 +216,7 @@ cleaner there than in the integration file; step 2's PR says which.
   when `label` is NULL, #13), status, hours, freshness text, Instagram link. Renders
   only; its text comes from `live.ts`.
 - `MapClient`: wires the two hooks, and renders the empty state and the stale notice
-  (as open decisions 6 and 7 settle them) from `status` and `markers`.
+  (as open decisions 6 and 7 settle them) from `fetchState` and `markers`.
 
 ---
 
@@ -478,7 +486,7 @@ collation, the extensions, the trigger form), its fix is decided first; a migrat
   `LiveEntry`'s, by a key-set test like the db layer's. No `created_by`, `cancelled_at`,
   `source` or `is_active` anywhere in the body.
 - [ ] Excluded, each by its own test: a cancelled row, an ended row, a row starting at
-  or after the window's end, an inactive truck's row. Included, by a test with `now` at
+  or after `now + 26 h`, an inactive truck's row. Included, by a test with `now` at
   2026-10-25 00:10 Stockholm (the fall-back day): a row starting at 23:30 that day,
   about 24 h 20 min later.
 - [ ] A throwing service or db layer gives 500 `{ "error": "Internal server error" }`,
@@ -503,8 +511,10 @@ collation, the extensions, the trigger form), its fix is decided first; a migrat
 - [ ] With the markers showing, `npx supabase stop` makes `/api/live` fail (500): the
   markers stay through the next poll, and come back in sync after `npx supabase start`
   (#16).
-- [ ] The empty state (open decision 7) doesn't show before the first response
-  (`status` `loading`), nor while `failing` with markers still shown.
+- [ ] The empty state (open decision 7) shows only when `fetchState` is `ok` with no
+  markers: not before the first response, and not with `/api/live` failing from the
+  first load (`npx supabase stop` before opening `/map`). In `npm run dev`, StrictMode's
+  aborted first fetch doesn't set `failing`.
 - [ ] `CLAUDE.md`'s UI Rules and `README.md`'s status line and "What works today" no
   longer describe the fake-data map.
 
