@@ -115,10 +115,14 @@ cleaner there than in the integration file; step 2's PR says which.
 - `type LiveResponse = { entries: LiveEntry[] }` (#11).
 - `type MarkerEntry = { entry: LiveEntry, status: "open" | "later" }`.
 - `isLiveResponse(body): body is LiveResponse`: the guard the hook applies to a 2xx
-  body before using it. It checks the shape of every entry, not only that `entries` is
-  an array: string `id`, `truck.id` and `truck.name`; finite `latitude` and
-  `longitude`; `label` a string or null; `starts_at`, `ends_at` and `updated_at`
-  strings `Date.parse` accepts. One bad entry fails the whole body.
+  body before using it. It checks every field of every entry that `LiveEntry`
+  declares, not only that `entries` is an array: string `id`, `truck.id` and
+  `truck.name`; `truck.instagram_handle`, `truck.cuisine_type` and `label` each a
+  string or null; finite `latitude` and `longitude`; `starts_at`, `ends_at` and
+  `updated_at` ISO 8601 timestamps with an offset (PostgREST returns
+  `…T09:00:00+00:00`, `src/lib/db/locations.ts`), valid by `date-fns`'s `parseISO` and
+  `isValid`. Not `Date.parse`, which accepts non-ISO strings such as `"1"`. One bad
+  entry fails the whole body.
 - `todaysEntries(entries, now)`: entries with `ends_at > now` and `starts_at` before
   the next Stockholm midnight after `now`.
 - `markerFor(entries, now): Map<truckId, MarkerEntry>`: one per truck (#12), the entry
@@ -154,25 +158,34 @@ cleaner there than in the integration file; step 2's PR says which.
 
 **`src/hooks/useMapLibre.tsx`**
 - `useMapLibre(containerRef, markers, now)`:
+  - **Refs:** the live markers (each truck's `maplibregl.Marker` **and its current
+    `MarkerEntry`**), the current `now`, and **the open popup** (`{ truckId, popup,
+    root }`, or none). The open popup's `close` handler clears that ref before it
+    unmounts the root, however the popup closed (a map click, a marker removal, the
+    cleanup), so "open" always means the ref is set.
+  - **`renderOpenPopup()`:** if a popup is open, renders `TruckPopup` into its root from
+    its truck's current entry and the current `now`, and calls `popup.setLngLat` with
+    the entry's position. The only place popup content is rendered.
   - **Init effect:** builds the map as today and exposes it to the other effects (e.g.
-    as state it sets). Its cleanup does what today's does, closing an open popup and
-    calling `remove()` on every live marker, then **empties the live-marker ref** and
-    removes the map. (`map.remove()` would close the popup too: `Popup.addTo` registers
-    `map.on("remove", this.remove)` and `Popup.remove` fires `close`, whose handler
-    unmounts the React root; `maplibre-gl-dev.mjs` 6.11.2.) So a rebuilt map (React
-    StrictMode's mount → cleanup → mount in dev, or any re-init) diffs from empty and
-    gets every marker.
+    as state it sets). Its cleanup closes the open popup and calls `remove()` on every
+    live marker, as today's does, then **empties the live-marker ref** and removes the
+    map. (`map.remove()` alone would also close the popup: `Popup.addTo` registers
+    `map.on("remove", this.remove)` and `Popup.remove` fires `close`;
+    `maplibre-gl-dev.mjs` 6.11.2.) The explicit close keeps the open-popup ref cleared
+    before the map goes. So a rebuilt map (React StrictMode's mount → cleanup → mount
+    in dev, or any re-init) diffs from empty and gets every marker.
   - **Marker effect** (on the map and `markers`): applies `diffMarkers(liveMarkers,
-    markers)` to the ref, which holds each truck's `maplibregl.Marker` **and its current
-    `MarkerEntry`**. Add creates a marker; update stores the new entry, calls
-    `setLngLat` and restyles the element; remove calls `remove()` and closes its popup.
-    A marker's click handler reads the entry from the ref when clicked, never one
-    captured at add, so a popup opened after an update shows the new label, hours and
-    status.
-  - **Popup effect** (on `now` and `markers`): re-renders the open popup, if any, with
-    its truck's current entry and `now`, so its freshness and status text follow the
-    tick (e.g. across Stockholm midnight) and an update. `diffMarkers` doesn't take
-    `now`.
+    markers)` to the ref. Add creates a marker; update stores the new entry, calls
+    `setLngLat` and restyles the element; remove calls `remove()` and closes the popup
+    if it is that truck's. Then, if the open popup's truck was updated, it calls
+    `renderOpenPopup()`, so the popup moves and re-renders in the same pass, with no
+    dependence on effect order.
+  - **Click handler:** closes any open popup, opens one for its truck, sets the
+    open-popup ref, and calls `renderOpenPopup()`. It reads the entry and `now` from
+    the refs, never values captured at add.
+  - **`now` effect:** stores `now` in its ref and calls `renderOpenPopup()`, so the
+    open popup's freshness and status text follow the tick (e.g. across Stockholm
+    midnight). `diffMarkers` doesn't take `now`.
 - `createMarkerElement(status)`: open filled, later outlined (open decision 8).
 
 **Components**
@@ -186,8 +199,9 @@ cleaner there than in the integration file; step 2's PR says which.
 ## Steps
 
 Strict order, with one exception: step 4 depends only on step 0 and may run alongside
-steps 1 and 2; it must precede step 5. It isn't open as a PR at the same time as step
-3's, because both ride-alongs edit `README.md` and `CLAUDE.md`. Steps 0–8 and 10 are one issue and
+steps 1, 2 and 5; it must precede step 6, which needs the tiles. It isn't open as a PR
+at the same time as step 3's, because both ride-alongs edit `README.md` and
+`CLAUDE.md`. Steps 0–8 and 10 are one issue and
 one PR into `dev` each; step 9 is one issue and PR per follow-up the retrospective
 opens, which may be none. Step 7 is the existing issue #139.
 
@@ -429,8 +443,10 @@ collation, the extensions, the trigger form), its fix is decided first; a migrat
   only ended entries give no marker), `diffMarkers` (add; update on entry id, position,
   status and a popup field; remove; no change gives an empty diff; an empty `prev`
   gives every marker as an add), `isLiveResponse` (accepts `{ entries: [] }` and a full
-  entry; rejects `{ error }`, `{}`, `null`, and a body with one entry missing `truck`,
-  with a non-finite coordinate, or with an unparseable timestamp) and the text helpers
+  entry, and one with `label`, `instagram_handle` and `cuisine_type` null; rejects
+  `{ error }`, `{}`, `null`, and a body with one otherwise valid entry broken in one
+  field: each field of `LiveEntry` in turn, missing or of the wrong type, a non-finite
+  coordinate, and a timestamp of `"1"`) and the text helpers
   (`"11:00–14:00"`, `"Uppdaterad 08:12"`, `"Öppet nu"`, `"Öppnar 17:00"`, all in
   Stockholm time).
 - [ ] `src/lib/live.ts` imports no React and no env, and reads no clock: a grep shows no
@@ -460,8 +476,9 @@ collation, the extensions, the trigger form), its fix is decided first; a migrat
   after `npx supabase db reset`: the basemap, one marker per truck with an entry today, a popup with name, label, status, hours, "Uppdaterad
   HH:MM" and the Instagram link; a row inserted by SQL appears within one poll (at once
   on refocusing the tab), and cancelled disappears, while the other markers keep their
-  elements; a label changed by SQL shows in the popup after the next poll, both in a
-  popup left open and in one opened afterwards. The server's own `Local:` line is read first and no repo `node` process is
+  elements; a label and a position changed by SQL show after the next poll, in a popup
+  left open (which moves with its marker) and in one opened afterwards; a popup closed
+  by a map click, then a 30 s tick, gives no React error in the console. The server's own `Local:` line is read first and no repo `node` process is
   left after (`CLAUDE.md`, "Testing").
 - [ ] With the markers showing, `npx supabase stop` makes `/api/live` fail (500): the
   markers stay through the next poll, and come back in sync after `npx supabase start`
@@ -486,8 +503,9 @@ collation, the extensions, the trigger form), its fix is decided first; a migrat
   and `moddatetime` in `extensions`, and an UPDATE moves a row's `updated_at`; the Data
   API `max_rows` read in the dashboard is ≥ `MAX_ROWS`.
 - [ ] With the anon key, a SELECT on `trucks` and on `locations` through the hosted REST
-  API is refused with `42501`, not answered with an empty list, which a wrong URL or
-  key, or a grant without a policy, would give. The hint is recorded: locally it names
+  API is refused with `42501`, not answered with an empty list, which a SELECT grant
+  without a policy gives (`rls.test.ts:140`, under the dropped-policy control). The hint
+  is recorded: locally it names
   SELECT (`rls.test.ts`'s `expectRefused`), but it was seen only on the local
   Postgres 17.6, so a hosted refusal with no hint or another one is recorded, not a
   failure.
@@ -553,13 +571,16 @@ collation, the extensions, the trigger form), its fix is decided first; a migrat
    describes, from step 6's build log.
 10. **The R2 CORS rule's allowed origins (step 4).** Vercel preview URLs differ per
     deployment and per branch, so one named preview origin breaks the next preview's
-    basemap. Options: `*` while only previews exist (the tiles are public; Phase 8
-    replaces it with the end state `project-context.md` "Pricing" gives: the domain and
-    localhost), or one pattern, e.g. `https://<project>-*.vercel.app` (R2's CORS docs,
-    read 2026-10-25: an origin may hold one `*`, which can span periods). That pattern
-    is narrower than `https://*.vercel.app`, which admits every Vercel-hosted site, but
-    not exclusive: anyone's project whose name starts `<project>-` matches it too. Not
-    probed until the bucket exists. Local dev's origin is `http://localhost:3000`.
+    basemap. Options: `*` while only previews exist (the tiles are public), or one
+    pattern (R2's CORS docs, read 2026-10-25: an origin may hold one `*`, which can
+    span periods). `https://*.vercel.app` admits every `vercel.app` site;
+    `https://<project>-*.vercel.app` also admits anyone's project whose name starts
+    `<project>-`; `https://<project>-*-<scope>.vercel.app` matches this account's
+    preview URLs (`<project>-<hash>-<scope>`, `<project>-git-<branch>-<scope>`) and is
+    the narrowest, though a project name chosen to end in `-<scope>` still matches.
+    Whichever is chosen, Phase 8 replaces it with the end state `project-context.md`
+    "Pricing" gives (the domain and localhost). Not probed until the bucket exists.
+    Local dev's origin is `http://localhost:3000`.
 11. **Deployment Protection on previews (step 6).** With Vercel Authentication on (all
     plans, Hobby included), a request without its cookie gets a Vercel login redirect,
     not the route, so it has no `x-vercel-cache` (Vercel's docs, read 2026-10-25). Those
