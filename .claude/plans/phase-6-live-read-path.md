@@ -78,11 +78,11 @@ cleaner there than in the integration file; step 2's PR says which.
 | File | What |
 |---|---|
 | `src/hooks/useMapLibre.tsx` | Drops fake data, confidence colours, grey markers and `last_known_*`. Keeps map init; takes `markers` and `now`, and applies `diffMarkers` to the live `maplibregl.Marker`s |
-| `src/components/Map/MapClient.tsx` | `const { markers, now } = useLocations(); useMapLibre(containerRef, markers, now)` |
+| `src/components/Map/MapClient.tsx` | `const { markers, now, status } = useLocations(); useMapLibre(containerRef, markers, now)`; renders the empty state and stale notice from `status` (open decisions 6, 7) |
 | `src/components/Map/TruckPopup.tsx` | New props (`marker`, `now`, `onClose`); label, status, hours, freshness text, Instagram link; the confidence labels go |
 | `.env.example` | `NEXT_PUBLIC_PMTILES_URL`'s comment: R2 for deploys, the local file in dev |
 | `README.md` | Tiles on R2 (bucket, access, CORS, upload); the hosted Supabase and Vercel preview setup; status line, "What works today", "Project status" |
-| `CLAUDE.md` | Step 0: the bold "Current phase plan" line. Step 3: the UI Rules' "(Phase 6)" paragraph stops describing the fake-data map. Step 4: the Tech Stack's tile line |
+| `CLAUDE.md` | Step 0: the bold "Current phase plan" line. Step 3: the UI Rules' "(Phase 6)" paragraph stops describing the fake-data map. Step 4: the Tech Stack's tile line. Step 10: the bold line back to none, and the rules the reconciliation carries |
 | `src/lib/db/complete.ts` | Step 5: its comment's "checking it is Phase 6's" becomes the hosted result |
 | `package.json` | Step 7 (#139): `devEngines` / `engines` |
 | `.claude/process-log.md`, `.claude/context/project-context.md` | The closing steps |
@@ -120,8 +120,10 @@ cleaner there than in the integration file; step 2's PR says which.
   `truck.name`; `truck.instagram_handle`, `truck.cuisine_type` and `label` each a
   string or null; finite `latitude` and `longitude`; `starts_at`, `ends_at` and
   `updated_at` ISO 8601 timestamps with an offset (PostgREST returns
-  `…T09:00:00+00:00`, `src/lib/db/locations.ts`): a date, a time and an offset by
-  pattern, and valid by `date-fns`'s `parseISO` and `isValid`. Not `Date.parse`, which
+  `…T09:00:00+00:00`, `src/lib/db/locations.ts`): a date, a time with optional
+  fractional seconds (`updated_at` comes from `now()` and the trigger, with
+  microseconds: `…T05:12:07.123456+00:00`) and an offset, by pattern, and valid by
+  `date-fns`'s `parseISO` and `isValid`. Not `Date.parse`, which
   accepts `"1"`, nor `parseISO` alone, which accepts `"2026"` (both probed 2026-10-25).
   One bad entry fails the whole body.
 - `todaysEntries(entries, now)`: entries with `ends_at > now` and `starts_at` before
@@ -137,8 +139,10 @@ cleaner there than in the integration file; step 2's PR says which.
 
 **`src/lib/services/live.ts`**
 - `getLiveMap(now = new Date()): Promise<LiveResponse>`: the only clock read on the
-  server. Runs `listActiveTrucks()` and `findLocationsOverlapping(now, now + 1 day)` in
-  parallel, drops rows whose `truck_id` isn't an active truck (#9), and builds each
+  server. Its window ends at the later of `now + 24 h` and the next Stockholm midnight
+  after `now` (via `date-fns-tz`): on the 25-hour fall-back day, the client's "before
+  the next Stockholm midnight" reaches past `now + 24 h`. Runs `listActiveTrucks()`
+  and `findLocationsOverlapping(now, windowEnd)` in parallel, drops rows whose `truck_id` isn't an active truck (#9), and builds each
   entry field by field, never by spreading a row (#11). Errors propagate.
 
 **`src/app/api/live/route.ts`**
@@ -147,10 +151,13 @@ cleaner there than in the integration file; step 2's PR says which.
   Doesn't read the request; exports nothing but `GET` (#17).
 
 **`src/hooks/useLocations.ts`**
-- `useLocations(): { markers: Map<truckId, MarkerEntry>, now: Date }`: fetch on mount;
-  every 60 s while visible; at once on `visibilitychange` → visible; paused while
-  hidden. An `AbortController` per request, aborted on unmount; a response older than
-  the last one applied is dropped. **A failed fetch is a rejected `fetch`, a non-2xx
+- `useLocations(): { markers: Map<truckId, MarkerEntry>, now: Date, status: "loading"
+  | "ok" | "failing" }`: fetch on mount; every 60 s while visible; at once on
+  `visibilitychange` → visible; paused while hidden. An `AbortController` per request:
+  starting a fetch aborts the one in flight, and unmount aborts the last, so only the
+  newest request can apply its result. `status` is `loading` until the first good
+  response, `failing` after a failed fetch until the next good one, else `ok`; open
+  decisions 6 and 7 render from it (no empty state while `loading`). **A failed fetch is a rejected `fetch`, a non-2xx
   status (the route's 500 `{ error }` included), a body `res.json()` can't parse, or
   one `isLiveResponse` rejects**, and it
   keeps the last good entries (#16): it never replaces them with an empty list. A 30 s
@@ -164,9 +171,14 @@ cleaner there than in the integration file; step 2's PR says which.
     root }`, or none). The open popup's `close` handler clears that ref before it
     unmounts the root, however the popup closed (a map click, a marker removal, the
     cleanup), so "open" always means the ref is set.
-  - **`renderOpenPopup()`:** if a popup is open, renders `TruckPopup` into its root from
-    its truck's current entry and the current `now`, and calls `popup.setLngLat` with
-    the entry's position. The only place popup content is rendered.
+  - **`renderOpenPopup({ sync })`:** if a popup is open, renders `TruckPopup` into its
+    root from its truck's current entry and the current `now`, and calls
+    `popup.setLngLat` with the entry's position. The only place popup content is
+    rendered. The click handler passes `sync: true`, rendering inside `flushSync` (as
+    today) so the popup measures filled content before `addTo`; the effects use a plain
+    `root.render`, because `flushSync` inside an effect logs "flushSync was called from
+    inside a lifecycle method" (React 19's `flushPassiveEffects` sets `CommitContext`,
+    `react-dom-client.development.js`).
   - **Init effect:** builds the map as today and exposes it to the other effects (e.g.
     as state it sets). Its cleanup closes the open popup and calls `remove()` on every
     live marker, as today's does, then **empties the live-marker ref** and removes the
@@ -181,9 +193,11 @@ cleaner there than in the integration file; step 2's PR says which.
     if it is that truck's. Then, if the open popup's truck was updated, it calls
     `renderOpenPopup()`, so the popup moves and re-renders in the same pass, with no
     dependence on effect order.
-  - **Click handler:** closes any open popup, opens one for its truck, sets the
-    open-popup ref, and calls `renderOpenPopup()`. It reads the entry and `now` from
-    the refs, never values captured at add.
+  - **Click handler:** calls `event.stopPropagation()` first (as today, so the map's
+    `closeOnClick` doesn't close the popup it opens), closes any open popup, creates
+    one for its truck, sets the open-popup ref, calls `renderOpenPopup({ sync: true })`,
+    then adds the popup to the map. It reads the entry and `now` from the refs, never
+    values captured at add.
   - **`now` effect:** stores `now` in its ref and calls `renderOpenPopup()`, so the
     open popup's freshness and status text follow the tick (e.g. across Stockholm
     midnight). `diffMarkers` doesn't take `now`.
@@ -193,16 +207,17 @@ cleaner there than in the integration file; step 2's PR says which.
 - `TruckPopup({ marker, now, onClose })`: name, cuisine, label (the line is left out
   when `label` is NULL, #13), status, hours, freshness text, Instagram link. Renders
   only; its text comes from `live.ts`.
-- `MapClient`: wires the two hooks.
+- `MapClient`: wires the two hooks, and renders the empty state and the stale notice
+  (as open decisions 6 and 7 settle them) from `status` and `markers`.
 
 ---
 
 ## Steps
 
 Strict order, with one exception: step 4 depends only on step 0 and may run alongside
-steps 1, 2 and 5; it must precede step 6, which needs the tiles. It isn't open as a PR
-at the same time as step 3's, because both ride-alongs edit `README.md` and
-`CLAUDE.md`. Steps 0–8 and 10 are one issue and
+steps 1 and 2; it must precede step 6, which needs the tiles. Its PR isn't open at the
+same time as step 3's or step 5's, because their ride-alongs edit `README.md` too (and
+step 3's `CLAUDE.md`). Steps 0–8 and 10 are one issue and
 one PR into `dev` each; step 9 is one issue and PR per follow-up the retrospective
 opens, which may be none. Step 7 is the existing issue #139.
 
@@ -447,7 +462,9 @@ collation, the extensions, the trigger form), its fix is decided first; a migrat
   entry, and one with `label`, `instagram_handle` and `cuisine_type` null; rejects
   `{ error }`, `{}`, `null`, and a body with one otherwise valid entry broken in one
   field: each field of `LiveEntry` in turn, missing or of the wrong type, a non-finite
-  coordinate, and timestamps of `"1"` and `"2026"`) and the text helpers
+  coordinate, and timestamps of `"1"` and `"2026"`; accepts timestamps with and without
+  fractional seconds, `…T09:00:00+00:00` and `…T05:12:07.123456+00:00`) and the text
+  helpers
   (`"11:00–14:00"`, `"Uppdaterad 08:12"`, `"Öppet nu"`, `"Öppnar 17:00"`, all in
   Stockholm time).
 - [ ] `src/lib/live.ts` imports no React and no env, and reads no clock: a grep shows no
@@ -461,7 +478,9 @@ collation, the extensions, the trigger form), its fix is decided first; a migrat
   `LiveEntry`'s, by a key-set test like the db layer's. No `created_by`, `cancelled_at`,
   `source` or `is_active` anywhere in the body.
 - [ ] Excluded, each by its own test: a cancelled row, an ended row, a row starting at
-  or after `now + 1 day`, an inactive truck's row.
+  or after the window's end, an inactive truck's row. Included, by a test with `now` at
+  2026-10-25 00:10 Stockholm (the fall-back day): a row starting at 23:30 that day,
+  about 24 h 20 min later.
 - [ ] A throwing service or db layer gives 500 `{ "error": "Internal server error" }`,
   never a 200 with no entries, by a test.
 - [ ] `npm run build` lists `/api/live` as ƒ (Dynamic), recorded in the PR; the route
@@ -484,6 +503,8 @@ collation, the extensions, the trigger form), its fix is decided first; a migrat
 - [ ] With the markers showing, `npx supabase stop` makes `/api/live` fail (500): the
   markers stay through the next poll, and come back in sync after `npx supabase start`
   (#16).
+- [ ] The empty state (open decision 7) doesn't show before the first response
+  (`status` `loading`), nor while `failing` with markers still shown.
 - [ ] `CLAUDE.md`'s UI Rules and `README.md`'s status line and "What works today" no
   longer describe the fake-data map.
 
@@ -491,7 +512,9 @@ collation, the extensions, the trigger form), its fix is decided first; a migrat
 - [ ] The tile file is in an R2 bucket served over HTTPS with the CORS rule of step 4.
 - [ ] `/map` locally with `NEXT_PUBLIC_PMTILES_URL` at R2 draws the basemap in a real
   browser, and a tile request returns 206 with `Access-Control-Allow-Origin`, recorded
-  in the PR.
+  in the PR. The server's own `Local:` line shows the origin the CORS rule allows
+  (a stale process on :3000 moves a new server to :3001, which it doesn't), and no
+  repo `node` process is left after (`CLAUDE.md`, "Testing").
 - [ ] `README.md`, `.env.example` and `CLAUDE.md`'s Tech Stack line describe R2 for
   deploys and the local file for dev.
 - [ ] The Cloudflare account has non-SMS 2FA (#3).
