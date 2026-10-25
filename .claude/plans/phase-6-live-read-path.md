@@ -155,11 +155,13 @@ cleaner there than in the integration file; step 2's PR says which.
 **`src/hooks/useMapLibre.tsx`**
 - `useMapLibre(containerRef, markers, now)`:
   - **Init effect:** builds the map as today and exposes it to the other effects (e.g.
-    as state it sets). Its cleanup does what today's does, closing an open popup (whose
-    `close` handler unmounts its React root; `map.remove()` alone doesn't fire it) and
+    as state it sets). Its cleanup does what today's does, closing an open popup and
     calling `remove()` on every live marker, then **empties the live-marker ref** and
-    removes the map. So a rebuilt map (React StrictMode's mount → cleanup → mount in
-    dev, or any re-init) diffs from empty and gets every marker, and nothing leaks.
+    removes the map. (`map.remove()` would close the popup too: `Popup.addTo` registers
+    `map.on("remove", this.remove)` and `Popup.remove` fires `close`, whose handler
+    unmounts the React root; `maplibre-gl-dev.mjs` 6.11.2.) So a rebuilt map (React
+    StrictMode's mount → cleanup → mount in dev, or any re-init) diffs from empty and
+    gets every marker.
   - **Marker effect** (on the map and `markers`): applies `diffMarkers(liveMarkers,
     markers)` to the ref, which holds each truck's `maplibregl.Marker` **and its current
     `MarkerEntry`**. Add creates a marker; update stores the new entry, calls
