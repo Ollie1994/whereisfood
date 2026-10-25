@@ -120,9 +120,10 @@ cleaner there than in the integration file; step 2's PR says which.
   `truck.name`; `truck.instagram_handle`, `truck.cuisine_type` and `label` each a
   string or null; finite `latitude` and `longitude`; `starts_at`, `ends_at` and
   `updated_at` ISO 8601 timestamps with an offset (PostgREST returns
-  `…T09:00:00+00:00`, `src/lib/db/locations.ts`), valid by `date-fns`'s `parseISO` and
-  `isValid`. Not `Date.parse`, which accepts non-ISO strings such as `"1"`. One bad
-  entry fails the whole body.
+  `…T09:00:00+00:00`, `src/lib/db/locations.ts`): a date, a time and an offset by
+  pattern, and valid by `date-fns`'s `parseISO` and `isValid`. Not `Date.parse`, which
+  accepts `"1"`, nor `parseISO` alone, which accepts `"2026"` (both probed 2026-10-25).
+  One bad entry fails the whole body.
 - `todaysEntries(entries, now)`: entries with `ends_at > now` and `starts_at` before
   the next Stockholm midnight after `now`.
 - `markerFor(entries, now): Map<truckId, MarkerEntry>`: one per truck (#12), the entry
@@ -446,7 +447,7 @@ collation, the extensions, the trigger form), its fix is decided first; a migrat
   entry, and one with `label`, `instagram_handle` and `cuisine_type` null; rejects
   `{ error }`, `{}`, `null`, and a body with one otherwise valid entry broken in one
   field: each field of `LiveEntry` in turn, missing or of the wrong type, a non-finite
-  coordinate, and a timestamp of `"1"`) and the text helpers
+  coordinate, and timestamps of `"1"` and `"2026"`) and the text helpers
   (`"11:00–14:00"`, `"Uppdaterad 08:12"`, `"Öppet nu"`, `"Öppnar 17:00"`, all in
   Stockholm time).
 - [ ] `src/lib/live.ts` imports no React and no env, and reads no clock: a grep shows no
@@ -576,16 +577,20 @@ collation, the extensions, the trigger form), its fix is decided first; a migrat
     span periods). `https://*.vercel.app` admits every `vercel.app` site;
     `https://<project>-*.vercel.app` also admits anyone's project whose name starts
     `<project>-`; `https://<project>-*-<scope>.vercel.app` matches this account's
-    preview URLs (`<project>-<hash>-<scope>`, `<project>-git-<branch>-<scope>`) and is
-    the narrowest, though a project name chosen to end in `-<scope>` still matches.
+    preview URLs (`<project-name>-<unique-hash>-<scope-slug>` and
+    `<project-name>-git-<branch-name>-<scope-slug>`, Vercel's generated-URLs docs, read
+    2026-10-25) and is the narrowest, though a project name chosen to end in
+    `-<scope>` still matches. Vercel truncates a label over 63 characters (same page),
+    so a long branch name can cut the `-<scope>` suffix and miss the pattern.
     Whichever is chosen, Phase 8 replaces it with the end state `project-context.md`
     "Pricing" gives (the domain and localhost). Not probed until the bucket exists.
     Local dev's origin is `http://localhost:3000`.
 11. **Deployment Protection on previews (step 6).** With Vercel Authentication on (all
     plans, Hobby included), a request without its cookie gets a Vercel login redirect,
-    not the route, so it has no `x-vercel-cache` (Vercel's docs, read 2026-10-25). Those
-    pages don't say whether a new project has it on for previews; step 6 reads the
-    project's Deployment Protection settings. If it is on: turn it off for previews, or
+    not the route, so it has no `x-vercel-cache` (Vercel's docs, read 2026-10-25).
+    Vercel's generated-URLs page says a generated URL "is publicly accessible by
+    default", but a team default can turn protection on for new projects (its
+    Deployment Protection page), so step 6 reads the project's settings. If it is on: turn it off for previews, or
     send a Protection Bypass for Automation token with the cache check's requests. The
     token is a secret (#5): the command reads it from an environment variable, and only
     the response headers are recorded in the PR or issue, never the command line with
