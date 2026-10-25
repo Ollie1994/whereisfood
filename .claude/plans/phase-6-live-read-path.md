@@ -115,7 +115,10 @@ cleaner there than in the integration file; step 2's PR says which.
 - `type LiveResponse = { entries: LiveEntry[] }` (#11).
 - `type MarkerEntry = { entry: LiveEntry, status: "open" | "later" }`.
 - `isLiveResponse(body): body is LiveResponse`: the guard the hook applies to a 2xx
-  body before using it (an `{ error }` body, or one without an `entries` array, fails).
+  body before using it. It checks the shape of every entry, not only that `entries` is
+  an array: string `id`, `truck.id` and `truck.name`; finite `latitude` and
+  `longitude`; `label` a string or null; `starts_at`, `ends_at` and `updated_at`
+  strings `Date.parse` accepts. One bad entry fails the whole body.
 - `todaysEntries(entries, now)`: entries with `ends_at > now` and `starts_at` before
   the next Stockholm midnight after `now`.
 - `markerFor(entries, now): Map<truckId, MarkerEntry>`: one per truck (#12), the entry
@@ -142,23 +145,32 @@ cleaner there than in the integration file; step 2's PR says which.
 - `useLocations(): { markers: Map<truckId, MarkerEntry>, now: Date }`: fetch on mount;
   every 60 s while visible; at once on `visibilitychange` → visible; paused while
   hidden. An `AbortController` per request, aborted on unmount; a response older than
-  the last one applied is dropped. **A failed fetch is a rejection, a non-2xx status
-  (the route's 500 `{ error }` included), or a body `isLiveResponse` rejects**, and it
+  the last one applied is dropped. **A failed fetch is a rejected `fetch`, a non-2xx
+  status (the route's 500 `{ error }` included), a body `res.json()` can't parse, or
+  one `isLiveResponse` rejects**, and it
   keeps the last good entries (#16): it never replaces them with an empty list. A 30 s
   tick (and becoming visible) sets `now` and re-derives `markerFor(todaysEntries(entries,
   now), now)`; `now` is returned for the popup (#15).
 
 **`src/hooks/useMapLibre.tsx`**
-- `useMapLibre(containerRef, markers, now)`: the init effect builds the map as today
-  and exposes it to the marker effect (e.g. as state the init effect sets); its cleanup
-  removes the map **and empties the live-marker ref**. The marker effect depends on the
-  map and `markers`, and applies `diffMarkers(liveMarkers, markers)` to that ref: add
-  creates a `maplibregl.Marker`, update calls `setLngLat` and restyles the element,
-  remove calls `remove()` (and closes its popup). So a rebuilt map (React StrictMode's
-  mount → cleanup → mount in dev, or any re-init) diffs from empty and gets every
-  marker. An open popup re-renders when its marker updates **or `now` changes**, so its
-  freshness and status text follow the tick (e.g. across Stockholm midnight);
-  `diffMarkers` itself doesn't take `now`.
+- `useMapLibre(containerRef, markers, now)`:
+  - **Init effect:** builds the map as today and exposes it to the other effects (e.g.
+    as state it sets). Its cleanup does what today's does, closing an open popup (whose
+    `close` handler unmounts its React root; `map.remove()` alone doesn't fire it) and
+    calling `remove()` on every live marker, then **empties the live-marker ref** and
+    removes the map. So a rebuilt map (React StrictMode's mount → cleanup → mount in
+    dev, or any re-init) diffs from empty and gets every marker, and nothing leaks.
+  - **Marker effect** (on the map and `markers`): applies `diffMarkers(liveMarkers,
+    markers)` to the ref, which holds each truck's `maplibregl.Marker` **and its current
+    `MarkerEntry`**. Add creates a marker; update stores the new entry, calls
+    `setLngLat` and restyles the element; remove calls `remove()` and closes its popup.
+    A marker's click handler reads the entry from the ref when clicked, never one
+    captured at add, so a popup opened after an update shows the new label, hours and
+    status.
+  - **Popup effect** (on `now` and `markers`): re-renders the open popup, if any, with
+    its truck's current entry and `now`, so its freshness and status text follow the
+    tick (e.g. across Stockholm midnight) and an update. `diffMarkers` doesn't take
+    `now`.
 - `createMarkerElement(status)`: open filled, later outlined (open decision 8).
 
 **Components**
@@ -171,8 +183,9 @@ cleaner there than in the integration file; step 2's PR says which.
 
 ## Steps
 
-Strict order, with one exception: step 4 depends on nothing before it and may run
-alongside steps 1–3 (it must still precede step 6). Steps 0–8 and 10 are one issue and
+Strict order, with one exception: step 4 depends only on step 0 and may run alongside
+steps 1 and 2; it must precede step 5. It isn't open as a PR at the same time as step
+3's, because both ride-alongs edit `README.md` and `CLAUDE.md`. Steps 0–8 and 10 are one issue and
 one PR into `dev` each; step 9 is one issue and PR per follow-up the retrospective
 opens, which may be none. Step 7 is the existing issue #139.
 
@@ -205,8 +218,8 @@ opens, which may be none. Step 7 is the existing issue #139.
    upload `gothenburg.pmtiles`. Check `/map` locally with
    `NEXT_PUBLIC_PMTILES_URL` pointing at R2. Ride along: `README.md` (tiles on R2),
    `.env.example`, `CLAUDE.md`'s Tech Stack tile line. *Before the deploy, which has no
-   tiles otherwise* (`public/*.pmtiles` is gitignored). Independent of steps 1–3: it
-   may run alongside them.
+   tiles otherwise* (`public/*.pmtiles` is gitignored). When it may run: the Steps
+   intro's exception.
 5. **Hosted Supabase (preview)** (#18). A project in a separate free org (#3); region
    per open decision 4; key type per open decision 3; `npx supabase db push` the
    baseline. Run the three hosted checks (`project-context.md` Part 1, "Database"):
@@ -414,7 +427,8 @@ collation, the extensions, the trigger form), its fix is decided first; a migrat
   only ended entries give no marker), `diffMarkers` (add; update on entry id, position,
   status and a popup field; remove; no change gives an empty diff; an empty `prev`
   gives every marker as an add), `isLiveResponse` (accepts `{ entries: [] }` and a full
-  entry; rejects `{ error }`, `{}` and `null`) and the text helpers
+  entry; rejects `{ error }`, `{}`, `null`, and a body with one entry missing `truck`,
+  with a non-finite coordinate, or with an unparseable timestamp) and the text helpers
   (`"11:00–14:00"`, `"Uppdaterad 08:12"`, `"Öppet nu"`, `"Öppnar 17:00"`, all in
   Stockholm time).
 - [ ] `src/lib/live.ts` imports no React and no env, and reads no clock: a grep shows no
@@ -444,7 +458,8 @@ collation, the extensions, the trigger form), its fix is decided first; a migrat
   after `npx supabase db reset`: the basemap, one marker per truck with an entry today, a popup with name, label, status, hours, "Uppdaterad
   HH:MM" and the Instagram link; a row inserted by SQL appears within one poll (at once
   on refocusing the tab), and cancelled disappears, while the other markers keep their
-  elements. The server's own `Local:` line is read first and no repo `node` process is
+  elements; a label changed by SQL shows in the popup after the next poll, both in a
+  popup left open and in one opened afterwards. The server's own `Local:` line is read first and no repo `node` process is
   left after (`CLAUDE.md`, "Testing").
 - [ ] With the markers showing, `npx supabase stop` makes `/api/live` fail (500): the
   markers stay through the next poll, and come back in sync after `npx supabase start`
@@ -469,9 +484,11 @@ collation, the extensions, the trigger form), its fix is decided first; a migrat
   and `moddatetime` in `extensions`, and an UPDATE moves a row's `updated_at`; the Data
   API `max_rows` read in the dashboard is ≥ `MAX_ROWS`.
 - [ ] With the anon key, a SELECT on `trucks` and on `locations` through the hosted REST
-  API is refused with `42501` and a hint naming SELECT (as `rls.test.ts`'s
-  `expectRefused` asserts locally), not answered with an empty list, which a wrong URL
-  or key could also give.
+  API is refused with `42501`, not answered with an empty list, which a wrong URL or
+  key, or a grant without a policy, would give. The hint is recorded: locally it names
+  SELECT (`rls.test.ts`'s `expectRefused`), but it was seen only on the local
+  Postgres 17.6, so a hosted refusal with no hint or another one is recorded, not a
+  failure.
 - [ ] The project holds at least one active truck with an entry spanning the check time
   of step 6.
 
@@ -535,18 +552,21 @@ collation, the extensions, the trigger form), its fix is decided first; a migrat
 10. **The R2 CORS rule's allowed origins (step 4).** Vercel preview URLs differ per
     deployment and per branch, so one named preview origin breaks the next preview's
     basemap. Options: `*` while only previews exist (the tiles are public; Phase 8
-    narrows it to the domain and localhost, `project-context.md` "Pricing"), or one
-    pattern for this project's previews, e.g. `https://<project>-*.vercel.app` (R2's
-    CORS docs, read 2026-10-25: an origin may hold one `*`, which can span periods;
-    `https://*.vercel.app` would admit every Vercel-hosted site). Not probed until the
-    bucket exists. Local dev's origin is `http://localhost:3000`.
+    replaces it with the end state `project-context.md` "Pricing" gives: the domain and
+    localhost), or one pattern, e.g. `https://<project>-*.vercel.app` (R2's CORS docs,
+    read 2026-10-25: an origin may hold one `*`, which can span periods). That pattern
+    is narrower than `https://*.vercel.app`, which admits every Vercel-hosted site, but
+    not exclusive: anyone's project whose name starts `<project>-` matches it too. Not
+    probed until the bucket exists. Local dev's origin is `http://localhost:3000`.
 11. **Deployment Protection on previews (step 6).** With Vercel Authentication on (all
     plans, Hobby included), a request without its cookie gets a Vercel login redirect,
     not the route, so it has no `x-vercel-cache` (Vercel's docs, read 2026-10-25). Those
     pages don't say whether a new project has it on for previews; step 6 reads the
     project's Deployment Protection settings. If it is on: turn it off for previews, or
-    send a Protection Bypass for Automation token (a secret: #5) with the cache check's
-    requests.
+    send a Protection Bypass for Automation token with the cache check's requests. The
+    token is a secret (#5): the command reads it from an environment variable, and only
+    the response headers are recorded in the PR or issue, never the command line with
+    the token or the query-string form of it (`CLAUDE.md`, "Secrets").
 
 Product decisions #1 (retention), #2 (checklist look-back), #3 (default times) and #4
 (app name) stay open for Phases 7–8; this phase doesn't wait on them.
