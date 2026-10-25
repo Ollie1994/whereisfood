@@ -62,12 +62,12 @@ old confidence design gone.
 
 | File | What |
 |---|---|
-| `src/lib/live.ts` | The response contract (`LiveEntry`, `LiveResponse`, `MarkerEntry`) and pure helpers: `todaysEntries`, `markerFor`, `diffMarkers`, `hoursText`, `freshnessText`, `statusText`. No clock reads, no React, no env |
+| `src/lib/live.ts` | The response contract (`LiveEntry`, `LiveResponse`, `MarkerEntry`) and pure helpers: `isLiveResponse`, `todaysEntries`, `markerFor`, `diffMarkers`, `hoursText`, `freshnessText`, `statusText`. No clock reads, no React, no env |
 | `src/lib/live.test.ts` | Unit tests for those helpers |
 | `src/lib/services/live.ts` | `getLiveMap`, the first service: reads the clock, both db reads, the `is_active` filter, the response built field by field |
 | `src/app/api/live/route.ts` | `GET`: `withErrorHandling`, the `Cache-Control` header, calls the service. HTTP only |
 | `tests/integration/api-live.test.ts` | `GET` against local Supabase: header, key set, filters, error → 500 |
-| `src/hooks/useLocations.ts` | Fetch on load, poll every 60 s while visible, refetch on `visibilitychange`, the 30 s tick; returns one `MarkerEntry` per truck |
+| `src/hooks/useLocations.ts` | Fetch on load, poll every 60 s while visible, refetch on `visibilitychange`, the 30 s tick; returns one `MarkerEntry` per truck and `now` |
 
 The error case (a throwing service → 500, never `[]`) may instead live in a co-located
 unit test of the route (`src/app/api/live/route.test.ts`) if mocking the service is
@@ -77,8 +77,8 @@ cleaner there than in the integration file; step 2's PR says which.
 
 | File | What |
 |---|---|
-| `src/hooks/useMapLibre.tsx` | Drops fake data, confidence colours, grey markers and `last_known_*`. Keeps map init; takes `markers` and applies `diffMarkers` to the live `maplibregl.Marker`s |
-| `src/components/Map/MapClient.tsx` | `useMapLibre(containerRef, useLocations())` |
+| `src/hooks/useMapLibre.tsx` | Drops fake data, confidence colours, grey markers and `last_known_*`. Keeps map init; takes `markers` and `now`, and applies `diffMarkers` to the live `maplibregl.Marker`s |
+| `src/components/Map/MapClient.tsx` | `const { markers, now } = useLocations(); useMapLibre(containerRef, markers, now)` |
 | `src/components/Map/TruckPopup.tsx` | New props (`marker`, `now`, `onClose`); label, status, hours, freshness text, Instagram link; the confidence labels go |
 | `.env.example` | `NEXT_PUBLIC_PMTILES_URL`'s comment: R2 for deploys, the local file in dev |
 | `README.md` | Tiles on R2 (bucket, access, CORS, upload); the hosted Supabase and Vercel preview setup; status line, "What works today", "Project status" |
@@ -114,6 +114,8 @@ cleaner there than in the integration file; step 2's PR says which.
   them.
 - `type LiveResponse = { entries: LiveEntry[] }` (#11).
 - `type MarkerEntry = { entry: LiveEntry, status: "open" | "later" }`.
+- `isLiveResponse(body): body is LiveResponse`: the guard the hook applies to a 2xx
+  body before using it (an `{ error }` body, or one without an `entries` array, fails).
 - `todaysEntries(entries, now)`: entries with `ends_at > now` and `starts_at` before
   the next Stockholm midnight after `now`.
 - `markerFor(entries, now): Map<truckId, MarkerEntry>`: one per truck (#12), the entry
@@ -137,18 +139,26 @@ cleaner there than in the integration file; step 2's PR says which.
   Doesn't read the request; exports nothing but `GET` (#17).
 
 **`src/hooks/useLocations.ts`**
-- `useLocations(): Map<truckId, MarkerEntry>`: fetch on mount; every 60 s while
-  visible; at once on `visibilitychange` → visible; paused while hidden. An
-  `AbortController` per request, aborted on unmount; a response older than the last one
-  applied is dropped. A failed fetch keeps the last good entries (#16). A 30 s tick
-  (and becoming visible) re-derives `markerFor(todaysEntries(entries, now), now)`, and
-  `now` is returned with the markers for the popup (#15).
+- `useLocations(): { markers: Map<truckId, MarkerEntry>, now: Date }`: fetch on mount;
+  every 60 s while visible; at once on `visibilitychange` → visible; paused while
+  hidden. An `AbortController` per request, aborted on unmount; a response older than
+  the last one applied is dropped. **A failed fetch is a rejection, a non-2xx status
+  (the route's 500 `{ error }` included), or a body `isLiveResponse` rejects**, and it
+  keeps the last good entries (#16): it never replaces them with an empty list. A 30 s
+  tick (and becoming visible) sets `now` and re-derives `markerFor(todaysEntries(entries,
+  now), now)`; `now` is returned for the popup (#15).
 
 **`src/hooks/useMapLibre.tsx`**
-- `useMapLibre(containerRef, markers)`: the init effect as today; a second effect
-  applies `diffMarkers` to a ref of live `maplibregl.Marker`s: add creates one,
-  update calls `setLngLat` and restyles the element (and re-renders an open popup),
-  remove calls `remove()` (and closes its popup).
+- `useMapLibre(containerRef, markers, now)`: the init effect builds the map as today
+  and exposes it to the marker effect (e.g. as state the init effect sets); its cleanup
+  removes the map **and empties the live-marker ref**. The marker effect depends on the
+  map and `markers`, and applies `diffMarkers(liveMarkers, markers)` to that ref: add
+  creates a `maplibregl.Marker`, update calls `setLngLat` and restyles the element,
+  remove calls `remove()` (and closes its popup). So a rebuilt map (React StrictMode's
+  mount → cleanup → mount in dev, or any re-init) diffs from empty and gets every
+  marker. An open popup re-renders when its marker updates **or `now` changes**, so its
+  freshness and status text follow the tick (e.g. across Stockholm midnight);
+  `diffMarkers` itself doesn't take `now`.
 - `createMarkerElement(status)`: open filled, later outlined (open decision 8).
 
 **Components**
@@ -161,15 +171,16 @@ cleaner there than in the integration file; step 2's PR says which.
 
 ## Steps
 
-Strict order. Steps 0–7 and 10 are one issue and one PR into `dev` each; step 9 is one
-issue and PR per follow-up the retrospective opens, which may be none. Step 7 is the
-existing issue #139.
+Strict order, with one exception: step 4 depends on nothing before it and may run
+alongside steps 1–3 (it must still precede step 6). Steps 0–8 and 10 are one issue and
+one PR into `dev` each; step 9 is one issue and PR per follow-up the retrospective
+opens, which may be none. Step 7 is the existing issue #139.
 
 0. **This plan.** The plan file, and `CLAUDE.md`'s bold "Current phase plan" line
    naming it, where between phases it read `none (the last one:
    .claude/plans/phase-5-schema-reset.md)`. Only that line of the header changes.
-1. **The response contract and pure helpers.** `src/lib/live.ts` (the types, `todaysEntries`,
-   `markerFor`, `diffMarkers`, `hoursText`, `statusText`, `freshnessText`) and
+1. **The response contract and pure helpers.** `src/lib/live.ts` (the types, `isLiveResponse`,
+   `todaysEntries`, `markerFor`, `diffMarkers`, `hoursText`, `statusText`, `freshnessText`) and
    `src/lib/live.test.ts`. *First because* the server and the client both build on the
    contract, and this needs no Docker, env or account.
 2. **The server.** `src/lib/services/live.ts` (`getLiveMap`),
@@ -178,18 +189,20 @@ existing issue #139.
    written against a tested endpoint. A separate issue from step 1: it is the first
    service and the first route, and gets its own review.
 3. **The client.** `src/hooks/useLocations.ts`; `src/hooks/useMapLibre.tsx`
-   (`useMapLibre(containerRef, markers)`, `createMarkerElement`);
+   (`useMapLibre(containerRef, markers, now)`, `createMarkerElement`);
    `src/components/Map/TruckPopup.tsx`; `src/components/Map/MapClient.tsx`; delete
    `src/lib/fake-data.ts` and `src/lib/map-types.ts`. Settle open decisions 5–8. A
-   browser check of `/map` locally against local Supabase (its seed has a row spanning
-   `now()`). Docs this makes stale ride along: `CLAUDE.md`'s UI Rules "(Phase 6)"
+   browser check of `/map` in `npm run dev` (StrictMode on) against local Supabase,
+   **right after `npx supabase db reset`**: the seed's live row spans only `[reset − 1 h,
+   reset + 12 h)` (`supabase/seed.sql`), so a check run later sees an empty map. Docs
+   this makes stale ride along: `CLAUDE.md`'s UI Rules "(Phase 6)"
    paragraph, `README.md`'s status line and "What works today". *The fake data can
    only go once the real path works; everything up to here is local, so no hosted
    account exists before the code is proven.*
 4. **Tiles on R2** (#7). Create the Cloudflare account (#3); a bucket (Standard
-   storage); public access (open decision 1); the CORS rule (allowed origins: the
-   preview's and `http://localhost:3000`; methods `GET`, `HEAD`; headers `range`,
-   `if-match`; exposed `etag`); upload `gothenburg.pmtiles`. Check `/map` locally with
+   storage); public access (open decision 1); the CORS rule (allowed origins per open
+   decision 10; methods `GET`, `HEAD`; headers `range`, `if-match`; exposed `etag`);
+   upload `gothenburg.pmtiles`. Check `/map` locally with
    `NEXT_PUBLIC_PMTILES_URL` pointing at R2. Ride along: `README.md` (tiles on R2),
    `.env.example`, `CLAUDE.md`'s Tech Stack tile line. *Before the deploy, which has no
    tiles otherwise* (`public/*.pmtiles` is gitignored). Independent of steps 1–3: it
@@ -198,15 +211,21 @@ existing issue #139.
    per open decision 4; key type per open decision 3; `npx supabase db push` the
    baseline. Run the three hosted checks (`project-context.md` Part 1, "Database"):
    `sv-SE-x-icu`, both extensions in `extensions` with the trigger form accepted, and
-   the Data API's `max_rows` ≥ `MAX_ROWS`. Probe that anon reads no rows from `trucks`
-   or `locations` through the hosted REST API. Load data (open decision 2). Ride along:
+   the Data API's `max_rows` ≥ `MAX_ROWS`. Probe that anon is refused SELECT on `trucks`
+   and `locations` through the hosted REST API (`42501`, as `rls.test.ts` asserts
+   locally). Load data (open decision 2). Ride along:
    `src/lib/db/complete.ts`'s comment, `README.md`'s setup. **A failed check stops the
    plan here:** the fix (a migration, #19, or a setting) gets a decision first.
    *Before Vercel, which needs this project's URL and keys.*
 6. **Vercel project and the first preview deploy.** Create the account (#3); import
-   the repo; preview-scoped environment variables (#5; the service-role key marked
-   Sensitive); the function region near the database (open decision 4). On the
-   preview: `x-vercel-cache` MISS → HIT → STALE on `/api/live`; `/map` in a real
+   the repo; preview-scoped environment variables (#5): all four of `.env.example`'s,
+   or the names open decision 3 leads to. `NEXT_PUBLIC_PMTILES_URL` (the R2 URL) is
+   inlined at build time and `useMapLibre` draws nothing without it;
+   `src/lib/supabase.ts` throws at import without the anon key, though nothing uses it
+   before Phase 7; the service-role key is marked Sensitive. The function region near
+   the database (open decision 4). Deployment Protection per open decision 11. On the
+   preview: `x-vercel-cache` MISS → HIT → STALE on `/api/live`, by GET (`curl -s -o
+   /dev/null -D -`), not `curl -I`, which sends HEAD; `/map` in a real
    browser (basemap from R2, markers, a popup); requests per visit from Vercel's usage
    dashboard; the build's `node -v` and `npm -v`, recorded on #139. Ride along:
    `README.md`'s preview-deploy notes. *Last of the build steps: it needs all of the
@@ -335,7 +354,8 @@ one truck at once were judged more confusing than useful.
 
 ### #13 — A NULL `label` leaves the line out
 
-Settles Phase 5 plan decision #12 ("the popup's text for a missing one is Phase 6's").
+Settles Phase 5 plan decision #12 ("The popup's handling of a missing label is Phase
+6's").
 The owner's call, 2026-10-25. The coordinates are on the map already; a placeholder like
 "Okänd plats" would read as an error.
 
@@ -392,7 +412,9 @@ collation, the extensions, the trigger form), its fix is decided first; a migrat
   Stockholm midnight out; started yesterday and still running in; both 2026 DST days,
   03-29 and 10-25), `markerFor` (open beats later; two later entries give the earliest;
   only ended entries give no marker), `diffMarkers` (add; update on entry id, position,
-  status and a popup field; remove; no change gives an empty diff) and the text helpers
+  status and a popup field; remove; no change gives an empty diff; an empty `prev`
+  gives every marker as an add), `isLiveResponse` (accepts `{ entries: [] }` and a full
+  entry; rejects `{ error }`, `{}` and `null`) and the text helpers
   (`"11:00–14:00"`, `"Uppdaterad 08:12"`, `"Öppet nu"`, `"Öppnar 17:00"`, all in
   Stockholm time).
 - [ ] `src/lib/live.ts` imports no React and no env, and reads no clock: a grep shows no
@@ -418,12 +440,15 @@ collation, the extensions, the trigger form), its fix is decided first; a migrat
 - [ ] `fake-data.ts` and `map-types.ts` are deleted; a grep of `src/` for `confidence`,
   `last_known`, `is_negation`, `MarkerColor`, `fake-data` and `map-types` finds nothing.
 - [ ] No `useState` or `useEffect` in a component.
-- [ ] In a real browser, locally against local Supabase: the basemap, one marker per
-  truck with an entry today, a popup with name, label, status, hours, "Uppdaterad
+- [ ] In a real browser, in `npm run dev` (StrictMode on) against local Supabase just
+  after `npx supabase db reset`: the basemap, one marker per truck with an entry today, a popup with name, label, status, hours, "Uppdaterad
   HH:MM" and the Instagram link; a row inserted by SQL appears within one poll (at once
   on refocusing the tab), and cancelled disappears, while the other markers keep their
   elements. The server's own `Local:` line is read first and no repo `node` process is
   left after (`CLAUDE.md`, "Testing").
+- [ ] With the markers showing, `npx supabase stop` makes `/api/live` fail (500): the
+  markers stay through the next poll, and come back in sync after `npx supabase start`
+  (#16).
 - [ ] `CLAUDE.md`'s UI Rules and `README.md`'s status line and "What works today" no
   longer describe the fake-data map.
 
@@ -443,16 +468,19 @@ collation, the extensions, the trigger form), its fix is decided first; a migrat
   a query of `trucks.name`'s collation shows `sv-SE-x-icu`; a query shows `btree_gist`
   and `moddatetime` in `extensions`, and an UPDATE moves a row's `updated_at`; the Data
   API `max_rows` read in the dashboard is ≥ `MAX_ROWS`.
-- [ ] With the anon key, the hosted REST API returns no rows from `trucks` or
-  `locations`.
+- [ ] With the anon key, a SELECT on `trucks` and on `locations` through the hosted REST
+  API is refused with `42501` and a hint naming SELECT (as `rls.test.ts`'s
+  `expectRefused` asserts locally), not answered with an empty list, which a wrong URL
+  or key could also give.
 - [ ] The project holds at least one active truck with an entry spanning the check time
   of step 6.
 
 **Preview deploy (step 6)**
-- [ ] The preview builds; its environment variables are preview-scoped and the
-  service-role key is marked Sensitive.
-- [ ] `curl -I` on `/api/live` shows `x-vercel-cache: MISS`, then `HIT` within 60 s,
-  then `STALE` between 60 and 120 s, with the output in the PR or issue.
+- [ ] The preview builds; every variable `src/lib/supabase.ts` and `useMapLibre` read
+  is set, preview-scoped, and the service-role key is marked Sensitive.
+- [ ] GET requests to `/api/live` (headers dumped, past Deployment Protection per open
+  decision 11) show `x-vercel-cache: MISS`, then `HIT` within 60 s, then `STALE`
+  between 60 and 120 s, with the output in the PR or issue.
 - [ ] `/map` on the preview in a real browser shows the basemap from R2, the markers and
   a popup.
 - [ ] Requests per visit, from Vercel's usage dashboard, are recorded with the visit
@@ -461,7 +489,9 @@ collation, the extensions, the trigger form), its fix is decided first; a migrat
 - [ ] The Vercel account has non-SMS 2FA (#3).
 
 **#139 (step 7)**
-- [ ] #139's acceptance criteria hold, and a preview deploy with the new fields builds.
+- [ ] #139's acceptance criteria hold, and a preview deploy with the new fields builds
+  and its `/map` draws the basemap from R2 (a new preview origin is where open decision
+  10's CORS rule would fail).
 
 **Gates (every step with a code or config change)**
 - [ ] `npx tsc --noEmit`, `npm run lint`, `npm run test:all`, `npm run build` exit 0,
@@ -502,6 +532,21 @@ collation, the extensions, the trigger form), its fix is decided first; a migrat
    settled at the browser check.
 9. **#139's `onFail`, and whether to pin `engines.node` (step 7).** As that issue
    describes, from step 6's build log.
+10. **The R2 CORS rule's allowed origins (step 4).** Vercel preview URLs differ per
+    deployment and per branch, so one named preview origin breaks the next preview's
+    basemap. Options: `*` while only previews exist (the tiles are public; Phase 8
+    narrows it to the domain and localhost, `project-context.md` "Pricing"), or one
+    pattern for this project's previews, e.g. `https://<project>-*.vercel.app` (R2's
+    CORS docs, read 2026-10-25: an origin may hold one `*`, which can span periods;
+    `https://*.vercel.app` would admit every Vercel-hosted site). Not probed until the
+    bucket exists. Local dev's origin is `http://localhost:3000`.
+11. **Deployment Protection on previews (step 6).** With Vercel Authentication on (all
+    plans, Hobby included), a request without its cookie gets a Vercel login redirect,
+    not the route, so it has no `x-vercel-cache` (Vercel's docs, read 2026-10-25). Those
+    pages don't say whether a new project has it on for previews; step 6 reads the
+    project's Deployment Protection settings. If it is on: turn it off for previews, or
+    send a Protection Bypass for Automation token (a secret: #5) with the cache check's
+    requests.
 
 Product decisions #1 (retention), #2 (checklist look-back), #3 (default times) and #4
 (app name) stay open for Phases 7–8; this phase doesn't wait on them.
