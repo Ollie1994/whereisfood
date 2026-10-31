@@ -79,6 +79,7 @@ describe("isLiveResponse", () => {
     ["a bare array", [entry()]],
     ["entries not an array", { entries: entry() }],
     ["a non-object entry", { entries: ["x"] }],
+    ["a null entry", { entries: [null] }],
   ])("rejects %s", (_name, body) => {
     expect(isLiveResponse(body)).toBe(false);
   });
@@ -131,6 +132,8 @@ describe("isLiveResponse", () => {
     ["starts_at a number", top("starts_at", 1)],
     ["starts_at \"1\"", top("starts_at", "1")],
     ["starts_at \"2026\"", top("starts_at", "2026")],
+    // `TIMESTAMP.test` turns this array into its one string, which matches.
+    ["starts_at an array holding a timestamp", top("starts_at", ["2026-10-31T09:00:00+00:00"])],
     ["ends_at missing", missing("ends_at")],
     ["ends_at \"1\"", top("ends_at", "1")],
     ["ends_at \"2026\"", top("ends_at", "2026")],

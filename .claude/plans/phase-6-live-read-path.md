@@ -468,8 +468,9 @@ The owner's call, 2026-10-31, in PR #190's review round 1. `isLiveResponse` reje
 whole body for one bad entry, and the schema allows rows it rejects: `ends_at =
 'infinity'` passes the only time check (`ends_at > starts_at`), and coordinates have no
 range CHECK (`0001_baseline.sql`). One such row, entered by hand-written SQL before
-Phase 7's validators exist, would make every poll fail and leave the map empty for
-everyone. So `getLiveMap` checks each entry it builds with `isLiveEntry` (exported from
+Phase 7's validators exist, would make every poll fail: a visitor already on the map
+keeps the last good data (#16), and one who opens it while the row exists sees no
+trucks at all. So `getLiveMap` checks each entry it builds with `isLiveEntry` (exported from
 `live.ts`) and leaves out one that fails, logging its location id. The client still
 rejects a malformed body as a whole: that now means a broken server or contract, and
 the hook keeps its last good data (#16). Considered: the client dropping bad entries
