@@ -455,6 +455,31 @@ query-string rule only if junk traffic actually appears.
 Per poll ~10 KB (2–3 KB compressed). Each poll is one Vercel request even from cache,
 and **map tiles are a bigger request consumer than polling** (see Pricing).
 
+**Scaling limits** (noted in Phase 6, PR #192; the owner's call: a later problem, not
+built for now). The read path scales with **visitors** (one CDN copy per region,
+whatever the traffic), not with **trucks**. In the order they would be hit:
+- **1,000 rows, a hard wall.** `findLocationsOverlapping` and `listActiveTrucks` throw
+  past `MAX_ROWS` (1,000, pinned to `config.toml`'s `max_rows`) rather than return part
+  of the rows, so `/api/live` answers 500 and every map says "Kunde inte hämta
+  foodtrucks". It counts entries in the 26 h window and active trucks, not history.
+  Gothenburg, at an estimated 50 trucks with one or two entries a day, would use a
+  tenth of it or less. First fix: raise `max_rows` and `MAX_ROWS` together (and the
+  hosted project's setting). Trigger: the window passing ~500 rows.
+- **The whole response on every poll.** Every visitor downloads every entry every
+  60 s. One entry is 388 bytes of JSON (the seed's, PR #192); 3,000 varied synthetic
+  entries were 1.1 MB raw, 269 KB gzip and 224 KB brotli, so about 15 MB an hour for a
+  visitor with the map open. Fix: the map fetches only its visible area, on a fixed
+  grid so each cell stays one CDN-cached response.
+- **HTML markers.** MapLibre repositions each one every frame while panning: fine for
+  hundreds, not for thousands (not measured). Fix: markers drawn from a GeoJSON source
+  on the map's canvas, with clustering, which changes `CLAUDE.md`'s HTML-marker rule.
+- **One time zone.** "Today", "Öppet nu" and every time shown use `Europe/Stockholm`
+  (`live.ts`'s `TZ`). Norway and Denmark share it; Finland and most of Europe don't.
+  Fix: a time zone per entry.
+- Outside the code: one admin entering every entry by hand (the Owners phase is the
+  fix, and arrives long before the walls above), a Gothenburg-only tile file, and
+  Swedish-only text.
+
 ## No cron
 
 Nothing needs a scheduler: reads filter on `ends_at`, the client timer moves pins in
