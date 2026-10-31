@@ -244,7 +244,8 @@ opens, which may be none. Step 7 is the existing issue #139.
 3. **The client.** `src/hooks/useLocations.ts`; `src/hooks/useMapLibre.tsx`
    (`useMapLibre(containerRef, markers, now)`, `createMarkerElement`);
    `src/components/Map/TruckPopup.tsx`; `src/components/Map/MapClient.tsx`; delete
-   `src/lib/fake-data.ts` and `src/lib/map-types.ts`. Settle open decisions 5–8. A
+   `src/lib/fake-data.ts` and `src/lib/map-types.ts`. Settle open decisions 6–8 (5 was
+   settled in step 1, #182). A
    browser check of `/map` in `npm run dev` (StrictMode on) against local Supabase,
    **right after `npx supabase db reset`**: the seed's live row spans only `[reset − 1 h,
    reset + 12 h)` (`supabase/seed.sql`), so a check run later sees an empty map. Docs
@@ -591,9 +592,18 @@ collation, the extensions, the trigger form), its fix is decided first; a migrat
    created, with the variable names revisited if needed.
 4. **Regions (steps 5, 6).** Supabase in `eu-north-1` (Stockholm) and Vercel's function
    region near it (`arn1`); confirm what Hobby allows.
-5. **`freshnessText` for an update not made today (step 3).** E.g. "Uppdaterad igår
-   18:30" or "Uppdaterad 3 okt 18:30"; it matters for an entry entered the evening
-   before.
+5. ~~**`freshnessText` for an update not made today (step 3).**~~ → **answered in step
+   1 (#182), the owner's call, 2026-10-31:** by Stockholm calendar days between
+   `updated_at` and `now`. The same day (or a later one, a client clock behind the
+   server's): `"Uppdaterad 08:12"`. One day: `"Uppdaterad igår 18:30"`. Two to six:
+   the weekday, `"Uppdaterad i måndags 09:14"`. Seven or more: the date, `"Uppdaterad
+   24 okt 09:14"`, with the year only when it isn't `now`'s (`"Uppdaterad 20 dec 2025
+   09:00"`). Month names are written out in `live.ts` (`jan`, `feb`, `mars`, `apr`,
+   `maj`, `juni`, `juli`, `aug`, `sep`, `okt`, `nov`, `dec`), not taken from a
+   `date-fns` locale. Why the weekday: a truck may post its whole week at once, so most
+   popups show an update from earlier in the week, and a weekday reads faster than a
+   date there. The question as planned: E.g. "Uppdaterad igår 18:30" or "Uppdaterad 3
+   okt 18:30"; it matters for an entry entered the evening before.
 6. **A stale notice when polls fail (step 3).** The principles say the map should say
    honestly when it's stale (`project-context.md`, "Principles and risks"). A small
    "Kunde inte uppdatera" now, or later (#16).
