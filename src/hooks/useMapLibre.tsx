@@ -1,4 +1,4 @@
-import { useEffect, useRef, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { flushSync } from "react-dom";
 // Namespace import: MapLibre 6 is ESM-only and has no default export.
@@ -27,15 +27,15 @@ let mapLibreInitialised = false;
 
 type TruckId = string;
 
-type LiveMarker = { marker: maplibregl.Marker; entry: MarkerEntry };
-
 type OpenPopup = { truckId: TruckId; popup: maplibregl.Popup; root: Root };
 
-// What the effects and the click handlers share, in one ref. `open` is set exactly while
-// a popup is open: its `close` handler clears it, however the popup closed.
+// What the effects and the click handlers share, in one ref. `shown` is the `markers`
+// last applied, and `live` holds one `maplibregl.Marker` for each of its trucks. `open`
+// is set exactly while a popup is open: its `close` handler clears it, however the
+// popup closed.
 type MarkerLayer = {
-  map: maplibregl.Map | null;
-  live: Map<TruckId, LiveMarker>;
+  live: Map<TruckId, maplibregl.Marker>;
+  shown: ReadonlyMap<TruckId, MarkerEntry>;
   open: OpenPopup | null;
   now: Date;
 };
@@ -68,15 +68,13 @@ export function createMarkerElement(status: MarkerEntry["status"]): HTMLDivEleme
 // from inside a lifecycle method" (plan, "Functions and types").
 function renderOpenPopup(layer: MarkerLayer, { sync = false } = {}) {
   const open = layer.open;
-  const live = open && layer.live.get(open.truckId);
-  if (!open || !live) return;
+  const marker = open && layer.shown.get(open.truckId);
+  if (!open || !marker) return;
 
-  const popup = (
-    <TruckPopup marker={live.entry} now={layer.now} onClose={() => open.popup.remove()} />
-  );
+  const popup = <TruckPopup marker={marker} now={layer.now} onClose={() => open.popup.remove()} />;
   if (sync) flushSync(() => open.root.render(popup));
   else open.root.render(popup);
-  open.popup.setLngLat(lngLatOf(live.entry));
+  open.popup.setLngLat(lngLatOf(marker));
 }
 
 // `remove()` fires the popup's `close` handler, which clears `layer.open`.
@@ -87,8 +85,7 @@ function closeOpenPopup(layer: MarkerLayer) {
 function addMarker(map: maplibregl.Map, layer: MarkerLayer, entry: MarkerEntry) {
   const truckId = entry.entry.truck.id;
   const el = createMarkerElement(entry.status);
-  const marker = new maplibregl.Marker({ element: el }).setLngLat(lngLatOf(entry)).addTo(map);
-  layer.live.set(truckId, { marker, entry });
+  layer.live.set(truckId, new maplibregl.Marker({ element: el }).setLngLat(lngLatOf(entry)).addTo(map));
 
   el.addEventListener("click", (event) => {
     event.stopPropagation(); // keep closeOnClick from closing the new popup
@@ -116,12 +113,9 @@ export function useMapLibre(
   markers: ReadonlyMap<TruckId, MarkerEntry>,
   now: Date,
 ) {
-  const layerRef = useRef<MarkerLayer>({ map: null, live: new Map(), open: null, now });
+  const [map, setMap] = useState<maplibregl.Map | null>(null);
+  const layerRef = useRef<MarkerLayer>({ live: new Map(), shown: new Map(), open: null, now });
 
-  // Declared first: React runs a component's effects in declaration order, so in any
-  // commit that (re)builds the map, the marker effect below already sees it. The map
-  // lives in the ref, so that effect reads the current map, never one a render captured
-  // before a cleanup removed it.
   useEffect(() => {
     const layer = layerRef.current;
     if (!containerRef.current || !PMTILES_URL) return;
@@ -132,7 +126,7 @@ export function useMapLibre(
       mapLibreInitialised = true;
     }
 
-    layer.map = new maplibregl.Map({
+    const created = new maplibregl.Map({
       container: containerRef.current,
       center: GOTHENBURG,
       zoom: 13,
@@ -155,50 +149,47 @@ export function useMapLibre(
         layers: layers("protomaps", namedFlavor("light"), { lang: "sv" }),
       },
     });
+    setMap(created);
 
-    // Emptying `live` makes a rebuilt map (StrictMode's mount → cleanup → mount in dev)
-    // diff from empty and get every marker.
+    // Emptying `live` and `shown` makes a rebuilt map (StrictMode's mount → cleanup →
+    // mount in dev) diff from empty and get every marker.
     return () => {
       closeOpenPopup(layer);
-      for (const { marker } of layer.live.values()) marker.remove();
+      for (const marker of layer.live.values()) marker.remove();
       layer.live.clear();
-      layer.map?.remove();
-      layer.map = null;
+      layer.shown = new Map();
+      created.remove();
     };
   }, [containerRef]);
 
+  // One effect for the markers and the tick, so an open popup renders once per commit,
+  // with its truck's new entry and the new `now` together.
   useEffect(() => {
-    const layer = layerRef.current;
-    const map = layer.map;
     if (!map) return;
+    const layer = layerRef.current;
+    const nowChanged = layer.now !== now;
+    layer.now = now;
 
-    const shown = new Map([...layer.live].map(([truckId, live]) => [truckId, live.entry]));
-    const { add, update, remove } = diffMarkers(shown, markers);
+    const { add, update, remove } = diffMarkers(layer.shown, markers);
+    layer.shown = markers;
 
     for (const entry of add) addMarker(map, layer, entry);
     for (const entry of update) {
-      const live = layer.live.get(entry.entry.truck.id);
-      if (!live) continue;
-      live.entry = entry;
-      live.marker.setLngLat(lngLatOf(entry));
-      styleMarkerElement(live.marker.getElement(), entry.status);
+      const marker = layer.live.get(entry.entry.truck.id);
+      marker?.setLngLat(lngLatOf(entry));
+      if (marker) styleMarkerElement(marker.getElement(), entry.status);
     }
     for (const truckId of remove) {
       if (layer.open?.truckId === truckId) closeOpenPopup(layer);
-      layer.live.get(truckId)?.marker.remove();
+      layer.live.get(truckId)?.remove();
       layer.live.delete(truckId);
     }
 
-    // In the same pass as the update, so the popup moves and re-renders with its marker.
+    // The status, hours and freshness text follow the tick (e.g. across Stockholm
+    // midnight); an update moves the popup with its marker.
     const openTruck = layer.open?.truckId;
-    if (update.some((entry) => entry.entry.truck.id === openTruck)) renderOpenPopup(layer);
-  }, [markers]);
-
-  // The open popup's status, hours and freshness text follow the tick (e.g. across
-  // Stockholm midnight). `diffMarkers` doesn't take `now`.
-  useEffect(() => {
-    const layer = layerRef.current;
-    layer.now = now;
-    renderOpenPopup(layer);
-  }, [now]);
+    if (nowChanged || update.some((entry) => entry.entry.truck.id === openTruck)) {
+      renderOpenPopup(layer);
+    }
+  }, [map, markers, now]);
 }

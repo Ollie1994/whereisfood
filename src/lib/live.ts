@@ -29,6 +29,10 @@ export type MarkerDiff = {
   remove: TruckId[];
 };
 
+// `useLocations`' state: `loading` until the first request finishes, then `ok` after a
+// good response and `failing` after a failed one.
+export type FetchState = "loading" | "ok" | "failing";
+
 // --- The guard the client applies to a 2xx body ---------------------------------
 
 // A date, a time with optional fractional seconds, and an offset. PostgREST returns
@@ -244,4 +248,17 @@ export function freshnessText(updatedAt: string, now: Date): string {
     return `Uppdaterad i ${weekday} ${time}`;
   }
   return `Uppdaterad ${shortDate(at, now)} ${time}`;
+}
+
+// --- The map's notice -----------------------------------------------------------------
+
+// Plan, open decisions 6 and 7. Nothing before the first response: an empty map then
+// isn't "no trucks". While polls fail the markers stay (plan #16), so with none showing
+// the notice says nothing could be fetched, and with some it says they may be old.
+export function noticeText(fetchState: FetchState, markerCount: number): string | null {
+  if (fetchState === "failing") {
+    return markerCount === 0 ? "Kunde inte hämta foodtrucks. Försöker igen…" : "Kunde inte uppdatera";
+  }
+  if (fetchState === "ok" && markerCount === 0) return "Inga foodtrucks idag";
+  return null;
 }

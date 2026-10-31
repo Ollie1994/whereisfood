@@ -6,6 +6,7 @@ import {
   isLiveEntry,
   isLiveResponse,
   markerFor,
+  noticeText,
   statusText,
   todaysEntries,
   type LiveEntry,
@@ -432,5 +433,18 @@ describe("text helpers", () => {
         "Uppdaterad 20 dec 2025 09:00",
       );
     });
+  });
+});
+
+describe("noticeText", () => {
+  it.each([
+    ["loading", 0, null],
+    ["loading", 2, null],
+    ["ok", 2, null],
+    ["ok", 0, "Inga foodtrucks idag"],
+    ["failing", 2, "Kunde inte uppdatera"],
+    ["failing", 0, "Kunde inte hämta foodtrucks. Försöker igen…"],
+  ] as const)("%s with %i markers → %s", (fetchState, markerCount, text) => {
+    expect(noticeText(fetchState, markerCount)).toBe(text);
   });
 });
