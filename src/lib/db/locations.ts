@@ -16,8 +16,10 @@ import type { Location, LocationPatch, NewLocation } from "@/lib/types";
 //
 // ⚠ A timestamp doesn't round-trip as the same string: we send `…T09:00:00.000Z`,
 // PostgREST returns `…T09:00:00+00:00` (seen in PR #106 and again in this module's
-// rows on 2026-10-19). Compare instants (`Date.parse`) in JavaScript, never the
-// strings. The tests compare instants and don't pin the text.
+// rows on 2026-10-19). So compare a string we sent with one returned as instants
+// (`Date.parse`), never as text; this module's tests do, and don't pin the text. Two
+// strings that both came back can be compared as text: `api-live.test.ts` does, to
+// catch a reformat or a lost microsecond.
 
 // Every column except `created_by`, which no read returns (#8). ONE STRING LITERAL:
 // supabase-js infers the row type from the literal text, and with rows returned uncast
