@@ -11,11 +11,11 @@ themselves later.
 It fills a real gap: Gothenburg has had no central food-truck map since Streetkäk
 shut down in 2017.
 
-> **Status: Phase 5 of 8 (schema reset) done; Phase 6 (live read path) next.** The map
-> renders in the browser from **fake data**; the app doesn't read from or write to the
-> database yet. Phase 4 removed the old design (automatic ingestion from Make.com and
-> email, plus a Swedish text parser), and Phase 5 replaced its database schema; see
-> [Project status](#project-status).
+> **Status: Phase 6 of 8 (live read path) in progress.** The map shows today's entries
+> from the database through `GET /api/live`, so far only against a local Supabase: there
+> is no deploy and no admin screen yet. Phase 4 removed the old design (automatic
+> ingestion from Make.com and email, plus a Swedish text parser), and Phase 5 replaced
+> its database schema; see [Project status](#project-status).
 
 ---
 
@@ -91,7 +91,7 @@ The working rules live in [`CLAUDE.md`](CLAUDE.md) and the design reference in
 | 3 · Parser           | Swedish text parser for social-media captions | Stopped and removed in Phase 4 |
 | 4 · Housekeeping     | Remove the old design, upgrade dependencies, rewrite the docs | ✅ Done |
 | 5 · Schema reset     | A fresh 3-table schema (`trucks`, `locations`, `users`) | ✅ Done |
-| 6 · Live read path   | `/api/live`, polling, first preview deploy | ⬜ Not started |
+| 6 · Live read path   | `/api/live`, polling, first preview deploy | 🔄 In progress |
 | 7 · Admin            | Admin login and location entry | ⬜ Not started |
 | 8 · Launch           | Map tiles on Cloudflare R2, production deploy | ⬜ Not started |
 
@@ -104,9 +104,12 @@ branch and tag.
 
 - The map renders in the browser from a local tile file, centred on Gothenburg, with
   Swedish place names.
-- HTML markers and clickable truck popups (React rendered into MapLibre popups),
-  from fake data in [`src/lib/fake-data.ts`](src/lib/fake-data.ts). The markers still
-  use the old design's colours; Phase 6 replaces them.
+- One marker per truck with an entry today, filled while it is open and outlined when
+  it opens later today, from `GET /api/live` (cached by the CDN for 60 s once
+  deployed). The map polls every 60 s while the tab is visible and changes only the
+  markers that changed. A popup shows the truck, its place, whether it is open, its
+  hours, when the entry was last updated, and its Instagram link. If a poll fails the
+  markers stay and the map says it couldn't update.
 - The new design's Supabase schema, in one migration
   ([`supabase/migrations/0001_baseline.sql`](supabase/migrations/0001_baseline.sql)):
   `trucks`, `locations` and `users`. The database refuses overlapping entries for a
@@ -120,7 +123,6 @@ branch and tag.
 
 ### What does not exist yet
 
-- `/api/live` and live data on the map (Phase 6)
 - Admin login and location entry (Phase 7); `src/proxy.ts` is a stub
 - Any deploy (the first preview deploy is Phase 6)
 
@@ -134,8 +136,8 @@ branch and tag.
   22.x releases pass Next's check but fail under vitest.
 - **npm 11 or newer** (`npm i -g npm@11`). npm 10, which Node 22 bundles, crashes
   while resolving vitest's optional peer dependencies.
-- **Docker**, for the local Supabase stack. The map runs without it; the integration
-  tests don't.
+- **Docker**, for the local Supabase stack. The basemap draws without it; the map's
+  markers and the integration tests need it.
 - **The `pmtiles` CLI**, to cut the map tiles (next section). It's a single binary
   from [go-pmtiles releases](https://github.com/protomaps/go-pmtiles/releases).
 
@@ -184,12 +186,14 @@ cp .env.example .env.local
 | Variable | Needed for | Value |
 |---|---|---|
 | `NEXT_PUBLIC_PMTILES_URL` | the map | `/gothenburg.pmtiles` (already set in the template) |
-| `NEXT_PUBLIC_SUPABASE_URL` | integration tests, later phases | `API_URL` from `npx supabase status -o env` |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | integration tests, later phases | `ANON_KEY` from the same output |
-| `SUPABASE_SERVICE_ROLE_KEY` | integration tests, later phases | `SERVICE_ROLE_KEY` from the same output (server only, never `NEXT_PUBLIC_`) |
+| `NEXT_PUBLIC_SUPABASE_URL` | the map's markers (`/api/live`), integration tests | `API_URL` from `npx supabase status -o env` |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | the map's markers (`/api/live`), integration tests | `ANON_KEY` from the same output |
+| `SUPABASE_SERVICE_ROLE_KEY` | the map's markers (`/api/live`), integration tests | `SERVICE_ROLE_KEY` from the same output (server only, never `NEXT_PUBLIC_`) |
 
-The map itself needs only the first variable, so you can skip the stack if you only
-want to see the map.
+Without the stack or these three variables the basemap still draws, but `/api/live`
+fails, so the map shows no markers and says it couldn't fetch the trucks. The seed's
+one entry for today spans the hour before `npx supabase db reset` to 12 hours after
+it, so run a reset first to see a marker.
 
 ### 4. Run
 

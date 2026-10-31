@@ -1,27 +1,20 @@
-import { useEffect, type RefObject } from "react";
-import { createRoot } from "react-dom/client";
+import { useEffect, useRef, type RefObject } from "react";
+import { createRoot, type Root } from "react-dom/client";
 import { flushSync } from "react-dom";
 // Namespace import: MapLibre 6 is ESM-only and has no default export.
 import * as maplibregl from "maplibre-gl";
 import { Protocol } from "pmtiles";
 import { layers, namedFlavor } from "@protomaps/basemaps";
 import TruckPopup from "@/components/Map/TruckPopup";
-import { FAKE_TRUCKS, FAKE_LOCATIONS } from "@/lib/fake-data";
+import { diffMarkers, type MarkerEntry } from "@/lib/live";
 import { workerUrl } from "@/lib/maplibre-worker.mjs";
-import type { MapLocation, MapTruck, MarkerColor, MarkerState } from "@/lib/map-types";
 
 const GOTHENBURG: [number, number] = [11.9746, 57.7089];
 const PMTILES_URL = process.env.NEXT_PUBLIC_PMTILES_URL;
 
-// Display threshold — sub-0.45 locations count as "no update" (grey). Old-design
-// behaviour kept for the fake-data map; Phase 6 removes confidence from the UI.
-const DISPLAY_THRESHOLD = 0.45;
-
-const MARKER_COLORS: Record<MarkerColor, string> = {
-  green: "#22c55e",
-  yellow: "#eab308",
-  grey: "#6b7280",
-};
+// Open is filled, later is outlined (plan, open decision 8). The colour and size are
+// placeholders until the owner has looked at them on the map.
+const MARKER_COLOR = "#16a34a";
 
 // Registered once on the client, lazily inside the effect (never on the server):
 // the `pmtiles://` protocol, and MapLibre 6's worker URL.
@@ -32,46 +25,105 @@ const MARKER_COLORS: Record<MarkerColor, string> = {
 // documented Turbopack form does NOT work here: `src/lib/maplibre-worker.mjs`.
 let mapLibreInitialised = false;
 
-function deriveColor(location: MapLocation | null): MarkerColor {
-  if (!location) return "grey";
-  return location.confidence >= 0.9 ? "green" : "yellow";
+type TruckId = string;
+
+type LiveMarker = { marker: maplibregl.Marker; entry: MarkerEntry };
+
+type OpenPopup = { truckId: TruckId; popup: maplibregl.Popup; root: Root };
+
+// What the effects and the click handlers share, in one ref. `open` is set exactly while
+// a popup is open: its `close` handler clears it, however the popup closed.
+type MarkerLayer = {
+  map: maplibregl.Map | null;
+  live: Map<TruckId, LiveMarker>;
+  open: OpenPopup | null;
+  now: Date;
+};
+
+function lngLatOf({ entry }: MarkerEntry): [number, number] {
+  return [entry.longitude, entry.latitude];
 }
 
-// Merge trucks + locations into one MarkerState per truck (the Phase 6 `useLocations`
-// hook's job once the map reads `/api/live`).
-function buildMarkerStates(trucks: MapTruck[], locations: MapLocation[]): MarkerState[] {
-  return trucks.flatMap((truck) => {
-    const location =
-      locations.find(
-        (l) =>
-          l.truck_id === truck.id &&
-          !l.is_negation &&
-          l.confidence >= DISPLAY_THRESHOLD,
-      ) ?? null;
-
-    const latitude = location?.latitude ?? truck.last_known_latitude;
-    const longitude = location?.longitude ?? truck.last_known_longitude;
-    if (latitude == null || longitude == null) return []; // never posted → no marker
-
-    return [{ truck, location, color: deriveColor(location), latitude, longitude }];
-  });
+function styleMarkerElement(el: HTMLElement, status: MarkerEntry["status"]) {
+  el.style.background = status === "open" ? MARKER_COLOR : "#ffffff";
+  el.style.border = status === "open" ? "2px solid #ffffff" : `3px solid ${MARKER_COLOR}`;
 }
 
-function createMarkerElement(color: MarkerColor): HTMLDivElement {
+export function createMarkerElement(status: MarkerEntry["status"]): HTMLDivElement {
   const el = document.createElement("div");
   el.style.width = "18px";
   el.style.height = "18px";
   el.style.borderRadius = "50%";
-  el.style.background = MARKER_COLORS[color];
-  el.style.border = "2px solid #ffffff";
+  el.style.boxSizing = "border-box";
   el.style.boxShadow = "0 1px 4px rgba(0, 0, 0, 0.4)";
   el.style.cursor = "pointer";
+  styleMarkerElement(el, status);
   return el;
 }
 
-// Initialises MapLibre + PMTiles on the given container and renders fake-data markers.
-export function useMapLibre(containerRef: RefObject<HTMLDivElement | null>) {
+// The only place popup content is rendered: from the open truck's current entry and
+// the current `now`, never values captured when the marker was added. `sync` (the click
+// handler) renders inside `flushSync`, so the popup measures filled content before
+// `addTo`; an effect must not, because `flushSync` inside one logs "flushSync was called
+// from inside a lifecycle method" (plan, "Functions and types").
+function renderOpenPopup(layer: MarkerLayer, { sync = false } = {}) {
+  const open = layer.open;
+  const live = open && layer.live.get(open.truckId);
+  if (!open || !live) return;
+
+  const popup = (
+    <TruckPopup marker={live.entry} now={layer.now} onClose={() => open.popup.remove()} />
+  );
+  if (sync) flushSync(() => open.root.render(popup));
+  else open.root.render(popup);
+  open.popup.setLngLat(lngLatOf(live.entry));
+}
+
+// `remove()` fires the popup's `close` handler, which clears `layer.open`.
+function closeOpenPopup(layer: MarkerLayer) {
+  layer.open?.popup.remove();
+}
+
+function addMarker(map: maplibregl.Map, layer: MarkerLayer, entry: MarkerEntry) {
+  const truckId = entry.entry.truck.id;
+  const el = createMarkerElement(entry.status);
+  const marker = new maplibregl.Marker({ element: el }).setLngLat(lngLatOf(entry)).addTo(map);
+  layer.live.set(truckId, { marker, entry });
+
+  el.addEventListener("click", (event) => {
+    event.stopPropagation(); // keep closeOnClick from closing the new popup
+    closeOpenPopup(layer);
+
+    const content = document.createElement("div");
+    const root = createRoot(content);
+    const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: true });
+    const open: OpenPopup = { truckId, popup, root };
+    popup.on("close", () => {
+      if (layer.open === open) layer.open = null;
+      // Deferred: a synchronous unmount inside the popup's own React event warns.
+      queueMicrotask(() => root.unmount());
+    });
+    layer.open = open;
+    renderOpenPopup(layer, { sync: true });
+    popup.setDOMContent(content).addTo(map);
+  });
+}
+
+// Initialises MapLibre + PMTiles on the given container and keeps one marker per entry
+// of `markers` on it, changing only the markers `diffMarkers` names (CLAUDE.md, UI Rules).
+export function useMapLibre(
+  containerRef: RefObject<HTMLDivElement | null>,
+  markers: ReadonlyMap<TruckId, MarkerEntry>,
+  now: Date,
+) {
+  const layerRef = useRef<MarkerLayer>({ map: null, live: new Map(), open: null, now });
+
+  // Declared first: React runs a component's effects in declaration order, so in any
+  // commit that (re)builds the map, the marker effect below already sees it. The map
+  // lives in the ref, so that effect reads the current map, never one a render captured
+  // before a cleanup removed it.
   useEffect(() => {
+    const layer = layerRef.current;
     if (!containerRef.current || !PMTILES_URL) return;
 
     if (!mapLibreInitialised) {
@@ -80,7 +132,7 @@ export function useMapLibre(containerRef: RefObject<HTMLDivElement | null>) {
       mapLibreInitialised = true;
     }
 
-    const map = new maplibregl.Map({
+    layer.map = new maplibregl.Map({
       container: containerRef.current,
       center: GOTHENBURG,
       zoom: 13,
@@ -104,56 +156,49 @@ export function useMapLibre(containerRef: RefObject<HTMLDivElement | null>) {
       },
     });
 
-    const markers: maplibregl.Marker[] = [];
-    let activePopup: maplibregl.Popup | null = null;
-
-    const closeActive = () => {
-      activePopup?.remove(); // fires "close" → unmounts its React root
-      activePopup = null;
-    };
-
-    for (const markerState of buildMarkerStates(FAKE_TRUCKS, FAKE_LOCATIONS)) {
-      const el = createMarkerElement(markerState.color);
-      const lngLat: [number, number] = [
-        markerState.longitude,
-        markerState.latitude,
-      ];
-
-      const marker = new maplibregl.Marker({ element: el })
-        .setLngLat(lngLat)
-        .addTo(map);
-
-      el.addEventListener("click", (event) => {
-        event.stopPropagation(); // keep closeOnClick from closing the new popup
-        closeActive();
-
-        const content = document.createElement("div");
-        const root = createRoot(content);
-        const popup = new maplibregl.Popup({
-          closeButton: false,
-          closeOnClick: true,
-        }).setLngLat(lngLat);
-
-        // flushSync so the popup measures populated content, not an empty div.
-        flushSync(() =>
-          root.render(
-            <TruckPopup marker={markerState} onClose={() => popup.remove()} />,
-          ),
-        );
-        popup.setDOMContent(content).addTo(map);
-
-        // Defer unmount — synchronous unmount inside the popup's own React event warns.
-        popup.on("close", () => queueMicrotask(() => root.unmount()));
-        activePopup = popup;
-      });
-
-      markers.push(marker);
-    }
-
+    // Emptying `live` makes a rebuilt map (StrictMode's mount → cleanup → mount in dev)
+    // diff from empty and get every marker.
     return () => {
-      closeActive();
-      markers.forEach((marker) => marker.remove());
-      map.remove();
+      closeOpenPopup(layer);
+      for (const { marker } of layer.live.values()) marker.remove();
+      layer.live.clear();
+      layer.map?.remove();
+      layer.map = null;
     };
   }, [containerRef]);
+
+  useEffect(() => {
+    const layer = layerRef.current;
+    const map = layer.map;
+    if (!map) return;
+
+    const shown = new Map([...layer.live].map(([truckId, live]) => [truckId, live.entry]));
+    const { add, update, remove } = diffMarkers(shown, markers);
+
+    for (const entry of add) addMarker(map, layer, entry);
+    for (const entry of update) {
+      const live = layer.live.get(entry.entry.truck.id);
+      if (!live) continue;
+      live.entry = entry;
+      live.marker.setLngLat(lngLatOf(entry));
+      styleMarkerElement(live.marker.getElement(), entry.status);
+    }
+    for (const truckId of remove) {
+      if (layer.open?.truckId === truckId) closeOpenPopup(layer);
+      layer.live.get(truckId)?.marker.remove();
+      layer.live.delete(truckId);
+    }
+
+    // In the same pass as the update, so the popup moves and re-renders with its marker.
+    const openTruck = layer.open?.truckId;
+    if (update.some((entry) => entry.entry.truck.id === openTruck)) renderOpenPopup(layer);
+  }, [markers]);
+
+  // The open popup's status, hours and freshness text follow the tick (e.g. across
+  // Stockholm midnight). `diffMarkers` doesn't take `now`.
+  useEffect(() => {
+    const layer = layerRef.current;
+    layer.now = now;
+    renderOpenPopup(layer);
+  }, [now]);
 }

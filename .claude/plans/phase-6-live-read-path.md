@@ -655,13 +655,27 @@ in step 3.
    popups show an update from earlier in the week, and a weekday reads faster than a
    date there. The question as planned: E.g. "Uppdaterad igår 18:30" or "Uppdaterad 3
    okt 18:30"; it matters for an entry entered the evening before.
-6. **A stale notice when polls fail (step 3).** The principles say the map should say
-   honestly when it's stale (`project-context.md`, "Principles and risks"). A small
-   "Kunde inte uppdatera" now, or later (#16).
-7. **The empty state (step 3).** What `/map` says when no truck has an entry today,
-   e.g. "Inga foodtrucks ute just nu".
-8. **Marker look (step 3).** Colour and size of open (filled) versus later (outlined),
-   settled at the browser check.
+6. ~~**A stale notice when polls fail (step 3).**~~ → **answered in step 3 (#184), the
+   owner's call, 2026-10-31:** a notice now, shown from the first failed fetch (one is
+   enough, no waiting for a second) and gone after the next good one. The markers stay
+   either way (#16). With markers showing it reads `"Kunde inte uppdatera"`; with none
+   (the first fetch failed, or the last good response had none) `"Kunde inte hämta
+   foodtrucks. Försöker igen…"`, so a failure never looks like an empty day. The
+   question as planned: the principles say the map should say honestly when it's stale
+   (`project-context.md`, "Principles and risks"). A small "Kunde inte uppdatera" now,
+   or later (#16).
+7. ~~**The empty state (step 3).**~~ → **answered in step 3 (#184), the owner's call,
+   2026-10-31, as a placeholder:** `"Inga foodtrucks idag"`, only when `fetchState` is
+   `ok` with no markers. Not "just nu": the map also shows trucks opening later today,
+   so an empty map means none for the rest of the day. The question as planned: what
+   `/map` says when no truck has an entry today, e.g. "Inga foodtrucks ute just nu".
+8. ~~**Marker look (step 3).**~~ → **answered in step 3 (#184), the owner's call,
+   2026-10-31:** two states only, open filled and later outlined. Colour and size are
+   placeholders, settled once the owner has used the map, after the first deploy if
+   need be. Considered and left out for now: "closing soon" (changes the contract and
+   its tests), a highlighted selected marker, and a faded marker for an old update (the
+   popup's freshness text says it). The question as planned: colour and size of open
+   (filled) versus later (outlined), settled at the browser check.
 9. **#139's `onFail`, and whether to pin `engines.node` (step 7).** As that issue
    describes, from step 6's build log.
 10. **The R2 CORS rule's allowed origins (step 4).** Vercel preview URLs differ per
