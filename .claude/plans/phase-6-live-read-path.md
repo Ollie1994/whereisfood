@@ -139,7 +139,7 @@ cleaner there than in the integration file; step 2's PR says which.
   entry (PR #190's round 1).
 - `diffMarkers(prev, next): { add, update, remove }`, keyed by truck id. An update is a
   change of entry id, position, status, or any field the popup shows.
-- `hoursText(entry, now)` → `"11:00–14:00"`, naming a day that isn't today (#21):
+- `hoursText(entry, now)` → `"11:00–14:00"`, naming the day of a start that isn't today and of an end on another day than the start (#21):
   `"igår 20:00–12:00 idag"`, `"23:00–02:00 imorgon"`; `statusText(marker)` → `"Öppet nu"` /
   `"Öppnar 17:00"`; `freshnessText(updated_at, now)` → the forms open decision 5
   settled (`"Uppdaterad 08:12"`, `"Uppdaterad igår 18:30"`, …). All in
@@ -479,16 +479,19 @@ the hook keeps its last good data (#16). Considered: the client dropping bad ent
 (a broken server would then look like an empty map); database CHECKs (a migration,
 against #19); accepting the risk.
 
-### #21 — The popup's hours name a day that isn't today
+### #21 — The popup's hours name the day of a start that isn't today, and of an end on another day than the start
 
 The owner's call, 2026-10-31, in PR #190's review round 2. `todaysEntries` keeps an
 entry that started yesterday or runs past midnight, and bare `HH:MM–HH:MM` read
 `"20:00–12:00"` for one. So `hoursText(entry, now)` names the start's Stockholm day
 when it isn't `now`'s, and the end's day whenever it differs from the start's: `idag`,
 `igår`, `imorgon`, or a date (`"29 okt"`, with the year when it isn't `now`'s). So
-`"11:00–14:00"`, `"23:00–02:00 imorgon"`, `"igår 20:00–12:00 idag"`. An end that shows
-as 00:00 is `24:00` on the day before (`"20:00–24:00"`, `"20:00–24:00 imorgon"`,
-`"igår 20:00–24:00 idag"`). Round 3 found that round 2's `"00:00"`, with the day word
+`"11:00–14:00"`, `"23:00–02:00 imorgon"`, `"igår 20:00–12:00 idag"`. An end at exactly
+midnight is `24:00` on the day before (`"20:00–24:00"`, `"20:00–24:00 imorgon"`,
+`"igår 20:00–24:00 idag"`); an end even a fraction of a second later prints its own
+time and day (`"00:00 2 nov"`). Round 4 had widened "exactly" to midnight's whole
+minute, and round 5 found that this moved the day too: an entry open at 00:00:10 until
+00:00:30 read `"igår 20:00–24:00"`, ended yesterday. Round 3 found that round 2's `"00:00"`, with the day word
 of the day before, read `"20:00–00:00 imorgon"` for an entry open until the end of
 tomorrow. Round 4 found that leaving out an end on today read `"igår 08:00–12:00"`
 for an entry open until noon today, as if it ran yesterday from 8 to 12; adding `idag`

@@ -207,20 +207,18 @@ function dayWord(day: number, today: number, date: Date, now: Date): string {
   return shortDate(date, now);
 }
 
-const MINUTE_MS = 60_000;
-
 // Plan #21: the start's day is named when it isn't today, and the end's day when it
 // differs from the start's: "11:00–14:00", "23:00–02:00 imorgon", "igår 20:00–12:00
-// idag". An end that shows as 00:00 is "24:00" on the day before ("20:00–24:00",
-// "20:00–24:00 imorgon"): the text has minutes only, so any end within midnight's
-// minute reads as midnight.
+// idag". An end at exactly midnight is "24:00" on the day before ("20:00–24:00",
+// "20:00–24:00 imorgon"). Only exactly: rounding an end within midnight's minute moved
+// its day too, so an entry open at 00:00:10 until 00:00:30 read as ended yesterday.
 export function hoursText(entry: LiveEntry, now: Date): string {
   const today = stockholmDay(now);
   const start = instant(entry.starts_at);
   const end = instant(entry.ends_at);
   const startDay = stockholmDay(start);
-  const atMidnight = clock(end) === "00:00";
-  const closing = atMidnight ? new Date(end.getTime() - MINUTE_MS) : end;
+  const atMidnight = stockholmMidnight(stockholmDay(end)).getTime() === end.getTime();
+  const closing = atMidnight ? new Date(end.getTime() - 1) : end;
   const closingDay = stockholmDay(closing);
   const endClock = atMidnight ? "24:00" : clock(end);
   const from =

@@ -320,7 +320,7 @@ describe("text helpers", () => {
       ["started yesterday and ends tomorrow", "2026-10-30T20:00:00+01:00", "2026-11-01T02:00:00+01:00", "igår 20:00–02:00 imorgon"],
       ["ends at midnight", "2026-10-31T20:00:00+01:00", "2026-11-01T00:00:00+01:00", "20:00–24:00"],
       ["ends at the midnight after tomorrow", "2026-10-31T20:00:00+01:00", "2026-11-02T00:00:00+01:00", "20:00–24:00 imorgon"],
-      ["ends within the minute after a midnight", "2026-10-31T20:00:00+01:00", "2026-11-02T00:00:00.5+01:00", "20:00–24:00 imorgon"],
+      ["ends just after a midnight", "2026-10-31T20:00:00+01:00", "2026-11-02T00:00:00.5+01:00", "20:00–00:00 2 nov"],
       ["ends at the midnight after 2 nov", "2026-10-31T20:00:00+01:00", "2026-11-03T00:00:00+01:00", "20:00–24:00 2 nov"],
       ["started two days ago", "2026-10-29T20:00:00+01:00", "2026-10-31T12:00:00+01:00", "29 okt 20:00–12:00 idag"],
       ["ends the day after tomorrow", "2026-10-31T20:00:00+01:00", "2026-11-02T02:00:00+01:00", "20:00–02:00 2 nov"],
@@ -328,9 +328,9 @@ describe("text helpers", () => {
       expect(hoursText(entry({ starts_at, ends_at }), at("2026-10-31T11:00:00+01:00"))).toBe(text);
     });
 
-    it("doesn't repeat a day the start and end share (an entry that ended at the midnight starting today)", () => {
-      const e = entry({ starts_at: "2026-10-30T20:00:00+01:00", ends_at: "2026-10-31T00:00:00+01:00" });
-      expect(hoursText(e, at("2026-10-31T00:00:30+01:00"))).toBe("igår 20:00–24:00");
+    it("keeps an entry open just after midnight on today", () => {
+      const e = entry({ starts_at: "2026-10-30T20:00:00+01:00", ends_at: "2026-10-31T00:00:30+01:00" });
+      expect(hoursText(e, at("2026-10-31T00:00:10+01:00"))).toBe("igår 20:00–00:00 idag");
     });
 
     it("gives the year of a day in another year", () => {
