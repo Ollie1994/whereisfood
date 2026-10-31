@@ -148,7 +148,9 @@ describe("isLiveResponse", () => {
     ["an impossible date", top("starts_at", "2026-02-30T09:00:00+00:00")],
     // `isValid(parseISO(…))` accepts this one; only the pattern refuses it.
     ["an offset of +24:00", top("starts_at", "2026-10-31T09:00:00+24:00")],
-    ["an hour of 24", top("starts_at", "2026-10-31T24:00:00+00:00")],
+    ["an hour of 24 in starts_at", top("starts_at", "2026-10-31T24:00:00+00:00")],
+    ["an hour of 24 in ends_at", top("ends_at", "2026-10-31T24:00:00+00:00")],
+    ["an hour of 24 in updated_at", top("updated_at", "2026-10-31T24:00:00+00:00")],
     // The pattern accepts this one; only `isValid(parseISO(…))` refuses it.
     ["an offset of +01:60", top("starts_at", "2026-10-31T09:00:00+01:60")],
   ])("rejects a body whose one entry has %s", (_name, broken) => {
@@ -314,11 +316,23 @@ describe("text helpers", () => {
       ["started yesterday", "2026-10-30T20:00:00+01:00", "2026-10-31T12:00:00+01:00", "igår 20:00–12:00"],
       ["ends tomorrow", "2026-10-31T23:00:00+01:00", "2026-11-01T02:00:00+01:00", "23:00–02:00 imorgon"],
       ["started yesterday and ends tomorrow", "2026-10-30T20:00:00+01:00", "2026-11-01T02:00:00+01:00", "igår 20:00–02:00 imorgon"],
-      ["ends at midnight", "2026-10-31T20:00:00+01:00", "2026-11-01T00:00:00+01:00", "20:00–00:00"],
+      ["ends at midnight", "2026-10-31T20:00:00+01:00", "2026-11-01T00:00:00+01:00", "20:00–24:00"],
+      ["ends at the midnight after tomorrow", "2026-10-31T20:00:00+01:00", "2026-11-02T00:00:00+01:00", "20:00–24:00 imorgon"],
+      ["ends at the midnight after 2 nov", "2026-10-31T20:00:00+01:00", "2026-11-03T00:00:00+01:00", "20:00–24:00 2 nov"],
       ["started two days ago", "2026-10-29T20:00:00+01:00", "2026-10-31T12:00:00+01:00", "29 okt 20:00–12:00"],
       ["ends the day after tomorrow", "2026-10-31T20:00:00+01:00", "2026-11-02T02:00:00+01:00", "20:00–02:00 2 nov"],
     ])("names the other day when the entry %s", (_name, starts_at, ends_at, text) => {
       expect(hoursText(entry({ starts_at, ends_at }), at("2026-10-31T11:00:00+01:00"))).toBe(text);
+    });
+
+    it("names the day once for an entry that ended at the midnight starting today", () => {
+      const e = entry({ starts_at: "2026-10-30T20:00:00+01:00", ends_at: "2026-10-31T00:00:00+01:00" });
+      expect(hoursText(e, at("2026-10-31T00:00:30+01:00"))).toBe("igår 20:00–24:00");
+    });
+
+    it("gives the year of a day in another year", () => {
+      const e = entry({ starts_at: "2026-12-31T20:00:00+01:00", ends_at: "2027-01-05T02:00:00+01:00" });
+      expect(hoursText(e, at("2026-12-31T21:00:00+01:00"))).toBe("20:00–02:00 5 jan 2027");
     });
 
     it("names yesterday across the 10-25 change", () => {

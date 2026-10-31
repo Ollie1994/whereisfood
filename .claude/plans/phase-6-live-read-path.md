@@ -485,10 +485,14 @@ The owner's call, 2026-10-31, in PR #190's review round 2. `todaysEntries` keeps
 entry that started yesterday or runs past midnight, and bare `HH:MM–HH:MM` read
 `"20:00–12:00"` for one. So `hoursText(entry, now)` puts `igår` before a start on the
 day before `now`'s Stockholm day and `imorgon` after an end on the day after, and a
-date (`"29 okt"`) for any other day; a same-day entry stays `"11:00–14:00"`. An end at
-exactly midnight counts as the day before's (`"20:00–00:00"`). Considered: keeping the
-bare form (`"23:00–02:00"` reads naturally, and such entries are rare); deciding with
-the popup in step 3.
+date (`"29 okt"`, with the year when it isn't `now`'s) for any other day; a same-day
+entry stays `"11:00–14:00"`. The end's day is named only when it differs from the
+start's (`"igår 20:00–24:00"`). An end at exactly midnight is `24:00` on the day it
+closes (`"20:00–24:00"`, `"20:00–24:00 imorgon"`): round 3 found that round 2's
+`"00:00"`, with the day word of the day before, read `"20:00–00:00 imorgon"` for an
+entry open until the end of tomorrow. Considered: keeping the bare form
+(`"23:00–02:00"` reads naturally, and such entries are rare); deciding with the popup
+in step 3.
 
 ---
 

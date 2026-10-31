@@ -50,7 +50,7 @@ function isNullableString(value: unknown): value is string | null {
 }
 
 function isTimestamp(value: unknown): value is string {
-  return typeof value === "string" && TIMESTAMP.test(value) && isValid(parseISO(value));
+  return typeof value === "string" && TIMESTAMP.test(value) && isValid(instant(value));
 }
 
 // MapLibre's `LngLat` constructor throws outside ±90 latitude and doesn't check
@@ -192,32 +192,38 @@ function clock(date: Date): string {
 const WEEKDAYS = ["måndags", "tisdags", "onsdags", "torsdags", "fredags", "lördags", "söndags"];
 const MONTHS = ["jan", "feb", "mars", "apr", "maj", "juni", "juli", "aug", "sep", "okt", "nov", "dec"];
 
-// "24 okt", in Stockholm.
-function shortDate(date: Date): string {
-  const [month, day] = formatInTimeZone(date, TZ, "M-d").split("-");
-  return `${day} ${MONTHS[Number(month) - 1]}`;
+// "24 okt" in Stockholm, with the year when it isn't `now`'s: "20 dec 2025".
+function shortDate(date: Date, now: Date): string {
+  const [year, month, day] = formatInTimeZone(date, TZ, "yyyy-M-d").split("-");
+  const text = `${day} ${MONTHS[Number(month) - 1]}`;
+  return year === formatInTimeZone(now, TZ, "yyyy") ? text : `${text} ${year}`;
 }
 
-// The word for `date`'s Stockholm day, seen from `today`; none for today itself.
-function dayWord(date: Date, today: number): string | null {
+// The word for `date`'s Stockholm day, seen from `now`'s; none for that day itself.
+function dayWord(date: Date, now: Date): string | null {
   const day = stockholmDay(date);
+  const today = stockholmDay(now);
   if (day === today) return null;
   if (day === today - 1) return "igår";
   if (day === today + 1) return "imorgon";
-  return shortDate(date);
+  return shortDate(date, now);
 }
 
 // Names a day only when it isn't today (plan #21): "11:00–14:00", "igår 20:00–12:00",
-// "23:00–02:00 imorgon". An end at exactly midnight counts as the day before's, so
-// "20:00–00:00".
+// "23:00–02:00 imorgon". An end at exactly midnight is "24:00" on the day it closes
+// ("20:00–24:00 imorgon": open until tomorrow ends), and the end's day is named only
+// when it differs from the start's ("igår 20:00–24:00", not "… 24:00 igår").
 export function hoursText(entry: LiveEntry, now: Date): string {
-  const today = stockholmDay(now);
   const start = instant(entry.starts_at);
   const end = instant(entry.ends_at);
-  const startWord = dayWord(start, today);
-  const endWord = dayWord(new Date(end.getTime() - 1), today);
+  const atMidnight = stockholmMidnight(stockholmDay(end)).getTime() === end.getTime();
+  const closingDay = atMidnight ? new Date(end.getTime() - 1) : end;
+  const startWord = dayWord(start, now);
+  const endWord =
+    stockholmDay(closingDay) === stockholmDay(start) ? null : dayWord(closingDay, now);
+  const endClock = atMidnight ? "24:00" : clock(end);
   const from = startWord ? `${startWord} ${clock(start)}` : clock(start);
-  const to = endWord ? `${clock(end)} ${endWord}` : clock(end);
+  const to = endWord ? `${endClock} ${endWord}` : endClock;
   return `${from}–${to}`;
 }
 
@@ -236,8 +242,5 @@ export function freshnessText(updatedAt: string, now: Date): string {
     const weekday = WEEKDAYS[Number(formatInTimeZone(at, TZ, "i")) - 1];
     return `Uppdaterad i ${weekday} ${time}`;
   }
-  const year = formatInTimeZone(at, TZ, "yyyy");
-  const date = shortDate(at);
-  const sameYear = year === formatInTimeZone(now, TZ, "yyyy");
-  return `Uppdaterad ${sameYear ? date : `${date} ${year}`} ${time}`;
+  return `Uppdaterad ${shortDate(at, now)} ${time}`;
 }
