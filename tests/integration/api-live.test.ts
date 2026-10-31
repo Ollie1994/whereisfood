@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET } from "@/app/api/live/route";
 import type { LiveEntry, LiveResponse } from "@/lib/live";
 import { getLiveMap } from "@/lib/services/live";
+import { supabaseAdmin } from "@/lib/supabase";
 import { keysOf, resetTables, seedLocation, seedTruck } from "./helpers";
 
 // `GET /api/live` and its service against local Supabase. The error case (a throwing db
@@ -56,13 +57,44 @@ describe("GET /api/live", () => {
       expect(keysOf(entry)).toEqual(ENTRY_KEYS);
       expect(keysOf(entry.truck)).toEqual(ENTRY_TRUCK_KEYS);
     }
-    const ours = body.entries.find((entry) => entry.id === row.id);
-    expect(ours).toMatchObject<Partial<LiveEntry>>({
-      truck: { id: truckId, name: "itest-fixture-Live", instagram_handle: null, cuisine_type: null },
-      latitude: row.latitude,
-      longitude: row.longitude,
-      label: row.label,
+    expect(body.entries.map((entry) => entry.id)).toContain(row.id);
+  });
+
+  it("fills each field from its own column", async () => {
+    // Every source value distinct, so a field copied from the wrong column shows: the
+    // truck's two strings differ, and the edit moves `updated_at` off `created_at` (the
+    // `locations_updated_at` trigger), which an insert sets equal.
+    const truckId = await seedTruck("Mapped");
+    const { error } = await supabaseAdmin
+      .from("trucks")
+      .update({ instagram_handle: "mapped_truck", cuisine_type: "Thai" })
+      .eq("id", truckId);
+    if (error) throw error;
+    const now = Date.now();
+    const seeded = await seedLocation(truckId, { starts_at: iso(now - HOUR), ends_at: iso(now + HOUR) });
+    const { data: row, error: editError } = await supabaseAdmin
+      .from("locations")
+      .update({ label: "Lindholmen" })
+      .eq("id", seeded.id)
+      .select()
+      .single();
+    if (editError) throw editError;
+    expect(Date.parse(row.updated_at)).not.toBe(Date.parse(row.created_at));
+
+    const body = (await (await GET()).json()) as LiveResponse;
+    const ours = body.entries.find((entry) => entry.id === row.id) as LiveEntry;
+
+    expect(ours.truck).toEqual({
+      id: truckId,
+      name: "itest-fixture-Mapped",
+      instagram_handle: "mapped_truck",
+      cuisine_type: "Thai",
     });
+    expect([ours.latitude, ours.longitude, ours.label]).toEqual([row.latitude, row.longitude, "Lindholmen"]);
+    // Instants, not strings: PostgREST's text and ours can differ (`db/locations.ts`).
+    expect([ours.starts_at, ours.ends_at, ours.updated_at].map(Date.parse)).toEqual(
+      [row.starts_at, row.ends_at, row.updated_at].map(Date.parse),
+    );
   });
 });
 

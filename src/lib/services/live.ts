@@ -5,11 +5,10 @@ import { isLiveEntry, type LiveEntry, type LiveResponse } from "@/lib/live";
 // The public map's data, for `GET /api/live` (Phase 6 plan, "Functions and types").
 // Business logic only: no HTTP, and the database only through the db layer.
 
-// `[now, now + 26 h)`. The client keeps entries starting before the next Stockholm
-// midnight, up to 25 h away on the fall-back day, and a response can be about 3 min old
-// when it is last used (the CDN's 60 s plus 60 s stale, then up to 60 s to the next
-// poll). So no time zone is needed here: `todaysEntries` in the browser does the cut
-// (plan, the service). `api-live.test.ts` pins the fall-back case and both edges.
+// `[now, now + 26 h)`, and no time zone: `todaysEntries` in the browser does the
+// Stockholm cut. Why 26 h, and the condition it holds under (while polls succeed): the
+// plan's "Functions and types", the service. `api-live.test.ts` pins both edges and the
+// fall-back day, whose case a 24-hour window turns red.
 const WINDOW_MS = 26 * 3_600_000;
 
 // The clock is read here, in the service, not in the route or the db layer (`CLAUDE.md`,

@@ -1,20 +1,30 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { findLocationsOverlapping } from "@/lib/db/locations";
+import { listActiveTrucks } from "@/lib/db/trucks";
 
-// The error case of `GET /api/live`, as a unit test: the db layer is mocked to throw, so
-// the error goes through the real service and `withErrorHandling`. In the integration
-// file the mock would replace the db layer for every test.
-vi.mock("@/lib/db/trucks", () => ({ listActiveTrucks: vi.fn(async () => []) }));
-vi.mock("@/lib/db/locations", () => ({
-  findLocationsOverlapping: vi.fn(async () => {
-    throw new Error("db unreachable");
-  }),
-}));
+// The error cases of `GET /api/live`, as unit tests: the db layer is mocked, so each
+// error goes through the real service and `withErrorHandling`. In the integration file
+// the mock would replace the db layer for every test.
+vi.mock("@/lib/db/trucks", () => ({ listActiveTrucks: vi.fn() }));
+vi.mock("@/lib/db/locations", () => ({ findLocationsOverlapping: vi.fn() }));
 
 import { GET } from "@/app/api/live/route";
 
-describe("GET /api/live when the db layer throws", () => {
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+// Each read throws in turn while the other succeeds: a service that swallowed either
+// one (e.g. no active trucks on error) would answer a cacheable 200 with no entries.
+describe.each([
+  ["the trucks read", () => vi.mocked(listActiveTrucks).mockRejectedValue(new Error("db unreachable"))],
+  ["the locations read", () => vi.mocked(findLocationsOverlapping).mockRejectedValue(new Error("db unreachable"))],
+])("GET /api/live when %s throws", (_name, failRead) => {
   it("answers 500 { error } without the cache header, never a 200 with no entries", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(listActiveTrucks).mockResolvedValue([]);
+    vi.mocked(findLocationsOverlapping).mockResolvedValue([]);
+    failRead();
 
     const res = await GET();
 
