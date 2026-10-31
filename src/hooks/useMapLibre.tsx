@@ -102,9 +102,11 @@ function addMarker(map: maplibregl.Map, layer: MarkerLayer, entry: MarkerEntry) 
     const open: OpenPopup = { truckId, popup, root };
     popup.on("close", () => {
       if (layer.open === open) layer.open = null;
-      // The popup takes focus when it opens (MapLibre's `focusAfterOpen`), so closing
-      // it hands focus back to its marker instead of dropping it to the page.
-      if (el.isConnected) el.focus();
+      // The popup takes focus when it opens (MapLibre's `focusAfterOpen`). `remove()`
+      // takes its DOM out before firing `close` (`maplibre-gl-dev.mjs` 6.11.2), so focus
+      // that was inside it is on `body` here, and only that goes back to the marker; a
+      // tap on the map or a tab elsewhere keeps its focus (probed in Chrome, PR #192).
+      if (document.activeElement === document.body && el.isConnected) el.focus({ preventScroll: true });
       // Deferred: a synchronous unmount inside the popup's own React event warns.
       queueMicrotask(() => root.unmount());
     });
@@ -120,7 +122,8 @@ function addMarker(map: maplibregl.Map, layer: MarkerLayer, entry: MarkerEntry) 
   // Opened on key-up: the popup moves focus to its "Stäng" button as it opens, so
   // opening on key-down let a held Enter's repeats press that button and close it. Only
   // a key pressed down on this marker counts: Enter on "Stäng" closes the popup and
-  // hands focus back here, and that key's key-up must not reopen it.
+  // hands focus back here, and that key's key-up must not reopen it. (Both probed in
+  // Chrome over CDP, PR #192: each control reproduced its failure.)
   let pressed: string | null = null;
   el.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" && event.key !== " ") return;
@@ -142,7 +145,8 @@ export function useMapLibre(
   markers: ReadonlyMap<TruckId, MarkerEntry>,
   now: Date,
 ) {
-  const [map, setMap] = useState<maplibregl.Map | null>(null);
+  // Counts maps built, only to re-run the marker effect; the map itself is in the ref.
+  const [builds, setBuilds] = useState(0);
   const layerRef = useRef<MarkerLayer>({ map: null, live: new Map(), shown: new Map(), open: null, now });
 
   useEffect(() => {
@@ -179,7 +183,7 @@ export function useMapLibre(
       },
     });
     layer.map = created;
-    setMap(created);
+    setBuilds((count) => count + 1);
 
     // Emptying `live` and `shown` makes a rebuilt map (StrictMode's mount → cleanup →
     // mount in dev) diff from empty and get every marker.
@@ -196,15 +200,15 @@ export function useMapLibre(
   // One effect for the markers and the tick, so an open popup renders once per commit,
   // with its truck's new entry and the new `now` together.
   //
-  // It draws on `layer.map`, the map the init effect built and hasn't removed. The
-  // `map` state only re-runs it when a map is built: a render's state can still hold a
-  // removed map after a re-init that re-runs both effects, which the Next docs say Fast
-  // Refresh does (`node_modules/next/dist/docs/03-architecture/fast-refresh.md`); not
-  // reproduced here, where an applied Fast Refresh edit kept the map (PR #192).
+  // It draws on `layer.map`, the map the init effect built and hasn't removed, never a
+  // map held in state: after a re-init that re-runs both effects, which the Next docs
+  // say Fast Refresh does (`node_modules/next/dist/docs/03-architecture/fast-refresh.md`),
+  // a render's state could still hold the removed one. Not reproduced here: an applied
+  // Fast Refresh edit kept the map (PR #192).
   useEffect(() => {
     const layer = layerRef.current;
     const current = layer.map;
-    if (!map || !current) return;
+    if (!current) return;
     const nowChanged = layer.now !== now;
     layer.now = now;
 
@@ -218,10 +222,16 @@ export function useMapLibre(
       if (marker) styleMarkerElement(marker.getElement(), entry);
     }
     for (const truckId of remove) {
-      if (layer.open?.truckId === truckId) closeOpenPopup(layer);
       const marker = layer.live.get(truckId);
-      // A focused marker would drop focus to the page; the map's canvas takes it.
-      if (marker?.getElement() === document.activeElement) current.getCanvas().focus();
+      const popup = layer.open?.truckId === truckId ? layer.open.popup : null;
+      // Focus on the marker or in its popup would drop to the page when they go, so the
+      // map's canvas takes it first (probed in Chrome, PR #192). With focus on the canvas,
+      // the popup's `close` handler leaves it there.
+      const focused = document.activeElement;
+      if (focused && (marker?.getElement().contains(focused) || popup?.getElement()?.contains(focused))) {
+        current.getCanvas().focus({ preventScroll: true });
+      }
+      if (popup) closeOpenPopup(layer);
       marker?.remove();
       layer.live.delete(truckId);
     }
@@ -232,5 +242,5 @@ export function useMapLibre(
     if (nowChanged || update.some((entry) => entry.entry.truck.id === openTruck)) {
       renderOpenPopup(layer);
     }
-  }, [map, markers, now]);
+  }, [builds, markers, now]);
 }

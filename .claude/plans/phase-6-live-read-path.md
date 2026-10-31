@@ -220,7 +220,9 @@ cleaner there than in the integration file; step 2's PR says which.
     before the map goes. So a map rebuilt by React StrictMode's mount → cleanup → mount
     in dev diffs from empty and gets every marker. **The marker effect draws on the map
     in the ref**, the one the init effect built and hasn't removed (the cleanup clears
-    it); the `map` state only re-runs the effect when a map is built. After a re-init
+    it); a count of maps built, in state, only re-runs the effect when one is built
+    (PR #192's round 5: with the map itself in state, a later read of it could bring
+    back the removed map). After a re-init
     that re-runs both effects, a render's `map` state can still be the removed map, and
     markers added to it would be recorded as shown and never reach the new one. The
     Next docs say Fast Refresh re-runs every effect, ignoring their dependencies
@@ -234,7 +236,8 @@ cleaner there than in the integration file; step 2's PR says which.
     `remove()` and closes the popup if it is that truck's. Then, if `now` changed or
     the open popup's truck was updated, it calls `renderOpenPopup()` once, so the popup
     moves and re-renders in the same pass, with no dependence on effect order. Before
-    removing a marker that has focus, it moves focus to the map's canvas.
+    removing a marker, if focus is on it or in its popup, it moves focus to the map's
+    canvas (round 5: first done only for the marker, after closing the popup).
   - **Click handler:** calls `event.stopPropagation()` first (as today, so the map's
     `closeOnClick` doesn't close the popup it opens), closes any open popup, creates
     one for its truck with a content element and its React root, registers its `close`
@@ -253,7 +256,9 @@ cleaner there than in the integration file; step 2's PR says which.
   and only for a key pressed down on that marker: the popup moves focus to "Stäng" as
   it opens, so opening on key-down let a held Enter close it again, and Enter on
   "Stäng" hands focus back to the marker, whose key-up must not reopen it. Closing a
-  popup returns focus to its marker (round 4).
+  popup returns focus to its marker only when focus was inside the popup, which
+  MapLibre's `remove()` leaves on `body` (round 5: round 4 always returned it, so a
+  tap on the map pulled focus back to the marker).
 
 **Components**
 - `TruckPopup({ marker, now, onClose })`: name, cuisine, label (the line is left out

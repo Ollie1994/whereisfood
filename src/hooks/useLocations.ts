@@ -63,9 +63,9 @@ export function useLocations(): {
     function onVisibilityChange() {
       if (document.visibilityState === "visible") {
         // The map keeps what it showed until this refetch answers and sets `now`. A
-        // `now` set here would drop entries that ended while hidden before the new data
-        // came, reading as "Inga foodtrucks idag"; a state set here would hide open
-        // decision 6's notice before a good response.
+        // `now` set here dropped entries that ended while hidden before the new data
+        // came, reading as "Inga foodtrucks idag"; `loading` set here hid open decision
+        // 6's notice before a good response (both probed in Chrome, PR #192).
         void loader.load();
         startTimers();
       } else {
