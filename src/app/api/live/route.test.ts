@@ -10,8 +10,13 @@ vi.mock("@/lib/db/locations", () => ({ findLocationsOverlapping: vi.fn() }));
 
 import { GET } from "@/app/api/live/route";
 
+// `restoreAllMocks` puts back the `console.error` spy but leaves the factories' `vi.fn()`s
+// as the last case set them (vitest 4); `mockReset` clears those too, so no case inherits
+// another's rejection.
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.mocked(listActiveTrucks).mockReset();
+  vi.mocked(findLocationsOverlapping).mockReset();
 });
 
 // Each read throws in turn while the other succeeds: a service that swallowed either

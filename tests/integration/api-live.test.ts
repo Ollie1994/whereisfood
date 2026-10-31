@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET } from "@/app/api/live/route";
-import type { LiveEntry, LiveResponse } from "@/lib/live";
+import type { LiveResponse } from "@/lib/live";
 import { getLiveMap } from "@/lib/services/live";
 import { supabaseAdmin } from "@/lib/supabase";
 import { keysOf, resetTables, seedLocation, seedTruck } from "./helpers";
@@ -44,10 +44,14 @@ describe("GET /api/live", () => {
     expect(res.headers.get("vary") ?? "").not.toMatch(/cookie/i);
   });
 
-  it("returns { entries }, every entry and its truck with exactly LiveEntry's keys", async () => {
+  it("returns { entries }, every entry and its truck with exactly LiveEntry's keys, nulls kept", async () => {
     const truckId = await seedTruck("Live");
     const now = Date.now();
-    const row = await seedLocation(truckId, { starts_at: iso(now - HOUR), ends_at: iso(now + HOUR) });
+    const row = await seedLocation(truckId, {
+      starts_at: iso(now - HOUR),
+      ends_at: iso(now + HOUR),
+      label: null,
+    });
 
     const body = (await (await GET()).json()) as LiveResponse;
 
@@ -57,7 +61,11 @@ describe("GET /api/live", () => {
       expect(keysOf(entry)).toEqual(ENTRY_KEYS);
       expect(keysOf(entry.truck)).toEqual(ENTRY_TRUCK_KEYS);
     }
-    expect(body.entries.map((entry) => entry.id)).toContain(row.id);
+    // The fixture truck's `instagram_handle` and `cuisine_type` are null, and so is the
+    // label: each reaches the client as null, not a stand-in like "" (plan #13).
+    const ours = body.entries.find((entry) => entry.id === row.id);
+    expect(ours).toBeDefined();
+    expect([ours!.truck.instagram_handle, ours!.truck.cuisine_type, ours!.label]).toEqual([null, null, null]);
   });
 
   it("fills each field from its own column", async () => {
@@ -79,22 +87,22 @@ describe("GET /api/live", () => {
       .select()
       .single();
     if (editError) throw editError;
-    expect(Date.parse(row.updated_at)).not.toBe(Date.parse(row.created_at));
+    expect(row.updated_at).not.toBe(row.created_at);
 
     const body = (await (await GET()).json()) as LiveResponse;
-    const ours = body.entries.find((entry) => entry.id === row.id) as LiveEntry;
+    const ours = body.entries.find((entry) => entry.id === row.id);
+    expect(ours).toBeDefined();
 
-    expect(ours.truck).toEqual({
+    expect(ours!.truck).toEqual({
       id: truckId,
       name: "itest-fixture-Mapped",
       instagram_handle: "mapped_truck",
       cuisine_type: "Thai",
     });
-    expect([ours.latitude, ours.longitude, ours.label]).toEqual([row.latitude, row.longitude, "Lindholmen"]);
-    // Instants, not strings: PostgREST's text and ours can differ (`db/locations.ts`).
-    expect([ours.starts_at, ours.ends_at, ours.updated_at].map(Date.parse)).toEqual(
-      [row.starts_at, row.ends_at, row.updated_at].map(Date.parse),
-    );
+    expect([ours!.latitude, ours!.longitude, ours!.label]).toEqual([row.latitude, row.longitude, "Lindholmen"]);
+    // The exact strings: both `row` and the body come from PostgREST, microseconds
+    // included, so a reformatted or truncated timestamp shows here.
+    expect([ours!.starts_at, ours!.ends_at, ours!.updated_at]).toEqual([row.starts_at, row.ends_at, row.updated_at]);
   });
 });
 
