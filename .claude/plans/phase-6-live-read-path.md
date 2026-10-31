@@ -68,6 +68,7 @@ old confidence design gone.
 | `src/app/api/live/route.ts` | `GET`: `withErrorHandling`, the `Cache-Control` header, calls the service. HTTP only |
 | `tests/integration/api-live.test.ts` | `GET` against local Supabase: header, key set, filters, error → 500 |
 | `src/hooks/useLocations.ts` | Fetch on load, poll every 60 s while visible, refetch on `visibilitychange`, the 30 s tick; returns one `MarkerEntry` per truck and `now` |
+| `src/lib/live-loader.ts`, `src/lib/live-loader.test.ts` | `createLiveLoader`: the hook's fetch rules (which request may apply its outcome, what a failure is, the timeout) without React, unit-tested with a fake `fetch`. Added in step 3 (PR #192's round 2) |
 
 The error case (a throwing service → 500, never `[]`) may instead live in a co-located
 unit test of the route (`src/app/api/live/route.test.ts`) if mocking the service is
@@ -184,7 +185,10 @@ cleaner there than in the integration file; step 2's PR says which.
   shows the notice (PR #192's round 1). A 30 s
   tick (and becoming visible) sets `now` and re-derives `markerFor(entries, now)` (which
   applies `todaysEntries`); `now` is returned for the popup (#15). The tick, like the
-  poll, stops while the tab is hidden (PR #192's round 1).
+  poll, stops while the tab is hidden (PR #192's round 1). A good response sets `now`
+  too, so new data isn't placed with a clock up to 30 s old (PR #192's round 2). The
+  fetch rules in this paragraph live in `createLiveLoader` (`src/lib/live-loader.ts`),
+  unit-tested; the hook holds the state and the timers.
 
 **`src/hooks/useMapLibre.tsx`**
 - `useMapLibre(containerRef, markers, now)`:
@@ -207,8 +211,13 @@ cleaner there than in the integration file; step 2's PR says which.
     map. (`map.remove()` alone would also close the popup: `Popup.addTo` registers
     `map.on("remove", this.remove)` and `Popup.remove` fires `close`;
     `maplibre-gl-dev.mjs` 6.11.2.) The explicit close keeps the open-popup ref cleared
-    before the map goes. So a rebuilt map (React StrictMode's mount → cleanup → mount
-    in dev, or any re-init) diffs from empty and gets every marker.
+    before the map goes. So a map rebuilt by React StrictMode's mount → cleanup → mount
+    in dev diffs from empty and gets every marker: the first render's map state is
+    null, so the marker effect waits for the render with the new map. A re-init that
+    re-ran both effects with an older map still in state would add the markers to the
+    removed map, and would need the marker effect to check the map's identity. Nothing
+    in this code does that today: PR #192's round 2 found three Fast Refresh edits
+    (`useMapLibre.tsx` twice, `MapClient.tsx` once) kept the same canvas and markers.
   - **Marker effect** (on the map, `markers` and `now`): stores `now`, applies
     `diffMarkers(lastApplied, markers)` and stores `markers` as the last applied. Add
     creates a marker; update calls `setLngLat` and restyles the element; remove calls

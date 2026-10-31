@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { isLiveResponse, markerFor, type FetchState, type LiveEntry, type MarkerEntry } from "@/lib/live";
+import { markerFor, type FetchState, type LiveEntry, type MarkerEntry, type TruckId } from "@/lib/live";
+import { createLiveLoader } from "@/lib/live-loader";
 
 const POLL_MS = 60_000;
 const TICK_MS = 30_000;
@@ -11,9 +12,10 @@ const TIMEOUT_MS = 15_000;
 // mount, every 60 s while the tab is visible, and at once when it becomes visible again.
 // `markers` is re-derived from the last good entries on every 30 s tick, so an entry
 // whose `ends_at` passes leaves the map even while polls fail. Both timers stop while
-// the tab is hidden; becoming visible sets `now` and fetches.
+// the tab is hidden; becoming visible sets `now` and fetches. Which requests count, and
+// what a failure is: `createLiveLoader`.
 export function useLocations(): {
-  markers: Map<string, MarkerEntry>;
+  markers: Map<TruckId, MarkerEntry>;
   now: Date;
   fetchState: FetchState;
 } {
@@ -22,46 +24,31 @@ export function useLocations(): {
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
-    let mounted = true;
-    let inFlight: AbortController | null = null;
-    let poll: ReturnType<typeof setInterval> | undefined;
-    let tick: ReturnType<typeof setInterval> | undefined;
-
-    // Starting a fetch aborts the one in flight, and only the newest may apply its
-    // result: a superseded or unmounted request is neither a result nor a failure. A
-    // timeout aborts too, but its request is still the newest, so it counts as failed.
-    async function load() {
-      inFlight?.abort();
-      const request = new AbortController();
-      inFlight = request;
-      const isCurrent = () => mounted && inFlight === request;
-      const timeout = setTimeout(() => request.abort(), TIMEOUT_MS);
-      try {
-        // The default cache mode. Locally (`next dev`) the browser keeps the route's
-        // `stale-while-revalidate=60` and answers a refetch within 60 s from its own
-        // cache (probed in Chrome, PR #192); on Vercel the CDN strips `s-maxage` and
-        // `stale-while-revalidate` before the browser (Vercel docs, "Vercel CDN Cache",
-        // 2026-10-31). `no-store` would send `Cache-Control: no-cache` to the CDN.
-        const res = await fetch("/api/live", { signal: request.signal });
-        // A 500 is the route's `{ error }`, never an empty list (CLAUDE.md, "/api/live").
-        if (!res.ok) throw new Error(`/api/live answered ${res.status}`);
-        const body: unknown = await res.json();
-        if (!isLiveResponse(body)) throw new Error("/api/live's body fails isLiveResponse");
-        if (!isCurrent()) return;
-        setEntries(body.entries);
+    const loader = createLiveLoader({
+      // The default cache mode. Locally (`next dev`) the browser keeps the route's
+      // `stale-while-revalidate=60` and answers a refetch within 60 s from its own
+      // cache (probed in Chrome, PR #192); on Vercel the CDN strips `s-maxage` and
+      // `stale-while-revalidate` before the browser (Vercel docs, "Vercel CDN Cache",
+      // 2026-10-31). `no-store` would send `Cache-Control: no-cache` to the CDN.
+      fetch: (url, init) => fetch(url, init),
+      timeoutMs: TIMEOUT_MS,
+      onEntries(next) {
+        setEntries(next);
+        // New data is placed with the time it arrived, not the last tick's.
+        setNow(new Date());
         setFetchState("ok");
-      } catch (error) {
-        if (!isCurrent()) return;
+      },
+      onFailure(error) {
         // Plan #16: the last good entries stay; only the state says the data is old.
         console.warn("[live] poll failed:", error);
         setFetchState("failing");
-      } finally {
-        clearTimeout(timeout);
-      }
-    }
+      },
+    });
+    let poll: ReturnType<typeof setInterval> | undefined;
+    let tick: ReturnType<typeof setInterval> | undefined;
 
     function startTimers() {
-      poll ??= setInterval(load, POLL_MS);
+      poll ??= setInterval(() => void loader.load(), POLL_MS);
       tick ??= setInterval(() => setNow(new Date()), TICK_MS);
     }
 
@@ -74,21 +61,20 @@ export function useLocations(): {
     function onVisibilityChange() {
       if (document.visibilityState === "visible") {
         setNow(new Date());
-        load();
+        void loader.load();
         startTimers();
       } else {
         stopTimers();
       }
     }
 
-    load();
+    void loader.load();
     if (document.visibilityState === "visible") startTimers();
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
-      mounted = false;
       document.removeEventListener("visibilitychange", onVisibilityChange);
       stopTimers();
-      inFlight?.abort();
+      loader.dispose();
     };
   }, []);
 

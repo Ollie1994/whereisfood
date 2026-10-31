@@ -8,7 +8,7 @@ import type { Location, Truck } from "@/lib/types";
 
 export const TZ = "Europe/Stockholm";
 
-type TruckId = Truck["id"];
+export type TruckId = Truck["id"];
 
 // Field types come from the row types by `Pick`, so a migration that changes a column
 // changes these too. Plan #11: the service builds each entry field by field.

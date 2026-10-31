@@ -12,13 +12,19 @@ export default function MapClient() {
   useMapLibre(containerRef, markers, now);
   const notice = noticeText(fetchState, markers.size);
 
-  // Keep the status region mounted and change only its text (PR #192's round 1).
+  // The status region is in the first render and stays mounted; only its text changes.
+  // MDN, "ARIA live regions": "Establish the live region before updating its content
+  // ... The most reliable way to ensure that live regions are registered is to include
+  // them in the initial markup." The region spans the map's width less a 1 rem margin a
+  // side, so a notice wraps only on a narrow phone.
   return (
     <div className="relative">
       <MapView ref={containerRef} />
-      <div role="status" className="absolute left-1/2 top-4 z-10 -translate-x-1/2">
+      <div role="status" className="pointer-events-none absolute inset-x-4 top-4 z-10 flex justify-center">
         {notice && (
-          <p className="rounded-md bg-white px-3 py-2 text-sm text-gray-900 shadow">{notice}</p>
+          <p className="pointer-events-auto rounded-md bg-white px-3 py-2 text-center text-sm text-gray-900 shadow">
+            {notice}
+          </p>
         )}
       </div>
     </div>

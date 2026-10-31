@@ -6,7 +6,7 @@ import * as maplibregl from "maplibre-gl";
 import { Protocol } from "pmtiles";
 import { layers, namedFlavor } from "@protomaps/basemaps";
 import TruckPopup from "@/components/Map/TruckPopup";
-import { diffMarkers, type MarkerEntry } from "@/lib/live";
+import { diffMarkers, type MarkerEntry, type TruckId } from "@/lib/live";
 import { workerUrl } from "@/lib/maplibre-worker.mjs";
 
 const GOTHENBURG: [number, number] = [11.9746, 57.7089];
@@ -24,8 +24,6 @@ const MARKER_COLOR = "#16a34a";
 // `scripts/copy-maplibre-worker.mjs`. Where, why versioned, and why MapLibre's
 // documented Turbopack form does NOT work here: `src/lib/maplibre-worker.mjs`.
 let mapLibreInitialised = false;
-
-type TruckId = string;
 
 type OpenPopup = { truckId: TruckId; popup: maplibregl.Popup; root: Root };
 
@@ -49,7 +47,7 @@ function styleMarkerElement(el: HTMLElement, status: MarkerEntry["status"]) {
   el.style.border = status === "open" ? "2px solid #ffffff" : `3px solid ${MARKER_COLOR}`;
 }
 
-export function createMarkerElement(status: MarkerEntry["status"]): HTMLDivElement {
+function createMarkerElement(status: MarkerEntry["status"]): HTMLDivElement {
   const el = document.createElement("div");
   el.style.width = "18px";
   el.style.height = "18px";
