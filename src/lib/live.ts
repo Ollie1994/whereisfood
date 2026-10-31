@@ -129,8 +129,8 @@ export function markerFor(entries: readonly LiveEntry[], now: Date): Map<TruckId
   return markers;
 }
 
-// Every field that moves the marker, restyles it or shows in the popup. A field the
-// popup starts showing goes in here too, or an open popup keeps the old value.
+// The entry id, the position, the status, and the fields #182 lists as the popup's. A
+// field the popup starts showing goes in here too, or an open popup keeps the old value.
 function sameMarker(a: MarkerEntry, b: MarkerEntry): boolean {
   return (
     a.entry.id === b.entry.id &&
