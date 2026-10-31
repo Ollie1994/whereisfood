@@ -175,9 +175,7 @@ cleaner there than in the integration file; step 2's PR says which.
   starting a fetch aborts the one in flight, and unmount aborts the last, so only the
   newest request can apply its result. **An aborted request is neither a result nor a
   failure:** its `AbortError` changes nothing. `fetchState` is `loading` before any
-  request has finished (and again from the tab becoming visible until its refetch
-  answers, so a `now` that drops ended entries doesn't read as an empty day; PR #192's
-  round 3), `failing` after a failed fetch (the first one included) until
+  request has finished, `failing` after a failed fetch (the first one included) until
   the next good one, and `ok` after a good one. Open decisions 6 and 7 render from it:
   the empty state only when `ok` with no markers, never while `loading` or `failing`. **A failed fetch is a rejected `fetch`, a non-2xx
   status (the route's 500 `{ error }` included), a body `res.json()` can't parse, or
@@ -185,10 +183,16 @@ cleaner there than in the integration file; step 2's PR says which.
   keeps the last good entries (#16): it never replaces them with an empty list. A
   request unanswered after 15 s is aborted and counts as failed, so a hanging connection
   shows the notice (PR #192's round 1). A 30 s
-  tick (and becoming visible) sets `now` and re-derives `markerFor(entries, now)` (which
+  tick sets `now` and re-derives `markerFor(entries, now)` (which
   applies `todaysEntries`); `now` is returned for the popup (#15). The tick, like the
-  poll, stops while the tab is hidden (PR #192's round 1). A good response sets `now`
-  too, so new data isn't placed with a clock up to 30 s old (PR #192's round 2). The
+  poll, stops while the tab is hidden (PR #192's round 1). Every answer, good or
+  failed, sets `now` too, so new data isn't placed with a clock up to 30 s old (PR
+  #192's round 2). **Becoming visible only fetches:** the map keeps what it showed until
+  that answer. Setting `now` first dropped entries that ended while hidden before the
+  new data came, reading as "Inga foodtrucks idag" (round 3); setting `loading` instead
+  hid open decision 6's notice and blinked the empty-day text (round 4).
+  So an entry that ended while hidden stays until the answer: normally well under a
+  second, at most the 15 s timeout. The
   fetch rules in this paragraph live in `createLiveLoader` (`src/lib/live-loader.ts`),
   unit-tested; the hook holds the state and the timers.
 
@@ -214,22 +218,23 @@ cleaner there than in the integration file; step 2's PR says which.
     `map.on("remove", this.remove)` and `Popup.remove` fires `close`;
     `maplibre-gl-dev.mjs` 6.11.2.) The explicit close keeps the open-popup ref cleared
     before the map goes. So a map rebuilt by React StrictMode's mount → cleanup → mount
-    in dev diffs from empty and gets every marker. **The marker effect runs only when
-    its `map` is the one the init effect built and hasn't removed** (kept in the ref,
-    cleared by the cleanup): after a re-init that re-runs both effects, this render's
-    `map` state can still be the removed map, and markers added to it would be recorded
-    as shown and never reach the new one. The Next docs say Fast Refresh re-runs every
-    effect, ignoring their dependencies (`03-architecture/fast-refresh.md`). Not
-    reproduced: in PR #192's round 3, an edit to `MapClient.tsx` that Fast Refresh
-    applied (its new class showed) kept the same canvas and markers. Round 2's three
-    probes, which it cited for declining the check, had edited only comments (row 396).
+    in dev diffs from empty and gets every marker. **The marker effect draws on the map
+    in the ref**, the one the init effect built and hasn't removed (the cleanup clears
+    it); the `map` state only re-runs the effect when a map is built. After a re-init
+    that re-runs both effects, a render's `map` state can still be the removed map, and
+    markers added to it would be recorded as shown and never reach the new one. The
+    Next docs say Fast Refresh re-runs every effect, ignoring their dependencies
+    (`03-architecture/fast-refresh.md`). Not reproduced: in PR #192's round 3, an edit
+    to `MapClient.tsx` that Fast Refresh applied (its new class showed) kept the same
+    canvas and markers. Round 2's three probes, which it cited for declining a check,
+    had edited only comments (row 396).
   - **Marker effect** (on the map, `markers` and `now`): stores `now`, applies
     `diffMarkers(lastApplied, markers)` and stores `markers` as the last applied. Add
     creates a marker; update calls `setLngLat` and restyles the element; remove calls
     `remove()` and closes the popup if it is that truck's. Then, if `now` changed or
     the open popup's truck was updated, it calls `renderOpenPopup()` once, so the popup
-    moves and re-renders in the same pass, with no dependence on effect order. The map
-    is state the init effect sets, so the effect re-runs when it is built.
+    moves and re-renders in the same pass, with no dependence on effect order. Before
+    removing a marker that has focus, it moves focus to the map's canvas.
   - **Click handler:** calls `event.stopPropagation()` first (as today, so the map's
     `closeOnClick` doesn't close the popup it opens), closes any open popup, creates
     one for its truck with a content element and its React root, registers its `close`
@@ -243,8 +248,12 @@ cleaner there than in the integration file; step 2's PR says which.
     effect; merged into the marker effect in PR #192's round 1, so a tick that also
     updates the open truck renders the popup once.
 - `createMarkerElement(marker)`: open filled, later outlined (open decision 8). A
-  button for keyboards and screen readers: `role="button"`, a tab stop, the label
-  "<truck>, <status>", and Enter or Space opening the popup (PR #192's round 3).
+  button for keyboards and screen readers: `role="button"`, a tab stop and the label
+  "<truck>, <status>" (PR #192's round 3). Enter or Space opens the popup on key-up,
+  and only for a key pressed down on that marker: the popup moves focus to "Stäng" as
+  it opens, so opening on key-down let a held Enter close it again, and Enter on
+  "Stäng" hands focus back to the marker, whose key-up must not reopen it. Closing a
+  popup returns focus to its marker (round 4).
 
 **Components**
 - `TruckPopup({ marker, now, onClose })`: name, cuisine, label (the line is left out

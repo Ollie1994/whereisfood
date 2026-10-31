@@ -12,7 +12,7 @@ const TIMEOUT_MS = 15_000;
 // mount, every 60 s while the tab is visible, and at once when it becomes visible again.
 // `markers` is re-derived from the last good entries on every 30 s tick, so an entry
 // whose `ends_at` passes leaves the map even while polls fail. Both timers stop while
-// the tab is hidden; becoming visible sets `now` and fetches. Which requests count, and
+// the tab is hidden; becoming visible fetches. Which requests count, and
 // what a failure is: `createLiveLoader`.
 export function useLocations(): {
   markers: Map<TruckId, MarkerEntry>;
@@ -32,15 +32,17 @@ export function useLocations(): {
       // 2026-10-31). `no-store` would send `Cache-Control: no-cache` to the CDN.
       fetch: (url, init) => fetch(url, init),
       timeoutMs: TIMEOUT_MS,
+      // Each answer sets `now`, so new data isn't placed with the last tick's clock, and
+      // a refocus (below) needs no `now` of its own.
       onEntries(next) {
         setEntries(next);
-        // New data is placed with the time it arrived, not the last tick's.
         setNow(new Date());
         setFetchState("ok");
       },
       onFailure(error) {
         // Plan #16: the last good entries stay; only the state says the data is old.
         console.warn("[live] poll failed:", error);
+        setNow(new Date());
         setFetchState("failing");
       },
     });
@@ -60,10 +62,10 @@ export function useLocations(): {
 
     function onVisibilityChange() {
       if (document.visibilityState === "visible") {
-        // The entries may be hours old: `loading` until the refetch answers, so the
-        // new `now` dropping ended entries doesn't read as "Inga foodtrucks idag".
-        setNow(new Date());
-        setFetchState("loading");
+        // The map keeps what it showed until this refetch answers and sets `now`. A
+        // `now` set here would drop entries that ended while hidden before the new data
+        // came, reading as "Inga foodtrucks idag"; a state set here would hide open
+        // decision 6's notice before a good response.
         void loader.load();
         startTimers();
       } else {

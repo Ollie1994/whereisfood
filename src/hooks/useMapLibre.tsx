@@ -52,7 +52,7 @@ function styleMarkerElement(el: HTMLElement, marker: MarkerEntry) {
 }
 
 // A button for keyboards and screen readers: a tab stop, its name from
-// `styleMarkerElement`, and Enter or Space opening the popup as a click does.
+// `styleMarkerElement`, and Enter or Space opening the popup as a click does (`addMarker`).
 function createMarkerElement(marker: MarkerEntry): HTMLDivElement {
   const el = document.createElement("div");
   el.setAttribute("role", "button");
@@ -102,6 +102,9 @@ function addMarker(map: maplibregl.Map, layer: MarkerLayer, entry: MarkerEntry) 
     const open: OpenPopup = { truckId, popup, root };
     popup.on("close", () => {
       if (layer.open === open) layer.open = null;
+      // The popup takes focus when it opens (MapLibre's `focusAfterOpen`), so closing
+      // it hands focus back to its marker instead of dropping it to the page.
+      if (el.isConnected) el.focus();
       // Deferred: a synchronous unmount inside the popup's own React event warns.
       queueMicrotask(() => root.unmount());
     });
@@ -114,11 +117,22 @@ function addMarker(map: maplibregl.Map, layer: MarkerLayer, entry: MarkerEntry) 
     event.stopPropagation(); // keep closeOnClick from closing the new popup
     openPopup();
   });
+  // Opened on key-up: the popup moves focus to its "Stäng" button as it opens, so
+  // opening on key-down let a held Enter's repeats press that button and close it. Only
+  // a key pressed down on this marker counts: Enter on "Stäng" closes the popup and
+  // hands focus back here, and that key's key-up must not reopen it.
+  let pressed: string | null = null;
   el.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" && event.key !== " ") return;
     event.preventDefault(); // Space would scroll the page
+    if (!event.repeat) pressed = event.key;
+  });
+  el.addEventListener("keyup", (event) => {
+    if (event.key !== pressed) return;
+    pressed = null;
     openPopup();
   });
+  el.addEventListener("blur", () => (pressed = null));
 }
 
 // Initialises MapLibre + PMTiles on the given container and keeps one marker per entry
@@ -181,20 +195,23 @@ export function useMapLibre(
 
   // One effect for the markers and the tick, so an open popup renders once per commit,
   // with its truck's new entry and the new `now` together.
+  //
+  // It draws on `layer.map`, the map the init effect built and hasn't removed. The
+  // `map` state only re-runs it when a map is built: a render's state can still hold a
+  // removed map after a re-init that re-runs both effects, which the Next docs say Fast
+  // Refresh does (`node_modules/next/dist/docs/03-architecture/fast-refresh.md`); not
+  // reproduced here, where an applied Fast Refresh edit kept the map (PR #192).
   useEffect(() => {
     const layer = layerRef.current;
-    // `map` is this render's state, which after a re-init that re-runs both effects can
-    // still be the removed map; markers added to it would be recorded as shown and never
-    // reach the new one. The Next docs say Fast Refresh re-runs every effect, ignoring
-    // their dependencies (`node_modules/next/dist/docs/03-architecture/fast-refresh.md`).
-    if (!map || map !== layer.map) return;
+    const current = layer.map;
+    if (!map || !current) return;
     const nowChanged = layer.now !== now;
     layer.now = now;
 
     const { add, update, remove } = diffMarkers(layer.shown, markers);
     layer.shown = markers;
 
-    for (const entry of add) addMarker(map, layer, entry);
+    for (const entry of add) addMarker(current, layer, entry);
     for (const entry of update) {
       const marker = layer.live.get(entry.entry.truck.id);
       marker?.setLngLat(lngLatOf(entry));
@@ -202,7 +219,10 @@ export function useMapLibre(
     }
     for (const truckId of remove) {
       if (layer.open?.truckId === truckId) closeOpenPopup(layer);
-      layer.live.get(truckId)?.remove();
+      const marker = layer.live.get(truckId);
+      // A focused marker would drop focus to the page; the map's canvas takes it.
+      if (marker?.getElement() === document.activeElement) current.getCanvas().focus();
+      marker?.remove();
       layer.live.delete(truckId);
     }
 
