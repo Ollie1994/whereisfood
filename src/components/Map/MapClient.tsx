@@ -16,7 +16,8 @@ export default function MapClient() {
   // MDN, "ARIA live regions": "Establish the live region before updating its content
   // ... The most reliable way to ensure that live regions are registered is to include
   // them in the initial markup." The region spans the map's width less a 1 rem margin a
-  // side, so a notice wraps only on a narrow phone.
+  // side: at 360 px the longest notice is 310 px wide on one line, where centring with
+  // `left-1/2 -translate-x-1/2` gave 180 px and 3 lines (probed in Chrome, PR #192).
   return (
     <div className="relative">
       <MapView ref={containerRef} />
