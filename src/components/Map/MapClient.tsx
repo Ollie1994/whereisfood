@@ -12,8 +12,7 @@ export default function MapClient() {
   useMapLibre(containerRef, markers, now);
   const notice = noticeText(fetchState, markers.size);
 
-  // The status region stays mounted and only its text changes, so screen readers
-  // announce the notice as a change to a live region (PR #192, round 1).
+  // Keep the status region mounted and change only its text (PR #192's round 1).
   return (
     <div className="relative">
       <MapView ref={containerRef} />
