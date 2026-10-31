@@ -127,8 +127,8 @@ cleaner there than in the integration file; step 2's PR says which.
   microseconds: `…T05:12:07.123456+00:00`) and an offset, by pattern, and valid by
   `date-fns`'s `parseISO` and `isValid`. Not `Date.parse`, which
   accepts `"1"`, nor `parseISO` alone, which accepts `"2026"` (both probed 2026-10-25)
-  or an offset of `+24:00` (PR #190's round 1), so the pattern bounds the offset's
-  hours. One bad entry fails the whole body; the service drops such rows first (#20).
+  or an offset of `+24:00` (PR #190's round 1) or an hour of 24 (round 2), so the
+  pattern bounds the time's and the offset's hours. One bad entry fails the whole body; the service drops such rows first (#20).
 - `isLiveEntry(value): value is LiveEntry`: the per-entry check `isLiveResponse`
   applies, exported for the service (#20).
 - `todaysEntries(entries, now)`: entries with `ends_at > now` and `starts_at` before
@@ -139,7 +139,8 @@ cleaner there than in the integration file; step 2's PR says which.
   entry (PR #190's round 1).
 - `diffMarkers(prev, next): { add, update, remove }`, keyed by truck id. An update is a
   change of entry id, position, status, or any field the popup shows.
-- `hoursText(entry)` → `"11:00–14:00"`; `statusText(marker)` → `"Öppet nu"` /
+- `hoursText(entry, now)` → `"11:00–14:00"`, naming a day that isn't today (#21):
+  `"igår 20:00–12:00"`, `"23:00–02:00 imorgon"`; `statusText(marker)` → `"Öppet nu"` /
   `"Öppnar 17:00"`; `freshnessText(updated_at, now)` → the forms open decision 5
   settled (`"Uppdaterad 08:12"`, `"Uppdaterad igår 18:30"`, …). All in
   `Europe/Stockholm` via `date-fns-tz`.
@@ -216,14 +217,15 @@ cleaner there than in the integration file; step 2's PR says which.
     then `setDOMContent(content)` and adds the popup to the map. It reads the entry and `now` from the refs, never
     values captured at add.
   - **`now` effect:** stores `now` in its ref and calls `renderOpenPopup()`, so the
-    open popup's freshness and status text follow the tick (e.g. across Stockholm
+    open popup's freshness, status and hours text (#21) follow the tick (e.g. across Stockholm
     midnight). `diffMarkers` doesn't take `now`.
 - `createMarkerElement(status)`: open filled, later outlined (open decision 8).
 
 **Components**
 - `TruckPopup({ marker, now, onClose })`: name, cuisine, label (the line is left out
   when `label` is NULL, #13), status, hours, freshness text, Instagram link. Renders
-  only; its text comes from `live.ts`.
+  only; its text comes from `live.ts`, and it keeps no `TZ` or time formatting of its
+  own (today's has both; PR #190's round 2).
 - `MapClient`: wires the two hooks, and renders the empty state and the stale notice
   (as open decisions 6 and 7 settle them) from `fetchState` and `markers`.
 
@@ -477,6 +479,17 @@ the hook keeps its last good data (#16). Considered: the client dropping bad ent
 (a broken server would then look like an empty map); database CHECKs (a migration,
 against #19); accepting the risk.
 
+### #21 — The popup's hours name a day that isn't today
+
+The owner's call, 2026-10-31, in PR #190's review round 2. `todaysEntries` keeps an
+entry that started yesterday or runs past midnight, and bare `HH:MM–HH:MM` read
+`"20:00–12:00"` for one. So `hoursText(entry, now)` puts `igår` before a start on the
+day before `now`'s Stockholm day and `imorgon` after an end on the day after, and a
+date (`"29 okt"`) for any other day; a same-day entry stays `"11:00–14:00"`. An end at
+exactly midnight counts as the day before's (`"20:00–00:00"`). Considered: keeping the
+bare form (`"23:00–02:00"` reads naturally, and such entries are rare); deciding with
+the popup in step 3.
+
 ---
 
 ## Acceptance Criteria
@@ -497,10 +510,11 @@ against #19); accepting the risk.
   `{ error }`, `{}`, `null`, and a body with one otherwise valid entry broken in one
   field: each field of `LiveEntry` in turn, missing or of the wrong type, a non-finite
   coordinate, a latitude past ±90 and a longitude past ±180, and timestamps of `"1"`,
-  `"2026"` and an offset of `+24:00`; accepts timestamps with and without
+  `"2026"`, an offset of `+24:00` and an hour of 24; accepts timestamps with and without
   fractional seconds, `…T09:00:00+00:00` and `…T05:12:07.123456+00:00`) and the text
   helpers
-  (`"11:00–14:00"`, `"Uppdaterad 08:12"`, `"Öppet nu"`, `"Öppnar 17:00"`, all in
+  (`"11:00–14:00"`, `"igår 20:00–12:00"`, `"23:00–02:00 imorgon"`, `"Uppdaterad 08:12"`,
+  `"Öppet nu"`, `"Öppnar 17:00"`, all in
   Stockholm time).
 - [ ] `src/lib/live.ts` imports no React and no env, and reads no clock: a grep shows no
   argument-less `new Date()` and no `Date.now()`.

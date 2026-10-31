@@ -35,10 +35,11 @@ export type MarkerDiff = {
 // `…T09:00:00+00:00`, and `updated_at` (from `now()`) with microseconds,
 // `…T06:50:08.606373+00:00` (local stack, 2026-10-25). The pattern comes first
 // because `parseISO` alone accepts `"2026"`, and a string with no offset, which it
-// reads in the browser's own time zone. The offset's hours are bounded here because
-// `isValid(parseISO(…))` accepts `+24:00`; it refuses `+01:60` itself (all pinned in
-// `live.test.ts`).
-const TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-](?:[01]\d|2[0-3]):\d{2})$/;
+// reads in the browser's own time zone. The time's and the offset's hours are bounded
+// here because `isValid(parseISO(…))` accepts `T24:00:00` and `+24:00`; it refuses
+// `+01:60` itself (all pinned in `live.test.ts`).
+const TIMESTAMP =
+  /^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-](?:[01]\d|2[0-3]):\d{2})$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -90,9 +91,16 @@ export function isLiveResponse(body: unknown): body is LiveResponse {
 
 const DAY_MS = 86_400_000;
 
+// Every timestamp string is read here, never by passing the string to `formatInTimeZone`:
+// date-fns-tz's own parser reads `…T24:00:00+00:00` as that day's 00:00 where `parseISO`
+// reads the next day's (probed, PR #190 round 2). The guard refuses hour 24 as well.
+function instant(timestamp: string): Date {
+  return parseISO(timestamp);
+}
+
 // The Stockholm calendar date of `date`, as a count of days since 1970-01-01. Day
 // arithmetic on it is plain integer arithmetic, with no DST in it.
-function stockholmDay(date: Date | string): number {
+function stockholmDay(date: Date): number {
   const [y, m, d] = formatInTimeZone(date, TZ, "yyyy-MM-dd").split("-").map(Number);
   return Date.UTC(y, m - 1, d) / DAY_MS;
 }
@@ -105,7 +113,7 @@ function stockholmMidnight(day: number): Date {
 }
 
 function ms(timestamp: string): number {
-  return parseISO(timestamp).getTime();
+  return instant(timestamp).getTime();
 }
 
 // --- Which entries and markers show -------------------------------------------------
@@ -176,34 +184,60 @@ export function diffMarkers(
 
 // --- Popup text ------------------------------------------------------------------------
 
-function clock(timestamp: string): string {
-  return formatInTimeZone(timestamp, TZ, "HH:mm");
-}
-
-export function hoursText(entry: LiveEntry): string {
-  return `${clock(entry.starts_at)}–${clock(entry.ends_at)}`;
-}
-
-export function statusText(marker: MarkerEntry): string {
-  return marker.status === "open" ? "Öppet nu" : `Öppnar ${clock(marker.entry.starts_at)}`;
+function clock(date: Date): string {
+  return formatInTimeZone(date, TZ, "HH:mm");
 }
 
 // Index = ISO weekday (`i`) - 1, and month (`M`) - 1.
 const WEEKDAYS = ["måndags", "tisdags", "onsdags", "torsdags", "fredags", "lördags", "söndags"];
 const MONTHS = ["jan", "feb", "mars", "apr", "maj", "juni", "juli", "aug", "sep", "okt", "nov", "dec"];
 
+// "24 okt", in Stockholm.
+function shortDate(date: Date): string {
+  const [month, day] = formatInTimeZone(date, TZ, "M-d").split("-");
+  return `${day} ${MONTHS[Number(month) - 1]}`;
+}
+
+// The word for `date`'s Stockholm day, seen from `today`; none for today itself.
+function dayWord(date: Date, today: number): string | null {
+  const day = stockholmDay(date);
+  if (day === today) return null;
+  if (day === today - 1) return "igår";
+  if (day === today + 1) return "imorgon";
+  return shortDate(date);
+}
+
+// Names a day only when it isn't today (plan #21): "11:00–14:00", "igår 20:00–12:00",
+// "23:00–02:00 imorgon". An end at exactly midnight counts as the day before's, so
+// "20:00–00:00".
+export function hoursText(entry: LiveEntry, now: Date): string {
+  const today = stockholmDay(now);
+  const start = instant(entry.starts_at);
+  const end = instant(entry.ends_at);
+  const startWord = dayWord(start, today);
+  const endWord = dayWord(new Date(end.getTime() - 1), today);
+  const from = startWord ? `${startWord} ${clock(start)}` : clock(start);
+  const to = endWord ? `${clock(end)} ${endWord}` : clock(end);
+  return `${from}–${to}`;
+}
+
+export function statusText(marker: MarkerEntry): string {
+  return marker.status === "open" ? "Öppet nu" : `Öppnar ${clock(instant(marker.entry.starts_at))}`;
+}
+
 // By Stockholm calendar days between `updated_at` and `now` (plan, open decision 5).
 export function freshnessText(updatedAt: string, now: Date): string {
-  const days = stockholmDay(now) - stockholmDay(updatedAt);
-  const time = clock(updatedAt);
+  const at = instant(updatedAt);
+  const days = stockholmDay(now) - stockholmDay(at);
+  const time = clock(at);
   if (days <= 0) return `Uppdaterad ${time}`;
   if (days === 1) return `Uppdaterad igår ${time}`;
   if (days < 7) {
-    const weekday = WEEKDAYS[Number(formatInTimeZone(updatedAt, TZ, "i")) - 1];
+    const weekday = WEEKDAYS[Number(formatInTimeZone(at, TZ, "i")) - 1];
     return `Uppdaterad i ${weekday} ${time}`;
   }
-  const [year, month, day] = formatInTimeZone(updatedAt, TZ, "yyyy-M-d").split("-");
-  const date = `${day} ${MONTHS[Number(month) - 1]}`;
+  const year = formatInTimeZone(at, TZ, "yyyy");
+  const date = shortDate(at);
   const sameYear = year === formatInTimeZone(now, TZ, "yyyy");
   return `Uppdaterad ${sameYear ? date : `${date} ${year}`} ${time}`;
 }

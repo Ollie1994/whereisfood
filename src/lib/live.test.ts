@@ -35,8 +35,9 @@ function entry(overrides: Partial<LiveEntry> = {}): LiveEntry {
   };
 }
 
+// The id wins over a `truck` in `overrides`, so a second truck stays a second truck.
 function truck(id: string, overrides: Partial<LiveEntry> = {}): LiveEntry {
-  return entry({ id: `${id}-entry`, truck: { ...entry().truck, id }, ...overrides });
+  return entry({ id: `${id}-entry`, ...overrides, truck: { ...entry().truck, ...overrides.truck, id } });
 }
 
 const at = (iso: string) => new Date(iso);
@@ -147,6 +148,7 @@ describe("isLiveResponse", () => {
     ["an impossible date", top("starts_at", "2026-02-30T09:00:00+00:00")],
     // `isValid(parseISO(…))` accepts this one; only the pattern refuses it.
     ["an offset of +24:00", top("starts_at", "2026-10-31T09:00:00+24:00")],
+    ["an hour of 24", top("starts_at", "2026-10-31T24:00:00+00:00")],
     // The pattern accepts this one; only `isValid(parseISO(…))` refuses it.
     ["an offset of +01:60", top("starts_at", "2026-10-31T09:00:00+01:60")],
   ])("rejects a body whose one entry has %s", (_name, broken) => {
@@ -303,8 +305,31 @@ describe("diffMarkers", () => {
 });
 
 describe("text helpers", () => {
-  it("hoursText gives Stockholm start–end", () => {
-    expect(hoursText(entry())).toBe("11:00–14:00");
+  describe("hoursText", () => {
+    it("gives Stockholm start–end for an entry within today", () => {
+      expect(hoursText(entry(), at("2026-10-31T12:00:00+01:00"))).toBe("11:00–14:00");
+    });
+
+    it.each([
+      ["started yesterday", "2026-10-30T20:00:00+01:00", "2026-10-31T12:00:00+01:00", "igår 20:00–12:00"],
+      ["ends tomorrow", "2026-10-31T23:00:00+01:00", "2026-11-01T02:00:00+01:00", "23:00–02:00 imorgon"],
+      ["started yesterday and ends tomorrow", "2026-10-30T20:00:00+01:00", "2026-11-01T02:00:00+01:00", "igår 20:00–02:00 imorgon"],
+      ["ends at midnight", "2026-10-31T20:00:00+01:00", "2026-11-01T00:00:00+01:00", "20:00–00:00"],
+      ["started two days ago", "2026-10-29T20:00:00+01:00", "2026-10-31T12:00:00+01:00", "29 okt 20:00–12:00"],
+      ["ends the day after tomorrow", "2026-10-31T20:00:00+01:00", "2026-11-02T02:00:00+01:00", "20:00–02:00 2 nov"],
+    ])("names the other day when the entry %s", (_name, starts_at, ends_at, text) => {
+      expect(hoursText(entry({ starts_at, ends_at }), at("2026-10-31T11:00:00+01:00"))).toBe(text);
+    });
+
+    it("names yesterday across the 10-25 change", () => {
+      const e = entry({ starts_at: "2026-10-24T20:00:00+02:00", ends_at: "2026-10-25T12:00:00+01:00" });
+      expect(hoursText(e, at("2026-10-25T11:00:00+01:00"))).toBe("igår 20:00–12:00");
+    });
+  });
+
+  it("reads a timestamp with parseISO, as todaysEntries does", () => {
+    // Hour 24 is refused by the guard; date-fns-tz's own parser reads it a day earlier.
+    expect(freshnessText("2026-10-30T24:00:00+00:00", at("2026-10-31T12:00:00+01:00"))).toBe("Uppdaterad 01:00");
   });
 
   it("statusText says open, or when it opens in Stockholm time", () => {
