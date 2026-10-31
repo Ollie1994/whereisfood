@@ -145,7 +145,8 @@ export function useMapLibre(
   markers: ReadonlyMap<TruckId, MarkerEntry>,
   now: Date,
 ) {
-  // Counts maps built, only to re-run the marker effect; the map itself is in the ref.
+  // Counts maps built, so the marker effect re-runs after a build whatever order the
+  // effects run in. The map itself is only in the ref.
   const [builds, setBuilds] = useState(0);
   const layerRef = useRef<MarkerLayer>({ map: null, live: new Map(), shown: new Map(), open: null, now });
 
@@ -187,9 +188,11 @@ export function useMapLibre(
 
     // Emptying `live` and `shown` makes a rebuilt map (StrictMode's mount → cleanup →
     // mount in dev) diff from empty and get every marker.
+    // Markers go before the popup: its `close` handler then finds its marker gone and
+    // moves no focus onto it.
     return () => {
-      closeOpenPopup(layer);
       for (const marker of layer.live.values()) marker.remove();
+      closeOpenPopup(layer);
       layer.live.clear();
       layer.shown = new Map();
       layer.map = null;
@@ -225,14 +228,15 @@ export function useMapLibre(
       const marker = layer.live.get(truckId);
       const popup = layer.open?.truckId === truckId ? layer.open.popup : null;
       // Focus on the marker or in its popup would drop to the page when they go, so the
-      // map's canvas takes it first (probed in Chrome, PR #192). With focus on the canvas,
-      // the popup's `close` handler leaves it there.
+      // map's canvas takes it first (probed in Chrome, PR #192). The marker goes before
+      // the popup, so the popup's `close` handler finds it gone and moves no focus onto
+      // it, wherever focus was.
       const focused = document.activeElement;
       if (focused && (marker?.getElement().contains(focused) || popup?.getElement()?.contains(focused))) {
         current.getCanvas().focus({ preventScroll: true });
       }
-      if (popup) closeOpenPopup(layer);
       marker?.remove();
+      if (popup) closeOpenPopup(layer);
       layer.live.delete(truckId);
     }
 

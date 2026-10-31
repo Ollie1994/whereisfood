@@ -211,33 +211,37 @@ cleaner there than in the integration file; step 2's PR says which.
     `root.render`, because `flushSync` inside an effect logs "flushSync was called from
     inside a lifecycle method" (React 19's `flushPassiveEffects` sets `CommitContext`,
     `react-dom-client.development.js`).
-  - **Init effect:** builds the map as today and exposes it to the other effects (e.g.
-    as state it sets). Its cleanup closes the open popup and calls `remove()` on every
-    live marker, as today's does, then **empties the live-marker ref** and removes the
-    map. (`map.remove()` alone would also close the popup: `Popup.addTo` registers
+  - **Init effect:** builds the map as today, puts it in the ref and counts the build
+    in state, which re-runs the marker effect. Its cleanup calls `remove()` on every
+    live marker and then closes the open popup (markers first, so the popup's `close`
+    handler finds its marker gone; PR #192's round 6), then **empties the live-marker
+    ref**, clears the map from the ref and removes the map. (`map.remove()` alone would also close the popup: `Popup.addTo` registers
     `map.on("remove", this.remove)` and `Popup.remove` fires `close`;
     `maplibre-gl-dev.mjs` 6.11.2.) The explicit close keeps the open-popup ref cleared
     before the map goes. So a map rebuilt by React StrictMode's mount → cleanup → mount
     in dev diffs from empty and gets every marker. **The marker effect draws on the map
     in the ref**, the one the init effect built and hasn't removed (the cleanup clears
     it); a count of maps built, in state, only re-runs the effect when one is built
-    (PR #192's round 5: with the map itself in state, a later read of it could bring
-    back the removed map). After a re-init
-    that re-runs both effects, a render's `map` state can still be the removed map, and
+    (PR #192's round 5). The map is never read from state: after a re-init that
+    re-runs both effects, a render's state could still hold the removed map, and
     markers added to it would be recorded as shown and never reach the new one. The
     Next docs say Fast Refresh re-runs every effect, ignoring their dependencies
     (`03-architecture/fast-refresh.md`). Not reproduced: in PR #192's round 3, an edit
     to `MapClient.tsx` that Fast Refresh applied (its new class showed) kept the same
     canvas and markers. Round 2's three probes, which it cited for declining a check,
     had edited only comments (row 396).
-  - **Marker effect** (on the map, `markers` and `now`): stores `now`, applies
+  - **Marker effect** (on the count of maps built, `markers` and `now`; draws on the
+    map in the ref): stores `now`, applies
     `diffMarkers(lastApplied, markers)` and stores `markers` as the last applied. Add
     creates a marker; update calls `setLngLat` and restyles the element; remove calls
-    `remove()` and closes the popup if it is that truck's. Then, if `now` changed or
+    `remove()` and then closes the popup if it is that truck's. Then, if `now` changed or
     the open popup's truck was updated, it calls `renderOpenPopup()` once, so the popup
     moves and re-renders in the same pass, with no dependence on effect order. Before
     removing a marker, if focus is on it or in its popup, it moves focus to the map's
-    canvas (round 5: first done only for the marker, after closing the popup).
+    canvas (round 5: first done only for the marker, after closing the popup). The
+    marker goes before the popup, so the popup's `close` handler, which hands focus
+    back from `body` to a marker still connected, can't focus a marker being removed
+    (round 6).
   - **Click handler:** calls `event.stopPropagation()` first (as today, so the map's
     `closeOnClick` doesn't close the popup it opens), closes any open popup, creates
     one for its truck with a content element and its React root, registers its `close`
