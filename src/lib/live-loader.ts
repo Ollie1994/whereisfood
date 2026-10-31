@@ -11,7 +11,7 @@ export type LiveLoader = {
 };
 
 // The fetch side of `useLocations`, without React, so its rules are unit-tested
-// (`live-loader.test.ts`, PR #192's round 2):
+// (`live-loader.test.ts`):
 // - Only the newest request may apply its outcome. A superseded or disposed request is
 //   neither a result nor a failure, whatever it resolves or rejects with.
 // - A failure is a rejected `fetch`, a non-2xx status (the route's 500 `{ error }` is

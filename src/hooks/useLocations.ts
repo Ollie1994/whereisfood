@@ -60,7 +60,10 @@ export function useLocations(): {
 
     function onVisibilityChange() {
       if (document.visibilityState === "visible") {
+        // The entries may be hours old: `loading` until the refetch answers, so the
+        // new `now` dropping ended entries doesn't read as "Inga foodtrucks idag".
         setNow(new Date());
+        setFetchState("loading");
         void loader.load();
         startTimers();
       } else {

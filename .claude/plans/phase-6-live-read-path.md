@@ -175,7 +175,9 @@ cleaner there than in the integration file; step 2's PR says which.
   starting a fetch aborts the one in flight, and unmount aborts the last, so only the
   newest request can apply its result. **An aborted request is neither a result nor a
   failure:** its `AbortError` changes nothing. `fetchState` is `loading` before any
-  request has finished, `failing` after a failed fetch (the first one included) until
+  request has finished (and again from the tab becoming visible until its refetch
+  answers, so a `now` that drops ended entries doesn't read as an empty day; PR #192's
+  round 3), `failing` after a failed fetch (the first one included) until
   the next good one, and `ok` after a good one. Open decisions 6 and 7 render from it:
   the empty state only when `ok` with no markers, never while `loading` or `failing`. **A failed fetch is a rejected `fetch`, a non-2xx
   status (the route's 500 `{ error }` included), a body `res.json()` can't parse, or
@@ -212,12 +214,15 @@ cleaner there than in the integration file; step 2's PR says which.
     `map.on("remove", this.remove)` and `Popup.remove` fires `close`;
     `maplibre-gl-dev.mjs` 6.11.2.) The explicit close keeps the open-popup ref cleared
     before the map goes. So a map rebuilt by React StrictMode's mount → cleanup → mount
-    in dev diffs from empty and gets every marker: the first render's map state is
-    null, so the marker effect waits for the render with the new map. A re-init that
-    re-ran both effects with an older map still in state would add the markers to the
-    removed map, and would need the marker effect to check the map's identity. Nothing
-    in this code does that today: PR #192's round 2 found three Fast Refresh edits
-    (`useMapLibre.tsx` twice, `MapClient.tsx` once) kept the same canvas and markers.
+    in dev diffs from empty and gets every marker. **The marker effect runs only when
+    its `map` is the one the init effect built and hasn't removed** (kept in the ref,
+    cleared by the cleanup): after a re-init that re-runs both effects, this render's
+    `map` state can still be the removed map, and markers added to it would be recorded
+    as shown and never reach the new one. The Next docs say Fast Refresh re-runs every
+    effect, ignoring their dependencies (`03-architecture/fast-refresh.md`). Not
+    reproduced: in PR #192's round 3, an edit to `MapClient.tsx` that Fast Refresh
+    applied (its new class showed) kept the same canvas and markers. Round 2's three
+    probes, which it cited for declining the check, had edited only comments (row 396).
   - **Marker effect** (on the map, `markers` and `now`): stores `now`, applies
     `diffMarkers(lastApplied, markers)` and stores `markers` as the last applied. Add
     creates a marker; update calls `setLngLat` and restyles the element; remove calls
@@ -237,7 +242,9 @@ cleaner there than in the integration file; step 2's PR says which.
     midnight). `diffMarkers` doesn't take `now`. Planned first as a separate `now`
     effect; merged into the marker effect in PR #192's round 1, so a tick that also
     updates the open truck renders the popup once.
-- `createMarkerElement(status)`: open filled, later outlined (open decision 8).
+- `createMarkerElement(marker)`: open filled, later outlined (open decision 8). A
+  button for keyboards and screen readers: `role="button"`, a tab stop, the label
+  "<truck>, <status>", and Enter or Space opening the popup (PR #192's round 3).
 
 **Components**
 - `TruckPopup({ marker, now, onClose })`: name, cuisine, label (the line is left out
@@ -330,7 +337,8 @@ opens, which may be none. Step 7 is the existing issue #139.
     `live.ts` and `api/live` come in), "Folder structure", "Environment" (the R2 URL,
     the hosted key type), "Tests and gates" (the integration file count), "Versions"
     (the Node/npm line after #139), the Roadmap row; Part 2's "Read path" section,
-    which becomes a description of what was built, and the Phase map's Phase 8 row
+    which becomes a description of what was built and gains #22's scaling limits, and
+    the Phase map's Phase 8 row
     (tiles on R2 moved here, #7). It replaces each **between phases** marker in
     "Decisions carried forward" with the decision here that took it up (#1–#6), and
     carries forward this plan's decisions that outlive the phase (likely #7, #9–#11,
@@ -517,6 +525,43 @@ for an entry open until noon today, as if it ran yesterday from 8 to 12; adding 
 there was the owner's call, 2026-10-31. Considered: keeping the bare form
 (`"23:00–02:00"` reads naturally, and such entries are rare); deciding with the popup
 in step 3.
+
+### #22 — The read path's scaling limits are a later problem
+
+The owner's call, 2026-10-31, in PR #192: the limits below are known and written
+down, and nothing is built for them now. Step 10's reconciliation carries this into
+`project-context.md` (Part 2, "Read path"). The read path scales with **visitors** (one
+CDN copy per region, whatever the traffic), not with **trucks**. In the order they
+would be hit:
+- **1,000 rows, a hard wall.** `findLocationsOverlapping` and `listActiveTrucks` throw
+  past `MAX_ROWS` (1,000, pinned to `config.toml`'s `max_rows`) rather than return part
+  of the rows, so `/api/live` answers 500: a map opened then shows no markers and
+  "Kunde inte hämta foodtrucks", and one already open keeps its markers (until each
+  entry ends) with "Kunde inte uppdatera". It counts entries in the 26 h window and
+  active trucks, not history. Gothenburg, at an estimated 50 trucks with one or two
+  entries a day, would use a tenth of it or less. First fix: raise `max_rows` and
+  `MAX_ROWS` together (and the hosted project's setting). Trigger: the window passing
+  ~500 rows.
+- **The whole response on every poll.** Every visitor downloads every entry every 60 s
+  while the tab is visible. One entry is 388 bytes of JSON (the seed's); 3,000 varied
+  synthetic entries were 1.1 MB raw, 269 KB gzip and 224 KB brotli, so about 15 MB an
+  hour for a visitor with the map open. Fix: the map fetches only its visible area, on
+  a fixed grid so each cell stays one CDN-cached response.
+- **HTML markers.** Each one re-positions itself on every `move` event while the map
+  pans (`Marker.addTo` registers `map.on("move", this._update)`,
+  `maplibre-gl-dev.mjs` 6.11.2), so the cost grows with the marker count; where it
+  starts to stutter on a phone is not measured. Fix: markers drawn from a GeoJSON
+  source on the map's canvas, with clustering, which changes `CLAUDE.md`'s HTML-marker
+  rule.
+- **One time zone.** "Today", "Öppet nu" and every time shown use `Europe/Stockholm`
+  (`live.ts`'s `TZ`, the only zone `src/` passes to `date-fns-tz`). Norway and Denmark
+  share it; Finland and most of Europe don't. Fix: a time zone per entry.
+- Outside the code: one admin entering every entry by hand (the Owners phase is the
+  fix; at hand-entry volumes the walls above are far off), a Gothenburg-only tile file,
+  and Swedish-only text.
+
+Considered: writing it into `project-context.md` at once (done first in PR #192, moved
+here by its round 3: `CLAUDE.md` puts a decision settled during a phase in the plan).
 
 ---
 

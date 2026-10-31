@@ -6,7 +6,7 @@ import * as maplibregl from "maplibre-gl";
 import { Protocol } from "pmtiles";
 import { layers, namedFlavor } from "@protomaps/basemaps";
 import TruckPopup from "@/components/Map/TruckPopup";
-import { diffMarkers, type MarkerEntry, type TruckId } from "@/lib/live";
+import { diffMarkers, statusText, type MarkerEntry, type TruckId } from "@/lib/live";
 import { workerUrl } from "@/lib/maplibre-worker.mjs";
 
 const GOTHENBURG: [number, number] = [11.9746, 57.7089];
@@ -27,11 +27,12 @@ let mapLibreInitialised = false;
 
 type OpenPopup = { truckId: TruckId; popup: maplibregl.Popup; root: Root };
 
-// What the effects and the click handlers share, in one ref. `shown` is the `markers`
-// last applied, and `live` holds one `maplibregl.Marker` for each of its trucks. `open`
-// is set exactly while a popup is open: its `close` handler clears it, however the
-// popup closed.
+// What the effects and the click handlers share, in one ref. `map` is the map the
+// init effect built and hasn't removed. `shown` is the `markers` last applied, and
+// `live` holds one `maplibregl.Marker` for each of its trucks. `open` is set exactly
+// while a popup is open: its `close` handler clears it, however the popup closed.
 type MarkerLayer = {
+  map: maplibregl.Map | null;
   live: Map<TruckId, maplibregl.Marker>;
   shown: ReadonlyMap<TruckId, MarkerEntry>;
   open: OpenPopup | null;
@@ -42,20 +43,27 @@ function lngLatOf({ entry }: MarkerEntry): [number, number] {
   return [entry.longitude, entry.latitude];
 }
 
-function styleMarkerElement(el: HTMLElement, status: MarkerEntry["status"]) {
-  el.style.background = status === "open" ? MARKER_COLOR : "#ffffff";
-  el.style.border = status === "open" ? "2px solid #ffffff" : `3px solid ${MARKER_COLOR}`;
+// The look and the accessible name follow the entry: "Burgarbilen, Öppet nu".
+function styleMarkerElement(el: HTMLElement, marker: MarkerEntry) {
+  const open = marker.status === "open";
+  el.style.background = open ? MARKER_COLOR : "#ffffff";
+  el.style.border = open ? "2px solid #ffffff" : `3px solid ${MARKER_COLOR}`;
+  el.setAttribute("aria-label", `${marker.entry.truck.name}, ${statusText(marker)}`);
 }
 
-function createMarkerElement(status: MarkerEntry["status"]): HTMLDivElement {
+// A button for keyboards and screen readers: a tab stop, its name from
+// `styleMarkerElement`, and Enter or Space opening the popup as a click does.
+function createMarkerElement(marker: MarkerEntry): HTMLDivElement {
   const el = document.createElement("div");
+  el.setAttribute("role", "button");
+  el.tabIndex = 0;
   el.style.width = "18px";
   el.style.height = "18px";
   el.style.borderRadius = "50%";
   el.style.boxSizing = "border-box";
   el.style.boxShadow = "0 1px 4px rgba(0, 0, 0, 0.4)";
   el.style.cursor = "pointer";
-  styleMarkerElement(el, status);
+  styleMarkerElement(el, marker);
   return el;
 }
 
@@ -82,11 +90,10 @@ function closeOpenPopup(layer: MarkerLayer) {
 
 function addMarker(map: maplibregl.Map, layer: MarkerLayer, entry: MarkerEntry) {
   const truckId = entry.entry.truck.id;
-  const el = createMarkerElement(entry.status);
+  const el = createMarkerElement(entry);
   layer.live.set(truckId, new maplibregl.Marker({ element: el }).setLngLat(lngLatOf(entry)).addTo(map));
 
-  el.addEventListener("click", (event) => {
-    event.stopPropagation(); // keep closeOnClick from closing the new popup
+  function openPopup() {
     closeOpenPopup(layer);
 
     const content = document.createElement("div");
@@ -101,6 +108,16 @@ function addMarker(map: maplibregl.Map, layer: MarkerLayer, entry: MarkerEntry) 
     layer.open = open;
     renderOpenPopup(layer, { sync: true });
     popup.setDOMContent(content).addTo(map);
+  }
+
+  el.addEventListener("click", (event) => {
+    event.stopPropagation(); // keep closeOnClick from closing the new popup
+    openPopup();
+  });
+  el.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault(); // Space would scroll the page
+    openPopup();
   });
 }
 
@@ -112,7 +129,7 @@ export function useMapLibre(
   now: Date,
 ) {
   const [map, setMap] = useState<maplibregl.Map | null>(null);
-  const layerRef = useRef<MarkerLayer>({ live: new Map(), shown: new Map(), open: null, now });
+  const layerRef = useRef<MarkerLayer>({ map: null, live: new Map(), shown: new Map(), open: null, now });
 
   useEffect(() => {
     const layer = layerRef.current;
@@ -147,6 +164,7 @@ export function useMapLibre(
         layers: layers("protomaps", namedFlavor("light"), { lang: "sv" }),
       },
     });
+    layer.map = created;
     setMap(created);
 
     // Emptying `live` and `shown` makes a rebuilt map (StrictMode's mount → cleanup →
@@ -156,6 +174,7 @@ export function useMapLibre(
       for (const marker of layer.live.values()) marker.remove();
       layer.live.clear();
       layer.shown = new Map();
+      layer.map = null;
       created.remove();
     };
   }, [containerRef]);
@@ -163,8 +182,12 @@ export function useMapLibre(
   // One effect for the markers and the tick, so an open popup renders once per commit,
   // with its truck's new entry and the new `now` together.
   useEffect(() => {
-    if (!map) return;
     const layer = layerRef.current;
+    // `map` is this render's state, which after a re-init that re-runs both effects can
+    // still be the removed map; markers added to it would be recorded as shown and never
+    // reach the new one. The Next docs say Fast Refresh re-runs every effect, ignoring
+    // their dependencies (`node_modules/next/dist/docs/03-architecture/fast-refresh.md`).
+    if (!map || map !== layer.map) return;
     const nowChanged = layer.now !== now;
     layer.now = now;
 
@@ -175,7 +198,7 @@ export function useMapLibre(
     for (const entry of update) {
       const marker = layer.live.get(entry.entry.truck.id);
       marker?.setLngLat(lngLatOf(entry));
-      if (marker) styleMarkerElement(marker.getElement(), entry.status);
+      if (marker) styleMarkerElement(marker.getElement(), entry);
     }
     for (const truckId of remove) {
       if (layer.open?.truckId === truckId) closeOpenPopup(layer);

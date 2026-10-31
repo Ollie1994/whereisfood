@@ -29,8 +29,9 @@ export type MarkerDiff = {
   remove: TruckId[];
 };
 
-// `useLocations`' state: `loading` until the first request finishes, then `ok` after a
-// good response and `failing` after a failed one.
+// `useLocations`' state: `loading` until the first request finishes, and again from the
+// tab becoming visible until its refetch finishes; then `ok` after a good response and
+// `failing` after a failed one.
 export type FetchState = "loading" | "ok" | "failing";
 
 // --- The guard the client applies to a 2xx body ---------------------------------
