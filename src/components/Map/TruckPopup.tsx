@@ -1,29 +1,16 @@
-import { formatInTimeZone } from "date-fns-tz";
-import type { MarkerColor, MarkerState } from "@/lib/map-types";
-
-const TZ = "Europe/Stockholm";
-
-// Human-language labels for the old design's marker colours, never raw numbers.
-// Phase 6 replaces them with freshness text ("Uppdaterad 08:12").
-const CONFIDENCE_LABEL: Record<MarkerColor, string> = {
-  green: "Postad av trucken idag",
-  yellow: "Baserat på morgonens inlägg",
-  grey: "Ingen uppdatering idag",
-};
+import { freshnessText, hoursText, statusText, type MarkerEntry } from "@/lib/live";
 
 interface TruckPopupProps {
-  marker: MarkerState;
+  marker: MarkerEntry;
+  now: Date;
   onClose: () => void;
 }
 
-export default function TruckPopup({ marker, onClose }: TruckPopupProps) {
-  const { truck, location, color } = marker;
-
-  const hours = location
-    ? location.ends_at
-      ? `${formatInTimeZone(location.starts_at, TZ, "HH:mm")}–${formatInTimeZone(location.ends_at, TZ, "HH:mm")}`
-      : `Från ${formatInTimeZone(location.starts_at, TZ, "HH:mm")}`
-    : null;
+// Every time text comes from `live.ts`, which formats in Stockholm time: this file keeps
+// no time zone or formatting of its own (PR #190).
+export default function TruckPopup({ marker, now, onClose }: TruckPopupProps) {
+  const { entry } = marker;
+  const { truck } = entry;
 
   // Normalise handle — strip a leading @ so the URL and display are always clean.
   const handle = truck.instagram_handle?.replace(/^@/, "");
@@ -44,9 +31,18 @@ export default function TruckPopup({ marker, onClose }: TruckPopupProps) {
         <p className="text-sm text-gray-500">{truck.cuisine_type}</p>
       )}
 
-      {hours && <p className="mt-2 text-sm">{hours}</p>}
+      {/* Plan #13: a NULL label leaves the line out. */}
+      {entry.label && <p className="mt-2 text-sm font-medium">{entry.label}</p>}
 
-      <p className="mt-1 text-sm text-gray-600">{CONFIDENCE_LABEL[color]}</p>
+      <p className="mt-2 text-sm">
+        <span className={marker.status === "open" ? "font-medium text-green-700" : "font-medium"}>
+          {statusText(marker)}
+        </span>
+        {" · "}
+        {hoursText(entry, now)}
+      </p>
+
+      <p className="mt-1 text-xs text-gray-500">{freshnessText(entry.updated_at, now)}</p>
 
       {handle && (
         <a

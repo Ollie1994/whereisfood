@@ -62,12 +62,13 @@ old confidence design gone.
 
 | File | What |
 |---|---|
-| `src/lib/live.ts` | The response contract (`LiveEntry`, `LiveResponse`, `MarkerEntry`) and pure helpers: `isLiveResponse`, `isLiveEntry`, `todaysEntries`, `markerFor`, `diffMarkers`, `hoursText`, `freshnessText`, `statusText`. No clock reads, no React, no env |
+| `src/lib/live.ts` | The response contract (`LiveEntry`, `LiveResponse`, `MarkerEntry`, `FetchState`) and pure helpers: `isLiveResponse`, `isLiveEntry`, `todaysEntries`, `markerFor`, `diffMarkers`, `hoursText`, `freshnessText`, `statusText`, `noticeText` (step 3, PR #192's round 1). No clock reads, no React, no env |
 | `src/lib/live.test.ts` | Unit tests for those helpers |
 | `src/lib/services/live.ts` | `getLiveMap`, the first service: reads the clock, both db reads, the `is_active` filter, the response built field by field, entries failing `isLiveEntry` dropped (#20) |
 | `src/app/api/live/route.ts` | `GET`: `withErrorHandling`, the `Cache-Control` header, calls the service. HTTP only |
 | `tests/integration/api-live.test.ts` | `GET` against local Supabase: header, key set, filters, error → 500 |
 | `src/hooks/useLocations.ts` | Fetch on load, poll every 60 s while visible, refetch on `visibilitychange`, the 30 s tick; returns one `MarkerEntry` per truck and `now` |
+| `src/lib/live-loader.ts`, `src/lib/live-loader.test.ts` | `createLiveLoader`: the hook's fetch rules (which request may apply its outcome, what a failure is, the timeout) without React, unit-tested with a fake `fetch`. Added in step 3 (PR #192's round 2) |
 
 The error case (a throwing service → 500, never `[]`) may instead live in a co-located
 unit test of the route (`src/app/api/live/route.test.ts`) if mocking the service is
@@ -144,6 +145,9 @@ cleaner there than in the integration file; step 2's PR says which.
   `"Öppnar 17:00"`; `freshnessText(updated_at, now)` → the forms open decision 5
   settled (`"Uppdaterad 08:12"`, `"Uppdaterad igår 18:30"`, …). All in
   `Europe/Stockholm` via `date-fns-tz`.
+- `noticeText(fetchState, markerCount)` → the map's notice, as open decisions 6 and 7
+  settled it, or null. Added in step 3 (PR #192's round 1), so the rule is unit-tested
+  rather than checked only in the browser; `FetchState` moved here with it.
 
 **`src/lib/services/live.ts`**
 - `getLiveMap(now = new Date()): Promise<LiveResponse>`: the only clock read on the
@@ -176,15 +180,27 @@ cleaner there than in the integration file; step 2's PR says which.
   the empty state only when `ok` with no markers, never while `loading` or `failing`. **A failed fetch is a rejected `fetch`, a non-2xx
   status (the route's 500 `{ error }` included), a body `res.json()` can't parse, or
   one `isLiveResponse` rejects**, and it
-  keeps the last good entries (#16): it never replaces them with an empty list. A 30 s
-  tick (and becoming visible) sets `now` and re-derives `markerFor(entries, now)` (which
-  applies `todaysEntries`); `now` is returned for the popup (#15).
+  keeps the last good entries (#16): it never replaces them with an empty list. A
+  request unanswered after 15 s is aborted and counts as failed, so a hanging connection
+  shows the notice (PR #192's round 1). A 30 s
+  tick sets `now` and re-derives `markerFor(entries, now)` (which
+  applies `todaysEntries`); `now` is returned for the popup (#15). The tick, like the
+  poll, stops while the tab is hidden (PR #192's round 1). Every answer, good or
+  failed, sets `now` too, so new data isn't placed with a clock up to 30 s old (PR
+  #192's round 2). **Becoming visible only fetches:** the map keeps what it showed until
+  that answer. Setting `now` first dropped entries that ended while hidden before the
+  new data came, reading as "Inga foodtrucks idag" (round 3); setting `loading` instead
+  hid open decision 6's notice and blinked the empty-day text (round 4).
+  So an entry that ended while hidden stays until the answer: normally well under a
+  second, at most the 15 s timeout. The
+  fetch rules in this paragraph live in `createLiveLoader` (`src/lib/live-loader.ts`),
+  unit-tested; the hook holds the state and the timers.
 
 **`src/hooks/useMapLibre.tsx`**
 - `useMapLibre(containerRef, markers, now)`:
-  - **Refs:** the live markers (each truck's `maplibregl.Marker` **and its current
-    `MarkerEntry`**), the current `now`, and **the open popup** (`{ truckId, popup,
-    root }`, or none). The open popup's `close` handler clears that ref before it
+  - **Refs:** the live markers (each truck's `maplibregl.Marker`), **the `markers`
+    last applied** (each truck's current `MarkerEntry`), the current `now`, and **the
+    open popup** (`{ truckId, popup, root }`, or none). The open popup's `close` handler clears that ref before it
     unmounts the root, however the popup closed (a map click, a marker removal, the
     cleanup), so "open" always means the ref is set.
   - **`renderOpenPopup({ sync })`:** if a popup is open, renders `TruckPopup` into its
@@ -195,20 +211,37 @@ cleaner there than in the integration file; step 2's PR says which.
     `root.render`, because `flushSync` inside an effect logs "flushSync was called from
     inside a lifecycle method" (React 19's `flushPassiveEffects` sets `CommitContext`,
     `react-dom-client.development.js`).
-  - **Init effect:** builds the map as today and exposes it to the other effects (e.g.
-    as state it sets). Its cleanup closes the open popup and calls `remove()` on every
-    live marker, as today's does, then **empties the live-marker ref** and removes the
-    map. (`map.remove()` alone would also close the popup: `Popup.addTo` registers
+  - **Init effect:** builds the map as today, puts it in the ref and counts the build
+    in state, which re-runs the marker effect. Its cleanup calls `remove()` on every
+    live marker and then closes the open popup (markers first, so the popup's `close`
+    handler finds its marker gone; PR #192's round 6), then **empties the live-marker
+    ref**, clears the map from the ref and removes the map. (`map.remove()` alone would also close the popup: `Popup.addTo` registers
     `map.on("remove", this.remove)` and `Popup.remove` fires `close`;
     `maplibre-gl-dev.mjs` 6.11.2.) The explicit close keeps the open-popup ref cleared
-    before the map goes. So a rebuilt map (React StrictMode's mount → cleanup → mount
-    in dev, or any re-init) diffs from empty and gets every marker.
-  - **Marker effect** (on the map and `markers`): applies `diffMarkers(liveMarkers,
-    markers)` to the ref. Add creates a marker; update stores the new entry, calls
-    `setLngLat` and restyles the element; remove calls `remove()` and closes the popup
-    if it is that truck's. Then, if the open popup's truck was updated, it calls
-    `renderOpenPopup()`, so the popup moves and re-renders in the same pass, with no
-    dependence on effect order.
+    before the map goes. So a map rebuilt by React StrictMode's mount → cleanup → mount
+    in dev diffs from empty and gets every marker. **The marker effect draws on the map
+    in the ref**, the one the init effect built and hasn't removed (the cleanup clears
+    it); a count of maps built, in state, only re-runs the effect when one is built
+    (PR #192's round 5). The map is never read from state: after a re-init that
+    re-runs both effects, a render's state could still hold the removed map, and
+    markers added to it would be recorded as shown and never reach the new one. The
+    Next docs say Fast Refresh re-runs every effect, ignoring their dependencies
+    (`03-architecture/fast-refresh.md`). Not reproduced: in PR #192's round 3, an edit
+    to `MapClient.tsx` that Fast Refresh applied (its new class showed) kept the same
+    canvas and markers. Round 2's three probes, which it cited for declining a check,
+    had edited only comments (row 396).
+  - **Marker effect** (on the count of maps built, `markers` and `now`; draws on the
+    map in the ref): stores `now`, applies
+    `diffMarkers(lastApplied, markers)` and stores `markers` as the last applied. Add
+    creates a marker; update calls `setLngLat` and restyles the element; remove calls
+    `remove()` and then closes the popup if it is that truck's. Then, if `now` changed or
+    the open popup's truck was updated, it calls `renderOpenPopup()` once, so the popup
+    moves and re-renders in the same pass, with no dependence on effect order. Before
+    removing a marker, if focus is on it or in its popup, it moves focus to the map's
+    canvas (round 5: first done only for the marker, after closing the popup). The
+    marker goes before the popup, so the popup's `close` handler, which hands focus
+    back from `body` to a marker still connected, can't focus a marker being removed
+    (round 6).
   - **Click handler:** calls `event.stopPropagation()` first (as today, so the map's
     `closeOnClick` doesn't close the popup it opens), closes any open popup, creates
     one for its truck with a content element and its React root, registers its `close`
@@ -216,18 +249,29 @@ cleaner there than in the integration file; step 2's PR says which.
     today defers it), sets the open-popup ref, calls `renderOpenPopup({ sync: true })`,
     then `setDOMContent(content)` and adds the popup to the map. It reads the entry and `now` from the refs, never
     values captured at add.
-  - **`now` effect:** stores `now` in its ref and calls `renderOpenPopup()`, so the
-    open popup's freshness, status and hours text (#21) follow the tick (e.g. across Stockholm
-    midnight). `diffMarkers` doesn't take `now`.
-- `createMarkerElement(status)`: open filled, later outlined (open decision 8).
+  - **`now`:** the marker effect above stores it and re-renders the open popup, so its
+    freshness, status and hours text (#21) follow the tick (e.g. across Stockholm
+    midnight). `diffMarkers` doesn't take `now`. Planned first as a separate `now`
+    effect; merged into the marker effect in PR #192's round 1, so a tick that also
+    updates the open truck renders the popup once.
+- `createMarkerElement(marker)`: open filled, later outlined (open decision 8). A
+  button for keyboards and screen readers: `role="button"`, a tab stop and the label
+  "<truck>, <status>" (PR #192's round 3). Enter or Space opens the popup on key-up,
+  and only for a key pressed down on that marker: the popup moves focus to "Stäng" as
+  it opens, so opening on key-down let a held Enter close it again, and Enter on
+  "Stäng" hands focus back to the marker, whose key-up must not reopen it. Closing a
+  popup returns focus to its marker only when focus was inside the popup, which
+  MapLibre's `remove()` leaves on `body` (round 5: round 4 always returned it, so a
+  tap on the map pulled focus back to the marker).
 
 **Components**
 - `TruckPopup({ marker, now, onClose })`: name, cuisine, label (the line is left out
   when `label` is NULL, #13), status, hours, freshness text, Instagram link. Renders
   only; its text comes from `live.ts`, and it keeps no `TZ` or time formatting of its
   own (today's has both; PR #190's round 2).
-- `MapClient`: wires the two hooks, and renders the empty state and the stale notice
-  (as open decisions 6 and 7 settle them) from `fetchState` and `markers`.
+- `MapClient`: wires the two hooks, and renders `noticeText(fetchState, markers.size)`
+  (the empty state and the stale notice, open decisions 6 and 7) inside a status region
+  that stays mounted.
 
 ---
 
@@ -311,7 +355,8 @@ opens, which may be none. Step 7 is the existing issue #139.
     `live.ts` and `api/live` come in), "Folder structure", "Environment" (the R2 URL,
     the hosted key type), "Tests and gates" (the integration file count), "Versions"
     (the Node/npm line after #139), the Roadmap row; Part 2's "Read path" section,
-    which becomes a description of what was built, and the Phase map's Phase 8 row
+    which becomes a description of what was built and gains #22's scaling limits, and
+    the Phase map's Phase 8 row
     (tiles on R2 moved here, #7). It replaces each **between phases** marker in
     "Decisions carried forward" with the decision here that took it up (#1–#6), and
     carries forward this plan's decisions that outlive the phase (likely #7, #9–#11,
@@ -499,6 +544,43 @@ there was the owner's call, 2026-10-31. Considered: keeping the bare form
 (`"23:00–02:00"` reads naturally, and such entries are rare); deciding with the popup
 in step 3.
 
+### #22 — The read path's scaling limits are a later problem
+
+The owner's call, 2026-10-31, in PR #192: the limits below are known and written
+down, and nothing is built for them now. Step 10's reconciliation carries this into
+`project-context.md` (Part 2, "Read path"). The read path scales with **visitors** (one
+CDN copy per region, whatever the traffic), not with **trucks**. In the order they
+would be hit:
+- **1,000 rows, a hard wall.** `findLocationsOverlapping` and `listActiveTrucks` throw
+  past `MAX_ROWS` (1,000, pinned to `config.toml`'s `max_rows`) rather than return part
+  of the rows, so `/api/live` answers 500: a map opened then shows no markers and
+  "Kunde inte hämta foodtrucks", and one already open keeps its markers (until each
+  entry ends) with "Kunde inte uppdatera". It counts entries in the 26 h window and
+  active trucks, not history. Gothenburg, at an estimated 50 trucks with one or two
+  entries a day, would use a tenth of it or less. First fix: raise `max_rows` and
+  `MAX_ROWS` together (and the hosted project's setting). Trigger: the window passing
+  ~500 rows.
+- **The whole response on every poll.** Every visitor downloads every entry every 60 s
+  while the tab is visible. One entry is 388 bytes of JSON (the seed's); 3,000 varied
+  synthetic entries were 1.1 MB raw, 269 KB gzip and 224 KB brotli, so about 15 MB an
+  hour for a visitor with the map open. Fix: the map fetches only its visible area, on
+  a fixed grid so each cell stays one CDN-cached response.
+- **HTML markers.** Each one re-positions itself on every `move` event while the map
+  pans (`Marker.addTo` registers `map.on("move", this._update)`,
+  `maplibre-gl-dev.mjs` 6.11.2), so the cost grows with the marker count; where it
+  starts to stutter on a phone is not measured. Fix: markers drawn from a GeoJSON
+  source on the map's canvas, with clustering, which changes `CLAUDE.md`'s HTML-marker
+  rule.
+- **One time zone.** "Today", "Öppet nu" and every time shown use `Europe/Stockholm`
+  (`live.ts`'s `TZ`, the only zone `src/` passes to `date-fns-tz`). Norway and Denmark
+  share it; Finland and most of Europe don't. Fix: a time zone per entry.
+- Outside the code: one admin entering every entry by hand (the Owners phase is the
+  fix; at hand-entry volumes the walls above are far off), a Gothenburg-only tile file,
+  and Swedish-only text.
+
+Considered: writing it into `project-context.md` at once (done first in PR #192, moved
+here by its round 3: `CLAUDE.md` puts a decision settled during a phase in the plan).
+
 ---
 
 ## Acceptance Criteria
@@ -604,6 +686,10 @@ in step 3.
 - [ ] GET requests to `/api/live` (headers dumped, past Deployment Protection per open
   decision 11) show `x-vercel-cache: MISS`, then `HIT` within 60 s, then `STALE`
   between 60 and 120 s, with the output in the PR or issue.
+- [ ] Those responses' `cache-control` has no `s-maxage` or `stale-while-revalidate`
+  (Vercel's docs: the CDN strips both before the browser when there is no
+  `CDN-Cache-Control`). With either left in, the browser answers a refetch within 60 s
+  from its own cache, as it does locally (PR #192's round 1, probed in Chrome).
 - [ ] `/map` on the preview in a real browser shows the basemap from R2, the markers and
   a popup.
 - [ ] Requests per visit, from Vercel's usage dashboard, are recorded with the visit
@@ -655,13 +741,27 @@ in step 3.
    popups show an update from earlier in the week, and a weekday reads faster than a
    date there. The question as planned: E.g. "Uppdaterad igår 18:30" or "Uppdaterad 3
    okt 18:30"; it matters for an entry entered the evening before.
-6. **A stale notice when polls fail (step 3).** The principles say the map should say
-   honestly when it's stale (`project-context.md`, "Principles and risks"). A small
-   "Kunde inte uppdatera" now, or later (#16).
-7. **The empty state (step 3).** What `/map` says when no truck has an entry today,
-   e.g. "Inga foodtrucks ute just nu".
-8. **Marker look (step 3).** Colour and size of open (filled) versus later (outlined),
-   settled at the browser check.
+6. ~~**A stale notice when polls fail (step 3).**~~ → **answered in step 3 (#184), the
+   owner's call, 2026-10-31:** a notice now, shown from the first failed fetch (one is
+   enough, no waiting for a second) and gone after the next good one. The markers stay
+   either way (#16). With markers showing it reads `"Kunde inte uppdatera"`; with none
+   (the first fetch failed, or the last good response had none) `"Kunde inte hämta
+   foodtrucks. Försöker igen…"`, so a failure never looks like an empty day. The
+   question as planned: the principles say the map should say honestly when it's stale
+   (`project-context.md`, "Principles and risks"). A small "Kunde inte uppdatera" now,
+   or later (#16).
+7. ~~**The empty state (step 3).**~~ → **answered in step 3 (#184), the owner's call,
+   2026-10-31, as a placeholder:** `"Inga foodtrucks idag"`, only when `fetchState` is
+   `ok` with no markers. Not "just nu": the map also shows trucks opening later today,
+   so an empty map means none for the rest of the day. The question as planned: what
+   `/map` says when no truck has an entry today, e.g. "Inga foodtrucks ute just nu".
+8. ~~**Marker look (step 3).**~~ → **answered in step 3 (#184), the owner's call,
+   2026-10-31:** two states only, open filled and later outlined. Colour and size are
+   placeholders, settled once the owner has used the map, after the first deploy if
+   need be. Considered and left out for now: "closing soon" (changes the contract and
+   its tests), a highlighted selected marker, and a faded marker for an old update (the
+   popup's freshness text says it). The question as planned: colour and size of open
+   (filled) versus later (outlined), settled at the browser check.
 9. **#139's `onFail`, and whether to pin `engines.node` (step 7).** As that issue
    describes, from step 6's build log.
 10. **The R2 CORS rule's allowed origins (step 4).** Vercel preview URLs differ per

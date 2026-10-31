@@ -241,11 +241,9 @@ said otherwise: Phase 4 plan decision #14.
 - All `useState` / `useEffect` live in hooks, not components
 - Components only describe what to render
 - Map markers are HTML elements via MapLibre Marker API — no image files
-- **(Phase 6)** Only trucks with an entry today appear on the map; the popup always
-  shows when it was updated. Today's fake-data map still does the old design's
-  version: grey markers at `last_known_*` for trucks with no entry, colours and popup
-  labels from confidence, no updated time. Don't change it before Phase 6 (Phase 4
-  plan, Out of Scope)
+- Only trucks with an entry today appear on the map, one marker each; the popup always
+  shows when it was updated (Phase 6 plan, #12 and open decision 5). A failed poll
+  keeps the last good markers (Phase 6 plan, #16)
 - Never fully re-render the map — only update affected markers
 
 ---
