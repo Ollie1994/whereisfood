@@ -10,13 +10,11 @@ vi.mock("@/lib/db/locations", () => ({ findLocationsOverlapping: vi.fn() }));
 
 import { GET } from "@/app/api/live/route";
 
-// `restoreAllMocks` puts back the `console.error` spy but leaves the factories' `vi.fn()`s
-// as the last case set them (vitest 4); `mockReset` clears those too, so no case inherits
-// another's rejection.
+// `resetAllMocks` clears every `vi.fn()`, the factories' included; `restoreAllMocks`
+// puts back the `console.error` spy (both probed on vitest 4.1.12, PR #191).
 afterEach(() => {
+  vi.resetAllMocks();
   vi.restoreAllMocks();
-  vi.mocked(listActiveTrucks).mockReset();
-  vi.mocked(findLocationsOverlapping).mockReset();
 });
 
 // Each read throws in turn while the other succeeds: a service that swallowed either
@@ -25,8 +23,8 @@ describe.each([
   ["the trucks read", () => vi.mocked(listActiveTrucks).mockRejectedValue(new Error("db unreachable"))],
   ["the locations read", () => vi.mocked(findLocationsOverlapping).mockRejectedValue(new Error("db unreachable"))],
 ])("GET /api/live when %s throws", (_name, failRead) => {
-  it("answers 500 { error } without the cache header, never a 200 with no entries", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
+  it("answers 500 { error } without the cache header, from that error", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
     vi.mocked(listActiveTrucks).mockResolvedValue([]);
     vi.mocked(findLocationsOverlapping).mockResolvedValue([]);
     failRead();
@@ -36,5 +34,11 @@ describe.each([
     expect(res.status).toBe(500);
     expect(await res.json()).toEqual({ error: "Internal server error" });
     expect(res.headers.get("cache-control")).toBeNull();
+    // The injected error reached `withErrorHandling` itself, not a later crash from a
+    // swallowed one (`.catch(() => null)` would fail on `trucks.map` instead).
+    expect(logged).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ message: "db unreachable" }),
+    );
   });
 });

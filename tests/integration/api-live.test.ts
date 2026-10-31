@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET } from "@/app/api/live/route";
-import type { LiveResponse } from "@/lib/live";
+import type { LiveEntry, LiveResponse } from "@/lib/live";
 import { getLiveMap } from "@/lib/services/live";
 import { supabaseAdmin } from "@/lib/supabase";
 import { keysOf, resetTables, seedLocation, seedTruck } from "./helpers";
@@ -16,10 +16,20 @@ const ENTRY_TRUCK_KEYS = ["cuisine_type", "id", "instagram_handle", "name"];
 
 const HOUR = 3_600_000;
 const iso = (ms: number) => new Date(ms).toISOString();
+// With a microsecond fraction (`…T10:00:00.123456Z`), so a truncation to milliseconds
+// changes the text.
+const micro = (ms: number) => iso(ms).replace(/Z$/, "456Z");
 
 // A fixed `now` for the service's window tests: clear of the seed's rows (around the
 // reset) and `seedLocation`'s default windows (2000 onwards, one a day).
 const NOW = Date.parse("2030-06-15T10:00:00Z");
+
+// The body's entry for location `id`; a missing one fails here, by name.
+function entryOf(body: LiveResponse, id: string): LiveEntry {
+  const entry = body.entries.find((candidate) => candidate.id === id);
+  if (!entry) throw new Error(`no entry for location ${id} in the body`);
+  return entry;
+}
 
 async function idsAt(now: number): Promise<string[]> {
   const { entries } = await getLiveMap(new Date(now));
@@ -46,6 +56,12 @@ describe("GET /api/live", () => {
 
   it("returns { entries }, every entry and its truck with exactly LiveEntry's keys, nulls kept", async () => {
     const truckId = await seedTruck("Live");
+    // Set here, not left to `seedTruck`'s defaults, so this test owns its null case.
+    const { error } = await supabaseAdmin
+      .from("trucks")
+      .update({ instagram_handle: null, cuisine_type: null })
+      .eq("id", truckId);
+    if (error) throw error;
     const now = Date.now();
     const row = await seedLocation(truckId, {
       starts_at: iso(now - HOUR),
@@ -61,11 +77,10 @@ describe("GET /api/live", () => {
       expect(keysOf(entry)).toEqual(ENTRY_KEYS);
       expect(keysOf(entry.truck)).toEqual(ENTRY_TRUCK_KEYS);
     }
-    // The fixture truck's `instagram_handle` and `cuisine_type` are null, and so is the
-    // label: each reaches the client as null, not a stand-in like "" (plan #13).
-    const ours = body.entries.find((entry) => entry.id === row.id);
-    expect(ours).toBeDefined();
-    expect([ours!.truck.instagram_handle, ours!.truck.cuisine_type, ours!.label]).toEqual([null, null, null]);
+    // Each reaches the client as null, not a stand-in like "": `LiveEntry` types all
+    // three `string | null`, and plan #13 has the popup leave a null label's line out.
+    const ours = entryOf(body, row.id);
+    expect([ours.truck.instagram_handle, ours.truck.cuisine_type, ours.label]).toEqual([null, null, null]);
   });
 
   it("fills each field from its own column", async () => {
@@ -79,7 +94,7 @@ describe("GET /api/live", () => {
       .eq("id", truckId);
     if (error) throw error;
     const now = Date.now();
-    const seeded = await seedLocation(truckId, { starts_at: iso(now - HOUR), ends_at: iso(now + HOUR) });
+    const seeded = await seedLocation(truckId, { starts_at: micro(now - HOUR), ends_at: micro(now + HOUR) });
     const { data: row, error: editError } = await supabaseAdmin
       .from("locations")
       .update({ label: "Lindholmen" })
@@ -89,20 +104,19 @@ describe("GET /api/live", () => {
     if (editError) throw editError;
     expect(row.updated_at).not.toBe(row.created_at);
 
-    const body = (await (await GET()).json()) as LiveResponse;
-    const ours = body.entries.find((entry) => entry.id === row.id);
-    expect(ours).toBeDefined();
+    const ours = entryOf((await (await GET()).json()) as LiveResponse, row.id);
 
-    expect(ours!.truck).toEqual({
+    expect(ours.truck).toEqual({
       id: truckId,
       name: "itest-fixture-Mapped",
       instagram_handle: "mapped_truck",
       cuisine_type: "Thai",
     });
-    expect([ours!.latitude, ours!.longitude, ours!.label]).toEqual([row.latitude, row.longitude, "Lindholmen"]);
-    // The exact strings: both `row` and the body come from PostgREST, microseconds
-    // included, so a reformatted or truncated timestamp shows here.
-    expect([ours!.starts_at, ours!.ends_at, ours!.updated_at]).toEqual([row.starts_at, row.ends_at, row.updated_at]);
+    expect([ours.latitude, ours.longitude, ours.label]).toEqual([row.latitude, row.longitude, "Lindholmen"]);
+    // The exact strings: both sides come from PostgREST, and all three carry
+    // microseconds (`micro` for the window, `now()` for `updated_at`), so a reformat or
+    // a truncation shows here.
+    expect([ours.starts_at, ours.ends_at, ours.updated_at]).toEqual([row.starts_at, row.ends_at, row.updated_at]);
   });
 });
 
