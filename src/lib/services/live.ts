@@ -12,9 +12,9 @@ import { isLiveEntry, type LiveEntry, type LiveResponse } from "@/lib/live";
 // (plan, the service). `api-live.test.ts` pins the fall-back case and both edges.
 const WINDOW_MS = 26 * 3_600_000;
 
-// The only clock read on the server (`CLAUDE.md`, "Time"); tests pass `now`. Errors
-// propagate, so the route answers 500, which the CDN doesn't cache, never an empty map
-// (`CLAUDE.md`, "`/api/live`").
+// The clock is read here, in the service, not in the route or the db layer (`CLAUDE.md`,
+// "Time"); tests pass `now`. Errors propagate, so the route answers 500, never an empty
+// map (`CLAUDE.md`, "`/api/live`").
 export async function getLiveMap(now: Date = new Date()): Promise<LiveResponse> {
   const from = now.toISOString();
   const to = new Date(now.getTime() + WINDOW_MS).toISOString();
