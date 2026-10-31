@@ -36,8 +36,8 @@ export type MarkerDiff = {
 // `…T06:50:08.606373+00:00` (local stack, 2026-10-25). The pattern comes first
 // because `parseISO` alone accepts `"2026"`, and a string with no offset, which it
 // reads in the browser's own time zone. The time's and the offset's hours are bounded
-// here because `isValid(parseISO(…))` accepts `T24:00:00` and `+24:00`; it refuses
-// `+01:60` itself (all pinned in `live.test.ts`).
+// here because `isValid(instant(…))` (`parseISO`) accepts `T24:00:00` and `+24:00`; it
+// refuses `+01:60` itself (all pinned in `live.test.ts`).
 const TIMESTAMP =
   /^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-](?:[01]\d|2[0-3]):\d{2})$/;
 
@@ -199,31 +199,34 @@ function shortDate(date: Date, now: Date): string {
   return year === formatInTimeZone(now, TZ, "yyyy") ? text : `${text} ${year}`;
 }
 
-// The word for `date`'s Stockholm day, seen from `now`'s; none for that day itself.
-function dayWord(date: Date, now: Date): string | null {
-  const day = stockholmDay(date);
-  const today = stockholmDay(now);
-  if (day === today) return null;
+// The word for Stockholm day `day` (the day of `date`), seen from `today`, `now`'s.
+function dayWord(day: number, today: number, date: Date, now: Date): string {
+  if (day === today) return "idag";
   if (day === today - 1) return "igår";
   if (day === today + 1) return "imorgon";
   return shortDate(date, now);
 }
 
-// Names a day only when it isn't today (plan #21): "11:00–14:00", "igår 20:00–12:00",
-// "23:00–02:00 imorgon". An end at exactly midnight is "24:00" on the day it closes
-// ("20:00–24:00 imorgon": open until tomorrow ends), and the end's day is named only
-// when it differs from the start's ("igår 20:00–24:00", not "… 24:00 igår").
+const MINUTE_MS = 60_000;
+
+// Plan #21: the start's day is named when it isn't today, and the end's day when it
+// differs from the start's: "11:00–14:00", "23:00–02:00 imorgon", "igår 20:00–12:00
+// idag". An end that shows as 00:00 is "24:00" on the day before ("20:00–24:00",
+// "20:00–24:00 imorgon"): the text has minutes only, so any end within midnight's
+// minute reads as midnight.
 export function hoursText(entry: LiveEntry, now: Date): string {
+  const today = stockholmDay(now);
   const start = instant(entry.starts_at);
   const end = instant(entry.ends_at);
-  const atMidnight = stockholmMidnight(stockholmDay(end)).getTime() === end.getTime();
-  const closingDay = atMidnight ? new Date(end.getTime() - 1) : end;
-  const startWord = dayWord(start, now);
-  const endWord =
-    stockholmDay(closingDay) === stockholmDay(start) ? null : dayWord(closingDay, now);
+  const startDay = stockholmDay(start);
+  const atMidnight = clock(end) === "00:00";
+  const closing = atMidnight ? new Date(end.getTime() - MINUTE_MS) : end;
+  const closingDay = stockholmDay(closing);
   const endClock = atMidnight ? "24:00" : clock(end);
-  const from = startWord ? `${startWord} ${clock(start)}` : clock(start);
-  const to = endWord ? `${endClock} ${endWord}` : endClock;
+  const from =
+    startDay === today ? clock(start) : `${dayWord(startDay, today, start, now)} ${clock(start)}`;
+  const to =
+    closingDay === startDay ? endClock : `${endClock} ${dayWord(closingDay, today, closing, now)}`;
   return `${from}–${to}`;
 }
 

@@ -140,7 +140,7 @@ cleaner there than in the integration file; step 2's PR says which.
 - `diffMarkers(prev, next): { add, update, remove }`, keyed by truck id. An update is a
   change of entry id, position, status, or any field the popup shows.
 - `hoursText(entry, now)` → `"11:00–14:00"`, naming a day that isn't today (#21):
-  `"igår 20:00–12:00"`, `"23:00–02:00 imorgon"`; `statusText(marker)` → `"Öppet nu"` /
+  `"igår 20:00–12:00 idag"`, `"23:00–02:00 imorgon"`; `statusText(marker)` → `"Öppet nu"` /
   `"Öppnar 17:00"`; `freshnessText(updated_at, now)` → the forms open decision 5
   settled (`"Uppdaterad 08:12"`, `"Uppdaterad igår 18:30"`, …). All in
   `Europe/Stockholm` via `date-fns-tz`.
@@ -483,14 +483,16 @@ against #19); accepting the risk.
 
 The owner's call, 2026-10-31, in PR #190's review round 2. `todaysEntries` keeps an
 entry that started yesterday or runs past midnight, and bare `HH:MM–HH:MM` read
-`"20:00–12:00"` for one. So `hoursText(entry, now)` puts `igår` before a start on the
-day before `now`'s Stockholm day and `imorgon` after an end on the day after, and a
-date (`"29 okt"`, with the year when it isn't `now`'s) for any other day; a same-day
-entry stays `"11:00–14:00"`. The end's day is named only when it differs from the
-start's (`"igår 20:00–24:00"`). An end at exactly midnight is `24:00` on the day it
-closes (`"20:00–24:00"`, `"20:00–24:00 imorgon"`): round 3 found that round 2's
-`"00:00"`, with the day word of the day before, read `"20:00–00:00 imorgon"` for an
-entry open until the end of tomorrow. Considered: keeping the bare form
+`"20:00–12:00"` for one. So `hoursText(entry, now)` names the start's Stockholm day
+when it isn't `now`'s, and the end's day whenever it differs from the start's: `idag`,
+`igår`, `imorgon`, or a date (`"29 okt"`, with the year when it isn't `now`'s). So
+`"11:00–14:00"`, `"23:00–02:00 imorgon"`, `"igår 20:00–12:00 idag"`. An end that shows
+as 00:00 is `24:00` on the day before (`"20:00–24:00"`, `"20:00–24:00 imorgon"`,
+`"igår 20:00–24:00 idag"`). Round 3 found that round 2's `"00:00"`, with the day word
+of the day before, read `"20:00–00:00 imorgon"` for an entry open until the end of
+tomorrow. Round 4 found that leaving out an end on today read `"igår 08:00–12:00"`
+for an entry open until noon today, as if it ran yesterday from 8 to 12; adding `idag`
+there was the owner's call, 2026-10-31. Considered: keeping the bare form
 (`"23:00–02:00"` reads naturally, and such entries are rare); deciding with the popup
 in step 3.
 
@@ -517,7 +519,7 @@ in step 3.
   `"2026"`, an offset of `+24:00` and an hour of 24; accepts timestamps with and without
   fractional seconds, `…T09:00:00+00:00` and `…T05:12:07.123456+00:00`) and the text
   helpers
-  (`"11:00–14:00"`, `"igår 20:00–12:00"`, `"23:00–02:00 imorgon"`, `"Uppdaterad 08:12"`,
+  (`"11:00–14:00"`, `"igår 20:00–12:00 idag"`, `"23:00–02:00 imorgon"`, `"Uppdaterad 08:12"`,
   `"Öppet nu"`, `"Öppnar 17:00"`, all in
   Stockholm time).
 - [ ] `src/lib/live.ts` imports no React and no env, and reads no clock: a grep shows no
