@@ -3,6 +3,7 @@ import {
   diffMarkers,
   freshnessText,
   hoursText,
+  isLiveEntry,
   isLiveResponse,
   markerFor,
   statusText,
@@ -59,8 +60,16 @@ describe("isLiveResponse", () => {
     ["with microseconds", "2026-10-31T05:12:07.123456+00:00"],
     ["with a Z offset", "2026-10-31T09:00:00Z"],
     ["with a non-zero offset", "2026-10-31T10:00:00+01:00"],
+    ["with the largest offset the pattern allows", "2026-10-31T10:00:00-23:59"],
   ])("accepts a timestamp %s", (_name, ts) => {
     expect(isLiveResponse({ entries: [entry({ starts_at: ts, ends_at: ts, updated_at: ts })] })).toBe(true);
+  });
+
+  it.each([
+    [90, 180],
+    [-90, -180],
+  ])("accepts coordinates on the range's edge (%d, %d)", (latitude, longitude) => {
+    expect(isLiveResponse({ entries: [entry({ latitude, longitude })] })).toBe(true);
   });
 
   it.each([
@@ -112,6 +121,12 @@ describe("isLiveResponse", () => {
     ["longitude missing", missing("longitude")],
     ["longitude a string", top("longitude", "11.9515")],
     ["longitude -Infinity", top("longitude", -Infinity)],
+    // MapLibre's `LngLat` throws on these latitudes.
+    ["latitude 90.5", top("latitude", 90.5)],
+    ["latitude -90.5", top("latitude", -90.5)],
+    ["latitude 1e9", top("latitude", 1e9)],
+    ["longitude 180.5", top("longitude", 180.5)],
+    ["longitude -180.5", top("longitude", -180.5)],
     ["starts_at missing", missing("starts_at")],
     ["starts_at a number", top("starts_at", 1)],
     ["starts_at \"1\"", top("starts_at", "1")],
@@ -127,12 +142,23 @@ describe("isLiveResponse", () => {
     ["a timestamp with no offset", top("starts_at", "2026-10-31T09:00:00")],
     // Matches the pattern; only `isValid(parseISO(…))` refuses it.
     ["an impossible date", top("starts_at", "2026-02-30T09:00:00+00:00")],
+    // `isValid(parseISO(…))` accepts this one; only the pattern refuses it.
+    ["an offset of +24:00", top("starts_at", "2026-10-31T09:00:00+24:00")],
+    // The pattern accepts this one; only `isValid(parseISO(…))` refuses it.
+    ["an offset of +01:60", top("starts_at", "2026-10-31T09:00:00+01:60")],
   ])("rejects a body whose one entry has %s", (_name, broken) => {
     expect(isLiveResponse({ entries: [broken] })).toBe(false);
   });
 
   it("rejects the whole body when one of several entries is bad", () => {
     expect(isLiveResponse({ entries: [entry(), top("id", 1), truck("truck-2")] })).toBe(false);
+  });
+});
+
+describe("isLiveEntry", () => {
+  it("judges one entry, as the service uses it to drop a bad row", () => {
+    expect(isLiveEntry(entry())).toBe(true);
+    expect(isLiveEntry(entry({ latitude: 91 }))).toBe(false);
   });
 });
 
@@ -208,6 +234,11 @@ describe("markerFor", () => {
 
   it("gives no marker for a truck with only ended entries", () => {
     expect(markerFor([breakfast], now).size).toBe(0);
+  });
+
+  it("gives no marker for an entry starting tomorrow (the response runs to now + 26 h)", () => {
+    const tomorrow = entry({ starts_at: "2026-11-01T11:00:00+01:00", ends_at: "2026-11-01T14:00:00+01:00" });
+    expect(markerFor([tomorrow], now).size).toBe(0);
   });
 
   it("marks an entry starting exactly now as open", () => {

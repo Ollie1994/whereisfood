@@ -11,8 +11,7 @@ export const TZ = "Europe/Stockholm";
 type TruckId = Truck["id"];
 
 // Field types come from the row types by `Pick`, so a migration that changes a column
-// changes these too. The service builds each entry field by field (plan #11), so no
-// other column reaches the body.
+// changes these too. Plan #11: the service builds each entry field by field.
 export type LiveEntry = Pick<
   Location,
   "id" | "latitude" | "longitude" | "label" | "starts_at" | "ends_at" | "updated_at"
@@ -36,8 +35,10 @@ export type MarkerDiff = {
 // `…T09:00:00+00:00`, and `updated_at` (from `now()`) with microseconds,
 // `…T06:50:08.606373+00:00` (local stack, 2026-10-25). The pattern comes first
 // because `parseISO` alone accepts `"2026"`, and a string with no offset, which it
-// reads in the browser's own time zone (both pinned in `live.test.ts`).
-const TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+// reads in the browser's own time zone. The offset's hours are bounded here because
+// `isValid(parseISO(…))` accepts `+24:00`; it refuses `+01:60` itself (all pinned in
+// `live.test.ts`).
+const TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-](?:[01]\d|2[0-3]):\d{2})$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -51,7 +52,17 @@ function isTimestamp(value: unknown): value is string {
   return typeof value === "string" && TIMESTAMP.test(value) && isValid(parseISO(value));
 }
 
-function isLiveEntry(value: unknown): value is LiveEntry {
+// MapLibre's `LngLat` constructor throws outside ±90 latitude and doesn't check
+// longitude (`maplibre-gl-shared-dev.mjs` 6.11.2), and the schema has no range CHECK
+// (`0001_baseline.sql`). Longitude is bounded to ±180 here all the same. NaN and
+// ±Infinity fail the comparison (pinned in `live.test.ts`).
+function isCoordinate(value: unknown, limit: number): value is number {
+  return typeof value === "number" && Math.abs(value) <= limit;
+}
+
+// Exported for the service to drop a row that fails it (plan #20): `isLiveResponse`
+// rejects a whole body for one bad entry.
+export function isLiveEntry(value: unknown): value is LiveEntry {
   if (!isRecord(value)) return false;
   const truck = value.truck;
   if (!isRecord(truck)) return false;
@@ -62,8 +73,8 @@ function isLiveEntry(value: unknown): value is LiveEntry {
     isNullableString(truck.instagram_handle) &&
     isNullableString(truck.cuisine_type) &&
     isNullableString(value.label) &&
-    Number.isFinite(value.latitude) &&
-    Number.isFinite(value.longitude) &&
+    isCoordinate(value.latitude, 90) &&
+    isCoordinate(value.longitude, 180) &&
     isTimestamp(value.starts_at) &&
     isTimestamp(value.ends_at) &&
     isTimestamp(value.updated_at)
@@ -107,15 +118,14 @@ export function todaysEntries(entries: readonly LiveEntry[], now: Date): LiveEnt
   );
 }
 
-// One marker per truck (plan #12): the entry open at `now`, else the earliest later one.
-// An entry already ended gives none.
+// One marker per truck (plan #12), among today's entries: the entry open at `now`, else
+// the earliest later one. It applies `todaysEntries` itself, because the response holds
+// entries up to `now + 26 h` and tomorrow's lunch must not show as "Öppnar 11:00".
 export function markerFor(entries: readonly LiveEntry[], now: Date): Map<TruckId, MarkerEntry> {
   const markers = new Map<TruckId, MarkerEntry>();
   const t = now.getTime();
-  for (const entry of entries) {
+  for (const entry of todaysEntries(entries, now)) {
     const starts = ms(entry.starts_at);
-    const ends = ms(entry.ends_at);
-    if (ends <= t) continue;
     const status = starts <= t ? "open" : "later";
     const current = markers.get(entry.truck.id);
     if (

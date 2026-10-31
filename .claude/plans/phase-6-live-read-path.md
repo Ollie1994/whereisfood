@@ -62,9 +62,9 @@ old confidence design gone.
 
 | File | What |
 |---|---|
-| `src/lib/live.ts` | The response contract (`LiveEntry`, `LiveResponse`, `MarkerEntry`) and pure helpers: `isLiveResponse`, `todaysEntries`, `markerFor`, `diffMarkers`, `hoursText`, `freshnessText`, `statusText`. No clock reads, no React, no env |
+| `src/lib/live.ts` | The response contract (`LiveEntry`, `LiveResponse`, `MarkerEntry`) and pure helpers: `isLiveResponse`, `isLiveEntry`, `todaysEntries`, `markerFor`, `diffMarkers`, `hoursText`, `freshnessText`, `statusText`. No clock reads, no React, no env |
 | `src/lib/live.test.ts` | Unit tests for those helpers |
-| `src/lib/services/live.ts` | `getLiveMap`, the first service: reads the clock, both db reads, the `is_active` filter, the response built field by field |
+| `src/lib/services/live.ts` | `getLiveMap`, the first service: reads the clock, both db reads, the `is_active` filter, the response built field by field, entries failing `isLiveEntry` dropped (#20) |
 | `src/app/api/live/route.ts` | `GET`: `withErrorHandling`, the `Cache-Control` header, calls the service. HTTP only |
 | `tests/integration/api-live.test.ts` | `GET` against local Supabase: header, key set, filters, error → 500 |
 | `src/hooks/useLocations.ts` | Fetch on load, poll every 60 s while visible, refetch on `visibilitychange`, the 30 s tick; returns one `MarkerEntry` per truck and `now` |
@@ -118,24 +118,31 @@ cleaner there than in the integration file; step 2's PR says which.
   body before using it. It checks every field of every entry that `LiveEntry`
   declares, not only that `entries` is an array: string `id`, `truck.id` and
   `truck.name`; `truck.instagram_handle`, `truck.cuisine_type` and `label` each a
-  string or null; finite `latitude` and `longitude`; `starts_at`, `ends_at` and
+  string or null; numeric `latitude` within ±90 and `longitude` within ±180 (MapLibre's
+  `LngLat` throws outside ±90 latitude, and the schema has no range CHECK; added in
+  PR #190's round 1); `starts_at`, `ends_at` and
   `updated_at` ISO 8601 timestamps with an offset (PostgREST returns
   `…T09:00:00+00:00`, `src/lib/db/locations.ts`): a date, a time with optional
   fractional seconds (`updated_at` comes from `now()` and the trigger, with
   microseconds: `…T05:12:07.123456+00:00`) and an offset, by pattern, and valid by
   `date-fns`'s `parseISO` and `isValid`. Not `Date.parse`, which
-  accepts `"1"`, nor `parseISO` alone, which accepts `"2026"` (both probed 2026-10-25).
-  One bad entry fails the whole body.
+  accepts `"1"`, nor `parseISO` alone, which accepts `"2026"` (both probed 2026-10-25)
+  or an offset of `+24:00` (PR #190's round 1), so the pattern bounds the offset's
+  hours. One bad entry fails the whole body; the service drops such rows first (#20).
+- `isLiveEntry(value): value is LiveEntry`: the per-entry check `isLiveResponse`
+  applies, exported for the service (#20).
 - `todaysEntries(entries, now)`: entries with `ends_at > now` and `starts_at` before
   the next Stockholm midnight after `now`.
-- `markerFor(entries, now): Map<truckId, MarkerEntry>`: one per truck (#12), the entry
-  open at `now`, else the earliest later one.
+- `markerFor(entries, now): Map<truckId, MarkerEntry>`: one per truck (#12) among
+  today's entries, the entry open at `now`, else the earliest later one. It applies
+  `todaysEntries` itself, so a caller passing the raw response can't show tomorrow's
+  entry (PR #190's round 1).
 - `diffMarkers(prev, next): { add, update, remove }`, keyed by truck id. An update is a
   change of entry id, position, status, or any field the popup shows.
 - `hoursText(entry)` → `"11:00–14:00"`; `statusText(marker)` → `"Öppet nu"` /
-  `"Öppnar 17:00"`; `freshnessText(updated_at, now)` → `"Uppdaterad 08:12"` when
-  updated today (Stockholm), otherwise open decision 5. All in `Europe/Stockholm` via
-  `date-fns-tz`.
+  `"Öppnar 17:00"`; `freshnessText(updated_at, now)` → the forms open decision 5
+  settled (`"Uppdaterad 08:12"`, `"Uppdaterad igår 18:30"`, …). All in
+  `Europe/Stockholm` via `date-fns-tz`.
 
 **`src/lib/services/live.ts`**
 - `getLiveMap(now = new Date()): Promise<LiveResponse>`: the only clock read on the
@@ -147,7 +154,9 @@ cleaner there than in the integration file; step 2's PR says which.
   data (#16) and `fetchState` says so. The client's
   `todaysEntries` does the Stockholm cut; the service needs no time zone. Runs
   `listActiveTrucks()` and `findLocationsOverlapping(now, now + 26 h)` in parallel, drops rows whose `truck_id` isn't an active truck (#9), and builds each
-  entry field by field, never by spreading a row (#11). Errors propagate.
+  entry field by field, never by spreading a row (#11). Drops each built entry that
+  fails `isLiveEntry`, logging its location id with `console.warn` (#20). Errors
+  propagate.
 
 **`src/app/api/live/route.ts`**
 - `GET()`: `withErrorHandling(async () => NextResponse.json(await getLiveMap(), {
@@ -167,8 +176,8 @@ cleaner there than in the integration file; step 2's PR says which.
   status (the route's 500 `{ error }` included), a body `res.json()` can't parse, or
   one `isLiveResponse` rejects**, and it
   keeps the last good entries (#16): it never replaces them with an empty list. A 30 s
-  tick (and becoming visible) sets `now` and re-derives `markerFor(todaysEntries(entries,
-  now), now)`; `now` is returned for the popup (#15).
+  tick (and becoming visible) sets `now` and re-derives `markerFor(entries, now)` (which
+  applies `todaysEntries`); `now` is returned for the popup (#15).
 
 **`src/hooks/useMapLibre.tsx`**
 - `useMapLibre(containerRef, markers, now)`:
@@ -453,6 +462,20 @@ The schema is Phase 5's and its tests hold it locally. If a hosted check fails (
 collation, the extensions, the trigger form), its fix is decided first; a migration is
 `0002_<name>.sql` (Phase 5 plan decision #23) with its own decision here.
 
+### #20 — The service drops a row the client's guard would reject
+
+The owner's call, 2026-10-31, in PR #190's review round 1. `isLiveResponse` rejects a
+whole body for one bad entry, and the schema allows rows it rejects: `ends_at =
+'infinity'` passes the only time check (`ends_at > starts_at`), and coordinates have no
+range CHECK (`0001_baseline.sql`). One such row, entered by hand-written SQL before
+Phase 7's validators exist, would make every poll fail and leave the map empty for
+everyone. So `getLiveMap` checks each entry it builds with `isLiveEntry` (exported from
+`live.ts`) and leaves out one that fails, logging its location id. The client still
+rejects a malformed body as a whole: that now means a broken server or contract, and
+the hook keeps its last good data (#16). Considered: the client dropping bad entries
+(a broken server would then look like an empty map); database CHECKs (a migration,
+against #19); accepting the risk.
+
 ---
 
 ## Acceptance Criteria
@@ -465,13 +488,15 @@ collation, the extensions, the trigger form), its fix is decided first; a migrat
 - [ ] Unit tests pass for `todaysEntries` (ended out; starting at or after the next
   Stockholm midnight out; started yesterday and still running in; both 2026 DST days,
   03-29 and 10-25), `markerFor` (open beats later; two later entries give the earliest;
-  only ended entries give no marker), `diffMarkers` (add; update on entry id, position,
+  only ended entries give no marker; an entry starting tomorrow gives none),
+  `diffMarkers` (add; update on entry id, position,
   status and a popup field; remove; no change gives an empty diff; an empty `prev`
   gives every marker as an add), `isLiveResponse` (accepts `{ entries: [] }` and a full
   entry, and one with `label`, `instagram_handle` and `cuisine_type` null; rejects
   `{ error }`, `{}`, `null`, and a body with one otherwise valid entry broken in one
   field: each field of `LiveEntry` in turn, missing or of the wrong type, a non-finite
-  coordinate, and timestamps of `"1"` and `"2026"`; accepts timestamps with and without
+  coordinate, a latitude past ±90 and a longitude past ±180, and timestamps of `"1"`,
+  `"2026"` and an offset of `+24:00`; accepts timestamps with and without
   fractional seconds, `…T09:00:00+00:00` and `…T05:12:07.123456+00:00`) and the text
   helpers
   (`"11:00–14:00"`, `"Uppdaterad 08:12"`, `"Öppet nu"`, `"Öppnar 17:00"`, all in
@@ -492,6 +517,8 @@ collation, the extensions, the trigger form), its fix is decided first; a migrat
   about 24 h 20 min later.
 - [ ] A throwing service or db layer gives 500 `{ "error": "Internal server error" }`,
   never a 200 with no entries, by a test.
+- [ ] A row that fails `isLiveEntry` (e.g. `ends_at = 'infinity'`, a latitude of 95) is
+  left out and the other rows are returned, by a test (#20).
 - [ ] `npm run build` lists `/api/live` as ƒ (Dynamic), recorded in the PR; the route
   file exports only `GET`.
 - [ ] The route imports only the service (and `next/server`, the handler): nothing from
