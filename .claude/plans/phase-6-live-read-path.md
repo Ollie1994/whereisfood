@@ -27,8 +27,8 @@ old confidence design gone.
 
 ## Prerequisites
 
-- Node `^20.19.0 || >=22.12.0` and npm ≥ 11 (`CLAUDE.md`, "Dependencies"; `package.json`'s
-  `devEngines` since #139).
+- Node and npm at `package.json`'s `devEngines` minimums (#139; `CLAUDE.md`,
+  "Dependencies").
 - Docker running, for local Supabase and `npm run test:all`.
 - `public/gothenburg.pmtiles` cut locally (README, "Get the map tiles"): step 4 uploads
   it.
@@ -799,7 +799,9 @@ here by its round 3: `CLAUDE.md` puts a decision settled during a phase in the p
    `devEngines` entries, and `engines.node: "26.x"`. Step 6's build ran Node 26.13.0 and
    npm 11.20.0 (#139's comment), so neither stops the deploy. Locally, npm 10.9.2 without
    the lockfile crashed with `edgesOut`, and with `devEngines` stopped first with
-   `EBADDEVENGINES` naming `>=11.0.0`; from the lockfile it installed (#139's PR). Why
+   `EBADDEVENGINES` naming `>=11.0.0`; with the lockfile, its `npm install` and `npm ci`
+   both succeeded (PR #198). npm before 10.9, which every Node 20 bundles, doesn't read
+   `devEngines` (PR #198). Why
    pin: Vercel maps an open range like `>=22.0.0` to its latest major (its "Supported
    Node.js versions" docs), so a new major would arrive unreviewed. The question as
    planned: As that issue describes, from step 6's build log.
