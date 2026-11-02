@@ -209,8 +209,10 @@ Cloudflare dashboard (no API token needed):
     in the `where-is-food` team. R2 sends the header to `Origin`s built in both forms;
     the first real preview URL is #187's to check.
   - It doesn't match `<project>-<team>.vercel.app`
-    (`whereisfood-where-is-food.vercel.app`), a form the same docs give for CLI
-    deploys: a `*` between two hyphens needs something between them.
+    (`whereisfood-where-is-food.vercel.app`): a `*` between two hyphens needs
+    something between them. The same docs give that form for CLI deploys and say it
+    points to the production deployment once there is one, so **production viewed at
+    that URL gets no tiles** until the rule has an origin for it (Phase 8's domain).
   - It also matches other accounts' sites, for example a project named `whereisfood` in
     another team whose slug ends in `-where-is-food`. Their pages can then load these
     tiles, which costs R2 reads and shares `r2.dev`'s rate limit with this map. R2
@@ -224,16 +226,18 @@ Cloudflare dashboard (no API token needed):
     version; `package.json` allows `^4.5.0`): `FetchSource.getBytes` adds it to the
     custom headers, and `useMapLibre` sets none. `if-match` is in the rule because
     `.claude/context/project-context.md`'s R2 note lists it, not because the map sends
-    it. After a pmtiles upgrade, check `getBytes` again: a new header the rule lacks
-    fails the preflight below.
+    it. After a pmtiles upgrade, check `getBytes` again. A header it adds that the
+    rule lacks fails the browser's preflight; to see it with curl, add that header to
+    `Access-Control-Request-Headers` in the preflight below.
   - Locally, only `http://localhost:3000` is allowed. `127.0.0.1:3000`, another port
     (a leftover server can push `npm run dev` to `:3001`) or the `Network:` address
     gets no `Access-Control-Allow-Origin`, so the browser refuses the tile responses.
 
 To check the bucket, request the file's first bytes as the map would, and send the
 preflight a browser may send first. The plain request checks the origin. The preflight
-also checks `AllowedMethods` and `AllowedHeaders`. A plain GET can't show a wrong
-`AllowedHeaders`: one with a header the rule lacks still gets
+also checks the method and headers it asks for, here `GET` and `range`, which are what
+the map uses; it says nothing about `HEAD` or `if-match`. A plain GET can't show a
+wrong `AllowedHeaders`: one with a header the rule lacks still gets
 `Access-Control-Allow-Origin`.
 
 ```bash

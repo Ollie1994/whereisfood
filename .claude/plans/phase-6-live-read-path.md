@@ -721,9 +721,9 @@ here by its round 3: `CLAUDE.md` puts a decision settled during a phase in the p
    2026-11-02:** the bucket's `r2.dev` URL (the dashboard calls it the "Public
    Development URL") for previews; the custom domain in Phase 8. The question as
    planned: A custom domain on Cloudflare DNS, or the bucket's `r2.dev` URL. A custom
-   domain needs a domain, and the app name is open; Cloudflare
-   rate-limits `r2.dev` and says it isn't for production. Lean: `r2.dev` for the
-   preview, the custom domain in Phase 8.
+   domain needs a domain, and the app name is open; Cloudflare rate-limits `r2.dev`
+   and says it isn't for production. Lean: `r2.dev` for the preview, the custom
+   domain in Phase 8.
 2. **The hosted project's data (step 5).** `db push --include-seed`, whose times are
    relative to the push (its row spanning `now()` spans only push time), or a small
    SQL snippet run before each check, or both (the seed for trucks and history, a
@@ -769,33 +769,37 @@ here by its round 3: `CLAUDE.md` puts a decision settled during a phase in the p
    (filled) versus later (outlined), settled at the browser check.
 9. **#139's `onFail`, and whether to pin `engines.node` (step 7).** As that issue
    describes, from step 6's build log.
-10. ~~**The R2 CORS rule's allowed origins (step 4).**~~ → **answered in step 4 (#185),
-    the owner's call, 2026-11-02:** the narrowest of the options below,
+10. ~~**The R2 CORS rule's allowed origins (step 4).**~~ → **answered in step 4
+    (#185), the owner's call, 2026-11-02:** the narrowest of the options below,
     `https://whereisfood-*-where-is-food.vercel.app`, plus `http://localhost:3000`. The
-    Vercel team (scope slug) is `where-is-food`, from the account the owner created for
-    it; the project name `whereisfood` (the repo's) is fixed now, and step 6 (#187)
-    imports the repo under it. A project name that doesn't start `whereisfood-`, or
-    another team, puts the preview outside the pattern. Probed on the bucket in #185's
-    PR with `Origin` headers built from Vercel's "Generated URLs" docs (no Vercel URL
-    exists yet; #187 sees the first): both preview URL forms get
-    `Access-Control-Allow-Origin`; `https://example.com`, `http://127.0.0.1:3000` and
-    the `<project>-<scope>` form `https://whereisfood-where-is-food.vercel.app` don't.
-    It is narrow, not exclusive: another team whose slug ends `-where-is-food`
-    (`https://whereisfood-abc123-x-where-is-food.vercel.app`) and a project named
-    `whereisfood-a-where-is-food` both get the header. Their pages can then load the
-    tiles, costing R2 reads and sharing `r2.dev`'s rate limit. The question as
-    planned: Vercel preview URLs differ per
-    deployment and per branch, so one named preview origin breaks the next preview's
-    basemap. Options: `*` while only previews exist (the tiles are public), or one
-    pattern (R2's CORS docs, read 2026-10-25: an origin may hold one `*`, which can
-    span periods). `https://*.vercel.app` admits every `vercel.app` site;
-    `https://<project>-*.vercel.app` also admits anyone's project whose name starts
-    `<project>-`; `https://<project>-*-<scope>.vercel.app` matches this account's
-    preview URLs (`<project-name>-<unique-hash>-<scope-slug>` and
-    `<project-name>-git-<branch-name>-<scope-slug>`, Vercel's generated-URLs docs, read
-    2026-10-25) and is the narrowest, though a project name chosen to end in
-    `-<scope>` still matches. Vercel truncates a label over 63 characters (same page),
-    so a long branch name can cut the `-<scope>` suffix and miss the pattern.
+    Vercel team (scope slug) is `where-is-food`, from the account the owner created
+    for it; the project name `whereisfood` (the repo's) is fixed now, and step 6
+    (#187) imports the repo under it. The pattern matches a URL label that starts
+    `whereisfood-`, ends `-where-is-food` and has something between: a project named
+    `whereisfood` or starting `whereisfood-`, in a team named `where-is-food` or
+    ending `-where-is-food`. Any other name or team falls outside it. Probed on the
+    bucket in #185's PR with `Origin` headers built from Vercel's "Generated URLs"
+    docs (no Vercel URL exists yet; #187 sees the first): both preview URL forms get
+    `Access-Control-Allow-Origin`; `https://example.com`, `http://127.0.0.1:3000`
+    and the `<project>-<scope>` form `https://whereisfood-where-is-food.vercel.app`
+    don't. That form is the CLI's, and the same docs say it points to the production
+    deployment once there is one, so production viewed at that URL needs its own
+    origin (Phase 8's domain). It is narrow, not exclusive: another team whose slug
+    ends `-where-is-food` (`https://whereisfood-abc123-x-where-is-food.vercel.app`)
+    and a project named `whereisfood-a-where-is-food` both get the header. Their
+    pages can then load the tiles, costing R2 reads and sharing `r2.dev`'s rate
+    limit. The question as planned: Vercel preview URLs differ per deployment
+    and per branch, so one named preview origin breaks the next preview's
+    basemap. Options: `*` while only previews exist (the tiles are public), or
+    one pattern (R2's CORS docs, read 2026-10-25: an origin may hold one `*`,
+    which can span periods). `https://*.vercel.app` admits every `vercel.app`
+    site; `https://<project>-*.vercel.app` also admits anyone's project whose
+    name starts `<project>-`; `https://<project>-*-<scope>.vercel.app` matches
+    this account's preview URLs (`<project-name>-<unique-hash>-<scope-slug>` and
+    `<project-name>-git-<branch-name>-<scope-slug>`, Vercel's generated-URLs docs,
+    read 2026-10-25) and is the narrowest, though a project name chosen to end in
+    `-<scope>` still matches. Vercel truncates a label over 63 characters (same
+    page), so a long branch name can cut the `-<scope>` suffix and miss the pattern.
     Whichever is chosen, Phase 8 replaces it with the end state `project-context.md`
     "Pricing" gives (the domain and localhost). Not probed until the bucket exists.
     Local dev's origin is `http://localhost:3000`.
