@@ -350,8 +350,10 @@ move with the date the way the local stack's does after `npx supabase db reset`.
 
 That push ran at 2026-11-02 12:23 Stockholm time. The seed's history is the 28
 Stockholm days before that day, and its one live entry, Burgarbilen at Järntorget,
-runs from an hour before the push to 12 hours after it. No seed row ends later, so a
-preview check that reads past entries finds seed rows only up to then.
+runs from an hour before the push to 12 hours after it. No seed row ends after that
+entry, and none is added later. So the longer after the push a check runs, the older
+the seed history it finds on the preview, and a check that reads a recent window of
+past entries can find none: that is the seed's age, not a read-path bug.
 
 **Today's entry.** Before checking a preview's markers, run this in the project's SQL
 Editor. It gives Taco Loco (the seed's fixed id) an entry at the place of its latest
