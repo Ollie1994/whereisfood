@@ -183,8 +183,9 @@ Cloudflare dashboard (no API token needed):
   under Settings. Deploys set `NEXT_PUBLIC_PMTILES_URL` to
   `https://pub-<id>.r2.dev/gothenburg.pmtiles`. Cloudflare rate-limits `r2.dev` and
   says it isn't for production, so launch moves the tiles to a custom domain (Phase 8).
-- **CORS policy** (Settings): without it the browser blocks the tile requests and the
-  map draws only its background.
+- **CORS policy** (Settings): without it R2's responses carry no
+  `Access-Control-Allow-Origin`, so the browser refuses them (the curl check below shows
+  the header).
 
   ```json
   [
@@ -202,7 +203,7 @@ Cloudflare dashboard (no API token needed):
 
   The second origin matches this project's Vercel preview URLs
   (`<project>-<hash>-<team>.vercel.app` and `<project>-git-<branch>-<team>.vercel.app`),
-  so it holds only while the Vercel project is named `whereisfood` in the
+  so it matches them while the Vercel project is named `whereisfood` in the
   `where-is-food` team. A branch name long enough that Vercel cuts the URL at 63
   characters can lose the `-where-is-food` ending and miss the pattern.
 
