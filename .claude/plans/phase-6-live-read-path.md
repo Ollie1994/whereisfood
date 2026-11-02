@@ -27,7 +27,8 @@ old confidence design gone.
 
 ## Prerequisites
 
-- Node `^20.19.0 || >=22.12.0` and npm ≥ 11 (`CLAUDE.md`, "Dependencies").
+- Node `^20.19.0 || >=22.12.0` and npm ≥ 11 (`CLAUDE.md`, "Dependencies"; `package.json`'s
+  `devEngines` since #139).
 - Docker running, for local Supabase and `npm run test:all`.
 - `public/gothenburg.pmtiles` cut locally (README, "Get the map tiles"): step 4 uploads
   it.
@@ -793,8 +794,15 @@ here by its round 3: `CLAUDE.md` puts a decision settled during a phase in the p
    its tests), a highlighted selected marker, and a faded marker for an old update (the
    popup's freshness text says it). The question as planned: colour and size of open
    (filled) versus later (outlined), settled at the browser check.
-9. **#139's `onFail`, and whether to pin `engines.node` (step 7).** As that issue
-   describes, from step 6's build log.
+9. ~~**#139's `onFail`, and whether to pin `engines.node` (step 7).**~~ → **answered in
+   step 7 (#139), the owner's call, 2026-11-02:** `onFail: "error"` for both
+   `devEngines` entries, and `engines.node: "26.x"`. Step 6's build ran Node 26.13.0 and
+   npm 11.20.0 (#139's comment), so neither stops the deploy. Locally, npm 10.9.2 without
+   the lockfile crashed with `edgesOut`, and with `devEngines` stopped first with
+   `EBADDEVENGINES` naming `>=11.0.0`; from the lockfile it installed (#139's PR). Why
+   pin: Vercel maps an open range like `>=22.0.0` to its latest major (its "Supported
+   Node.js versions" docs), so a new major would arrive unreviewed. The question as
+   planned: As that issue describes, from step 6's build log.
 10. ~~**The R2 CORS rule's allowed origins (step 4).**~~ → **answered in step 4
     (#185), the owner's call, 2026-11-02:** the narrowest of the options below,
     `https://whereisfood-*-where-is-food.vercel.app`, plus `http://localhost:3000`,

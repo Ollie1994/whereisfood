@@ -134,10 +134,12 @@ branch and tag.
 
 ### Prerequisites
 
-- **Node `^20.19.0` or `>=22.12.0`.** Vitest's toolchain needs this; older 20.x and
-  22.x releases pass Next's check but fail under vitest.
-- **npm 11 or newer** (`npm i -g npm@11`). npm 10, which Node 22 bundles, crashes
-  while resolving vitest's optional peer dependencies.
+- **Node and npm at the versions `package.json`'s `devEngines` names.** npm checks them
+  before `install`, `ci` and `run` and stops with `EBADDEVENGINES` if either is too
+  old. Node's minimum is what vitest's toolchain needs (older 20.x and 22.x releases
+  pass Next's check but fail under vitest). npm 10, which Node 22 bundles, crashes
+  while resolving vitest's optional peer dependencies, so update it with
+  `npm i -g npm@11`. Deploys build on the Node major in `engines.node`.
 - **Docker**, for the local Supabase stack. The basemap draws without it; the map's
   markers and the integration tests need it.
 - **The `pmtiles` CLI**, to cut the map tiles (next section). It's a single binary
