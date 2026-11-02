@@ -108,9 +108,9 @@ branch and tag.
 - One marker per truck with an entry today, filled while it is open and outlined when
   it opens later today, from `GET /api/live` (cached by Vercel's CDN for 60 s, checked
   on a preview, "Preview deploys"). The map polls every 60 s while the tab is visible
-  and changes only the markers that changed. A popup shows the truck, its place, whether it is open, its
-  hours, when the entry was last updated, and its Instagram link. If a poll fails the
-  markers stay and the map says it couldn't update.
+  and changes only the markers that changed. A popup shows the truck, its place,
+  whether it is open, its hours, when the entry was last updated, and its Instagram
+  link. If a poll fails the markers stay and the map says it couldn't update.
 - The new design's Supabase schema, in one migration
   ([`supabase/migrations/0001_baseline.sql`](supabase/migrations/0001_baseline.sql)):
   `trucks`, `locations` and `users`. The database refuses overlapping entries for a
