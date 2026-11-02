@@ -340,9 +340,9 @@ Later migrations go up with plain `npx supabase db push`. On the first push, CLI
 file) and still applied the migration: `npx supabase migration list --linked` showed
 `0001` on both sides.
 
-`--include-seed` runs the seed on the first push only. The CLI records the seed's
-hash: with `seed.sql` unchanged, a later `--include-seed` dry run listed nothing to
-seed ("Remote database is up to date"). With it changed, a push to the local stack
+The first push with `--include-seed` ran the seed, and the CLI recorded its hash. With
+`seed.sql` unchanged, a later `--include-seed` dry run listed nothing to seed ("Remote
+database is up to date"). With it changed, a push to the local stack
 (`npx supabase db push --local --include-seed`) printed `Updating seed hash` and
 exited 0 without running the file, which on a seeded database fails on the trucks'
 ids (#186's PR). So the hosted seed data is what the first push loaded, and doesn't
@@ -350,7 +350,8 @@ move with the date the way the local stack's does after `npx supabase db reset`.
 
 That push ran at 2026-11-02 12:23 Stockholm time. The seed's history is the 28
 Stockholm days before that day, and its one live entry, Burgarbilen at Järntorget,
-runs from an hour before the push to 12 hours after it. No seed row ends later.
+runs from an hour before the push to 12 hours after it. No seed row ends later, so a
+preview check that reads past entries finds seed rows only up to then.
 
 **Today's entry.** Before checking a preview's markers, run this in the project's SQL
 Editor. It gives Taco Loco (the seed's fixed id) an entry at the place of its latest
