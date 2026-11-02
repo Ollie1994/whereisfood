@@ -136,13 +136,12 @@ branch and tag.
 
 - **Node and npm in the ranges `package.json`'s `devEngines` admits.** npm 10.9 and
   later check them before `install`, `ci`, `run` and `exec` and stop with
-  `EBADDEVENGINES` outside them. Older npm doesn't read the field, and every Node
-  release before 22.10 bundles one, so if `npm -v` is below 10.9, compare `node -v`
-  and `npm -v` with `devEngines` yourself. Node's range is what vitest's toolchain
-  needs (older 20.x and 22.x releases pass Next's check but fail under vitest). npm
-  10, which Node 20 and 22 bundle, crashes while resolving vitest's optional peer
-  dependencies on an install without the lockfile, so update it with
-  `npm i -g npm@11`. Deploys build on the Node major in `engines.node`.
+  `EBADDEVENGINES` outside them. If `npm -v` is below 11, run `npm i -g npm@11`
+  first: npm 10, which Node 20 and 22 bundle, is outside the range, npm before 10.9
+  can't check the field at all, and npm 10 crashes resolving vitest's optional peer
+  dependencies on an install without the lockfile. npm 11 then checks Node. Node's
+  range is what vitest's toolchain needs (older 20.x and 22.x releases pass Next's
+  check but fail under vitest). Deploys build on the Node major in `engines.node`.
 - **Docker**, for the local Supabase stack. The basemap draws without it; the map's
   markers and the integration tests need it.
 - **The `pmtiles` CLI**, to cut the map tiles (next section). It's a single binary

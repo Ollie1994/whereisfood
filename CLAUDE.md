@@ -60,14 +60,15 @@ describe a different one.
 - **The Node and npm versions are the ranges `package.json`'s `devEngines` admits** (IS
   #139). npm 10.9 and later check them before `install`, `ci`, `run` and `exec` and stop
   with `EBADDEVENGINES` outside them; `--force` turns that into a warning. Older npm
-  doesn't read the field: npm 10.8.2 ran `npm ci` from the lockfile with no message, and
-  every Node before 22.10 bundles npm older than 10.9 (PR #198: probes, and nodejs.org's
-  release index). Why each range: Node's is vite/rolldown's floor (older 20.x/22.x pass
-  Next's check and fail under vitest); npm 10 crashes resolving vitest 4's optional
-  peers when installing without the lockfile (Phase 4 decision #11; reproduced on 10.9.2
-  in PR #198). `engines.node` pins the Node major Vercel deploys with, overriding the
-  project's setting (Phase 6 plan, open decision 9): moving it is a PR with a preview
-  build. The gates run on the local Node, so only a preview build checks that major
+  doesn't read the field: npm 10.8.2 ran `npm ci` from the lockfile with no
+  `EBADDEVENGINES`, and every Node before 22.10 bundles npm older than 10.9 (PR #198:
+  probes, and nodejs.org's release index). Why each range: Node's is vite/rolldown's
+  floor (older 20.x/22.x pass Next's check and fail under vitest); npm 10 crashes
+  resolving vitest 4's optional peers when installing without the lockfile (Phase 4
+  decision #11; reproduced on 10.9.2 in PR #198). `engines.node` pins the Node major
+  Vercel deploys with, overriding the project's setting (Phase 6 plan, open decision 9):
+  moving it is a PR with a preview build. The gates run on the local Node, so only a
+  preview build checks that major
 - `next.config.ts` sets `agentRules: false`. Don't remove it without the owner
   (Phase 4 decision #12).
 - `next.config.ts` sets `experimental.agentUpgrade: false`. With 16.4's default, an
@@ -269,7 +270,7 @@ run — not by what it tests:
   **sequentially** (`fileParallelism: false` on the project, since vitest 4) because
   they share one database.
 
-Toolchain: the Node and npm minimums under Dependencies.
+Toolchain: the Node and npm ranges under Dependencies.
 
 | Script | Runs | Needs Docker |
 |---|---|---|

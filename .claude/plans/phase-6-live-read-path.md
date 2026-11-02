@@ -801,11 +801,10 @@ here by its round 3: `CLAUDE.md` puts a decision settled during a phase in the p
    without the lockfile crashed with `edgesOut`, and with `devEngines` stopped first
    with `EBADDEVENGINES` naming `>=11.0.0`. Without `devEngines`, its `npm install` and
    `npm ci` from the lockfile both succeeded; with it, `npm ci` and `npm run` stop too
-   (PR #198). npm before 10.9, which every Node before 22.10 bundles, doesn't read
-   `devEngines` (PR #198). Why pin: Vercel maps an open range like `>=22.0.0` to its
-   latest major (its "Supported Node.js versions" docs), so a new major would arrive
-   unreviewed. The question as planned: As that issue describes, from step 6's build
-   log.
+   (PR #198). npm before 10.9 doesn't read `devEngines` (`CLAUDE.md`, "Dependencies").
+   Why pin: Vercel maps an open range like `>=22.0.0` to its latest major (its
+   "Supported Node.js versions" docs), so a new major would arrive unreviewed. The
+   question as planned: As that issue describes, from step 6's build log.
 10. ~~**The R2 CORS rule's allowed origins (step 4).**~~ → **answered in step 4
     (#185), the owner's call, 2026-11-02:** the narrowest of the options below,
     `https://whereisfood-*-where-is-food.vercel.app`, plus `http://localhost:3000`,
