@@ -169,8 +169,10 @@ Replace `YYYYMMDD` with a recent build date from
 [maps.protomaps.com/builds](https://maps.protomaps.com/builds/), which lists one row
 per daily build. Only recent builds are kept, so an old date returns 404. **Don't use
 that page's "download" link:** it's the whole planet (about 140 GB). The extract
-command fetches only the tiles inside the box: about 36 MB, in under a minute. Add
-`--maxzoom=14` for a smaller file with less street-level detail.
+command fetches only the tiles inside the box, in under a minute. Add
+`--maxzoom=14` for a smaller file with less street-level detail: the file deploys use
+(below) was cut that way and is 11.6 MB (its header says `maxzoom` 14). Without it the
+file is larger.
 
 **Deploys read the tiles from Cloudflare R2**, since a Vercel build has no
 `public/*.pmtiles`. Development keeps the local file. The bucket, set up once in the
@@ -201,11 +203,27 @@ Cloudflare dashboard (no API token needed):
   ]
   ```
 
-  The second origin matches this project's Vercel preview URLs
-  (`<project>-<hash>-<team>.vercel.app` and `<project>-git-<branch>-<team>.vercel.app`),
-  so it matches them while the Vercel project is named `whereisfood` in the
-  `where-is-food` team. A branch name long enough that Vercel cuts the URL at 63
-  characters can lose the `-where-is-food` ending and miss the pattern.
+  - The second origin matches this project's Vercel preview URLs
+    (`<project>-<hash>-<team>.vercel.app` and
+    `<project>-git-<branch>-<team>.vercel.app`) while the Vercel project is named
+    `whereisfood` in the `where-is-food` team.
+  - It doesn't match the `<project>-<team>.vercel.app` form that CLI deploys and the
+    production URL use (`whereisfood-where-is-food.vercel.app`): a `*` between two
+    hyphens needs something between them.
+  - It also matches other accounts' sites, for example a project named `whereisfood` in
+    another team whose slug ends in `-where-is-food`. Their pages can then load these
+    tiles, which costs reads and nothing else. R2 allows one `*` per origin, so no
+    pattern can name only this project's URLs.
+  - Vercel shortens a URL label over 63 characters (its "Generated URLs" docs, without
+    saying which part it cuts). A long branch name may then miss the pattern. The
+    branch URL `whereisfood-git-<branch>-where-is-food` stays under 63 characters while
+    the branch slug is 33 characters or fewer.
+  - `range` is the only header pmtiles 4.5.0 sends (`FetchSource.getBytes`).
+    `if-match` is in the rule because `.claude/context/project-context.md`'s R2 note
+    lists it, not because the map sends it.
+  - Locally, only `http://localhost:3000` is allowed. `127.0.0.1:3000`, another port
+    (a leftover server can push `npm run dev` to `:3001`) or the `Network:` address
+    gets no `Access-Control-Allow-Origin`, and the basemap fails to load.
 
 To check the bucket, request the file's first bytes as the map would:
 

@@ -350,7 +350,9 @@ opens, which may be none. Step 7 is the existing issue #139.
 
     Steps 8–10 are ordered, blocked and closed as that procedure's part 6 says; this
     plan doesn't restate it. Step 10's content: Part 1's "What runs" (live data, no
-    fake data), "Map tiles" (R2), "Database" (the hosted checks' results), "Modules
+    fake data), "Map tiles" (R2 on `r2.dev` until Phase 8's custom domain, and the
+    CORS origins with their Vercel project-name constraint, open decisions 1 and 10),
+    "Database" (the hosted checks' results), "Modules
     kept on purpose" (the `map-types.ts` and `fake-data.ts` rows go; `services/live.ts`,
     `live.ts` and `api/live` come in), "Folder structure", "Environment" (the R2 URL,
     the hosted key type), "Tests and gates" (the integration file count), "Versions"
@@ -768,14 +770,17 @@ here by its round 3: `CLAUDE.md` puts a decision settled during a phase in the p
 9. **#139's `onFail`, and whether to pin `engines.node` (step 7).** As that issue
    describes, from step 6's build log.
 10. ~~**The R2 CORS rule's allowed origins (step 4).**~~ → **answered in step 4 (#185),
-    the owner's call, 2026-11-02:** the narrowest pattern,
+    the owner's call, 2026-11-02:** the narrowest of the options below,
     `https://whereisfood-*-where-is-food.vercel.app`, plus `http://localhost:3000`. The
     Vercel team (scope slug) is `where-is-food`, from the account the owner created for
     it; the project name `whereisfood` (the repo's) is fixed now, so step 6 (#187)
     must import the repo under exactly that name or the preview's basemap fails CORS.
     Probed on the bucket in #185's PR: both preview URL forms get
-    `Access-Control-Allow-Origin`, and `https://example.com` and
-    `https://evil-where-is-food.vercel.app` don't. The question as planned: Vercel preview URLs differ per
+    `Access-Control-Allow-Origin`; `https://example.com`, `http://127.0.0.1:3000` and
+    the `<project>-<scope>` form `https://whereisfood-where-is-food.vercel.app` don't.
+    It is narrow, not exclusive: another team whose slug ends `-where-is-food`
+    (`https://whereisfood-abc123-x-where-is-food.vercel.app`) and a project named
+    `whereisfood-a-where-is-food` both get the header, which costs only reads. The question as planned: Vercel preview URLs differ per
     deployment and per branch, so one named preview origin breaks the next preview's
     basemap. Options: `*` while only previews exist (the tiles are public), or one
     pattern (R2's CORS docs, read 2026-10-25: an origin may hold one `*`, which can
