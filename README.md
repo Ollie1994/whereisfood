@@ -208,27 +208,33 @@ Cloudflare dashboard (no API token needed):
     `<project>-<hash>-<scope-slug>.vercel.app` and
     `<project>-git-<branch>-<scope-slug>.vercel.app`. Here that is the project
     `whereisfood` in the team whose slug (not its display name) is `where-is-food`.
-    No real Vercel URL exists yet; #187's preview is the first.
+    #187 records the first real preview URL and checks it against the table below.
   - What R2 did with `Origin` headers sent to it (PR #194, 2026-11-02). The match is
-    on the whole hostname, and the `*` matches any characters, dots included, or
-    none:
+    on the whole origin: scheme, hostname and port, anchored at both ends. The `*`
+    matches any characters, dots included, or none:
 
     | Gets `Access-Control-Allow-Origin` | Doesn't |
     |---|---|
-    | `whereisfood-abc123-where-is-food.vercel.app` (preview, commit form) | `whereisfood-where-is-food.vercel.app` (one hyphen, where the pattern has two) |
-    | `whereisfood-git-phase-6-tiles-r2-where-is-food.vercel.app` (preview, branch form) | `whereisfood.vercel.app` |
-    | `whereisfood--where-is-food.vercel.app` (empty `*`) | `evil-where-is-food.vercel.app` |
-    | `whereisfood-abc123-x-where-is-food.vercel.app` (another team's slug) | `a.whereisfood-x-where-is-food.vercel.app` |
-    | `whereisfood-a.b-where-is-food.vercel.app` | `example.com` |
+    | `https://whereisfood-abc123-where-is-food.vercel.app` (commit form) | `https://whereisfood-where-is-food.vercel.app` (one hyphen, where the pattern has two) |
+    | `https://whereisfood-git-phase-6-tiles-r2-where-is-food.vercel.app` (branch form) | `https://whereisfood.vercel.app` |
+    | `https://whereisfood--where-is-food.vercel.app` (empty `*`) | `https://evil-where-is-food.vercel.app` |
+    | `https://whereisfood-abc123-x-where-is-food.vercel.app` (another team's slug) | `https://a.whereisfood-x-where-is-food.vercel.app` |
+    | `https://whereisfood-a.b-where-is-food.vercel.app` | `https://whereisfood-x-where-is-food.vercel.app.evil.com` |
+    | | `http://whereisfood-x-where-is-food.vercel.app`, and the same on `:8443` |
+    | | `https://example.com` |
 
-  - **Production isn't covered.** Vercel's docs give `<project>-<scope-slug>.vercel.app`
-    for CLI deploys and say it points to the production deployment once there is one.
-    That URL, and `whereisfood.vercel.app`, get no header. Each production address
-    needs its own origin in the rule, or a redirect to an address that has one
-    (Phase 8).
-  - **Other sites can use the tiles.** Any page served from a hostname in the left
-    column can load them, whoever owns it. That costs R2 reads and shares `r2.dev`'s
-    rate limit with this map.
+  - **Production's short addresses aren't covered.** Vercel's docs give
+    `<project>-<scope-slug>.vercel.app` for CLI deploys and say it points to the
+    production deployment once there is one. That URL and `whereisfood.vercel.app` get
+    no header, so each needs its own origin in the rule, or a redirect to an address
+    that has one (Phase 8). A production deployment's commit-form URL is in the
+    pattern like a preview's.
+  - **CORS limits which pages can read the tiles, not who downloads them.** A page
+    served from any origin the pattern matches can load them, whoever owns it. Any
+    request without a browser's CORS check, such as curl, gets the file too (`206`
+    for every `Origin` above), costing R2 reads and sharing `r2.dev`'s rate limit. R2
+    allows one `*` per origin (its CORS docs, read 2026-10-25), and the hash form
+    needs it, so the pattern can't shut out other owners' matching hostnames.
   - Vercel shortens a URL label over 63 characters (its "Generated URLs" docs, without
     saying which part it cuts). A long branch name may then miss the pattern. The
     branch URL `whereisfood-git-<branch>-where-is-food` is at most 63 characters while

@@ -351,8 +351,8 @@ opens, which may be none. Step 7 is the existing issue #139.
     Steps 8–10 are ordered, blocked and closed as that procedure's part 6 says; this
     plan doesn't restate it. Step 10's content: Part 1's "What runs" (live data, no
     fake data), "Map tiles" (R2 on `r2.dev` until Phase 8's custom domain, and the
-    CORS origins with their Vercel project-name constraint, open decisions 1 and 10),
-    "Database" (the hosted checks' results), "Modules
+    CORS origins, open decisions 1 and 10, pointing to README's description rather
+    than restating it), "Database" (the hosted checks' results), "Modules
     kept on purpose" (the `map-types.ts` and `fake-data.ts` rows go; `services/live.ts`,
     `live.ts` and `api/live` come in), "Folder structure", "Environment" (the R2 URL,
     the hosted key type), "Tests and gates" (the integration file count), "Versions"
@@ -701,8 +701,8 @@ here by its round 3: `CLAUDE.md` puts a decision settled during a phase in the p
 
 **#139 (step 7)**
 - [ ] #139's acceptance criteria hold, and a preview deploy with the new fields builds
-  and its `/map` draws the basemap from R2 (a new preview origin is where open decision
-  10's CORS rule would fail).
+  and its `/map` draws the basemap from R2 (a second preview origin, checked against
+  the CORS table in README's "Get the map tiles", open decision 10).
 
 **Gates (every step with a code or config change)**
 - [ ] `npx tsc --noEmit`, `npm run lint`, `npm run test:all`, `npm run build` exit 0,
