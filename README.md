@@ -302,6 +302,81 @@ Open the URL from the `Local:` line Next prints, usually
 
 ---
 
+## Hosted preview database
+
+For the owner: these steps need access to the preview project.
+
+Preview deploys read a hosted Supabase project, not the local stack. It's in its own
+free organisation, separate from any later production project, in `eu-north-1`
+(Stockholm). It was made in the dashboard with the Data API on and "Automatically
+expose new tables" off. In `public`, `anon` and `authenticated` hold one table grant
+between them, the migration's `SELECT` on `users` to `authenticated`
+(`information_schema.role_table_grants`, #186's PR), as on the local stack. The Data
+API's **Max rows** must be at least `MAX_ROWS`; the value read is in
+[`src/lib/db/complete.ts`](src/lib/db/complete.ts).
+
+**Keys.** The project uses the newer publishable and secret keys (Project Settings →
+API Keys), in the same variable names as the local ones:
+
+| Variable | Hosted value |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | the project URL, `https://<project-ref>.supabase.co` |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | the publishable key |
+| `SUPABASE_SERVICE_ROLE_KEY` | the secret key, server only |
+
+They live in Vercel's environment variables and in gitignored files on the owner's
+machine, never in a tracked file (`CLAUDE.md`, Secrets).
+
+**Schema and seed.** With the CLI logged in (`npx supabase login`):
+
+```bash
+npx supabase link --project-ref <project-ref>
+npx supabase db push --include-seed --dry-run   # lists what it would apply
+npx supabase db push --include-seed
+```
+
+Later migrations go up with plain `npx supabase db push`. On the first push, CLI
+2.109.1 printed `Warning: failed to cache migrations catalog` (a missing certificate
+file) and still applied the migration: `npx supabase migration list --linked` showed
+`0001` on both sides.
+
+The first push with `--include-seed` ran the seed, and the CLI recorded its hash. With
+`seed.sql` unchanged, a later `--include-seed` dry run listed nothing to seed ("Remote
+database is up to date"). With it changed, a push to the local stack
+(`npx supabase db push --local --include-seed`) printed `Updating seed hash` and
+exited 0 without running the file, which on a seeded database fails on the trucks'
+ids (#186's PR). So the hosted seed data is what the first push loaded, and doesn't
+move with the date the way the local stack's does after `npx supabase db reset`.
+
+That push ran at 2026-11-02 12:23 Stockholm time. The seed's history is the 28
+Stockholm days before that day, and its one live entry, Burgarbilen at Järntorget,
+runs from an hour before the push to 12 hours after it. No seed row ends after that
+entry, and none is added later. So the longer after the push a check runs, the older
+the seed history it finds on the preview, and a check that reads a recent window of
+past entries can find none: that is the seed's age, not a read-path bug.
+
+**Today's entry.** Before checking a preview's markers, run this in the project's SQL
+Editor. It gives Taco Loco (the seed's fixed id) an entry at the place of its latest
+non-cancelled entry, from an hour ago to 12 hours from now:
+
+```sql
+insert into locations (truck_id, latitude, longitude, label, starts_at, ends_at)
+select truck_id, latitude, longitude, label, now() - interval '1 hour', now() + interval '12 hours'
+from locations
+where truck_id = '22222222-2222-2222-2222-222222222222' and cancelled_at is null
+order by starts_at desc
+limit 1
+returning label, starts_at, ends_at;
+```
+
+If it returns no row, Taco Loco has no non-cancelled entry to copy: it inserted nothing,
+with no error. If it fails with `conflicting key value violates exclusion constraint
+"locations_no_overlap"`, a non-cancelled Taco Loco entry already overlaps that
+window: an earlier run of this snippet, or any other entry. Look before changing
+anything.
+
+---
+
 ## Scripts
 
 ```bash

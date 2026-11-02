@@ -724,16 +724,27 @@ here by its round 3: `CLAUDE.md` puts a decision settled during a phase in the p
    domain needs a domain, and the app name is open; Cloudflare rate-limits `r2.dev`
    and says it isn't for production. Lean: `r2.dev` for the preview, the custom
    domain in Phase 8.
-2. **The hosted project's data (step 5).** `db push --include-seed`, whose times are
-   relative to the push (its row spanning `now()` spans only push time), or a small
-   SQL snippet run before each check, or both (the seed for trucks and history, a
-   snippet for today's entry).
-3. **Which Supabase key type (step 5).** A new project may default to the newer
+2. ~~**The hosted project's data (step 5).**~~ → **answered in step 5 (#186), the
+   owner's call, 2026-11-02:** both. `db push --include-seed` loaded the trucks and
+   history once; `README.md`'s "Hosted preview database" has the SQL snippet for
+   today's entry, run before a check. The question as planned: `db push
+   --include-seed`, whose times are relative to the push (its row spanning `now()`
+   spans only push time), or a small SQL snippet run before each check, or both (the
+   seed for trucks and history, a snippet for today's entry).
+3. ~~**Which Supabase key type (step 5).**~~ → **answered in step 5 (#186), the owner's
+   call, 2026-11-02:** the newer publishable and secret keys, in the existing variable
+   names (`NEXT_PUBLIC_SUPABASE_ANON_KEY` holds the publishable key,
+   `SUPABASE_SERVICE_ROLE_KEY` the secret one), so `.env.example` and
+   `src/lib/supabase.ts` don't change. supabase-js 2.106.2 accepts both (#186's PR
+   has the probe). The question as planned: A new project may default to the newer
    publishable and secret keys instead of the legacy anon and service_role ones.
    `.env.example`'s names and #4's rotation depend on it; decided when the project is
    created, with the variable names revisited if needed.
-4. **Regions (steps 5, 6).** Supabase in `eu-north-1` (Stockholm) and Vercel's function
-   region near it (`arn1`); confirm what Hobby allows.
+4. ~~**Regions (steps 5, 6).**~~ → **Supabase's answered in step 5 (#186), the owner's
+   call, 2026-11-02:** `eu-north-1` (Stockholm). Vercel's function region, and what
+   Hobby allows, stays step 6's (#187). The question as planned: Supabase in
+   `eu-north-1` (Stockholm) and Vercel's function region near it (`arn1`); confirm
+   what Hobby allows.
 5. ~~**`freshnessText` for an update not made today (step 3).**~~ → **answered in step
    1 (#182), the owner's call, 2026-10-31:** by Stockholm calendar days between
    `updated_at` and `now`. The same day (or a later one, a client clock behind the
