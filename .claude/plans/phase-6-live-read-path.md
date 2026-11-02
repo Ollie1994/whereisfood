@@ -726,7 +726,7 @@ here by its round 3: `CLAUDE.md` puts a decision settled during a phase in the p
    domain in Phase 8.
 2. ~~**The hosted project's data (step 5).**~~ → **answered in step 5 (#186), the
    owner's call, 2026-11-02:** both. `db push --include-seed` loaded the trucks and
-   history once; `README.md`'s "A hosted preview database" has the SQL snippet for
+   history once; `README.md`'s "Hosted preview database" has the SQL snippet for
    today's entry, run before a check. The question as planned: `db push
    --include-seed`, whose times are relative to the push (its row spanning `now()`
    spans only push time), or a small SQL snippet run before each check, or both (the

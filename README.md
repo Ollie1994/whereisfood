@@ -300,16 +300,20 @@ npm run dev
 Open the URL from the `Local:` line Next prints, usually
 [http://localhost:3000](http://localhost:3000). It redirects to `/map`.
 
-### 5. A hosted preview database
+---
+
+## Hosted preview database
+
+For the owner: these steps need access to the preview project.
 
 Preview deploys read a hosted Supabase project, not the local stack. It's in its own
 free organisation, separate from any later production project, in `eu-north-1`
 (Stockholm). It was made in the dashboard with the Data API on and "Automatically
-expose new tables" off. In `public` the API roles hold one grant, the migration's
-`SELECT` on `users` to `authenticated` (`information_schema.role_table_grants`, #186's
-PR), as on the local stack.
-The Data API's **Max rows** is 1000, the value `MAX_ROWS` assumes
-([`src/lib/db/complete.ts`](src/lib/db/complete.ts)).
+expose new tables" off. In `public`, `anon` and `authenticated` hold one grant
+between them, the migration's `SELECT` on `users` to `authenticated`
+(`information_schema.role_table_grants`, #186's PR), as on the local stack. The Data
+API's **Max rows** must be at least `MAX_ROWS`; the value read is in
+[`src/lib/db/complete.ts`](src/lib/db/complete.ts).
 
 **Keys.** The project uses the newer publishable and secret keys (Project Settings →
 API Keys), in the same variable names as the local ones:
@@ -331,25 +335,36 @@ npx supabase db push --include-seed --dry-run   # lists what it would apply
 npx supabase db push --include-seed
 ```
 
-`--include-seed` is for the first push only: `seed.sql` fails on a seeded database.
 Later migrations go up with plain `npx supabase db push`. On the first push, CLI
 2.109.1 printed `Warning: failed to cache migrations catalog` (a missing certificate
 file) and still applied the migration: `npx supabase migration list --linked` showed
 `0001` on both sides.
 
+The CLI records the seed it ran. With `seed.sql` unchanged, a later `--include-seed`
+dry run listed nothing to seed ("Remote database is up to date"); with it changed, it
+listed `supabase/seed.sql (hash update)` (#186's PR). So the hosted history stays the
+28 days before the push day, 2026-11-02, and doesn't move with the date the way the
+local stack's does after `npx supabase db reset`.
+
 **Today's entry.** The seed's one entry for today spans the hour before the push to 12
 hours after it. Before checking a preview's markers, run this in the project's SQL
-Editor. It gives Taco Loco an entry from an hour ago to 12 hours from now:
+Editor. It gives Taco Loco (the seed's fixed id) an entry at its latest place, from an
+hour ago to 12 hours from now:
 
 ```sql
 insert into locations (truck_id, latitude, longitude, label, starts_at, ends_at)
-values ('22222222-2222-2222-2222-222222222222', 57.7043702, 11.9697598, 'Kungsportsplatsen',
-        now() - interval '1 hour', now() + interval '12 hours');
+select truck_id, latitude, longitude, label, now() - interval '1 hour', now() + interval '12 hours'
+from locations
+where truck_id = '22222222-2222-2222-2222-222222222222' and cancelled_at is null
+order by starts_at desc
+limit 1
+returning label, starts_at, ends_at;
 ```
 
 If it fails with `conflicting key value violates exclusion constraint
-"locations_no_overlap"`, Taco Loco already has an entry overlapping that window, from
-an earlier run.
+"locations_no_overlap"`, a non-cancelled Taco Loco entry already overlaps that
+window: an earlier run of this snippet, or any other entry. Look before changing
+anything.
 
 ---
 
