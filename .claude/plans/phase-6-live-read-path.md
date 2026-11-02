@@ -46,7 +46,7 @@ old confidence design gone.
 | Admin login, `proxy.ts`'s real matcher and checks, the admin screen and its routes, write services, the `23P01` → 409 mapping, the morning checklist, truck CRUD | Phase 7 |
 | Splitting `src/lib/supabase.ts` into server-only and browser modules (`/api/live` imports it server-side only; the first client import is Phase 7's login screen) | Phase 7 |
 | Production deploy, Supabase Pro, security headers, the Swedish privacy note, the takedown procedure, Vercel Pro and Spend Management | Phase 8 |
-| A custom domain for the tiles, if step 4 uses `r2.dev` (open decision 1) | Phase 8 |
+| A custom domain for the tiles, which step 4 serves from `r2.dev` (open decision 1) | Phase 8 |
 | CI/CD, SAST, branch protection, the pre-commit and CI secret scan, Dependabot security updates (#1); the gates stay manual (#2) | Phase 8 |
 | Rotating credentials (#4) | Phase 8, before the production deploy |
 | ISR, a save-triggered cache purge, Realtime, cron, a `CDN-Cache-Control` header, a firewall or rate-limit rule (unless junk traffic appears) | not planned (`project-context.md`, "Read path") |
@@ -720,8 +720,8 @@ here by its round 3: `CLAUDE.md` puts a decision settled during a phase in the p
 1. ~~**R2 public access (step 4).**~~ → **answered in step 4 (#185), the owner's call,
    2026-11-02:** the bucket's `r2.dev` URL (the dashboard calls it the "Public
    Development URL") for previews; the custom domain in Phase 8. The question as
-   planned: A custom domain on Cloudflare DNS, or the bucket's
-   `r2.dev` URL. A custom domain needs a domain, and the app name is open; Cloudflare
+   planned: A custom domain on Cloudflare DNS, or the bucket's `r2.dev` URL. A custom
+   domain needs a domain, and the app name is open; Cloudflare
    rate-limits `r2.dev` and says it isn't for production. Lean: `r2.dev` for the
    preview, the custom domain in Phase 8.
 2. **The hosted project's data (step 5).** `db push --include-seed`, whose times are
@@ -773,15 +773,18 @@ here by its round 3: `CLAUDE.md` puts a decision settled during a phase in the p
     the owner's call, 2026-11-02:** the narrowest of the options below,
     `https://whereisfood-*-where-is-food.vercel.app`, plus `http://localhost:3000`. The
     Vercel team (scope slug) is `where-is-food`, from the account the owner created for
-    it; the project name `whereisfood` (the repo's) is fixed now, so step 6 (#187)
-    must import the repo under exactly that name or the preview's basemap fails CORS.
-    Probed on the bucket in #185's PR: both preview URL forms get
+    it; the project name `whereisfood` (the repo's) is fixed now, and step 6 (#187)
+    imports the repo under it. A project name that doesn't start `whereisfood-`, or
+    another team, puts the preview outside the pattern. Probed on the bucket in #185's
+    PR with `Origin` headers built from Vercel's "Generated URLs" docs (no Vercel URL
+    exists yet; #187 sees the first): both preview URL forms get
     `Access-Control-Allow-Origin`; `https://example.com`, `http://127.0.0.1:3000` and
     the `<project>-<scope>` form `https://whereisfood-where-is-food.vercel.app` don't.
     It is narrow, not exclusive: another team whose slug ends `-where-is-food`
     (`https://whereisfood-abc123-x-where-is-food.vercel.app`) and a project named
     `whereisfood-a-where-is-food` both get the header. Their pages can then load the
-    tiles, costing R2 reads and sharing `r2.dev`'s rate limit. The question as planned: Vercel preview URLs differ per
+    tiles, costing R2 reads and sharing `r2.dev`'s rate limit. The question as
+    planned: Vercel preview URLs differ per
     deployment and per branch, so one named preview origin breaks the next preview's
     basemap. Options: `*` while only previews exist (the tiles are public), or one
     pattern (R2's CORS docs, read 2026-10-25: an origin may hold one `*`, which can

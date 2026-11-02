@@ -162,17 +162,16 @@ the bounding box in [`src/lib/geo.ts`](src/lib/geo.ts)
 (west, south, east, north):
 
 ```bash
-pmtiles extract https://build.protomaps.com/YYYYMMDD.pmtiles public/gothenburg.pmtiles --bbox=11.6,57.5,12.2,57.85
+pmtiles extract https://build.protomaps.com/YYYYMMDD.pmtiles public/gothenburg.pmtiles --bbox=11.6,57.5,12.2,57.85 --maxzoom=14
 ```
 
 Replace `YYYYMMDD` with a recent build date from
 [maps.protomaps.com/builds](https://maps.protomaps.com/builds/), which lists one row
 per daily build. Only recent builds are kept, so an old date returns 404. **Don't use
 that page's "download" link:** it's the whole planet (about 140 GB). The extract
-command fetches only the tiles inside the box. Add
-`--maxzoom=14` for a smaller file with less street-level detail: the file deploys use
-(below) was cut that way and is 11.6 MB (its header says `maxzoom` 14). Without it the
-file is larger.
+command fetches only the tiles inside the box. `--maxzoom=14` matches the file deploys
+use (below): it was cut that way and is 11.6 MB (its header says `maxzoom` 14).
+Without the flag the file is larger, with more street-level detail.
 
 **Deploys read the tiles from Cloudflare R2**, since a Vercel build has no
 `public/*.pmtiles`. Development keeps the local file. The bucket, set up once in the
@@ -203,13 +202,15 @@ Cloudflare dashboard (no API token needed):
   ]
   ```
 
-  - The second origin matches this project's Vercel preview URLs
-    (`<project>-<hash>-<team>.vercel.app` and
-    `<project>-git-<branch>-<team>.vercel.app`) while the Vercel project is named
-    `whereisfood` in the `where-is-food` team.
-  - It doesn't match the `<project>-<team>.vercel.app` form that CLI deploys and the
-    production URL use (`whereisfood-where-is-food.vercel.app`): a `*` between two
-    hyphens needs something between them.
+  - The second origin is written for this project's Vercel preview URLs, in the two
+    forms Vercel's "Generated URLs" docs give for Git deployments:
+    `<project>-<hash>-<team>.vercel.app` and
+    `<project>-git-<branch>-<team>.vercel.app`, with the project named `whereisfood`
+    in the `where-is-food` team. R2 sends the header to `Origin`s built in both forms;
+    the first real preview URL is #187's to check.
+  - It doesn't match `<project>-<team>.vercel.app`
+    (`whereisfood-where-is-food.vercel.app`), a form the same docs give for CLI
+    deploys: a `*` between two hyphens needs something between them.
   - It also matches other accounts' sites, for example a project named `whereisfood` in
     another team whose slug ends in `-where-is-food`. Their pages can then load these
     tiles, which costs R2 reads and shares `r2.dev`'s rate limit with this map. R2
@@ -217,23 +218,29 @@ Cloudflare dashboard (no API token needed):
     stop at this team's slug.
   - Vercel shortens a URL label over 63 characters (its "Generated URLs" docs, without
     saying which part it cuts). A long branch name may then miss the pattern. The
-    branch URL `whereisfood-git-<branch>-where-is-food` stays under 63 characters while
+    branch URL `whereisfood-git-<branch>-where-is-food` is at most 63 characters while
     the branch slug is 33 characters or fewer.
-  - Here `range` is the only header pmtiles 4.5.0 sends: `FetchSource.getBytes` adds it
-    to the custom headers, and `useMapLibre` sets none.
-    `if-match` is in the rule because `.claude/context/project-context.md`'s R2 note
-    lists it, not because the map sends it.
+  - Here `range` is the only header pmtiles sends (4.5.0, the installed and locked
+    version; `package.json` allows `^4.5.0`): `FetchSource.getBytes` adds it to the
+    custom headers, and `useMapLibre` sets none. `if-match` is in the rule because
+    `.claude/context/project-context.md`'s R2 note lists it, not because the map sends
+    it. After a pmtiles upgrade, check `getBytes` again: a new header the rule lacks
+    fails the preflight below.
   - Locally, only `http://localhost:3000` is allowed. `127.0.0.1:3000`, another port
     (a leftover server can push `npm run dev` to `:3001`) or the `Network:` address
-    gets no `Access-Control-Allow-Origin`, and the basemap fails to load.
+    gets no `Access-Control-Allow-Origin`, so the browser refuses the tile responses.
 
-To check the bucket, request the file's first bytes as the map would:
+To check the bucket, request the file's first bytes as the map would, and send the
+preflight a browser may send first. The plain request checks the origin; only the
+preflight checks `AllowedMethods` and `AllowedHeaders`:
 
 ```bash
 curl -s -o /dev/null -D - -H "Origin: http://localhost:3000" -H "Range: bytes=0-16383" "https://pub-<id>.r2.dev/gothenburg.pmtiles"
+curl -s -o /dev/null -D - -X OPTIONS -H "Origin: http://localhost:3000" -H "Access-Control-Request-Method: GET" -H "Access-Control-Request-Headers: range" "https://pub-<id>.r2.dev/gothenburg.pmtiles"
 ```
 
-It should return `206 Partial Content` with `Access-Control-Allow-Origin`. To try R2
+The first should return `206 Partial Content` with `Access-Control-Allow-Origin`; the
+second `204` with `Access-Control-Allow-Headers: range`. To try R2
 locally, run `npm run dev` with `NEXT_PUBLIC_PMTILES_URL` set to the R2 URL in the
 shell. A shell variable wins over `.env.local`.
 
