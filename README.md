@@ -28,7 +28,7 @@ shut down in 2017.
 |------------|--------|
 | Framework  | Next.js 16 (App Router), React 19, TypeScript |
 | Styling    | Tailwind CSS v4 |
-| Map        | MapLibre GL JS 6 + Protomaps PMTiles (a local file in development, Cloudflare R2 at launch) |
+| Map        | MapLibre GL JS 6 + Protomaps PMTiles (a local file in development, Cloudflare R2 for deploys) |
 | Database   | Supabase Postgres |
 | Auth       | Supabase Auth (the admin only at launch) |
 | Time       | date-fns-tz: store UTC, display `Europe/Stockholm` |
@@ -91,9 +91,9 @@ The working rules live in [`CLAUDE.md`](CLAUDE.md) and the design reference in
 | 3 · Parser           | Swedish text parser for social-media captions | Stopped and removed in Phase 4 |
 | 4 · Housekeeping     | Remove the old design, upgrade dependencies, rewrite the docs | ✅ Done |
 | 5 · Schema reset     | A fresh 3-table schema (`trucks`, `locations`, `users`) | ✅ Done |
-| 6 · Live read path   | `/api/live`, polling, first preview deploy | 🔄 In progress |
+| 6 · Live read path   | `/api/live`, polling, map tiles on Cloudflare R2, first preview deploy | 🔄 In progress |
 | 7 · Admin            | Admin login and location entry | ⬜ Not started |
-| 8 · Launch           | Map tiles on Cloudflare R2, production deploy | ⬜ Not started |
+| 8 · Launch           | A custom domain for the tiles, production deploy | ⬜ Not started |
 
 Phases 2 and 3 built automatic ingestion: Make.com webhooks and Mailgun email, run
 through a Swedish parser that turned captions into locations. It was dropped for the
@@ -162,15 +162,111 @@ the bounding box in [`src/lib/geo.ts`](src/lib/geo.ts)
 (west, south, east, north):
 
 ```bash
-pmtiles extract https://build.protomaps.com/YYYYMMDD.pmtiles public/gothenburg.pmtiles --bbox=11.6,57.5,12.2,57.85
+pmtiles extract https://build.protomaps.com/YYYYMMDD.pmtiles public/gothenburg.pmtiles --bbox=11.6,57.5,12.2,57.85 --maxzoom=14
 ```
 
 Replace `YYYYMMDD` with a recent build date from
 [maps.protomaps.com/builds](https://maps.protomaps.com/builds/), which lists one row
 per daily build. Only recent builds are kept, so an old date returns 404. **Don't use
 that page's "download" link:** it's the whole planet (about 140 GB). The extract
-command fetches only the tiles inside the box: about 36 MB, in under a minute. Add
-`--maxzoom=14` for a smaller file with less street-level detail.
+command fetches only the tiles inside the box. `--maxzoom=14` matches the file deploys
+use (below): it was cut that way and is 11.6 MB (its header says `maxzoom` 14).
+Without the flag the file is larger, with more street-level detail.
+
+**Deploys read the tiles from Cloudflare R2**, since a Vercel build has no
+`public/*.pmtiles`. Development keeps the local file. The bucket, set up once in the
+Cloudflare dashboard (no API token needed):
+
+- **Storage:** an R2 bucket with the Standard storage class. Upload
+  `public/gothenburg.pmtiles` under the same name from the bucket's Objects tab. A new
+  extract is uploaded the same way, replacing the old one.
+- **Public access:** the bucket's *Public Development URL* (`https://pub-<id>.r2.dev`),
+  under Settings. Deploys set `NEXT_PUBLIC_PMTILES_URL` to
+  `https://pub-<id>.r2.dev/gothenburg.pmtiles`. Cloudflare rate-limits `r2.dev` and
+  says it isn't for production, so launch moves the tiles to a custom domain (Phase 8).
+- **CORS policy** (Settings): without it R2's responses carry no
+  `Access-Control-Allow-Origin`, so the browser refuses them (the curl check below shows
+  the header).
+
+  ```json
+  [
+    {
+      "AllowedOrigins": [
+        "http://localhost:3000",
+        "https://whereisfood-*-where-is-food.vercel.app"
+      ],
+      "AllowedMethods": ["GET", "HEAD"],
+      "AllowedHeaders": ["range", "if-match"],
+      "ExposeHeaders": ["etag"]
+    }
+  ]
+  ```
+
+  - **This is the one description of what the rule admits;** the plan and the issues
+    point here. The second origin is written for this project's Vercel preview URLs,
+    in the two forms Vercel's "Generated URLs" docs give for Git deployments,
+    `<project>-<hash>-<scope-slug>.vercel.app` and
+    `<project>-git-<branch>-<scope-slug>.vercel.app`. Here that is the project
+    `whereisfood` in the team whose slug (not its display name) is `where-is-food`.
+    #187 records the first real preview URL and checks it against the table below.
+  - What R2 did with `Origin` headers sent to it (PR #194, 2026-11-02). The match is
+    on the whole origin: scheme, hostname and port, anchored at both ends. The `*`
+    matches any characters, dots included, or none:
+
+    | Gets `Access-Control-Allow-Origin` | Doesn't |
+    |---|---|
+    | `https://whereisfood-abc123-where-is-food.vercel.app` (commit form) | `https://whereisfood-where-is-food.vercel.app` (one hyphen, where the pattern has two) |
+    | `https://whereisfood-git-phase-6-tiles-r2-where-is-food.vercel.app` (branch form) | `https://whereisfood.vercel.app` |
+    | `https://whereisfood--where-is-food.vercel.app` (empty `*`) | `https://evil-where-is-food.vercel.app` |
+    | `https://whereisfood-abc123-x-where-is-food.vercel.app` (another team's slug) | `https://a.whereisfood-x-where-is-food.vercel.app` |
+    | `https://whereisfood-a.b-where-is-food.vercel.app` | `https://whereisfood-x-where-is-food.vercel.app.evil.com` |
+    | | `http://whereisfood-x-where-is-food.vercel.app`, and the same on `:8443` |
+    | | `https://example.com` |
+
+  - **Production's short addresses aren't covered.** Vercel's docs give
+    `<project>-<scope-slug>.vercel.app` for CLI deploys and say it points to the
+    production deployment once there is one. That URL and `whereisfood.vercel.app` get
+    no header, so each needs its own origin in the rule, or a redirect to an address
+    that has one (Phase 8). A production deployment's commit-form URL is in the
+    pattern like a preview's.
+  - **CORS limits which pages can read the tiles, not who downloads them.** A page
+    served from any origin the pattern matches can load them, whoever owns it. Any
+    request without a browser's CORS check, such as curl, gets the file too (`206`
+    for every `Origin` above), costing R2 reads and sharing `r2.dev`'s rate limit. R2
+    allows one `*` per origin (its CORS docs, read 2026-10-25), and the hash form
+    needs it, so the pattern can't shut out other owners' matching hostnames.
+  - Vercel shortens a URL label over 63 characters (its "Generated URLs" docs, without
+    saying which part it cuts). A long branch name may then miss the pattern. The
+    branch URL `whereisfood-git-<branch>-where-is-food` is at most 63 characters while
+    the branch slug is 33 characters or fewer.
+  - Here `range` is the only header pmtiles sends (4.5.0, the installed and locked
+    version; `package.json` allows `^4.5.0`): `FetchSource.getBytes` adds it to the
+    custom headers, and `useMapLibre` sets none. `if-match` is in the rule because
+    `.claude/context/project-context.md`'s R2 note lists it, not because the map sends
+    it. After a pmtiles upgrade, check `getBytes` again. A header it adds that isn't
+    CORS-safelisted (the Fetch standard's list), and that the rule lacks, fails the
+    browser's preflight; to see it with curl, add that header to
+    `Access-Control-Request-Headers` in the preflight below.
+  - Locally, only `http://localhost:3000` is allowed. `127.0.0.1:3000`, another port
+    (a leftover server can push `npm run dev` to `:3001`) or the `Network:` address
+    gets no `Access-Control-Allow-Origin`, so the browser refuses the tile responses.
+
+To check the bucket, request the file's first bytes as the map would, and send the
+preflight a browser may send first. The plain request checks the origin. The preflight
+also checks the method and headers it asks for, here `GET` and `range`, which are what
+the map uses; it says nothing about `HEAD` or `if-match`. A plain GET can't show a
+wrong `AllowedHeaders`: one with a header the rule lacks still gets
+`Access-Control-Allow-Origin`.
+
+```bash
+curl -s -o /dev/null -D - -H "Origin: http://localhost:3000" -H "Range: bytes=0-16383" "https://pub-<id>.r2.dev/gothenburg.pmtiles"
+curl -s -o /dev/null -D - -X OPTIONS -H "Origin: http://localhost:3000" -H "Access-Control-Request-Method: GET" -H "Access-Control-Request-Headers: range" "https://pub-<id>.r2.dev/gothenburg.pmtiles"
+```
+
+The first should return `206 Partial Content` with `Access-Control-Allow-Origin`; the
+second `204` with `Access-Control-Allow-Headers: range`. To try R2
+locally, run `npm run dev` with `NEXT_PUBLIC_PMTILES_URL` set to the R2 URL in the
+shell. A shell variable wins over `.env.local`.
 
 ### 3. Environment
 

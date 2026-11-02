@@ -46,7 +46,7 @@ old confidence design gone.
 | Admin login, `proxy.ts`'s real matcher and checks, the admin screen and its routes, write services, the `23P01` → 409 mapping, the morning checklist, truck CRUD | Phase 7 |
 | Splitting `src/lib/supabase.ts` into server-only and browser modules (`/api/live` imports it server-side only; the first client import is Phase 7's login screen) | Phase 7 |
 | Production deploy, Supabase Pro, security headers, the Swedish privacy note, the takedown procedure, Vercel Pro and Spend Management | Phase 8 |
-| A custom domain for the tiles, if step 4 uses `r2.dev` (open decision 1) | Phase 8 |
+| A custom domain for the tiles, which step 4 serves from `r2.dev` (open decision 1) | Phase 8 |
 | CI/CD, SAST, branch protection, the pre-commit and CI secret scan, Dependabot security updates (#1); the gates stay manual (#2) | Phase 8 |
 | Rotating credentials (#4) | Phase 8, before the production deploy |
 | ISR, a save-triggered cache purge, Realtime, cron, a `CDN-Cache-Control` header, a firewall or rate-limit rule (unless junk traffic appears) | not planned (`project-context.md`, "Read path") |
@@ -350,7 +350,9 @@ opens, which may be none. Step 7 is the existing issue #139.
 
     Steps 8–10 are ordered, blocked and closed as that procedure's part 6 says; this
     plan doesn't restate it. Step 10's content: Part 1's "What runs" (live data, no
-    fake data), "Map tiles" (R2), "Database" (the hosted checks' results), "Modules
+    fake data), "Map tiles" (R2 on `r2.dev` until Phase 8's custom domain, and the
+    CORS origins, open decisions 1 and 10, pointing to README's description rather
+    than restating it), "Database" (the hosted checks' results), "Modules
     kept on purpose" (the `map-types.ts` and `fake-data.ts` rows go; `services/live.ts`,
     `live.ts` and `api/live` come in), "Folder structure", "Environment" (the R2 URL,
     the hosted key type), "Tests and gates" (the integration file count), "Versions"
@@ -699,8 +701,8 @@ here by its round 3: `CLAUDE.md` puts a decision settled during a phase in the p
 
 **#139 (step 7)**
 - [ ] #139's acceptance criteria hold, and a preview deploy with the new fields builds
-  and its `/map` draws the basemap from R2 (a new preview origin is where open decision
-  10's CORS rule would fail).
+  and its `/map` draws the basemap from R2 (a second preview origin, checked against
+  the CORS table in README's "Get the map tiles", open decision 10).
 
 **Gates (every step with a code or config change)**
 - [ ] `npx tsc --noEmit`, `npm run lint`, `npm run test:all`, `npm run build` exit 0,
@@ -715,10 +717,13 @@ here by its round 3: `CLAUDE.md` puts a decision settled during a phase in the p
 
 ## Open Decisions
 
-1. **R2 public access (step 4).** A custom domain on Cloudflare DNS, or the bucket's
-   `r2.dev` URL. A custom domain needs a domain, and the app name is open; Cloudflare
-   rate-limits `r2.dev` and says it isn't for production. Lean: `r2.dev` for the
-   preview, the custom domain in Phase 8.
+1. ~~**R2 public access (step 4).**~~ → **answered in step 4 (#185), the owner's call,
+   2026-11-02:** the bucket's `r2.dev` URL (the dashboard calls it the "Public
+   Development URL") for previews; the custom domain in Phase 8. The question as
+   planned: A custom domain on Cloudflare DNS, or the bucket's `r2.dev` URL. A custom
+   domain needs a domain, and the app name is open; Cloudflare rate-limits `r2.dev`
+   and says it isn't for production. Lean: `r2.dev` for the preview, the custom
+   domain in Phase 8.
 2. **The hosted project's data (step 5).** `db push --include-seed`, whose times are
    relative to the push (its row spanning `now()` spans only push time), or a small
    SQL snippet run before each check, or both (the seed for trucks and history, a
@@ -764,21 +769,28 @@ here by its round 3: `CLAUDE.md` puts a decision settled during a phase in the p
    (filled) versus later (outlined), settled at the browser check.
 9. **#139's `onFail`, and whether to pin `engines.node` (step 7).** As that issue
    describes, from step 6's build log.
-10. **The R2 CORS rule's allowed origins (step 4).** Vercel preview URLs differ per
-    deployment and per branch, so one named preview origin breaks the next preview's
-    basemap. Options: `*` while only previews exist (the tiles are public), or one
-    pattern (R2's CORS docs, read 2026-10-25: an origin may hold one `*`, which can
-    span periods). `https://*.vercel.app` admits every `vercel.app` site;
-    `https://<project>-*.vercel.app` also admits anyone's project whose name starts
-    `<project>-`; `https://<project>-*-<scope>.vercel.app` matches this account's
-    preview URLs (`<project-name>-<unique-hash>-<scope-slug>` and
-    `<project-name>-git-<branch-name>-<scope-slug>`, Vercel's generated-URLs docs, read
-    2026-10-25) and is the narrowest, though a project name chosen to end in
+10. ~~**The R2 CORS rule's allowed origins (step 4).**~~ → **answered in step 4
+    (#185), the owner's call, 2026-11-02:** the narrowest of the options below,
+    `https://whereisfood-*-where-is-food.vercel.app`, plus `http://localhost:3000`,
+    for the project `whereisfood` (the repo's name, fixed now) in the Vercel team
+    whose slug is `where-is-food`; step 6 (#187) imports the repo under those. What
+    the rule admits and what it doesn't (production URLs, other sites, other local
+    origins) is `README.md`'s "Get the map tiles", from probes in #185's PR;
+    this item doesn't restate it. The question as planned: Vercel preview URLs
+    differ per deployment and per branch, so one named preview origin breaks the
+    next preview's basemap. Options: `*` while only previews exist (the tiles are
+    public), or one pattern (R2's CORS docs, read 2026-10-25: an origin may hold one
+    `*`, which can span periods). `https://*.vercel.app` admits every `vercel.app`
+    site; `https://<project>-*.vercel.app` also admits anyone's project whose
+    name starts `<project>-`; `https://<project>-*-<scope>.vercel.app` matches
+    this account's preview URLs (`<project-name>-<unique-hash>-<scope-slug>` and
+    `<project-name>-git-<branch-name>-<scope-slug>`, Vercel's generated-URLs docs,
+    read 2026-10-25) and is the narrowest, though a project name chosen to end in
     `-<scope>` still matches. Vercel truncates a label over 63 characters (same page),
-    so a long branch name can cut the `-<scope>` suffix and miss the pattern.
-    Whichever is chosen, Phase 8 replaces it with the end state `project-context.md`
-    "Pricing" gives (the domain and localhost). Not probed until the bucket exists.
-    Local dev's origin is `http://localhost:3000`.
+    so a long branch name can cut the `-<scope>` suffix and miss the pattern. Whichever
+    is chosen, Phase 8 replaces it with the end state `project-context.md` "Pricing"
+    gives (the domain and localhost). Not probed until the bucket exists. Local
+    dev's origin is `http://localhost:3000`.
 11. **Deployment Protection on previews (step 6).** With Vercel Authentication on (all
     plans, Hobby included), a request without its cookie gets a Vercel login redirect,
     not the route, so it has no `x-vercel-cache` (Vercel's docs, read 2026-10-25).
