@@ -741,8 +741,10 @@ here by its round 3: `CLAUDE.md` puts a decision settled during a phase in the p
    `.env.example`'s names and #4's rotation depend on it; decided when the project is
    created, with the variable names revisited if needed.
 4. ~~**Regions (steps 5, 6).**~~ → **Supabase's answered in step 5 (#186), the owner's
-   call, 2026-11-02:** `eu-north-1` (Stockholm). Vercel's function region, and what
-   Hobby allows, stays step 6's (#187). The question as planned: Supabase in
+   call, 2026-11-02:** `eu-north-1` (Stockholm). **Vercel's in step 6 (#187),
+   2026-11-02:** `arn1` (Stockholm). Hobby allows one function region (Settings →
+   Functions: "You are limited to 1 region on your current Hobby plan"); the preview's
+   `/api/live` answered with `X-Vercel-Id: arn1::arn1::…`. The question as planned: Supabase in
    `eu-north-1` (Stockholm) and Vercel's function region near it (`arn1`); confirm
    what Hobby allows.
 5. ~~**`freshnessText` for an update not made today (step 3).**~~ → **answered in step

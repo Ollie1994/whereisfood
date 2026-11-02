@@ -12,8 +12,9 @@ It fills a real gap: Gothenburg has had no central food-truck map since Streetk�
 shut down in 2017.
 
 > **Status: Phase 6 of 8 (live read path) in progress.** The map shows today's entries
-> from the database through `GET /api/live`, so far only against a local Supabase: there
-> is no deploy and no admin screen yet. Phase 4 removed the old design (automatic
+> from the database through `GET /api/live`, locally against a local Supabase and on
+> protected Vercel previews against a hosted one. There is no production deploy and no
+> admin screen yet. Phase 4 removed the old design (automatic
 > ingestion from Make.com and email, plus a Swedish text parser), and Phase 5 replaced
 > its database schema; see [Project status](#project-status).
 
@@ -102,11 +103,11 @@ branch and tag.
 
 ### What works today
 
-- The map renders in the browser from a local tile file, centred on Gothenburg, with
-  Swedish place names.
+- The map renders in the browser, centred on Gothenburg, with Swedish place names:
+  from a local tile file in dev, from Cloudflare R2 on a preview.
 - One marker per truck with an entry today, filled while it is open and outlined when
-  it opens later today, from `GET /api/live` (cached by the CDN for 60 s once
-  deployed). The map polls every 60 s while the tab is visible and changes only the
+  it opens later today, from `GET /api/live` (cached by Vercel's CDN for 60 s, checked
+  on a preview, "Preview deploys"). The map polls every 60 s while the tab is visible and changes only the
   markers that changed. A popup shows the truck, its place, whether it is open, its
   hours, when the entry was last updated, and its Instagram link. If a poll fails the
   markers stay and the map says it couldn't update.
@@ -124,7 +125,8 @@ branch and tag.
 ### What does not exist yet
 
 - Admin login and location entry (Phase 7); `src/proxy.ts` is a stub
-- Any deploy (the first preview deploy is Phase 6)
+- A production deploy (Phase 8). Previews deploy from every branch but `main` (see
+  "Preview deploys")
 
 ---
 
@@ -208,13 +210,15 @@ Cloudflare dashboard (no API token needed):
     `<project>-<hash>-<scope-slug>.vercel.app` and
     `<project>-git-<branch>-<scope-slug>.vercel.app`. Here that is the project
     `whereisfood` in the team whose slug (not its display name) is `where-is-food`.
-    #187 records the first real preview URL and checks it against the table below.
-  - What R2 did with `Origin` headers sent to it (PR #194, 2026-11-02). The match is
-    on the whole origin: scheme, hostname and port, anchored at both ends. The `*`
-    matches any characters, dots included, or none:
+  - What R2 did with `Origin` headers sent to it (PR #194, 2026-11-02; the rows marked
+    *real* are the project's own URLs, from #187 the same day). The match is on the
+    whole origin: scheme, hostname and port, anchored at both ends. The `*` matches
+    any characters, dots included, or none:
 
     | Gets `Access-Control-Allow-Origin` | Doesn't |
     |---|---|
+    | `https://whereisfood-a0v5zskps-where-is-food.vercel.app` (commit form, *real*) | `https://whereisfood-theta.vercel.app` (the domain Vercel gave production, *real*) |
+    | `https://whereisfood-git-phase-6-preview-deploy-where-is-food.vercel.app` (branch form, *real*) | |
     | `https://whereisfood-abc123-where-is-food.vercel.app` (commit form) | `https://whereisfood-where-is-food.vercel.app` (one hyphen, where the pattern has two) |
     | `https://whereisfood-git-phase-6-tiles-r2-where-is-food.vercel.app` (branch form) | `https://whereisfood.vercel.app` |
     | `https://whereisfood--where-is-food.vercel.app` (empty `*`) | `https://evil-where-is-food.vercel.app` |
@@ -225,9 +229,10 @@ Cloudflare dashboard (no API token needed):
 
   - **Production's short addresses aren't covered.** Vercel's docs give
     `<project>-<scope-slug>.vercel.app` for CLI deploys and say it points to the
-    production deployment once there is one. That URL and `whereisfood.vercel.app` get
-    no header, so each needs its own origin in the rule, or a redirect to an address
-    that has one (Phase 8). A production deployment's commit-form URL is in the
+    production deployment once there is one. That URL, `whereisfood.vercel.app` and
+    the domain Vercel assigned this project's production, `whereisfood-theta.vercel.app`
+    (Settings → Environments), get no header, so each needs its own origin in the rule,
+    or a redirect to an address that has one (Phase 8). A production deployment's commit-form URL is in the
     pattern like a preview's.
   - **CORS limits which pages can read the tiles, not who downloads them.** A page
     served from any origin the pattern matches can load them, whoever owns it. Any
@@ -374,6 +379,52 @@ with no error. If it fails with `conflicting key value violates exclusion constr
 "locations_no_overlap"`, a non-cancelled Taco Loco entry already overlaps that
 window: an earlier run of this snippet, or any other entry. Look before changing
 anything.
+
+---
+
+## Preview deploys
+
+For the owner: Vercel project `whereisfood` in the team whose slug is `where-is-food`
+(Hobby), imported from this repo. Every push to a branch other than `main` builds a
+preview. Production builds from `main`, which Phase 8 is the first to push to.
+
+**Project settings** (set in #187, 2026-11-02):
+
+| Setting | Value |
+|---|---|
+| Production branch (Settings → Environments → Production) | `main`. Vercel accepts only a branch that exists, so `main` was created at `dev`'s commit. The repo's default branch stays `dev` |
+| Function region (Settings → Functions) | Stockholm, `arn1`, beside the database. Hobby allows one region |
+| Deployment Protection | Vercel Authentication on, "Standard Protection": a preview opens only for a logged-in team member. A Protection Bypass for Automation secret lets a script through (below) |
+| Build command, install command | Next.js's defaults, no override |
+
+**Environment variables**, all four of `.env.example`'s, scoped to **Preview** only
+(none in Production or Development):
+
+| Variable | Vercel type | Value |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Config | the hosted preview project's URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Config | its publishable key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Secret | its secret key |
+| `NEXT_PUBLIC_PMTILES_URL` | Config | the R2 file's URL |
+
+A variable change applies to the next deployment, not to built ones. The project's
+first deployment, from `phase-6/preview-deploy`, was labelled Production although
+the production branch was already `main`, so it got no variables and failed with
+`Missing env: NEXT_PUBLIC_SUPABASE_URL`; the next push to the branch built as a
+Preview (#187's PR).
+
+**Checking the CDN cache.** With protection on, a request without a login gets
+Vercel's login redirect, not the route. Send the bypass secret as a header, read from
+an environment variable, and print only the response headers:
+
+```bash
+curl -s -o /dev/null -D - "https://<preview-host>/api/live" -H "x-vercel-protection-bypass: $PREVIEW_BYPASS_TOKEN"
+```
+
+`x-vercel-cache` goes `MISS`, then `HIT` within 60 s, then `STALE` between 60 and 120
+s, and the `cache-control` the client sees is only `public` (Vercel strips
+`s-maxage` and `stale-while-revalidate`). A request with the header was cached like
+any other in #187's check.
 
 ---
 
