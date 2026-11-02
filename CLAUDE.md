@@ -142,10 +142,12 @@ said otherwise: Phase 4 plan decision #14.
 - A secret that reaches a commit, or issue or PR text, is **rotated**, not just
   deleted: history keeps it, and a public repo's history is readable by anyone
 - **Where secrets live:** a hosted project's secrets for deploys and CI live in
-  Vercel's environment variables (marked "Sensitive" where Vercel offers it), GitHub
-  Actions secrets and, for Dependabot's runs, Dependabot secrets. A developer's own
-  copies (preview-project keys in `.env.local`, a CLI login token where the CLI stores
-  it) stay on their machine. None goes in a tracked or shared file
+  Vercel's environment variables (type "Secret"; Vercel's changelog of 2026-08-24
+  turned "Sensitive" into it, IS #187), GitHub Actions secrets and, for Dependabot's
+  runs, Dependabot secrets. A developer's own copies (the preview project's keys and
+  the Vercel bypass secret in the gitignored `.env.preview.local`, IS #186 and #187; a
+  CLI login token where the CLI stores it) stay on their machine. None goes in a
+  tracked or shared file
 - Every account that can reach the project (GitHub, Supabase, Vercel, Cloudflare, the
   registrar, their recovery email) uses two-factor authentication by passkey, hardware
   key or authenticator app, not SMS: set up when the account is created, all checked

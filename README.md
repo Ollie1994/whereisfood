@@ -12,8 +12,9 @@ It fills a real gap: Gothenburg has had no central food-truck map since Streetk�
 shut down in 2017.
 
 > **Status: Phase 6 of 8 (live read path) in progress.** The map shows today's entries
-> from the database through `GET /api/live`, so far only against a local Supabase: there
-> is no deploy and no admin screen yet. Phase 4 removed the old design (automatic
+> from the database through `GET /api/live`, locally against a local Supabase and on
+> protected Vercel previews against a hosted one. There is no production deploy and no
+> admin screen yet. Phase 4 removed the old design (automatic
 > ingestion from Make.com and email, plus a Swedish text parser), and Phase 5 replaced
 > its database schema; see [Project status](#project-status).
 
@@ -102,14 +103,14 @@ branch and tag.
 
 ### What works today
 
-- The map renders in the browser from a local tile file, centred on Gothenburg, with
-  Swedish place names.
+- The map renders in the browser, centred on Gothenburg, with Swedish place names:
+  from a local tile file in dev, from Cloudflare R2 on a preview.
 - One marker per truck with an entry today, filled while it is open and outlined when
-  it opens later today, from `GET /api/live` (cached by the CDN for 60 s once
-  deployed). The map polls every 60 s while the tab is visible and changes only the
-  markers that changed. A popup shows the truck, its place, whether it is open, its
-  hours, when the entry was last updated, and its Instagram link. If a poll fails the
-  markers stay and the map says it couldn't update.
+  it opens later today, from `GET /api/live` (cached by Vercel's CDN for 60 s, checked
+  on a preview, "Preview deploys"). The map polls every 60 s while the tab is visible
+  and changes only the markers that changed. A popup shows the truck, its place,
+  whether it is open, its hours, when the entry was last updated, and its Instagram
+  link. If a poll fails the markers stay and the map says it couldn't update.
 - The new design's Supabase schema, in one migration
   ([`supabase/migrations/0001_baseline.sql`](supabase/migrations/0001_baseline.sql)):
   `trucks`, `locations` and `users`. The database refuses overlapping entries for a
@@ -124,7 +125,8 @@ branch and tag.
 ### What does not exist yet
 
 - Admin login and location entry (Phase 7); `src/proxy.ts` is a stub
-- Any deploy (the first preview deploy is Phase 6)
+- A production deploy (Phase 8). Pushes to branches other than `main` build previews,
+  with one exception so far (see "Preview deploys")
 
 ---
 
@@ -208,13 +210,15 @@ Cloudflare dashboard (no API token needed):
     `<project>-<hash>-<scope-slug>.vercel.app` and
     `<project>-git-<branch>-<scope-slug>.vercel.app`. Here that is the project
     `whereisfood` in the team whose slug (not its display name) is `where-is-food`.
-    #187 records the first real preview URL and checks it against the table below.
-  - What R2 did with `Origin` headers sent to it (PR #194, 2026-11-02). The match is
-    on the whole origin: scheme, hostname and port, anchored at both ends. The `*`
-    matches any characters, dots included, or none:
+  - What R2 did with `Origin` headers sent to it (PR #194, 2026-11-02; the rows marked
+    *real* are the project's own URLs, from #187 the same day). The match is on the
+    whole origin: scheme, hostname and port, anchored at both ends. The `*` matches
+    any characters, dots included, or none:
 
     | Gets `Access-Control-Allow-Origin` | Doesn't |
     |---|---|
+    | `https://whereisfood-a0v5zskps-where-is-food.vercel.app` (commit form, *real*) | `https://whereisfood-theta.vercel.app` (the domain Vercel gave production, *real*) |
+    | `https://whereisfood-git-phase-6-preview-deploy-where-is-food.vercel.app` (branch form, *real*) | |
     | `https://whereisfood-abc123-where-is-food.vercel.app` (commit form) | `https://whereisfood-where-is-food.vercel.app` (one hyphen, where the pattern has two) |
     | `https://whereisfood-git-phase-6-tiles-r2-where-is-food.vercel.app` (branch form) | `https://whereisfood.vercel.app` |
     | `https://whereisfood--where-is-food.vercel.app` (empty `*`) | `https://evil-where-is-food.vercel.app` |
@@ -225,10 +229,11 @@ Cloudflare dashboard (no API token needed):
 
   - **Production's short addresses aren't covered.** Vercel's docs give
     `<project>-<scope-slug>.vercel.app` for CLI deploys and say it points to the
-    production deployment once there is one. That URL and `whereisfood.vercel.app` get
-    no header, so each needs its own origin in the rule, or a redirect to an address
-    that has one (Phase 8). A production deployment's commit-form URL is in the
-    pattern like a preview's.
+    production deployment once there is one. That URL, `whereisfood.vercel.app` and
+    the domain Vercel assigned this project's production, `whereisfood-theta.vercel.app`
+    (Settings → Environments), get no header, so each needs its own origin in the rule,
+    or a redirect to an address that has one (Phase 8). A production deployment's
+    commit-form URL is in the pattern like a preview's.
   - **CORS limits which pages can read the tiles, not who downloads them.** A page
     served from any origin the pattern matches can load them, whoever owns it. Any
     request without a browser's CORS check, such as curl, gets the file too (`206`
@@ -374,6 +379,70 @@ with no error. If it fails with `conflicting key value violates exclusion constr
 "locations_no_overlap"`, a non-cancelled Taco Loco entry already overlaps that
 window: an earlier run of this snippet, or any other entry. Look before changing
 anything.
+
+---
+
+## Preview deploys
+
+For the owner: Vercel project `whereisfood` in the team whose slug is `where-is-food`
+(Hobby), imported from this repo. A push to a branch other than `main` builds a
+preview, with one exception so far (below). Production builds from `main`, which was
+created at `dev`'s commit and built nothing; the next push to `main` is Phase 8's.
+
+**Project settings** (set in #187, 2026-11-02):
+
+| Setting | Value |
+|---|---|
+| Production branch (Settings → Environments → Production) | `main`. Vercel accepts only a branch that exists, so `main` was created at `dev`'s commit. The repo's default branch stays `dev` |
+| Function region (Settings → Functions) | Stockholm, `arn1`, beside the database. Hobby allows one region |
+| Deployment Protection | Vercel Authentication on, "Standard Protection": without a Vercel login, `/map` and `/api/live` answer `302` to `vercel.com/sso-api` (#187's PR). A Protection Bypass for Automation secret lets a script through (below) |
+| Git Fork Protection (Settings → Security) | Enabled (read 2026-11-02): a pull request from a fork deploys only after a team member authorizes it. Keep it on: the repo is public, and a build runs a branch's code (its `package.json` scripts, `next.config.ts`, route modules, dependencies) with the Preview variables, the secret key among them. It covers forks only: a branch pushed to this repo, Dependabot's included once Phase 8 turns it on, builds with them without approval |
+| Ignored Build Step (Settings → Build and Deployment) | Custom: `if [ "$VERCEL_ENV" = "production" ] && [ "$VERCEL_GIT_COMMIT_REF" != "main" ]; then exit 0; else exit 1; fi`. Exit 0 cancels the build, exit 1 continues (Vercel's docs, "Project settings"), so it is meant to cancel a Production build from any branch but `main`. Added after the mislabelled first deployment below. A preview still builds with it, and Vercel logs the command before the build (#187's PR); its cancel case hasn't been seen. It runs when a build starts, so promoting an existing preview to Production doesn't pass through it; a CLI deploy wasn't tried |
+| Build command, install command | Next.js's defaults, no override |
+
+**Environment variables**, all four of `.env.example`'s, scoped to **Preview** only
+(none in Production or Development):
+
+| Variable | Vercel type | Value |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Config | the hosted preview project's URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Config | its publishable key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Secret | its secret key |
+| `NEXT_PUBLIC_PMTILES_URL` | Config | the R2 file's URL |
+
+A variable change applies to the next deployment, not to built ones. The project's
+first deployment, from `phase-6/preview-deploy`, was labelled Production although
+the production branch was already `main`, so it got no variables and failed with
+`Missing env: NEXT_PUBLIC_SUPABASE_URL`; the next push to the branch built as a
+Preview (#187's PR). Why Vercel labelled it Production wasn't found.
+
+**Production keeps no variables until Phase 8.** "Standard Protection" is, in Vercel's
+API, `prod_deployment_urls_and_all_previews` (its docs, "Vercel Authentication"): the
+production domain isn't in it and stays public. That mislabelled branch build failed
+instead of serving on `whereisfood-theta.vercel.app` only because Production has no
+variables and `src/lib/supabase.ts` throws at import without them. The Ignored Build
+Step above is set to cancel such a build by its branch, though no cancel has been
+seen yet. Phase 8 adds Production's variables after checking that it is still set,
+and doesn't promote a branch preview to Production (plan step 10 carries this to
+`project-context.md`).
+
+**Checking the CDN cache.** With protection on, a request without a login gets
+Vercel's login redirect, not the route. The bypass secret is made under Settings →
+Deployment Protection → Protection Bypass for Automation (Vercel generates it; it is
+shown again there) and kept in the owner's gitignored `.env.preview.local` as
+`PREVIEW_BYPASS_TOKEN`. Load it into the shell's environment, send it as a header and
+print only the response headers. A curl with the variable unset sends an empty header
+and gets the `302`, with no `x-vercel-cache`:
+
+```bash
+curl -s -o /dev/null -D - "https://<preview-host>/api/live" -H "x-vercel-protection-bypass: $PREVIEW_BYPASS_TOKEN"
+```
+
+`x-vercel-cache` goes `MISS`, then `HIT` within 60 s, then `STALE` between 60 and 120
+s, and the `cache-control` the client sees is only `public` (Vercel strips
+`s-maxage` and `stale-while-revalidate`). In #187's check every request carried the
+header and they were cached among themselves; whether they share an entry with a
+logged-in browser's requests wasn't checked.
 
 ---
 
