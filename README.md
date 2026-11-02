@@ -202,22 +202,33 @@ Cloudflare dashboard (no API token needed):
   ]
   ```
 
-  - The second origin is written for this project's Vercel preview URLs, in the two
-    forms Vercel's "Generated URLs" docs give for Git deployments:
-    `<project>-<hash>-<team>.vercel.app` and
-    `<project>-git-<branch>-<team>.vercel.app`, with the project named `whereisfood`
-    in the `where-is-food` team. R2 sends the header to `Origin`s built in both forms;
-    the first real preview URL is #187's to check.
-  - It doesn't match `<project>-<team>.vercel.app`
-    (`whereisfood-where-is-food.vercel.app`): a `*` between two hyphens needs
-    something between them. The same docs give that form for CLI deploys and say it
-    points to the production deployment once there is one, so **production viewed at
-    that URL gets no tiles** until the rule has an origin for it (Phase 8's domain).
-  - It also matches other accounts' sites, for example a project named `whereisfood` in
-    another team whose slug ends in `-where-is-food`. Their pages can then load these
-    tiles, which costs R2 reads and shares `r2.dev`'s rate limit with this map. R2
-    allows one `*` per origin, and the `*` also matches hyphens, so the pattern can't
-    stop at this team's slug.
+  - **This is the one description of what the rule admits;** the plan and the issues
+    point here. The second origin is written for this project's Vercel preview URLs,
+    in the two forms Vercel's "Generated URLs" docs give for Git deployments,
+    `<project>-<hash>-<scope-slug>.vercel.app` and
+    `<project>-git-<branch>-<scope-slug>.vercel.app`. Here that is the project
+    `whereisfood` in the team whose slug (not its display name) is `where-is-food`.
+    No real Vercel URL exists yet; #187's preview is the first.
+  - What R2 did with `Origin` headers sent to it (PR #194, 2026-11-02). The match is
+    on the whole hostname, and the `*` matches any characters, dots included, or
+    none:
+
+    | Gets `Access-Control-Allow-Origin` | Doesn't |
+    |---|---|
+    | `whereisfood-abc123-where-is-food.vercel.app` (preview, commit form) | `whereisfood-where-is-food.vercel.app` (one hyphen, where the pattern has two) |
+    | `whereisfood-git-phase-6-tiles-r2-where-is-food.vercel.app` (preview, branch form) | `whereisfood.vercel.app` |
+    | `whereisfood--where-is-food.vercel.app` (empty `*`) | `evil-where-is-food.vercel.app` |
+    | `whereisfood-abc123-x-where-is-food.vercel.app` (another team's slug) | `a.whereisfood-x-where-is-food.vercel.app` |
+    | `whereisfood-a.b-where-is-food.vercel.app` | `example.com` |
+
+  - **Production isn't covered.** Vercel's docs give `<project>-<scope-slug>.vercel.app`
+    for CLI deploys and say it points to the production deployment once there is one.
+    That URL, and `whereisfood.vercel.app`, get no header. Each production address
+    needs its own origin in the rule, or a redirect to an address that has one
+    (Phase 8).
+  - **Other sites can use the tiles.** Any page served from a hostname in the left
+    column can load them, whoever owns it. That costs R2 reads and shares `r2.dev`'s
+    rate limit with this map.
   - Vercel shortens a URL label over 63 characters (its "Generated URLs" docs, without
     saying which part it cuts). A long branch name may then miss the pattern. The
     branch URL `whereisfood-git-<branch>-where-is-food` is at most 63 characters while
@@ -226,8 +237,9 @@ Cloudflare dashboard (no API token needed):
     version; `package.json` allows `^4.5.0`): `FetchSource.getBytes` adds it to the
     custom headers, and `useMapLibre` sets none. `if-match` is in the rule because
     `.claude/context/project-context.md`'s R2 note lists it, not because the map sends
-    it. After a pmtiles upgrade, check `getBytes` again. A header it adds that the
-    rule lacks fails the browser's preflight; to see it with curl, add that header to
+    it. After a pmtiles upgrade, check `getBytes` again. A header it adds that isn't
+    CORS-safelisted (the Fetch standard's list), and that the rule lacks, fails the
+    browser's preflight; to see it with curl, add that header to
     `Access-Control-Request-Headers` in the preflight below.
   - Locally, only `http://localhost:3000` is allowed. `127.0.0.1:3000`, another port
     (a leftover server can push `npm run dev` to `:3001`) or the `Network:` address
