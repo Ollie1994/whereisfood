@@ -332,13 +332,13 @@ opens, which may be none. Step 7 is the existing issue #139.
    inlined at build time and `useMapLibre` draws nothing without it;
    `src/lib/supabase.ts` throws at import without the anon key, though nothing uses it
    before Phase 7; the service-role key is marked Sensitive (type "Secret" since
-   Vercel's changelog of 2026-08-24, #187). The function region near
-   the database (open decision 4). Deployment Protection per open decision 11. On the
-   preview: `x-vercel-cache` MISS → HIT → STALE on `/api/live`, by GET (`curl -s -o
-   /dev/null -D -`), not `curl -I`, which sends HEAD; `/map` in a real
-   browser (basemap from R2, markers, a popup); requests per visit from Vercel's usage
-   dashboard (#187: counted in the browser's Network tab, since the usage page doesn't
-   split them per visit); the build's `node -v` and `npm -v`, recorded on #139. Ride along:
+   Vercel's changelog of 2026-08-24, #187). The function region near the database
+   (open decision 4). Deployment Protection per open decision 11. On the preview:
+   `x-vercel-cache` MISS → HIT → STALE on `/api/live`, by GET (`curl -s -o /dev/null
+   -D -`), not `curl -I`, which sends HEAD; `/map` in a real browser (basemap from
+   R2, markers, a popup); requests per visit from Vercel's usage dashboard (#187:
+   counted in the browser's Network tab, since the usage page doesn't split them per
+   visit); the build's `node -v` and `npm -v`, recorded on #139. Ride along:
    `README.md`'s preview-deploy notes. *Last of the build steps: it needs all of the
    above.*
 7. **#139: Node and npm minimums in `package.json`.** As that issue describes, with
@@ -360,7 +360,13 @@ opens, which may be none. Step 7 is the existing issue #139.
     the hosted key type), "Tests and gates" (the integration file count), "Versions"
     (the Node/npm line after #139), the Roadmap row; Part 2's "Read path" section,
     which becomes a description of what was built and gains #22's scaling limits, and
-    the Phase map's Phase 8 row
+    the Phase map's Phase 8 row; and Part 2's "Pre-deploy automation (planned)", which
+    gains two Phase 8 checks from README's "Preview deploys" (#187): Production gets
+    its variables only after the Vercel project's Ignored Build Step is confirmed set
+    (it runs when a build starts, so promoting an existing preview isn't covered; a
+    CLI deploy wasn't tried; its cancel case hasn't been seen), and Dependabot's
+    branches would build on Vercel with the Preview variables, which Git Fork
+    Protection doesn't cover
     (tiles on R2 moved here, #7). It replaces each **between phases** marker in
     "Decisions carried forward" with the decision here that took it up (#1–#6), and
     carries forward this plan's decisions that outlive the phase (likely #7, #9–#11,

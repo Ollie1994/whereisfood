@@ -397,7 +397,7 @@ created at `dev`'s commit and built nothing; the next push to `main` is Phase 8'
 | Function region (Settings → Functions) | Stockholm, `arn1`, beside the database. Hobby allows one region |
 | Deployment Protection | Vercel Authentication on, "Standard Protection": without a Vercel login, `/map` and `/api/live` answer `302` to `vercel.com/sso-api` (#187's PR). A Protection Bypass for Automation secret lets a script through (below) |
 | Git Fork Protection (Settings → Security) | Enabled (read 2026-11-02): a pull request from a fork deploys only after a team member authorizes it. Keep it on: the repo is public, and a build runs a branch's code (its `package.json` scripts, `next.config.ts`, route modules, dependencies) with the Preview variables, the secret key among them. It covers forks only: a branch pushed to this repo, Dependabot's included once Phase 8 turns it on, builds with them without approval |
-| Ignored Build Step (Settings → Build and Deployment) | Custom: `if [ "$VERCEL_ENV" = "production" ] && [ "$VERCEL_GIT_COMMIT_REF" != "main" ]; then exit 0; else exit 1; fi`. Exit 0 cancels the build, exit 1 continues (Vercel's docs, "Project settings"), so a Production build from any branch but `main` is cancelled before it builds. Added after the mislabelled first deployment below; a preview still builds with it (#187's PR), and the cancel case hasn't happened to be seen |
+| Ignored Build Step (Settings → Build and Deployment) | Custom: `if [ "$VERCEL_ENV" = "production" ] && [ "$VERCEL_GIT_COMMIT_REF" != "main" ]; then exit 0; else exit 1; fi`. Exit 0 cancels the build, exit 1 continues (Vercel's docs, "Project settings"), so it is meant to cancel a Production build from any branch but `main`. Added after the mislabelled first deployment below. A preview still builds with it, and Vercel logs the command before the build (#187's PR); its cancel case hasn't been seen. It runs when a build starts, so promoting an existing preview to Production doesn't pass through it; a CLI deploy wasn't tried |
 | Build command, install command | Next.js's defaults, no override |
 
 **Environment variables**, all four of `.env.example`'s, scoped to **Preview** only
@@ -421,8 +421,10 @@ API, `prod_deployment_urls_and_all_previews` (its docs, "Vercel Authentication")
 production domain isn't in it and stays public. That mislabelled branch build failed
 instead of serving on `whereisfood-theta.vercel.app` only because Production has no
 variables and `src/lib/supabase.ts` throws at import without them. The Ignored Build
-Step above now cancels such a build by its branch; Phase 8 adds Production's
-variables after checking that it is still set.
+Step above is set to cancel such a build by its branch, though no cancel has been
+seen yet. Phase 8 adds Production's variables after checking that it is still set,
+and doesn't promote a branch preview to Production (plan step 10 carries this to
+`project-context.md`).
 
 **Checking the CDN cache.** With protection on, a request without a login gets
 Vercel's login redirect, not the route. The bypass secret is made under Settings →
