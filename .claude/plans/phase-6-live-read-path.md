@@ -780,7 +780,8 @@ here by its round 3: `CLAUDE.md` puts a decision settled during a phase in the p
     the `<project>-<scope>` form `https://whereisfood-where-is-food.vercel.app` don't.
     It is narrow, not exclusive: another team whose slug ends `-where-is-food`
     (`https://whereisfood-abc123-x-where-is-food.vercel.app`) and a project named
-    `whereisfood-a-where-is-food` both get the header, which costs only reads. The question as planned: Vercel preview URLs differ per
+    `whereisfood-a-where-is-food` both get the header. Their pages can then load the
+    tiles, costing R2 reads and sharing `r2.dev`'s rate limit. The question as planned: Vercel preview URLs differ per
     deployment and per branch, so one named preview origin breaks the next preview's
     basemap. Options: `*` while only previews exist (the tiles are public), or one
     pattern (R2's CORS docs, read 2026-10-25: an origin may hold one `*`, which can

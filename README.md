@@ -169,7 +169,7 @@ Replace `YYYYMMDD` with a recent build date from
 [maps.protomaps.com/builds](https://maps.protomaps.com/builds/), which lists one row
 per daily build. Only recent builds are kept, so an old date returns 404. **Don't use
 that page's "download" link:** it's the whole planet (about 140 GB). The extract
-command fetches only the tiles inside the box, in under a minute. Add
+command fetches only the tiles inside the box. Add
 `--maxzoom=14` for a smaller file with less street-level detail: the file deploys use
 (below) was cut that way and is 11.6 MB (its header says `maxzoom` 14). Without it the
 file is larger.
@@ -212,13 +212,15 @@ Cloudflare dashboard (no API token needed):
     hyphens needs something between them.
   - It also matches other accounts' sites, for example a project named `whereisfood` in
     another team whose slug ends in `-where-is-food`. Their pages can then load these
-    tiles, which costs reads and nothing else. R2 allows one `*` per origin, so no
-    pattern can name only this project's URLs.
+    tiles, which costs R2 reads and shares `r2.dev`'s rate limit with this map. R2
+    allows one `*` per origin, and the `*` also matches hyphens, so the pattern can't
+    stop at this team's slug.
   - Vercel shortens a URL label over 63 characters (its "Generated URLs" docs, without
     saying which part it cuts). A long branch name may then miss the pattern. The
     branch URL `whereisfood-git-<branch>-where-is-food` stays under 63 characters while
     the branch slug is 33 characters or fewer.
-  - `range` is the only header pmtiles 4.5.0 sends (`FetchSource.getBytes`).
+  - Here `range` is the only header pmtiles 4.5.0 sends: `FetchSource.getBytes` adds it
+    to the custom headers, and `useMapLibre` sets none.
     `if-match` is in the rule because `.claude/context/project-context.md`'s R2 note
     lists it, not because the map sends it.
   - Locally, only `http://localhost:3000` is allowed. `127.0.0.1:3000`, another port
