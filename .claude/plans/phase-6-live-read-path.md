@@ -715,7 +715,10 @@ here by its round 3: `CLAUDE.md` puts a decision settled during a phase in the p
 
 ## Open Decisions
 
-1. **R2 public access (step 4).** A custom domain on Cloudflare DNS, or the bucket's
+1. ~~**R2 public access (step 4).**~~ → **answered in step 4 (#185), the owner's call,
+   2026-11-02:** the bucket's `r2.dev` URL (the dashboard calls it the "Public
+   Development URL") for previews; the custom domain in Phase 8. The question as
+   planned: A custom domain on Cloudflare DNS, or the bucket's
    `r2.dev` URL. A custom domain needs a domain, and the app name is open; Cloudflare
    rate-limits `r2.dev` and says it isn't for production. Lean: `r2.dev` for the
    preview, the custom domain in Phase 8.
@@ -764,7 +767,15 @@ here by its round 3: `CLAUDE.md` puts a decision settled during a phase in the p
    (filled) versus later (outlined), settled at the browser check.
 9. **#139's `onFail`, and whether to pin `engines.node` (step 7).** As that issue
    describes, from step 6's build log.
-10. **The R2 CORS rule's allowed origins (step 4).** Vercel preview URLs differ per
+10. ~~**The R2 CORS rule's allowed origins (step 4).**~~ → **answered in step 4 (#185),
+    the owner's call, 2026-11-02:** the narrowest pattern,
+    `https://whereisfood-*-where-is-food.vercel.app`, plus `http://localhost:3000`. The
+    Vercel team (scope slug) is `where-is-food`, from the account the owner created for
+    it; the project name `whereisfood` (the repo's) is fixed now, so step 6 (#187)
+    must import the repo under exactly that name or the preview's basemap fails CORS.
+    Probed on the bucket in #185's PR: both preview URL forms get
+    `Access-Control-Allow-Origin`, and `https://example.com` and
+    `https://evil-where-is-food.vercel.app` don't. The question as planned: Vercel preview URLs differ per
     deployment and per branch, so one named preview origin breaks the next preview's
     basemap. Options: `*` while only previews exist (the tiles are public), or one
     pattern (R2's CORS docs, read 2026-10-25: an origin may hold one `*`, which can

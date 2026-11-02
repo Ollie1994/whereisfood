@@ -44,7 +44,7 @@ No login for consumers. Only the admin logs in; truck owners get accounts later
 
 ```
 Next.js 16.4 (App Router) · React 19 · TypeScript · Tailwind CSS v4
-MapLibre GL JS 6 + Protomaps PMTiles (local file now, Cloudflare R2 at launch)
+MapLibre GL JS 6 + Protomaps PMTiles (local file in dev, Cloudflare R2 for deploys)
 Supabase (Postgres + Auth)
 Vitest 4 · date-fns-tz
 ```

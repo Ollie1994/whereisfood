@@ -28,7 +28,7 @@ shut down in 2017.
 |------------|--------|
 | Framework  | Next.js 16 (App Router), React 19, TypeScript |
 | Styling    | Tailwind CSS v4 |
-| Map        | MapLibre GL JS 6 + Protomaps PMTiles (a local file in development, Cloudflare R2 at launch) |
+| Map        | MapLibre GL JS 6 + Protomaps PMTiles (a local file in development, Cloudflare R2 for deploys) |
 | Database   | Supabase Postgres |
 | Auth       | Supabase Auth (the admin only at launch) |
 | Time       | date-fns-tz: store UTC, display `Europe/Stockholm` |
@@ -91,9 +91,9 @@ The working rules live in [`CLAUDE.md`](CLAUDE.md) and the design reference in
 | 3 · Parser           | Swedish text parser for social-media captions | Stopped and removed in Phase 4 |
 | 4 · Housekeeping     | Remove the old design, upgrade dependencies, rewrite the docs | ✅ Done |
 | 5 · Schema reset     | A fresh 3-table schema (`trucks`, `locations`, `users`) | ✅ Done |
-| 6 · Live read path   | `/api/live`, polling, first preview deploy | 🔄 In progress |
+| 6 · Live read path   | `/api/live`, polling, map tiles on Cloudflare R2, first preview deploy | 🔄 In progress |
 | 7 · Admin            | Admin login and location entry | ⬜ Not started |
-| 8 · Launch           | Map tiles on Cloudflare R2, production deploy | ⬜ Not started |
+| 8 · Launch           | A custom domain for the tiles, production deploy | ⬜ Not started |
 
 Phases 2 and 3 built automatic ingestion: Make.com webhooks and Mailgun email, run
 through a Swedish parser that turned captions into locations. It was dropped for the
@@ -171,6 +171,50 @@ per daily build. Only recent builds are kept, so an old date returns 404. **Don'
 that page's "download" link:** it's the whole planet (about 140 GB). The extract
 command fetches only the tiles inside the box: about 36 MB, in under a minute. Add
 `--maxzoom=14` for a smaller file with less street-level detail.
+
+**Deploys read the tiles from Cloudflare R2**, since a Vercel build has no
+`public/*.pmtiles`. Development keeps the local file. The bucket, set up once in the
+Cloudflare dashboard (no API token needed):
+
+- **Storage:** an R2 bucket with the Standard storage class. Upload
+  `public/gothenburg.pmtiles` under the same name from the bucket's Objects tab. A new
+  extract is uploaded the same way, replacing the old one.
+- **Public access:** the bucket's *Public Development URL* (`https://pub-<id>.r2.dev`),
+  under Settings. Deploys set `NEXT_PUBLIC_PMTILES_URL` to
+  `https://pub-<id>.r2.dev/gothenburg.pmtiles`. Cloudflare rate-limits `r2.dev` and
+  says it isn't for production, so launch moves the tiles to a custom domain (Phase 8).
+- **CORS policy** (Settings): without it the browser blocks the tile requests and the
+  map draws only its background.
+
+  ```json
+  [
+    {
+      "AllowedOrigins": [
+        "http://localhost:3000",
+        "https://whereisfood-*-where-is-food.vercel.app"
+      ],
+      "AllowedMethods": ["GET", "HEAD"],
+      "AllowedHeaders": ["range", "if-match"],
+      "ExposeHeaders": ["etag"]
+    }
+  ]
+  ```
+
+  The second origin matches this project's Vercel preview URLs
+  (`<project>-<hash>-<team>.vercel.app` and `<project>-git-<branch>-<team>.vercel.app`),
+  so it holds only while the Vercel project is named `whereisfood` in the
+  `where-is-food` team. A branch name long enough that Vercel cuts the URL at 63
+  characters can lose the `-where-is-food` ending and miss the pattern.
+
+To check the bucket, request the file's first bytes as the map would:
+
+```bash
+curl -s -o /dev/null -D - -H "Origin: http://localhost:3000" -H "Range: bytes=0-16383" "https://pub-<id>.r2.dev/gothenburg.pmtiles"
+```
+
+It should return `206 Partial Content` with `Access-Control-Allow-Origin`. To try R2
+locally, run `npm run dev` with `NEXT_PUBLIC_PMTILES_URL` set to the R2 URL in the
+shell. A shell variable wins over `.env.local`.
 
 ### 3. Environment
 
