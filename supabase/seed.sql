@@ -1,5 +1,6 @@
--- seed.sql — dev-only seed data (loaded by `supabase db reset` / first `supabase start`).
--- NOT production data. Fixed truck UUIDs so curl commands are copy-pasteable and stable
+-- seed.sql — dev-only seed data (loaded by `supabase db reset` / first `supabase start`,
+-- and once into the hosted preview by its first `db push --include-seed`, README). NOT
+-- production data. Fixed truck UUIDs so curl commands are copy-pasteable and stable
 -- across resets.
 --
 -- For an EMPTY database only (`npx supabase start` on a fresh stack, or
