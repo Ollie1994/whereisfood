@@ -309,7 +309,7 @@ For the owner: these steps need access to the preview project.
 Preview deploys read a hosted Supabase project, not the local stack. It's in its own
 free organisation, separate from any later production project, in `eu-north-1`
 (Stockholm). It was made in the dashboard with the Data API on and "Automatically
-expose new tables" off. In `public`, `anon` and `authenticated` hold one grant
+expose new tables" off. In `public`, `anon` and `authenticated` hold one table grant
 between them, the migration's `SELECT` on `users` to `authenticated`
 (`information_schema.role_table_grants`, #186's PR), as on the local stack. The Data
 API's **Max rows** must be at least `MAX_ROWS`; the value read is in
@@ -340,16 +340,19 @@ Later migrations go up with plain `npx supabase db push`. On the first push, CLI
 file) and still applied the migration: `npx supabase migration list --linked` showed
 `0001` on both sides.
 
-The CLI records the seed it ran. With `seed.sql` unchanged, a later `--include-seed`
-dry run listed nothing to seed ("Remote database is up to date"); with it changed, it
-listed `supabase/seed.sql (hash update)` (#186's PR). So the hosted history stays the
-28 days before the push day, 2026-11-02, and doesn't move with the date the way the
-local stack's does after `npx supabase db reset`.
+`--include-seed` is for the first push only: the hosted seed is loaded once. The CLI
+records the seed it ran. With `seed.sql` unchanged, a later `--include-seed` dry run
+listed nothing to seed ("Remote database is up to date"); with it changed, it listed
+`supabase/seed.sql (hash update)`. Whether that runs the file wasn't probed (#186's
+PR). So the hosted history stays as loaded, 2026-10-05 to 2026-11-01, and doesn't
+move with the date the way the local stack's does after `npx supabase db reset`. From
+2026-11-10, a look-back of a week finds no seed row on the preview.
 
-**Today's entry.** The seed's one entry for today spans the hour before the push to 12
-hours after it. Before checking a preview's markers, run this in the project's SQL
-Editor. It gives Taco Loco (the seed's fixed id) an entry at its latest place, from an
-hour ago to 12 hours from now:
+**Today's entry.** The seed's one live entry, Burgarbilen at Järntorget, ran on
+2026-11-02 from 11:23 to 00:23 Stockholm time (an hour before the push to 12 hours
+after it). Before checking a preview's markers, run this in the project's SQL Editor.
+It gives Taco Loco (the seed's fixed id) an entry at the place of its latest
+non-cancelled entry, from an hour ago to 12 hours from now:
 
 ```sql
 insert into locations (truck_id, latitude, longitude, label, starts_at, ends_at)
@@ -361,7 +364,8 @@ limit 1
 returning label, starts_at, ends_at;
 ```
 
-If it fails with `conflicting key value violates exclusion constraint
+If it returns no row, Taco Loco has no non-cancelled entry to copy: it inserted nothing,
+with no error. If it fails with `conflicting key value violates exclusion constraint
 "locations_no_overlap"`, a non-cancelled Taco Loco entry already overlaps that
 window: an earlier run of this snippet, or any other entry. Look before changing
 anything.
