@@ -305,7 +305,9 @@ Open the URL from the `Local:` line Next prints, usually
 Preview deploys read a hosted Supabase project, not the local stack. It's in its own
 free organisation, separate from any later production project, in `eu-north-1`
 (Stockholm). It was made in the dashboard with the Data API on and "Automatically
-expose new tables" off, so the API roles get only the grants the migrations give.
+expose new tables" off. In `public` the API roles hold one grant, the migration's
+`SELECT` on `users` to `authenticated` (`information_schema.role_table_grants`, #186's
+PR), as on the local stack.
 The Data API's **Max rows** is 1000, the value `MAX_ROWS` assumes
 ([`src/lib/db/complete.ts`](src/lib/db/complete.ts)).
 
