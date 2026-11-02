@@ -394,7 +394,7 @@ preview. Production builds from `main`, which Phase 8 is the first to push to.
 |---|---|
 | Production branch (Settings → Environments → Production) | `main`. Vercel accepts only a branch that exists, so `main` was created at `dev`'s commit. The repo's default branch stays `dev` |
 | Function region (Settings → Functions) | Stockholm, `arn1`, beside the database. Hobby allows one region |
-| Deployment Protection | Vercel Authentication on, "Standard Protection": a preview opens only for a logged-in team member. A Protection Bypass for Automation secret lets a script through (below) |
+| Deployment Protection | Vercel Authentication on, "Standard Protection": without a Vercel login, `/map` and `/api/live` answer `302` to `vercel.com/sso-api` (#187's PR). A Protection Bypass for Automation secret lets a script through (below) |
 | Build command, install command | Next.js's defaults, no override |
 
 **Environment variables**, all four of `.env.example`'s, scoped to **Preview** only
