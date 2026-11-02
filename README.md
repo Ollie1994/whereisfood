@@ -231,8 +231,10 @@ Cloudflare dashboard (no API token needed):
     gets no `Access-Control-Allow-Origin`, so the browser refuses the tile responses.
 
 To check the bucket, request the file's first bytes as the map would, and send the
-preflight a browser may send first. The plain request checks the origin; only the
-preflight checks `AllowedMethods` and `AllowedHeaders`:
+preflight a browser may send first. The plain request checks the origin. The preflight
+also checks `AllowedMethods` and `AllowedHeaders`. A plain GET can't show a wrong
+`AllowedHeaders`: one with a header the rule lacks still gets
+`Access-Control-Allow-Origin`.
 
 ```bash
 curl -s -o /dev/null -D - -H "Origin: http://localhost:3000" -H "Range: bytes=0-16383" "https://pub-<id>.r2.dev/gothenburg.pmtiles"
