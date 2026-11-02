@@ -331,12 +331,14 @@ opens, which may be none. Step 7 is the existing issue #139.
    or the names open decision 3 leads to. `NEXT_PUBLIC_PMTILES_URL` (the R2 URL) is
    inlined at build time and `useMapLibre` draws nothing without it;
    `src/lib/supabase.ts` throws at import without the anon key, though nothing uses it
-   before Phase 7; the service-role key is marked Sensitive. The function region near
+   before Phase 7; the service-role key is marked Sensitive (Vercel's type "Secret"
+   since its 2026 Config/Secret types, #187). The function region near
    the database (open decision 4). Deployment Protection per open decision 11. On the
    preview: `x-vercel-cache` MISS → HIT → STALE on `/api/live`, by GET (`curl -s -o
    /dev/null -D -`), not `curl -I`, which sends HEAD; `/map` in a real
    browser (basemap from R2, markers, a popup); requests per visit from Vercel's usage
-   dashboard; the build's `node -v` and `npm -v`, recorded on #139. Ride along:
+   dashboard (#187: counted in the browser's Network tab, since the usage page doesn't
+   split them per visit); the build's `node -v` and `npm -v`, recorded on #139. Ride along:
    `README.md`'s preview-deploy notes. *Last of the build steps: it needs all of the
    above.*
 7. **#139: Node and npm minimums in `package.json`.** As that issue describes, with
@@ -407,7 +409,8 @@ live in Vercel environment variables (marked "Sensitive" where offered), GitHub 
 secrets and Dependabot secrets; a developer's own copies stay on their machine; none in a
 tracked or shared file. In this phase: the preview project's keys go into Vercel's
 preview-scoped variables (step 6) and the owner's `.env.local`, never into `README.md`,
-an issue, a PR or the process log.
+an issue, a PR or the process log. (#186: the owner's copy is `.env.preview.local`, also
+gitignored, so `.env.local` keeps the local stack's keys for the integration tests.)
 
 ### #6 — `experimental.agentUpgrade: false` stays
 
@@ -684,7 +687,8 @@ here by its round 3: `CLAUDE.md` puts a decision settled during a phase in the p
 
 **Preview deploy (step 6)**
 - [ ] The preview builds; every variable `src/lib/supabase.ts` and `useMapLibre` read
-  is set, preview-scoped, and the service-role key is marked Sensitive.
+  is set, preview-scoped, and the service-role key is marked Sensitive ("Secret" in
+  Vercel's types since 2026, #187).
 - [ ] GET requests to `/api/live` (headers dumped, past Deployment Protection per open
   decision 11) show `x-vercel-cache: MISS`, then `HIT` within 60 s, then `STALE`
   between 60 and 120 s, with the output in the PR or issue.
@@ -694,7 +698,8 @@ here by its round 3: `CLAUDE.md` puts a decision settled during a phase in the p
   from its own cache, as it does locally (PR #192's round 1, probed in Chrome).
 - [ ] `/map` on the preview in a real browser shows the basemap from R2, the markers and
   a popup.
-- [ ] Requests per visit, from Vercel's usage dashboard, are recorded with the visit
+- [ ] Requests per visit, from Vercel's usage dashboard (#187: the browser's Network
+  tab, as above), are recorded with the visit
   that produced them.
 - [ ] The build's `node -v` and `npm -v` are recorded on #139.
 - [ ] The Vercel account has non-SMS 2FA (#3).
@@ -744,7 +749,8 @@ here by its round 3: `CLAUDE.md` puts a decision settled during a phase in the p
    call, 2026-11-02:** `eu-north-1` (Stockholm). **Vercel's in step 6 (#187),
    2026-11-02:** `arn1` (Stockholm). Hobby allows one function region (Settings →
    Functions: "You are limited to 1 region on your current Hobby plan"); the preview's
-   `/api/live` answered with `X-Vercel-Id: arn1::arn1::…`. The question as planned: Supabase in
+   `/api/live` answered with `X-Vercel-Id: arn1::arn1::…`. The question as planned:
+   Supabase in
    `eu-north-1` (Stockholm) and Vercel's function region near it (`arn1`); confirm
    what Hobby allows.
 5. ~~**`freshnessText` for an update not made today (step 3).**~~ → **answered in step
