@@ -136,9 +136,9 @@ branch and tag.
 
 - **Node and npm at the versions `package.json`'s `devEngines` names.** npm 10.9 and
   later check them before `install`, `ci`, `run` and `exec` and stop with
-  `EBADDEVENGINES` if either is too old. Older npm doesn't read the field, and every
-  Node 20 release bundles npm 10.8.2, so on Node 20 compare `node -v` and `npm -v`
-  with `devEngines` yourself. Node's minimum is what vitest's toolchain needs (older
+  `EBADDEVENGINES` if either is too old. Older npm doesn't read the field, and Node
+  20.19 and later bundle npm 10.8.2, so on Node 20 compare `node -v` and `npm -v` with
+  `devEngines` yourself. Node's minimum is what vitest's toolchain needs (older
   20.x and 22.x releases pass Next's check but fail under vitest). npm 10, which Node
   20 and 22 bundle, crashes while resolving vitest's optional peer dependencies on an
   install without the lockfile, so update it with `npm i -g npm@11`. Deploys build on

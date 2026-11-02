@@ -60,8 +60,8 @@ describe a different one.
 - **The Node and npm minimums are `package.json`'s `devEngines`** (IS #139). npm 10.9
   and later check it before `install`, `ci`, `run` and `exec` and stop with
   `EBADDEVENGINES` below them; `--force` turns that into a warning. Older npm doesn't
-  read it: every Node 20 release bundles npm 10.8.2, which printed no
-  `EBADDEVENGINES` and crashed (all probed in PR #198). Why each minimum: Node's is
+  read it: every Node 20 the floor admits (20.19 and later) bundles npm 10.8.2, which,
+  like 10.8.3, printed no `EBADDEVENGINES` and crashed (all probed in PR #198). Why each minimum: Node's is
   vite/rolldown's floor (older 20.x/22.x pass Next's check and fail under vitest); npm
   10 crashes resolving vitest 4's optional peers when installing without the lockfile
   (Phase 4 decision #11; reproduced on 10.9.2 in PR #198). `engines.node` pins the
