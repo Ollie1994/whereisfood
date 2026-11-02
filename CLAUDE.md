@@ -177,7 +177,8 @@ said otherwise: Phase 4 plan decision #14.
   `listRecentLocationsForTruck` does (PR #167). That bound holds only while the API's
   `max_rows` is at least `MAX_ROWS`: locally `complete.test.ts` pins `MAX_ROWS` to
   `config.toml` and `db-locations.test.ts` fails if the API returns fewer; a hosted
-  project is Phase 6's to check. A single-row read (`.single()`, `.maybeSingle()`)
+  project's is read in its dashboard before the app uses it (the preview project's:
+  `complete.ts`, IS #186). A single-row read (`.single()`, `.maybeSingle()`)
   needs neither
 - Hand-written SQL that clears `created_by` while editing a row sets `updated_at =
   now()` itself: the `locations_updated_at` trigger skips every UPDATE that clears

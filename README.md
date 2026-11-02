@@ -300,6 +300,55 @@ npm run dev
 Open the URL from the `Local:` line Next prints, usually
 [http://localhost:3000](http://localhost:3000). It redirects to `/map`.
 
+### 5. A hosted preview database
+
+Preview deploys read a hosted Supabase project, not the local stack. It's in its own
+free organisation, separate from any later production project, in `eu-north-1`
+(Stockholm). It was made in the dashboard with the Data API on and "Automatically
+expose new tables" off, so the API roles get only the grants the migrations give.
+The Data API's **Max rows** is 1000, the value `MAX_ROWS` assumes
+([`src/lib/db/complete.ts`](src/lib/db/complete.ts)).
+
+**Keys.** The project uses the newer publishable and secret keys (Project Settings →
+API Keys), in the same variable names as the local ones:
+
+| Variable | Hosted value |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | the project URL, `https://<project-ref>.supabase.co` |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | the publishable key |
+| `SUPABASE_SERVICE_ROLE_KEY` | the secret key, server only |
+
+They live in Vercel's environment variables and in gitignored files on the owner's
+machine, never in a tracked file (`CLAUDE.md`, Secrets).
+
+**Schema and seed.** With the CLI logged in (`npx supabase login`):
+
+```bash
+npx supabase link --project-ref <project-ref>
+npx supabase db push --include-seed --dry-run   # lists what it would apply
+npx supabase db push --include-seed
+```
+
+`--include-seed` is for the first push only: `seed.sql` fails on a seeded database.
+Later migrations go up with plain `npx supabase db push`. On the first push, CLI
+2.109.1 printed `Warning: failed to cache migrations catalog` (a missing certificate
+file) and still applied the migration: `npx supabase migration list --linked` showed
+`0001` on both sides.
+
+**Today's entry.** The seed's one entry for today spans the hour before the push to 12
+hours after it. Before checking a preview's markers, run this in the project's SQL
+Editor. It gives Taco Loco an entry from an hour ago to 12 hours from now:
+
+```sql
+insert into locations (truck_id, latitude, longitude, label, starts_at, ends_at)
+values ('22222222-2222-2222-2222-222222222222', 57.7043702, 11.9697598, 'Kungsportsplatsen',
+        now() - interval '1 hour', now() + interval '12 hours');
+```
+
+If it fails with `conflicting key value violates exclusion constraint
+"locations_no_overlap"`, Taco Loco already has an entry overlapping that window, from
+an earlier run.
+
 ---
 
 ## Scripts
