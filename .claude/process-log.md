@@ -1476,8 +1476,8 @@ unchanged.**
   R2, the hosted project, Vercel and npm, whose claims are about other services.
 - **It found what it is for:** rows 378 and 380 (`self`, settling the claims check
   before rounds 3 and 4 of PR #181). Row 402 doesn't count: `self` found it re-reading
-  an issue body before the check ran, which reads an issue body only as its last
-  `--was` pair.
+  an issue body before the check ran (row 402: the check reads an issue body only when
+  it is passed one, "as a `--was` pair, which comes last").
 - **Two hedges were never listed.** Rows 373 and 410 are a claim a probe settles,
   hedged as not probed (the rule #171 added). The lines were "could read them (GitHub's
   REST docs; not probed here)" (commit `a0e0467`) and "Whether that runs the file
