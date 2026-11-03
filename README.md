@@ -11,10 +11,10 @@ themselves later.
 It fills a real gap: Gothenburg has had no central food-truck map since Streetkäk
 shut down in 2017.
 
-> **Status: Phase 6 of 8 (live read path) in progress.** The map shows today's entries
-> from the database through `GET /api/live`, locally against a local Supabase and on
-> protected Vercel previews against a hosted one. There is no production deploy and no
-> admin screen yet. Phase 4 removed the old design (automatic
+> **Status: Phase 6 of 8 (live read path) done; Phase 7 (admin) next.** The map shows
+> today's entries from the database through `GET /api/live`, locally against a local
+> Supabase and on protected Vercel previews against a hosted one. There is no
+> production deploy and no admin screen yet. Phase 4 removed the old design (automatic
 > ingestion from Make.com and email, plus a Swedish text parser), and Phase 5 replaced
 > its database schema; see [Project status](#project-status).
 
@@ -118,9 +118,10 @@ branch and tag.
   and `authenticated`) get no access to `trucks` or `locations`: only the server-side
   database layer reads them, with the `service_role` key. The dev seed has
   three trucks and four weeks of location history relative to the day it is loaded.
-- The database layer (`src/lib/db/`) the live read path and the admin screen will use.
+- The database layer (`src/lib/db/`), which the live read path uses and the admin
+  screen will.
 - Unit tests, and integration tests against a local Supabase for the schema (its
-  constraints, grants and row-level security) and the database layer.
+  constraints, grants and row-level security), the database layer and `/api/live`.
 
 ### What does not exist yet
 

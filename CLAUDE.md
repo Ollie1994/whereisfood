@@ -74,7 +74,7 @@ describe a different one.
 - `next.config.ts` sets `experimental.agentUpgrade: false`. With 16.4's default, an
   agent-run `next build` fails when an advisory covers the installed Next, so a gate's
   result would depend on the advisory feed, not the code. Don't remove it without the
-  owner (the owner's call, 2026-10-24, IS #178)
+  owner (Phase 6 plan decision #6, IS #178)
 - MapLibre's worker is copied into `public/maplibre/<version>/` by the
   `postinstall`/`predev`/`prebuild` hooks. Don't switch to MapLibre's documented
   `setWorkerUrl(new URL(…, import.meta.url))` form: on Next 16.3 the worker 404'd and
@@ -150,17 +150,17 @@ said otherwise: Phase 4 plan decision #14.
   and test fixtures such as `helpers.ts`'s `FIXTURE_PASSWORD`
 - A secret that reaches a commit, or issue or PR text, is **rotated**, not just
   deleted: history keeps it, and a public repo's history is readable by anyone
-- **Where secrets live:** a hosted project's secrets for deploys and CI live in
-  Vercel's environment variables (type "Secret"; Vercel's changelog of 2026-08-24
-  turned "Sensitive" into it, IS #187), GitHub Actions secrets and, for Dependabot's
-  runs, Dependabot secrets. A developer's own copies (the preview project's keys and
-  the Vercel bypass secret in the gitignored `.env.preview.local`, IS #186 and #187; a
-  CLI login token where the CLI stores it) stay on their machine. None goes in a
-  tracked or shared file
+- **Where secrets live** (Phase 6 plan decision #5): a hosted project's secrets for
+  deploys and CI live in Vercel's environment variables (type "Secret"; Vercel's
+  changelog of 2026-08-24 turned "Sensitive" into it, IS #187), GitHub Actions secrets
+  and, for Dependabot's runs, Dependabot secrets. A developer's own copies (the preview
+  project's keys and the Vercel bypass secret in the gitignored `.env.preview.local`,
+  IS #186 and #187; a CLI login token where the CLI stores it) stay on their machine.
+  None goes in a tracked or shared file
 - Every account that can reach the project (GitHub, Supabase, Vercel, Cloudflare, the
   registrar, their recovery email) uses two-factor authentication by passkey, hardware
   key or authenticator app, not SMS: set up when the account is created, all checked
-  before the production deploy (the owner, 2026-10-24, IS #176). Which accounts don't
+  before the production deploy (Phase 6 plan decision #3, IS #176). Which accounts don't
   meet it yet is `project-context.md`'s, "Pre-deploy automation (planned)"
 - A push that GitHub's push protection blocks is fixed by removing the value from the
   commits, not by bypassing the block (what is switched on: `project-context.md`,
@@ -279,13 +279,14 @@ Toolchain: the Node and npm ranges under Dependencies.
 | `npm run test:all` | **every project in `RUNS`** of `scripts/test-all.mjs` (today `unit` + `integration`), checked against the projects `vitest.config.ts` declares; takes no arguments | yes |
 
 **There is no CI — every gate is manual, until the production deploy.** CI/CD is Phase
-8's work, one piece designed together and built before that phase's production deploy.
+8's work, one piece designed together and built before that phase's production deploy
+(Phase 6 plan decision #1).
 What it holds (the four gates in GitHub Actions, SAST, branch protection, a pre-commit
 and CI secret scan, and more) is `project-context.md`'s "Pre-deploy automation
 (planned)". Don't re-propose it for an earlier phase. Sources: the owner's decision
 "DECISION — Gates stay manual until deploy" (2026-09-06, archived; the note above the
 process log's table says how to read it). That "deploy" means the production deploy is
-the owner's reading of 2026-10-24 (IS #176).
+the owner's reading (Phase 6 plan decision #2, IS #176).
 Until then the gates are the only enforcement, and `tsc` is one of them in its own
 right: vitest strips types and never type-checks, so a green test run says nothing
 about types. The gate list is four commands, and
