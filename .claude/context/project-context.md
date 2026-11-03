@@ -583,12 +583,11 @@ before the first production deploy (Phase 8)**. Until then every gate is manual
   dependencies" (the owner's screenshot, 2026-10-24). Which alerts it has dismissed,
   including any on `eslint-config-next`, an exact pin in `devDependencies`, is reviewed
   when the CI is designed. The preset "Dismiss package malware alerts" is disabled.
-- **Two-factor authentication** (the rule is `CLAUDE.md`'s, "Secrets"): the
-  Cloudflare, Supabase and Vercel accounts Phase 6 created use non-SMS 2FA (the owner's
-  confirmations in PRs #194, #195 and #197; Cloudflare's and Vercel's by authenticator
-  app, Supabase's method not recorded). The owner's GitHub account uses non-SMS 2FA
-  too (the owner, 2026-11-03, in PR #204; the method not recorded). No domain or
-  registrar account exists yet.
+- **Two-factor authentication** (the rule is `CLAUDE.md`'s, "Secrets"): the owner's
+  GitHub account and the Cloudflare, Supabase and Vercel accounts Phase 6 created all
+  use a mobile authenticator app (the owner's confirmations in PRs #194, #195 and #197,
+  and for GitHub, and every method, in PR #204, 2026-11-03). No domain or registrar
+  account exists yet.
 
 All of these can be switched off without any change in the repo. They were checked in
 the GitHub UI: the CLI token used here, though it has admin rights, gets `403` from the
