@@ -92,7 +92,7 @@ The working rules live in [`CLAUDE.md`](CLAUDE.md) and the design reference in
 | 3 · Parser           | Swedish text parser for social-media captions | Stopped and removed in Phase 4 |
 | 4 · Housekeeping     | Remove the old design, upgrade dependencies, rewrite the docs | ✅ Done |
 | 5 · Schema reset     | A fresh 3-table schema (`trucks`, `locations`, `users`) | ✅ Done |
-| 6 · Live read path   | `/api/live`, polling, map tiles on Cloudflare R2, first preview deploy | 🔄 In progress |
+| 6 · Live read path   | `/api/live`, polling, map tiles on Cloudflare R2, first preview deploy | ✅ Done |
 | 7 · Admin            | Admin login and location entry | ⬜ Not started |
 | 8 · Launch           | A custom domain for the tiles, production deploy | ⬜ Not started |
 

@@ -7,15 +7,16 @@
 > `project-context` and `CLAUDE.md` are both already named in it.
 
 **How to read this file.** It was rewritten at the end of Phase 4 (#127) and
-reconciled at the end of Phase 5 (#165). It has three parts:
+reconciled at the end of Phases 5 (#165) and 6 (#189). It has three parts:
 
-1. **Current state** — what exists on `dev` after Phase 5. Trust it for "what is the
+1. **Current state** — what exists on `dev` after Phase 6. Trust it for "what is the
    code doing today".
 2. **Target design** — what Phases 5–8 build, condensed from `.claude/transition.md`
    (now history). Trust it for "what are we building", never as a description of the
-   code. The sections marked "built in Phase 5" are the exception for what they say
-   about the **schema** (Part 1's "Database" says it matches them); what they say about
-   services, routes and the 409 mapping is still target design.
+   code. The exceptions are the sections marked "built in Phase 5", for what they say
+   about the **schema** (Part 1's "Database" says it matches them), and "Read path",
+   marked "built in Phase 6". What Part 2 says about admin routes, writes and the 409
+   mapping is still target design.
 3. **Standing rules** — conventions that hold in both.
 
 The current phase plan wins over this file. This file is reconciled with reality at
@@ -49,8 +50,8 @@ open.
 | 3 | Parser: Swedish caption parser | stopped; removed in Phase 4 |
 | 4 | Housekeeping: remove the old design, upgrade dependencies, rewrite the docs | done |
 | 5 | Schema reset | done |
-| 6 | Live read path (first preview deploy) | next; no plan yet |
-| 7 | Admin | not started |
+| 6 | Live read path (first preview deploy) | done |
+| 7 | Admin | next; no plan yet |
 | 8 | Launch (first production deploy) | not started |
 | later | Owners; optional automation | — |
 
@@ -70,31 +71,37 @@ save-triggered cache purges, grey markers) without a concrete problem that needs
 
 ---
 
-# Part 1 — Current state (after Phase 5)
+# Part 1 — Current state (after Phase 6)
 
 ## What runs
 
-- `/` redirects to `/map`. `/map` renders MapLibre over a local PMTiles file with
-  Swedish labels (`@protomaps/basemaps`, `lang: "sv"`), centred on Gothenburg.
-- Markers and popups come from **fake data** (`src/lib/fake-data.ts`), typed by the
-  frozen `src/lib/map-types.ts`. The app reads nothing from the database and has **no
-  API routes**: the schema and db layer below are called only by the integration
-  tests.
-- The fake-data map still behaves like the **old** design: marker colour from
-  `confidence` (green ≥ 0.9, yellow ≥ 0.45; grey, drawn at `last_known_*`, for a truck
-  whose location is missing, below 0.45 or a negation; **no marker at all** when
-  `last_known_*` is null), and popup labels from the same colours. Phase 6 replaces this;
-  don't change it before then (Phase 4 plan, Out of Scope).
+- `/` redirects to `/map`. `/map` renders MapLibre over PMTiles with Swedish labels
+  (`@protomaps/basemaps`, `lang: "sv"`), centred on Gothenburg: a local file in
+  development, Cloudflare R2 on a preview ("Map tiles").
+- **Markers come from `GET /api/live`**, the one API route: route → `getLiveMap`
+  (`src/lib/services/live.ts`) → the db layer. Part 2's "Read path" (built in Phase 6)
+  describes it, server and client: the markers, the popup, polling and failure.
+- **A preview deploy** runs on Vercel against a hosted Supabase preview project, with
+  the tiles on R2. `README.md`'s "Preview deploys" and "Hosted preview database" are
+  the one description of that setup. There is no production deploy (Phase 8).
 - `src/proxy.ts` is a no-op stub. Its matcher (`/dashboard/:path*`, `/admin/:path*`,
-  `/api/locations`) is a Phase 1 draft; Phase 7 sets the real one.
+  `/api/locations`) is a Phase 1 draft; Phase 7 sets the real one. Its unused `request`
+  is `npm run lint`'s one warning (2026-11-03), until Phase 7 writes the proxy.
 
 ## Map tiles
 
 `public/*.pmtiles` is gitignored, so a fresh clone has no tiles and the map draws an
 empty background. The README ("Get the map tiles") gives the command: `pmtiles
-extract` from a recent Protomaps daily build (dates listed at
-`maps.protomaps.com/builds`; its "download" link is the whole ~139 GB planet), with
-the bounding box from `src/lib/geo.ts`. `NEXT_PUBLIC_PMTILES_URL=/gothenburg.pmtiles`.
+extract` from a recent Protomaps daily build, with the bounding box from
+`src/lib/geo.ts`. Development uses the local file,
+`NEXT_PUBLIC_PMTILES_URL=/gothenburg.pmtiles`.
+
+**Deploys read the same file from Cloudflare R2** (Phase 6 plan decision #7: pulled
+forward from Phase 8, so a preview tests the launch tile path). The bucket is served
+from its `r2.dev` URL for previews (open decision 1); Phase 8 moves it to a custom
+domain. Its CORS rule admits `http://localhost:3000` and a pattern for this project's
+Vercel preview URLs (open decision 10). What that rule admits and doesn't, and how to
+check the bucket, is `README.md`'s "Get the map tiles", the one description.
 
 MapLibre's worker is copied from `node_modules` into the gitignored
 `public/maplibre/<version>/` by `scripts/copy-maplibre-worker.mjs`, run as the
@@ -117,15 +124,21 @@ every gate green (Phase 4 plan decision #13, process-log row 282). It wasn't ret
 | `vitest` | ^4.1.12 | pulls in `vite` 8 |
 | `supabase` CLI | ^2.109 | dev dependency |
 
-Toolchain: Node `^20.19.0 || >=22.12.0` and **npm ≥ 11** (npm 10.9.2 crashes on
-vitest 4's optional peers). Both are prose only; enforcing them in `package.json` waits
-for Vercel's build versions (#139, Phase 6). `npm audit` and `npm audit --omit=dev` both
-report 0 vulnerabilities (2026-10-24, after IS #178's upgrade). That is a dated result:
-re-run `npm audit` before relying on it. Dependabot alerts are on, but an auto-triage
-rule can dismiss low-impact alerts on development dependencies ("Pre-deploy automation
-(planned)", "Already on"). `next.config.ts` sets `agentRules: false` (Phase 4 plan
-decision #12) and `experimental.agentUpgrade: false` (IS #178; `CLAUDE.md`
-"Dependencies").
+Toolchain: `package.json`'s `devEngines` admits Node `^20.19.0 || >=22.12.0` and npm
+`>=11.0.0`, with `onFail: "error"`, and `engines.node` is `26.x`, the major Vercel
+builds with (#139; Phase 6 plan open decision 9). Vercel's preview build ran Node
+26.13.0 and npm 11.20.0. Why each range, and which npm reads `devEngines`, is
+`CLAUDE.md`'s ("Dependencies"); #199 (open) proposes raising the Node floor past 20.
+
+On 2026-11-03 `npm audit` reported 16 moderate findings, all from one advisory,
+GHSA-g3hv-75wg-m249 (`minimatch` before 11.0.1, in dev dependencies only), and `npm
+audit --omit=dev` found 0 vulnerabilities. The owner dismissed Dependabot alert #7 for
+it: Phase 6 plan decision #24 lists the copies, the ranges holding them and when to
+revisit. That is a dated result: re-run both before relying on it. Dependabot alerts
+are on, but an auto-triage rule can dismiss low-impact alerts on development
+dependencies ("Pre-deploy automation (planned)", "Already on"). `next.config.ts` sets
+`agentRules: false` (Phase 4 plan decision #12) and `experimental.agentUpgrade: false`
+(Phase 6 plan decision #6; `CLAUDE.md` "Dependencies").
 
 ## Database (the Phase 5 baseline)
 
@@ -162,7 +175,9 @@ below as "#n".
   (#13).
 - `supabase/seed.sql`: three fixed-UUID trucks (Vintervilan inactive, with no rows)
   and four weeks of 11:00–14:00 Stockholm history ending yesterday, plus one row
-  spanning `now()`, all relative to the reset (#15).
+  spanning `now()`, all relative to the reset (#15). The hosted preview project loaded
+  it once, so its history doesn't move with the date (`README.md`, "Hosted preview
+  database"; #196 fixes the file's comments, which describe only the local stack).
 
 `src/lib/database.types.ts` is generated from it, **in Git Bash** (PowerShell 5.1's
 `>` re-encodes the file): `npx supabase gen types typescript --local >
@@ -175,8 +190,8 @@ src/lib/database.types.ts`. `src/lib/types.ts` derives `Truck`, `Location` (with
 - `locations.ts`: `insertLocation`, `updateLocation`, `cancelLocation`,
   `findLocationsOverlapping`, `listRecentLocationsForTruck`. No delete.
   `findLocationsOverlapping(from, to)` serves both Phase 6's live window and Phase 7's
-  checklist (#9), and **doesn't filter on `is_active`** (the plan's open decision 6:
-  Phase 6 decides where that filter goes).
+  checklist (#9), and **doesn't filter on `is_active`**: `getLiveMap` does (Phase 6
+  plan decision #9).
 - `complete.ts`: `MAX_ROWS` (pinned to `config.toml`'s `max_rows` by its unit test)
   and `assertAllRows`, which list reads without a `limit` use to throw when `max_rows`
   cuts them.
@@ -184,35 +199,40 @@ src/lib/database.types.ts`. `src/lib/types.ts` derives `Truck`, `Location` (with
 Its rules are `CLAUDE.md`'s ("db layer" under Hard Rules); the plan's "Functions and
 types" section has each function's contract.
 
-**Checked only on the local stack.** Phase 6's hosted project must check:
-- that `sv-SE-x-icu` exists (#19): without it the `create table` fails, `42704`;
-- that both extensions install into `extensions` and the trigger form is accepted
-  (#5, the plan's open decision 2);
-- that the Data API's `max_rows` is at least `MAX_ROWS`. It is set in the dashboard,
-  not from `config.toml`. Below `MAX_ROWS`, a `listRecentLocationsForTruck` call whose
-  `limit` is above the hosted cap, on a truck with more matching rows than the cap,
-  would return a cut result with no error (PR #167 round 5); the two other list reads
-  would throw through `assertAllRows` on any result above the cap.
+**Checked on the hosted preview project too** (2026-11-02, #186's PR #195; `README.md`
+"Hosted preview database"): `trucks.name`'s collation reads back `sv-SE-x-icu` (#19);
+`btree_gist` and `moddatetime` are both in `extensions`, and the migration, trigger
+included, applied (#5); the API roles hold the migration's one table grant, and `anon`
+gets `42501` on all three tables; the Data API's **Max rows** is 1000, equal to
+`MAX_ROWS` (`complete.ts` holds the value read). Max rows is set in the dashboard, not
+from `config.toml`, so a new hosted project (production's, Phase 8) is read there
+before the app uses it: below `MAX_ROWS`, a `listRecentLocationsForTruck` call whose
+`limit` is above the hosted cap would return a cut result with no error (PR #167 round
+5). The rule is `CLAUDE.md`'s ("db layer").
 
 ## Modules kept on purpose
 
 | Module | What it is | Used again in |
 |---|---|---|
-| `src/lib/http/handler.ts` | `withErrorHandling()`, the route error wrapper (+ test) | Phase 6 (`/api/live`), Phase 7 |
+| `src/lib/live.ts` | the `/api/live` contract (`LiveEntry`, `LiveResponse`) and its guards (`isLiveEntry`, `isLiveResponse`), and the map's pure helpers: `todaysEntries`, `markerFor`, `diffMarkers`, and the popup's and notice's text (+ test) | the server and the client both (Part 2, "Read path") |
+| `src/lib/live-loader.ts` | `createLiveLoader`: the fetch rules (supersede, timeout, failure), unit-tested without a DOM (+ test) | `useLocations` |
+| `src/lib/services/live.ts` | `getLiveMap`, the first service: the window, the `is_active` filter, the entries built field by field | `/api/live` |
+| `src/app/api/live/route.ts` | `GET /api/live`: the service's result with `Cache-Control` (+ test) | every poll |
+| `src/lib/http/handler.ts` | `withErrorHandling()`, the route error wrapper (+ test) | `/api/live`; Phase 7's admin routes |
 | `src/lib/geo.ts` | `GOTHENBURG_BBOX` and `isInGothenburg()` (+ test) | Phase 7: validate map taps and GPS |
 | `src/lib/spots.ts` | `SPOTS`: known Gothenburg places with coordinates (+ test) | Phase 7: "known spot" entry |
 | `src/lib/validators/uuid.ts` | UUID check (+ test) | Phase 7: truck id on admin writes |
-| `src/lib/db/trucks.ts`, `locations.ts`, `complete.ts` | the db layer on the Phase 5 schema (see "Database") | Phase 6 (`/api/live`), Phase 7 |
-| `src/lib/supabase.ts` | `supabaseAdmin` and `supabaseClient` | Phase 6/7 (see "Admin and auth") |
+| `src/lib/db/trucks.ts`, `locations.ts`, `complete.ts` | the db layer on the Phase 5 schema (see "Database") | `/api/live`; Phase 7 |
+| `src/lib/supabase.ts` | `supabaseAdmin` and `supabaseClient` | `supabaseAdmin` by the db layer; Phase 7 splits the file (see "Admin and auth") |
 | `src/lib/database.types.ts` | generated from the baseline (see "Database") | regenerated with each migration |
-| `src/lib/types.ts` | row types **derived** from the generated ones, no narrowing by hand (`source` is an enum, Phase 5 plan #18) | Phase 6, Phase 7 |
-| `src/lib/map-types.ts` | the fake-data map's **frozen, hand-written** types: the old `Truck` and `Location` shapes (`MapTruck`, `MapLocation`), `MarkerColor`, `MarkerState`. Imports nothing, so the schema can't change it (Phase 5 plan #1) | deleted in Phase 6 |
-| `src/lib/fake-data.ts` | the map's data source | replaced in Phase 6 |
+| `src/lib/types.ts` | row types **derived** from the generated ones, no narrowing by hand (`source` is an enum, Phase 5 plan #18) | `live.ts`, the db layer; Phase 7 |
 | `src/lib/maplibre-worker.mjs` | worker folder and file list (+ test) | — |
 | `scripts/seed-dictionary.mjs` | prints `Spot` stubs from OpenStreetMap for **human review**; never paste its output over `SPOTS`, which reverts hand-corrected pins | when adding spots |
 | `scripts/test-all.mjs` | the `test:all` gate | — |
 | `scripts/controls.mjs`, `tests/controls/*.sql` | the schema's negative controls; not a gate | when `CLAUDE.md` "Testing" says |
 | `scripts/claims.sh` | the pre-review claims check (`CLAUDE.md`, "Review rounds") | every review round |
+| `scripts/sweep.sh` | lists the sweep's candidates: removed text still elsewhere, moved or nowhere; added text repeated elsewhere (`CLAUDE.md`, "Review rounds"; IS #200) | every review round |
+| `scripts/lib/diff.sh` | the diff reading `claims.sh` and `sweep.sh` share: flags, `git_diff`, `rev_end`, the untracked warning | both scripts |
 | `scripts/process-log.sh` | `add` and `check` for the process log (`CLAUDE.md`, "Process Log") | every log row |
 
 ## Folder structure
@@ -226,30 +246,30 @@ src/
 │   ├── layout.tsx, globals.css, favicon.ico
 │   ├── page.tsx                  ← redirects to /map
 │   ├── map/page.tsx
-│   ├── api/live/route.ts         ← Phase 6
+│   ├── api/live/route.ts         ← (+ test)
 │   ├── api/… (admin routes)      ← Phase 7
 │   └── admin/…                   ← Phase 7
 ├── components/Map/               ← MapClient, MapView, TruckPopup
-├── hooks/
-│   ├── useMapLibre.tsx
-│   └── useLocations.ts           ← Phase 6
+├── hooks/                        ← useMapLibre.tsx, useLocations.ts
 ├── lib/
 │   ├── db/                       ← trucks.ts, locations.ts, complete.ts (+ test)
-│   ├── services/                 ← Phase 7 (doesn't exist yet): a small locations service
+│   ├── services/live.ts          ← getLiveMap; Phase 7 adds a locations service
+│   ├── live.ts, live-loader.ts   ← (+ tests)
 │   ├── http/handler.ts           ← withErrorHandling (+ test)
 │   ├── validators/uuid.ts        ← (+ test)
 │   ├── geo.ts, spots.ts          ← (+ tests)
 │   ├── supabase.ts, types.ts, database.types.ts
-│   ├── map-types.ts, fake-data.ts ← deleted and replaced in Phase 6
 │   └── maplibre-worker.mjs       ← (+ test)
 └── proxy.ts                      ← stub until Phase 7
 scripts/                          ← copy-maplibre-worker.mjs, seed-dictionary.mjs, test-all.mjs,
-                                    controls.mjs, claims.sh, process-log.sh
+                                    controls.mjs, claims.sh, sweep.sh, lib/diff.sh,
+                                    process-log.sh
 supabase/                         ← config.toml, migrations/0001_baseline.sql, seed.sql
-tests/integration/                ← setup.ts, helpers.ts (+ test), schema, rls, db-trucks and
-                                    db-locations tests
+tests/integration/                ← setup.ts, helpers.ts (+ test), schema, rls, db-trucks,
+                                    db-locations and api-live tests
 tests/controls/                   ← one .sql per negative control, run by controls.mjs
-public/                           ← gothenburg.pmtiles and maplibre/ (both gitignored)
+public/                           ← gothenburg.pmtiles (development; deploys read R2) and
+                                    maplibre/ (both gitignored)
 .claude/                          ← plans, context, commands, process-log.md, transition.md
 ```
 
@@ -257,17 +277,25 @@ public/                           ← gothenburg.pmtiles and maplibre/ (both git
 
 `.env.example` lists four variables: `NEXT_PUBLIC_SUPABASE_URL`,
 `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (server only, never
-`NEXT_PUBLIC_`) and `NEXT_PUBLIC_PMTILES_URL`. The map needs only the last one. The
-Supabase three are needed by the integration tests; `npx supabase status -o env`
-prints them under other names: `API_URL` → `NEXT_PUBLIC_SUPABASE_URL`, `ANON_KEY` →
-`NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SERVICE_ROLE_KEY` → `SUPABASE_SERVICE_ROLE_KEY`.
+`NEXT_PUBLIC_`) and `NEXT_PUBLIC_PMTILES_URL`. The basemap needs only the last one;
+the markers (`/api/live`) and the integration tests need the Supabase three, which
+`npx supabase status -o env` prints locally under other names: `API_URL` →
+`NEXT_PUBLIC_SUPABASE_URL`, `ANON_KEY` → `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
+`SERVICE_ROLE_KEY` → `SUPABASE_SERVICE_ROLE_KEY`. A preview takes all four from Vercel's
+Preview-scoped variables: the hosted project's newer publishable and secret keys sit
+in the same two names (open decision 3), and the tiles' URL is R2's. Where each value
+comes from, and where the owner keeps copies, is `README.md`'s ("Hosted preview
+database", "Preview deploys"); where secrets may live is `CLAUDE.md`'s ("Secrets").
 
 ## Tests and gates
 
 Vitest with two projects, `unit` and `integration` (local Supabase, files run
-sequentially). The integration project has five test files: `schema` (constraint,
-CHECK, NOT NULL, enum, trigger, foreign keys, the unique Instagram handle), `rls` (grants and the one policy, with signed-in
-auth-user fixtures), `db-trucks`, `db-locations` and `helpers`. There is no CI; the four
+sequentially). The integration project has six test files: `schema` (constraint,
+CHECK, NOT NULL, enum, trigger, foreign keys, the unique Instagram handle), `rls`
+(grants and the one policy, with signed-in auth-user fixtures), `db-trucks`,
+`db-locations`, `api-live` (the route against the local stack) and `helpers`. On
+2026-11-03 `test:all` ran 9 unit files (231 tests) and 6 integration files (112
+tests). There is no CI; the four
 gates are run by hand: `npx tsc --noEmit`, `npm run lint`, `npm run test:all`, `npm run
 build`. Details, and what the gates can't see, are in `CLAUDE.md` "Testing", which also
 covers the schema controls (`node scripts/controls.mjs`: not a gate; when to run them
@@ -322,9 +350,9 @@ authoring tool for `SPOTS`).
 | Phase | Builds |
 |---|---|
 | 5 · Schema reset (done) | Squashed baseline: `trucks`, `locations`, `users`; `btree_gist` + exclusion constraint + `CHECK (ends_at > starts_at)` + `updated_at` trigger; RLS + explicit GRANTs (no anon SELECT on `trucks`/`locations`); regenerate types; rewrite `seed.sql`, `db/trucks.ts`, `db/locations.ts` (with the history queries) and the integration tests (constraint, cancelled rows don't block, CHECK, RLS) |
-| 6 · Live read path | `GET /api/live`; `useLocations` (polling, timer, marker diffing); popup with freshness text and Instagram link; replace `fake-data.ts` and delete `map-types.ts`; decide where the `is_active` filter goes (Phase 5 plan, open decision 6); the popup's text for a NULL `label` (Phase 5 plan decision #12); a hosted Supabase project for previews, with the hosted checks Part 1's "Database" lists; **first preview deploy**: check `x-vercel-cache` MISS → HIT → STALE, measure real requests per visit in Vercel's usage dashboard, record Vercel's build Node/npm (#139) |
+| 6 · Live read path (done) | `GET /api/live` and its service; `useLocations` (polling, timer, marker diffing); the popup with freshness text and Instagram link; `fake-data.ts` and `map-types.ts` deleted; the `is_active` filter in the service; the tiles on R2; a hosted Supabase project for previews, with the hosted checks; the **first preview deploy**, with the CDN cache checked (MISS → HIT → STALE) and requests per visit counted; Node and npm in `package.json` (#139) |
 | 7 · Admin | Magic-link login, admin only (public sign-ups disabled); session and `is_admin` checks in `proxy.ts` **and** every admin route; truck CRUD; mobile-first location entry; edit; cancel; overlap → 409; the morning checklist |
-| 8 · Launch | Supabase Pro (backups); tiles on R2 (custom domain, CORS); production env; security headers; Swedish privacy note; takedown procedure (one transaction: delete the truck's locations, clear or delete each `users` row pointing at it, then delete the truck; Phase 5 plan #7); tell trucks they're listed; acquisition plan; runbook (Vercel Attack Mode, usage emails); Vercel Pro + Spend Management before the first marketing push; **before the deploy**, "Pre-deploy automation (planned)": CI/CD, SAST, secret scanning, branch protection, 2FA on every account, and rotating every credential |
+| 8 · Launch | Supabase Pro (backups); a production Supabase project, new keys (Phase 6 plan #18); the tiles' custom domain on R2, and the CORS rule naming it (the bucket is Phase 6's, #7); production env, added only after checking the Ignored Build Step ("Pre-deploy automation (planned)"); security headers; Swedish privacy note; takedown procedure (one transaction: delete the truck's locations, clear or delete each `users` row pointing at it, then delete the truck; Phase 5 plan #7); tell trucks they're listed; acquisition plan; runbook (Vercel Attack Mode, usage emails); Vercel Pro + Spend Management before the first marketing push; **before the deploy**, "Pre-deploy automation (planned)": CI/CD, SAST, secret scanning, branch protection, 2FA on every account, and rotating every credential |
 | later | Owners (claim flow, owner dashboard, override rules, custom SMTP); optional automation (Meta Business Discovery captions in the admin screen, a scheduler) |
 
 ## Data model (built in Phase 5)
@@ -395,12 +423,17 @@ powers the checklist, "recent places" and proof of value to trucks.
   table above, **`service_role` included**, as `0001_baseline.sql` does: the result
   doesn't depend on the defaults. No `service_role` policies:
   it bypasses RLS. The rule itself is `CLAUDE.md`'s.
-- (Target, Phases 6–7: no route exists yet.) All writes, `/api/live` and the admin screen's reads go through server-side routes
-  (route → service → db layer; only the db layer uses `supabaseAdmin`).
+- All writes, `/api/live` and the admin screen's reads go through server-side routes
+  (route → service → db layer; only the db layer uses `supabaseAdmin`). `/api/live` is
+  built (Phase 6); the writes and admin reads are Phase 7's.
 - Unverified third-party reports say free projects need explicit GRANTs for API access
   from 2026-10-30; already covered by the rule above.
 
-## Read path: `GET /api/live` (Phase 6)
+## Read path: `GET /api/live` (built in Phase 6)
+
+What Phase 6 built, and why; the reasons are the Phase 6 plan's numbered decisions,
+cited as "Phase 6 #n", and its answered open decisions. The rules are `CLAUDE.md`'s
+("`/api/live`", "UI Rules").
 
 ```
 Admin saves ──► POST/PATCH /api/locations ──► Supabase   (nothing else to do)
@@ -410,11 +443,11 @@ Visitor's map ──► GET /api/live (every 60 s, and when the tab regains focu
                    Vercel CDN (one shared copy per region, 60 s) ──miss──► function ──► Supabase
 ```
 
-**Server**
-- An **ordinary (dynamic) route**, no route segment config. **Not ISR**: ISR would
-  pre-render at build time (the DB must be reachable during `next build`) and needs a
-  fragile "never read the request" rule; the header gives the same shared copy without
-  either (process-log row 264).
+**Server** (`src/app/api/live/route.ts` → `getLiveMap` in `src/lib/services/live.ts`)
+- An **ordinary (dynamic) route**, no route segment config; `next build` lists it as
+  `ƒ` (Dynamic) (Phase 6 #17). **Not ISR**: ISR would pre-render at build time (the DB
+  must be reachable during `next build`) and needs a fragile "never read the request"
+  rule; the header gives the same shared copy without either (process-log row 264).
 - Response header: `Cache-Control: public, s-maxage=60, stale-while-revalidate=60`.
   Vercel strips `s-maxage`/`stale-while-revalidate` before the browser **when no
   `CDN-Cache-Control` header is set**, so every poll reaches the CDN copy. Don't add
@@ -422,18 +455,31 @@ Visitor's map ──► GET /api/live (every 60 s, and when the tab regains focu
 - Reads through the db layer, which uses `supabaseAdmin` (anon has no SELECT),
   selecting an **explicit column
   list, never `*`**, so `created_by` and future columns can't leak.
-- Returns active trucks plus locations with `cancelled_at IS NULL AND ends_at > now()
-  AND starts_at < now() + interval '1 day'`. The client handles minute-level edges.
-  The db layer has both halves: `listActiveTrucks()` and
-  `findLocationsOverlapping(now, now + 1 day)`, which returns every truck's rows,
-  inactive ones included, so Phase 6 decides where the `is_active` filter goes.
+- `getLiveMap(now)` is the only clock read on the server, and the first service (Phase
+  6 #10). It runs `listActiveTrucks()` and `findLocationsOverlapping(now, now + 26 h)`
+  in parallel and **drops rows of inactive trucks** (Phase 6 #9: the db layer doesn't
+  filter on `is_active`). The window is `[now, now + 26 h)`, not a day: the client keeps
+  entries starting before the next Stockholm midnight, up to 25 h away on the
+  fall-back day, and a response can be about 3 minutes old when last used, so 26 h is
+  a superset while polls succeed; `api-live.test.ts` pins both edges and the fall-back
+  day. The service has no time zone; the client's `todaysEntries` does the Stockholm
+  cut.
+- The body is `{ entries }`, each `LiveEntry` **built field by field**, never by
+  spreading a row, so `cancelled_at`, `source`, `created_at`, `is_active`,
+  `description` and any future column stay on the server (Phase 6 #11). An entry that
+  fails `isLiveEntry` (an out-of-range coordinate or a malformed timestamp, which the
+  schema allows) is dropped and its location id logged, so one bad row can't blank the
+  map (Phase 6 #20).
 - **Errors are never cached:** a DB error goes through `withErrorHandling` → 500, which
   Vercel doesn't cache. **Never return `[]` on error**: that is a cacheable 200 and
   wipes the map for a minute.
 - **No `Set-Cookie`, `Vary: Cookie`, `private` or `no-store`** on this response; any
   of them stops Vercel caching it.
 - Saves trigger no purge; they show within ~1–2 minutes (cache + stale window + poll).
-- Locally every request runs the function; the CDN only exists on Vercel.
+- Locally every request runs the function; the CDN only exists on Vercel. **Checked on
+  the preview** (#187, 2026-11-02): `x-vercel-cache` went `MISS`, then `HIT` within 60
+  s, then `STALE` between 60 and 120 s, and the browser sees `cache-control: public`
+  only (`README.md`, "Preview deploys", has the command and its limits).
 
 **Cache-busting:** Vercel's cache key includes the query string and isn't
 configurable, so `/api/live?x=<random>` misses the cache and runs one small indexed
@@ -443,17 +489,54 @@ against query strings and a per-IP rate limit were considered and dropped (they 
 breaking the app or blocking real lunchtime users behind shared IPs). Add the
 query-string rule only if junk traffic actually appears.
 
-**Client (`useLocations`, all state in hooks)**
-1. Fetch on load.
-2. Poll every 60 s; fetch straight away on `visibilitychange`; pause while hidden.
-3. Update only the markers that changed. Never fully re-render the map.
-4. A 30 s timer moves pins to "öppet nu" (`starts_at` passed) or removes them
-   (`ends_at` passed), showing only entries for today (Stockholm date).
-5. Re-check all markers when the page becomes visible (background tabs throttle
-   timers).
+**Client** (`useLocations`, `createLiveLoader` in `src/lib/live-loader.ts`, the pure
+helpers in `src/lib/live.ts`, `useMapLibre`; all state in hooks)
+1. Fetch on load; poll every 60 s while the tab is visible; fetch straight away when it
+   becomes visible again. A newer fetch supersedes an older one, and a fetch with no
+   answer in 15 s counts as failed.
+2. A body `isLiveResponse` rejects, a non-2xx or a failed fetch is a failure: the map
+   **keeps its last good markers** (Phase 6 #16) and shows `"Kunde inte uppdatera"`,
+   or `"Kunde inte hämta foodtrucks. Försöker igen…"` with none, from the first failure
+   until the next good answer (open decision 6). `"Inga foodtrucks idag"` shows only
+   after a good answer with no markers (open decision 7).
+3. A 30 s tick moves `now`; `todaysEntries` keeps only today's entries (Stockholm date)
+   that haven't ended, so an ended truck leaves the map even while polls fail.
+4. **One marker per truck** (Phase 6 #12): its open entry, else its next one today.
+   Two states: filled while open, outlined when it opens later today (open decision 8).
+   Markers are buttons, opened by click, Enter or Space.
+5. `diffMarkers`, a pure function, computes which markers to add, move or remove, and
+   `useMapLibre` applies only that: the map is never fully re-rendered (Phase 6 #14).
+6. The popup: the truck's name, the place (no line when `label` is null, Phase 6 #13),
+   whether it is open, its hours (naming the day of a start that isn't today and of an
+   end on another day than the start, Phase 6 #21), `"Uppdaterad …"` by Stockholm
+   calendar days (open decision 5), and the Instagram link. Components never read the
+   clock: `now` reaches the popup as a prop (Phase 6 #15).
 
 Per poll ~10 KB (2–3 KB compressed). Each poll is one Vercel request even from cache,
-and **map tiles are a bigger request consumer than polling** (see Pricing).
+and **map tiles are a bigger request consumer than polling** (see Pricing). On the
+preview (#187's PR #197, Chrome's Network tab, one reload): a first visit made 16 of
+the app's requests to Vercel, one of them `/api/live`; a returning visit, with the
+browser cache on, 6.
+
+**Scaling limits** (Phase 6 #22, the owner's call: known and written down, nothing
+built for them now). The read path scales with visitors (one CDN copy per region),
+not with trucks. In the order they would be hit:
+- **1,000 rows, a hard wall.** `findLocationsOverlapping` and `listActiveTrucks` throw
+  past `MAX_ROWS` rather than return part of the rows, so `/api/live` answers 500: a
+  map opened then shows no markers, one already open keeps its markers. It counts
+  entries in the 26 h window and active trucks, not history; about 50 trucks with one
+  or two entries a day use a tenth of it or less. First fix: raise `max_rows` and
+  `MAX_ROWS` together (the hosted project's too). Trigger: the window passing ~500
+  rows.
+- **The whole response on every poll:** about 15 MB an hour for a visitor with the
+  map open at 3,000 entries (measured on synthetic ones). Fix: fetch only the visible
+  area, on a fixed grid so each cell stays one cached response.
+- **HTML markers** re-position on every `move` event, so the cost grows with their
+  number; where a phone starts to stutter isn't measured. Fix: a GeoJSON source with
+  clustering, which changes `CLAUDE.md`'s HTML-marker rule.
+- **One time zone** (`Europe/Stockholm`, `live.ts`'s `TZ`). Fix: a time zone per entry.
+- Outside the code: one admin entering every entry by hand, a Gothenburg-only tile
+  file, Swedish-only text.
 
 ## No cron
 
@@ -499,8 +582,12 @@ before the first production deploy (Phase 8)**. Until then every gate is manual
   dependencies" (the owner's screenshot, 2026-10-24). Which alerts it has dismissed,
   including any on `eslint-config-next`, an exact pin in `devDependencies`, is reviewed
   when the CI is designed. The preset "Dismiss package malware alerts" is disabled.
-- **Two-factor authentication** on the owner's GitHub account, **by SMS for now**,
-  switched before the production deploy (the rule is `CLAUDE.md`'s, "Secrets").
+- **Two-factor authentication** (the rule is `CLAUDE.md`'s, "Secrets"): the
+  Cloudflare, Supabase and Vercel accounts Phase 6 created use non-SMS 2FA (the owner's
+  confirmations in PRs #194, #195 and #197; Cloudflare's and Vercel's by authenticator
+  app, Supabase's method not recorded). The
+  owner's GitHub account uses it **by SMS for now**, switched before the production
+  deploy. No domain or registrar account exists yet.
 
 All of these can be switched off without any change in the repo. They were checked in
 the GitHub UI: the CLI token used here, though it has admin rights, gets `403` from the
@@ -535,8 +622,16 @@ secret-scanning, Dependabot-alerts and vulnerability-alerts APIs, and no
 
 **Before the production deploy:**
 - **Check every account against `CLAUDE.md`'s two-factor rule** ("Secrets"), the
-  owner's GitHub included (off SMS), and keep the recovery codes offline. The other
-  accounts' 2FA hasn't been checked yet.
+  owner's GitHub included (off SMS), the recovery email and a registrar once there is
+  one, and keep the recovery codes offline.
+- **Give Production its variables only after checking that the Vercel project's
+  Ignored Build Step is still set** to cancel a Production build from any branch but
+  `main`. It runs when a build starts, so promoting an existing preview to Production
+  doesn't pass through it: don't promote a branch preview. A CLI deploy wasn't tried,
+  and its cancel case hasn't been seen (`README.md`, "Preview deploys", #187).
+- **Dependabot's branches build on Vercel with the Preview variables**, the secret key
+  among them, once Dependabot security updates are on: Git Fork Protection covers
+  forks only. Decide then whether that is acceptable or how to stop it.
 - **Rotate every credential**, in case one leaked: every key, token and secret that
   existed before the deploy, or replace it with a new project's. A new production
   Supabase project has new keys by construction. Reuse nothing from the preview setup.
@@ -562,19 +657,21 @@ where secrets live meanwhile are `CLAUDE.md`'s ("Secrets").
 - **The Hobby cliff is the main availability risk, from success more than attackers.**
   Hobby has 1M CDN requests a month shared by the page, chunks, polls **and tiles**,
   and going over makes the site unavailable for up to 30 days (no bill). Hobby is also
-  non-commercial only. Hence tiles on R2 at launch (row 265) and Pro before marketing.
+  non-commercial only. Hence tiles on R2 (row 265; already on previews, Phase 6 #7)
+  and Pro before marketing.
 - **R2:** 10 GB storage and 10M Class B reads a month free, egress free. ~30–60 reads
-  per visit covers ~200k visits a month. Use a **custom domain** on Cloudflare DNS (not
-  `r2.dev`) and a CORS rule (origins = the domain + localhost; `GET`/`HEAD`; headers
-  `range`/`if-match`; expose `etag`), or the map loads blank. Skip the Protomaps
-  Worker. Use Standard storage, not Infrequent Access.
+  per visit covers ~200k visits a month. At launch: a **custom domain** on Cloudflare
+  DNS (not `r2.dev`) and a CORS rule whose origins are the domain and localhost, or the
+  map loads blank. The bucket (Standard storage) and its CORS rule exist since Phase 6,
+  on `r2.dev` with a preview pattern (`README.md`, "Get the map tiles"). Skip the
+  Protomaps Worker.
 - **Supabase Free:** 500 MB database, 5 GB egress, pauses after a week idle, no
   backups. Pro's spend cap is on by default. Keep preview projects in a separate free
   org, or delete them at launch.
 - **On Vercel Pro, Spend Management with a pause cap is required**, or traffic not
   classified as DDoS is billed on demand.
-- Vercel deprecated Node 20 on 2026-10-01 (still listed, alongside 22 and 24); plan
-  deploys on 22 or 24 (#139).
+- Vercel deprecated Node 20 on 2026-10-01. Deploys build on the major `engines.node`
+  pins (Part 1, "Versions").
 
 ## Open decisions
 
@@ -643,8 +740,8 @@ import { Truck } from "@/lib/types";             // ❌ a type imported as a val
 
 ## Component structure
 
-An example of the convention, not today's `TruckPopup` (which types its props from the
-frozen `map-types.ts` until Phase 6):
+An example of the convention, not today's `TruckPopup` (whose props are a
+`MarkerEntry` from `live.ts`, `now` and `onClose`):
 
 ```tsx
 import type { Location, Truck } from "@/lib/types";
@@ -668,9 +765,9 @@ export default function TruckPopup({ truck, location, onClose }: TruckPopupProps
 
 ## Hooks
 
-Today: `useMapLibre.tsx` (map init, markers, popups). Target: `useLocations` (Phase 6,
-polling and timer as in Part 2). Further hooks (e.g. a selected-truck or filter hook)
-are decided when built.
+`useMapLibre.tsx` (map init, applying the marker diff, popups) and `useLocations.ts`
+(polling, the 30 s tick, the fetch state; Part 2, "Read path"). Further hooks (e.g. a
+selected-truck or filter hook) are decided when built.
 
 ## Status codes
 
@@ -703,16 +800,25 @@ says.
 | Phase 5 #5, #8, #10, #18 | The db layer's rules, and the SQL rule the `updated_at` trigger's `WHEN` needs | `CLAUDE.md` "Hard Rules" ("db layer") |
 | Phase 5 #3, #23 (PR #175) | The baseline is `0001_baseline.sql`; later migrations are `0002_<name>.sql`, `0003_…`, never `npx supabase migration new`'s timestamp names | `CLAUDE.md` "Hard Rules" ("Supabase") |
 | Phase 5 #24 (PR #175) | Where a decision settled between phases goes, and how the next plan and reconciliation take it up | `CLAUDE.md` "Process Log" (the one copy) |
-| IS #171 (PR #173) | The sweep also lists each code pattern a fix guards; a claim is backed by a command that could show it false, and a behaviour a probe can settle is probed, not hedged; a review row records the round's level and limit | `CLAUDE.md` "Review rounds"; the log's "Columns" ("What one row is", `Caught by`) |
+| IS #171 (PR #173) | The sweep also lists each code pattern a fix guards; a claim is backed by a command that could show it false, and a behaviour a probe can settle is probed, not hedged | `CLAUDE.md` "Review rounds" |
 | Phase 5 #4, #14 | The CHECK is part of the overlap guard (an empty range overlaps nothing), so it is never relaxed; indexes are the constraint's plus one per read, and another needs a measured query | Part 1 "Database" |
 | Phase 5 #6, #7 | Revoke, then grant per table; foreign keys to `trucks` stay `NO ACTION`. **The takedown (Phase 8) is one transaction:** delete the truck's locations, clear or delete each `users` row whose `truck_id` points at it, then delete the truck | `CLAUDE.md` "Hard Rules" ("Supabase", "Locations"); Part 2's Phase map (Phase 8 row) |
-| Phase 5 #12 | `label` is nullable; the popup's text for a missing one is Phase 6's | Part 2's Phase map (Phase 6 row) |
-| Phase 5 #1, #19; open decisions 2, 6; PR #167 round 5 (`max_rows`) | Phase 6 tasks: delete `map-types.ts`; check `sv-SE-x-icu`, both extensions and `max_rows` on the hosted project; decide where the `is_active` filter goes | Part 1 "Database" (hosted checks); Part 2's Phase map (Phase 6 row) |
+| Phase 5 #12; Phase 6 #13 | `label` is nullable; a missing one leaves the popup's place line out | Part 2 "Read path" (client) |
+| Phase 5 #19; PR #167 round 5 (`max_rows`) | A hosted project is checked for `sv-SE-x-icu`, both extensions in `extensions` and the Data API's Max rows before the app uses it (the preview project's passed, 2026-11-02; production's is Phase 8's) | Part 1 "Database"; `CLAUDE.md` "Hard Rules" ("db layer", Max rows) |
 | Phase 5 #9, #11, #13 | Phase 7 tasks: the checklist reuses `findLocationsOverlapping` with its own window; truck writes come with the truck screen; the Gothenburg box is checked by the validator, never a database CHECK | Part 1 "Database" (the db layer, coordinates) |
-| **between phases**, 2026-10-24, IS #176 | The owner's call: CI/CD (the four gates in GitHub Actions), SAST (SonarQube Cloud preferred), a pre-commit and CI secret scan, Dependabot security updates once CI runs, and branch protection are one piece of Phase 8's work, built before its production deploy | Part 2 "Pre-deploy automation (planned)"; `CLAUDE.md` "Testing" |
-| **between phases**, 2026-10-24, IS #176 | The owner's reading: the "deploy" in the 2026-09-06 decision "Gates stay manual until deploy" is the official production deploy, not Phase 6's preview deploy | `CLAUDE.md` "Testing" |
-| **between phases**, 2026-10-24, IS #176 | The owner's call: two-factor authentication on every account that can reach the project, by passkey, hardware key or authenticator app, not SMS; set up as each account is created, checked again before the production deploy | `CLAUDE.md` Hard Rules ("Secrets", the rule); Part 2 "Pre-deploy automation (planned)" (which accounts meet it, and the pre-deploy check) |
-| **between phases**, 2026-10-24, IS #176 | The owner's call: every credential that existed before the production deploy is rotated, or replaced by a new project's, before it | Part 2 "Pre-deploy automation (planned)" (the pre-deploy rotation); `CLAUDE.md` Hard Rules ("Secrets", rotating a secret that reached a commit) |
-| **between phases**, 2026-10-24, IS #176 | The owner's call: hosted secrets for deploys and CI live in Vercel environment variables, GitHub Actions and Dependabot secrets; developers' own copies stay on their machine; none in a tracked or shared file | `CLAUDE.md` Hard Rules ("Secrets") |
-| **between phases**, 2026-10-24, IS #178 | The owner's call: `next.config.ts` sets `experimental.agentUpgrade: false`, so an agent-run build or dev server doesn't fail, or query the advisory source, when an advisory covers the installed Next; advisories come through Dependabot alerts and `npm audit` | `CLAUDE.md` "Dependencies"; the comment in `next.config.ts` |
+| Phase 6 #1 (IS #176) | CI/CD (the four gates in GitHub Actions), SAST (SonarQube Cloud preferred), a pre-commit and CI secret scan, Dependabot security updates once CI runs, and branch protection are one piece of Phase 8's work, built before its production deploy | Part 2 "Pre-deploy automation (planned)"; `CLAUDE.md` "Testing" |
+| Phase 6 #2 (IS #176) | The "deploy" in the 2026-09-06 decision "Gates stay manual until deploy" is the official production deploy, not a preview deploy | `CLAUDE.md` "Testing" |
+| Phase 6 #3 (IS #176) | Two-factor authentication on every account that can reach the project, by passkey, hardware key or authenticator app, not SMS; set up as each account is created, checked again before the production deploy | `CLAUDE.md` Hard Rules ("Secrets", the rule); Part 2 "Pre-deploy automation (planned)" (which accounts meet it, and the pre-deploy check) |
+| Phase 6 #4 (IS #176) | Every credential that existed before the production deploy is rotated, or replaced by a new project's, before it | Part 2 "Pre-deploy automation (planned)" (the pre-deploy rotation); `CLAUDE.md` Hard Rules ("Secrets", rotating a secret that reached a commit) |
+| Phase 6 #5 (IS #176) | Hosted secrets for deploys and CI live in Vercel environment variables, GitHub Actions and Dependabot secrets; developers' own copies stay on their machine; none in a tracked or shared file | `CLAUDE.md` Hard Rules ("Secrets") |
+| Phase 6 #6 (IS #178) | `next.config.ts` sets `experimental.agentUpgrade: false`, so an agent-run build or dev server doesn't fail, or query the advisory source, when an advisory covers the installed Next; advisories come through Dependabot alerts and `npm audit` | `CLAUDE.md` "Dependencies"; the comment in `next.config.ts` |
+| Phase 6 #7 | The tiles are on Cloudflare R2 for every deploy, pulled forward from Phase 8; development keeps the local file; Phase 8 moves the bucket to a custom domain | Part 1 "Map tiles"; Part 2's Phase map (Phase 8 row) and "Pricing" |
+| Phase 6 #9, #10, #11, #17, #20 | The read path's server: the `is_active` filter in the service, the first service, entries built field by field, no segment config on the route, a row failing `isLiveEntry` dropped | Part 2 "Read path" (server); `CLAUDE.md` "`/api/live`" (no segment config, the column list) |
+| Phase 6 #12, #14, #15, #16, #21; open decisions 5–8 | The map's behaviour: one marker per truck, a pure marker diff, the clock only in hooks, a failed poll keeping the last good markers with a notice, the popup's hours and freshness text, the empty state, two marker states | `CLAUDE.md` "UI Rules" (#12, #16, open decision 5); Part 2 "Read path" (client) |
+| Phase 6 #18 | The preview database is a separate, disposable free project, with preview keys only; production gets a new project in Phase 8 | Part 2's Phase map (Phase 8 row); "Pricing" ("Supabase Free") |
+| Phase 6 #22 | The read path's scaling limits are known and written down, with their fixes and the first trigger; nothing is built for them yet | Part 2 "Read path" ("Scaling limits") |
+| Phase 6 #23 (PR #201) | The Phase 6 retrospective's calls: `scripts/sweep.sh` (IS #200); the review-row level and limit rule retired (from row 422 a review row records neither, and a count may have been cut by the default limit); no action on row 325's repeats | `CLAUDE.md` "Review rounds"; the log's "Columns" ("What one row is") |
+| Phase 6 #24 | Dependabot alert #7 (`minimatch` before 11.0.1, dev only) dismissed; revisit if `npm audit --omit=dev` lists it or a lint run takes glob patterns from outside the repo | Part 1 "Versions" |
+| Phase 6 open decisions 1, 3, 4, 9, 10, 11 | The preview setup: the bucket's `r2.dev` URL, the newer Supabase keys in the old variable names, Stockholm for both regions, `onFail: "error"` and `engines.node: "26.x"`, the CORS pattern, Deployment Protection with a bypass secret | `README.md` "Get the map tiles", "Hosted preview database", "Preview deploys"; `CLAUDE.md` "Dependencies" (open decision 9) |
+| IS #200 (PR #202) | Each review round's sweep runs `scripts/sweep.sh`, whose hits are a floor, not the list; `claims.sh` lists the probe words; both read the diff through `scripts/lib/diff.sh` | `CLAUDE.md` "Review rounds"; the scripts' headers |
 | IS #170 (PR #174) | Schema guards get negative controls in `tests/controls/`, run by `node scripts/controls.mjs` | `CLAUDE.md` "Testing"; `.claude/commands/create-issues.md` "Failure modes" |

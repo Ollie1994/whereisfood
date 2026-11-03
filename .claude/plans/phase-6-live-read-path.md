@@ -1,7 +1,7 @@
 # Phase 6 — Live read path
 
-**Planned:** 2026-10-25 · **Status:** agreed when this plan's PR (step 0) merges; in
-progress from that merge.
+**Planned:** 2026-10-25 · **Status:** done (the reconciliation, step 10, #189);
+`project-context.md` is current again, and this plan's step text is history.
 
 **Source:** `project-context.md` Part 2 ("Phase map", "Read path: `GET /api/live`
 (Phase 6)", "Pricing and upgrade triggers"), Part 1 ("Database": the hosted checks),
