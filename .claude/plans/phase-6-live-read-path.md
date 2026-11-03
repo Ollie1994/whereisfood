@@ -605,13 +605,12 @@ The owner's calls, 2026-11-03, in the retrospective (#188, PR #201; the process 
   (#200).
 - **The review-row level and limit rule is retired** (PR #201's round 1; #200 removes
   it from the log's Columns and `CLAUDE.md`). It lapsed after rows 364 and 403 logged
-  it, and again in PR #201's round 1. All 32 rounds in rows 351–419 that stated a limit
-  stated `high` and a limit of 10 (row 410: "≤10"), and the owner keeps the default
-  limit (Phase 5 plan decision #20), so the record carried nothing new **while rounds
-  run at `high`**. The default limit may differ by level, and a bare `/code-review`
-  reuses the last level typed: a round run at another level reopens this (PR #201's
-  round 2; the owner kept the retirement on that premise). Step 10 carries this
-  forward.
+  it, and again in PR #201's round 1; all 32 rounds in rows 351–419 that stated a limit
+  stated `high` and a limit of 10 (row 410: "≤10"). From row 422 on, a review row
+  records neither the level nor the limit, and a "found N" may have been cut by the
+  default limit, as Phase 5 plan decision #20 already accepts; nothing in the log tells
+  which counts were. (The owner's call in PR #201's round 3, replacing round 2's
+  "reopens at another level", which no row could show.) Step 10 carries this forward.
 - **No action on row 325's repeats** (354, 382): each was caught by `self` from `add`'s
   output, and the fix was the next commit. Row 354's was before a push ("Not pushed");
   row 382 doesn't say.
@@ -632,9 +631,9 @@ None admits 11.0.1. Its trigger is an attacker-supplied glob pattern, and ESLint
 patterns come from the repo's config and CLI arguments. Considered: an `overrides`
 entry forcing 11.x (eight majors past `eslint`'s `^3`); Dependabot's security-update PR
 (automatic PRs are Phase 8's, and `eslint-config-next` is an exact pin moved with
-`next`). Revisit when every one of those ranges admits `minimatch` 11.0.1 or later
-(`npm audit` then no longer lists the advisory), or at Phase 8's dependency check. Step
-10 records the audit result (#189).
+`next`). Revisit when `npm audit` stops listing GHSA-g3hv-75wg-m249 (after a dependent's
+new release admits 11.0.1 or drops `minimatch`, and the lockfile moves), or at Phase
+8's dependency check. Step 10 records the audit result (#189).
 
 ---
 
