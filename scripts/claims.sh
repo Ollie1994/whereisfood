@@ -77,7 +77,7 @@ root=$(git rev-parse --show-toplevel 2>/dev/null) || { echo "claims.sh: not in a
 # shellcheck source=lib/diff.sh
 . "$(dirname "$0")/lib/diff.sh"
 err=$(mktemp); diffout=$(mktemp); trap 'rm -f "$err" "$diffout"' EXIT
-git_diff claims.sh "$root" "$rev" "$diffout"
+git_diff claims.sh "$root" "$rev" "$diffout" "$err"
 warn_untracked claims.sh "$root" "$rev" "not read"
 
 # One awk program for every input. Diff mode tracks the file from `+++ b/` (or takes

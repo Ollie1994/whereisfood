@@ -6,21 +6,17 @@
 # a hunk), and a textconv driver (converted text instead of the file's lines).
 DIFF_FLAGS="-U0 --inter-hunk-context=0 --no-color --no-ext-diff --no-textconv --src-prefix=a/ --dst-prefix=b/"
 
-# git_diff <script> <root> <rev> <out>: writes the diff to <out>, `package-lock.json`
-# left out. git's stderr (e.g. autocrlf warnings) is kept out of the diff text, and
-# shown only when the diff fails: a bad rev must not look like an empty, clean diff
-# (exit 2).
+# git_diff <script> <root> <rev> <out> <err>: writes the diff to <out>,
+# `package-lock.json` left out. git's stderr (e.g. autocrlf warnings) goes to <err>,
+# a file the caller's trap removes, kept out of the diff text and shown only when the
+# diff fails: a bad rev must not look like an empty, clean diff (exit 2).
 git_diff() {
-  local err
-  err=$(mktemp)
   # shellcheck disable=SC2086
   if ! git -C "$2" -c core.quotePath=false diff $DIFF_FLAGS "$3" \
-      -- ':(top,exclude)package-lock.json' >"$4" 2>"$err"; then
-    echo "$1: git diff $3 failed: $(cat "$err")" >&2
-    rm -f "$err"
+      -- ':(top,exclude)package-lock.json' >"$4" 2>"$5"; then
+    echo "$1: git diff $3 failed: $(cat "$5")" >&2
     exit 2
   fi
-  rm -f "$err"
 }
 
 # warn_untracked <script> <root> <rev> <what>: when <rev> is compared with the working

@@ -39,7 +39,9 @@
 # pattern's other uses (sweep step 1 lists those by hand); a copy in a closed issue or
 # PR, or in history (which stays as written); the PR body unless it is passed as a
 # file; untracked files (it warns about them when <rev> is compared with the working
-# tree); and whether a hit is stale.
+# tree); a file whose path holds a tab, or a character `git diff` quotes (`"`, `\`, a
+# control character), whose diff path then differs from its place; and whether a hit
+# is stale.
 #
 # Replayed on six copies the sweep missed (rows 375, 386, 391, 400, 410, 412; IS #200's
 # PR records each range): it lists row 400's (plan lines restating a rewritten
@@ -50,15 +52,16 @@
 #
 # Exit codes: 0 when the run worked, hits or not; 2 for no or an empty <rev>, `-h`,
 # a bad <rev> or range end, an unreadable file, a `--skip-issue` without a number, a
-# failed `gh issue list` without --no-issues, as many open issues as ISSUE_LIMIT (the
-# read may be cut), a tracked path holding a `:`, or no git repository.
+# bad SWEEP_RUN or SWEEP_ISSUE_LIMIT, a failed `gh issue list` without --no-issues,
+# more open issues than ISSUE_LIMIT (the read would be cut), or no git repository.
 
 set -euo pipefail
 
 # RUN: how many words in a row make a match. SWEEP_RUN overrides it, for replays.
 RUN="${SWEEP_RUN:-6}"
-# ISSUE_LIMIT: the most open issues read. Reading that many exits 2 rather than search
-# a cut list (CLAUDE.md's `max_rows` rule, for issues). SWEEP_ISSUE_LIMIT overrides it.
+# ISSUE_LIMIT: the most open issues read. One more is asked for, and getting it exits 2
+# rather than search a cut list (CLAUDE.md's `max_rows` rule, for issues).
+# SWEEP_ISSUE_LIMIT overrides it.
 ISSUE_LIMIT="${SWEEP_ISSUE_LIMIT:-500}"
 
 usage() { sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
@@ -67,9 +70,11 @@ case "$1" in -h|--help) usage ;; esac
 
 rev="$1"; shift
 [ -n "$rev" ] || { echo "sweep.sh: empty <rev> (did a git merge-base fail?)" >&2; exit 2; }
-for v in "$RUN" "$ISSUE_LIMIT"; do
-  case "$v" in ''|*[!0-9]*|0) echo "sweep.sh: SWEEP_RUN and SWEEP_ISSUE_LIMIT must be positive integers" >&2; exit 2 ;; esac
-done
+positive() {
+  case "$2" in ''|*[!0-9]*|0) echo "sweep.sh: $1 must be a positive integer, not '$2'" >&2; exit 2 ;; esac
+}
+positive SWEEP_RUN "$RUN"
+positive SWEEP_ISSUE_LIMIT "$ISSUE_LIMIT"
 
 issues=1
 skip=" "
@@ -92,7 +97,7 @@ tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 # The diff, read as claims.sh reads it: scripts/lib/diff.sh holds the flags and why.
 # shellcheck source=lib/diff.sh
 . "$(dirname "$0")/lib/diff.sh"
-git_diff sweep.sh "$root" "$rev" "$tmp/diff"
+git_diff sweep.sh "$root" "$rev" "$tmp/diff" "$tmp/err"
 
 # Where the places are read: the working tree, or the end of a range.
 end=""
@@ -108,18 +113,13 @@ esac
 warn_untracked sweep.sh "$root" "$rev" "not searched"
 
 # Places, one record per line: `kind<TAB>place<TAB>line<TAB>text`, kind T (tracked
-# file), I (issue) or F (file argument). `git grep -e ''` prints every line of every
-# tracked text file (-I skips binaries) as `path:line:text`, after `<end>:` when it
-# reads a commit. Its flags undo config that would change that: core.quotePath (a
-# quoted non-ASCII path), grep.column (a column number) and colour. A path holding a
-# `:` would split at the wrong place, so one exits 2 (read with -z, in the tree read).
-if [ -n "$end" ]; then
-  colons=$(git -C "$root" ls-tree -r -z --name-only "$end" | tr '\0' '\n' | grep -c ':' || true)
-else
-  colons=$(git -C "$root" ls-files -z | tr '\0' '\n' | grep -c ':' || true)
-fi
-[ "$colons" = 0 ] || { echo "sweep.sh: a tracked path holds ':', which the place records can't split" >&2; exit 2; }
-GREP="-c core.quotePath=false grep --no-color --no-column -I -n -e"
+# file), I (issue) or F (file argument). `git grep -z -n -e ''` prints every line of
+# every tracked text file (-I skips binaries) as `path<NUL>line<NUL>text`, with the
+# path raw (`å.md`, where the default quotes it as `"\303\245.md"`), after `<end>:`
+# when it reads a commit. `--no-column` and `--no-color` undo config that would add to
+# it: `git -c grep.column=true grep -n` printed `path:line:col:text`, the column in
+# the text (all probed in IS #200's PR, rounds 1-2).
+GREP="grep --no-color --no-column -z -I -n -e"
 {
   if [ -n "$end" ]; then
     # shellcheck disable=SC2086
@@ -129,11 +129,11 @@ GREP="-c core.quotePath=false grep --no-color --no-column -I -n -e"
     # shellcheck disable=SC2086
     git -C "$root" $GREP '' -- ':(top,exclude)package-lock.json'
   fi
-} | awk '{ i = index($0, ":"); j = index(substr($0, i + 1), ":"); print "T\t" substr($0, 1, i - 1) "\t" substr($0, i + 1, j - 1) "\t" substr($0, i + j + 1) }' >"$tmp/places"
+} | awk -F'\0' '{ print "T\t" $1 "\t" $2 "\t" substr($0, length($1) + length($2) + 3) }' >"$tmp/places"
 
 nissues=0
 if [ "$issues" = 1 ]; then
-  if ! gh issue list --state open --limit "$ISSUE_LIMIT" --json number,body \
+  if ! gh issue list --state open --limit "$((ISSUE_LIMIT + 1))" --json number,body \
       --jq '.[] | "\u0001\(.number)", .body' >"$tmp/issues" 2>"$tmp/err"; then
     echo "sweep.sh: gh issue list failed (use --no-issues to skip): $(cat "$tmp/err")" >&2
     exit 2
@@ -144,10 +144,12 @@ if [ "$issues" = 1 ]; then
     keep { n++; print "I\tissue #" num "\t" n "\t" $0 }
     END { print read + 0, issues + 0 > "/dev/stderr" }' "$tmp/issues" >>"$tmp/places" 2>"$tmp/nissues"
   read -r nread nissues <"$tmp/nissues"
-  [ "$nread" -lt "$ISSUE_LIMIT" ] || { echo "sweep.sh: read $nread open issues, the limit: the list may be cut (raise SWEEP_ISSUE_LIMIT)" >&2; exit 2; }
+  [ "$nread" -le "$ISSUE_LIMIT" ] || { echo "sweep.sh: more than $ISSUE_LIMIT open issues: the read would be cut (raise SWEEP_ISSUE_LIMIT)" >&2; exit 2; }
 fi
+# Through stdin, as claims.sh reads a file: awk reads an operand shaped like
+# `name=value` as an assignment.
 for f in ${files[@]+"${files[@]}"}; do
-  awk -v OFS='\t' '{ print "F", FILENAME, FNR, $0 }' "$f" >>"$tmp/places"
+  SWEEP_NAME="$f" awk '{ print "F\t" ENVIRON["SWEEP_NAME"] "\t" NR "\t" $0 }' <"$f" >>"$tmp/places"
 done
 
 # The diff's lines, one record each: `R<TAB>path<TAB>line<TAB>text` for a removed
@@ -207,19 +209,21 @@ LC_ALL=C SWEEP_RUN="$RUN" SWEEP_REV="$rev" SWEEP_ISSUES="$nissues" SWEEP_FILES="
   END {
     for (x = 1; x <= r; x++) {
       if (nk[x] == 0) { short[kind[x]]++; continue }
-      delete L; nl = 0; out = ""; outside = 0
+      delete L; ondiff = 0; out = ""; outside = 0
       for (i = 1; i <= nk[x]; i++) {
         n = split(hits[key[x, i]], h, "\036")
         for (j = 2; j <= n; j++) {
           split(h[j], p, SUBSEP)
           # p: kind, place, the run'"'"'s first line, its last line.
           if (kind[x] == "A" && p[1] == "T" && p[2] == path[x] && p[3] + 0 <= line[x] + 0 && p[4] + 0 >= line[x] + 0) continue
+          # A run of a removed line that touches a line this diff adds: the line was
+          # edited or moved. Judged per run, before the dedup: another run from the same
+          # first line may lie outside the diff (IS #200, its PR, round 2).
+          if (kind[x] == "R" && p[1] == "T" && onadded(p[2], p[3] + 0, p[4] + 0)) { ondiff = 1; continue }
           # One entry per place and first line: that is what is printed.
           shown = p[1] SUBSEP p[2] SUBSEP p[3]
           if (shown in L) continue
-          L[shown]; nl++
-          if (kind[x] == "R" && p[1] == "T" && onadded(p[2], p[3] + 0, p[4] + 0)) continue
-          outside++
+          L[shown]; outside++
           if (outside <= 8) out = out (outside > 1 ? ", " : "") p[2] ":" p[3]
         }
       }
@@ -227,7 +231,7 @@ LC_ALL=C SWEEP_RUN="$RUN" SWEEP_REV="$rev" SWEEP_ISSUES="$nissues" SWEEP_FILES="
       entry = path[x] ":" line[x] ": " t
       if (kind[x] == "R") {
         removed++
-        if (nl == 0) { nowhere = nowhere entry "\n"; nnow++ }
+        if (outside == 0 && !ondiff) { nowhere = nowhere entry "\n"; nnow++ }
         else if (outside == 0) moved++
         else { still = still entry "\n    -> " show(outside, out) "\n"; nstill++ }
       } else {

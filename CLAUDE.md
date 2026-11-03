@@ -403,9 +403,10 @@ outside a review):
    `.claude/`), code comments and tests, **every open issue body**, and the PR body if
    there is one. `sweep.sh`'s "still elsewhere" and "also elsewhere" hits are already
    such mentions, of the text itself; grep for the terms as well, since a reworded
-   copy shares no run of words. For a code pattern, grep the code **and the tests**
-   for its other uses (the call, the query shape) and read each: row 343's copy was
-   in a test helper.
+   copy shares no run of words, and grep the issue `--skip-issue` left out: it stays
+   open until the PR merges (rows 422–424: #200's AC went stale three rounds
+   running). For a code pattern, grep the code **and the tests** for its other uses
+   (the call, the query shape) and read each: row 343's copy was in a test helper.
 3. **Read every hit.** Fix the stale ones. A sibling with the same defect gets fixed in
    the PR; only one outside the PR's scope gets an issue instead, named in the sweep
    record. Rows 340 and 342: a fix guarded one read, and its siblings were found a round
