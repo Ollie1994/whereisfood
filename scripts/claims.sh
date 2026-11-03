@@ -27,10 +27,10 @@
 # claim, not history. Only `package-lock.json` is skipped.
 #
 # Does not catch: an over-claim without a listed word (row 284), including other
-# forms of a listed word ("verifies", "checks"); wrong counts (rows 298-300); a claim
-# on a line the diff doesn't add; untracked files (it warns about them when <rev> is
-# compared with the working tree: commit them or `git add -N` them); and whether a
-# listed claim is true.
+# forms of a listed word ("verifies", "checks", "probes"); wrong counts (rows
+# 298-300); a claim on a line the diff doesn't add; untracked files (it warns about
+# them when <rev> is compared with the working tree: commit them or `git add -N`
+# them); and whether a listed claim is true.
 #
 # Exit codes: 0 when the run worked, hits or not; 2 for no or an empty <rev>, `-h`,
 # a bad <rev>, an unreadable file, a `--was` without two files, or no git repository.
@@ -41,7 +41,12 @@ set -euo pipefail
 
 # Settled by probes on six Phase 4 diffs (IS #149): each word below turned up there,
 # except "everything", kept with "everywhere" as a universal form of "every" (PR #153).
-WORDS="every everything everywhere all only none never always clean verified checked confirmed works already"
+# The probe words came after (IS #200): on 16 round commits of PRs #174-#198,
+# "probed" and "unprobed" added 0-2 hits each, every one a claim a probe ran or a
+# hedge that one didn't (rows 373 and 410's hedges among them); "tested" and
+# "untested" added none, their lines holding another word already, and are kept as
+# the same claim.
+WORDS="every everything everywhere all only none never always clean verified checked confirmed works already probed unprobed tested untested"
 
 usage() { sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 [ $# -ge 1 ] || usage
@@ -68,24 +73,12 @@ check() { readable "$2"; [ "$1" = file ] || readable "$3"; }
 walk check "$@"
 root=$(git rev-parse --show-toplevel 2>/dev/null) || { echo "claims.sh: not in a git repository" >&2; exit 2; }
 
-# git's stderr (e.g. autocrlf warnings) is kept out of the diff text, and shown only
-# when the diff fails: a bad rev must not look like an empty, clean diff. The flags
-# undo config that would change the text read: diff.noprefix and diff.mnemonicPrefix
-# (explicit prefixes), diff.interHunkContext (context lines inside a hunk), and a
-# textconv driver (converted text instead of the file's lines).
-FLAGS="-U0 --inter-hunk-context=0 --no-color --no-ext-diff --no-textconv --src-prefix=a/ --dst-prefix=b/"
-err=$(mktemp); trap 'rm -f "$err"' EXIT
-# shellcheck disable=SC2086
-if ! diff=$(git -C "$root" -c core.quotePath=false diff $FLAGS "$rev" \
-    -- ':(top,exclude)package-lock.json' 2>"$err"); then
-  echo "claims.sh: git diff $rev failed: $(cat "$err")" >&2
-  exit 2
-fi
-case "$rev" in
-  *..*) ;;
-  *) untracked=$(git -C "$root" ls-files --others --exclude-standard)
-     [ -z "$untracked" ] || printf 'claims.sh: not read, untracked (commit or `git add -N` them):\n%s\n' "$untracked" >&2 ;;
-esac
+# The diff, read as sweep.sh reads it: scripts/lib/diff.sh holds the flags and why.
+# shellcheck source=lib/diff.sh
+. "$(dirname "$0")/lib/diff.sh"
+err=$(mktemp); diffout=$(mktemp); trap 'rm -f "$err" "$diffout"' EXIT
+git_diff claims.sh "$root" "$rev" "$diffout" "$err"
+warn_untracked claims.sh "$root" "$(rev_end "$root" "$rev")" "not read"
 
 # One awk program for every input. Diff mode tracks the file from `+++ b/` (or takes
 # CLAIMS_PATH) and the line from each hunk header; file mode reads every line. Values
@@ -132,10 +125,10 @@ scan_arg() {
   # --no-index exits 1 when the files differ; only higher codes are failures.
   local d rc=0
   # shellcheck disable=SC2086
-  d=$(git diff --no-index $FLAGS -- "$2" "$3" 2>"$err") || rc=$?
+  d=$(git diff --no-index $DIFF_FLAGS -- "$2" "$3" 2>"$err") || rc=$?
   [ "$rc" -le 1 ] || { echo "claims.sh: git diff --no-index $2 $3 failed: $(cat "$err")" >&2; exit 2; }
   printf '%s\n' "$d" | CLAIMS_MODE=diff CLAIMS_NAME="$3 (since $2)" CLAIMS_PATH="$3" awk "$scan"
 }
 
-printf '%s\n' "$diff" | CLAIMS_MODE=diff CLAIMS_NAME="diff $rev" awk "$scan"
+CLAIMS_MODE=diff CLAIMS_NAME="diff $rev" awk "$scan" < "$diffout"
 walk scan_arg "$@"

@@ -392,11 +392,18 @@ outside a review):
    new text. If `dev` was merged into or rebased under the branch since that commit,
    the diff also holds `dev`'s changes: list only this PR's. **List each code pattern
    a fix guards too** (a read `max_rows` can cut, a query with no tie-break): the same
-   defect in sibling code is a copy no listed claim names (rows 340, 342, 343).
+   defect in sibling code is a copy no listed claim names (rows 340, 342, 343). Then
+   run `bash scripts/sweep.sh "<rev>" --skip-issue <the issue the PR closes> [<PR
+   body>]` with the same commit; its header says what it lists, where it looks and
+   what it can't see. Add its hits to the list; they are a floor, not the list.
 2. **Grep every mention** of each across the tracked docs (`CLAUDE.md`, `README.md`,
    `.claude/`), code comments and tests, **every open issue body**, and the PR body if
-   there is one. For a code pattern, grep the code **and the tests** for its other uses
-   (the call, the query shape) and read each: row 343's copy was in a test helper.
+   there is one, the issue the PR closes included (PR #202's round 3 found #200's
+   "Does not catch" behind the script's header). `sweep.sh`'s hits are already such
+   mentions, of the text itself; grep for the terms as well, since a reworded copy
+   shares no run of words. For a code pattern, grep the code **and the tests** for its
+   other uses (the call, the query shape) and read each: row 343's copy was in a test
+   helper.
 3. **Read every hit.** Fix the stale ones. A sibling with the same defect gets fixed in
    the PR; only one outside the PR's scope gets an issue instead, named in the sweep
    record. Rows 340 and 342: a fix guarded one read, and its siblings were found a round
@@ -407,7 +414,8 @@ outside a review):
    about that round, not to match what a later round changed.
 4. **Record the sweep** where the correction lives: that round's section of the PR
    body, or a comment on the issue when only an issue body was corrected. Claim or
-   pattern → where it was checked → result.
+   pattern → where it was checked → result, and `sweep.sh`'s counts with how each of
+   its hits was settled.
 
 Fixing only the lines a finding names is what let one correction miss its copies three
 rounds running; the sweep found the copy no finding had named (process-log row 295).
@@ -446,8 +454,7 @@ all` (the owner's call, Phase 5 plan decision #20): fix, then repeat, scoped to 
 previous round's fixes or full. A scoped round sees only the fixes: #20 records a
 defect outside them that a scoped round and the full round 1 on PR #168 both missed,
 and a later full round, on PR #169, found (row 349). The log's "Columns" ("What one row
-is", then `Caught by`) say what to ask each round for when it starts and how its row
-records it.
+is", then `Caught by`) say how a round is recorded as a row.
 
 ---
 
