@@ -73,24 +73,12 @@ check() { readable "$2"; [ "$1" = file ] || readable "$3"; }
 walk check "$@"
 root=$(git rev-parse --show-toplevel 2>/dev/null) || { echo "claims.sh: not in a git repository" >&2; exit 2; }
 
-# git's stderr (e.g. autocrlf warnings) is kept out of the diff text, and shown only
-# when the diff fails: a bad rev must not look like an empty, clean diff. The flags
-# undo config that would change the text read: diff.noprefix and diff.mnemonicPrefix
-# (explicit prefixes), diff.interHunkContext (context lines inside a hunk), and a
-# textconv driver (converted text instead of the file's lines).
-FLAGS="-U0 --inter-hunk-context=0 --no-color --no-ext-diff --no-textconv --src-prefix=a/ --dst-prefix=b/"
-err=$(mktemp); trap 'rm -f "$err"' EXIT
-# shellcheck disable=SC2086
-if ! diff=$(git -C "$root" -c core.quotePath=false diff $FLAGS "$rev" \
-    -- ':(top,exclude)package-lock.json' 2>"$err"); then
-  echo "claims.sh: git diff $rev failed: $(cat "$err")" >&2
-  exit 2
-fi
-case "$rev" in
-  *..*) ;;
-  *) untracked=$(git -C "$root" ls-files --others --exclude-standard)
-     [ -z "$untracked" ] || printf 'claims.sh: not read, untracked (commit or `git add -N` them):\n%s\n' "$untracked" >&2 ;;
-esac
+# The diff, read as sweep.sh reads it: scripts/lib/diff.sh holds the flags and why.
+# shellcheck source=lib/diff.sh
+. "$(dirname "$0")/lib/diff.sh"
+err=$(mktemp); diffout=$(mktemp); trap 'rm -f "$err" "$diffout"' EXIT
+git_diff claims.sh "$root" "$rev" "$diffout"
+warn_untracked claims.sh "$root" "$rev" "not read"
 
 # One awk program for every input. Diff mode tracks the file from `+++ b/` (or takes
 # CLAIMS_PATH) and the line from each hunk header; file mode reads every line. Values
@@ -137,10 +125,10 @@ scan_arg() {
   # --no-index exits 1 when the files differ; only higher codes are failures.
   local d rc=0
   # shellcheck disable=SC2086
-  d=$(git diff --no-index $FLAGS -- "$2" "$3" 2>"$err") || rc=$?
+  d=$(git diff --no-index $DIFF_FLAGS -- "$2" "$3" 2>"$err") || rc=$?
   [ "$rc" -le 1 ] || { echo "claims.sh: git diff --no-index $2 $3 failed: $(cat "$err")" >&2; exit 2; }
   printf '%s\n' "$d" | CLAIMS_MODE=diff CLAIMS_NAME="$3 (since $2)" CLAIMS_PATH="$3" awk "$scan"
 }
 
-printf '%s\n' "$diff" | CLAIMS_MODE=diff CLAIMS_NAME="diff $rev" awk "$scan"
+CLAIMS_MODE=diff CLAIMS_NAME="diff $rev" awk "$scan" < "$diffout"
 walk scan_arg "$@"
