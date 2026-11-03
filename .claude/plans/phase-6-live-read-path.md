@@ -371,7 +371,8 @@ opens, which may be none. Step 7 is the existing issue #139.
     (tiles on R2 moved here, #7). It replaces each **between phases** marker in
     "Decisions carried forward" with the decision here that took it up (#1–#6), and
     carries forward this plan's decisions that outlive the phase (likely #7, #9–#11,
-    #17, #18).
+    #17, #18, #22, and #23's retirement of the review-row level and limit rule), and
+    "Versions" gains the audit result with its date (#24).
 
 ---
 
@@ -594,6 +595,48 @@ would be hit:
 
 Considered: writing it into `project-context.md` at once (done first in PR #192, moved
 here by its round 3: `CLAUDE.md` puts a decision settled during a phase in the plan).
+
+### #23 — The Phase 6 retrospective's actions
+
+The owner's calls, 2026-11-03, in the retrospective (#188, PR #201; the process log's
+"Phase 6 retrospective" holds the evidence):
+- **One new action:** `scripts/sweep.sh`, which lists the sweep's candidates (stale
+  copies and restatements), with the claims check's `WORDS` taking the probe words
+  (#200).
+- **The review-row level and limit rule is retired** (PR #201's round 1; #200 removes
+  it from the log's Columns and `CLAUDE.md`). It lapsed after rows 364 and 403 logged
+  it, and again in PR #201's round 1. From row 422 on, a review row records neither the
+  level nor the limit, with no marker, and a "found N" may have been cut by the default
+  limit, as Phase 5 plan decision #20 already accepts; nothing in the log tells which
+  counts were. (The owner's call in PR #201's round 3, replacing round 2's "reopens at
+  another level", which no row could show. Row 423, written before round 4, carries a
+  "not recorded" note.) Step 10 carries this forward.
+- **No action on row 325's repeats** (354, 382): each was caught by `self` from `add`'s
+  output, and the fix was the next commit. Row 354's was before a push ("Not pushed");
+  row 382 doesn't say.
+- **Not taken:** a per-finding record of the command that checked a fix's premise and
+  the one that checked the fix and its neighbouring case (aimed at `overcorrection`); a
+  recorded failing run for every verification command, AC and claims backing (aimed at
+  checks that couldn't fail).
+
+### #24 — Dependabot alert #7 (`minimatch` < 11.0.1) is dismissed
+
+The owner's call, 2026-11-03: dismissed with a comment in GitHub's UI. The advisory
+(GHSA-g3hv-75wg-m249) covers `minimatch` before 11.0.1: 16 moderate findings in `npm
+audit`, and `npm audit --omit=dev` exits 0. The installed copies and the ranges that
+hold them: 3.1.5 under `eslint` 9, `@eslint/config-array` and `@eslint/eslintrc`
+(`^3.1.5`) and under `eslint-config-next` 16.4.3's `import`, `react` and `jsx-a11y`
+plugins (`^3.1.2`); 10.2.5 under `@typescript-eslint/typescript-estree` (`^10.2.2`).
+None admits 11.0.1. Its trigger is an attacker-supplied glob pattern, and ESLint's
+patterns come from the repo's config and CLI arguments. Considered: an `overrides`
+entry forcing 11.x (eight majors past `eslint`'s `^3`); Dependabot's security-update PR
+(automatic PRs are Phase 8's, and `eslint-config-next` is an exact pin moved with
+`next`). Revisit if either reason stops holding: `npm audit --omit=dev` lists the
+advisory (a production dependency pulls `minimatch` before 11.0.1), or a lint run takes
+glob patterns from outside the repo. The advisory clears only when `npm audit` stops
+listing it, which needs all seven holders above to admit 11.0.1 or drop `minimatch`,
+and the lockfile to move. Phase 8's dependency check re-reads it. Step 10 records the
+audit result (#189).
 
 ---
 
