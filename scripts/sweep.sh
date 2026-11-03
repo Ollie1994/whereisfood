@@ -15,16 +15,19 @@
 # For each line `git diff <rev>` removes or adds, it looks for runs of RUN words (below)
 # that the line shares with a place. The places are the tracked text files (at the
 # working tree, or at B for a range; `package-lock.json` left out), the open issue
-# bodies, and each file. It prints three lists (CLAUDE.md, "Review rounds", the sweep):
+# bodies, and each file. It prints four lists (CLAUDE.md, "Review rounds", the sweep):
 #   removed, still elsewhere  a removed line, and each place still holding a run of its
 #                             words: a stale-copy candidate (step 2);
+#   removed, moved elsewhere  a removed line whose runs sit only on lines this diff
+#                             adds in another file: a rule moved to a new owner;
 #   removed, nowhere else     a removed line no place holds a run of: a dropped
 #                             sentence, for the author to settle;
 #   added, also elsewhere     an added line, and each other place holding a run of its
 #                             words: a restatement candidate (step 3 makes a restated
 #                             rule a pointer). Another line this diff adds counts too.
-# A removed line whose runs sit only on lines this diff adds was edited, rewrapped or
-# moved: it is counted on stderr, not listed. So is a line shorter than RUN words.
+# A removed line whose runs sit only on lines this diff adds in its own file was
+# edited, rewrapped or moved within it: it is counted on stderr, not listed. So is a
+# line shorter than RUN words.
 # Each place is `path:line` (where the run starts), `issue #N:line` or `file:line`.
 #
 # Words are compared lower-cased, with everything but ASCII letters, digits, `#` and
@@ -39,8 +42,9 @@
 # pattern's other uses (sweep step 1 lists those by hand); a copy in a closed issue or
 # PR, or in history (which stays as written); the PR body unless it is passed as a
 # file; untracked files (it warns about them when <rev> is compared with the working
-# tree); a file whose path holds a tab, or a character `git diff` quotes (`"`, `\`, a
-# control character), whose diff path then differs from its place; and whether a hit
+# tree); a file whose path holds a newline (its lines split into wrong places), a
+# tab, `\001` or another character `git diff` quotes (`"`, `\`, a control character),
+# whose diff path then differs from its place; and whether a hit
 # is stale.
 #
 # Replayed on six copies the sweep missed (rows 375, 386, 391, 400, 410, 412; IS #200's
@@ -70,8 +74,9 @@ case "$1" in -h|--help) usage ;; esac
 
 rev="$1"; shift
 [ -n "$rev" ] || { echo "sweep.sh: empty <rev> (did a git merge-base fail?)" >&2; exit 2; }
+# No leading zero: `$((…))` reads `010` as octal, and `08` fails in it (probed).
 positive() {
-  case "$2" in ''|*[!0-9]*|0) echo "sweep.sh: $1 must be a positive integer, not '$2'" >&2; exit 2 ;; esac
+  case "$2" in ''|*[!0-9]*|0*) echo "sweep.sh: $1 must be a positive integer, not '$2'" >&2; exit 2 ;; esac
 }
 positive SWEEP_RUN "$RUN"
 positive SWEEP_ISSUE_LIMIT "$ISSUE_LIMIT"
@@ -118,7 +123,8 @@ warn_untracked sweep.sh "$root" "$rev" "not searched"
 # path raw (`å.md`, where the default quotes it as `"\303\245.md"`), after `<end>:`
 # when it reads a commit. `--no-column` and `--no-color` undo config that would add to
 # it: `git -c grep.column=true grep -n` printed `path:line:col:text`, the column in
-# the text (all probed in IS #200's PR, rounds 1-2).
+# the text (all probed in IS #200's PR, rounds 1-2). The NULs become `\001` before awk
+# splits: an awk other than gawk ends a string at a NUL.
 GREP="grep --no-color --no-column -z -I -n -e"
 {
   if [ -n "$end" ]; then
@@ -129,7 +135,9 @@ GREP="grep --no-color --no-column -z -I -n -e"
     # shellcheck disable=SC2086
     git -C "$root" $GREP '' -- ':(top,exclude)package-lock.json'
   fi
-} | awk -F'\0' '{ print "T\t" $1 "\t" $2 "\t" substr($0, length($1) + length($2) + 3) }' >"$tmp/places"
+} | tr '\000' '\001' \
+  | awk '{ i = index($0, "\001"); j = index(substr($0, i + 1), "\001")
+           print "T\t" substr($0, 1, i - 1) "\t" substr($0, i + 1, j - 1) "\t" substr($0, i + j + 1) }' >"$tmp/places"
 
 nissues=0
 if [ "$issues" = 1 ]; then
@@ -209,7 +217,7 @@ LC_ALL=C SWEEP_RUN="$RUN" SWEEP_REV="$rev" SWEEP_ISSUES="$nissues" SWEEP_FILES="
   END {
     for (x = 1; x <= r; x++) {
       if (nk[x] == 0) { short[kind[x]]++; continue }
-      delete L; ondiff = 0; out = ""; outside = 0
+      delete L; delete M; ondiff = 0; out = ""; outside = 0; mout = ""; nm = 0
       for (i = 1; i <= nk[x]; i++) {
         n = split(hits[key[x, i]], h, "\036")
         for (j = 2; j <= n; j++) {
@@ -219,7 +227,15 @@ LC_ALL=C SWEEP_RUN="$RUN" SWEEP_REV="$rev" SWEEP_ISSUES="$nissues" SWEEP_FILES="
           # A run of a removed line that touches a line this diff adds: the line was
           # edited or moved. Judged per run, before the dedup: another run from the same
           # first line may lie outside the diff (IS #200, its PR, round 2).
-          if (kind[x] == "R" && p[1] == "T" && onadded(p[2], p[3] + 0, p[4] + 0)) { ondiff = 1; continue }
+          # In its own file that is an edit; in another file, a move, which is listed.
+          if (kind[x] == "R" && p[1] == "T" && onadded(p[2], p[3] + 0, p[4] + 0)) {
+            if (p[2] == path[x]) { ondiff = 1; continue }
+            if (!((p[2], p[3]) in M)) {
+              M[p[2], p[3]]; nm++
+              if (nm <= 8) mout = mout (nm > 1 ? ", " : "") p[2] ":" p[3]
+            }
+            continue
+          }
           # One entry per place and first line: that is what is printed.
           shown = p[1] SUBSEP p[2] SUBSEP p[3]
           if (shown in L) continue
@@ -231,19 +247,21 @@ LC_ALL=C SWEEP_RUN="$RUN" SWEEP_REV="$rev" SWEEP_ISSUES="$nissues" SWEEP_FILES="
       entry = path[x] ":" line[x] ": " t
       if (kind[x] == "R") {
         removed++
-        if (outside == 0 && !ondiff) { nowhere = nowhere entry "\n"; nnow++ }
-        else if (outside == 0) moved++
-        else { still = still entry "\n    -> " show(outside, out) "\n"; nstill++ }
+        if (outside > 0) { still = still entry "\n    -> " show(outside, out) "\n"; nstill++ }
+        else if (nm > 0) { away = away entry "\n    -> " show(nm, mout) "\n"; naway++ }
+        else if (ondiff) moved++
+        else { nowhere = nowhere entry "\n"; nnow++ }
       } else {
         addedn++
         if (outside > 0) { also = also entry "\n    -> " show(outside, out) "\n"; nalso++ }
       }
     }
     printf "== removed, still elsewhere (%d)\n%s", nstill, still
+    printf "== removed, moved elsewhere (%d)\n%s", naway, away
     printf "== removed, nowhere else (%d)\n%s", nnow, nowhere
     printf "== added, also elsewhere (%d)\n%s", nalso, also
-    printf "sweep.sh: diff %s, runs of %d words: %d removed (%d still elsewhere, %d nowhere else, %d edited or moved, %d shorter), %d added (%d also elsewhere, %d shorter); searched %d tracked files, %d issues, %d files\n", \
-      ENVIRON["SWEEP_REV"], RUN, removed + short["R"], nstill + 0, nnow + 0, moved + 0, short["R"] + 0, \
+    printf "sweep.sh: diff %s, runs of %d words: %d removed (%d still elsewhere, %d moved elsewhere, %d nowhere else, %d edited in place, %d shorter), %d added (%d also elsewhere, %d shorter); searched %d tracked files, %d issues, %d files\n", \
+      ENVIRON["SWEEP_REV"], RUN, removed + short["R"], nstill + 0, naway + 0, nnow + 0, moved + 0, short["R"] + 0, \
       addedn + short["A"], nalso + 0, short["A"] + 0, ntracked + 0, ENVIRON["SWEEP_ISSUES"], ENVIRON["SWEEP_FILES"] > "/dev/stderr"
   }
 ' "$tmp/lines" "$tmp/places"

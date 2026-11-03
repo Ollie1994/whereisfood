@@ -395,18 +395,19 @@ outside a review):
    defect in sibling code is a copy no listed claim names (rows 340, 342, 343). Then
    run `bash scripts/sweep.sh "<rev>" --skip-issue <the issue the PR closes> [<PR
    body>]` with the same commit: it lists the removed lines whose words still stand
-   elsewhere, the removed lines held nowhere else, and the added lines that repeat
-   text found elsewhere, across the tracked files, the open issue bodies and the PR
-   body. Add its hits to the list; they are a floor, not the list (its header says
-   what it can't see: a reworded copy, a code pattern).
+   elsewhere or moved to another file, the removed lines held nowhere else, and the
+   added lines that repeat text found elsewhere, across the tracked files, the open
+   issue bodies and the PR body. Add its hits to the list; they are a floor, not the
+   list (its header says what it can't see: a reworded copy, a code pattern).
 2. **Grep every mention** of each across the tracked docs (`CLAUDE.md`, `README.md`,
    `.claude/`), code comments and tests, **every open issue body**, and the PR body if
    there is one. `sweep.sh`'s "still elsewhere" and "also elsewhere" hits are already
    such mentions, of the text itself; grep for the terms as well, since a reworded
    copy shares no run of words, and grep the issue `--skip-issue` left out: it stays
-   open until the PR merges (rows 422–424: #200's AC went stale three rounds
-   running). For a code pattern, grep the code **and the tests** for its other uses
-   (the call, the query shape) and read each: row 343's copy was in a test helper.
+   open until the PR merges (PR #202's round 3 found #200's "Does not catch" behind
+   the script's header). For a code pattern, grep the code **and the tests** for its
+   other uses (the call, the query shape) and read each: row 343's copy was in a test
+   helper.
 3. **Read every hit.** Fix the stale ones. A sibling with the same defect gets fixed in
    the PR; only one outside the PR's scope gets an issue instead, named in the sweep
    record. Rows 340 and 342: a fix guarded one read, and its siblings were found a round
