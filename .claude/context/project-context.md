@@ -467,9 +467,9 @@ Visitor's map ──► GET /api/live (every 60 s, and when the tab regains focu
 - The body is `{ entries }`, each `LiveEntry` **built field by field**, never by
   spreading a row, so `cancelled_at`, `source`, `created_at`, `is_active`,
   `description` and any future column stay on the server (Phase 6 #11). An entry that
-  fails `isLiveEntry` (an out-of-range coordinate or a malformed timestamp, which the
-  schema allows) is dropped and its location id logged, so one bad row can't blank the
-  map (Phase 6 #20).
+  fails `isLiveEntry` (an out-of-range coordinate or an `infinity` time, both of which
+  the schema allows) is dropped and its location id logged, so one bad row can't
+  blank the map (Phase 6 #20).
 - **Errors are never cached:** a DB error goes through `withErrorHandling` → 500, which
   Vercel doesn't cache. **Never return `[]` on error**: that is a cacheable 200 and
   wipes the map for a minute.
@@ -523,7 +523,8 @@ built for them now). The read path scales with visitors (one CDN copy per region
 not with trucks. In the order they would be hit:
 - **1,000 rows, a hard wall.** `findLocationsOverlapping` and `listActiveTrucks` throw
   past `MAX_ROWS` rather than return part of the rows, so `/api/live` answers 500: a
-  map opened then shows no markers, one already open keeps its markers. It counts
+  map opened then shows no markers, and one already open keeps its markers until each
+  entry ends. It counts
   entries in the 26 h window and active trucks, not history; about 50 trucks with one
   or two entries a day use a tenth of it or less. First fix: raise `max_rows` and
   `MAX_ROWS` together (the hosted project's too). Trigger: the window passing ~500
