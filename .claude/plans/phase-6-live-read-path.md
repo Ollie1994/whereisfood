@@ -595,6 +595,38 @@ would be hit:
 Considered: writing it into `project-context.md` at once (done first in PR #192, moved
 here by its round 3: `CLAUDE.md` puts a decision settled during a phase in the plan).
 
+### #23 — The Phase 6 retrospective's actions
+
+The owner's calls, 2026-11-03, in the retrospective (#188, PR #201; the process log's
+"Phase 6 retrospective" holds the evidence):
+- **One new action:** `scripts/sweep.sh`, which lists the sweep's candidates (stale
+  copies and restatements), with the claims check's `WORDS` taking the probe words
+  (#200).
+- **The review-row level and limit rule is retired** (PR #201's round 1; #200 removes
+  it from the log's Columns and `CLAUDE.md`). All 32 rounds in rows 351–419 that stated
+  a limit stated `high` and a limit of 10 (row 410: "≤10"), and the owner keeps the default limit (Phase 5
+  plan decision #20), so the record carried nothing new; the rule lapsed after rows 364
+  and 403 logged it, and again in PR #201's round 1. Step 10 carries this forward.
+- **No action on row 325's repeats** (354, 382): each was caught by `self` from `add`'s
+  output before a push, and the fix was one more commit.
+- **Not taken:** a per-finding record of the command that checked a fix's premise and
+  the one that checked its neighbouring case (aimed at `overcorrection`); a recorded
+  failing run for every verification command, AC and claims backing (aimed at checks
+  that couldn't fail).
+
+### #24 — Dependabot alert #7 (`minimatch` < 11.0.1) is dismissed
+
+The owner's call, 2026-11-03: dismissed with a comment in GitHub's UI. The advisory
+(GHSA-g3hv-75wg-m249) covers `minimatch` 3.1.5 under `eslint` 9 and its plugins, and
+10.2.5 under `typescript-eslint` via `eslint-config-next` 16.4.3: 16 moderate findings
+in `npm audit`, and `npm audit --omit=dev` exits 0. Its trigger is an attacker-supplied
+glob pattern, and ESLint's patterns come from the repo's config and CLI arguments. No
+fixed version is within the dependents' ranges (`^3.1.5`, `^10.2.2`). Considered: an
+`overrides` entry forcing 11.x (eight majors past `eslint`'s `^3`); Dependabot's
+security-update PR (automatic PRs are Phase 8's, and `eslint-config-next` is an exact
+pin moved with `next`). Revisit when `eslint` or `typescript-eslint` moves to 11.0.1 or
+later, or at Phase 8's dependency check. Step 10 records the audit result (#189).
+
 ---
 
 ## Acceptance Criteria

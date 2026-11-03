@@ -697,6 +697,8 @@ Old rows that point at them are now pointing there: "see note" (rows 14, 15, 17,
 | 417 | 2026-11-02 | PR #198 / IS #139 | `README` | `/code-review` round 2 on #198, scoped to round 1's fixes, found 10 (at the limit); 10 applied. **Round 1 advised only Node 20 users to check by hand, but every Node before 22.10 bundles npm older than 10.9,** so most Nodes the range rejects can't run its check. Also: probes claimed but unrun (`ci`, `run`, 10.9.0); row 416, the body's opening, #199's steps, "minimums" for a gapped range; my rewrap's long lines a third time (rows 414–415). | `code-review` r2 on PR #198, scoped to `f5225ac..35440a7` (high, limit 10) | `pre-merge` | `imprecise-claim` | Reran with the field checked present: `ci`, `run`, 10.9.0 stop; 10.8.2 `ci` installs silently; 10.8.3 crashes. README/CLAUDE.md: any npm below 10.9, "ranges"; the `CLAUDE.md` bullet and decision 9 reflowed by script; row 416, #199 and the body corrected. |
 | 418 | 2026-11-02 | PR #198 / IS #139 | `CLAUDE.md` | Round 1's claims check on #198 backed "npm before 10.9 doesn't read `devEngines`" with a 10.8.3 run that had no `devEngines` to read: an earlier `git checkout -- package.json` in the scratch clone (resetting a `>=99` probe) had restored `dev`'s file. The run couldn't have shown the claim false, which `CLAUDE.md`'s claims check requires of a backing command, and I didn't check the file before it. | `self`, rerunning probes for round 2 (`grep -c devEngines package.json` → 0) | `pre-merge` | `unverified-assumption` | The branch's `package.json` copied into the clone and the field printed before every rerun (P1–P5, round 2); the body's round 1 line carries the correction. |
 | 419 | 2026-11-02 | PR #198 / IS #139 | `issue` | `/code-review` round 3 on #198, scoped to round 2's fixes, found 10 (at the limit); 9 applied, 1 declined. **#199's test for a new Node floor couldn't test it:** on Node 22.11 with npm 10.9.0, npm's own `>=11.0.0` check fails first. Also: README's advice compared versions before saying to update npm; one fact copied into four places; "no message" for a run that printed one; row 416's "20.19+" and row 417's claims; "minimums" left in a pointer; unlabelled probe letters. | `code-review` r3 on PR #198, scoped to `35440a7..318db8b` (high, limit 10) | `pre-merge` | `imprecise-claim` | #199 tests on npm 11 with the error naming `runtime`; README: update npm first; the fact kept in `CLAUDE.md`, pointers elsewhere; rows 416–417 corrected, 418 split out. Declined: row 417's Cause as `overcorrection`. |
+| 420 | 2026-11-03 | PR #201 / IS #188 | `process-log` | `/code-review` round 1 on #201, full, found 10; all applied. **The retrospective's row lists said more than their rows:** "no row records a code pattern's other use missed" (row 386 does); 396 and 418 credited to running a control and 402 to the claims check; "ten" sweep rows and "11" checks that couldn't fail, with no criterion; the level and limit rule "held" (it lapsed after rows 364 and 403 too). Also: the owner's calls in the log, not the plan (rows 351, 365 again); no `stale-doc` row; a reason overstating CLAUDE.md; a re-run note blind to Miss cells. | `code-review` r1 on PR #201, full (level unknown, limit unknown: not asked, row 421) | `pre-merge` | `imprecise-claim` | A criterion for each list (13 rows, a floor; 22 after a required sweep); row 386 as the sibling miss; the `self` split; plan #23 (the calls; the level and limit rule retired) and #24 (alert #7); the `stale-doc` row; the round script's bounds numeric; #189 and #200 updated. |
+| 421 | 2026-11-03 | PR #201 / IS #188 | `process-log` | I started `/code-review` round 1 on #201 with only the PR number, without asking it to state its effort level and findings limit, as the log's Columns ask, so row 420 reads "level unknown, limit unknown". It is row 408's miss again, in the first round after the section I had just written said the rule held. | `self`, reading the round's output to write row 420 | `pre-merge` | `gate-skipped` | None to the round. The owner retired the rule in the same round (plan decision #23, done in #200), on this lapse and the ones after rows 364 and 403. |
 
 ---
 
@@ -1298,9 +1300,10 @@ between-phases issues #176 (370–373, PR #177) and #178 (374–375, PR #179). R
 #194, #195, #197, #198). Row 420 onward belong to the next range, this retrospective's
 own rows included.
 
-**These counts are a dated record (as of PR #201).** If a `Cause`, `Caught by` or
-`Escaped` cell in rows 351–419 is corrected later, re-run the commands and update the
-tables.
+**These counts are a dated record (as of PR #201).** If a cell in rows 351–419 is
+corrected later (a `Cause`, `Caught by` or `Escaped`, or a Miss's `found N` or its
+wording, which the round table and the row lists below read), re-run the commands and
+the greps named below and update what they feed.
 
 ```bash
 bash scripts/process-log.sh tally 9 351 419    # Cause
@@ -1323,6 +1326,7 @@ exceptions), so the shares compare, as the Phase 5 retrospective compared them.
 | `manual-drift` | 4 | 6% | 0 | 6 |
 | `gate-skipped` | 4 | 6% | 1 | 1 |
 | `missing-gate` | 1 | 1% | 1 | 1 |
+| `stale-doc` | 0 | 0% | 1 | 1 |
 
 `overcorrection` is as high before the plan as in Phase 6 itself: 9 of 25 rows in
 351–375, 15 of 44 in 376–419 (`tally 9` over each).
@@ -1343,11 +1347,12 @@ The 56 `code-review` rows are 56 rounds on 14 PRs, 491 findings in all. Each row
 round, scope and count come from its cells, by this script, not by hand:
 
 ```bash
-grep -E '^\| (35[1-9]|3[6-9][0-9]|4[01][0-9]) \|' .claude/process-log.md \
-  | awk -F' [|] ' '$6 ~ /^`code-review`/ {
-      match($6, / r[0-9]+/); r = substr($6, RSTART + 2, RLENGTH - 2)
-      match($5, /found [0-9]+/); f = substr($5, RSTART + 6, RLENGTH - 6)
-      print r, ($6 ~ /scoped/ ? "scoped" : "full"), f, $8 }'
+awk -F' [|] ' -v first=351 -v last=419 '/^\| [0-9]+ \|/ {
+    n = substr($1, 3) + 0
+    if (n < first || n > last || $6 !~ /^`code-review`/) next
+    match($6, / r[0-9]+/); r = substr($6, RSTART + 2, RLENGTH - 2)
+    match($5, /found [0-9]+/); f = substr($5, RSTART + 6, RLENGTH - 6)
+    print r, ($6 ~ /scoped/ ? "scoped" : "full"), f, $8 }' .claude/process-log.md
 ```
 
 | Round | Rounds | Findings | Per round | Headline `overcorrection` |
@@ -1392,9 +1397,9 @@ A row can sit in two groups.
   logged), 379 and 383 (a new effect or rule with defects of its own), 411 (a sweep fix
   that changed `seed.sql`'s hash).
 
-The owner chose no action aimed at overcorrection itself this time (2026-11-03): a
-record per applied finding of the command that checked its premise and the one that
-checked the fix and its neighbouring case was offered and not taken. New action 1
+The owner chose no action aimed at overcorrection itself this time (2026-11-03, plan
+decision #23): a record per applied finding of the command that checked its premise and
+the one that checked the fix and its neighbouring case was offered and not taken. New action 1
 below lists the lines a fix removes, which is where the first group's misses sit; its
 issue's replay says whether it would have listed them. The next retrospective
 re-reads this share.
@@ -1413,18 +1418,24 @@ Each verdict cites rows found by the grep or criterion it names.
   365, 367, 368, 369, 372, 373, 375, 377, 385, 388, 391, 400, 403, 404, 405, 406, 407,
   410, 412, 413, 415, 416, 419. That is 13 of the 14 PRs (all but #174). A floor: 366,
   386, 387, 402 and 414 say it in other words.
-- **Ten of them record a sweep that ran and missed or misjudged a copy:** 365 (the PR
-  body), 369 (the body's `:19`, read and kept), 375 (`transition.md` and code
-  comments), 385 (#182's body), 391 (`db/locations.ts`), 400 (three plan copies), 403
-  (a copy read and called accurate), 405 (copies reworded, not made pointers), 410 and
-  412 (`seed.sql`, twice).
-- **The sibling-code adjustment (#171)** has no repeat to judge: none of the 69 rows,
-  read for this section, records a code pattern's other use missed (in the Miss cells,
-  `sibling` matches row 356 alone, about stating sibling fixes).
+- **22 of the 28 were found in round 2 or later,** so a sweep was required before
+  each (it follows every round's fixes): 353, 356, 357, 365, 367, 368, 369, 372, 373,
+  377, 385, 388, 391, 400, 403, 404, 405, 406, 410, 412, 415, 419 (the round from each
+  row's `Caught by`).
+- **Ten name the sweep and record it missing or misjudging a copy** (`sweep|swept` in
+  the Miss cells: 12 hits, each read; 411 is a sweep fix's side effect and 414 a sweep
+  record's error): 365 (the PR body), 369 (the body's `:19`, read and kept), 375
+  (`transition.md` and code comments), 385 (#182's body), 391 (`db/locations.ts`), 400
+  (three plan copies), 403 (a copy read and called accurate), 405 (copies reworded, not
+  made pointers), 410 and 412 (`seed.sql`, twice).
+- **The sibling-code adjustment (#171) missed once:** row 386 records `isTimestamp`
+  still calling `parseISO` after round 2's fix moved the code to one parser
+  (`instant`), a code pattern's other use. (Found by PR #201's round 1; this section's
+  first draft said there was none.) Whether #200's script lists it is in its replay.
 - **Why it misses.** Steps 1 and 2 list the terms from memory and grep the places the
-  author picks. Four of the ten are a place not searched (375, 385, 410, 412),
-  two a copy read and kept (369, 403), and 405 is the rule's own pointer instruction
-  not followed.
+  author picks. Of the ten: a place not searched (375, 385, 410, 412); a copy read and
+  kept (369, 403); the rule's own pointer instruction not followed (405); a copy in a
+  place the sweep covers, with no reason recorded (365, 391, 400).
 - **The adjustment** is new action 1: a script lists steps 1 and 2's candidates.
 
 **2. Negative controls from a rule, and the "Failure modes" field (#170). Keep,
@@ -1438,28 +1449,35 @@ unchanged.**
   the Ctrl-C handling).
 - **The rule reached code guards by hand.** Rows 389–391 (scratch negative
   controls), 395, 397, 398, 399 and 400 record controls run for code guards.
-- **Checks that couldn't fail moved out of the schema.** 11 rows: 356, 370, 390, 392,
-  394, 396, 401, 403, 409, 418, 419 (an AC, a probe, a test, a README check, a claims
-  backing, an issue's test). Five were found by `self` running a control (370, 392,
-  394, 396, 418); the six others by review. Not taken as an action (the owner's call,
-  2026-11-03): a recorded failing run for every verification command, AC and backing.
+- **Checks that couldn't fail moved out of the schema.** The criterion:
+  `could(n.t| not| never) (go red|fail|test|show)|stay(ed|s)? green|kept every test
+  green|passed for any|matched nothing` in the Miss cells, each hit read. 14 hits;
+  352 and 353 quote the Phase 5 retrospective's grep, not a check, and 418 says it in
+  other words ("couldn't have shown"). **13 rows, a floor:** 356, 370, 389, 390, 391,
+  392, 394, 396, 401, 403, 409, 418, 419 (an AC, a probe, a test, a README check, a
+  claims backing, an issue's test). `self` found five: three by running a control
+  (370, 392, 394) and two by re-checking a probe's input (396, 418). Review found eight.
+  Not taken as an action (plan decision #23): a recorded failing run for every
+  verification command, AC and backing.
 
 **3. `scripts/process-log.sh check`. Keep, unchanged.**
 - The log passes it as this section is written (exit 0).
 - **Row 325's miss happened twice more** (354, 382): a commit chained with `;` past an
   `add` that refused the row, so the commit message named a row it didn't hold. Row
-  382 left the mechanism to this retrospective. **No action** (the owner's call,
-  2026-11-03). The reasons given: each time `self` caught it from `add`'s own output
-  before a push, and the fix was the next commit; a hook that stops it would be local
-  commit automation, and CLAUDE.md's "Testing" leaves the repo's pre-commit checks to
-  Phase 8.
+  382 left the mechanism to this retrospective. **No action** (plan decision #23):
+  each time `self` caught it from `add`'s own output before a push, and the fix was the
+  next commit. (A second reason given when asking, that CLAUDE.md's "Testing" leaves
+  local commit checks to Phase 8, overstated it: it names a pre-commit secret scan
+  only. PR #201's round 1 found it, and the owner kept the call on the first reason.)
 
 **4. The pre-review claims check (`scripts/claims.sh`). Keep, adjusted (#200).**
 - **Its target rose.** `imprecise-claim`: 18 of 69 (26%), against 5 of the 36 rows
   after the script in Phase 5 (14%). Nine of the 18 are in rows 401–419, the PRs on
   R2, the hosted project, Vercel and npm, whose claims are about other services.
 - **It found what it is for:** rows 378 and 380 (`self`, settling the claims check
-  before rounds 3 and 4 of PR #181), and 402 (`self`, re-reading the body before it).
+  before rounds 3 and 4 of PR #181). Row 402 doesn't count: `self` found it re-reading
+  an issue body before the check ran, which reads an issue body only as its last
+  `--was` pair.
 - **Two hedges were never listed.** Rows 373 and 410 are a claim a probe settles,
   hedged as not probed (the rule #171 added). The lines were "could read them (GitHub's
   REST docs; not probed here)" (commit `a0e0467`) and "Whether that runs the file
@@ -1475,12 +1493,21 @@ unchanged.**
   did). It reaches the two hedges; listing doesn't settle, so it does nothing for the
   other four.
 
-**5. `Caught by` groups, and a review row's level and limit (#171). Keep, unchanged.**
+**5. `Caught by` groups (#150, #171): keep, unchanged. A review row's level and limit
+(#171): retire (#200).**
 - `tally 7` grouped all 69 rows.
-- **The level and limit rule was missed, then held.** Of the 50 rounds from row 358
-  (PR #174, the first opened after #171 merged in PR #173) to row 419, 19 lack a level
-  or a limit: 363, 376, 384–391, 393, 395, 397–401, 403, 407. Row 408 logged the miss
-  (`gate-skipped`), and the 10 rounds after it state both.
+- **The level and limit rule lapsed after each time it was logged.** Of the 50 rounds
+  from row 358 (PR #174, the first opened after #171 merged in PR #173) to row 419, 19
+  lack a level or a limit: 363, 376, 384–391, 393, 395, 397–401, 403, 407. Row 364
+  logged the miss ("I hadn't asked round 1 for its level and limit"), and 376 and
+  384–401 lapsed; row 403 logged it ("Later rounds are asked to state level and
+  limit"), and 407 lapsed; row 408 logged it, and the 10 rounds after it state both.
+  PR #201's round 1, the next, lapsed again.
+- **And it recorded nothing new.** All 32 rounds that state a limit state `high` and a
+  limit of 10 (row 410: "≤10"), and the owner keeps the default limit (Phase 5 plan
+  decision #20), so "found 10" already reads as at the limit.
+- **Retired** (plan decision #23, the owner's call in PR #201's round 1): #200 removes
+  it from the log's Columns and from CLAUDE.md's "Review rounds".
 
 ### New actions (one)
 
@@ -1489,8 +1516,8 @@ by review (362 by `self`), and the sweep that could have found them runs before 
 round.
 
 **1. A script that lists the sweep's candidates (#200).**
-- **The evidence.** Action 1 above: 28 rows over 13 PRs, ten of them a sweep that ran
-  and missed.
+- **The evidence.** Action 1 above: 28 rows over 13 PRs, 22 of them after a required
+  sweep, ten naming it.
 - **The mechanism.** `scripts/sweep.sh <rev>`, run with the claims check before a
   round, lists for the diff: each line it removes, with every other place that still
   holds a run of its words; and each line it adds that repeats a run of words already
@@ -1499,9 +1526,9 @@ round.
   and doesn't judge: the author settles each hit in the round's sweep record.
 - **What it can't see.** A copy reworded so that no run of words matches; a copy in a
   closed issue or PR, or in history (which stays as written). Whether it would have
-  listed the copies in rows 385, 391, 400, 410 and 412 is its issue's replay, not a
-  claim of this section.
+  listed the copies in rows 375, 386, 391, 400, 410 and 412 (each in a tracked file) is
+  its issue's replay, not a claim of this section.
 
-**Follow-ups:** #200 (the sweep script and the claims check's words), created
-through `/create-issues` Steps 5–7 under the `phase-6` milestone. It blocks #189, the
-reconciliation.
+**Follow-ups:** #200 (the sweep script, the claims check's words, and retiring the
+level and limit rule), created through `/create-issues` Steps 5–7 under the `phase-6`
+milestone. It blocks #189, the reconciliation. The owner's calls are plan decision #23.
