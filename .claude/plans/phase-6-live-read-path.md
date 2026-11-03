@@ -371,7 +371,8 @@ opens, which may be none. Step 7 is the existing issue #139.
     (tiles on R2 moved here, #7). It replaces each **between phases** marker in
     "Decisions carried forward" with the decision here that took it up (#1–#6), and
     carries forward this plan's decisions that outlive the phase (likely #7, #9–#11,
-    #17, #18).
+    #17, #18, #22, and #23's retirement of the review-row level and limit rule), and
+    "Versions" gains the audit result with its date (#24).
 
 ---
 
@@ -603,29 +604,37 @@ The owner's calls, 2026-11-03, in the retrospective (#188, PR #201; the process 
   copies and restatements), with the claims check's `WORDS` taking the probe words
   (#200).
 - **The review-row level and limit rule is retired** (PR #201's round 1; #200 removes
-  it from the log's Columns and `CLAUDE.md`). All 32 rounds in rows 351–419 that stated
-  a limit stated `high` and a limit of 10 (row 410: "≤10"), and the owner keeps the default limit (Phase 5
-  plan decision #20), so the record carried nothing new; the rule lapsed after rows 364
-  and 403 logged it, and again in PR #201's round 1. Step 10 carries this forward.
+  it from the log's Columns and `CLAUDE.md`). It lapsed after rows 364 and 403 logged
+  it, and again in PR #201's round 1. All 32 rounds in rows 351–419 that stated a limit
+  stated `high` and a limit of 10 (row 410: "≤10"), and the owner keeps the default
+  limit (Phase 5 plan decision #20), so the record carried nothing new **while rounds
+  run at `high`**. The default limit may differ by level, and a bare `/code-review`
+  reuses the last level typed: a round run at another level reopens this (PR #201's
+  round 2; the owner kept the retirement on that premise). Step 10 carries this
+  forward.
 - **No action on row 325's repeats** (354, 382): each was caught by `self` from `add`'s
-  output before a push, and the fix was one more commit.
+  output, and the fix was the next commit. Row 354's was before a push ("Not pushed");
+  row 382 doesn't say.
 - **Not taken:** a per-finding record of the command that checked a fix's premise and
-  the one that checked its neighbouring case (aimed at `overcorrection`); a recorded
-  failing run for every verification command, AC and claims backing (aimed at checks
-  that couldn't fail).
+  the one that checked the fix and its neighbouring case (aimed at `overcorrection`); a
+  recorded failing run for every verification command, AC and claims backing (aimed at
+  checks that couldn't fail).
 
 ### #24 — Dependabot alert #7 (`minimatch` < 11.0.1) is dismissed
 
 The owner's call, 2026-11-03: dismissed with a comment in GitHub's UI. The advisory
-(GHSA-g3hv-75wg-m249) covers `minimatch` 3.1.5 under `eslint` 9 and its plugins, and
-10.2.5 under `typescript-eslint` via `eslint-config-next` 16.4.3: 16 moderate findings
-in `npm audit`, and `npm audit --omit=dev` exits 0. Its trigger is an attacker-supplied
-glob pattern, and ESLint's patterns come from the repo's config and CLI arguments. No
-fixed version is within the dependents' ranges (`^3.1.5`, `^10.2.2`). Considered: an
-`overrides` entry forcing 11.x (eight majors past `eslint`'s `^3`); Dependabot's
-security-update PR (automatic PRs are Phase 8's, and `eslint-config-next` is an exact
-pin moved with `next`). Revisit when `eslint` or `typescript-eslint` moves to 11.0.1 or
-later, or at Phase 8's dependency check. Step 10 records the audit result (#189).
+(GHSA-g3hv-75wg-m249) covers `minimatch` before 11.0.1: 16 moderate findings in `npm
+audit`, and `npm audit --omit=dev` exits 0. The installed copies and the ranges that
+hold them: 3.1.5 under `eslint` 9, `@eslint/config-array` and `@eslint/eslintrc`
+(`^3.1.5`) and under `eslint-config-next` 16.4.3's `import`, `react` and `jsx-a11y`
+plugins (`^3.1.2`); 10.2.5 under `@typescript-eslint/typescript-estree` (`^10.2.2`).
+None admits 11.0.1. Its trigger is an attacker-supplied glob pattern, and ESLint's
+patterns come from the repo's config and CLI arguments. Considered: an `overrides`
+entry forcing 11.x (eight majors past `eslint`'s `^3`); Dependabot's security-update PR
+(automatic PRs are Phase 8's, and `eslint-config-next` is an exact pin moved with
+`next`). Revisit when every one of those ranges admits `minimatch` 11.0.1 or later
+(`npm audit` then no longer lists the advisory), or at Phase 8's dependency check. Step
+10 records the audit result (#189).
 
 ---
 

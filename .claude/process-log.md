@@ -699,6 +699,7 @@ Old rows that point at them are now pointing there: "see note" (rows 14, 15, 17,
 | 419 | 2026-11-02 | PR #198 / IS #139 | `issue` | `/code-review` round 3 on #198, scoped to round 2's fixes, found 10 (at the limit); 9 applied, 1 declined. **#199's test for a new Node floor couldn't test it:** on Node 22.11 with npm 10.9.0, npm's own `>=11.0.0` check fails first. Also: README's advice compared versions before saying to update npm; one fact copied into four places; "no message" for a run that printed one; row 416's "20.19+" and row 417's claims; "minimums" left in a pointer; unlabelled probe letters. | `code-review` r3 on PR #198, scoped to `35440a7..318db8b` (high, limit 10) | `pre-merge` | `imprecise-claim` | #199 tests on npm 11 with the error naming `runtime`; README: update npm first; the fact kept in `CLAUDE.md`, pointers elsewhere; rows 416–417 corrected, 418 split out. Declined: row 417's Cause as `overcorrection`. |
 | 420 | 2026-11-03 | PR #201 / IS #188 | `process-log` | `/code-review` round 1 on #201, full, found 10; all applied. **The retrospective's row lists said more than their rows:** "no row records a code pattern's other use missed" (row 386 does); 396 and 418 credited to running a control and 402 to the claims check; "ten" sweep rows and "11" checks that couldn't fail, with no criterion; the level and limit rule "held" (it lapsed after rows 364 and 403 too). Also: the owner's calls in the log, not the plan (rows 351, 365 again); no `stale-doc` row; a reason overstating CLAUDE.md; a re-run note blind to Miss cells. | `code-review` r1 on PR #201, full (level unknown, limit unknown: not asked, row 421) | `pre-merge` | `imprecise-claim` | A criterion for each list (13 rows, a floor; 22 after a required sweep); row 386 as the sibling miss; the `self` split; plan #23 (the calls; the level and limit rule retired) and #24 (alert #7); the `stale-doc` row; the round script's bounds numeric; #189 and #200 updated. |
 | 421 | 2026-11-03 | PR #201 / IS #188 | `process-log` | I started `/code-review` round 1 on #201 with only the PR number, without asking it to state its effort level and findings limit, as the log's Columns ask, so row 420 reads "level unknown, limit unknown". It is row 408's miss again, in the first round after the section I had just written said the rule held. | `self`, reading the round's output to write row 420 | `pre-merge` | `gate-skipped` | None to the round. The owner retired the rule in the same round (plan decision #23, done in #200), on this lapse and the ones after rows 364 and 403. |
+| 422 | 2026-11-03 | PR #201 / IS #188 | `plan` | `/code-review` round 2 on #201, scoped to round 1's fixes, found 10; all applied. **Round 1's fixes repeated the misses the section counts:** plan #23 said "Step 10 carries this forward" but step 10 wasn't updated; the log kept a second, differently worded copy of #23's declined options; #200's corrected AC still couldn't see the `code-review` bullet. Also: the retirement's reason held only at `high`; #24 missed the plugins' `^3.1.2`; "before a push" unbacked for 382; "ten" read as a subset of the 22; a lapse range took in `self` rows; long lines. | `code-review` r2 on PR #201, scoped to `c14ad70..48dbc6e` | `pre-merge` | `overcorrection` | Step 10 names #22, #23's retirement and #24's audit result; the log points to #23; #200's AC greps five phrases and the #23 pointer; the premise stated (owner kept the retirement); #24's ranges; 382 "doesn't say"; 375 named; exact lapse list; rewrapped. |
 
 ---
 
@@ -1397,11 +1398,10 @@ A row can sit in two groups.
   logged), 379 and 383 (a new effect or rule with defects of its own), 411 (a sweep fix
   that changed `seed.sql`'s hash).
 
-The owner chose no action aimed at overcorrection itself this time (2026-11-03, plan
-decision #23): a record per applied finding of the command that checked its premise and
-the one that checked the fix and its neighbouring case was offered and not taken. New action 1
-below lists the lines a fix removes, which is where the first group's misses sit; its
-issue's replay says whether it would have listed them. The next retrospective
+The owner chose no action aimed at overcorrection itself this time; plan decision #23
+says what was offered and not taken. New action 1 below lists the lines a fix removes,
+which is where the first group's misses sit; its issue's replay says whether it would
+have listed them. The next retrospective
 re-reads this share.
 
 ### The Phase 5 retrospective's actions
@@ -1427,7 +1427,9 @@ Each verdict cites rows found by the grep or criterion it names.
   record's error): 365 (the PR body), 369 (the body's `:19`, read and kept), 375
   (`transition.md` and code comments), 385 (#182's body), 391 (`db/locations.ts`), 400
   (three plan copies), 403 (a copy read and called accurate), 405 (copies reworded, not
-  made pointers), 410 and 412 (`seed.sql`, twice).
+  made pointers), 410 and 412 (`seed.sql`, twice). Nine of them are among the 22; 375
+  is a round 1, so the sweep it names ran before any review (CLAUDE.md's sweep also
+  runs "whenever a claim is corrected outside a review").
 - **The sibling-code adjustment (#171) missed once:** row 386 records `isTimestamp`
   still calling `parseISO` after round 2's fix moved the code to one parser
   (`instant`), a code pattern's other use. (Found by PR #201's round 1; this section's
@@ -1457,18 +1459,18 @@ unchanged.**
   392, 394, 396, 401, 403, 409, 418, 419 (an AC, a probe, a test, a README check, a
   claims backing, an issue's test). `self` found five: three by running a control
   (370, 392, 394) and two by re-checking a probe's input (396, 418). Review found eight.
-  Not taken as an action (plan decision #23): a recorded failing run for every
-  verification command, AC and backing.
+  An action aimed at them was offered and not taken (plan decision #23).
 
 **3. `scripts/process-log.sh check`. Keep, unchanged.**
 - The log passes it as this section is written (exit 0).
 - **Row 325's miss happened twice more** (354, 382): a commit chained with `;` past an
   `add` that refused the row, so the commit message named a row it didn't hold. Row
   382 left the mechanism to this retrospective. **No action** (plan decision #23):
-  each time `self` caught it from `add`'s own output before a push, and the fix was the
-  next commit. (A second reason given when asking, that CLAUDE.md's "Testing" leaves
-  local commit checks to Phase 8, overstated it: it names a pre-commit secret scan
-  only. PR #201's round 1 found it, and the owner kept the call on the first reason.)
+  each time `self` caught it from `add`'s own output, and the fix was the next commit
+  (row 354's before a push, "Not pushed"; row 382 doesn't say). (A second reason given
+  when asking, that CLAUDE.md's "Testing" leaves local commit checks to Phase 8,
+  overstated it: it names a pre-commit secret scan only. PR #201's round 1 found it,
+  and the owner kept the call on the first reason.)
 
 **4. The pre-review claims check (`scripts/claims.sh`). Keep, adjusted (#200).**
 - **Its target rose.** `imprecise-claim`: 18 of 69 (26%), against 5 of the 36 rows
@@ -1499,15 +1501,18 @@ unchanged.**
 - **The level and limit rule lapsed after each time it was logged.** Of the 50 rounds
   from row 358 (PR #174, the first opened after #171 merged in PR #173) to row 419, 19
   lack a level or a limit: 363, 376, 384–391, 393, 395, 397–401, 403, 407. Row 364
-  logged the miss ("I hadn't asked round 1 for its level and limit"), and 376 and
-  384–401 lapsed; row 403 logged it ("Later rounds are asked to state level and
-  limit"), and 407 lapsed; row 408 logged it, and the 10 rounds after it state both.
-  PR #201's round 1, the next, lapsed again.
+  logged the miss ("I hadn't asked round 1 for its level and limit"), and 376,
+  384–391, 393, 395 and 397–401 lapsed; row 403 logged it ("Later rounds are asked
+  to state level and limit"), and 407 lapsed; row 408 logged it, and the 10 rounds
+  after it state both. PR #201's round 1, the next, lapsed again.
 - **And it recorded nothing new.** All 32 rounds that state a limit state `high` and a
   limit of 10 (row 410: "≤10"), and the owner keeps the default limit (Phase 5 plan
-  decision #20), so "found 10" already reads as at the limit.
-- **Retired** (plan decision #23, the owner's call in PR #201's round 1): #200 removes
-  it from the log's Columns and from CLAUDE.md's "Review rounds".
+  decision #20), so "found 10" reads as at the limit **while rounds run at `high`**.
+  The default limit may differ by level, and a bare `/code-review` reuses the last
+  level typed, so a round at another level reopens this (PR #201's round 2).
+- **Retired** (plan decision #23, the owner's call in PR #201's round 1, kept in round
+  2 on that premise): #200 removes it from the log's Columns and from CLAUDE.md's
+  "Review rounds".
 
 ### New actions (one)
 
@@ -1516,8 +1521,8 @@ by review (362 by `self`), and the sweep that could have found them runs before 
 round.
 
 **1. A script that lists the sweep's candidates (#200).**
-- **The evidence.** Action 1 above: 28 rows over 13 PRs, 22 of them after a required
-  sweep, ten naming it.
+- **The evidence.** Action 1 above: 28 rows over 13 PRs; 22 of them found after a
+  round's required sweep, and ten (nine of those 22, and 375) naming the sweep.
 - **The mechanism.** `scripts/sweep.sh <rev>`, run with the claims check before a
   round, lists for the diff: each line it removes, with every other place that still
   holds a run of its words; and each line it adds that repeats a run of words already
