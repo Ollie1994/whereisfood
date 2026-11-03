@@ -586,9 +586,9 @@ before the first production deploy (Phase 8)**. Until then every gate is manual
 - **Two-factor authentication** (the rule is `CLAUDE.md`'s, "Secrets"): the
   Cloudflare, Supabase and Vercel accounts Phase 6 created use non-SMS 2FA (the owner's
   confirmations in PRs #194, #195 and #197; Cloudflare's and Vercel's by authenticator
-  app, Supabase's method not recorded). The
-  owner's GitHub account uses it **by SMS for now**, switched before the production
-  deploy. No domain or registrar account exists yet.
+  app, Supabase's method not recorded). The owner's GitHub account uses non-SMS 2FA
+  too (the owner, 2026-11-03, in PR #204; the method not recorded). No domain or
+  registrar account exists yet.
 
 All of these can be switched off without any change in the repo. They were checked in
 the GitHub UI: the CLI token used here, though it has admin rights, gets `403` from the
@@ -623,7 +623,7 @@ secret-scanning, Dependabot-alerts and vulnerability-alerts APIs, and no
 
 **Before the production deploy:**
 - **Check every account against `CLAUDE.md`'s two-factor rule** ("Secrets"), the
-  owner's GitHub included (off SMS), the recovery email and a registrar once there is
+  owner's GitHub included, the recovery email and a registrar once there is
   one, and keep the recovery codes offline.
 - **Give Production its variables only after checking that the Vercel project's
   Ignored Build Step is still set** to cancel a Production build from any branch but
