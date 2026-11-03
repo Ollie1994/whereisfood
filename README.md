@@ -42,7 +42,9 @@ Consumers are always anonymous. All user-facing text is in Swedish.
 
 ## How it's designed to work
 
-Most of this is built in Phases 5–7; it describes the design, not today's code.
+This is the design. Phases 5 and 6 built the schema and the public read path (the
+map, its polling and cache, the popup's freshness text); the admin screen and its
+entry flow are Phase 7's, and launch is Phase 8's.
 
 - **The admin enters every location by hand.** A pin comes from a map tap, a known
   Gothenburg spot, a recently used place, or the phone's GPS. Start and end times are

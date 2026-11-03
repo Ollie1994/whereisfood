@@ -11,12 +11,12 @@ reconciled at the end of Phases 5 (#165) and 6 (#189). It has three parts:
 
 1. **Current state** — what exists on `dev` after Phase 6. Trust it for "what is the
    code doing today".
-2. **Target design** — the design Phases 5–8 follow, condensed from
-   `.claude/transition.md` (now history). Trust it for "what are we building", never as
-   a description of the code. The exceptions are the sections marked "built in Phase
-   5", for what they say about the **schema** (Part 1's "Database" says it matches
-   them), and "Read path", marked "built in Phase 6". What Part 2 says about admin
-   routes, writes and the 409 mapping is still target design.
+2. **Target design** — the design from Phase 5 on, the Owners phase's principles
+   included, condensed from `.claude/transition.md` (now history). Trust it for "what
+   are we building", never as a description of the code. The exceptions are the
+   sections marked "built in Phase 5", for what they say about the **schema** (Part 1's
+   "Database" says it matches them), and "Read path", marked "built in Phase 6". What
+   Part 2 says about admin routes, writes and the 409 mapping is still target design.
 3. **Standing rules** — conventions that hold in both.
 
 The current phase plan wins over this file. This file is reconciled with reality at
@@ -202,8 +202,8 @@ types" section has each function's contract.
 **Checked on the hosted preview project too** (2026-11-02, #186's PR #195; `README.md`
 "Hosted preview database"): `trucks.name`'s collation reads back `sv-SE-x-icu` (#19);
 `btree_gist` and `moddatetime` are both in `extensions`, and the migration, trigger
-included, applied (#5); `anon` and `authenticated` hold one table grant between them,
-the migration's `SELECT` on `users` to `authenticated`, and `anon`
+included, applied (#5); the API roles' table grants in `public` are the migration's
+(`README.md`, "Hosted preview database", gives the query and the result), and `anon`
 gets `42501` on all three tables; the Data API's **Max rows** is 1000, equal to
 `MAX_ROWS` (`complete.ts` holds the value read). Max rows is set in the dashboard, not
 from `config.toml`, so a new hosted project (production's, Phase 8) is read there
@@ -587,8 +587,8 @@ before the first production deploy (Phase 8)**. Until then every gate is manual
 - **Two-factor authentication** (the rule is `CLAUDE.md`'s, "Secrets"): the owner's
   GitHub account and the Cloudflare, Supabase and Vercel accounts Phase 6 created all
   use a mobile authenticator app (the owner's confirmations in PRs #194, #195 and #197,
-  and for GitHub, and every method, in PR #204, 2026-11-03). The recovery email's 2FA
-  isn't recorded. No domain or registrar account exists yet.
+  and for GitHub, and every method, in PR #204, 2026-11-03). Not recorded yet: the 2FA
+  of each account's recovery email. No domain or registrar account exists yet.
 
 All of these can be switched off without any change in the repo. They were checked in
 the GitHub UI: the CLI token used here, though it has admin rights, gets `403` from the
@@ -623,8 +623,8 @@ secret-scanning, Dependabot-alerts and vulnerability-alerts APIs, and no
 
 **Before the production deploy:**
 - **Check every account against `CLAUDE.md`'s two-factor rule** ("Secrets"), the
-  owner's GitHub and its recovery email included, and a registrar once there is
-  one, and keep the recovery codes offline.
+  owner's GitHub included, each account's recovery email, and a registrar once there
+  is one, and keep the recovery codes offline.
 - **Give Production its variables only after checking that the Vercel project's
   Ignored Build Step is still set** to cancel a Production build from any branch but
   `main`. It runs when a build starts, so promoting an existing preview to Production
@@ -810,7 +810,7 @@ says.
 | Phase 6 #1 (IS #176) | CI/CD (the four gates in GitHub Actions), SAST (SonarQube Cloud preferred), a pre-commit and CI secret scan, Dependabot security updates once CI runs, and branch protection are one piece of Phase 8's work, built before its production deploy | Part 2 "Pre-deploy automation (planned)"; `CLAUDE.md` "Testing" |
 | Phase 6 #2 (IS #176) | The "deploy" in the 2026-09-06 decision "Gates stay manual until deploy" is the official production deploy, not a preview deploy | `CLAUDE.md` "Testing" |
 | Phase 6 #3 (IS #176) | Two-factor authentication on every account that can reach the project, by passkey, hardware key or authenticator app, not SMS; set up as each account is created, checked again before the production deploy | `CLAUDE.md` Hard Rules ("Secrets", the rule); Part 2 "Pre-deploy automation (planned)" (which accounts meet it, and the pre-deploy check) |
-| Phase 6 #4 (IS #176) | Every credential that existed before the production deploy is rotated, or replaced by a new project's, before it | Part 2 "Pre-deploy automation (planned)" (the pre-deploy rotation); `CLAUDE.md` Hard Rules ("Secrets", rotating a secret that reached a commit) |
+| Phase 6 #4 (IS #176) | Every credential that existed before the production deploy is rotated, or replaced by a new project's, before it | Part 2 "Pre-deploy automation (planned)" (the pre-deploy rotation). `CLAUDE.md`'s rotation rule ("Secrets") is another one, for a secret that reached a commit |
 | Phase 6 #5 (IS #176) | Hosted secrets for deploys and CI live in Vercel environment variables, GitHub Actions and Dependabot secrets; developers' own copies stay on their machine; none in a tracked or shared file | `CLAUDE.md` Hard Rules ("Secrets") |
 | Phase 6 #6 (IS #178) | `next.config.ts` sets `experimental.agentUpgrade: false`, so an agent-run build or dev server doesn't fail, or query the advisory source, when an advisory covers the installed Next; advisories come through Dependabot alerts and `npm audit` | `CLAUDE.md` "Dependencies"; the comment in `next.config.ts` |
 | Phase 6 #7 | The tiles are on Cloudflare R2 for every deploy, pulled forward from Phase 8; development keeps the local file; Phase 8 moves the bucket to a custom domain | Part 1 "Map tiles"; Part 2's Phase map (Phase 8 row) and "Pricing" |
