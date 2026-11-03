@@ -17,7 +17,8 @@
 # working tree, or at B for a range; `package-lock.json` left out), the open issue
 # bodies, and each file. It prints four lists (CLAUDE.md, "Review rounds", the sweep):
 #   removed, still elsewhere  a removed line, and each place still holding a run of its
-#                             words: a stale-copy candidate (step 2);
+#                             words: a stale-copy candidate (step 2); and "moved to",
+#                             the other files' added lines that hold one, if any;
 #   removed, moved elsewhere  a removed line whose runs sit only on lines this diff
 #                             adds in another file: a rule moved to a new owner;
 #   removed, nowhere else     a removed line no place holds a run of: a dropped
@@ -42,10 +43,10 @@
 # pattern's other uses (sweep step 1 lists those by hand); a copy in a closed issue or
 # PR, or in history (which stays as written); the PR body unless it is passed as a
 # file; untracked files (it warns about them when <rev> is compared with the working
-# tree); a file whose path holds a newline (its lines split into wrong places), a
-# tab, `\001` or another character `git diff` quotes (`"`, `\`, a control character),
-# whose diff path then differs from its place; and whether a hit
-# is stale.
+# tree); a file whose path holds a newline, a tab or `\001` (the place records split
+# there, so its lines get wrong places), or another character `git diff` quotes (`"`,
+# `\`, a control character: its diff path then differs from its place); and whether a
+# hit is stale.
 #
 # Replayed on six copies the sweep missed (rows 375, 386, 391, 400, 410, 412; IS #200's
 # PR records each range): it lists row 400's (plan lines restating a rewritten
@@ -88,7 +89,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --no-issues) issues=0 ;;
     --skip-issue)
-      case "${2:-}" in ''|*[!0-9]*) echo "sweep.sh: --skip-issue needs an issue number" >&2; exit 2 ;; esac
+      case "${2:-}" in ''|*[!0-9]*|0*) echo "sweep.sh: --skip-issue needs an issue number, not '${2:-}'" >&2; exit 2 ;; esac
       skip="$skip$2 "; shift ;;
     *) [ -f "$1" ] && [ -r "$1" ] || { echo "sweep.sh: cannot read $1" >&2; exit 2; }
        files+=("$1") ;;
@@ -123,21 +124,21 @@ warn_untracked sweep.sh "$root" "$rev" "not searched"
 # path raw (`å.md`, where the default quotes it as `"\303\245.md"`), after `<end>:`
 # when it reads a commit. `--no-column` and `--no-color` undo config that would add to
 # it: `git -c grep.column=true grep -n` printed `path:line:col:text`, the column in
-# the text (all probed in IS #200's PR, rounds 1-2). The NULs become `\001` before awk
-# splits: an awk other than gawk ends a string at a NUL.
+# the text (all probed in IS #200's PR, rounds 1-2). The NULs become `\001` before any
+# awk reads them, since an awk other than gawk ends a string at a NUL; the one awk then
+# strips `<end>:` (by bytes, in LC_ALL=C) and splits.
 GREP="grep --no-color --no-column -z -I -n -e"
-{
-  if [ -n "$end" ]; then
-    # shellcheck disable=SC2086
-    git -C "$root" $GREP '' "$end" -- ':(top,exclude)package-lock.json' \
-      | SWEEP_PREFIX="$end:" LC_ALL=C awk '{ print substr($0, length(ENVIRON["SWEEP_PREFIX"]) + 1) }'
-  else
-    # shellcheck disable=SC2086
-    git -C "$root" $GREP '' -- ':(top,exclude)package-lock.json'
-  fi
-} | tr '\000' '\001' \
-  | awk '{ i = index($0, "\001"); j = index(substr($0, i + 1), "\001")
-           print "T\t" substr($0, 1, i - 1) "\t" substr($0, i + 1, j - 1) "\t" substr($0, i + j + 1) }' >"$tmp/places"
+if [ -n "$end" ]; then
+  # shellcheck disable=SC2086
+  git -C "$root" $GREP '' "$end" -- ':(top,exclude)package-lock.json'
+else
+  # shellcheck disable=SC2086
+  git -C "$root" $GREP '' -- ':(top,exclude)package-lock.json'
+fi | tr '\000' '\001' \
+  | SWEEP_PREFIX="${end:+$end:}" LC_ALL=C awk '
+      { s = substr($0, length(ENVIRON["SWEEP_PREFIX"]) + 1)
+        i = index(s, "\001"); j = index(substr(s, i + 1), "\001")
+        print "T\t" substr(s, 1, i - 1) "\t" substr(s, i + 1, j - 1) "\t" substr(s, i + j + 1) }' >"$tmp/places"
 
 nissues=0
 if [ "$issues" = 1 ]; then
@@ -161,13 +162,15 @@ for f in ${files[@]+"${files[@]}"}; do
 done
 
 # The diff's lines, one record each: `R<TAB>path<TAB>line<TAB>text` for a removed
-# line (its old path and line), `A<TAB>…` for an added one.
+# line (its old path and line), `A<TAB>…` for an added one, and `N<TAB>old<TAB>new`
+# for a renamed file, so a removed line's own file is known by its new name too.
 awk '
   { sub(/\r$/, "") }
   /^diff --git / { header = 1; next }
   header && /^--- / { old = substr($0, 5); sub(/^a\//, "", old); sub(/\t$/, "", old); next }
   header && /^\+\+\+ / { new = substr($0, 5); sub(/^b\//, "", new); sub(/\t$/, "", new)
-                         if (new == "/dev/null") new = old; if (old == "/dev/null") old = new; next }
+                         if (new == "/dev/null") new = old; if (old == "/dev/null") old = new
+                         if (old != new) print "N\t" old "\t" new; next }
   /^@@ / { header = 0; split($2, o, ","); oline = substr(o[1], 2) + 0
            split($3, h, ","); nline = substr(h[1], 2) + 0; next }
   !header && /^-/ { print "R\t" old "\t" oline "\t" substr($0, 2); oline++; next }
@@ -186,6 +189,7 @@ LC_ALL=C SWEEP_RUN="$RUN" SWEEP_REV="$rev" SWEEP_ISSUES="$nissues" SWEEP_FILES="
   BEGIN { RUN = ENVIRON["SWEEP_RUN"] + 0 }
   # The diff: every run of RUN words in a line is a key to look for. (Not `FNR == NR`,
   # which an empty diff file would make true for the places.)
+  FILENAME == ARGV[1] && $1 == "N" { renamed[$2] = $3; next }
   FILENAME == ARGV[1] {
     r++; kind[r] = $1; path[r] = $2; line[r] = $3
     text[r] = substr($0, length($1) + length($2) + length($3) + 4)
@@ -218,6 +222,7 @@ LC_ALL=C SWEEP_RUN="$RUN" SWEEP_REV="$rev" SWEEP_ISSUES="$nissues" SWEEP_FILES="
     for (x = 1; x <= r; x++) {
       if (nk[x] == 0) { short[kind[x]]++; continue }
       delete L; delete M; ondiff = 0; out = ""; outside = 0; mout = ""; nm = 0
+      own = (path[x] in renamed) ? renamed[path[x]] : path[x]
       for (i = 1; i <= nk[x]; i++) {
         n = split(hits[key[x, i]], h, "\036")
         for (j = 2; j <= n; j++) {
@@ -227,9 +232,10 @@ LC_ALL=C SWEEP_RUN="$RUN" SWEEP_REV="$rev" SWEEP_ISSUES="$nissues" SWEEP_FILES="
           # A run of a removed line that touches a line this diff adds: the line was
           # edited or moved. Judged per run, before the dedup: another run from the same
           # first line may lie outside the diff (IS #200, its PR, round 2).
-          # In its own file that is an edit; in another file, a move, which is listed.
+          # In its own file (by its new name, if renamed) that is an edit; in another
+          # file, a move, which is listed.
           if (kind[x] == "R" && p[1] == "T" && onadded(p[2], p[3] + 0, p[4] + 0)) {
-            if (p[2] == path[x]) { ondiff = 1; continue }
+            if (p[2] == own) { ondiff = 1; continue }
             if (!((p[2], p[3]) in M)) {
               M[p[2], p[3]]; nm++
               if (nm <= 8) mout = mout (nm > 1 ? ", " : "") p[2] ":" p[3]
@@ -247,9 +253,15 @@ LC_ALL=C SWEEP_RUN="$RUN" SWEEP_REV="$rev" SWEEP_ISSUES="$nissues" SWEEP_FILES="
       entry = path[x] ":" line[x] ": " t
       if (kind[x] == "R") {
         removed++
-        if (outside > 0) { still = still entry "\n    -> " show(outside, out) "\n"; nstill++ }
-        else if (nm > 0) { away = away entry "\n    -> " show(nm, mout) "\n"; naway++ }
+        # An edit in its own file outranks a move: a new line in another file that
+        # repeats it shows up under "also elsewhere" instead.
+        if (outside > 0) {
+          still = still entry "\n    -> " show(outside, out) "\n"
+          if (nm > 0) still = still "    moved to -> " show(nm, mout) "\n"
+          nstill++
+        }
         else if (ondiff) moved++
+        else if (nm > 0) { away = away entry "\n    -> " show(nm, mout) "\n"; naway++ }
         else { nowhere = nowhere entry "\n"; nnow++ }
       } else {
         addedn++

@@ -11,7 +11,8 @@ DIFF_FLAGS="-U0 --inter-hunk-context=0 --no-color --no-ext-diff --no-textconv --
 # a file the caller's trap removes, kept out of the diff text and shown only when the
 # diff fails: a bad rev must not look like an empty, clean diff (exit 2).
 git_diff() {
-  [ $# -eq 5 ] && [ -n "$5" ] || { echo "git_diff: needs <script> <root> <rev> <out> <err>" >&2; exit 2; }
+  [ $# -eq 5 ] && [ -n "$1" ] && [ -n "$2" ] && [ -n "$3" ] && [ -n "$4" ] && [ -n "$5" ] \
+    || { echo "git_diff: needs <script> <root> <rev> <out> <err>, none empty" >&2; exit 2; }
   # shellcheck disable=SC2086
   if ! git -C "$2" -c core.quotePath=false diff $DIFF_FLAGS "$3" \
       -- ':(top,exclude)package-lock.json' >"$4" 2>"$5"; then
