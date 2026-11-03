@@ -394,18 +394,14 @@ outside a review):
    a fix guards too** (a read `max_rows` can cut, a query with no tie-break): the same
    defect in sibling code is a copy no listed claim names (rows 340, 342, 343). Then
    run `bash scripts/sweep.sh "<rev>" --skip-issue <the issue the PR closes> [<PR
-   body>]` with the same commit: it lists the removed lines whose words still stand
-   elsewhere or moved to another file, the removed lines held nowhere else, and the
-   added lines that repeat text found elsewhere, across the tracked files, the open
-   issue bodies and the PR body. Add its hits to the list; they are a floor, not the
-   list (its header says what it can't see: a reworded copy, a code pattern).
+   body>]` with the same commit; its header says what it lists, where it looks and
+   what it can't see. Add its hits to the list; they are a floor, not the list.
 2. **Grep every mention** of each across the tracked docs (`CLAUDE.md`, `README.md`,
    `.claude/`), code comments and tests, **every open issue body**, and the PR body if
-   there is one. `sweep.sh`'s "still elsewhere" and "also elsewhere" hits are already
-   such mentions, of the text itself; grep for the terms as well, since a reworded
-   copy shares no run of words, and grep the issue `--skip-issue` left out: it stays
-   open until the PR merges (PR #202's round 3 found #200's "Does not catch" behind
-   the script's header). For a code pattern, grep the code **and the tests** for its
+   there is one, the issue the PR closes included (PR #202's round 3 found #200's
+   "Does not catch" behind the script's header). `sweep.sh`'s hits are already such
+   mentions, of the text itself; grep for the terms as well, since a reworded copy
+   shares no run of words. For a code pattern, grep the code **and the tests** for its
    other uses (the call, the query shape) and read each: row 343's copy was in a test
    helper.
 3. **Read every hit.** Fix the stale ones. A sibling with the same defect gets fixed in
@@ -458,7 +454,7 @@ all` (the owner's call, Phase 5 plan decision #20): fix, then repeat, scoped to 
 previous round's fixes or full. A scoped round sees only the fixes: #20 records a
 defect outside them that a scoped round and the full round 1 on PR #168 both missed,
 and a later full round, on PR #169, found (row 349). The log's "Columns" ("What one row
-is", then `Caught by`) say how its row records it.
+is", then `Caught by`) say how a round is recorded as a row.
 
 ---
 

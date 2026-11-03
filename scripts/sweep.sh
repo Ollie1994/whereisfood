@@ -4,18 +4,20 @@
 #
 #   bash scripts/sweep.sh <rev> [--no-issues | --skip-issue <n>]... [file]...
 #
-# <rev>             as claims.sh takes it: a commit (compared with the working tree)
-#                   or a range `A..B` (compared at B; `A..` is `A..HEAD`).
+# <rev>             as claims.sh takes it: a commit (compared with the working tree),
+#                   or two commits, `A..B`, `A...B` or `C^!` (compared at the newer:
+#                   B, C; `A..` is `A..HEAD`). lib/diff.sh's rev_end says which.
 # --no-issues       don't read the open issue bodies (a replay of an old range, or no
 #                   network). Without it, a failed `gh issue list` exits 2.
-# --skip-issue <n>  leave issue #n out, e.g. the one the PR closes: its body is the
-#                   change's spec and restates it.
+# --skip-issue <n>  list issue #n's hits apart, e.g. the one the PR closes: its body
+#                   is the change's spec and restates it, but stays open, so a copy
+#                   there can go stale too.
 # file              more text to search, e.g. the PR body or its draft.
 #
 # For each line `git diff <rev>` removes or adds, it looks for runs of RUN words (below)
 # that the line shares with a place. The places are the tracked text files (at the
-# working tree, or at B for a range; `package-lock.json` left out), the open issue
-# bodies, and each file. It prints four lists (CLAUDE.md, "Review rounds", the sweep):
+# working tree, or at the newer commit; `package-lock.json` left out), the open issue
+# bodies, and each file. It prints five lists (CLAUDE.md, "Review rounds", the sweep):
 #   removed, still elsewhere  a removed line, and each place still holding a run of its
 #                             words: a stale-copy candidate (step 2); and "moved to",
 #                             the other files' added lines that hold one, if any;
@@ -26,6 +28,9 @@
 #   added, also elsewhere     an added line, and each other place holding a run of its
 #                             words: a restatement candidate (step 3 makes a restated
 #                             rule a pointer). Another line this diff adds counts too.
+#   in a skipped issue        a removed or added line, and each line of a
+#                             `--skip-issue` issue holding a run of its words. Those
+#                             hits count in no other list.
 # A removed line whose runs sit only on lines this diff adds in its own file was
 # edited, rewrapped or moved within it: it is counted on stderr, not listed. So is a
 # line shorter than RUN words.
@@ -35,7 +40,8 @@
 # non-ASCII bytes treated as a space, and a `#` standing alone (a comment or heading
 # marker) dropped, so markdown, backticks, table pipes and comment markers don't
 # count, and a run continues across line breaks inside a place (a rewrapped copy
-# matches). A diff line's runs lie within that line.
+# matches). A diff line's runs lie within that line. A process-log row (`| N | date |`)
+# counts only its Miss and Fix cells: its other cells repeat from row to row.
 #
 # Lists, doesn't judge: the author settles each hit in the round's sweep record.
 #
@@ -56,9 +62,10 @@
 # 386's.
 #
 # Exit codes: 0 when the run worked, hits or not; 2 for no or an empty <rev>, `-h`,
-# a bad <rev> or range end, an unreadable file, a `--skip-issue` without a number, a
-# bad SWEEP_RUN or SWEEP_ISSUE_LIMIT, a failed `gh issue list` without --no-issues,
-# more open issues than ISSUE_LIMIT (the read would be cut), or no git repository.
+# a bad <rev>, an unreadable file, a `--skip-issue` without a number, a bad SWEEP_RUN
+# or SWEEP_ISSUE_LIMIT, a failed `git grep` or `gh issue list` (the latter without
+# --no-issues), more open issues than ISSUE_LIMIT (the read would be cut), or no git
+# repository.
 
 set -euo pipefail
 
@@ -69,7 +76,7 @@ RUN="${SWEEP_RUN:-6}"
 # SWEEP_ISSUE_LIMIT overrides it.
 ISSUE_LIMIT="${SWEEP_ISSUE_LIMIT:-500}"
 
-usage() { sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+usage() { sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 [ $# -ge 1 ] || usage
 case "$1" in -h|--help) usage ;; esac
 
@@ -105,18 +112,10 @@ tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 . "$(dirname "$0")/lib/diff.sh"
 git_diff sweep.sh "$root" "$rev" "$tmp/diff" "$tmp/err"
 
-# Where the places are read: the working tree, or the end of a range.
-end=""
-case "$rev" in
-  *...*) end="${rev#*...}" ;;
-  *..*)  end="${rev#*..}" ;;
-esac
-case "$rev" in
-  *..*) [ -n "$end" ] || end=HEAD
-        git -C "$root" rev-parse --verify --quiet "$end^{commit}" >/dev/null \
-          || { echo "sweep.sh: bad range end $end" >&2; exit 2; } ;;
-esac
-warn_untracked sweep.sh "$root" "$rev" "not searched"
+# Where the places are read: the working tree, or the newer commit. A bad end has
+# already failed git_diff.
+end=$(rev_end "$root" "$rev")
+warn_untracked sweep.sh "$root" "$end" "not searched" ${files[@]+"${files[@]}"}
 
 # Places, one record per line: `kind<TAB>place<TAB>line<TAB>text`, kind T (tracked
 # file), I (issue) or F (file argument). `git grep -z -n -e ''` prints every line of
@@ -126,15 +125,15 @@ warn_untracked sweep.sh "$root" "$rev" "not searched"
 # it: `git -c grep.column=true grep -n` printed `path:line:col:text`, the column in
 # the text (all probed in IS #200's PR, rounds 1-2). The NULs become `\001` before any
 # awk reads them, since an awk other than gawk ends a string at a NUL; the one awk then
-# strips `<end>:` (by bytes, in LC_ALL=C) and splits.
+# strips `<end>:` (by bytes, in LC_ALL=C) and splits. `git grep` exits 1 when no line
+# matches (no text file at all): an empty list, not a failure.
 GREP="grep --no-color --no-column -z -I -n -e"
-if [ -n "$end" ]; then
-  # shellcheck disable=SC2086
-  git -C "$root" $GREP '' "$end" -- ':(top,exclude)package-lock.json'
-else
-  # shellcheck disable=SC2086
-  git -C "$root" $GREP '' -- ':(top,exclude)package-lock.json'
-fi | tr '\000' '\001' \
+rc=0
+# shellcheck disable=SC2086
+git -C "$root" $GREP '' ${end:+"$end"} -- ':(top,exclude)package-lock.json' \
+  >"$tmp/grep" 2>"$tmp/err" || rc=$?
+[ "$rc" -le 1 ] || { echo "sweep.sh: git grep failed: $(cat "$tmp/err")" >&2; exit 2; }
+tr '\000' '\001' <"$tmp/grep" \
   | SWEEP_PREFIX="${end:+$end:}" LC_ALL=C awk '
       { s = substr($0, length(ENVIRON["SWEEP_PREFIX"]) + 1)
         i = index(s, "\001"); j = index(substr(s, i + 1), "\001")
@@ -150,7 +149,7 @@ if [ "$issues" = 1 ]; then
   SWEEP_SKIP="$skip" awk '
     /^\001/ { n = 0; read++; num = substr($0, 2); keep = (index(ENVIRON["SWEEP_SKIP"], " " num " ") == 0)
               if (keep) issues++; next }
-    keep { n++; print "I\tissue #" num "\t" n "\t" $0 }
+    { n++; print (keep ? "I" : "S") "\tissue #" num "\t" n "\t" $0 }
     END { print read + 0, issues + 0 > "/dev/stderr" }' "$tmp/issues" >>"$tmp/places" 2>"$tmp/nissues"
   read -r nread nissues <"$tmp/nissues"
   [ "$nread" -le "$ISSUE_LIMIT" ] || { echo "sweep.sh: more than $ISSUE_LIMIT open issues: the read would be cut (raise SWEEP_ISSUE_LIMIT)" >&2; exit 2; }
@@ -179,7 +178,10 @@ awk '
 
 # shellcheck disable=SC2016
 LC_ALL=C SWEEP_RUN="$RUN" SWEEP_REV="$rev" SWEEP_ISSUES="$nissues" SWEEP_FILES="${#files[@]}" awk -F'\t' '
-  function words(s, w,    t, n, i, m) {
+  function words(s, w,    t, n, i, m, c) {
+    # A process-log row: its Miss and Fix cells only (cells split on " | ", which an
+    # escaped "\|" inside a cell doesn'"'"'t match).
+    if (s ~ /^\| [0-9]+ \| [0-9][0-9-]* \| /) { split(s, c, / \| /); s = c[5] " " c[9] }
     s = tolower(s); gsub(/\r/, "", s)
     gsub(/[^a-z0-9#\200-\377]+/, " ", s)
     n = split(s, t, " "); m = 0
@@ -221,7 +223,8 @@ LC_ALL=C SWEEP_RUN="$RUN" SWEEP_REV="$rev" SWEEP_ISSUES="$nissues" SWEEP_FILES="
   END {
     for (x = 1; x <= r; x++) {
       if (nk[x] == 0) { short[kind[x]]++; continue }
-      delete L; delete M; ondiff = 0; out = ""; outside = 0; mout = ""; nm = 0
+      delete L; delete M; delete K; ondiff = 0; out = ""; outside = 0; mout = ""; nm = 0
+      sout = ""; ns = 0
       own = (path[x] in renamed) ? renamed[path[x]] : path[x]
       for (i = 1; i <= nk[x]; i++) {
         n = split(hits[key[x, i]], h, "\036")
@@ -229,6 +232,14 @@ LC_ALL=C SWEEP_RUN="$RUN" SWEEP_REV="$rev" SWEEP_ISSUES="$nissues" SWEEP_FILES="
           split(h[j], p, SUBSEP)
           # p: kind, place, the run'"'"'s first line, its last line.
           if (kind[x] == "A" && p[1] == "T" && p[2] == path[x] && p[3] + 0 <= line[x] + 0 && p[4] + 0 >= line[x] + 0) continue
+          # A skipped issue: listed apart, counted nowhere else.
+          if (p[1] == "S") {
+            if (!((p[2], p[3]) in K)) {
+              K[p[2], p[3]]; ns++
+              if (ns <= 8) sout = sout (ns > 1 ? ", " : "") p[2] ":" p[3]
+            }
+            continue
+          }
           # A run of a removed line that touches a line this diff adds: the line was
           # edited or moved. Judged per run, before the dedup: another run from the same
           # first line may lie outside the diff (IS #200, its PR, round 2).
@@ -251,6 +262,7 @@ LC_ALL=C SWEEP_RUN="$RUN" SWEEP_REV="$rev" SWEEP_ISSUES="$nissues" SWEEP_FILES="
       }
       t = text[x]; sub(/^[ \t]+/, "", t)
       entry = path[x] ":" line[x] ": " t
+      if (ns > 0) { skipped = skipped entry "\n    -> " show(ns, sout) "\n"; nskip++ }
       if (kind[x] == "R") {
         removed++
         # An edit in its own file outranks a move: a new line in another file that
@@ -272,8 +284,9 @@ LC_ALL=C SWEEP_RUN="$RUN" SWEEP_REV="$rev" SWEEP_ISSUES="$nissues" SWEEP_FILES="
     printf "== removed, moved elsewhere (%d)\n%s", naway, away
     printf "== removed, nowhere else (%d)\n%s", nnow, nowhere
     printf "== added, also elsewhere (%d)\n%s", nalso, also
-    printf "sweep.sh: diff %s, runs of %d words: %d removed (%d still elsewhere, %d moved elsewhere, %d nowhere else, %d edited in place, %d shorter), %d added (%d also elsewhere, %d shorter); searched %d tracked files, %d issues, %d files\n", \
+    printf "== in a skipped issue (%d)\n%s", nskip, skipped
+    printf "sweep.sh: diff %s, runs of %d words: %d removed (%d still elsewhere, %d moved elsewhere, %d nowhere else, %d edited in place, %d shorter), %d added (%d also elsewhere, %d shorter), %d in a skipped issue; searched %d tracked files, %d issues, %d files\n", \
       ENVIRON["SWEEP_REV"], RUN, removed + short["R"], nstill + 0, naway + 0, nnow + 0, moved + 0, short["R"] + 0, \
-      addedn + short["A"], nalso + 0, short["A"] + 0, ntracked + 0, ENVIRON["SWEEP_ISSUES"], ENVIRON["SWEEP_FILES"] > "/dev/stderr"
+      addedn + short["A"], nalso + 0, short["A"] + 0, nskip + 0, ntracked + 0, ENVIRON["SWEEP_ISSUES"], ENVIRON["SWEEP_FILES"] > "/dev/stderr"
   }
 ' "$tmp/lines" "$tmp/places"
