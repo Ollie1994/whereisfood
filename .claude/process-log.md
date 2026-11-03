@@ -1298,7 +1298,7 @@ between-phases issues #176 (370–373, PR #177) and #178 (374–375, PR #179). R
 #194, #195, #197, #198). Row 420 onward belong to the next range, this retrospective's
 own rows included.
 
-**These counts are a dated record (as of PR #__PR__).** If a `Cause`, `Caught by` or
+**These counts are a dated record (as of PR #201).** If a `Cause`, `Caught by` or
 `Escaped` cell in rows 351–419 is corrected later, re-run the commands and update the
 tables.
 
@@ -1310,9 +1310,9 @@ bash scripts/process-log.sh tally 8 351 419    # Escaped
 
 ### By `Cause`
 
-The Phase 4 and Phase 5 columns are `tally 9 266 307` and `tally 9 308 350`. All three
-ranges count one row per review round (Columns, "What one row is"; rows 268 and 270
-aside), so the shares compare.
+The Phase 4 and Phase 5 columns are `tally 9 266 307` and `tally 9 308 350`. A review
+round has been one row since row 268 (Columns, "What one row is", which names the
+exceptions), so the shares compare, as the Phase 5 retrospective compared them.
 
 | Cause | Rows | Share | Phase 5 | Phase 4 |
 |---|---|---|---|---|
@@ -1384,9 +1384,9 @@ A row can sit in two groups.
   guidance), 410 (a true sentence in row 407).
 - **The fix broke the case next to the one the finding named:** 355, 372, 381, 386,
   387, 388, 399.
-- **The fix's premise was never probed:** 359–361 (the Ctrl-C handling; 360:
-  "reasoned, untested"), 365, 404 (a reviewer's claim taken without re-reading the page
-  fetched earlier).
+- **The fix rested on a premise unchecked or misread:** 359–361 (the Ctrl-C
+  handling: 359's evidence contradicted the code; 360 "reasoned, untested"), 365, 404
+  (a reviewer's claim taken without re-reading the page fetched earlier).
 - **The fix restated a rule, and the copies differed:** 368, 369, 404, 406.
 - **Other:** 352 (the fix's account of the rule left out half of it, the miss it
   logged), 379 and 383 (a new effect or rule with defects of its own), 411 (a sweep fix
@@ -1418,11 +1418,11 @@ Each verdict cites rows found by the grep or criterion it names.
   comments), 385 (#182's body), 391 (`db/locations.ts`), 400 (three plan copies), 403
   (a copy read and called accurate), 405 (copies reworded, not made pointers), 410 and
   412 (`seed.sql`, twice).
-- **The sibling-code adjustment (#171)** has no repeat to judge: no row in the range
-  records a code pattern's other use missed (`sibling` matches only row 356, about
-  stating sibling fixes).
-- **Why it misses.** Steps 1 and 2 list the terms from memory and grep only the places
-  the author thinks of. Four of the ten are a place not searched (375, 385, 410, 412),
+- **The sibling-code adjustment (#171)** has no repeat to judge: none of the 69 rows,
+  read for this section, records a code pattern's other use missed (in the Miss cells,
+  `sibling` matches row 356 alone, about stating sibling fixes).
+- **Why it misses.** Steps 1 and 2 list the terms from memory and grep the places the
+  author picks. Four of the ten are a place not searched (375, 385, 410, 412),
   two a copy read and kept (369, 403), and 405 is the rule's own pointer instruction
   not followed.
 - **The adjustment** is new action 1: a script lists steps 1 and 2's candidates.
