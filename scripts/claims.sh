@@ -27,10 +27,10 @@
 # claim, not history. Only `package-lock.json` is skipped.
 #
 # Does not catch: an over-claim without a listed word (row 284), including other
-# forms of a listed word ("verifies", "checks"); wrong counts (rows 298-300); a claim
-# on a line the diff doesn't add; untracked files (it warns about them when <rev> is
-# compared with the working tree: commit them or `git add -N` them); and whether a
-# listed claim is true.
+# forms of a listed word ("verifies", "checks", "probes"); wrong counts (rows
+# 298-300); a claim on a line the diff doesn't add; untracked files (it warns about
+# them when <rev> is compared with the working tree: commit them or `git add -N`
+# them); and whether a listed claim is true.
 #
 # Exit codes: 0 when the run worked, hits or not; 2 for no or an empty <rev>, `-h`,
 # a bad <rev>, an unreadable file, a `--was` without two files, or no git repository.
@@ -41,7 +41,12 @@ set -euo pipefail
 
 # Settled by probes on six Phase 4 diffs (IS #149): each word below turned up there,
 # except "everything", kept with "everywhere" as a universal form of "every" (PR #153).
-WORDS="every everything everywhere all only none never always clean verified checked confirmed works already"
+# The probe words came after (IS #200): on 16 round commits of PRs #174-#198,
+# "probed" and "unprobed" added 0-2 hits each, every one a claim a probe ran or a
+# hedge that one didn't (rows 373 and 410's hedges among them); "tested" and
+# "untested" added none, their lines holding another word already, and are kept as
+# the same claim.
+WORDS="every everything everywhere all only none never always clean verified checked confirmed works already probed unprobed tested untested"
 
 usage() { sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 [ $# -ge 1 ] || usage

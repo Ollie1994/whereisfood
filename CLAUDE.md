@@ -392,7 +392,13 @@ outside a review):
    new text. If `dev` was merged into or rebased under the branch since that commit,
    the diff also holds `dev`'s changes: list only this PR's. **List each code pattern
    a fix guards too** (a read `max_rows` can cut, a query with no tie-break): the same
-   defect in sibling code is a copy no listed claim names (rows 340, 342, 343).
+   defect in sibling code is a copy no listed claim names (rows 340, 342, 343). Then
+   run `bash scripts/sweep.sh "<rev>" [<PR body>]` with the same commit: it lists the
+   removed lines whose words still stand elsewhere, the removed lines held nowhere
+   else, and the added lines that repeat text found elsewhere, across the tracked
+   files, the open issue bodies and the PR body. Add its hits to the list; they are a
+   floor, not the list (its header says what it can't see: a reworded copy, a code
+   pattern).
 2. **Grep every mention** of each across the tracked docs (`CLAUDE.md`, `README.md`,
    `.claude/`), code comments and tests, **every open issue body**, and the PR body if
    there is one. For a code pattern, grep the code **and the tests** for its other uses
@@ -407,7 +413,8 @@ outside a review):
    about that round, not to match what a later round changed.
 4. **Record the sweep** where the correction lives: that round's section of the PR
    body, or a comment on the issue when only an issue body was corrected. Claim or
-   pattern → where it was checked → result.
+   pattern → where it was checked → result, and `sweep.sh`'s counts with how each of
+   its hits was settled.
 
 Fixing only the lines a finding names is what let one correction miss its copies three
 rounds running; the sweep found the copy no finding had named (process-log row 295).
@@ -446,8 +453,7 @@ all` (the owner's call, Phase 5 plan decision #20): fix, then repeat, scoped to 
 previous round's fixes or full. A scoped round sees only the fixes: #20 records a
 defect outside them that a scoped round and the full round 1 on PR #168 both missed,
 and a later full round, on PR #169, found (row 349). The log's "Columns" ("What one row
-is", then `Caught by`) say what to ask each round for when it starts and how its row
-records it.
+is", then `Caught by`) say how its row records it.
 
 ---
 

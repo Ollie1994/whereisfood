@@ -134,16 +134,9 @@ findings under "Also". Any other miss is one row, including one found while work
 that a later round also touches (rows 289, 296). This is the practice since row 268;
 rows 268 and 270 predate the counting rule, and the Phase 4 retrospective counts them as
 8 and 9. Most Phase 3 review rows recorded one finding each, so tallies across that
-boundary don't compare (row 308). **A review row says whether its count may be cut.**
-When starting a `/code-review` round, ask it to state its effort level and findings
-limit, and put both in its `Caught by`: `` `code-review` r2 (high, limit 10,
-user-requested) `` (PR #173's round 3 stated them when asked). The level is the one
-typed with `/code-review` or the one the round states; with neither, "level unknown"
-(a bare `/code-review` reuses the last level typed). The limit is the `--max-findings`
-value or the one the round states; with neither, "limit unknown", and the count may be
-cut. A count equal to the limit reads "found N (at the limit)". 12 of
-the 38 rounds in the Phase 5 retrospective's range (rows 308–350) found exactly 10 and
-none more (plan decision #20).
+boundary don't compare (row 308). A review row records neither the round's level nor
+its limit, with no marker, and a count may have been cut by the default limit
+(Phase 6 plan decision #23; Phase 5 plan decision #20).
 
 **`Where`** — exactly one of these three forms, no variants:
 
@@ -198,7 +191,8 @@ docs at once; `code-only` means no process artifact is implicated.
 Values: the values block's `escaped` line, nearest first.
 
 **`Caught by`** — what found the miss. The cell starts with one backticked group,
-then free text: `` `code-review` r2 (high, limit 10, user-requested) ``, `` `self` counting for #148 ``.
+then free text: `` `code-review` r2 on PR #201, scoped to `c14ad70..48dbc6e` ``,
+`` `self` counting for #148 ``.
 Required from the row on the values block's `caught-by-from-row` line, and `check`
 enforces it; the groups are its `caught-by` line. Earlier rows stay as written and
 are grouped by hand: rows 308–314 are the first
@@ -216,7 +210,7 @@ owner's browser check (row 282) is `user`, and the end-of-phase check run while 
 other goes in the text. Older free-text rows name that one first (rows 289, 296).
 
 - **code-review:** a review Claude was asked to run, whoever asked: a `/code-review`
-  round (the round, `r2`, and its level and limit in the text; "What one row is") or a
+  round (the round, `r2`, and its scope in the text) or a
   read-through ("plan read-through").
 - **self:** found while doing the work: writing, running, probing, mutation testing,
   re-reading output, or a check run as part of it (the gates, the end-of-phase check of
