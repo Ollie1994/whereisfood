@@ -384,13 +384,13 @@ then the claims check (every round, the first included), in that order, so the c
 check also reads what the sweep changed.
 
 **Applying a finding** (IS #205):
-- **Scope.** A fix corrects what the PR already does. It adds no code path, option or
-  output unless an Acceptance Criterion fails without it or the finding touches auth or
-  data access, which is never an edge case. Otherwise the finding is stated as a limit
-  in the code or doc it limits, or goes in an issue, and the round's section of the PR
-  body says which and why. When the defect is in something an earlier fix added,
-  removing that addition is a fix. Repeating a fix on a sibling (the sweep's step 3)
-  adds nothing new.
+- **Scope.** A fix adds a code path, option, output or rule only to make the PR do what
+  its issue said before round 1, to restore what the PR broke, or to close a way past
+  auth or a data exposure. A defect in an earlier fix's addition is corrected without
+  adding more, or the addition is removed. Any other finding that needs an addition, or
+  that a removal reopens, is stated as a limit in the code or doc it limits, or goes in
+  an issue, and the round's section of the PR body says which and why. Repeating a fix
+  on a sibling (the sweep's step 3) isn't an addition.
 - **A false or too-broad claim** (history stays as written, the sweep's step 3). In
   order: delete the sentence if nothing depends on it; narrow it to what a probe
   showed, naming the probe; reword only if neither works.
@@ -453,10 +453,9 @@ hit, do one of three things:
 - back it with a command whose result is in the PR body, and whose output **could
   have shown the claim false** (a read of `default` lines can't show a column with
   none, row 331);
-- cut it, or narrow it to what a command showed (then back the new wording), in the
-  order "Applying a finding" gives. A claim no command can check says only what you
-  know. One that stays, about behaviour a probe can settle, is **probed, not reworded
-  into a hedge** ("could … (not probed)", row 350);
+- apply the claim order in "Applying a finding"; what stays is backed as above or, if
+  no command can check it, says only what you know. A claim about behaviour that a probe
+  can settle is **probed, not reworded into a hedge** ("could … (not probed)", row 350);
 - or note it is a rule, not a claim of fact.
 
 Record the hit count and how each was settled in the PR body, under the round the
