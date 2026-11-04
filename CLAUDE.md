@@ -397,7 +397,7 @@ check also reads what the sweep changed.
   it to what a probe showed, naming the probe; reword only if neither works.
 - **Approved wording** (IS #207). A fix that changes wording or a decision the owner
   approved in this PR or its issue goes back to the owner before it is applied, whatever
-  else here allows. It doesn't cover text approved in an earlier PR.
+  else in "Review rounds" allows. It doesn't cover text approved in an earlier PR.
 
 **The sweep: after applying a round's fixes** (or whenever a claim is corrected
 outside a review):
@@ -421,7 +421,10 @@ outside a review):
    shares no run of words. For a code pattern, grep the code **and the tests** for its
    other uses (the call, the query shape) and read each: row 343's copy was in a test
    helper.
-3. **Read every hit.** Fix the stale ones. A sibling with the same defect gets fixed in
+3. **Read every hit.** Fix the stale ones. While a plan is current, a stale hit in
+   `project-context.md` or `README.md`'s status parts isn't edited: name it in the plan's
+   reconciliation step. The reconciliation PR fixes these like any other hit (IS #209).
+   A sibling with the same defect gets fixed in
    the PR; only one outside the PR's scope gets an issue instead, named in the sweep
    record. Rows 340 and 342: a fix guarded one read, and its siblings were found a round
    later each. A hit that restates a rule owned elsewhere
@@ -482,7 +485,7 @@ round's diff, the summary against the final diff, and checks any last fixes no r
 for correctness. It isn't a round: a miss it finds is a log row like any other. Its
 result, with the last claims record, goes in the PR body. The message asking the owner
 to merge says it ran, what it changed, and any defect left open. Nothing reads the
-pass's own edits.
+pass's own edits. If the owner asks for more rounds, the check runs again after them.
 
 ---
 

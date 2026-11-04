@@ -120,6 +120,8 @@ quoting the one-line rule this replaced.)
    `project-context.md`'s "Decisions carried forward" table. Without that, the next
    plan replaces it as "the current plan" and the decision stops being read. Rows
    marked "between phases" are handled as CLAUDE.md's "Process Log" says. **The
+   reconciliation also brings `README.md`'s status parts in line:** its status banner,
+   "Project status", "What works today" and "What does not exist yet". **The
    reconciliation also sets CLAUDE.md's bold "Current phase plan" line to none**,
    naming the finished plan as the last one (`/create-milestone`'s step 0 sets it
    again). The milestone closes once the reconciliation merges.
