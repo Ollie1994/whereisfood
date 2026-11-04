@@ -365,8 +365,9 @@ uncommitted on `dev`. Every doc change then has a reviewable diff and a
 `PR #n / IS #n` to point at.
 
 - **Part of tracked work → ride along.** A log row from a review round, a doc claim a
-  fix made stale, a plan tweak while working an issue: commit it on that issue's
-  branch, in its PR, and name it in the PR body.
+  fix made stale (except what the sweep's step 3 leaves for the reconciliation), a plan
+  tweak while working an issue: commit it on that issue's branch, in its PR, and name
+  it in the PR body.
 - **Nothing covers it → open one.** A dedicated issue (same format as the others), a
   branch off `dev`, a PR. That includes a log row written outside any issue's work,
   e.g. a miss found while surveying the repo (IS #131).
@@ -422,9 +423,10 @@ outside a review):
    other uses (the call, the query shape) and read each: row 343's copy was in a test
    helper.
 3. **Read every hit.** Fix the stale ones. While a plan is current, a stale hit in
-   `project-context.md` or `README.md`'s status parts isn't edited: name it in the plan's
-   reconciliation step. The reconciliation PR fixes these like any other hit (IS #209).
-   A sibling with the same defect gets fixed in
+   `project-context.md` or `README.md`'s status parts (the process log's "How to use it",
+   part 6, names them) isn't edited, unless the plan's step says to: name it in the
+   plan's reconciliation step. The reconciliation PR fixes these like any other hit (IS
+   #209). A sibling with the same defect gets fixed in
    the PR; only one outside the PR's scope gets an issue instead, named in the sweep
    record. Rows 340 and 342: a fix guarded one read, and its siblings were found a round
    later each. A hit that restates a rule owned elsewhere
@@ -485,7 +487,8 @@ round's diff, the summary against the final diff, and checks any last fixes no r
 for correctness. It isn't a round: a miss it finds is a log row like any other. Its
 result, with the last claims record, goes in the PR body. The message asking the owner
 to merge says it ran, what it changed, and any defect left open. Nothing reads the
-pass's own edits. If the owner asks for more rounds, the check runs again after them.
+pass's own edits. If a commit follows the check, other than its own edits, it runs again
+on what changed.
 
 ---
 
