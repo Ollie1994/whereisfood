@@ -384,16 +384,15 @@ then the claims check (every round, the first included), in that order, so the c
 check also reads what the sweep changed.
 
 **Applying a finding** (IS #205):
-- **Scope.** A fix adds a code path, option, output or rule only to make the PR do what
-  its issue said before round 1, to restore what the PR broke, or to close a way past
-  auth or a data exposure. A defect in an earlier fix's addition is corrected without
-  adding more, or the addition is removed. Any other finding that needs an addition, or
-  that a removal reopens, is stated as a limit in the code or doc it limits, or goes in
-  an issue, and the round's section of the PR body says which and why. Repeating a fix
-  on a sibling (the sweep's step 3) isn't an addition.
+- **Scope.** A fix may always correct what's there, or remove what an earlier fix added.
+  Before it adds a code path, option, output or rule, check what the defect needs: if
+  the PR's normal use reaches it, the issue as it stood before round 1 requires it, a
+  Hard Rule requires it, or it risks auth or data, fix it in the PR. An unusual case is
+  stated as a limit in the code or doc it limits, or goes in an issue, and the round's
+  section of the PR body says which and why. If it's unclear, ask the owner.
 - **A false or too-broad claim** (history stays as written, the sweep's step 3). In
-  order: delete the sentence if nothing depends on it; narrow it to what a probe
-  showed, naming the probe; reword only if neither works.
+  order: delete the sentence if it says nothing true a reader needs; narrow it to what a
+  probe showed, naming the probe; reword only if neither works.
 
 **The sweep: after applying a round's fixes** (or whenever a claim is corrected
 outside a review):
