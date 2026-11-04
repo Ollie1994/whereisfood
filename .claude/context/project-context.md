@@ -124,11 +124,11 @@ every gate green (Phase 4 plan decision #13, process-log row 282). It wasn't ret
 | `vitest` | ^4.1.12 | pulls in `vite` 8 |
 | `supabase` CLI | ^2.109 | dev dependency |
 
-Toolchain: `package.json`'s `devEngines` admits Node `^20.19.0 || >=22.12.0` and npm
-`>=11.0.0`, with `onFail: "error"`, and `engines.node` is `26.x`, the major Vercel
-builds with (#139; Phase 6 plan open decision 9). Vercel's preview build ran Node
-26.13.0 and npm 11.20.0. Why each range, and which npm reads `devEngines`, is
-`CLAUDE.md`'s ("Dependencies"); #199 (open) proposes raising the Node floor past 20.
+Toolchain: `package.json`'s `devEngines` admits Node `>=26.0.0` and npm `>=11.0.0`,
+with `onFail: "error"`, and `engines.node` is `26.x`, the major Vercel builds with
+(#139, #199; Phase 6 plan open decision 9). Vercel's preview build ran Node 26.13.0 and
+npm 11.20.0. Why each range, and which npm reads `devEngines`, is `CLAUDE.md`'s
+("Dependencies").
 
 On 2026-11-03 `npm audit` reported 16 moderate findings, all from one advisory,
 GHSA-g3hv-75wg-m249 (`minimatch` before 11.0.1, in dev dependencies only), and `npm
