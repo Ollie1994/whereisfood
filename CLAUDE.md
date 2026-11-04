@@ -397,7 +397,7 @@ check also reads what the sweep changed.
   it to what a probe showed, naming the probe; reword only if neither works.
 - **Approved wording** (IS #207). A fix that changes wording or a decision the owner
   approved in this PR or its issue goes back to the owner before it is applied, whatever
-  else here allows.
+  else here allows. It doesn't cover text approved in an earlier PR.
 
 **The sweep: after applying a round's fixes** (or whenever a claim is corrected
 outside a review):
@@ -475,12 +475,14 @@ outside them that a scoped round and the full round 1 on PR #168 both missed, an
 later full round, on PR #169, found (row 349). The log's "Columns" ("What one row is",
 then `Caught by`) say how a round is recorded as a row.
 
-**The final records check** (IS #207). Rounds skip the PR body's round sections, the
-PR's log rows and its claims records: each round's request says so. After the last
+**The final records check** (IS #207). Rounds skip the PR body, except its summary of
+what changed, and the PR's log rows: each round's request says so. After the last
 round's fixes, their sweep and claims check, one pass reads each record against its own
-round's diff, and reads any last fixes no round saw. Its result goes in the PR body. The
-message asking the owner to merge says it ran, what it changed, and any defect left
-open.
+round's diff, the summary against the final diff, and checks any last fixes no round saw
+for correctness. It isn't a round: a miss it finds is a log row like any other. Its
+result, with the last claims record, goes in the PR body. The message asking the owner
+to merge says it ran, what it changed, and any defect left open. Nothing reads the
+pass's own edits.
 
 ---
 
