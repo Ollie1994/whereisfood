@@ -422,18 +422,18 @@ outside a review):
    shares no run of words. For a code pattern, grep the code **and the tests** for its
    other uses (the call, the query shape) and read each: row 343's copy was in a test
    helper.
-3. **Read every hit.** Fix the stale ones. While a plan is current, a stale hit in
-   `project-context.md` or `README.md`'s status parts (the process log's "How to use it",
-   part 6, names them) isn't edited, unless the plan's step says to: name it in the
-   plan's reconciliation step. The reconciliation PR fixes these like any other hit (IS
-   #209). A sibling with the same defect gets fixed in
+3. **Read every hit.** Fix the stale ones. A sibling with the same defect gets fixed in
    the PR; only one outside the PR's scope gets an issue instead, named in the sweep
    record. Rows 340 and 342: a fix guarded one read, and its siblings were found a round
    later each. A hit that restates a rule owned elsewhere
    becomes a pointer to that copy, not a second edit (row 307; rows 294–295 went part
    of the way). History (process-log rows from earlier work, dated entries) stays as
    written. A row this PR added records what its round did: fix it if it's false
-   about that round, not to match what a later round changed.
+   about that round, not to match what a later round changed. While a plan is current, a
+   stale hit or finding in `project-context.md` or `README.md`'s status parts (the
+   process log's "How to use it", part 6, names them) is named in the plan's
+   reconciliation step, and isn't edited unless a step of the plan orders that edit. The
+   reconciliation PR fixes these like any other hit (IS #209).
 4. **Record the sweep** where the correction lives: that round's section of the PR
    body, or a comment on the issue when only an issue body was corrected. Claim or
    pattern → where it was checked → result, and `sweep.sh`'s counts with how each of
@@ -487,8 +487,8 @@ round's diff, the summary against the final diff, and checks any last fixes no r
 for correctness. It isn't a round: a miss it finds is a log row like any other. Its
 result, with the last claims record, goes in the PR body. The message asking the owner
 to merge says it ran, what it changed, and any defect left open. Nothing reads the
-pass's own edits. If a commit follows the check, other than its own edits, it runs again
-on what changed.
+pass's own edits. If a commit or a change to the PR body follows the check, other than
+its own edits, it runs again on what the PR changed.
 
 ---
 

@@ -121,9 +121,10 @@ quoting the one-line rule this replaced.)
    plan replaces it as "the current plan" and the decision stops being read. Rows
    marked "between phases" are handled as CLAUDE.md's "Process Log" says. **The
    reconciliation also brings `README.md`'s status parts in line, and fixes the stale
-   hits named in the plan's reconciliation step; its issue lists both.** The status
-   parts are its status banner, "Project status", "What works today", "What does not
-   exist yet" and the phase sentence in "How it's designed to work". **The
+   hits and findings named in the plan's reconciliation step; its issue lists the parts
+   and points to that step.** The status parts are the README's status banner, "Project
+   status" with its subsections, and the phase sentence in "How it's designed to work".
+   **The
    reconciliation also sets CLAUDE.md's bold "Current phase plan" line to none**,
    naming the finished plan as the last one (`/create-milestone`'s step 0 sets it
    again). The milestone closes once the reconciliation merges.
@@ -723,6 +724,7 @@ Old rows that point at them are now pointing there: "see note" (rows 14, 15, 17,
 | 443 | 2026-11-04 | PR #208 / IS #207 | `CLAUDE.md` | After round 2 on #208 I recommended declining seven findings as new clauses the issue didn't ask for, without applying the Scope rule merged in PR #206. Four were reached in normal use, so Scope says fix them; and none was to become a stated limit or an issue, which Scope requires of a decline. The owner's question, whether the seven were outside the issue, showed it. | `user`, asking whether the declined findings were out of scope | `pre-merge` | `gate-skipped` | Each of the seven tested against Scope and shown to the owner: four fixed, two stated as limits in the rules they limit, one moved to #203. |
 | 444 | 2026-11-04 | PR #208 / IS #207 | `process-log` | Row 441's Fix, and round 1's table, said the rows gave a direction and a baseline. Read against round 1's own diff, the third row still said "should move" with neither, so the record claimed more than its commit did. Round 2's finding 3 named the row and the gap, and round 2 skipped the records as asked, so the record stayed false until this check. | `self`, in the first final records check, on PR #208 | `pre-merge` | `imprecise-claim` | Row 441 and round 1's table say two of the three rows. |
 | 445 | 2026-11-04 | PR #210 / IS #209 | `CLAUDE.md` | `/code-review` round 1 on #210, full, found 10; 9 applied, 1 declined. **The new rules didn't fit what was already there:** "Doc changes" still told a PR to edit a doc claim a fix made stale, and a plan's own step could order the edit the sweep forbade (Phase 6's did). Also: part 6 left out a README phase sentence and the duty to fix hits named in the plan; "status parts" was defined only in the log; the check's re-run named rounds, but commits after it usually aren't rounds; the row had no README baseline. 0 of 10 on the records. | `code-review` r1 on PR #210, full | `pre-merge` | `incomplete-guard` | The owner approved the wording: the sweep yields to a plan's step and points to part 6; "Doc changes" names the exception; part 6 adds the sentence and the deferred hits, and the issue lists both; the check re-runs on any later commit. Declined: a second copy of the rule in CLAUDE.md. |
+| 446 | 2026-11-04 | PR #210 / IS #209 | `CLAUDE.md` | `/code-review` round 2 on #210, scoped to round 1's fixes, found 10; all applied. **Round 1's row 833 could count allowed edits as violations:** it lost "during a phase", and a plan step had ordered one of its baseline's commits. Also: the exception covered hits, not a review finding on the same text; "its issue lists both" couldn't hold for hits named after the issue was written; the re-run missed a PR body changed with no commit; a dev merge counted as "what changed"; the step 3 sentence read two ways. 0 of 10 on the records. | `code-review` r2 on PR #210, scoped to `bbfddb4..836e33b` | `pre-merge` | `overcorrection` | The owner approved the wording: one measure, unordered edits; the exception covers hits and findings and moves to step 3's end; the issue lists the parts and points to the plan's step; the re-run covers the PR body and what the PR changed. The owner stopped the rounds here. |
 
 ---
 
