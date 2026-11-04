@@ -5,7 +5,7 @@ import { flushSync } from "react-dom";
 import * as maplibregl from "maplibre-gl";
 import { Protocol } from "pmtiles";
 import TruckPopup from "@/components/Map/TruckPopup";
-import { basemapLayers } from "@/lib/basemap";
+import { BASEMAP_SOURCE, SPRITE_URL, basemapLayers } from "@/lib/basemap";
 import { diffMarkers, statusText, type MarkerEntry, type TruckId } from "@/lib/live";
 import { workerUrl } from "@/lib/maplibre-worker.mjs";
 
@@ -168,9 +168,9 @@ export function useMapLibre(
         version: 8,
         glyphs:
           "https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf",
-        sprite: "https://protomaps.github.io/basemaps-assets/sprites/v4/light",
+        sprite: SPRITE_URL,
         sources: {
-          protomaps: {
+          [BASEMAP_SOURCE]: {
             type: "vector",
             url: `pmtiles://${PMTILES_URL}`,
             attribution:

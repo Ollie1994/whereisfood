@@ -5,6 +5,7 @@ import { basemapLayers } from "@/lib/basemap";
 const packaged = () => layers("protomaps", namedFlavor("light"), { lang: "sv" });
 
 describe("basemapLayers", () => {
+  // The expression's shape only: what MapLibre makes of `""` shows in the browser check.
   it("asks for no icon for a townhall, and the package's own for every other kind", () => {
     const pois = basemapLayers().find((layer) => layer.id === "pois");
     const original = packaged().find((layer) => layer.id === "pois");
