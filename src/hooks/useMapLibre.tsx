@@ -4,8 +4,8 @@ import { flushSync } from "react-dom";
 // Namespace import: MapLibre 6 is ESM-only and has no default export.
 import * as maplibregl from "maplibre-gl";
 import { Protocol } from "pmtiles";
-import { layers, namedFlavor } from "@protomaps/basemaps";
 import TruckPopup from "@/components/Map/TruckPopup";
+import { BASEMAP_SOURCE, SPRITE_URL, basemapLayers } from "@/lib/basemap";
 import { diffMarkers, statusText, type MarkerEntry, type TruckId } from "@/lib/live";
 import { workerUrl } from "@/lib/maplibre-worker.mjs";
 
@@ -168,19 +168,16 @@ export function useMapLibre(
         version: 8,
         glyphs:
           "https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf",
-        sprite: "https://protomaps.github.io/basemaps-assets/sprites/v4/light",
+        sprite: SPRITE_URL,
         sources: {
-          protomaps: {
+          [BASEMAP_SOURCE]: {
             type: "vector",
             url: `pmtiles://${PMTILES_URL}`,
             attribution:
               '<a href="https://protomaps.com">Protomaps</a> © <a href="https://openstreetmap.org">OpenStreetMap</a>',
           },
         },
-        // Swedish labels. For Latin-script places (all of Gothenburg) the generated
-        // `text-field` is `name:sv`, then `pgf:name`, then the local `name`; `name:en`
-        // is only a fallback for places in other scripts.
-        layers: layers("protomaps", namedFlavor("light"), { lang: "sv" }),
+        layers: basemapLayers(),
       },
     });
     layer.map = created;
