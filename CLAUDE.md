@@ -365,8 +365,9 @@ uncommitted on `dev`. Every doc change then has a reviewable diff and a
 `PR #n / IS #n` to point at.
 
 - **Part of tracked work → ride along.** A log row from a review round, a doc claim a
-  fix made stale, a plan tweak while working an issue: commit it on that issue's
-  branch, in its PR, and name it in the PR body.
+  fix made stale (except what the sweep's step 3 leaves for the reconciliation), a plan
+  tweak while working an issue: commit it on that issue's branch, in its PR, and name
+  it in the PR body.
 - **Nothing covers it → open one.** A dedicated issue (same format as the others), a
   branch off `dev`, a PR. That includes a log row written outside any issue's work,
   e.g. a miss found while surveying the repo (IS #131).
@@ -397,7 +398,7 @@ check also reads what the sweep changed.
   it to what a probe showed, naming the probe; reword only if neither works.
 - **Approved wording** (IS #207). A fix that changes wording or a decision the owner
   approved in this PR or its issue goes back to the owner before it is applied, whatever
-  else here allows. It doesn't cover text approved in an earlier PR.
+  else in "Review rounds" allows. It doesn't cover text approved in an earlier PR.
 
 **The sweep: after applying a round's fixes** (or whenever a claim is corrected
 outside a review):
@@ -428,7 +429,11 @@ outside a review):
    becomes a pointer to that copy, not a second edit (row 307; rows 294–295 went part
    of the way). History (process-log rows from earlier work, dated entries) stays as
    written. A row this PR added records what its round did: fix it if it's false
-   about that round, not to match what a later round changed.
+   about that round, not to match what a later round changed. While a plan is current, a
+   stale hit or finding in `project-context.md` or `README.md`'s status parts (the
+   process log's "How to use it", part 6, names them) is named in the plan's
+   reconciliation step, and isn't edited unless a step of the plan orders that edit. The
+   reconciliation PR fixes these like any other hit (IS #209).
 4. **Record the sweep** where the correction lives: that round's section of the PR
    body, or a comment on the issue when only an issue body was corrected. Claim or
    pattern → where it was checked → result, and `sweep.sh`'s counts with how each of
@@ -482,7 +487,8 @@ round's diff, the summary against the final diff, and checks any last fixes no r
 for correctness. It isn't a round: a miss it finds is a log row like any other. Its
 result, with the last claims record, goes in the PR body. The message asking the owner
 to merge says it ran, what it changed, and any defect left open. Nothing reads the
-pass's own edits.
+pass's own edits. If a commit or a change to the PR body follows the check, other than
+its own edits, it runs again on what the PR changed.
 
 ---
 
