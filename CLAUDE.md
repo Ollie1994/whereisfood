@@ -383,6 +383,17 @@ Why: the process log's Phase 3 retrospective (its Action 1) and Phase 4 retrospe
 then the claims check (every round, the first included), in that order, so the claims
 check also reads what the sweep changed.
 
+**Applying a finding** (IS #205):
+- **Scope.** A finding that shows the PR doesn't do what its issue asked, or that the
+  PR broke something, is fixed in the PR. Anything touching auth or data access counts
+  as that, never as an edge case. Any other finding whose fix needs a new code path,
+  option or output isn't built: it becomes a stated known limit or an issue, and the
+  round's section of the PR body says which and why, so a later round doesn't raise it
+  again.
+- **A false or too-broad claim.** In order: delete the sentence, after checking what
+  depends on it; narrow it to what a probe showed, naming the probe; reword only if
+  neither works.
+
 **The sweep: after applying a round's fixes** (or whenever a claim is corrected
 outside a review):
 
@@ -441,9 +452,10 @@ hit, do one of three things:
 - back it with a command whose result is in the PR body, and whose output **could
   have shown the claim false** (a read of `default` lines can't show a column with
   none, row 331);
-- reword it: to what a command showed (then back the new wording), or, for a claim
-  no command can check, to what you know. A claim about behaviour that a probe can
-  settle is **probed, not reworded into a hedge** ("could … (not probed)", row 350);
+- cut or narrow it, in the order "Applying a finding" gives, or if neither works
+  reword it: to what a command showed (then back the new wording), or, for a claim no
+  command can check, to what you know. A claim about behaviour that a probe can settle
+  is **probed, not reworded into a hedge** ("could … (not probed)", row 350);
 - or note it is a rule, not a claim of fact.
 
 Record the hit count and how each was settled in the PR body, under the round the
