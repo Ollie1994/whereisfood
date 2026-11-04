@@ -389,7 +389,9 @@ check also reads what the sweep changed.
   the PR's normal use reaches it, the issue as it stood before round 1 requires it, a
   Hard Rule requires it, or it risks auth or data, fix it in the PR. An unusual case is
   stated as a limit in the code or doc it limits, or goes in an issue, and the round's
-  section of the PR body says which and why. If it's unclear, ask the owner.
+  section of the PR body says which and why. If it's unclear, ask the owner. Repeating
+  a fix on a sibling (the sweep's step 3) isn't an addition, and a finding a removal
+  reopens gets the same check.
 - **A false or too-broad claim** (history stays as written, the sweep's step 3). In
   order: delete the sentence if it says nothing true a reader needs; narrow it to what a
   probe showed, naming the probe; reword only if neither works.
