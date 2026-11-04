@@ -375,6 +375,20 @@ uncommitted on `dev`. Every doc change then has a reviewable diff and a
   still a doc: a corrected claim there gets the same sweep as one in a file ("Review
   rounds" below; process-log rows 269, 271).
 
+**One source of truth** (IS #211). A fact has one owner, and other text points to it
+instead of restating it. The owners: a rule, `CLAUDE.md`; a decision, the current plan's
+numbered decisions, or "Decisions carried forward" between phases; the retrospective
+procedure, the process log's "How to use it"; a script's behaviour, its header; setup,
+`README.md`; an issue's spec, the issue; a review round's evidence, the PR body. A
+pointer names a place that exists and leads to the owner, not to another pointer.
+
+Four exceptions. A code comment keeps the evidence for its own claim ("Code comments").
+An issue restates what it needs to stand alone. `project-context.md` may state a rule
+with its reasons; where they differ, `CLAUDE.md` wins. The README may keep a short
+summary for people.
+
+This applies to new text. An existing copy changes when something next touches it.
+
 ---
 
 ## Review rounds — sweep every fix, then check claims
