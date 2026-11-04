@@ -395,6 +395,9 @@ check also reads what the sweep changed.
 - **A false or too-broad claim** (history stays as written, the sweep's step 3). In
   order: delete the sentence if a reader doesn't need what it's about; narrow or correct
   it to what a probe showed, naming the probe; reword only if neither works.
+- **Approved wording** (IS #207). A fix that changes wording or a decision the owner
+  approved in this PR or its issue goes back to the owner before it is applied, whatever
+  else here allows. It doesn't cover text approved in an earlier PR.
 
 **The sweep: after applying a round's fixes** (or whenever a claim is corrected
 outside a review):
@@ -464,11 +467,22 @@ check comes before (the first round's goes in the body as opened). The script li
 claims, it doesn't judge them; its header says what it can't see.
 
 **The round itself: `/code-review` at its default findings limit**, not `--max-findings
-all` (the owner's call, Phase 5 plan decision #20): fix, then repeat, scoped to the
-previous round's fixes or full. A scoped round sees only the fixes: #20 records a
-defect outside them that a scoped round and the full round 1 on PR #168 both missed,
-and a later full round, on PR #169, found (row 349). The log's "Columns" ("What one row
-is", then `Caught by`) say how a round is recorded as a row.
+all` (the owner's call, Phase 5 plan decision #20): fix, then repeat, up to this ceiling:
+full, scoped, scoped, full, then stop. If the last full round finds a defect in what
+runs, fix it, run one scoped round on those fixes, and stop. The owner can stop sooner
+or ask for more (IS #207). A scoped round sees only the fixes: #20 records a defect
+outside them that a scoped round and the full round 1 on PR #168 both missed, and a
+later full round, on PR #169, found (row 349). The log's "Columns" ("What one row is",
+then `Caught by`) say how a round is recorded as a row.
+
+**The final records check** (IS #207). Rounds skip the PR body, except its summary of
+what changed, and the PR's log rows: each round's request says so. After the last
+round's fixes, their sweep and claims check, one pass reads each record against its own
+round's diff, the summary against the final diff, and checks any last fixes no round saw
+for correctness. It isn't a round: a miss it finds is a log row like any other. Its
+result, with the last claims record, goes in the PR body. The message asking the owner
+to merge says it ran, what it changed, and any defect left open. Nothing reads the
+pass's own edits.
 
 ---
 
