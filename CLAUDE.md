@@ -383,6 +383,19 @@ Why: the process log's Phase 3 retrospective (its Action 1) and Phase 4 retrospe
 then the claims check (every round, the first included), in that order, so the claims
 check also reads what the sweep changed.
 
+**Applying a finding** (IS #205):
+- **Scope.** A fix may always correct what's there, or remove what an earlier fix added.
+  Before it adds a code path, option, output or rule, check what the defect needs: if
+  the PR's normal use reaches it, the issue as it stood before round 1 requires it, the
+  current plan or `CLAUDE.md` requires it, or it risks auth or data, fix it in the PR.
+  Any other case is stated as a limit in the code or doc it limits, or goes in an issue,
+  and the round's section of the PR body says which and why. If it's unclear, ask the
+  owner. Repeating a fix on a sibling (the sweep's step 3) isn't an addition, and a
+  finding a removal reopens gets the same check.
+- **A false or too-broad claim** (history stays as written, the sweep's step 3). In
+  order: delete the sentence if a reader doesn't need what it's about; narrow or correct
+  it to what a probe showed, naming the probe; reword only if neither works.
+
 **The sweep: after applying a round's fixes** (or whenever a claim is corrected
 outside a review):
 
@@ -441,9 +454,9 @@ hit, do one of three things:
 - back it with a command whose result is in the PR body, and whose output **could
   have shown the claim false** (a read of `default` lines can't show a column with
   none, row 331);
-- reword it: to what a command showed (then back the new wording), or, for a claim
-  no command can check, to what you know. A claim about behaviour that a probe can
-  settle is **probed, not reworded into a hedge** ("could … (not probed)", row 350);
+- apply the claim order in "Applying a finding"; what stays is backed as above or, if
+  no command can check it, says only what you know. A claim about behaviour that a probe
+  can settle is **probed, not reworded into a hedge** ("could … (not probed)", row 350);
 - or note it is a rule, not a claim of fact.
 
 Record the hit count and how each was settled in the PR body, under the round the
