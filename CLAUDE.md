@@ -375,20 +375,6 @@ uncommitted on `dev`. Every doc change then has a reviewable diff and a
   still a doc: a corrected claim there gets the same sweep as one in a file ("Review
   rounds" below; process-log rows 269, 271).
 
-**One source of truth** (IS #211). A fact has one owner, and other text points to it
-instead of restating it. The owners: a rule, `CLAUDE.md`; a decision, the current plan's
-numbered decisions, or "Decisions carried forward" between phases; the retrospective
-procedure, the process log's "How to use it"; a script's behaviour, its header; setup,
-`README.md`; an issue's spec, the issue; a review round's evidence, the PR body. A
-pointer names a place that exists and leads to the owner, not to another pointer.
-
-Four exceptions. A code comment keeps the evidence for its own claim ("Code comments").
-An issue restates what it needs to stand alone. `project-context.md` may state a rule
-with its reasons; where they differ, `CLAUDE.md` wins. The README may keep a short
-summary for people.
-
-This applies to new text. An existing copy changes when something next touches it.
-
 ---
 
 ## Review rounds — sweep every fix, then check claims
@@ -447,7 +433,10 @@ outside a review):
    stale hit or finding in `project-context.md` or `README.md`'s status parts (the
    process log's "How to use it", part 6, names them) is named in the plan's
    reconciliation step, and isn't edited unless a step of the plan orders that edit. The
-   reconciliation PR fixes these like any other hit (IS #209).
+   reconciliation PR fixes these like any other hit (IS #209). New text points to a
+   fact's home instead of restating it, unless the restatement is meant to stay: a code
+   comment's evidence, an issue's spec, a plan's steps, a log row's summary, or a short
+   README summary (IS #211).
 4. **Record the sweep** where the correction lives: that round's section of the PR
    body, or a comment on the issue when only an issue body was corrected. Claim or
    pattern → where it was checked → result, and `sweep.sh`'s counts with how each of
