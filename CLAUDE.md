@@ -386,15 +386,15 @@ check also reads what the sweep changed.
 **Applying a finding** (IS #205):
 - **Scope.** A fix may always correct what's there, or remove what an earlier fix added.
   Before it adds a code path, option, output or rule, check what the defect needs: if
-  the PR's normal use reaches it, the issue as it stood before round 1 requires it, a
-  Hard Rule requires it, or it risks auth or data, fix it in the PR. An unusual case is
-  stated as a limit in the code or doc it limits, or goes in an issue, and the round's
-  section of the PR body says which and why. If it's unclear, ask the owner. Repeating
-  a fix on a sibling (the sweep's step 3) isn't an addition, and a finding a removal
-  reopens gets the same check.
+  the PR's normal use reaches it, the issue as it stood before round 1 requires it, the
+  current plan or `CLAUDE.md` requires it, or it risks auth or data, fix it in the PR.
+  Any other case is stated as a limit in the code or doc it limits, or goes in an issue,
+  and the round's section of the PR body says which and why. If it's unclear, ask the
+  owner. Repeating a fix on a sibling (the sweep's step 3) isn't an addition, and a
+  finding a removal reopens gets the same check.
 - **A false or too-broad claim** (history stays as written, the sweep's step 3). In
-  order: delete the sentence if it says nothing true a reader needs; narrow it to what a
-  probe showed, naming the probe; reword only if neither works.
+  order: delete the sentence if a reader doesn't need what it's about; narrow or correct
+  it to what a probe showed, naming the probe; reword only if neither works.
 
 **The sweep: after applying a round's fixes** (or whenever a claim is corrected
 outside a review):
