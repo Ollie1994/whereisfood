@@ -27,7 +27,7 @@
 #                             sentence, for the author to settle;
 #   added, also elsewhere     an added line, and each other place holding a run of its
 #                             words: a restatement candidate (step 3 makes a restated
-#                             rule a pointer). Another line this diff adds counts too.
+#                             rule or fact a pointer). Another line this diff adds counts too.
 #   in a skipped issue        a removed or added line, and each line of a
 #                             `--skip-issue` issue holding a run of its words. Those
 #                             hits count in no other list.

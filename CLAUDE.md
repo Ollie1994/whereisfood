@@ -425,10 +425,13 @@ outside a review):
 3. **Read every hit.** Fix the stale ones. A sibling with the same defect gets fixed in
    the PR; only one outside the PR's scope gets an issue instead, named in the sweep
    record. Rows 340 and 342: a fix guarded one read, and its siblings were found a round
-   later each. A hit that restates a rule owned elsewhere
+   later each. A hit or new text that restates a rule or fact owned elsewhere
    becomes a pointer to that copy, not a second edit (row 307; rows 294–295 went part
-   of the way). History (process-log rows from earlier work, dated entries) stays as
-   written. A row this PR added records what its round did: fix it if it's false
+   of the way), and not a pointer to another pointer. Some restating is meant to stay: a
+   code comment's evidence, an issue's spec, a plan's steps, a log row's summary, a row
+   in "Decisions carried forward", `project-context.md`'s rules with their reasons, and
+   a short README summary (IS #211). History (process-log rows from earlier work, dated
+   entries) stays as written. A row this PR added records what its round did: fix it if it's false
    about that round, not to match what a later round changed. While a plan is current, a
    stale hit or finding in `project-context.md` or `README.md`'s status parts (the
    process log's "How to use it", part 6, names them) is named in the plan's
