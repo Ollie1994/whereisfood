@@ -4,8 +4,8 @@ import { flushSync } from "react-dom";
 // Namespace import: MapLibre 6 is ESM-only and has no default export.
 import * as maplibregl from "maplibre-gl";
 import { Protocol } from "pmtiles";
-import { layers, namedFlavor } from "@protomaps/basemaps";
 import TruckPopup from "@/components/Map/TruckPopup";
+import { basemapLayers } from "@/lib/basemap";
 import { diffMarkers, statusText, type MarkerEntry, type TruckId } from "@/lib/live";
 import { workerUrl } from "@/lib/maplibre-worker.mjs";
 
@@ -15,12 +15,6 @@ const PMTILES_URL = process.env.NEXT_PUBLIC_PMTILES_URL;
 // Open is filled, later is outlined (plan, open decision 8). The colour and size are
 // placeholders until the owner has looked at them on the map.
 const MARKER_COLOR = "#16a34a";
-
-// The one POI kind the style asks for that the sprite lacks: the `pois` layer's 36 kinds
-// (@protomaps/basemaps 5.7.2, the newest on npm) against the keys of sprite v4, the newest
-// set, 2026-11-04. A blank image draws it as before, label only, without MapLibre's
-// warning. Any other missing image still warns.
-const POI_WITHOUT_ICON = "townhall";
 
 // Registered once on the client, lazily inside the effect (never on the server):
 // the `pmtiles://` protocol, and MapLibre 6's worker URL.
@@ -183,16 +177,8 @@ export function useMapLibre(
               '<a href="https://protomaps.com">Protomaps</a> © <a href="https://openstreetmap.org">OpenStreetMap</a>',
           },
         },
-        // Swedish labels. For Latin-script places (all of Gothenburg) the generated
-        // `text-field` is `name:sv`, then `pgf:name`, then the local `name`; `name:en`
-        // is only a fallback for places in other scripts.
-        layers: layers("protomaps", namedFlavor("light"), { lang: "sv" }),
+        layers: basemapLayers(),
       },
-    });
-    created.setMissingStyleImageResolver((id) => {
-      if (id === POI_WITHOUT_ICON) {
-        created.addImage(id, { width: 1, height: 1, data: new Uint8Array(4) });
-      }
     });
     layer.map = created;
     setBuilds((count) => count + 1);

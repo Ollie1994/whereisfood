@@ -220,6 +220,7 @@ before the app uses it: below `MAX_ROWS`, a `listRecentLocationsForTruck` call w
 | `src/lib/services/live.ts` | `getLiveMap`, the first service: the window, the `is_active` filter, the entries built field by field | `/api/live` |
 | `src/app/api/live/route.ts` | `GET /api/live`: the service's result with `Cache-Control` (+ test) | every poll |
 | `src/lib/http/handler.ts` | `withErrorHandling()`, the route error wrapper (+ test) | `/api/live`; Phase 7's admin routes |
+| `src/lib/basemap.ts` | `basemapLayers()`: the package's layers with Swedish labels, and no icon for the one POI kind the sprite lacks (+ test) | `useMapLibre` |
 | `src/lib/geo.ts` | `GOTHENBURG_BBOX` and `isInGothenburg()` (+ test) | Phase 7: validate map taps and GPS |
 | `src/lib/spots.ts` | `SPOTS`: known Gothenburg places with coordinates (+ test) | Phase 7: "known spot" entry |
 | `src/lib/validators/uuid.ts` | UUID check (+ test) | Phase 7: truck id on admin writes |
@@ -258,7 +259,7 @@ src/
 │   ├── live.ts, live-loader.ts   ← (+ tests)
 │   ├── http/handler.ts           ← withErrorHandling (+ test)
 │   ├── validators/uuid.ts        ← (+ test)
-│   ├── geo.ts, spots.ts          ← (+ tests)
+│   ├── basemap.ts, geo.ts, spots.ts ← (+ tests)
 │   ├── supabase.ts, types.ts, database.types.ts
 │   └── maplibre-worker.mjs       ← (+ test)
 └── proxy.ts                      ← stub until Phase 7
