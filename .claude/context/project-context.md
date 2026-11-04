@@ -114,7 +114,7 @@ every gate green (Phase 4 plan decision #13, process-log row 282). It wasn't ret
 
 | Package | Version | Note |
 |---|---|---|
-| `next`, `eslint-config-next` | 16.4.3 | exact pins; upgrade together |
+| `next`, `eslint-config-next` | 16.4.5 | exact pins; upgrade together |
 | `react`, `react-dom` | 19.2.4 | |
 | `maplibre-gl` | 6.11.2 | exact pin |
 | `@protomaps/basemaps` | ^5.7.2 | replaced the deprecated `protomaps-themes-base` |
