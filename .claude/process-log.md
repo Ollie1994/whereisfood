@@ -1566,3 +1566,28 @@ round.
 **Follow-ups:** #200 (the sweep script, the claims check's words, and retiring the
 level and limit rule), created through `/create-issues` Steps 5–7 under the `phase-6`
 milestone. It blocks #189, the reconciliation. The owner's calls are plan decision #23.
+
+## Usage review (2026-11-04, IS #216)
+
+**Read this before adding a process rule. It is evidence, not a rule:** nothing here has a
+step, a measure or an owner. The owner asked for a review of how they use Claude Code on
+this project. Its finding was that process outweighs product. Claude suggested a freeze
+on new rules, and the owner declined: they know they go heavy on process and carry that
+forward themselves. Scores and readings are Claude's opinion, from one long session and
+the repo; the numbers are dated.
+
+- **Lines, at `582474b`:** 7,783 of docs (3,457 in plans and 881 in `transition.md`,
+  which are history), 1,392 of app code, 2,915 of tests, 1,539 of scripts.
+- **Since the Phase 6 plan (2026-10-25):** 12 of 16 merged PRs touched nothing in
+  `src`, `tests` or `supabase`, and 54 of 99 commits are review rounds.
+- **Rounds per PR on 2026-11-04:** #206 five; #208, #210 and #212 two; #214 and #215 one.
+  The first four found 10 a round, the cap; #214 found 2 and #215 found 7. A count says
+  little: a capped round reports its cap.
+- **Scores out of 10:** context and memory 9, verification 9, learning from mistakes 8,
+  keeping the human in charge 8, issue quality 8, directing the agent 7, rule quality 6,
+  review practice 6, delegation 5, automating guardrails 4, process economy 4, shipping 4.
+- **What rounds didn't catch:** the owner's questions did. Rows 431, 443 and 453 are
+  theirs, and "is it still worth doing?" cut #212's rule to one clause.
+- **The owner's view:** building needs little process; maintaining and developing further
+  needs it. The project is for learning agentic development, and for making something of
+  actual value and potential.
