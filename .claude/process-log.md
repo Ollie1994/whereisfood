@@ -93,7 +93,9 @@ quoting the one-line rule this replaced.)
    those commands.
 3. **The previous retrospective's actions.** For each, did the misses it targeted
    drop? Keep, adjust or retire it, citing the rows as evidence. A rule that stopped
-   nothing is a cost, not a safeguard.
+   nothing is a cost, not a safeguard. The Phase 7 retrospective also judges each rule
+   adopted from IS #203: did it help, did it harm, and keep, adjust or retire it; the
+   owner decides.
 4. **At most two new actions,** each a mechanism (a check, a template field, a
    script), never just advice. Aim them where misses could have been caught earlier,
    not just at the biggest number: code review is usually the biggest `Caught by`

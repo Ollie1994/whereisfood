@@ -395,6 +395,8 @@ check also reads what the sweep changed.
 - **A false or too-broad claim** (history stays as written, the sweep's step 3). In
   order: delete the sentence if a reader doesn't need what it's about; narrow or correct
   it to what a probe showed, naming the probe; reword only if neither works.
+- **Approved wording** (IS #207). A fix that changes wording or a decision the owner
+  approved goes back to the owner before it is applied.
 
 **The sweep: after applying a round's fixes** (or whenever a claim is corrected
 outside a review):
@@ -464,11 +466,18 @@ check comes before (the first round's goes in the body as opened). The script li
 claims, it doesn't judge them; its header says what it can't see.
 
 **The round itself: `/code-review` at its default findings limit**, not `--max-findings
-all` (the owner's call, Phase 5 plan decision #20): fix, then repeat, scoped to the
-previous round's fixes or full. A scoped round sees only the fixes: #20 records a
-defect outside them that a scoped round and the full round 1 on PR #168 both missed,
-and a later full round, on PR #169, found (row 349). The log's "Columns" ("What one row
-is", then `Caught by`) say how a round is recorded as a row.
+all` (the owner's call, Phase 5 plan decision #20): fix, then repeat, up to this ceiling:
+full, scoped, scoped, full, then stop. If the last full round finds a defect in what
+runs, fix it, run one scoped round on those fixes, and stop. The owner can stop sooner
+or ask for more (IS #207). A scoped round sees only the fixes: #20 records a defect
+outside them that a scoped round and the full round 1 on PR #168 both missed, and a
+later full round, on PR #169, found (row 349). The log's "Columns" ("What one row is",
+then `Caught by`) say how a round is recorded as a row.
+
+**The final records check** (IS #207). Rounds skip the PR body's round sections, the
+PR's log rows and its claims records. After the last round's fixes, one pass reads those
+against the diff, and on a documentation PR reads the last fixes too. The message asking
+the owner to merge says it ran and what it changed.
 
 ---
 
