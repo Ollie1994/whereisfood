@@ -16,6 +16,12 @@ const PMTILES_URL = process.env.NEXT_PUBLIC_PMTILES_URL;
 // placeholders until the owner has looked at them on the map.
 const MARKER_COLOR = "#16a34a";
 
+// The one POI kind the style asks for that the sprite lacks: the `pois` layer's 36 kinds
+// (@protomaps/basemaps 5.7.2, the newest on npm) against the keys of sprite v4, the newest
+// set, 2026-11-04. A blank image draws it as before, label only, without MapLibre's
+// warning. Any other missing image still warns.
+const POI_WITHOUT_ICON = "townhall";
+
 // Registered once on the client, lazily inside the effect (never on the server):
 // the `pmtiles://` protocol, and MapLibre 6's worker URL.
 //
@@ -182,6 +188,11 @@ export function useMapLibre(
         // is only a fallback for places in other scripts.
         layers: layers("protomaps", namedFlavor("light"), { lang: "sv" }),
       },
+    });
+    created.setMissingStyleImageResolver((id) => {
+      if (id === POI_WITHOUT_ICON) {
+        created.addImage(id, { width: 1, height: 1, data: new Uint8Array(4) });
+      }
     });
     layer.map = created;
     setBuilds((count) => count + 1);
