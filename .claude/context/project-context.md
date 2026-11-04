@@ -124,11 +124,11 @@ every gate green (Phase 4 plan decision #13, process-log row 282). It wasn't ret
 | `vitest` | ^4.1.12 | pulls in `vite` 8 |
 | `supabase` CLI | ^2.109 | dev dependency |
 
-Toolchain: `package.json`'s `devEngines` admits Node `>=26.0.0` and npm `>=11.0.0`,
-with `onFail: "error"`, and `engines.node` is `26.x`, the major Vercel builds with
-(#139, #199; Phase 6 plan open decision 9). Vercel's preview build ran Node 26.13.0 and
-npm 11.20.0. Why each range, and which npm reads `devEngines`, is `CLAUDE.md`'s
-("Dependencies").
+Toolchain: `package.json`'s `devEngines` admits Node `26.x` and npm `>=11.0.0`, with
+`onFail: "error"`, and `engines.node` is `26.x`, the major Vercel builds with (#139,
+#199; Phase 6 plan open decision 9). Vercel's preview build ran Node 26.13.0 and npm
+11.20.0, and the gates have run on 26.13.0 only, not an early 26.x. Why each range, and
+which npm reads `devEngines`, is `CLAUDE.md`'s ("Dependencies").
 
 On 2026-11-03 `npm audit` reported 16 moderate findings, all from one advisory,
 GHSA-g3hv-75wg-m249 (`minimatch` before 11.0.1, in dev dependencies only), and `npm
@@ -601,7 +601,8 @@ secret-scanning, Dependabot-alerts and vulnerability-alerts APIs, and no
   clone that never set `core.hooksPath`, skips a local hook. It covers what
   `.gitignore` can't: a value pasted into a tracked file, or `git add -f`.
 - **GitHub Actions running the four gates** on every PR into `dev` (and into `main`, if
-  one is created for production). `test:all` needs a local Supabase in the job.
+  one is created for production). `test:all` needs a local Supabase in the job, and the
+  job needs a Node `devEngines` admits.
 - **SAST.** SonarQube Cloud is the owner's preferred tool; self-hosted SonarQube would
   need a server. CodeQL, GitHub's own, is the alternative or a complement. Confirm the
   free tier for public repositories and the setup when it's built. Plus a dependency
@@ -609,7 +610,9 @@ secret-scanning, Dependabot-alerts and vulnerability-alerts APIs, and no
 - **Dependabot security updates** (automatic PRs), only once the gates run on PRs.
   `next`, `eslint-config-next` and `maplibre-gl` are exact pins upgraded deliberately,
   each with a browser check of `/map` (Phase 4 plan decision #10). A Dependabot PR is
-  reviewed like any other, and the pinned packages keep their browser check.
+  reviewed like any other, and the pinned packages keep their browser check. Check then
+  that Dependabot's updater runs a Node `devEngines` admits: below it, npm stops with
+  `EBADDEVENGINES` and no PR comes (not probed: nothing runs it yet).
 - **Branch protection** on `dev` (and `main`, if created): PR required, the checks
   required, no force-push.
 - **Secrets in CI runs:** a workflow that Dependabot triggers reads the Dependabot
