@@ -1586,8 +1586,8 @@ the repo; the numbers are dated.
 - **Scores out of 10:** context and memory 9, verification 9, learning from mistakes 8,
   keeping the human in charge 8, issue quality 8, directing the agent 7, rule quality 6,
   review practice 6, delegation 5, automating guardrails 4, process economy 4, shipping 4.
-- **What caught most on 2026-11-04:** the owner's questions, not rounds. Rows 431, 443
-  and 453 are theirs, and "is it still worth doing?" cut #212's rule to one clause.
+- **What rounds didn't catch:** the owner's questions did. Rows 431, 443 and 453 are
+  theirs, and "is it still worth doing?" cut #212's rule to one clause.
 - **The owner's view:** building needs little process; maintaining and developing further
-  needs it. The project is for learning agentic development and for making something of
-  real value, and only users can test the second.
+  needs it. The project is for learning agentic development, and for making something of
+  actual value and potential.
