@@ -385,10 +385,12 @@ a shared cache, and the admin sees their own edits at once. The ban on `no-store
 The owner's call on Claude's proposal, not in the older docs. These routes are authenticated
 by a cookie, so a forged cross-site request is the classic risk. Rejected: relying on
 `SameSite` alone. A write with no `Origin` is refused too; a browser sends one on POST and
-PATCH. `requestOrigin` reads the headers because Next builds `request.url` as
-`localhost:<port>` unless `trustHostHeader` is set (`resolve-routes.js`), while `config.toml`'s
-`site_url` is `127.0.0.1`: compared with `request.url`, every local write would be refused. A
-configured URL wouldn't do either, because preview URLs change.
+PATCH. `requestOrigin` reads the headers because `next dev`'s `request.url` isn't the browser's
+host: a POST to `http://127.0.0.1:3917` read `http://localhost:3917` from `request.url` and
+`request.nextUrl.origin`, while `Host`, `x-forwarded-host` and `Origin` held `127.0.0.1:3917`
+(probed 2026-11-05 with a throwaway route). `config.toml`'s `site_url` is `127.0.0.1`, so a
+comparison with `request.url` would refuse every local write. A configured URL wouldn't do
+either, because preview URLs change.
 
 ### #17 — The server sets `created_by` and `source`
 
