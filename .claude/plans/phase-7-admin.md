@@ -101,8 +101,7 @@ the public map, and nobody else can write anything.
 
 ### Untouched, on purpose
 
-- `supabase/migrations/`: the schema already has `users.is_admin` and everything else
-  (#18).
+- `supabase/migrations/`: `users.is_admin` exists, and no step here adds a column (#18).
 - `src/app/api/live/route.ts`, `src/lib/services/live.ts`, `src/lib/live.ts`: admin entries
   reach the map through the existing read path.
 - `src/lib/db/locations.ts`'s `findLocationsOverlapping` and
