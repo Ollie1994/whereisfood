@@ -60,13 +60,13 @@ the public map, and nobody else can write anything.
 |---|---|
 | `src/lib/supabase-browser.ts` | `supabaseClient`, Auth only, safe in the browser (#27); from step 2, `@supabase/ssr`'s `createBrowserClient` (#12) |
 | `src/lib/supabase-session.ts` | The per-request session client, from `@supabase/ssr`, with a read-only cookie adapter and a writing one (#12) |
-| `src/lib/http/origin.ts` (+ test) | `isSameOrigin()`, shared by `withAdmin` and logout (#16) |
-| `src/lib/http/admin.ts` | `withAdmin()`, the one way into an admin route |
+| `src/lib/http/origin.ts` (+ test) | `requestOrigin()` and `isSameOrigin()`, shared by `withAdmin`, the callback and logout (#16) |
+| `src/lib/http/admin.ts` | `withAdmin()`, the one way into an admin route, and `readJson()` |
 | `src/lib/services/admin-auth.ts` (+ test) | `requireAdmin()`, `hasSessionCookie()` |
 | `src/lib/services/trucks.ts`, `locations.ts`, `checklist.ts` (+ tests) | Admin business logic |
 | `src/lib/db/users.ts` | `getUserById()` |
 | `src/lib/validators/truck.ts`, `location.ts` (+ tests) | Pure input checks |
-| `src/lib/stockholm.ts` (+ test) | Stockholm day bounds, and wall-clock time to UTC |
+| `src/lib/stockholm.ts` (+ test) | Stockholm calendar days, day bounds and wall-clock time to UTC, with `live.ts`'s helpers moved in (#31) |
 | `src/app/auth/callback/route.ts` | Finishes the login |
 | `src/app/auth/logout/route.ts` (+ test) | Ends the session, outside `/api/admin/` (#28); its test stubs an Auth error, which the local stack can't produce on demand |
 | `src/app/api/admin/trucks/route.ts`, `trucks/[id]/route.ts` | List, create, edit |
@@ -89,7 +89,8 @@ the public map, and nobody else can write anything.
 | `package.json`, `package-lock.json` | Add `@supabase/ssr` and `server-only` |
 | `src/lib/supabase.ts` | Gains `import "server-only"`, loses `supabaseClient` (#27) |
 | `vitest.config.ts` | An alias for `server-only`, if a probe shows it is needed |
-| `src/proxy.ts` | The real matcher and checks |
+| `src/proxy.ts`, `src/proxy.test.ts` (new) | The real matcher and checks; the test pins the matcher (#10) |
+| `src/lib/live.ts` | `TZ`, `stockholmDay` and `stockholmMidnight` move out, imported from `stockholm.ts` (#31) |
 | `supabase/config.toml` | Sign-ups off, redirect URLs |
 | `src/lib/db/trucks.ts` | `listAllTrucks`, `insertTruck`, `updateTruck` |
 | `src/lib/db/locations.ts` | `getLocationById`, `confirmLocation` |
@@ -104,8 +105,8 @@ the public map, and nobody else can write anything.
 ### Untouched, on purpose
 
 - `supabase/migrations/`: `users.is_admin` exists, and no step here adds a column (#18).
-- `src/app/api/live/route.ts`, `src/lib/services/live.ts`, `src/lib/live.ts`: admin entries
-  reach the map through the existing read path.
+- `src/app/api/live/route.ts`, `src/lib/services/live.ts`: admin entries reach the map through
+  the existing read path.
 - `src/lib/db/locations.ts`'s `findLocationsOverlapping` and
   `listRecentLocationsForTruck`: reused, as Phase 5 #9 planned.
 
@@ -121,16 +122,18 @@ the public map, and nobody else can write anything.
 **HTTP (`src/lib/http/admin.ts`).** `withAdmin(request, handler)`: wraps `withErrorHandling`,
 runs `requireAdmin`, answers 401 or 403, refuses a write that fails `isSameOrigin` (#16),
 and sets `Cache-Control: no-store` on what it returns (#15). The handler receives the
-admin's user id. `isSameOrigin(request)` (`src/lib/http/origin.ts`): the `Origin` header equals
-the request's own origin, never a configured URL, because preview URLs change; a missing or
-`null` `Origin` is false.
+admin's user id. `readJson(request)`: a body that isn't valid JSON answers 400 with a Swedish
+message, and no handler calls `request.json()` itself. `requestOrigin(request)`
+(`src/lib/http/origin.ts`): the scheme and host from `x-forwarded-host`, then `Host`, never
+`request.url` (#16); the callback's and logout's redirects use it too. `isSameOrigin(request)`:
+the `Origin` header equals `requestOrigin`, and a missing or `null` `Origin` is false.
 
 **Services (no HTTP knowledge).**
 - `hasSessionCookie(names)`: pure; is there a Supabase auth cookie, chunked ones included?
 - `requireAdmin({ cookieNames, getUser })`: `hasSessionCookie` first, with no network or
   DB call; then `getUser()`, which verifies the session; then reads `is_admin` through
-  `getUserById`. Returns the id or the reason (`no-session`, `not-admin`). It takes these
-  two values, not a request, because services have no HTTP knowledge (`CLAUDE.md`,
+  `getUserById`. Returns the id or the reason (`no-session`, `not-admin`, `unavailable`,
+  #32). No `users` row is `not-admin`. It takes these two values, not a request, because services have no HTTP knowledge (`CLAUDE.md`,
   "Architecture Rules"); `withAdmin` and the proxy build them from a session client.
 - `listTrucks()`, `createTruck(input)`, `editTruck(id, patch)`: "set inactive" is an edit.
   `23505` on the handle is a conflict result.
@@ -150,7 +153,8 @@ the request's own origin, never a configured URL, because preview URLs change; a
 - `getRecentPlaces(truckId, now)`: distinct places from `listRecentLocationsForTruck`.
 
 **db layer.** The rules are `CLAUDE.md`'s ("db layer").
-- `getUserById(id)`, with a `USER_COLUMNS` literal, returned uncast.
+- `getUserById(id)`, with a `USER_COLUMNS` literal, returned uncast: `.maybeSingle()`, null
+  for an auth user with no `users` row.
 - `listAllTrucks()`, ordered by name, with `assertAllRows`.
 - `insertTruck(truck)`, `updateTruck(id, patch)`: a `Record` of keys and `pick`, as
   `locations.ts` does, and a throw on an empty patch.
@@ -165,12 +169,16 @@ refused here, since the db layer throws on an empty one. `created_by`, `source` 
 `cancelled_at` are never read from a body (#17). Every id that reaches the db layer goes
 through `isUuid`: on a path, in a query string or in a body.
 
-**`src/lib/stockholm.ts`.** `stockholmDayBounds(now)`, `wallClockToUtc(day, "11:00")`, with
-`date-fns-tz`, correct across a DST change.
+**`src/lib/stockholm.ts`.** `TZ`, `stockholmDay`, `stockholmMidnight` (moved from `live.ts`,
+#31), `stockholmDayBounds(now)`, `wallClockToUtc(day, "11:00")`, and `entryWindow(day, start,
+end)`, whose end at or before the start falls on the next day (#30), with `date-fns-tz`,
+correct across a DST change. The form and the checklist both call `entryWindow`; the API takes
+timestamps, so `parseNewLocation` still refuses an end at or before the start.
 
 **Proxy.** `proxy(request)`: the order of `requireAdmin`, on `/admin/:path*` and
 `/api/admin/:path*`, with `/admin/login` let through. A page gets a redirect to the login,
-a route gets `{ error }`. Its session client's adapter writes rotated cookies to the request
+a route gets `{ error }`, and an `unavailable` result gets #32's answer. Its session client's
+adapter writes rotated cookies to the request
 it forwards with `NextResponse.next({ request })` and to the response, so the route sees
 them and so does the browser (#12). `/api/live`, `/map` and `/auth/*` are outside the matcher
 (#10, #28).
@@ -179,11 +187,11 @@ them and so does the browser (#12). `/api/live`, `/map` and `/auth/*` are outsid
 
 ## Steps
 
-Strict order. Each step is one issue and one PR into `dev`, except step 14, which is one
-per follow-up and may be none. **Steps 4, 8 and 12 are checkpoints**: done by the owner on
-a phone, on the preview, and recorded in the PR that reaches them, or on an issue of their
-own if none does. A checkpoint that fails stops the next step until the failure is
-understood.
+Strict order. Each step is one issue and one PR into `dev`, with two exceptions: step 14 is
+one per follow-up and may be none, and the checkpoints have an issue and no PR. **Steps 4, 8
+and 12 are checkpoints**: done by the owner on a phone, on the preview, and recorded on their
+own issue, which blocks the next step. A checkpoint that fails stops the next step until the
+failure is understood.
 
 0. **This plan.** The plan file, and `CLAUDE.md`'s bold "Current phase plan" line naming
    it, where between phases it read `none (the last one:
@@ -206,27 +214,34 @@ understood.
    `[auth.email]`'s sets `GOTRUE_EXTERNAL_EMAIL_ENABLED=false` and refuses every email login
    with `email_provider_disabled`. The login sends `shouldCreateUser: false`.
 3. **The gate.** `getUserById` and `db-users.test.ts`, `hasSessionCookie`, `requireAdmin`,
-   `withAdmin`, `src/proxy.ts`, `admin-auth.test.ts`, `CLAUDE.md`'s `proxy.ts` and API rules,
+   `withAdmin`, `readJson`, `src/proxy.ts` and `src/proxy.test.ts`, `admin-auth.test.ts`,
+   `CLAUDE.md`'s `proxy.ts` and API rules,
    and the first admin route behind it: `listAllTrucks`, `listTrucks`, `GET
    /api/admin/trucks`, with `api-admin-trucks.test.ts`, which step 7's form needs and #13's
    test exercises. *No admin route exists before this, so none can ship unprotected.* Logout
    isn't an admin route (#28).
 4. **Checkpoint: login on the phone.** Magic link, then logout, on the preview, on the owner's
-   phone; logout is the first write `isSameOrigin` sees behind Vercel. *The biggest unknown is
-   tested before anything is built on it* (open decisions 1–3).
-5. **Times and location validators.** `src/lib/stockholm.ts`,
-   `src/lib/validators/location.ts`. *Pure, and step 6 depends on them.*
+   phone; logout is the first write `isSameOrigin` sees behind Vercel. `/api/live`, requested
+   with the admin's cookie, still reaches `x-vercel-cache: HIT` with no `Set-Cookie`. *The
+   biggest unknown is tested before anything is built on it* (open decisions 1–3).
+5. **Times and location validators.** `src/lib/stockholm.ts`, with `live.ts`'s helpers moved in
+   and `live.test.ts` unchanged and green, `src/lib/validators/location.ts`. *Pure, and step 6
+   depends on them.*
 6. **The location write path.** `getLocationById`, `confirmLocation`,
    `src/lib/services/locations.ts`, the location routes, `api-admin-locations.test.ts`.
    *Trucks are already in the seed, so locations come before truck writes* (#21).
 7. **The admin screen.** The full `src/app/admin/page.tsx`, `TodayList`, `LocationForm`,
    `useAdminLocations`, `useLocationForm`, with known spots only. The form lists active trucks
    when creating, and shows the entry's own truck read-only when editing, since a patch can't
-   change it and that truck may be inactive. *The shortest route to a working form.*
+   change it and that truck may be inactive. It shows "slutar imorgon" when the end falls on
+   the next day (#30). *The shortest route to a working form.*
 8. **Checkpoint: an entry reaches the map.** Enter a location on the phone, see it on the
    preview's public map, press "Stämmer fortfarande" and see the popup follow, cancel it
    and see it leave. Each shows within about 3 minutes, not at once: 60 s of cache, 60 s of
-   stale window and a 60 s poll. *The phase's core works here, even if everything after it slipped.*
+   stale window and a 60 s poll. Then leave a lunch and a dinner for one truck, not cancelled:
+   the preview's seed history stops at 2026-11-01 and doesn't move with the date (`README.md`,
+   "Hosted preview database"), so these are step 12's history. *The phase's core works here,
+   even if everything after it slipped.*
 9. **`PlacePicker`.** `usePlacePicker`, `useGeolocation`, `getRecentPlaces`, the places
    route: map tap, recent places, GPS. A `/map` browser check if `useMapLibre.tsx` changes.
 10. **Truck management.** `insertTruck`, `updateTruck`, `createTruck`, `editTruck`,
@@ -235,8 +250,8 @@ understood.
 11. **The morning checklist.** `src/lib/services/checklist.ts`, the checklist route,
     `Checklist`, `useChecklist`, `api-admin-checklist.test.ts`. *Last, because it reuses the
     create path.* #196 rides along: the look-back is settled by then (#22).
-12. **Checkpoint: the whole walkthrough.** On the phone, on the preview: the checklist, an
-    entry by each place method, an overlap, an edit, a cancel, a new truck. Time a normal
+12. **Checkpoint: the whole walkthrough.** On the phone, on the preview, on the weekday of step
+    8's lunch and dinner, 1 to 4 weeks later: the checklist, an entry by each place method, an overlap, an edit, a cancel, a new truck. Time a normal
     update against ~10 seconds, from opening the screen to the save; the public map follows
     within about 3 minutes, as in step 8. Settle open decision 8.
 13. **Phase 7 retrospective**, by the milestone-retrospective procedure in
@@ -252,10 +267,11 @@ understood.
     "Environment", "Tests and gates", the Roadmap row; Part 2's "Admin and auth", which
     becomes a description of what was built, the "Read path" diagram's `POST/PATCH
     /api/locations`, which is `/api/admin/locations` (#10), the same section's "Saves trigger
-    no purge" bullet, whose "~1–2 minutes" can reach about 3 (step 8), "Product model" items 2
-    and 3
+    no purge" bullet, whose "~1–2 minutes" can reach about 3 (step 8), the "Phase map" (the
+    Phase 7 row, and retention and the app name in Phase 8's), "Product model" items 2 and 3
     (#22, #23), and "Open decisions" (#22 and #23 settle two, #25 and #26 move two to
-    Phase 8); and the README's status parts. It replaces each **between phases** marker in
+    Phase 8); Part 3's "Status codes" (404, 503, and 409 from `23505` as well) and "Hooks"; and
+    the README's status parts. It replaces each **between phases** marker in
     "Decisions carried forward" with the decision here that took it up (#1–#9), and carries
     forward this plan's decisions that outlive the phase.
 
@@ -369,7 +385,10 @@ a shared cache, and the admin sees their own edits at once. The ban on `no-store
 The owner's call on Claude's proposal, not in the older docs. These routes are authenticated
 by a cookie, so a forged cross-site request is the classic risk. Rejected: relying on
 `SameSite` alone. A write with no `Origin` is refused too; a browser sends one on POST and
-PATCH.
+PATCH. `requestOrigin` reads the headers because Next builds `request.url` as
+`localhost:<port>` unless `trustHostHeader` is set (`resolve-routes.js`), while `config.toml`'s
+`site_url` is `127.0.0.1`: compared with `request.url`, every local write would be refused. A
+configured URL wouldn't do either, because preview URLs change.
 
 ### #17 — The server sets `created_by` and `source`
 
@@ -410,8 +429,9 @@ The owner's call (product decision 2). For each active truck: the same weekday i
 weeks, one `findLocationsOverlapping` day window per week (Phase 5 #9), and of those the most
 recent day it had a live entry starting that day. All of that day's entries are suggested, so
 lunch and dinner both show, and a truck that stopped coming drops off after 4 weeks.
-Rejected: one suggestion per truck. Times move to today by wall clock through
-`wallClockToUtc`.
+Rejected: one suggestion per truck. Times move to today by wall clock through `entryWindow`, so
+an end past midnight stays next-day (#30). The day windows come from whole-day arithmetic on
+`stockholmDay`, never `now - 7 × 24 h` (#31).
 
 Left out: a suggestion that overlaps an entry the truck already has today, and one already
 ended. Today's cancelled entries aren't read, so a truck that cancelled today can be suggested
@@ -473,6 +493,28 @@ the character set, the 30-character cap and case-insensitivity (searched 2026-11
 page found). They also bar a period at either end, which this rule lets through: that can pass a
 typo, but it can't refuse a real handle.
 
+### #30 — An end at or before the start means the next day
+
+The owner's call on round 4's proposal (PR #220). Trucks work past midnight, and the map already
+shows it ("23:00–02:00 imorgon", `hoursText` in `live.ts`), but one date with 22:00 and 01:00
+would be refused, and the checklist couldn't carry such a shift forward. Both go through
+`entryWindow`. The form shows "slutar imorgon", so a typo can't pass as a long shift unseen.
+
+### #31 — `stockholm.ts` takes `live.ts`'s day helpers
+
+Two copies of the midnight code could drift, and `live.test.ts`'s 23- and 25-hour day cases exist
+to prevent that. Rejected: a second implementation, and `now - 7 × 24 h`, which reads the wrong
+weekday across a DST change: 00:30 on a Monday in CEST minus 168 h is 23:30 on the Sunday in CET.
+
+### #32 — An Auth or database failure isn't "logged out"
+
+Treating one as `no-session` would send a logged-in admin to the login, which spends the built-in
+email's 2 an hour on nothing, and a throw in the proxy would answer with Next's error page, not
+`{ error }` (`CLAUDE.md`, "API responses"): `withErrorHandling` doesn't wrap the proxy. So
+`requireAdmin` returns `unavailable` on an Auth failure other than a missing or invalid session,
+and on a throw from `getUserById`. An admin route answers 503 `{ error }`, and a page shows a
+Swedish error, not the login.
+
 ---
 
 ## Acceptance Criteria
@@ -501,7 +543,12 @@ typo, but it can't refuse a real handle.
 - [ ] `created_by` and `source` sent in a request body are ignored; the row holds the admin's
   id and `'admin'`.
 - [ ] `/api/live` keeps its `Cache-Control` header, with no `Set-Cookie`, when the request
-  carries a session cookie.
+  carries a session cookie: `src/proxy.test.ts` fails if the matcher catches it, and step 4 reads
+  `x-vercel-cache` on the preview.
+- [ ] An auth user with no `users` row gets 403.
+- [ ] An Auth or database failure gives 503 `{ error }` on an admin route, and a Swedish error,
+  not the login, on a page.
+- [ ] Writes work on the preview and in a local browser at `127.0.0.1:3000`.
 
 **Entries**
 - [ ] Create, edit and cancel work from the phone, and a cancelled entry leaves the public map
@@ -515,6 +562,8 @@ typo, but it can't refuse a real handle.
 - [ ] Coordinates outside the Gothenburg box and an end before the start are refused with 400
   and a Swedish message, on an edit that sends only one of the fields too.
 - [ ] A malformed id gives 400, on a path, in a query string or in a body.
+- [ ] A body that isn't valid JSON gives 400 with a Swedish message.
+- [ ] A shift past midnight can be entered with one date, and the form shows "slutar imorgon".
 - [ ] A patch with no known key, on an entry or a truck, gives 400 with a Swedish message.
 - [ ] Creating an entry lists active trucks only, and an inactive `truck_id` on create gives 400
   with a Swedish message. Editing shows the entry's own truck read-only, an inactive one too.
@@ -537,8 +586,11 @@ typo, but it can't refuse a real handle.
 - [ ] ✓ creates today's entry through the normal path, including the overlap check. ✗ writes
   nothing to the database.
 - [ ] Nothing from the checklist reaches the map until ✓ is tapped.
+- [ ] A shift past midnight is suggested with its end on the next day, and the look-back finds the
+  same weekday across a DST change.
 
 **The whole phase**
+- [ ] Each checkpoint's result is recorded on its own issue.
 - [ ] Step 12's walkthrough passes on the owner's phone on the preview, and a normal update
   takes under ~10 seconds from opening the screen to the save, timed.
 - [ ] The admin screens work at phone width, with no sideways scrolling.
