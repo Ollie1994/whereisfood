@@ -180,9 +180,12 @@ understood.
 2. **Login.** `@supabase/ssr`, `src/lib/supabase-session.ts`, `src/app/admin/login/page.tsx`,
    `LoginForm`, `useLogin`, `src/app/auth/callback/route.ts`, the logout route,
    `supabase/config.toml`, the preview project's settings, and the README's "create the
-   admin user". *Every later step needs a real session.* Probe which `enable_signup` key to
-   set: `[auth.email]`'s may turn off email login altogether (not probed), and the local
-   tests sign in with passwords.
+   admin user". *Every later step needs a real session.* Set `enable_signup = false` under
+   `[auth]` **only, never under `[auth.email]`**. On the local stack (2026-11-05, `supabase
+   start` with each edit, then the Auth API), `[auth]`'s refuses a new email with
+   `signup_disabled` and leaves password sign-in and a link for an existing user working;
+   `[auth.email]`'s sets `GOTRUE_EXTERNAL_EMAIL_ENABLED=false` and refuses every email login
+   with `email_provider_disabled`. The login sends `shouldCreateUser: false`.
 3. **The gate.** `getUserById` and `db-users.test.ts`, `hasSessionCookie`, `requireAdmin`,
    `withAdmin`, `src/proxy.ts`, `admin-auth.test.ts`, and `CLAUDE.md`'s `proxy.ts` and API
    rules. *No write route exists before this, so none can ship unprotected.*
@@ -345,10 +348,9 @@ takes them from the service.
 
 The owner's call. The admin checks a truck's Instagram each day, even when it posted its
 whole week on Monday, and the popup's "Uppdaterad" should say so. Rejected: a `confirmed_at`
-column, worth it only if the two ever need to differ. `locations_updated_at` runs on every
-UPDATE that doesn't clear `created_by` (`0001_baseline.sql`), so a write of `updated_at`
-moves it to the trigger's `now()`; that is read from the migration, not probed, and step 6's
-test probes it.
+column, worth it only if the two ever need to differ. A write of `updated_at` moves it to the
+trigger's `now()`, not the value written (probed 2026-11-05 on a seed row, in a rolled-back
+transaction: wrote `2000-01-01`, read back `now()`); step 6's test pins it.
 
 ### #19 — "Inställt idag" isn't built
 
