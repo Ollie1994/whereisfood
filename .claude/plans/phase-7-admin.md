@@ -232,7 +232,6 @@ understood.
 10. **Truck management.** `insertTruck`, `updateTruck`, `createTruck`, `editTruck`,
     `src/lib/validators/truck.ts`, the truck write routes, their cases in
     `api-admin-trucks.test.ts`, `src/app/admin/trucks/page.tsx`, `TruckForm`, `useTrucks`.
-    Confirm #29's handle rule against Instagram's current one.
 11. **The morning checklist.** `src/lib/services/checklist.ts`, the checklist route,
     `Checklist`, `useChecklist`, `api-admin-checklist.test.ts`. *Last, because it reuses the
     create path.* #196 rides along: the look-back is settled by then (#22).
@@ -469,8 +468,10 @@ an empty result into null. Anything else must match `^[a-z0-9._]{1,30}$` or is r
 400, so `@ streetfoodgbg` can't be stored with a space, and the popup's Instagram link holds
 only those characters. Instagram handles aren't case-sensitive, and `@streetfoodgbg` is the same
 account, so without this one account could get two trucks and two markers; an empty string
-would make a second truck with no handle fail as a false duplicate. The character set is from
-memory, not Instagram's current rule; step 10 confirms it.
+would make a second truck with no handle fail as a false duplicate. Third-party guides agree on
+the character set, the 30-character cap and case-insensitivity (searched 2026-11-05; no Instagram
+page found). They also bar a period at either end, which this rule lets through: that can pass a
+typo, but it can't refuse a real handle.
 
 ---
 
