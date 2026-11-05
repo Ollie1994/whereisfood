@@ -60,7 +60,7 @@ the public map, and nobody else can write anything.
 |---|---|
 | `src/lib/supabase-browser.ts` | `supabaseClient`, Auth only, safe in the browser (#27); from step 2, `@supabase/ssr`'s `createBrowserClient` (#12) |
 | `src/lib/supabase-session.ts` | The per-request session client, from `@supabase/ssr`, with a read-only cookie adapter and a writing one (#12) |
-| `src/lib/http/origin.ts` | `isSameOrigin()`, shared by `withAdmin` and logout (#16) |
+| `src/lib/http/origin.ts` (+ test) | `isSameOrigin()`, shared by `withAdmin` and logout (#16) |
 | `src/lib/http/admin.ts` | `withAdmin()`, the one way into an admin route |
 | `src/lib/services/admin-auth.ts` (+ test) | `requireAdmin()`, `hasSessionCookie()` |
 | `src/lib/services/trucks.ts`, `locations.ts`, `checklist.ts` (+ tests) | Admin business logic |
@@ -68,7 +68,7 @@ the public map, and nobody else can write anything.
 | `src/lib/validators/truck.ts`, `location.ts` (+ tests) | Pure input checks |
 | `src/lib/stockholm.ts` (+ test) | Stockholm day bounds, and wall-clock time to UTC |
 | `src/app/auth/callback/route.ts` | Finishes the login |
-| `src/app/auth/logout/route.ts` | Ends the session, outside `/api/admin/` (#28) |
+| `src/app/auth/logout/route.ts` (+ test) | Ends the session, outside `/api/admin/` (#28); its test stubs an Auth error, which the local stack can't produce on demand |
 | `src/app/api/admin/trucks/route.ts`, `trucks/[id]/route.ts` | List, create, edit |
 | `src/app/api/admin/locations/route.ts`, `locations/[id]/route.ts` | List, create, edit |
 | `src/app/api/admin/locations/[id]/cancel/route.ts`, `locations/[id]/confirm/route.ts` | Cancel, "Stämmer fortfarande" |
@@ -78,6 +78,7 @@ the public map, and nobody else can write anything.
 | `src/components/Admin/*` | `LoginForm`, `LogoutButton`, `TodayList`, `Checklist`, `LocationForm`, `PlacePicker`, `TruckForm` |
 | `src/hooks/useLogin.ts`, `useAdminLocations.ts`, `useChecklist.ts`, `useLocationForm.ts`, `usePlacePicker.ts`, `useGeolocation.ts`, `useTrucks.ts` | All state lives here |
 | `tests/integration/db-users.test.ts` | The key-set test a new table's reads need |
+| `tests/integration/auth-routes.test.ts` | `/auth/callback` and `/auth/logout` against the local stack |
 | `tests/integration/admin-auth.test.ts` | 401 and 403 on every admin route, found on disk (#13) |
 | `tests/integration/api-admin-trucks.test.ts`, `api-admin-locations.test.ts`, `api-admin-checklist.test.ts` | The routes against the local stack |
 
@@ -120,7 +121,9 @@ the public map, and nobody else can write anything.
 **HTTP (`src/lib/http/admin.ts`).** `withAdmin(request, handler)`: wraps `withErrorHandling`,
 runs `requireAdmin`, answers 401 or 403, refuses a write that fails `isSameOrigin` (#16),
 and sets `Cache-Control: no-store` on what it returns (#15). The handler receives the
-admin's user id.
+admin's user id. `isSameOrigin(request)` (`src/lib/http/origin.ts`): the `Origin` header equals
+the request's own origin, never a configured URL, because preview URLs change; a missing or
+`null` `Origin` is false.
 
 **Services (no HTTP knowledge).**
 - `hasSessionCookie(names)`: pure; is there a Supabase auth cookie, chunked ones included?
@@ -194,6 +197,7 @@ understood.
    `LoginForm`, `useLogin`, `src/app/auth/callback/route.ts`, `src/app/auth/logout/route.ts`,
    `src/app/admin/layout.tsx` with `LogoutButton`, so it shows on every admin screen, the
    login included, a minimal `src/app/admin/page.tsx`, for step 4 to land on,
+   `tests/integration/helpers.ts`'s session cookie, `auth-routes.test.ts`,
    `supabase/config.toml`, the preview project's settings, and the README's "create the admin
    user". *Every later step needs a real session.* Set `enable_signup = false` under
    `[auth]` **only, never under `[auth.email]`**. On the local stack (2026-11-05, `supabase
@@ -204,18 +208,21 @@ understood.
 3. **The gate.** `getUserById` and `db-users.test.ts`, `hasSessionCookie`, `requireAdmin`,
    `withAdmin`, `src/proxy.ts`, `admin-auth.test.ts`, `CLAUDE.md`'s `proxy.ts` and API rules,
    and the first admin route behind it: `listAllTrucks`, `listTrucks`, `GET
-   /api/admin/trucks`, which step 7's form needs and #13's test exercises. *No admin route
-   exists before this, so none can ship unprotected.* Logout isn't an admin route (#28).
-4. **Checkpoint: login on the phone.** Magic link, on the preview, on the owner's phone.
-   *The biggest unknown is tested before anything is built on it* (open decisions 1–3).
+   /api/admin/trucks`, with `api-admin-trucks.test.ts`, which step 7's form needs and #13's
+   test exercises. *No admin route exists before this, so none can ship unprotected.* Logout
+   isn't an admin route (#28).
+4. **Checkpoint: login on the phone.** Magic link, then logout, on the preview, on the owner's
+   phone; logout is the first write `isSameOrigin` sees behind Vercel. *The biggest unknown is
+   tested before anything is built on it* (open decisions 1–3).
 5. **Times and location validators.** `src/lib/stockholm.ts`,
    `src/lib/validators/location.ts`. *Pure, and step 6 depends on them.*
 6. **The location write path.** `getLocationById`, `confirmLocation`,
    `src/lib/services/locations.ts`, the location routes, `api-admin-locations.test.ts`.
    *Trucks are already in the seed, so locations come before truck writes* (#21).
 7. **The admin screen.** The full `src/app/admin/page.tsx`, `TodayList`, `LocationForm`,
-   `useAdminLocations`, `useLocationForm`, with known spots only, and active trucks only in
-   the form's list. *The shortest route to a working form.*
+   `useAdminLocations`, `useLocationForm`, with known spots only. The form lists active trucks
+   when creating, and shows the entry's own truck read-only when editing, since a patch can't
+   change it and that truck may be inactive. *The shortest route to a working form.*
 8. **Checkpoint: an entry reaches the map.** Enter a location on the phone, see it on the
    preview's public map, press "Stämmer fortfarande" and see the popup follow, cancel it
    and see it leave. Each shows within about 3 minutes, not at once: 60 s of cache, 60 s of
@@ -223,8 +230,9 @@ understood.
 9. **`PlacePicker`.** `usePlacePicker`, `useGeolocation`, `getRecentPlaces`, the places
    route: map tap, recent places, GPS. A `/map` browser check if `useMapLibre.tsx` changes.
 10. **Truck management.** `insertTruck`, `updateTruck`, `createTruck`, `editTruck`,
-    `src/lib/validators/truck.ts`, the truck write routes, `src/app/admin/trucks/page.tsx`,
-    `TruckForm`, `useTrucks`.
+    `src/lib/validators/truck.ts`, the truck write routes, their cases in
+    `api-admin-trucks.test.ts`, `src/app/admin/trucks/page.tsx`, `TruckForm`, `useTrucks`.
+    Confirm #29's handle rule against Instagram's current one.
 11. **The morning checklist.** `src/lib/services/checklist.ts`, the checklist route,
     `Checklist`, `useChecklist`, `api-admin-checklist.test.ts`. *Last, because it reuses the
     create path.* #196 rides along: the look-back is settled by then (#22).
@@ -244,8 +252,9 @@ understood.
     (the proxy, the admin screens), "Modules kept on purpose", "Folder structure",
     "Environment", "Tests and gates", the Roadmap row; Part 2's "Admin and auth", which
     becomes a description of what was built, the "Read path" diagram's `POST/PATCH
-    /api/locations`, which is `/api/admin/locations` (#10), and its "~1–2 minutes" for a save
-    to show, which can reach about 3 (step 8), "Product model" items 2 and 3
+    /api/locations`, which is `/api/admin/locations` (#10), the same section's "Saves trigger
+    no purge" bullet, whose "~1–2 minutes" can reach about 3 (step 8), "Product model" items 2
+    and 3
     (#22, #23), and "Open decisions" (#22 and #23 settle two, #25 and #26 move two to
     Phase 8); and the README's status parts. It replaces each **between phases** marker in
     "Decisions carried forward" with the decision here that took it up (#1–#9), and carries
@@ -442,19 +451,26 @@ controls name, so a moved import would call for the full controls run (about 48 
 The owner's call on round 1's proposal (PR #220). Under `/api/admin/` it would need
 `withAdmin`, so a non-admin would get 403 and an expired session 401, and neither could clear
 their cookies, and it would have to write cookies, which `withAdmin`'s routes don't. `POST
-/auth/logout` takes no admin check and calls `isSameOrigin` (#16). After `signOut()` it deletes
-the `sb-*` cookies itself: `signOut()` returns early on an Auth error other than 401, 403 or
-404 without removing the session (`GoTrueClient.js:3186`, `_signOut`). `LogoutButton` is a plain
-form POST, so it needs no state.
+/auth/logout` takes no admin check and calls `isSameOrigin` (#16). It calls
+`signOut({ scope: 'local' })`, the owner's call on round 3's proposal: the default, `global`,
+would end the phone's session too when the admin logs out on a laptop. It then deletes the
+`sb-*` cookies itself, because `_signOut` (`@supabase/auth-js` 2.106.2, `dist/main`) returns
+without removing the session on a session error, and on an Auth error other than 401, 403 or
+404. `LogoutButton` is a plain form POST, so it needs no state, and the route answers 303 to
+`/admin/login`: a form POST navigates to the answer, and `NextResponse.redirect`'s default 307
+would re-POST to a page.
 
 ### #29 — Instagram handles are stored in one form
 
 The owner's call on round 1's proposal (PR #220). `instagram_handle` is `text unique`, so it
 is case-sensitive and nullable, and "no migration" rules out `citext`. `parseNewTruck` and
 `parseTruckPatch`, in this order, trim the handle, strip a leading `@`, lower-case it, and turn
-an empty result into null. Instagram handles aren't case-sensitive, and `@streetfoodgbg` is the
-same account, so without this one account could get two trucks and two markers; an empty string
-would make a second truck with no handle fail as a false duplicate.
+an empty result into null. Anything else must match `^[a-z0-9._]{1,30}$` or is refused with
+400, so `@ streetfoodgbg` can't be stored with a space, and the popup's Instagram link holds
+only those characters. Instagram handles aren't case-sensitive, and `@streetfoodgbg` is the same
+account, so without this one account could get two trucks and two markers; an empty string
+would make a second truck with no handle fail as a false duplicate. The character set is from
+memory, not Instagram's current rule; step 10 confirms it.
 
 ---
 
@@ -478,7 +494,8 @@ would make a second truck with no handle fail as a false duplicate.
 - [ ] A write with a foreign or missing `Origin` is refused, on a valid admin session and on
   `/auth/logout`.
 - [ ] Logout clears the session cookies for an admin, a non-admin and an expired session, and
-  when Auth answers with an error.
+  when Auth answers with an error, and lands on `/admin/login` with a 303. It ends only that
+  device's session.
 - [ ] Admin route responses carry `Cache-Control: no-store`.
 - [ ] `created_by` and `source` sent in a request body are ignored; the row holds the admin's
   id and `'admin'`.
@@ -498,8 +515,8 @@ would make a second truck with no handle fail as a false duplicate.
   and a Swedish message, on an edit that sends only one of the fields too.
 - [ ] A malformed id gives 400, on a path, in a query string or in a body.
 - [ ] A patch with no known key, on an entry or a truck, gives 400 with a Swedish message.
-- [ ] The form lists active trucks only, and an inactive `truck_id` in a request gives 400 with a
-  Swedish message.
+- [ ] Creating an entry lists active trucks only, and an inactive `truck_id` on create gives 400
+  with a Swedish message. Editing shows the entry's own truck read-only, an inactive one too.
 - [ ] Times are entered and shown in Stockholm time and stored in UTC, correct across a DST
   change.
 - [ ] The form pre-fills 11–13.
@@ -510,7 +527,7 @@ would make a second truck with no handle fail as a false duplicate.
   and keeps its history.
 - [ ] A duplicate Instagram handle gives 409 with a Swedish message, whatever its case, a leading
   `@` or surrounding spaces, and two trucks with no handle are both allowed, a blank field
-  included.
+  included. A handle outside #29's character set gives 400 with a Swedish message.
 - [ ] The app has no way to delete a truck or a location.
 
 **Checklist**
@@ -548,7 +565,7 @@ would make a second truck with no handle fail as a false duplicate.
    simplest. A seed change alters the hosted project's seed hash, as #196 describes.
 6. **How the proxy reads `is_admin` (step 3).** `server-only` in the proxy needs a probe, and so
    does `vitest`'s handling of it.
-7. **A session cookie for route tests (step 3).** `tests/integration/helpers.ts` needs a real
+7. **A session cookie for route tests (step 2).** `tests/integration/helpers.ts` needs a real
    session in the cookie format `@supabase/ssr` reads. `signedInClient` warns about the sign-in
    rate limit, so once per file.
 8. **An "Alla stämmer" button for the whole day (step 12).** Tapping each truck may get tedious.
