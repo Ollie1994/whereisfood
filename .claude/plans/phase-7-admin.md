@@ -59,8 +59,9 @@ the public map, and nobody else can write anything.
 | File | What it is |
 |---|---|
 | `src/lib/supabase-browser.ts` | `supabaseClient`, Auth only, safe in the browser (#27); from step 2, `@supabase/ssr`'s `createBrowserClient` (#12) |
-| `src/lib/supabase-session.ts` | The per-request session client, from `@supabase/ssr`, given a cookie adapter |
-| `src/lib/http/admin.ts` | `withAdmin()`, the one way into an admin route, and the route's read-only cookie adapter |
+| `src/lib/supabase-session.ts` | The per-request session client, from `@supabase/ssr`, with a read-only cookie adapter and a writing one (#12) |
+| `src/lib/http/origin.ts` | `isSameOrigin()`, shared by `withAdmin` and logout (#16) |
+| `src/lib/http/admin.ts` | `withAdmin()`, the one way into an admin route |
 | `src/lib/services/admin-auth.ts` (+ test) | `requireAdmin()`, `hasSessionCookie()` |
 | `src/lib/services/trucks.ts`, `locations.ts`, `checklist.ts` (+ tests) | Admin business logic |
 | `src/lib/db/users.ts` | `getUserById()` |
@@ -74,7 +75,7 @@ the public map, and nobody else can write anything.
 | `src/app/api/admin/checklist/route.ts` | The morning list |
 | `src/app/api/admin/places/route.ts` | A truck's recent places |
 | `src/app/admin/layout.tsx`, `page.tsx`, `login/page.tsx`, `trucks/page.tsx` | The screens, phone-first |
-| `src/components/Admin/*` | `LoginForm`, `TodayList`, `Checklist`, `LocationForm`, `PlacePicker`, `TruckForm` |
+| `src/components/Admin/*` | `LoginForm`, `LogoutButton`, `TodayList`, `Checklist`, `LocationForm`, `PlacePicker`, `TruckForm` |
 | `src/hooks/useLogin.ts`, `useAdminLocations.ts`, `useChecklist.ts`, `useLocationForm.ts`, `usePlacePicker.ts`, `useGeolocation.ts`, `useTrucks.ts` | All state lives here |
 | `tests/integration/db-users.test.ts` | The key-set test a new table's reads need |
 | `tests/integration/admin-auth.test.ts` | 401 and 403 on every admin route, found on disk (#13) |
@@ -117,9 +118,9 @@ the public map, and nobody else can write anything.
 ## Functions and types
 
 **HTTP (`src/lib/http/admin.ts`).** `withAdmin(request, handler)`: wraps `withErrorHandling`,
-runs `requireAdmin`, answers 401 or 403, refuses a write whose `Origin` isn't the
-request's own (#16), and sets `Cache-Control: no-store` on what it returns (#15). The
-handler receives the admin's user id.
+runs `requireAdmin`, answers 401 or 403, refuses a write that fails `isSameOrigin` (#16),
+and sets `Cache-Control: no-store` on what it returns (#15). The handler receives the
+admin's user id.
 
 **Services (no HTTP knowledge).**
 - `hasSessionCookie(names)`: pure; is there a Supabase auth cookie, chunked ones included?
@@ -134,8 +135,8 @@ handler receives the admin's user id.
   truck names from `listAllTrucks`, so an entry of a truck set inactive keeps its name,
   uncached (#24).
 - `createEntry(input, adminId)`, `editEntry(id, patch)`: `createEntry` takes the truck
-  through `getActiveTruckById`, and sets `created_by` and `source` itself (#17).
-  `editEntry` reads the row with `getLocationById` (null gives a 404), merges the patch,
+  through `getActiveTruckById`, where null gives a 400 with a Swedish message, and sets
+  `created_by` and `source` itself (#17). `editEntry` reads the row with `getLocationById` (null gives a 404), merges the patch,
   and checks the merged row's time order and `isInGothenburg`, so a partial patch answers
   400 and never reaches `23514`. `23P01` becomes a conflict result naming the existing
   entry's Stockholm times, found through `findLocationsOverlapping`, filtered on the
@@ -156,7 +157,8 @@ handler receives the admin's user id.
 
 **Validators (pure).** `parseNewLocation` (shape, order of the times, `isInGothenburg`),
 `parseLocationPatch` (the shape of the keys it holds; `editEntry` checks across fields),
-`parseNewTruck`, `parseTruckPatch` (the handle's form, #29). `created_by`, `source` and
+`parseNewTruck`, `parseTruckPatch` (the handle's form, #29). A patch with no known key is
+refused here, since the db layer throws on an empty one. `created_by`, `source` and
 `cancelled_at` are never read from a body (#17). Every id that reaches the db layer goes
 through `isUuid`: on a path, in a query string or in a body.
 
@@ -188,36 +190,36 @@ understood.
    login screen would otherwise evaluate the service-role module in the browser and throw
    (`project-context.md`, "Admin and auth"). No behaviour changes.
 2. **Login.** `@supabase/ssr`, `src/lib/supabase-session.ts`, `supabase-browser.ts` moved to
-   `createBrowserClient`, `src/app/admin/login/page.tsx`, `LoginForm`, `useLogin`,
-   `src/app/auth/callback/route.ts`, `src/app/auth/logout/route.ts`, a minimal
-   `src/app/admin/page.tsx` with a logout button, for step 4 to land on, `supabase/config.toml`,
-   the preview project's settings, and the README's "create the admin user". *Every later
-   step needs a real session.* Set `enable_signup = false` under
+   `createBrowserClient`, `src/lib/http/origin.ts`, `src/app/admin/login/page.tsx`,
+   `LoginForm`, `useLogin`, `src/app/auth/callback/route.ts`, `src/app/auth/logout/route.ts`,
+   `src/app/admin/layout.tsx` with `LogoutButton`, so it shows on every admin screen, the
+   login included, a minimal `src/app/admin/page.tsx`, for step 4 to land on,
+   `supabase/config.toml`, the preview project's settings, and the README's "create the admin
+   user". *Every later step needs a real session.* Set `enable_signup = false` under
    `[auth]` **only, never under `[auth.email]`**. On the local stack (2026-11-05, `supabase
    start` with each edit, then the Auth API), `[auth]`'s refuses a new email with
    `signup_disabled` and leaves password sign-in and a link for an existing user working;
    `[auth.email]`'s sets `GOTRUE_EXTERNAL_EMAIL_ENABLED=false` and refuses every email login
    with `email_provider_disabled`. The login sends `shouldCreateUser: false`.
 3. **The gate.** `getUserById` and `db-users.test.ts`, `hasSessionCookie`, `requireAdmin`,
-   `withAdmin`, `src/proxy.ts`, `admin-auth.test.ts`, and `CLAUDE.md`'s `proxy.ts` and API
-   rules. *No admin route exists before this, so none can ship unprotected.* Logout isn't
-   an admin route (#28).
+   `withAdmin`, `src/proxy.ts`, `admin-auth.test.ts`, `CLAUDE.md`'s `proxy.ts` and API rules,
+   and the first admin route behind it: `listAllTrucks`, `listTrucks`, `GET
+   /api/admin/trucks`, which step 7's form needs and #13's test exercises. *No admin route
+   exists before this, so none can ship unprotected.* Logout isn't an admin route (#28).
 4. **Checkpoint: login on the phone.** Magic link, on the preview, on the owner's phone.
    *The biggest unknown is tested before anything is built on it* (open decisions 1–3).
 5. **Times and location validators.** `src/lib/stockholm.ts`,
    `src/lib/validators/location.ts`. *Pure, and step 6 depends on them.*
 6. **The location write path.** `getLocationById`, `confirmLocation`,
-   `src/lib/services/locations.ts`, the location routes, `api-admin-locations.test.ts`, and
-   the truck read the form needs: `listAllTrucks`, `listTrucks`, `GET /api/admin/trucks`.
+   `src/lib/services/locations.ts`, the location routes, `api-admin-locations.test.ts`.
    *Trucks are already in the seed, so locations come before truck writes* (#21).
-7. **The admin screen.** `src/app/admin/layout.tsx`, the full `page.tsx`, `TodayList`,
-   `LocationForm`, `useAdminLocations`, `useLocationForm`, with known spots only. *The
-   shortest route to a working form.*
+7. **The admin screen.** The full `src/app/admin/page.tsx`, `TodayList`, `LocationForm`,
+   `useAdminLocations`, `useLocationForm`, with known spots only, and active trucks only in
+   the form's list. *The shortest route to a working form.*
 8. **Checkpoint: an entry reaches the map.** Enter a location on the phone, see it on the
    preview's public map, press "Stämmer fortfarande" and see the popup follow, cancel it
-   and see it leave. Each shows within ~1–2 minutes, not at once, because the map reads the
-   CDN's copy (`project-context.md`, "Read path"); wait 3 minutes before calling it failed.
-   *The phase's core works here, even if everything after it slipped.*
+   and see it leave. Each shows within about 3 minutes, not at once: 60 s of cache, 60 s of
+   stale window and a 60 s poll. *The phase's core works here, even if everything after it slipped.*
 9. **`PlacePicker`.** `usePlacePicker`, `useGeolocation`, `getRecentPlaces`, the places
    route: map tap, recent places, GPS. A `/map` browser check if `useMapLibre.tsx` changes.
 10. **Truck management.** `insertTruck`, `updateTruck`, `createTruck`, `editTruck`,
@@ -229,7 +231,7 @@ understood.
 12. **Checkpoint: the whole walkthrough.** On the phone, on the preview: the checklist, an
     entry by each place method, an overlap, an edit, a cancel, a new truck. Time a normal
     update against ~10 seconds, from opening the screen to the save; the public map follows
-    within ~1–2 minutes, as in step 8. Settle open decision 8.
+    within about 3 minutes, as in step 8. Settle open decision 8.
 13. **Phase 7 retrospective**, by the milestone-retrospective procedure in
     `.claude/process-log.md` ("How to use it"). It includes #3's re-run, and judges each
     rule #1–#9 name.
@@ -242,7 +244,8 @@ understood.
     (the proxy, the admin screens), "Modules kept on purpose", "Folder structure",
     "Environment", "Tests and gates", the Roadmap row; Part 2's "Admin and auth", which
     becomes a description of what was built, the "Read path" diagram's `POST/PATCH
-    /api/locations`, which is `/api/admin/locations` (#10), "Product model" items 2 and 3
+    /api/locations`, which is `/api/admin/locations` (#10), and its "~1–2 minutes" for a save
+    to show, which can reach about 3 (step 8), "Product model" items 2 and 3
     (#22, #23), and "Open decisions" (#22 and #23 settle two, #25 and #26 move two to
     Phase 8); and the README's status parts. It replaces each **between phases** marker in
     "Decisions carried forward" with the decision here that took it up (#1–#9), and carries
@@ -330,9 +333,10 @@ Rejected: a session in browser storage. The proxy and routes see only cookies, a
 cookie → reject before any network call" needs one. So the browser client is
 `createBrowserClient` too: a plain `createClient` defaults to `flowType: 'implicit'`
 (`GoTrueClient.js:24`), and its emailed link would return tokens in the URL fragment, which
-`/auth/callback` never sees. The proxy refreshes the session and writes the cookies. Routes
-only read them, from the `request` passed to `withAdmin`, which a test can also build. The
-exception is logout (#28).
+`/auth/callback` never sees. The proxy refreshes the session and writes the cookies. Admin
+routes only read them, from the `request` passed to `withAdmin`, which a test can also build.
+`/auth/callback` and `/auth/logout` are outside the proxy and must set cookies on their own
+responses, so they use `supabase-session.ts`'s writing adapter, from step 2.
 
 ### #13 — `withAdmin` is the only way in, and the test finds the routes on disk
 
@@ -389,7 +393,7 @@ reaches the map from that.
 ### #21 — Locations before truck management, with three phone checkpoints
 
 Reorders the Phase map, so the core is reached early and the real phone flow is tested while
-it's still cheap to change. The form needs the truck list, so that read comes in step 6, and
+it's still cheap to change. The form needs the truck list, so that read comes in step 3, and
 truck writes wait for step 10. They stay in the phase: the launch needs them.
 
 ### #22 — The checklist looks back 4 weeks, at the truck's most recent matching day
@@ -435,19 +439,22 @@ controls name, so a moved import would call for the full controls run (about 48 
 
 ### #28 — Logout lives beside the callback, not under `/api/admin/`
 
-The owner's call on round 1's proposal (PR #220). Under `/api/admin/` it would need `withAdmin`, so a non-admin would get 403
-and an expired session 401, and neither could clear their cookies, and it would have to write
-cookies, which `withAdmin`'s routes don't. `POST /auth/logout` takes no admin check, keeps
-the `Origin` check of #16, and clears the cookies whatever state the session is in.
+The owner's call on round 1's proposal (PR #220). Under `/api/admin/` it would need
+`withAdmin`, so a non-admin would get 403 and an expired session 401, and neither could clear
+their cookies, and it would have to write cookies, which `withAdmin`'s routes don't. `POST
+/auth/logout` takes no admin check and calls `isSameOrigin` (#16). After `signOut()` it deletes
+the `sb-*` cookies itself: `signOut()` returns early on an Auth error other than 401, 403 or
+404 without removing the session (`GoTrueClient.js:3186`, `_signOut`). `LogoutButton` is a plain
+form POST, so it needs no state.
 
 ### #29 — Instagram handles are stored in one form
 
-The owner's call on round 1's proposal (PR #220). `instagram_handle` is `text unique`, so it is case-sensitive and nullable,
-and "no migration" rules out `citext`. `parseNewTruck` and `parseTruckPatch` lower-case the
-handle, strip a leading `@`, and turn an empty value into null. Instagram handles aren't
-case-sensitive, and `@streetfoodgbg` is the same account, so without this one account could
-get two trucks and two markers; an empty string would make a second truck with no handle fail
-as a false duplicate.
+The owner's call on round 1's proposal (PR #220). `instagram_handle` is `text unique`, so it
+is case-sensitive and nullable, and "no migration" rules out `citext`. `parseNewTruck` and
+`parseTruckPatch`, in this order, trim the handle, strip a leading `@`, lower-case it, and turn
+an empty result into null. Instagram handles aren't case-sensitive, and `@streetfoodgbg` is the
+same account, so without this one account could get two trucks and two markers; an empty string
+would make a second truck with no handle fail as a false duplicate.
 
 ---
 
@@ -468,7 +475,10 @@ as a false duplicate.
   call, shown by a unit test that fails if one is made.
 - [ ] `/admin` pages redirect to `/admin/login` without a session, and `/admin/login` stays
   reachable.
-- [ ] A write with a foreign or missing `Origin` is refused, on a valid admin session.
+- [ ] A write with a foreign or missing `Origin` is refused, on a valid admin session and on
+  `/auth/logout`.
+- [ ] Logout clears the session cookies for an admin, a non-admin and an expired session, and
+  when Auth answers with an error.
 - [ ] Admin route responses carry `Cache-Control: no-store`.
 - [ ] `created_by` and `source` sent in a request body are ignored; the row holds the admin's
   id and `'admin'`.
@@ -477,7 +487,7 @@ as a false duplicate.
 
 **Entries**
 - [ ] Create, edit and cancel work from the phone, and a cancelled entry leaves the public map
-  within ~1–2 minutes.
+  within about 3 minutes.
 - [ ] An entry can be made for a later day through the form's date field.
 - [ ] An overlapping save returns 409 with "Överlappar med <the real times> — redigera den
   istället", and nothing is changed or replaced.
@@ -487,6 +497,9 @@ as a false duplicate.
 - [ ] Coordinates outside the Gothenburg box and an end before the start are refused with 400
   and a Swedish message, on an edit that sends only one of the fields too.
 - [ ] A malformed id gives 400, on a path, in a query string or in a body.
+- [ ] A patch with no known key, on an entry or a truck, gives 400 with a Swedish message.
+- [ ] The form lists active trucks only, and an inactive `truck_id` in a request gives 400 with a
+  Swedish message.
 - [ ] Times are entered and shown in Stockholm time and stored in UTC, correct across a DST
   change.
 - [ ] The form pre-fills 11–13.
@@ -495,8 +508,9 @@ as a false duplicate.
 **Trucks**
 - [ ] The admin can add and edit a truck and set it inactive. An inactive truck leaves the map
   and keeps its history.
-- [ ] A duplicate Instagram handle gives 409 with a Swedish message, whatever its case or a
-  leading `@`, and two trucks with no handle are both allowed.
+- [ ] A duplicate Instagram handle gives 409 with a Swedish message, whatever its case, a leading
+  `@` or surrounding spaces, and two trucks with no handle are both allowed, a blank field
+  included.
 - [ ] The app has no way to delete a truck or a location.
 
 **Checklist**
@@ -508,7 +522,7 @@ as a false duplicate.
 
 **The whole phase**
 - [ ] Step 12's walkthrough passes on the owner's phone on the preview, and a normal update
-  takes under ~10 seconds to save, timed.
+  takes under ~10 seconds from opening the screen to the save, timed.
 - [ ] The admin screens work at phone width, with no sideways scrolling.
 - [ ] All user-facing text is in Swedish.
 - [ ] `/map` is checked in a real browser after any change to the map code: basemap, markers,
