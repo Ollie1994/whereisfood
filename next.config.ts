@@ -11,6 +11,11 @@ const nextConfig: NextConfig = {
   // "Version History"); this repo has no AGENTS.md. Owner's call, PR #135 (plan
   // decision #12).
   agentRules: false,
+  // `next dev` starts on `localhost` and blocks its dev resources for any other host.
+  // Opened at `127.0.0.1:3000` (Supabase's `site_url`, and the host plan #16's check
+  // uses), it blocked `/_next/hmr` and the login form fell back to a plain GET
+  // (`.next/dev/logs/next-development.log`, PR for IS #222). Dev only.
+  allowedDevOrigins: ["127.0.0.1"],
   experimental: {
     // 16.4's default, "security", makes `next build` and `next dev` run by an AI coding
     // agent throw `SecurityFatalError` (exit 1) when a published advisory covers the
