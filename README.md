@@ -294,7 +294,7 @@ cp .env.example .env.local
 |---|---|---|
 | `NEXT_PUBLIC_PMTILES_URL` | the map | `/gothenburg.pmtiles` (already set in the template) |
 | `NEXT_PUBLIC_SUPABASE_URL` | the map's markers (`/api/live`), integration tests | `API_URL` from `npx supabase status -o env` |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | integration tests | `ANON_KEY` from the same output |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | the admin login, integration tests | `ANON_KEY` from the same output |
 | `SUPABASE_SERVICE_ROLE_KEY` | the map's markers (`/api/live`), integration tests | `SERVICE_ROLE_KEY` from the same output (server only, never `NEXT_PUBLIC_`) |
 
 Without the stack, the URL or the service-role key, the basemap still draws, but
@@ -310,6 +310,25 @@ npm run dev
 
 Open the URL from the `Local:` line Next prints, usually
 [http://localhost:3000](http://localhost:3000). It redirects to `/map`.
+
+### 5. Create the admin user
+
+Sign-ups are off (`[auth] enable_signup = false` in `supabase/config.toml`), so the
+admin is created by hand, and again after each `npx supabase db reset`:
+
+1. In Studio ([http://127.0.0.1:54323](http://127.0.0.1:54323)), Authentication →
+   Users → Add user → Create new user, with your email and "Auto Confirm User" on.
+   The password is never used: the login is a link.
+2. In Studio's SQL Editor:
+
+   ```sql
+   insert into users (id, is_admin)
+   select id, true from auth.users where email = 'you@example.com';
+   ```
+
+Then log in at `/admin/login`. The link arrives in Mailpit, the local mail catcher
+([http://127.0.0.1:54324](http://127.0.0.1:54324)). Open it in the browser that asked
+for it: the login's code verifier is a cookie there.
 
 ---
 

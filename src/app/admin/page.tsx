@@ -1,0 +1,31 @@
+import { cookies } from "next/headers";
+import Link from "next/link";
+import { createSessionClient, readOnlyCookies } from "@/lib/supabase-session";
+
+// Minimal until #223 adds the gate and later steps the data: it shows only who is
+// logged in, so the phone checkpoint (#224) can see the login worked. No `is_admin`
+// check yet, so it must show no data (plan step 2).
+export default async function AdminPage() {
+  const supabase = createSessionClient(readOnlyCookies(await cookies()));
+  const { data } = await supabase.auth.getUser();
+  const email = data.user?.email;
+
+  if (!email) {
+    return (
+      <>
+        <h1 className="text-2xl font-semibold">Admin</h1>
+        <p className="text-sm text-zinc-700">Du är inte inloggad.</p>
+        <Link href="/admin/login" className="text-sm underline">
+          Logga in
+        </Link>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <h1 className="text-2xl font-semibold">Admin</h1>
+      <p className="text-sm text-zinc-700">Inloggad som {email}.</p>
+    </>
+  );
+}
