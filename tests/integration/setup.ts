@@ -55,7 +55,8 @@ function loadEnvLocal(): void {
   } catch {
     throw new Error(
       `Integration tests need ${ENV_FILE} (Supabase URL, anon key and service role key). ` +
-        "Copy .env.example and run `npx supabase start`.",
+        "Run `npx supabase start`, copy .env.example to .env.local and fill it in from " +
+        "`npx supabase status -o env` (README.md, \"3. Environment\").",
     );
   }
 
@@ -107,9 +108,9 @@ function assertLocal(): void {
 loadEnvLocal();
 assertLocal();
 
-// Stops the whole run when the anon key is missing. Without this check, an empty
-// `NEXT_PUBLIC_SUPABASE_ANON_KEY` ran 5 of 6 files green and skipped 30 tests, failing
-// only on `anonClient()`'s throw (PR #235, round 1).
+// Stops the whole run when the anon key is missing. With this check deleted,
+// `NEXT_PUBLIC_SUPABASE_ANON_KEY= npm run test:integration` ran 5 of 6 files green and
+// failed only `rls.test.ts`, on `anonClient()`'s throw.
 if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
   throw new Error("Integration tests need NEXT_PUBLIC_SUPABASE_ANON_KEY");
 }
