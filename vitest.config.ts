@@ -16,8 +16,8 @@ import { fileURLToPath } from "node:url";
 // vite config and does NOT inherit `resolve` from the root. A root-level alias looks
 // like it should apply and silently does not — the failure is an unresolved `@/lib/...`
 // import in whichever project was left out, which reads as a missing module rather than
-// as a config mistake. Both entries below carry it. The integration project needs it for
-// `tests/integration/`'s `@/` imports and for the `server-only` entry below.
+// as a config mistake. Both project entries below spread `alias`. The integration project
+// needs it for `tests/integration/`'s `@/` imports and for the `server-only` alias below.
 //
 // `vite-tsconfig-paths` would remove the duplication and is deliberately not taken on
 // (#28): one alias mirroring one `tsconfig` path does not justify a plugin, and the

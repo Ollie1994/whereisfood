@@ -54,7 +54,7 @@ function loadEnvLocal(): void {
     contents = readFileSync(ENV_FILE, "utf8");
   } catch {
     throw new Error(
-      `Integration tests need ${ENV_FILE} (Supabase URL + service role key). ` +
+      `Integration tests need ${ENV_FILE} (Supabase URL, anon key and service role key). ` +
         "Copy .env.example and run `npx supabase start`.",
     );
   }
@@ -107,8 +107,9 @@ function assertLocal(): void {
 loadEnvLocal();
 assertLocal();
 
-// `anonClient()` (`helpers.ts`) needs the anon key. Until IS #221's split,
-// `src/lib/supabase.ts` threw at import without it; it no longer reads it.
+// Stops the whole run when the anon key is missing. Without this check, an empty
+// `NEXT_PUBLIC_SUPABASE_ANON_KEY` ran 5 of 6 files green and skipped 30 tests, failing
+// only on `anonClient()`'s throw (PR #235, round 1).
 if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
   throw new Error("Integration tests need NEXT_PUBLIC_SUPABASE_ANON_KEY");
 }
