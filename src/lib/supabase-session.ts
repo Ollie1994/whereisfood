@@ -19,8 +19,10 @@ export function createSessionClient(cookies: CookieMethodsServer) {
 
 type CookieSource = { getAll(): { name: string; value: string }[] };
 
-// Reads only. With no `setAll`, a token refresh the client needs can't be written back,
-// and `@supabase/ssr` logs a warning instead (its `createServerClient` doc).
+// Reads only. An expired session is still refreshed on the server, and the rotated
+// tokens are lost: with no `setAll`, `@supabase/ssr` only logs a warning (probed on the
+// local stack with a cookie past its `expires_at`, PR #236 round 1; the session still
+// worked 11 s later). So use it behind something that refreshes first: the proxy (#223).
 export function readOnlyCookies(source: CookieSource): CookieMethodsServer {
   return { getAll: () => source.getAll() };
 }

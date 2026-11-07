@@ -4,9 +4,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // Auth errors the local stack can't produce on demand, stubbed (plan step 2's Files).
 // The integration test (`tests/integration/auth-routes.test.ts`) covers real sessions.
 const signOut = vi.fn();
+// The request the route handed to `writingCookies`, so a stub can write to it as the
+// real adapter does.
+let adapted: NextRequest | undefined;
 vi.mock("@/lib/supabase-session", () => ({
   createSessionClient: () => ({ auth: { signOut } }),
-  writingCookies: () => ({ getAll: () => [] }),
+  writingCookies: (request: NextRequest) => {
+    adapted = request;
+    return { getAll: () => [] };
+  },
 }));
 
 const { POST } = await import("@/app/auth/logout/route");
@@ -51,6 +57,15 @@ describe("POST /auth/logout", () => {
     expect(response.headers.get("location")).toBe(`${ORIGIN}/admin/login`);
     expect(cleared(response).sort()).toEqual(["sb-127-auth-token", "sb-127-auth-token-code-verifier"]);
     expect(signOut).toHaveBeenCalledWith({ scope: "local" });
+  });
+
+  it("also clears a cookie a refresh wrote under a new name before Auth failed", async () => {
+    signOut.mockImplementation(async () => {
+      adapted?.cookies.set("sb-127-auth-token.0", "base64-refreshed");
+      return { error: { status: 500, name: "AuthApiError", message: "boom" } };
+    });
+    const response = await POST(logoutRequest());
+    expect(cleared(response)).toContain("sb-127-auth-token.0");
   });
 
   it("leaves cookies that aren't Supabase's alone", async () => {

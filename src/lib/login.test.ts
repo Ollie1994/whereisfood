@@ -6,7 +6,7 @@ describe("loginStatusFor", () => {
     expect(loginStatusFor(null)).toBe("sent");
   });
 
-  it("answers an unknown email as sent, so the form doesn't reveal accounts", () => {
+  it("answers an unknown email with the same status as a real send", () => {
     expect(loginStatusFor({ status: 422, code: "otp_disabled" })).toBe("sent");
   });
 

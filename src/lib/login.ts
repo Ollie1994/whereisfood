@@ -8,8 +8,9 @@ export type LoginStatus = "idle" | "sending" | "sent" | "rate-limited" | "failed
 // gets 422 `otp_disabled`; a second request within `max_frequency` gets 429
 // `over_email_send_rate_limit`.
 //
-// `otp_disabled` reads as "sent", the same as a real send, so the form doesn't tell a
-// stranger which addresses have an account.
+// `otp_disabled` reads as "sent", the same text as a real send. That hides it only on
+// the page: the browser calls Auth directly, so its answer (422 or 200) shows in the
+// network panel, and only a real account can reach the 429.
 export function loginStatusFor(error: { status?: number; code?: string } | null): LoginStatus {
   if (!error) return "sent";
   if (error.code === "otp_disabled") return "sent";

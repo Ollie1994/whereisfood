@@ -20,7 +20,6 @@ export async function POST(request: NextRequest) {
     }
 
     const response = NextResponse.redirect(new URL("/admin/login", requestOrigin(request)), 303);
-    const sessionCookies = request.cookies.getAll().filter(({ name }) => name.startsWith("sb-"));
 
     try {
       const { error } = await createSessionClient(writingCookies(request, response)).auth.signOut({
@@ -31,7 +30,11 @@ export async function POST(request: NextRequest) {
       console.error("[auth/logout] signOut threw:", err);
     }
 
-    for (const { name } of sessionCookies) response.cookies.delete(name);
+    // Listed after `signOut`: `writingCookies` also writes to `request`, so a cookie a
+    // refresh wrote under a new name (another chunk) is deleted too.
+    for (const { name } of request.cookies.getAll()) {
+      if (name.startsWith("sb-")) response.cookies.delete(name);
+    }
     return response;
   });
 }

@@ -150,6 +150,21 @@ describe("GET /auth/callback", () => {
 });
 
 describe("POST /auth/logout", () => {
+  // Signed in once for the block (`helpers.ts`, `signedInClient`'s limit): the admin on
+  // two devices, a non-admin, and a session to expire.
+  let phone: { jar: Map<string, string>; accessToken: string };
+  let laptop: { jar: Map<string, string>; accessToken: string };
+  let nonAdmin: { jar: Map<string, string> };
+  let toExpire: { jar: Map<string, string>; accessToken: string };
+
+  beforeAll(async () => {
+    const admin = await sessionUser({ isAdmin: true });
+    phone = admin;
+    laptop = await sessionFor(admin.userId);
+    nonAdmin = await sessionUser();
+    toExpire = await sessionUser();
+  });
+
   async function expectLoggedOut(jar: Map<string, string>) {
     const response = await logout(request("/auth/logout", { method: "POST", cookie: cookieHeader(jar) }));
 
@@ -162,51 +177,38 @@ describe("POST /auth/logout", () => {
     for (const name of sent) expect(written.get(name)).toBe("");
   }
 
-  it("clears an admin's session cookies, and Auth no longer accepts the session", async () => {
-    const { jar, accessToken } = await sessionUser({ isAdmin: true });
-    await expectLoggedOut(jar);
-    expect(await accepted(accessToken)).toBe(false);
+  it.each([
+    ["a foreign Origin", "https://evil.example"],
+    ["no Origin", null],
+  ])("refuses %s with 403 on an admin session, writes no cookie, and the session stays", async (_, origin) => {
+    const response = await logout(request("/auth/logout", { method: "POST", cookie: cookieHeader(phone.jar), origin }));
+
+    expect(response.status).toBe(403);
+    expect(response.headers.getSetCookie()).toEqual([]);
+    expect(await accepted(phone.accessToken)).toBe(true);
   });
 
-  it("clears a non-admin's session cookies", async () => {
-    const { jar } = await sessionUser();
-    await expectLoggedOut(jar);
-  });
-
-  it("clears an expired session's cookies when its refresh fails", async () => {
-    const { jar, accessToken } = await sessionUser();
-    // Revoked on the server, and past its expiry in the cookie, so the client's refresh
-    // fails. This passed with the route's own `sb-*` deletion removed too: the library
-    // clears this case itself. The errors it doesn't clear are the unit test's stubs.
-    await supabaseAdmin.auth.admin.signOut(accessToken, "global");
-    const [name, value] = [...jar].find(([n]) => SESSION_COOKIE.test(n)) as [string, string];
-    const session = JSON.parse(Buffer.from(value.replace(/^base64-/, ""), "base64url").toString("utf8"));
-    session.expires_at = Math.floor(Date.now() / 1000) - 60;
-    jar.set(name, `base64-${Buffer.from(JSON.stringify(session)).toString("base64url")}`);
-
-    await expectLoggedOut(jar);
-  });
-
-  it("ends only this device's session", async () => {
-    const userId = await createFixtureAuthUser();
-    const phone = await sessionFor(userId);
-    const laptop = await sessionFor(userId);
-
+  it("clears an admin's session cookies and ends that session only, not the admin's other device", async () => {
     await expectLoggedOut(laptop.jar);
 
     expect(await accepted(laptop.accessToken)).toBe(false);
     expect(await accepted(phone.accessToken)).toBe(true);
   });
 
-  it.each([
-    ["a foreign Origin", "https://evil.example"],
-    ["no Origin", null],
-  ])("refuses %s with 403, writes no cookie, and the session stays", async (_, origin) => {
-    const { jar, accessToken } = await sessionUser({ isAdmin: true });
-    const response = await logout(request("/auth/logout", { method: "POST", cookie: cookieHeader(jar), origin }));
+  it("clears a non-admin's session cookies", async () => {
+    await expectLoggedOut(nonAdmin.jar);
+  });
 
-    expect(response.status).toBe(403);
-    expect(response.headers.getSetCookie()).toEqual([]);
-    expect(await accepted(accessToken)).toBe(true);
+  it("clears an expired session's cookies when its refresh fails", async () => {
+    // Revoked on the server, and past its expiry in the cookie, so the client's refresh
+    // fails. This passed with the route's own `sb-*` deletion removed too: the library
+    // clears this case itself. The errors it doesn't clear are the unit test's stubs.
+    await supabaseAdmin.auth.admin.signOut(toExpire.accessToken, "global");
+    const [name, value] = [...toExpire.jar].find(([n]) => SESSION_COOKIE.test(n)) as [string, string];
+    const session = JSON.parse(Buffer.from(value.replace(/^base64-/, ""), "base64url").toString("utf8"));
+    session.expires_at = Math.floor(Date.now() / 1000) - 60;
+    toExpire.jar.set(name, `base64-${Buffer.from(JSON.stringify(session)).toString("base64url")}`);
+
+    await expectLoggedOut(toExpire.jar);
   });
 });

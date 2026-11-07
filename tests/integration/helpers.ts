@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { createServerClient, type CookieMethodsServer } from "@supabase/ssr";
+import type { CookieMethodsServer } from "@supabase/ssr";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabase";
+import { createSessionClient } from "@/lib/supabase-session";
 import type { Database, Tables } from "@/lib/database.types";
 import type { Location, NewLocation } from "@/lib/types";
 
@@ -422,12 +423,10 @@ export function cookieHeader(jar: Map<string, string>): string {
   return [...jar].map(([name, value]) => `${name}=${value}`).join("; ");
 }
 
-// An `@supabase/ssr` server client over `jar`, with the anon key.
+// The app's session client (`createSessionClient`) over `jar`, so a test's cookies are
+// the ones the routes write and read.
 export function jarClient(jar: Map<string, string>): SupabaseClient<Database> {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !anonKey) throw new Error("jarClient: missing the Supabase URL or anon key");
-  return createServerClient<Database>(url, anonKey, { cookies: cookieJar(jar) });
+  return createSessionClient(cookieJar(jar));
 }
 
 // `userId`'s session as the cookies `@supabase/ssr` writes, for route tests (Phase 7
