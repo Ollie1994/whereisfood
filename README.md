@@ -365,7 +365,7 @@ machine, never in a tracked file (`CLAUDE.md`, Secrets).
 
 | Setting | Value |
 |---|---|
-| Sign In / Providers → Allow new users to sign up | Off. The Email provider stays on: turned off, it refuses every email login (Phase 7 plan, step 2) |
+| Sign In / Providers → Allow new users to sign up | Off. The Email provider stays on: on the local stack, turning email off (`[auth.email] enable_signup = false`) refused every email login (Phase 7 plan, step 2) |
 | URL Configuration → Site URL | `https://whereisfood-git-dev-where-is-food.vercel.app`, `dev`'s branch alias |
 | URL Configuration → Redirect URLs | Only `https://whereisfood-git-dev-where-is-food.vercel.app/auth/callback`. No wildcard: an allowed host someone else controls could receive a login code meant for the admin (Phase 7 plan, open decision 4) |
 

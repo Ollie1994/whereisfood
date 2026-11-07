@@ -177,7 +177,7 @@ enable_refresh_token_rotation = true
 # Requires enable_refresh_token_rotation = true.
 refresh_token_reuse_interval = 10
 # Allow/disallow new user signups to your project.
-# Off: only the admin, created by hand, logs in (README.md, "Create the admin user").
+# Off: users are created by hand (README.md, "5. Create the admin user").
 # Here only, never under [auth.email]: there it refuses every email login with
 # `email_provider_disabled` (Phase 7 plan, step 2, probed on the local stack).
 enable_signup = false

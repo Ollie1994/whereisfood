@@ -431,8 +431,8 @@ export function jarClient(jar: Map<string, string>): SupabaseClient<Database> {
 }
 
 // `userId`'s session as the cookies `@supabase/ssr` writes, for route tests (Phase 7
-// plan, open decision 7): `jarClient` signs in, so the library writes its own format
-// and a test never encodes one by hand. Also returns the access token, to check later
+// plan, open decision 7): `jarClient` signs in, so the library writes its own format.
+// Also returns the access token, to check later
 // whether Auth still accepts the session.
 //
 // ⚠ EACH CALL IS ONE SIGN-IN, under the same limit as `signedInClient()`.
