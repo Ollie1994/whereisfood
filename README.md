@@ -376,9 +376,8 @@ the publishable and secret keys on 2026-11-07: `/auth/v1/settings` gives
 `disable_signup: true`, and a link request for an unknown email with
 `shouldCreateUser: true` got `422 signup_disabled` and created no auth user.
 
-**The admin user.** Authentication → Users → Add user → Create new user, with the
-admin's email and "Auto Confirm User" on, then the SQL of "5. Create the admin user"
-in the project's SQL Editor.
+**The admin user.** As in "5. Create the admin user", in the project's dashboard
+instead of Studio.
 
 **Schema and seed.** With the CLI logged in (`npx supabase login`):
 
