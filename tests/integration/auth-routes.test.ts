@@ -204,7 +204,11 @@ describe("POST /auth/logout", () => {
     // fails. This passed with the route's own `sb-*` deletion removed too: the library
     // clears this case itself. The errors it doesn't clear are the unit test's stubs.
     await supabaseAdmin.auth.admin.signOut(toExpire.accessToken, "global");
-    const [name, value] = [...toExpire.jar].find(([n]) => SESSION_COOKIE.test(n)) as [string, string];
+    // One cookie, unchunked: the edit below decodes it whole (2,709 characters when this
+    // was written; `@supabase/ssr` chunks above 3,180).
+    const cookies = [...toExpire.jar].filter(([n]) => SESSION_COOKIE.test(n));
+    expect(cookies.map(([n]) => n)).toHaveLength(1);
+    const [name, value] = cookies[0];
     const session = JSON.parse(Buffer.from(value.replace(/^base64-/, ""), "base64url").toString("utf8"));
     session.expires_at = Math.floor(Date.now() / 1000) - 60;
     toExpire.jar.set(name, `base64-${Buffer.from(JSON.stringify(session)).toString("base64url")}`);

@@ -293,7 +293,7 @@ cp .env.example .env.local
 | Variable | Needed for | Value |
 |---|---|---|
 | `NEXT_PUBLIC_PMTILES_URL` | the map | `/gothenburg.pmtiles` (already set in the template) |
-| `NEXT_PUBLIC_SUPABASE_URL` | the map's markers (`/api/live`), integration tests | `API_URL` from `npx supabase status -o env` |
+| `NEXT_PUBLIC_SUPABASE_URL` | the map's markers (`/api/live`), the admin login, integration tests | `API_URL` from `npx supabase status -o env` |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | the admin login, integration tests | `ANON_KEY` from the same output |
 | `SUPABASE_SERVICE_ROLE_KEY` | the map's markers (`/api/live`), integration tests | `SERVICE_ROLE_KEY` from the same output (server only, never `NEXT_PUBLIC_`) |
 

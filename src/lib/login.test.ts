@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { callbackErrorMessage, loginMessage, loginStatusFor, type LoginStatus } from "@/lib/login";
+import { AuthApiError, AuthRetryableFetchError } from "@supabase/supabase-js";
+import {
+  callbackErrorMessage,
+  isTemporaryAuthError,
+  loginMessage,
+  loginStatusFor,
+  type LoginStatus,
+} from "@/lib/login";
 
 describe("loginStatusFor", () => {
   it("is sent when Auth answers with no error", () => {
@@ -33,6 +40,10 @@ describe("loginMessage", () => {
     for (const status of outcomes) expect(loginMessage(status)).toMatch(/[a-zåäö]/i);
     expect(loginMessage("sent")).toMatch(/inloggningslänk/);
   });
+
+  it("warns on a refused send that earlier links stop working", () => {
+    expect(loginMessage("rate-limited")).toMatch(/fungerar inte längre/);
+  });
 });
 
 describe("callbackErrorMessage", () => {
@@ -40,9 +51,27 @@ describe("callbackErrorMessage", () => {
     expect(callbackErrorMessage("link")).toMatch(/Inloggningslänken fungerade inte/);
   });
 
+  it("tells an Auth failure apart from a bad link", () => {
+    expect(callbackErrorMessage("unavailable")).toMatch(/Öppna samma länk igen/);
+  });
+
   it("is null for no error and for anything else", () => {
     expect(callbackErrorMessage(undefined)).toBeNull();
     expect(callbackErrorMessage("other")).toBeNull();
     expect(callbackErrorMessage(["link", "link"])).toBeNull();
+  });
+});
+
+describe("isTemporaryAuthError", () => {
+  it("is true for a failed fetch and for a 5xx", () => {
+    expect(isTemporaryAuthError(new AuthRetryableFetchError("network down", 0))).toBe(true);
+    expect(isTemporaryAuthError(new AuthRetryableFetchError("bad gateway", 502))).toBe(true);
+    expect(isTemporaryAuthError(new AuthApiError("boom", 500, "unexpected_failure"))).toBe(true);
+  });
+
+  it("is false for no error and for an answer about the link or session", () => {
+    expect(isTemporaryAuthError(null)).toBe(false);
+    expect(isTemporaryAuthError(new AuthApiError("used", 400, "validation_failed"))).toBe(false);
+    expect(isTemporaryAuthError(new AuthApiError("gone", 403, "session_not_found"))).toBe(false);
   });
 });

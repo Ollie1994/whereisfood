@@ -1,3 +1,5 @@
+import { isAuthRetryableFetchError } from "@supabase/supabase-js";
+
 // The login form's states and their Swedish text, kept pure so they are tested without a
 // browser. `useLogin` runs the request; `LoginForm` renders what this returns.
 
@@ -23,8 +25,10 @@ export function loginMessage(status: LoginStatus): string | null {
   switch (status) {
     case "sent":
       return "Om adressen har ett konto har vi skickat en inloggningslänk. Öppna den på den här enheten.";
+    // Even a refused send replaces the PKCE code verifier (`signInWithOtp` stores a new one
+    // before the request, `@supabase/auth-js` 2.106.2), so earlier links stop working.
     case "rate-limited":
-      return "För många försök. Vänta en stund och försök igen.";
+      return "För många försök. Vänta en stund och skicka sedan en ny länk. Länkar du redan har fått fungerar inte längre.";
     case "failed":
       return "Det gick inte att skicka länken. Försök igen.";
     default:
@@ -32,9 +36,28 @@ export function loginMessage(status: LoginStatus): string | null {
   }
 }
 
-// `/auth/callback` sends a failed login back with `?error=link`.
-export function callbackErrorMessage(error: string | string[] | undefined): string | null {
-  return error === "link"
-    ? "Inloggningslänken fungerade inte. Den kan ha gått ut eller redan använts. Be om en ny."
-    : null;
+// Shown beside "Skicka en ny länk" once a link is sent: the new one replaces it.
+export const RESEND_NOTE = "En ny länk gör den förra ogiltig.";
+
+// An Auth answer that says nothing about the link or the session: Auth unreachable, or a
+// 5xx. `isAuthRetryableFetchError` covers a failed fetch and auth-js's
+// `NETWORK_ERROR_CODES` (502–504, 520–524, 530, `lib/fetch.js`); the rest of the 5xx too.
+export function isTemporaryAuthError(error: { status?: number } | null): boolean {
+  if (!error) return false;
+  return isAuthRetryableFetchError(error) || (error.status ?? 0) >= 500;
 }
+
+// `/auth/callback` sends a failed login back with `?error=link`, or `?error=unavailable`
+// when Auth failed for a reason that isn't the link (`isTemporaryAuthError`).
+export function callbackErrorMessage(error: string | string[] | undefined): string | null {
+  if (error === "link") {
+    return "Inloggningslänken fungerade inte. Den kan ha gått ut eller redan använts. Be om en ny.";
+  }
+  if (error === "unavailable") {
+    return "Inloggningen gick inte att slutföra just nu. Öppna samma länk igen om en stund.";
+  }
+  return null;
+}
+
+// `/admin` when Auth couldn't say whether the session is valid.
+export const SESSION_CHECK_FAILED = "Det gick inte att kontrollera inloggningen just nu. Ladda om sidan om en stund.";

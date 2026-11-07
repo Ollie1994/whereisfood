@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { withErrorHandling } from "@/lib/http/handler";
 import { requestOrigin } from "@/lib/http/origin";
+import { isTemporaryAuthError } from "@/lib/login";
 import { createSessionClient, writingCookies } from "@/lib/supabase-session";
 
 // Finishes a magic-link login. Auth's `/verify` answers 303 here with `?code=…`, or with
@@ -12,15 +13,18 @@ import { createSessionClient, writingCookies } from "@/lib/supabase-session";
 export async function GET(request: NextRequest) {
   return withErrorHandling(async () => {
     const origin = requestOrigin(request);
-    const failed = () => NextResponse.redirect(new URL("/admin/login?error=link", origin), 303);
+    const failed = (reason: "link" | "unavailable") =>
+      NextResponse.redirect(new URL(`/admin/login?error=${reason}`, origin), 303);
 
     const code = request.nextUrl.searchParams.get("code");
-    if (!code) return failed();
+    if (!code) return failed("link");
 
     const response = NextResponse.redirect(new URL("/admin", origin), 303);
     const supabase = createSessionClient(writingCookies(request, response));
     const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (error) return failed();
+    // Auth down or failing isn't the link's fault: say so, so the admin doesn't spend one
+    // of the built-in email's few sends an hour on a new link (plan #32's reasoning).
+    if (error) return failed(isTemporaryAuthError(error) ? "unavailable" : "link");
 
     return response;
   });

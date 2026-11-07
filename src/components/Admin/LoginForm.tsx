@@ -1,11 +1,12 @@
 "use client";
 
 import { useLogin } from "@/hooks/useLogin";
-import { loginMessage } from "@/lib/login";
+import { RESEND_NOTE, loginMessage } from "@/lib/login";
 
 export default function LoginForm({ linkError }: { linkError: string | null }) {
-  const { email, setEmail, status, submit } = useLogin();
+  const { email, setEmail, status, submit, resend } = useLogin();
   const sending = status === "sending";
+  const sent = status === "sent";
   const message = loginMessage(status);
 
   // `post`: if the page's script hasn't run, the browser submits the form itself. As the
@@ -41,18 +42,33 @@ export default function LoginForm({ linkError }: { linkError: string | null }) {
         />
       </label>
 
-      <button
-        type="submit"
-        disabled={sending}
-        className="rounded-md bg-foreground px-4 py-3 text-base font-medium text-background disabled:opacity-60"
-      >
-        {sending ? "Skickar…" : "Skicka inloggningslänk"}
-      </button>
+      {!sent && (
+        <button
+          type="submit"
+          disabled={sending}
+          className="rounded-md bg-foreground px-4 py-3 text-base font-medium text-background disabled:opacity-60"
+        >
+          {sending ? "Skickar…" : "Skicka inloggningslänk"}
+        </button>
+      )}
 
       {message && (
         <p role="status" className="text-sm text-foreground/70">
           {message}
         </p>
+      )}
+
+      {sent && (
+        <div className="flex flex-col gap-1">
+          <button
+            type="button"
+            onClick={resend}
+            className="rounded-md border border-foreground/30 px-4 py-3 text-base"
+          >
+            Skicka en ny länk
+          </button>
+          <p className="text-sm text-foreground/70">{RESEND_NOTE}</p>
+        </div>
       )}
     </form>
   );

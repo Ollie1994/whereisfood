@@ -21,10 +21,11 @@ export async function POST(request: NextRequest) {
 
     const response = NextResponse.redirect(new URL("/admin/login", requestOrigin(request)), 303);
 
+    // Outside the `try`: a missing variable is a 500 from `withErrorHandling`, as
+    // `createSessionClient` says, not a logout that never reached Auth.
+    const supabase = createSessionClient(writingCookies(request, response));
     try {
-      const { error } = await createSessionClient(writingCookies(request, response)).auth.signOut({
-        scope: "local",
-      });
+      const { error } = await supabase.auth.signOut({ scope: "local" });
       if (error) console.error("[auth/logout] signOut answered with an error:", error);
     } catch (err) {
       console.error("[auth/logout] signOut threw:", err);

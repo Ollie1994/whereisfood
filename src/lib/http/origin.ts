@@ -5,6 +5,11 @@
 // `127.0.0.1:3917` (probed 2026-11-05 with a throwaway route).
 //
 // A header may hold a list (`a, b`) when proxies chain; the first entry is the client's.
+//
+// A limit: the `x-forwarded-*` values are used as the request carries them, so a client
+// that sets its own names any host. A browser form can't set either header, so a forged
+// cross-site form can't use it. Whether Vercel replaces a client's own values wasn't
+// checked.
 
 type HeaderSource = { headers: Headers };
 
