@@ -2,10 +2,8 @@ import "server-only";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
 
-// The service-role client. Server only: imported by the db layer (`src/lib/db/`) and
-// the integration tests; routes and services reach the database through the db layer,
-// never this client directly (`CLAUDE.md`, "Supabase"). The browser's Auth client is
-// `src/lib/supabase-browser.ts`.
+// The service-role client. Who may import it is `CLAUDE.md`'s ("Supabase"). The
+// browser's Auth client is `src/lib/supabase-browser.ts`.
 //
 // `import "server-only"` fails `next build` when a client component imports this
 // module, directly or through another module (the PR for IS #221 records the build's

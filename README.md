@@ -297,7 +297,7 @@ cp .env.example .env.local
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | integration tests | `ANON_KEY` from the same output |
 | `SUPABASE_SERVICE_ROLE_KEY` | the map's markers (`/api/live`), integration tests | `SERVICE_ROLE_KEY` from the same output (server only, never `NEXT_PUBLIC_`) |
 
-Without the stack, the URL or the service-role key the basemap still draws, but
+Without the stack, the URL or the service-role key, the basemap still draws, but
 `/api/live` fails, so the map shows no markers and says it couldn't fetch the trucks. The seed's
 one entry for today spans the hour before `npx supabase db reset` to 12 hours after
 it, so run a reset first to see a marker.

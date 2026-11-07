@@ -107,6 +107,12 @@ function assertLocal(): void {
 loadEnvLocal();
 assertLocal();
 
+// `anonClient()` (`helpers.ts`) needs the anon key. Until IS #221's split,
+// `src/lib/supabase.ts` threw at import without it; it no longer reads it.
+if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+  throw new Error("Integration tests need NEXT_PUBLIC_SUPABASE_ANON_KEY");
+}
+
 // ⚠ CLEAN UP AFTER THE LAST TEST, NOT ONLY BEFORE THE NEXT ONE. Suites call
 // `resetTables()` in `beforeEach`, which leaves the FINAL test's fixtures behind until
 // something runs again — so a developer opening Supabase Studio after a green run sees

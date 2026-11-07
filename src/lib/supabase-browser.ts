@@ -1,9 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
 
-// Browser safe: respects RLS through the anon key. For Auth only (the admin login,
-// Phase 7), never to read or write data (`CLAUDE.md`, "Supabase"). Unused until the
-// login screen imports it.
+// The anon-key client, browser safe. What it may be used for is `CLAUDE.md`'s
+// ("Supabase").
 //
 // Its own module because `src/lib/supabase.ts` throws at import without
 // `SUPABASE_SERVICE_ROLE_KEY`, which is undefined in the browser, and imports
