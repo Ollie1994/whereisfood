@@ -263,7 +263,8 @@ failure is understood.
 
     Steps 13–15 are ordered, blocked and closed as that procedure's part 6 says; this plan
     doesn't restate it. Step 15's content, the stale hits known so far: Part 1's "What runs"
-    (the proxy, the admin screens), "Modules kept on purpose", "Folder structure",
+    (the proxy, the admin screens), "Versions" (`server-only` and `@supabase/ssr` added,
+    and `next.config.ts`'s `allowedDevOrigins`), "Modules kept on purpose", "Folder structure",
     "Environment", "Tests and gates", the Roadmap row; Part 2's "Admin and auth", which
     becomes a description of what was built, the "Read path" diagram's `POST/PATCH
     /api/locations`, which is `/api/admin/locations` (#10), the same section's "Saves trigger

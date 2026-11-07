@@ -293,8 +293,8 @@ cp .env.example .env.local
 | Variable | Needed for | Value |
 |---|---|---|
 | `NEXT_PUBLIC_PMTILES_URL` | the map | `/gothenburg.pmtiles` (already set in the template) |
-| `NEXT_PUBLIC_SUPABASE_URL` | the map's markers (`/api/live`), integration tests | `API_URL` from `npx supabase status -o env` |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | integration tests | `ANON_KEY` from the same output |
+| `NEXT_PUBLIC_SUPABASE_URL` | the map's markers (`/api/live`), the admin login, integration tests | `API_URL` from `npx supabase status -o env` |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | the admin login, integration tests | `ANON_KEY` from the same output |
 | `SUPABASE_SERVICE_ROLE_KEY` | the map's markers (`/api/live`), integration tests | `SERVICE_ROLE_KEY` from the same output (server only, never `NEXT_PUBLIC_`) |
 
 Without the stack, the URL or the service-role key, the basemap still draws, but
@@ -310,6 +310,29 @@ npm run dev
 
 Open the URL from the `Local:` line Next prints, usually
 [http://localhost:3000](http://localhost:3000). It redirects to `/map`.
+
+### 5. Create the admin user
+
+Sign-ups are off (`[auth] enable_signup = false` in `supabase/config.toml`), so the
+admin is created by hand, and again after each `npx supabase db reset`:
+
+1. In Studio ([http://127.0.0.1:54323](http://127.0.0.1:54323)), Authentication →
+   Users → Add user → Create new user, with your email and "Auto Confirm User" on.
+   The password is never used: the login is a link.
+2. In Studio's SQL Editor:
+
+   ```sql
+   insert into users (id, is_admin)
+   select id, true from auth.users where email = 'you@example.com'
+   returning id, is_admin;
+   ```
+
+   It shows the row it added. No row means the email matched no user. Without
+   `returning`, the Editor says "Success. No rows returned" in both cases.
+
+Then log in at `/admin/login`. The link arrives in Mailpit, the local mail catcher
+([http://127.0.0.1:54324](http://127.0.0.1:54324)). Open it in the browser that asked
+for it: the login's code verifier is a cookie there.
 
 ---
 
@@ -337,6 +360,24 @@ API Keys), in the same variable names as the local ones:
 
 They live in Vercel's environment variables and in gitignored files on the owner's
 machine, never in a tracked file (`CLAUDE.md`, Secrets).
+
+**Auth** (set in #222's PR, 2026-11-07):
+
+| Setting | Value |
+|---|---|
+| Sign In / Providers → Allow new users to sign up | Off. The Email provider stays on: on the local stack, turning email off (`[auth.email] enable_signup = false`) refused every email login (Phase 7 plan, step 2) |
+| URL Configuration → Site URL | `https://whereisfood-git-dev-where-is-food.vercel.app`, `dev`'s branch alias |
+| URL Configuration → Redirect URLs | Only `https://whereisfood-git-dev-where-is-food.vercel.app/auth/callback`. No wildcard: an allowed host someone else controls could receive a login code meant for the admin (Phase 7 plan, open decision 4) |
+
+So log in from `dev`'s alias. For a redirect URL that "doesn't match one from the allow
+list", Auth uses the Site URL (the dashboard's text for it), and the app's `/` only
+redirects to `/map`, so a login started on another preview URL doesn't finish. Checked with
+the publishable and secret keys on 2026-11-07: `/auth/v1/settings` gives
+`disable_signup: true`, and a link request for an unknown email with
+`shouldCreateUser: true` got `422 signup_disabled` and created no auth user.
+
+**The admin user.** As in "5. Create the admin user", in the project's dashboard
+instead of Studio.
 
 **Schema and seed.** With the CLI logged in (`npx supabase login`):
 

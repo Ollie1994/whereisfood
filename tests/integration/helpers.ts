@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
+import type { CookieMethodsServer } from "@supabase/ssr";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabase";
+import { createSessionClient } from "@/lib/supabase-session";
 import type { Database, Tables } from "@/lib/database.types";
 import type { Location, NewLocation } from "@/lib/types";
 
@@ -68,7 +70,7 @@ if (WILDCARDS_ON_THE_PATH_TO_POSTGRES.test(FIXTURE_PREFIX)) {
 // Fixture auth users carry the prefix at the start of their email. They are matched in
 // JS with `startsWith`, not with LIKE, so the wildcard guard above doesn't bear on them.
 // `.test` is a reserved TLD: no mail can reach a real inbox.
-function fixtureEmail(userId: string): string {
+export function fixtureEmail(userId: string): string {
   return `${FIXTURE_PREFIX}${userId}@example.test`;
 }
 
@@ -332,9 +334,9 @@ export async function readLocation(id: string): Promise<Tables<"locations">> {
 }
 
 // A supabase-js client with the anon key and no session: what the browser has before
-// anyone signs in. Not `supabaseClient` from `@/lib/supabase`, which `CLAUDE.md` keeps
-// for browser Auth (Phase 7 splits that file). A new client per call, because
-// `signedInClient()` signs one in and the session lives on the client.
+// anyone signs in. Not `supabaseClient` from `@/lib/supabase-browser`, which keeps its
+// session in browser cookies. A new client per call, because `signedInClient()` signs
+// one in and the session lives on the client.
 export function anonClient(): SupabaseClient<Database> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -400,4 +402,63 @@ export async function signedInClient({ usersRow = true } = {}): Promise<{
 
   if (error) throw error;
   return { client, userId };
+}
+
+// A cookie store for `@supabase/ssr`'s server client: what a browser would keep. A
+// cookie written with `maxAge: 0` or an empty value is removed, as a browser does.
+export function cookieJar(jar: Map<string, string>): CookieMethodsServer {
+  return {
+    getAll: () => [...jar].map(([name, value]) => ({ name, value })),
+    setAll(cookies) {
+      for (const { name, value, options } of cookies) {
+        if (value === "" || options.maxAge === 0) jar.delete(name);
+        else jar.set(name, value);
+      }
+    },
+  };
+}
+
+// The jar as a `Cookie` request header.
+export function cookieHeader(jar: Map<string, string>): string {
+  return [...jar].map(([name, value]) => `${name}=${value}`).join("; ");
+}
+
+// The app's session client (`createSessionClient`) over `jar`, so a test's cookies are
+// the ones the routes write and read.
+export function jarClient(jar: Map<string, string>): SupabaseClient<Database> {
+  return createSessionClient(cookieJar(jar));
+}
+
+// `userId`'s session as the cookies `@supabase/ssr` writes, for route tests (Phase 7
+// plan, open decision 7): `jarClient` signs in, so the library writes its own format.
+// Also returns the access token, to check later
+// whether Auth still accepts the session.
+//
+// ⚠ EACH CALL IS ONE SIGN-IN, under the same limit as `signedInClient()`.
+export async function sessionFor(userId: string): Promise<{
+  jar: Map<string, string>;
+  accessToken: string;
+}> {
+  const jar = new Map<string, string>();
+  const { data, error } = await jarClient(jar).auth.signInWithPassword({
+    email: fixtureEmail(userId),
+    password: FIXTURE_PASSWORD,
+  });
+
+  if (error) throw error;
+  return { jar, accessToken: data.session.access_token };
+}
+
+// A fixture user with a `users` row, `is_admin` as given, signed in through `sessionFor`.
+export async function sessionUser({ isAdmin = false } = {}): Promise<{
+  userId: string;
+  jar: Map<string, string>;
+  accessToken: string;
+}> {
+  const userId = await createFixtureUser();
+  if (isAdmin) {
+    const { error } = await supabaseAdmin.from("users").update({ is_admin: true }).eq("id", userId);
+    if (error) throw error;
+  }
+  return { userId, ...(await sessionFor(userId)) };
 }
