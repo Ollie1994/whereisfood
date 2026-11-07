@@ -29,8 +29,9 @@ export function loginMessage(status: LoginStatus): string | null {
     // before the request, `@supabase/auth-js` 2.106.2), so earlier links stop working.
     case "rate-limited":
       return "För många försök. Vänta en stund och skicka sedan en ny länk. Länkar du redan har fått fungerar inte längre.";
+    // A failed send replaces or removes the verifier too (its `catch` removes it).
     case "failed":
-      return "Det gick inte att skicka länken. Försök igen.";
+      return "Det gick inte att skicka länken. Försök igen om en stund. Länkar du redan har fått fungerar inte längre.";
     default:
       return null;
   }
@@ -39,12 +40,13 @@ export function loginMessage(status: LoginStatus): string | null {
 // Shown beside "Skicka en ny länk" once a link is sent: the new one replaces it.
 export const RESEND_NOTE = "En ny länk gör den förra ogiltig.";
 
-// An Auth answer that says nothing about the link or the session: Auth unreachable, or a
-// 5xx. `isAuthRetryableFetchError` covers a failed fetch and auth-js's
-// `NETWORK_ERROR_CODES` (502–504, 520–524, 530, `lib/fetch.js`); the rest of the 5xx too.
+// An Auth answer that says nothing about the link or the session: Auth unreachable, a
+// 429, or a 5xx. `isAuthRetryableFetchError` covers a failed fetch and auth-js's
+// `NETWORK_ERROR_CODES` (502–504, 520–524, 530, `lib/fetch.js`). The inverse rule,
+// "unavailable unless the session is missing or invalid", is plan #32's for #223's gate.
 export function isTemporaryAuthError(error: { status?: number } | null): boolean {
   if (!error) return false;
-  return isAuthRetryableFetchError(error) || (error.status ?? 0) >= 500;
+  return isAuthRetryableFetchError(error) || error.status === 429 || (error.status ?? 0) >= 500;
 }
 
 // `/auth/callback` sends a failed login back with `?error=link`, or `?error=unavailable`
@@ -53,8 +55,11 @@ export function callbackErrorMessage(error: string | string[] | undefined): stri
   if (error === "link") {
     return "Inloggningslänken fungerade inte. Den kan ha gått ut eller redan använts. Be om en ny.";
   }
+  // Not "open the same link again": Auth's `/verify` uses a link up on its first visit
+  // (local stack: a second visit to the same link answered `?error=access_denied`,
+  // "Email link is invalid or has expired", PR #236 round 5).
   if (error === "unavailable") {
-    return "Inloggningen gick inte att slutföra just nu. Öppna samma länk igen om en stund.";
+    return "Inloggningen gick inte att slutföra just nu. Vänta en stund och be sedan om en ny länk.";
   }
   return null;
 }

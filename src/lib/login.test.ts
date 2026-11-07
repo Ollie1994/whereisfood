@@ -41,8 +41,9 @@ describe("loginMessage", () => {
     expect(loginMessage("sent")).toMatch(/inloggningslänk/);
   });
 
-  it("warns on a refused send that earlier links stop working", () => {
+  it("warns on a refused or failed send that earlier links stop working", () => {
     expect(loginMessage("rate-limited")).toMatch(/fungerar inte längre/);
+    expect(loginMessage("failed")).toMatch(/fungerar inte längre/);
   });
 });
 
@@ -52,7 +53,7 @@ describe("callbackErrorMessage", () => {
   });
 
   it("tells an Auth failure apart from a bad link", () => {
-    expect(callbackErrorMessage("unavailable")).toMatch(/Öppna samma länk igen/);
+    expect(callbackErrorMessage("unavailable")).toMatch(/Vänta en stund och be sedan om en ny länk/);
   });
 
   it("is null for no error and for anything else", () => {
@@ -63,10 +64,11 @@ describe("callbackErrorMessage", () => {
 });
 
 describe("isTemporaryAuthError", () => {
-  it("is true for a failed fetch and for a 5xx", () => {
+  it("is true for a failed fetch, a 429 and a 5xx", () => {
     expect(isTemporaryAuthError(new AuthRetryableFetchError("network down", 0))).toBe(true);
     expect(isTemporaryAuthError(new AuthRetryableFetchError("bad gateway", 502))).toBe(true);
     expect(isTemporaryAuthError(new AuthApiError("boom", 500, "unexpected_failure"))).toBe(true);
+    expect(isTemporaryAuthError(new AuthApiError("slow down", 429, "over_request_rate_limit"))).toBe(true);
   });
 
   it("is false for no error and for an answer about the link or session", () => {

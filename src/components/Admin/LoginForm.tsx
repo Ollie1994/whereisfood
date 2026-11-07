@@ -4,7 +4,7 @@ import { useLogin } from "@/hooks/useLogin";
 import { RESEND_NOTE, loginMessage } from "@/lib/login";
 
 export default function LoginForm({ linkError }: { linkError: string | null }) {
-  const { email, setEmail, status, submit, resend } = useLogin();
+  const { email, setEmail, status, attempted, submit, resend } = useLogin();
   const sending = status === "sending";
   const sent = status === "sent";
   const message = loginMessage(status);
@@ -22,7 +22,7 @@ export default function LoginForm({ linkError }: { linkError: string | null }) {
         void submit();
       }}
     >
-      {linkError && status === "idle" && (
+      {linkError && !attempted && (
         <p role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-800">
           {linkError}
         </p>
@@ -42,15 +42,16 @@ export default function LoginForm({ linkError }: { linkError: string | null }) {
         />
       </label>
 
-      {!sent && (
-        <button
-          type="submit"
-          disabled={sending}
-          className="rounded-md bg-foreground px-4 py-3 text-base font-medium text-background disabled:opacity-60"
-        >
-          {sending ? "Skickar…" : "Skicka inloggningslänk"}
-        </button>
-      )}
+      {/* One button that changes role, so focus stays on it when "Skicka en ny länk" is
+          pressed. Once sent it doesn't submit: a new link replaces the one sent. */}
+      <button
+        type={sent ? "button" : "submit"}
+        onClick={sent ? resend : undefined}
+        disabled={sending}
+        className="rounded-md bg-foreground px-4 py-3 text-base font-medium text-background disabled:opacity-60"
+      >
+        {sending ? "Skickar…" : sent ? "Skicka en ny länk" : "Skicka inloggningslänk"}
+      </button>
 
       {message && (
         <p role="status" className="text-sm text-foreground/70">
@@ -58,18 +59,7 @@ export default function LoginForm({ linkError }: { linkError: string | null }) {
         </p>
       )}
 
-      {sent && (
-        <div className="flex flex-col gap-1">
-          <button
-            type="button"
-            onClick={resend}
-            className="rounded-md border border-foreground/30 px-4 py-3 text-base"
-          >
-            Skicka en ny länk
-          </button>
-          <p className="text-sm text-foreground/70">{RESEND_NOTE}</p>
-        </div>
-      )}
+      {sent && <p className="text-sm text-foreground/70">{RESEND_NOTE}</p>}
     </form>
   );
 }

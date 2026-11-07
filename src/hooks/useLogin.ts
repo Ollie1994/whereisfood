@@ -10,16 +10,21 @@ export function useLogin(): {
   email: string;
   setEmail: (email: string) => void;
   status: LoginStatus;
+  attempted: boolean;
   submit: () => Promise<void>;
   resend: () => void;
 } {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<LoginStatus>("idle");
+  // Whether a send has been tried on this page, so an old `?error=` alert isn't shown
+  // again when `resend` returns to "idle".
+  const [attempted, setAttempted] = useState(false);
 
   async function submit() {
     // Not while sending, nor once sent: Enter in the email field submits the form even
     // with the send button hidden. A new link takes `resend` first.
     if (status === "sending" || status === "sent") return;
+    setAttempted(true);
     setStatus("sending");
 
     try {
@@ -44,5 +49,5 @@ export function useLogin(): {
     setStatus("idle");
   }
 
-  return { email, setEmail, status, submit, resend };
+  return { email, setEmail, status, attempted, submit, resend };
 }
