@@ -8,8 +8,13 @@ export default function LoginForm({ linkError }: { linkError: string | null }) {
   const sending = status === "sending";
   const message = loginMessage(status);
 
+  // `post`: if the page's script hasn't run, the browser submits the form itself. As the
+  // default GET it put the email in the URL and the dev server's log (`/admin/login?email=…`,
+  // the owner's browser check, PR for IS #222). A plain POST to this page renders it again
+  // (probed on `next start`).
   return (
     <form
+      method="post"
       className="flex flex-col gap-4"
       onSubmit={(event) => {
         event.preventDefault();

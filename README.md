@@ -323,8 +323,12 @@ admin is created by hand, and again after each `npx supabase db reset`:
 
    ```sql
    insert into users (id, is_admin)
-   select id, true from auth.users where email = 'you@example.com';
+   select id, true from auth.users where email = 'you@example.com'
+   returning id, is_admin;
    ```
+
+   It shows the row it added. No row means the email matched no user. Without
+   `returning`, the Editor says "Success. No rows returned" in both cases.
 
 Then log in at `/admin/login`. The link arrives in Mailpit, the local mail catcher
 ([http://127.0.0.1:54324](http://127.0.0.1:54324)). Open it in the browser that asked
@@ -356,6 +360,25 @@ API Keys), in the same variable names as the local ones:
 
 They live in Vercel's environment variables and in gitignored files on the owner's
 machine, never in a tracked file (`CLAUDE.md`, Secrets).
+
+**Auth** (set in #222's PR, 2026-11-07):
+
+| Setting | Value |
+|---|---|
+| Sign In / Providers → Allow new users to sign up | Off. The Email provider stays on: turned off, it refuses every email login (Phase 7 plan, step 2) |
+| URL Configuration → Site URL | `https://whereisfood-git-dev-where-is-food.vercel.app`, `dev`'s branch alias |
+| URL Configuration → Redirect URLs | Only `https://whereisfood-git-dev-where-is-food.vercel.app/auth/callback`. No wildcard: an allowed host someone else controls could receive a login code meant for the admin (Phase 7 plan, open decision 4) |
+
+So log in from `dev`'s alias. For a redirect URL that "doesn't match one from the allow
+list", Auth uses the Site URL (the dashboard's text for it), and the app's `/` only
+redirects to `/map`, so a login started on another preview URL doesn't finish. Checked with
+the publishable and secret keys on 2026-11-07: `/auth/v1/settings` gives
+`disable_signup: true`, and a link request for an unknown email with
+`shouldCreateUser: true` got `422 signup_disabled` and created no auth user.
+
+**The admin user.** Authentication → Users → Add user → Create new user, with the
+admin's email and "Auto Confirm User" on, then the SQL of "5. Create the admin user"
+in the project's SQL Editor.
 
 **Schema and seed.** With the CLI logged in (`npx supabase login`):
 
