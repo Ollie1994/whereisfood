@@ -3,8 +3,9 @@ import { loginStatusFor, type LoginStatus } from "@/lib/login";
 import { supabaseClient } from "@/lib/supabase-browser";
 
 // The login form's state: the email, and what the last send did. One send at a time:
-// each `signInWithOtp` writes a new PKCE code verifier to a cookie, even one Auth refuses,
-// and an earlier emailed link then fails its exchange (probed on the local stack, PR #236).
+// each `signInWithOtp` writes a new PKCE code verifier to a cookie, even one Auth refuses
+// (read in `@supabase/auth-js` 2.106.2), and an earlier emailed link then fails its
+// exchange (probed on the local stack for a second send, PR #236).
 export function useLogin(): {
   email: string;
   setEmail: (email: string) => void;
