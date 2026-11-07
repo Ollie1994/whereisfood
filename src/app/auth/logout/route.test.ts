@@ -1,16 +1,16 @@
-import { NextRequest } from "next/server";
+import { NextRequest, type NextResponse } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Auth errors the local stack can't produce on demand, stubbed (plan step 2's Files).
 // The integration test (`tests/integration/auth-routes.test.ts`) covers real sessions.
 const signOut = vi.fn();
-// The request the route handed to `writingCookies`, so a stub can write to it as the
-// real adapter does.
-let adapted: NextRequest | undefined;
+// The request and response the route handed to `writingCookies`, so a stub can write to
+// both as the real adapter's `setAll` does.
+let adapted: { request: NextRequest; response: NextResponse } | undefined;
 vi.mock("@/lib/supabase-session", () => ({
   createSessionClient: () => ({ auth: { signOut } }),
-  writingCookies: (request: NextRequest) => {
-    adapted = request;
+  writingCookies: (request: NextRequest, response: NextResponse) => {
+    adapted = { request, response };
     return { getAll: () => [] };
   },
 }));
@@ -61,7 +61,8 @@ describe("POST /auth/logout", () => {
 
   it("also clears a cookie a refresh wrote under a new name before Auth failed", async () => {
     signOut.mockImplementation(async () => {
-      adapted?.cookies.set("sb-127-auth-token.0", "base64-refreshed");
+      adapted?.request.cookies.set("sb-127-auth-token.0", "base64-refreshed");
+      adapted?.response.cookies.set("sb-127-auth-token.0", "base64-refreshed", { path: "/", maxAge: 34560000 });
       return { error: { status: 500, name: "AuthApiError", message: "boom" } };
     });
     const response = await POST(logoutRequest());
@@ -70,6 +71,8 @@ describe("POST /auth/logout", () => {
       "sb-127-auth-token-code-verifier",
       "sb-127-auth-token.0",
     ]);
+    // The delete replaced the refresh's own `Set-Cookie` for that name.
+    expect(response.headers.getSetCookie().filter((line) => line.includes("base64-refreshed"))).toEqual([]);
   });
 
   it("leaves cookies that aren't Supabase's alone", async () => {

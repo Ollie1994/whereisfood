@@ -5,8 +5,8 @@ import { createSessionClient, readOnlyCookies } from "@/lib/supabase-session";
 // Minimal until #223 adds the gate and later steps the data: it shows only who is
 // logged in, so the phone checkpoint (#224) can see the login worked. No `is_admin`
 // check yet, so it must show no data (plan step 2). Until #223's proxy refreshes the
-// session first, each load after the access token expires refreshes it here and loses
-// the new tokens (`readOnlyCookies`).
+// session first, this page's read can refresh it and lose the new tokens
+// (`readOnlyCookies` says what was probed).
 export default async function AdminPage() {
   const supabase = createSessionClient(readOnlyCookies(await cookies()));
   const { data } = await supabase.auth.getUser();

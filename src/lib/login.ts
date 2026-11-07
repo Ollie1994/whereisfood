@@ -9,7 +9,9 @@ export type LoginStatus = "idle" | "sending" | "sent" | "rate-limited" | "failed
 // `over_email_send_rate_limit`.
 //
 // `otp_disabled` reads as "sent", the same text as a real send. That doesn't hide which
-// emails have accounts: the browser calls Auth directly, and its answer shows there.
+// emails have accounts: the browser calls Auth directly, and its answer shows there; and
+// two quick sends show "För många försök" only for a real account (local stack, two
+// back-to-back sends each: an unknown email 422 then 422, a real one 200 then 429).
 export function loginStatusFor(error: { status?: number; code?: string } | null): LoginStatus {
   if (!error) return "sent";
   if (error.code === "otp_disabled") return "sent";
