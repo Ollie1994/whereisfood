@@ -10,7 +10,7 @@ export type LoginStatus = "idle" | "sending" | "sent" | "rate-limited" | "failed
 //
 // `otp_disabled` reads as "sent", the same text as a real send. That hides it only on
 // the page: the browser calls Auth directly, so its answer (422 or 200) shows in the
-// network panel, and only a real account can reach the 429.
+// network panel, and the per-address 429 (`max_frequency`) comes only for a real account.
 export function loginStatusFor(error: { status?: number; code?: string } | null): LoginStatus {
   if (!error) return "sent";
   if (error.code === "otp_disabled") return "sent";
