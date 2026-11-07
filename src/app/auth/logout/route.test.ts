@@ -65,7 +65,11 @@ describe("POST /auth/logout", () => {
       return { error: { status: 500, name: "AuthApiError", message: "boom" } };
     });
     const response = await POST(logoutRequest());
-    expect(cleared(response)).toContain("sb-127-auth-token.0");
+    expect(cleared(response).sort()).toEqual([
+      "sb-127-auth-token",
+      "sb-127-auth-token-code-verifier",
+      "sb-127-auth-token.0",
+    ]);
   });
 
   it("leaves cookies that aren't Supabase's alone", async () => {

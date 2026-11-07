@@ -20,9 +20,11 @@ export function createSessionClient(cookies: CookieMethodsServer) {
 type CookieSource = { getAll(): { name: string; value: string }[] };
 
 // Reads only. An expired session is still refreshed on the server, and the rotated
-// tokens are lost: with no `setAll`, `@supabase/ssr` only logs a warning (probed on the
-// local stack with a cookie past its `expires_at`, PR #236 round 1; the session still
-// worked 11 s later). So use it behind something that refreshes first: the proxy (#223).
+// tokens are lost, so every read with that cookie refreshes again. Probed on the local
+// stack with a session whose cookie `expires_at` was set in the past, its JWT still
+// valid: each `getUser` logged one `@supabase/ssr` warning, and a read 11 s later, past
+// `refresh_token_reuse_interval`, still worked. A truly expired JWT wasn't tried. So use
+// it behind something that refreshes first: the proxy (#223).
 export function readOnlyCookies(source: CookieSource): CookieMethodsServer {
   return { getAll: () => source.getAll() };
 }

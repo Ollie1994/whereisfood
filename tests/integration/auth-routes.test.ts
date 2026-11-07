@@ -150,8 +150,8 @@ describe("GET /auth/callback", () => {
 });
 
 describe("POST /auth/logout", () => {
-  // Signed in once for the block (`helpers.ts`, `signedInClient`'s limit): the admin on
-  // two devices, a non-admin, and a session to expire.
+  // Signed in once for the block: the admin on two devices, a non-admin, and a session
+  // to expire.
   let phone: { jar: Map<string, string>; accessToken: string };
   let laptop: { jar: Map<string, string>; accessToken: string };
   let nonAdmin: { jar: Map<string, string> };

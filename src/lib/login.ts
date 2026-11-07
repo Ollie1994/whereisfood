@@ -8,9 +8,8 @@ export type LoginStatus = "idle" | "sending" | "sent" | "rate-limited" | "failed
 // gets 422 `otp_disabled`; a second request within `max_frequency` gets 429
 // `over_email_send_rate_limit`.
 //
-// `otp_disabled` reads as "sent", the same text as a real send. That hides it only on
-// the page: the browser calls Auth directly, so its answer (422 or 200) shows in the
-// network panel, and the per-address 429 (`max_frequency`) comes only for a real account.
+// `otp_disabled` reads as "sent", the same text as a real send. That doesn't hide which
+// emails have accounts: the browser calls Auth directly, and its answer shows there.
 export function loginStatusFor(error: { status?: number; code?: string } | null): LoginStatus {
   if (!error) return "sent";
   if (error.code === "otp_disabled") return "sent";
