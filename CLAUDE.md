@@ -114,15 +114,17 @@ said otherwise: Phase 4 plan decision #14.
 ## Hard Rules
 
 **Supabase**
-- `supabaseAdmin` (service role) — server only, imported by the db layer (`src/lib/db/`)
-  and the integration tests (`tests/integration/`, which `setup.ts` runs only against a
+- `supabaseAdmin` (service role, `src/lib/supabase.ts`) — server only, imported by the db
+  layer (`src/lib/db/`) and the integration tests (`tests/integration/`, which `setup.ts` runs only against a
   local Supabase). Routes and services reach the database through the db layer, never
   this client directly. Tests create trucks through `seedTruck`, so `resetTables()`
   can remove them and their rows (`tests/integration/helpers.ts`); a truck made any
   other way is removed by its own test, as `helpers.test.ts`'s bystanders are
-- `supabaseClient` (anon key) — browser only, and only for Auth (admin login, Phase 7).
-  Never for data: see the next rules
-- Never use `supabaseAdmin` in client components
+- `supabaseClient` (anon key, `src/lib/supabase-browser.ts`) — browser only, and only for
+  Auth (admin login, Phase 7). Never for data: see the next rules
+- Never use `supabaseAdmin` in client components. `src/lib/supabase.ts` imports
+  `server-only`, so `next build` fails when a client component imports it, directly or
+  through the db layer (IS #221)
 - Never use `NEXT_PUBLIC_` prefix on secret keys
 - **The browser never reads or writes the database.** Public map data comes only from
   `/api/live`; the admin screen reads through its own (uncached) API routes; every

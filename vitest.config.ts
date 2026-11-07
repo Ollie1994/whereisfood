@@ -22,8 +22,14 @@ import { fileURLToPath } from "node:url";
 // `vite-tsconfig-paths` would remove the duplication and is deliberately not taken on
 // (#28): one alias mirroring one `tsconfig` path does not justify a plugin, and the
 // mirroring is asserted by the suites themselves failing to resolve if it drifts.
+//
+// `server-only` → the package's own `empty.js`, the file its `react-server` export
+// condition gives. Vitest resolves the `default` condition, `index.js`, which throws.
+// Without this alias every integration file failed at import with "This module cannot be
+// imported from a Client Component module", from `src/lib/supabase.ts` (PR for IS #221).
 const alias = {
   "@": fileURLToPath(new URL("./src", import.meta.url)),
+  "server-only": fileURLToPath(new URL("./node_modules/server-only/empty.js", import.meta.url)),
 };
 
 // Node environment in both — nothing under test touches a DOM. The unit tests cover
