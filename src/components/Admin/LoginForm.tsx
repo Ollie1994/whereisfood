@@ -32,20 +32,20 @@ export default function LoginForm({ linkError }: { linkError: string | null }) {
           inputMode="email"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
-          className="rounded-md border border-zinc-300 px-3 py-3 text-base"
+          className="rounded-md border border-foreground/30 bg-background px-3 py-3 text-base"
         />
       </label>
 
       <button
         type="submit"
         disabled={sending}
-        className="rounded-md bg-zinc-900 px-4 py-3 text-base font-medium text-white disabled:opacity-60"
+        className="rounded-md bg-foreground px-4 py-3 text-base font-medium text-background disabled:opacity-60"
       >
         {sending ? "Skickar…" : "Skicka inloggningslänk"}
       </button>
 
       {message && (
-        <p role="status" className="text-sm text-zinc-700">
+        <p role="status" className="text-sm text-foreground/70">
           {message}
         </p>
       )}

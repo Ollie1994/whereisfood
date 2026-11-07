@@ -11,7 +11,7 @@ export default async function LoginPage({
   return (
     <>
       <h1 className="text-2xl font-semibold">Logga in</h1>
-      <p className="text-sm text-zinc-700">
+      <p className="text-sm text-foreground/70">
         Vi skickar en inloggningslänk till din e-post. Öppna den i samma webbläsare.
       </p>
       <LoginForm linkError={callbackErrorMessage(error)} />

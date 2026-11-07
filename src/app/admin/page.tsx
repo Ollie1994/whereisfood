@@ -14,7 +14,7 @@ export default async function AdminPage() {
     return (
       <>
         <h1 className="text-2xl font-semibold">Admin</h1>
-        <p className="text-sm text-zinc-700">Du är inte inloggad.</p>
+        <p className="text-sm text-foreground/70">Du är inte inloggad.</p>
         <Link href="/admin/login" className="text-sm underline">
           Logga in
         </Link>
@@ -25,7 +25,7 @@ export default async function AdminPage() {
   return (
     <>
       <h1 className="text-2xl font-semibold">Admin</h1>
-      <p className="text-sm text-zinc-700">Inloggad som {email}.</p>
+      <p className="text-sm text-foreground/70">Inloggad som {email}.</p>
     </>
   );
 }
