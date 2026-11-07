@@ -16,14 +16,22 @@ import { fileURLToPath } from "node:url";
 // vite config and does NOT inherit `resolve` from the root. A root-level alias looks
 // like it should apply and silently does not — the failure is an unresolved `@/lib/...`
 // import in whichever project was left out, which reads as a missing module rather than
-// as a config mistake. Both entries below carry it, and `tests/integration/` importing
-// through `@/` is the whole reason the integration project needs it too.
+// as a config mistake. Both project entries below spread `alias`. The integration project
+// needs it for `tests/integration/`'s `@/` imports and for its `server-only` key.
 //
 // `vite-tsconfig-paths` would remove the duplication and is deliberately not taken on
 // (#28): one alias mirroring one `tsconfig` path does not justify a plugin, and the
 // mirroring is asserted by the suites themselves failing to resolve if it drifts.
+//
+// `server-only` → the package's own `empty.js`, the file its `react-server` export
+// condition gives. Vitest resolves the `default` condition, `index.js`, which throws.
+// Without this alias every integration file failed at import with "This module cannot be
+// imported from a Client Component module", from `src/lib/supabase.ts` (PR for IS #221).
+// The path assumes a direct dependency sits in the root `node_modules`, where npm
+// installs it.
 const alias = {
   "@": fileURLToPath(new URL("./src", import.meta.url)),
+  "server-only": fileURLToPath(new URL("./node_modules/server-only/empty.js", import.meta.url)),
 };
 
 // Node environment in both — nothing under test touches a DOM. The unit tests cover
