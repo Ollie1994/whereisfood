@@ -37,10 +37,10 @@ export function isSameOrigin(request: HeaderSource): boolean {
 }
 
 // A redirect to a path on this site, with a relative `Location`, which the browser
-// resolves against the URL it asked for. Not built from `requestOrigin`: under `next
-// start`, `/admin` and `/auth/callback` sent with `X-Forwarded-Host: evil.example`
-// redirected to `http://evil.example/admin/login…` when they were (PR for IS #223, round
-// 1). Not from `request.url` either, for `next dev`'s host, above.
+// resolves against the URL it asked for. Not built from `requestOrigin`, which follows a
+// client's `X-Forwarded-Host`: under `next start`, a redirect built from it for a request
+// sent with `X-Forwarded-Host: evil.example` named `http://evil.example/admin/login…`
+// (probed, PR for IS #223). Not from `request.url` either, for `next dev`'s host, above.
 //
 // For route handlers only. A proxy answer with a relative `Location` failed: `/admin`
 // answered 500 `TypeError: Invalid URL` under `next start` (the proxy says what it does).
