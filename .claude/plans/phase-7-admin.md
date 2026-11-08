@@ -278,9 +278,10 @@ failure is understood.
     no purge" bullet, whose "~1–2 minutes" can reach about 3 (step 8), the "Phase map" (the
     Phase 7 row, and retention and the app name in Phase 8's), "Product model" items 2 and 3
     (#22, #23), and "Open decisions" (#22 and #23 settle two, #25 and #26 move two to
-    Phase 8); Part 3's "Status codes" (404, 503, and 409 from `23505` as well) and "Hooks";
-    "One time zone"'s `live.ts`'s `TZ`, now `stockholm.ts`'s (PR #238); and the README's
-    status parts, with its stack table's Time row, which names `date-fns-tz` (PR #238). It replaces each **between phases** marker in
+    Phase 8), the "Read path" section's "One time zone" bullet, whose `live.ts`'s `TZ` is now
+    `stockholm.ts`'s (PR #238); Part 3's "Status codes" (404, 503, and 409 from `23505` as
+    well) and "Hooks"; and the README's status parts, with its stack table's Time row, which
+    names `date-fns-tz` (PR #238). It replaces each **between phases** marker in
     "Decisions carried forward" with the decision here that took it up (#1–#9), and carries
     forward this plan's decisions that outlive the phase.
 
