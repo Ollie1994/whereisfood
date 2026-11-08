@@ -178,9 +178,10 @@ through `isUuid`: on a path, in a query string or in a body.
 end)`, whose end at or before the start falls on the next day (#30), through `Intl`, not
 `date-fns-tz`, whose results depend on the host's zone (`CLAUDE.md`, "Time"; PR #238), with
 23- and 25-hour days, except for a shift inside the repeated autumn hour that ends before it
-starts, which `entryWindow` reads as next-day (its stated limit, PR #238). Both give null for a time the day doesn't have, such as 02:30 on
-2026-03-29 (PR for IS #225). The form and the checklist both call `entryWindow`; the API takes
-timestamps, so `parseNewLocation` still refuses an end at or before the start.
+starts, which `entryWindow` reads as next-day (its stated limit, PR #238). Both give null
+for a time the day doesn't have, such as 02:30 on 2026-03-29 (PR for IS #225). The form and
+the checklist both call `entryWindow`; the API takes timestamps, so `parseNewLocation` still
+refuses an end at or before the start.
 
 **Proxy.** `proxy(request)`: the order of `requireAdmin`, on `/admin/:path*` and
 `/api/admin/:path*`, with `/admin/login` let through. A page gets a redirect to the login,
