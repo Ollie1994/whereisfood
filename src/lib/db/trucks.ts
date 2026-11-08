@@ -27,35 +27,29 @@ export async function getActiveTruckById(id: string): Promise<Truck | null> {
   return data;
 }
 
-// Every active truck, ordered by name in Swedish order (Å, Ä, Ö after Z): `trucks.name`
-// is declared with the `sv-SE-x-icu` collation (Phase 5 plan, #19). Then by `id`: names
-// aren't unique, and two trucks of one name would otherwise come back in any order
-// (`db-trucks.test.ts`, "breaks a name tie"). Throws rather than
-// return part of the trucks past `max_rows` (`assertAllRows`).
-export async function listActiveTrucks(): Promise<Truck[]> {
-  const { data, error, count } = await supabaseAdmin
-    .from("trucks")
-    .select(TRUCK_COLUMNS, { count: "exact" })
-    .eq("is_active", true)
-    .order("name")
-    .order("id");
+// The trucks, all or only the active ones, ordered by name in Swedish order (Å, Ä, Ö after
+// Z): `trucks.name` is declared with the `sv-SE-x-icu` collation (Phase 5 plan, #19). Then
+// by `id`: names aren't unique, and two trucks of one name would otherwise come back in any
+// order (`db-trucks.test.ts`, "breaks a name tie"). Throws rather than return part of the
+// trucks past `max_rows` (`assertAllRows`). One query for both lists, so a fix to one
+// reaches the other.
+async function listTrucksWhere(fn: string, activeOnly: boolean): Promise<Truck[]> {
+  let query = supabaseAdmin.from("trucks").select(TRUCK_COLUMNS, { count: "exact" });
+  if (activeOnly) query = query.eq("is_active", true);
+  const { data, error, count } = await query.order("name").order("id");
 
   if (error) throw error;
-  assertAllRows("listActiveTrucks", data, count);
+  assertAllRows(fn, data, count);
   return data;
 }
 
-// Every truck, inactive ones included, in the same order, by name then `id`: the admin's list
-// (Phase 7 plan, "Functions and types"). Throws rather than return part of the trucks past
-// `max_rows` (`assertAllRows`).
-export async function listAllTrucks(): Promise<Truck[]> {
-  const { data, error, count } = await supabaseAdmin
-    .from("trucks")
-    .select(TRUCK_COLUMNS, { count: "exact" })
-    .order("name")
-    .order("id");
+// Every active truck: the public map's.
+export async function listActiveTrucks(): Promise<Truck[]> {
+  return listTrucksWhere("listActiveTrucks", true);
+}
 
-  if (error) throw error;
-  assertAllRows("listAllTrucks", data, count);
-  return data;
+// Every truck, inactive ones included: the admin's list (Phase 7 plan, "Functions and
+// types").
+export async function listAllTrucks(): Promise<Truck[]> {
+  return listTrucksWhere("listAllTrucks", false);
 }

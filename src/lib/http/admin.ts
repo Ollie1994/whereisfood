@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { withErrorHandling } from "@/lib/http/handler";
-import { isSameOrigin } from "@/lib/http/origin";
+import { foreignOriginRefusal, isSameOrigin, isWrite } from "@/lib/http/origin";
 import { requireAdmin, type AdminCheck } from "@/lib/services/admin-auth";
 import { createSessionClient, readOnlyCookies } from "@/lib/supabase-session";
 
@@ -24,13 +24,10 @@ export function adminRefusal(reason: Refusal): NextResponse {
   return NextResponse.json({ error }, { status, headers: { "Cache-Control": "no-store" } });
 }
 
-// Reads change nothing, so only writes are checked for `Origin` (#16).
-const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
-
 // Wraps `withErrorHandling`, so a throw is a 500 `{ error }`. In order: a write must come
-// from this origin (#16), with no network call before it; then `requireAdmin`, with the
-// cookies the request carries (the proxy has already refreshed them, #12); then the
-// handler, given the admin's id. Every answer, the handler's and a 500 included, is given
+// from this origin (#16), with no network call before it (the proxy checks it first too);
+// then `requireAdmin`, with the cookies the request carries (the proxy has already
+// refreshed them, #12); then the handler, given the admin's id. Every answer, the handler's and a 500 included, is given
 // `Cache-Control: no-store` here (#15). When the proxy refreshed the session on the way
 // in, the browser gets `@supabase/ssr`'s `private, no-cache, no-store, must-revalidate,
 // max-age=0` instead, from the proxy's response (`next start`, the PR for IS #223).
@@ -39,9 +36,7 @@ export async function withAdmin(
   handler: (adminId: string) => Promise<Response>,
 ): Promise<Response> {
   const response = await withErrorHandling(async () => {
-    if (!SAFE_METHODS.has(request.method) && !isSameOrigin(request)) {
-      return NextResponse.json({ error: "Otillåten begäran" }, { status: 403 });
-    }
+    if (isWrite(request.method) && !isSameOrigin(request)) return foreignOriginRefusal();
 
     const supabase = createSessionClient(readOnlyCookies(request.cookies));
     const check = await requireAdmin({

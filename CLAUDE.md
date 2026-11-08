@@ -177,11 +177,11 @@ said otherwise: Phase 4 plan decision #14.
   checks that the select has every key of the row type; a cast also compiles when the
   column list leaves one out (Phase 5 plan decision #18). `tsc` doesn't see an *extra*
   column, so a key-set test per table guards that side (`db-locations.test.ts`,
-  `db-trucks.test.ts`), and a new table's reads get one
-- Every select names its columns through its table's constant, `LOCATION_COLUMNS` or
-  `TRUCK_COLUMNS`: one string literal each (a computed string loses supabase-js's
-  row-type inference, issue #48). `LOCATION_COLUMNS` leaves out `created_by` (Phase 5
-  plan decision #8)
+  `db-trucks.test.ts`, `db-users.test.ts`), and a new table's reads get one
+- Every select names its columns through its table's constant, `LOCATION_COLUMNS`,
+  `TRUCK_COLUMNS` or `USER_COLUMNS`: one string literal each (a computed string loses
+  supabase-js's row-type inference, issue #48). `LOCATION_COLUMNS` leaves out `created_by`
+  (Phase 5 plan decision #8)
 - **`max_rows` cuts a list read with no error** (limit 2000 over 1001 rows returned
   1000, `locations.ts`'s probe). So a list read without a `limit` selects with an exact
   count and calls `assertAllRows` (`src/lib/db/complete.ts`), and one with a `limit`

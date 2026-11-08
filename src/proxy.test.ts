@@ -78,7 +78,7 @@ describe("proxy with no session cookie", () => {
   ])("answers %s with %s, and makes no Auth, DB or network call", async (path) => {
     const response = await proxy(request(path, "theme=dark"));
 
-    expect(response.status).toBe(307);
+    expect(response.status).toBe(303);
     expect(response.headers.get("location")).toBe(LOGIN_URL);
     expect(getUser).not.toHaveBeenCalled();
     expect(getUserById).not.toHaveBeenCalled();
@@ -100,6 +100,34 @@ describe("proxy with no session cookie", () => {
 
     expect(forwarded(response)).toBe(true);
     expect(getUser).not.toHaveBeenCalled();
+  });
+});
+
+describe("proxy on a write to an admin route", () => {
+  function write(origin: string | null) {
+    const headers: Record<string, string> = { host: "127.0.0.1:3000", cookie: SESSION };
+    if (origin) headers.origin = origin;
+    return new NextRequest(`${ORIGIN}/api/admin/trucks`, { method: "POST", headers, body: "{}" });
+  }
+
+  it.each([
+    ["a foreign Origin", "https://evil.example"],
+    ["no Origin", null],
+  ])("refuses one with %s with 403 and no-store, before any Auth, DB or network call (#16)", async (_, origin) => {
+    const response = await proxy(write(origin));
+
+    expect(response.status).toBe(403);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(getUser).not.toHaveBeenCalled();
+    expect(getUserById).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("checks one from this origin as usual", async () => {
+    getUser.mockResolvedValue({ data: { user: { id: ID } }, error: null });
+    getUserById.mockResolvedValue({ id: ID, is_admin: true, truck_id: null, created_at: "" });
+
+    expect(forwarded(await proxy(write(ORIGIN)))).toBe(true);
   });
 });
 
@@ -126,7 +154,10 @@ describe("proxy with a session cookie", () => {
     const page = await proxy(request("/admin", SESSION));
     expect(page.status).toBe(503);
     expect(page.headers.get("location")).toBeNull();
-    expect(await page.text()).toContain("Det gick inte att kontrollera inloggningen");
+    const html = await page.text();
+    expect(html).toContain("Det gick inte att kontrollera inloggningen");
+    // A way out for a session stuck as "unavailable": `LogoutButton`'s form.
+    expect(html).toContain('<form method="post" action="/auth/logout"><button type="submit">Logga ut</button></form>');
 
     const route = await proxy(request("/api/admin/trucks", SESSION));
     expect(route.status).toBe(503);

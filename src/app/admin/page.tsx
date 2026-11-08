@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import Link from "next/link";
-import { SESSION_CHECK_FAILED, isTemporaryAuthError } from "@/lib/login";
+import { SESSION_CHECK_FAILED } from "@/lib/login";
 import { createSessionClient, readOnlyCookies } from "@/lib/supabase-session";
 
 // Minimal until later steps add the data: it shows only who is logged in, so the phone
@@ -12,8 +12,10 @@ export default async function AdminPage() {
   const { data, error } = await supabase.auth.getUser();
   const email = data.user?.email;
 
-  // An Auth failure isn't "logged out" (plan #32): say so, rather than offer the login.
-  if (isTemporaryAuthError(error)) {
+  // The proxy has just verified this session, so any error here isn't "logged out" (plan
+  // #32): say so, rather than offer the login. Not only `isTemporaryAuthError`'s errors:
+  // a 401 with no code isn't one of them, and `requireAdmin` reads it as "unavailable".
+  if (error) {
     return (
       <>
         <h1 className="text-2xl font-semibold">Admin</h1>

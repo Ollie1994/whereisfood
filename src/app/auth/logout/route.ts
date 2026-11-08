@@ -1,6 +1,6 @@
-import { NextResponse, type NextRequest } from "next/server";
+import type { NextRequest } from "next/server";
 import { withErrorHandling } from "@/lib/http/handler";
-import { isSameOrigin, redirectTo } from "@/lib/http/origin";
+import { foreignOriginRefusal, isSameOrigin, redirectTo } from "@/lib/http/origin";
 import { createSessionClient, writingCookies } from "@/lib/supabase-session";
 
 // Ends this device's session: `LogoutButton`'s form POST. No admin check, so a
@@ -15,9 +15,7 @@ import { createSessionClient, writingCookies } from "@/lib/supabase-session";
 // and a 307 would re-POST to the login page (#28).
 export async function POST(request: NextRequest) {
   return withErrorHandling(async () => {
-    if (!isSameOrigin(request)) {
-      return NextResponse.json({ error: "Otillåten begäran" }, { status: 403 });
-    }
+    if (!isSameOrigin(request)) return foreignOriginRefusal();
 
     const response = redirectTo("/admin/login", 303);
 

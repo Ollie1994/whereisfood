@@ -36,6 +36,19 @@ export function isSameOrigin(request: HeaderSource): boolean {
   return origin === requestOrigin(request);
 }
 
+// Reads change nothing, so only writes are checked for `Origin` (#16).
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+export function isWrite(method: string): boolean {
+  return !SAFE_METHODS.has(method);
+}
+
+// The answer to a write whose `Origin` isn't this origin (#16): `withAdmin`'s, the proxy's
+// on `/api/admin/*`, and `/auth/logout`'s.
+export function foreignOriginRefusal(): NextResponse {
+  return NextResponse.json({ error: "Otillåten begäran" }, { status: 403, headers: { "Cache-Control": "no-store" } });
+}
+
 // A redirect to a path on this site, with a relative `Location`, which the browser
 // resolves against the URL it asked for. Not built from `requestOrigin`, which follows a
 // client's `X-Forwarded-Host`: under `next start`, a redirect built from it for a request
