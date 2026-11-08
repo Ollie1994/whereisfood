@@ -7,6 +7,7 @@ import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 export const TZ = "Europe/Stockholm";
 
 const DAY_MS = 86_400_000;
+const HOUR_MS = 3_600_000;
 
 // The Stockholm calendar date of `date`, as a count of days since 1970-01-01. Day
 // arithmetic on it is plain integer arithmetic, with no DST in it.
@@ -38,13 +39,18 @@ const WALL_CLOCK = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 // Null for a malformed time, and for one the day doesn't have: `fromZonedTime` reads
 // 02:30 on 2026-03-29, inside the spring-forward gap, as 01:30 CET, so a form would save
 // another time than the one typed. On 2026-10-25 a time between 02:00 and 02:59 occurs
-// twice, and `fromZonedTime` gives the second, +01:00 (date-fns-tz 3.2.0, both probed in
-// the PR for IS #225).
+// twice, and this gives the second, +01:00. Not `fromZonedTime`'s answer alone: which of
+// the two it gives depends on the host's own zone, the first on a New York or Los Angeles
+// host and the second on Stockholm, UTC, Tokyo or Sydney (date-fns-tz 3.2.0, `process.env.TZ`
+// set in-process, PR #238). So the instants an hour either side are checked too.
 export function wallClockToUtc(day: number, time: string): Date | null {
   if (!WALL_CLOCK.test(time)) return null;
-  const date = isoDate(day);
-  const utc = fromZonedTime(`${date}T${time}:00`, TZ);
-  return formatInTimeZone(utc, TZ, "yyyy-MM-dd HH:mm") === `${date} ${time}` ? utc : null;
+  const wall = `${isoDate(day)} ${time}`;
+  const guess = fromZonedTime(`${isoDate(day)}T${time}:00`, TZ).getTime();
+  const later = [guess + HOUR_MS, guess, guess - HOUR_MS].find(
+    (ms) => formatInTimeZone(ms, TZ, "yyyy-MM-dd HH:mm") === wall,
+  );
+  return later === undefined ? null : new Date(later);
 }
 
 // A shift from `start` to `end` on Stockholm day `day`. An end at or before the start, as

@@ -7,7 +7,9 @@ import { isUuid } from "@/lib/validators/uuid";
 // A location body from `readJson`, checked and reduced to the keys a client may set. Pure:
 // no clock, no env (`CLAUDE.md`, "Time"). `created_by`, `source` and `cancelled_at` are
 // never read, so a body can't set them (Phase 7 plan, #17); every other unknown key is
-// dropped too.
+// dropped too. A limit: a dropped key beside a kept one is dropped silently, so a patch
+// holding `truck_id` and `label` changes the label only. The edit form shows the truck
+// read-only (the plan's acceptance criteria) and doesn't send it.
 
 export type Parsed<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -26,29 +28,33 @@ export const LOCATION_ERRORS = {
   emptyPatch: "Ändringen innehåller inget att ändra",
 } as const;
 
-type Field<T> = { ok: true; value: T } | { ok: false };
+// Each field's check gives its value, or undefined when it refuses it.
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 // A number, not a numeric string.
-function coordinate(value: unknown): Field<number> {
-  return typeof value === "number" && Number.isFinite(value) ? { ok: true, value } : { ok: false };
+function coordinate(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
-// Absent, null or blank is no label.
-function label(value: unknown): Field<string | null> {
-  if (value === undefined || value === null) return { ok: true, value: null };
-  if (typeof value !== "string") return { ok: false };
-  const trimmed = value.trim();
-  return { ok: true, value: trimmed === "" ? null : trimmed };
+// Absent, null or blank is no label. A limit: no length or character bound, and the
+// schema has none either (`0001_baseline.sql`); only the admin writes one.
+function label(value: unknown): string | null | undefined {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "string") return undefined;
+  return value.trim() || null;
 }
 
 // With an offset, as `isTimestamp` requires: one without would be read in the server's own
-// zone. Stored as the instant in UTC.
-function timestamp(value: unknown): Field<string> {
-  return isTimestamp(value) ? { ok: true, value: parseISO(value).toISOString() } : { ok: false };
+// zone. In UTC, a year Postgres takes: local Postgres refused `0000-12-31T23:30:00.000Z`
+// and `+010000-01-01T00:30:00.000Z`, and took years 0001 and 9999 (PR #238).
+function timestamp(value: unknown): Date | undefined {
+  if (!isTimestamp(value)) return undefined;
+  const date = parseISO(value);
+  const year = date.getUTCFullYear();
+  return year >= 1 && year <= 9999 ? date : undefined;
 }
 
 const refuse = (error: string): { ok: false; error: string } => ({ ok: false, error });
@@ -61,27 +67,27 @@ export function parseNewLocation(body: unknown): Parsed<NewLocationInput> {
 
   const latitude = coordinate(body.latitude);
   const longitude = coordinate(body.longitude);
-  if (!latitude.ok || !longitude.ok) return refuse(LOCATION_ERRORS.position);
-  if (!isInGothenburg(latitude.value, longitude.value)) return refuse(LOCATION_ERRORS.outside);
+  if (latitude === undefined || longitude === undefined) return refuse(LOCATION_ERRORS.position);
+  if (!isInGothenburg(latitude, longitude)) return refuse(LOCATION_ERRORS.outside);
 
   const name = label(body.label);
-  if (!name.ok) return refuse(LOCATION_ERRORS.label);
+  if (name === undefined) return refuse(LOCATION_ERRORS.label);
 
   const startsAt = timestamp(body.starts_at);
-  if (!startsAt.ok) return refuse(LOCATION_ERRORS.startsAt);
+  if (!startsAt) return refuse(LOCATION_ERRORS.startsAt);
   const endsAt = timestamp(body.ends_at);
-  if (!endsAt.ok) return refuse(LOCATION_ERRORS.endsAt);
-  if (Date.parse(endsAt.value) <= Date.parse(startsAt.value)) return refuse(LOCATION_ERRORS.order);
+  if (!endsAt) return refuse(LOCATION_ERRORS.endsAt);
+  if (endsAt.getTime() <= startsAt.getTime()) return refuse(LOCATION_ERRORS.order);
 
   return {
     ok: true,
     value: {
       truck_id: truckId,
-      latitude: latitude.value,
-      longitude: longitude.value,
-      label: name.value,
-      starts_at: startsAt.value,
-      ends_at: endsAt.value,
+      latitude,
+      longitude,
+      label: name,
+      starts_at: startsAt.toISOString(),
+      ends_at: endsAt.toISOString(),
     },
   };
 }
@@ -96,14 +102,14 @@ export function parseLocationPatch(body: unknown): Parsed<LocationPatch> {
   for (const key of ["latitude", "longitude"] as const) {
     if (body[key] === undefined) continue;
     const value = coordinate(body[key]);
-    if (!value.ok) return refuse(LOCATION_ERRORS.position);
-    patch[key] = value.value;
+    if (value === undefined) return refuse(LOCATION_ERRORS.position);
+    patch[key] = value;
   }
 
   if (body.label !== undefined) {
     const name = label(body.label);
-    if (!name.ok) return refuse(LOCATION_ERRORS.label);
-    patch.label = name.value;
+    if (name === undefined) return refuse(LOCATION_ERRORS.label);
+    patch.label = name;
   }
 
   for (const [key, error] of [
@@ -112,8 +118,8 @@ export function parseLocationPatch(body: unknown): Parsed<LocationPatch> {
   ] as const) {
     if (body[key] === undefined) continue;
     const value = timestamp(body[key]);
-    if (!value.ok) return refuse(error);
-    patch[key] = value.value;
+    if (!value) return refuse(error);
+    patch[key] = value.toISOString();
   }
 
   return Object.keys(patch).length === 0 ? refuse(LOCATION_ERRORS.emptyPatch) : { ok: true, value: patch };

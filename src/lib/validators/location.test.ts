@@ -98,9 +98,24 @@ describe("parseNewLocation", () => {
     "2026-11-09",
     "2026-11-09T24:00:00+01:00",
     "not a time",
+    // In UTC, years Postgres refuses (PR #238).
+    "0000-11-09T11:00:00Z",
+    "0001-01-01T00:30:00+01:00",
+    "9999-12-31T23:30:00-01:00",
   ])("refuses starts_at %j, and the same as ends_at", (time) => {
     expect(parseNewLocation({ ...BODY, starts_at: time })).toEqual(refused(LOCATION_ERRORS.startsAt));
     expect(parseNewLocation({ ...BODY, ends_at: time })).toEqual(refused(LOCATION_ERRORS.endsAt));
+    if (time !== undefined) {
+      expect(parseLocationPatch({ starts_at: time })).toEqual(refused(LOCATION_ERRORS.startsAt));
+    }
+  });
+
+  it("accepts the first and last instants of the years Postgres takes", () => {
+    const result = parseNewLocation({ ...BODY, starts_at: "0001-01-01T00:00:00Z", ends_at: "9999-12-31T23:59:59.999Z" });
+    expect(result.ok && [result.value.starts_at, result.value.ends_at]).toEqual([
+      "0001-01-01T00:00:00.000Z",
+      "9999-12-31T23:59:59.999Z",
+    ]);
   });
 
   it.each([
