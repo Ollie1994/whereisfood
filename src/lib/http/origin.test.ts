@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isSameOrigin, redirectTo, requestOrigin } from "@/lib/http/origin";
+import { isSameOrigin, isWrite, redirectTo, requestOrigin } from "@/lib/http/origin";
 
 // A request as `next dev` hands it over: `request.url` says `localhost` while the
 // headers say what the browser used (Phase 7 plan, #16).
@@ -74,5 +74,19 @@ describe("redirectTo", () => {
 
     expect(response.status).toBe(303);
     expect(response.headers.get("location")).toBe("/admin/login?error=link");
+  });
+});
+
+describe("isWrite", () => {
+  it.each([
+    ["GET", false],
+    ["HEAD", false],
+    ["OPTIONS", false],
+    ["POST", true],
+    ["PATCH", true],
+    ["PUT", true],
+    ["DELETE", true],
+  ])("%s → %s", (method, expected) => {
+    expect(isWrite(method)).toBe(expected);
   });
 });

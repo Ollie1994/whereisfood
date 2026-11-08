@@ -46,7 +46,10 @@ export function isWrite(method: string): boolean {
 // The answer to a write whose `Origin` isn't this origin (#16): `withAdmin`'s, the proxy's
 // on `/api/admin/*`, and `/auth/logout`'s.
 export function foreignOriginRefusal(): NextResponse {
-  return NextResponse.json({ error: "Otillåten begäran" }, { status: 403, headers: { "Cache-Control": "no-store" } });
+  return NextResponse.json(
+    { error: "Otillåten begäran" },
+    { status: 403, headers: { "Cache-Control": "no-store" } },
+  );
 }
 
 // A redirect to a path on this site, with a relative `Location`, which the browser

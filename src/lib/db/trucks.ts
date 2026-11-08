@@ -33,7 +33,10 @@ export async function getActiveTruckById(id: string): Promise<Truck | null> {
 // order (`db-trucks.test.ts`, "breaks a name tie"). Throws rather than return part of the
 // trucks past `max_rows` (`assertAllRows`). One query for both lists, so a fix to one
 // reaches the other.
-async function listTrucksWhere(fn: string, activeOnly: boolean): Promise<Truck[]> {
+async function listTrucksWhere(
+  fn: "listActiveTrucks" | "listAllTrucks",
+  activeOnly: boolean,
+): Promise<Truck[]> {
   let query = supabaseAdmin.from("trucks").select(TRUCK_COLUMNS, { count: "exact" });
   if (activeOnly) query = query.eq("is_active", true);
   const { data, error, count } = await query.order("name").order("id");

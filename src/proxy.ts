@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { adminRefusal } from "@/lib/http/admin";
 import { foreignOriginRefusal, isSameOrigin, isWrite } from "@/lib/http/origin";
-import { SESSION_CHECK_FAILED } from "@/lib/login";
+import { LOGOUT_LABEL, LOGOUT_PATH, SESSION_CHECK_FAILED } from "@/lib/login";
 import { hasSessionCookie, requireAdmin } from "@/lib/services/admin-auth";
 import { createSessionClient, writingCookies } from "@/lib/supabase-session";
 
@@ -48,7 +48,7 @@ function wroteSession(from: NextResponse): boolean {
 // `LogoutButton`'s form, so a session stuck as "unavailable" (`admin-auth.ts`'s limit) can
 // be cleared here; logging out sends no email (the owner's call, PR for IS #223, round 4).
 function unavailablePage(): NextResponse {
-  const html = `<!doctype html><html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>WhereIsFood – admin</title></head><body><p role="alert">${SESSION_CHECK_FAILED}</p><form method="post" action="/auth/logout"><button type="submit">Logga ut</button></form></body></html>`;
+  const html = `<!doctype html><html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>WhereIsFood – admin</title></head><body><p role="alert">${SESSION_CHECK_FAILED}</p><form method="post" action="${LOGOUT_PATH}"><button type="submit">${LOGOUT_LABEL}</button></form></body></html>`;
   return new NextResponse(html, {
     status: 503,
     headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
@@ -114,7 +114,8 @@ export async function proxy(request: NextRequest) {
     // `withErrorHandling` doesn't wrap the proxy, so a throw (a missing variable) would
     // otherwise be Next's error page (#32). A limit: a page then shows the "try again in a
     // moment" page even when the cause is lasting, such as a missing variable; the
-    // server's log names it.
+    // server's log names it. Its "Logga ut" doesn't help then: `/auth/logout` builds the
+    // same session client outside its `try` and answers 500 `{ error }`.
     console.error("[proxy] unhandled error:", err);
     if (isApi) {
       return NextResponse.json(

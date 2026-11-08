@@ -60,7 +60,7 @@ the public map, and nobody else can write anything.
 |---|---|
 | `src/lib/supabase-browser.ts` | `supabaseClient`, Auth only, safe in the browser (#27); from step 2, `@supabase/ssr`'s `createBrowserClient` (#12) |
 | `src/lib/supabase-session.ts` | The per-request session client, from `@supabase/ssr`, with a read-only cookie adapter and a writing one (#12) |
-| `src/lib/http/origin.ts` (+ test) | `requestOrigin()` and `isSameOrigin()`, shared by `withAdmin`, the callback and logout (#16) |
+| `src/lib/http/origin.ts` (+ test) | `requestOrigin()`, `isSameOrigin()`, `isWrite()`, `foreignOriginRefusal()` and `redirectTo()`, shared by `withAdmin`, the proxy, the callback and logout (#16) |
 | `src/lib/http/admin.ts` | `withAdmin()`, the one way into an admin route, and `readJson()` |
 | `src/lib/services/admin-auth.ts` (+ test) | `requireAdmin()`, `hasSessionCookie()` |
 | `src/lib/services/trucks.ts`, `locations.ts`, `checklist.ts` (+ tests) | Admin business logic |
@@ -120,8 +120,8 @@ the public map, and nobody else can write anything.
 ## Functions and types
 
 **HTTP (`src/lib/http/admin.ts`).** `withAdmin(request, handler)`: wraps `withErrorHandling`,
-runs `requireAdmin`, answers 401 or 403, refuses a write that fails `isSameOrigin` (#16),
-and sets `Cache-Control: no-store` on what it returns (#15). The handler receives the
+runs `requireAdmin`, answers 401 or 403, refuses a write that fails `isSameOrigin` (#16;
+the proxy refuses it first on `/api/admin/*`, before any Auth call, PR #237), and sets `Cache-Control: no-store` on what it returns (#15). The handler receives the
 admin's user id. `readJson(request)`: a body that isn't valid JSON answers 400 with a Swedish
 message, and no handler calls `request.json()` itself. `requestOrigin(request)`
 (`src/lib/http/origin.ts`): the scheme and host from `x-forwarded-host`, then `Host`, never

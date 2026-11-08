@@ -15,6 +15,7 @@ export default async function AdminPage() {
   // The proxy has just verified this session, so any error here isn't "logged out" (plan
   // #32): say so, rather than offer the login. Not only `isTemporaryAuthError`'s errors:
   // a 401 with no code isn't one of them, and `requireAdmin` reads it as "unavailable".
+  // Not a dead end if the page's read fails alone: the layout's `LogoutButton` is here too.
   if (error) {
     return (
       <>

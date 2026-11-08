@@ -67,3 +67,8 @@ export function callbackErrorMessage(error: string | string[] | undefined): stri
 
 // `/admin` when Auth couldn't say whether the session is valid.
 export const SESSION_CHECK_FAILED = "Det gick inte att kontrollera inloggningen just nu. Ladda om sidan om en stund.";
+
+// Logout's form: `LogoutButton`'s, and the proxy's 503 page's, which can't render a
+// component. One copy, so both post to the same route with the same label.
+export const LOGOUT_PATH = "/auth/logout";
+export const LOGOUT_LABEL = "Logga ut";

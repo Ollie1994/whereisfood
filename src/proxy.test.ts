@@ -123,6 +123,16 @@ describe("proxy on a write to an admin route", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it("lets a read with a foreign Origin through to the usual check", async () => {
+    getUser.mockResolvedValue({ data: { user: { id: ID } }, error: null });
+    getUserById.mockResolvedValue({ id: ID, is_admin: true, truck_id: null, created_at: "" });
+    const read = new NextRequest(`${ORIGIN}/api/admin/trucks`, {
+      headers: { host: "127.0.0.1:3000", cookie: SESSION, origin: "https://evil.example" },
+    });
+
+    expect(forwarded(await proxy(read))).toBe(true);
+  });
+
   it("checks one from this origin as usual", async () => {
     getUser.mockResolvedValue({ data: { user: { id: ID } }, error: null });
     getUserById.mockResolvedValue({ id: ID, is_admin: true, truck_id: null, created_at: "" });
