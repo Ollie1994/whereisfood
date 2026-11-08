@@ -79,27 +79,44 @@ describe("wallClockToUtc", () => {
     expect(iso(wallClockToUtc(day("2026-10-25"), "03:00"))).toBe("2026-10-25T02:00:00.000Z");
   });
 
-  // `fromZonedTime` gives the first occurrence on a New York or Los Angeles host (PR #238).
+  // `fromZonedTime` gives the first occurrence on a New York or Los Angeles host, and
+  // `formatInTimeZone` is an hour late on the host's own gap day (PR #238). Each case's date
+  // and time fall in its host's gap; Stockholm's own and UTC have none in 2026 that a
+  // Stockholm wall time reaches, so theirs is an ordinary time.
+  //
   // Node reads `process.env.TZ` again when it is assigned, but deleting it leaves the last
-  // zone in place (probed, PR #238), so the zone is assigned back.
-  it.each(["America/New_York", "America/Los_Angeles", "UTC", "Asia/Tokyo", "Europe/Stockholm", "Australia/Sydney"])(
-    "gives the same answers on a host in %s",
-    (zone) => {
-      const original = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      process.env.TZ = zone;
-      try {
-        expect(Intl.DateTimeFormat().resolvedOptions().timeZone).toBe(zone);
-        expect(iso(wallClockToUtc(day("2026-10-25"), "02:30"))).toBe("2026-10-25T01:30:00.000Z");
-        expect(iso(wallClockToUtc(day("2026-10-25"), "02:00"))).toBe("2026-10-25T01:00:00.000Z");
-        expect(wallClockToUtc(day("2026-03-29"), "02:30")).toBeNull();
-        expect(iso(wallClockToUtc(day("2026-11-08"), "11:00"))).toBe("2026-11-08T10:00:00.000Z");
-        expect(iso(stockholmMidnight(day("2026-10-25")))).toBe("2026-10-24T22:00:00.000Z");
-      } finally {
-        process.env.TZ = original;
-      }
-      expect(Intl.DateTimeFormat().resolvedOptions().timeZone).toBe(original);
-    },
-  );
+  // zone in place (probed, PR #238): the zone is assigned back first, then the variable is
+  // put back as it was.
+  it.each([
+    ["America/New_York", "2026-03-08", "02:30", "2026-03-08T01:30:00.000Z"],
+    ["America/Los_Angeles", "2026-03-08", "02:30", "2026-03-08T01:30:00.000Z"],
+    ["Australia/Sydney", "2026-10-04", "02:30", "2026-10-04T00:30:00.000Z"],
+    ["America/Santiago", "2026-09-06", "00:30", "2026-09-05T22:30:00.000Z"],
+    ["America/Havana", "2026-03-08", "00:30", "2026-03-07T23:30:00.000Z"],
+    ["Asia/Tokyo", "2026-11-08", "11:00", "2026-11-08T10:00:00.000Z"],
+    ["UTC", "2026-11-08", "11:00", "2026-11-08T10:00:00.000Z"],
+    ["Europe/Stockholm", "2026-11-08", "11:00", "2026-11-08T10:00:00.000Z"],
+  ])("gives the same answers on a host in %s, its gap day %s %s included", (zone, date, time, expected) => {
+    const env = process.env.TZ;
+    const original = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    process.env.TZ = zone;
+    try {
+      expect(Intl.DateTimeFormat().resolvedOptions().timeZone).toBe(zone);
+      expect(iso(wallClockToUtc(day(date), time))).toBe(expected);
+      expect(stockholmDay(new Date(expected))).toBe(day(date));
+      expect(iso(wallClockToUtc(day("2026-10-25"), "02:30"))).toBe("2026-10-25T01:30:00.000Z");
+      expect(iso(wallClockToUtc(day("2026-10-25"), "02:00"))).toBe("2026-10-25T01:00:00.000Z");
+      expect(wallClockToUtc(day("2026-03-29"), "02:30")).toBeNull();
+      expect(iso(stockholmMidnight(day("2026-10-25")))).toBe("2026-10-24T22:00:00.000Z");
+      expect(iso(stockholmMidnight(day(date)))).toBe(iso(wallClockToUtc(day(date), "00:00")));
+    } finally {
+      process.env.TZ = original;
+      if (env === undefined) delete process.env.TZ;
+      else process.env.TZ = env;
+    }
+    expect(Intl.DateTimeFormat().resolvedOptions().timeZone).toBe(original);
+    expect(process.env.TZ).toBe(env);
+  });
 
   it.each(["24:00", "7:00", "11:60", "11:00:00", "", "11.00", " 11:00"])("gives null for %j", (time) => {
     expect(wallClockToUtc(day("2026-11-08"), time)).toBeNull();

@@ -51,11 +51,12 @@ function label(value: unknown): string | null | undefined {
 }
 
 // With an offset, as `isTimestamp` requires: one without would be read in the server's own
-// zone. In UTC, a year Postgres takes: local Postgres refused `0000-12-31T23:30:00.000Z`
-// and `+010000-01-01T00:30:00.000Z`, and took years 0001 and 9999 (PR #238). A limit: that is
-// Postgres's range, not a sensible one, so an entry from 0001 to 9999 passes here and would
-// cover every day. Nothing bounds an entry's dates yet; refusing one that has already
-// ended is open decision 9's, for the service.
+// zone. Its UTC year is 0001–9999, which `toISOString` writes as four digits: local
+// Postgres refused the forms it writes outside that, `0000-12-31T23:30:00.000Z` and
+// `+010000-01-01T00:30:00.000Z`, and took years 0001 and 9999 (PR #238). A limit: that
+// guards the string, not the date, so an entry from 0001 to 9999 passes here and would
+// cover every day. Nothing planned bounds an entry's length or far end: open decision 9
+// would refuse only one that has already ended.
 function timestamp(value: unknown): Date | undefined {
   if (!isTimestamp(value)) return undefined;
   const date = parseISO(value);

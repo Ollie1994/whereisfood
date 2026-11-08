@@ -1,4 +1,4 @@
-import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
+import { fromZonedTime } from "date-fns-tz";
 
 // Stockholm calendar days and wall-clock times: the one copy of the midnight code, for the
 // map (`live.ts`), the admin form and the checklist (Phase 7 plan, #31). No clock: every
@@ -9,10 +9,30 @@ export const TZ = "Europe/Stockholm";
 const DAY_MS = 86_400_000;
 const HOUR_MS = 3_600_000;
 
+// Stockholm's wall time through `Intl`, not date-fns-tz's `formatInTimeZone`, which
+// rebuilds it with `setHours` in the host's own zone and is an hour late on the host's
+// gap day: 2026-03-08 01:30Z read "03:30" on a New York host and "02:30" here, as did
+// Sydney's, Santiago's and Havana's gap days (`process.env.TZ` set in-process, PR #238).
+const STOCKHOLM = new Intl.DateTimeFormat("en-CA", {
+  timeZone: TZ,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+// `yyyy-MM-dd HH:mm` in Stockholm.
+function stockholmWall(instant: Date | number): string {
+  const part = Object.fromEntries(STOCKHOLM.formatToParts(instant).map(({ type, value }) => [type, value]));
+  return `${part.year.padStart(4, "0")}-${part.month}-${part.day} ${part.hour}:${part.minute}`;
+}
+
 // The Stockholm calendar date of `date`, as a count of days since 1970-01-01. Day
 // arithmetic on it is plain integer arithmetic, with no DST in it.
 export function stockholmDay(date: Date): number {
-  const [y, m, d] = formatInTimeZone(date, TZ, "yyyy-MM-dd").split("-").map(Number);
+  const [y, m, d] = stockholmWall(date).slice(0, 10).split("-").map(Number);
   return Date.UTC(y, m - 1, d) / DAY_MS;
 }
 
@@ -22,7 +42,9 @@ function isoDate(day: number): string {
 }
 
 // Midnight in Stockholm at the start of `day`. Not the previous midnight plus 24 h:
-// 2026-03-29 is 23 h long and 2026-10-25 is 25 h (`live.test.ts`'s DST cases).
+// 2026-03-29 is 23 h long and 2026-10-25 is 25 h (`live.test.ts`'s DST cases). Through
+// `fromZonedTime`, which gave Stockholm's midnight on hosts whose own gap is at midnight
+// (Santiago, Havana, Asunción) as on New York and Stockholm hosts (PR #238).
 export function stockholmMidnight(day: number): Date {
   return fromZonedTime(`${isoDate(day)}T00:00:00`, TZ);
 }
@@ -40,19 +62,18 @@ const WALL_CLOCK = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 // 2026-10-25 a time between 02:00 and 02:59 occurs twice, and this gives the second, CET.
 //
 // Stockholm is UTC+1 (CET) or UTC+2 (CEST), so the answer is the wall time less one hour
-// or less two, whichever reads back as the wall time in Stockholm; tried in that order,
-// the later instant comes first. A limit: that holds from 1948 to 2100. Node's zone data,
-// sampled every 6 h from 1890, also has +00:53 before 1893 and +03:00 in 1945–1947, where
-// this gives null (PR #238). Not `fromZonedTime`: it reads 02:30 on 2026-03-29 as
-// 01:30 CET, and which 02:30 on 2026-10-25 it gives depends on the host's own zone, the
-// first on a New York or Los Angeles host (date-fns-tz 3.2.0, `process.env.TZ` set
-// in-process, PR #238).
+// or less two, whichever reads back as the wall time through `stockholmWall`; tried in
+// that order, the later instant comes first. A limit: that holds from 1948 to 2100. Node's
+// zone data, sampled every 6 h from 1890, also has +00:53 before 1893 and +03:00 in
+// 1945–1947, where this gives null (PR #238). Not `fromZonedTime`: it reads 02:30 on
+// 2026-03-29 as 01:30 CET, and which 02:30 on 2026-10-25 it gives depends on the host's
+// own zone, the first on a New York or Los Angeles host (date-fns-tz 3.2.0, PR #238).
 export function wallClockToUtc(day: number, time: string): Date | null {
   if (!WALL_CLOCK.test(time)) return null;
   const date = isoDate(day);
   const wall = Date.parse(`${date}T${time}:00Z`);
   const match = [wall - HOUR_MS, wall - 2 * HOUR_MS].find(
-    (ms) => formatInTimeZone(ms, TZ, "yyyy-MM-dd HH:mm") === `${date} ${time}`,
+    (ms) => stockholmWall(ms) === `${date} ${time}`,
   );
   return match === undefined ? null : new Date(match);
 }
