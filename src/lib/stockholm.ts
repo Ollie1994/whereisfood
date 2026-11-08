@@ -70,7 +70,10 @@ function isoDate(day: number): string {
 // 2026-03-29 is 23 h long and 2026-10-25 is 25 h (`live.test.ts`'s DST cases). The earlier
 // of two midnights, and where a gap ends when midnight falls in one. Node's zone data has
 // one of each from 1850 to 2300, 1916-10-01 and 1893-04-01, and one midnight on every
-// other day (PR #238). Never throws: the map calls it while rendering.
+// other day (PR #238). No throw of its own, since the map calls it while rendering. `Intl`
+// throws a RangeError past year 9999: 9999-12-31 threw, while every other day of years
+// 0001 and 9999 gave the day's start (PR #238). The location validator keeps entries to
+// UTC years up to 9998 for this.
 export function stockholmMidnight(day: number): Date {
   const midnights = wallInstants(day, "00:00");
   if (midnights.length > 0) return new Date(Math.min(...midnights));

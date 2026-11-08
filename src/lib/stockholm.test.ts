@@ -30,7 +30,7 @@ describe("stockholmMidnight", () => {
   // What a day's start means, whatever the zone data says about the date: on day `d`, and
   // the millisecond before it on `d - 1`. Every day of the years where Node's data has a
   // gap or a repeat at midnight (1893, 1916) or an offset other than +1 or +2 (1945–1947),
-  // and the first of each month from 1850 to 2300 (PR #238). It never throws.
+  // and the first of each month from 1850 to 2300 (PR #238).
   it("is the first instant of its day, across 1850–2300", () => {
     const days = new Set<number>();
     for (const year of [1893, 1916, 1945, 1946, 1947, 2026]) {
