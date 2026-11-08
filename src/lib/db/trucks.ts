@@ -41,3 +41,17 @@ export async function listActiveTrucks(): Promise<Truck[]> {
   assertAllRows("listActiveTrucks", data, count);
   return data;
 }
+
+// Every truck, inactive ones included, in the same Swedish name order: the admin's list
+// (Phase 7 plan, "Functions and types"). Throws rather than return part of the trucks past
+// `max_rows` (`assertAllRows`).
+export async function listAllTrucks(): Promise<Truck[]> {
+  const { data, error, count } = await supabaseAdmin
+    .from("trucks")
+    .select(TRUCK_COLUMNS, { count: "exact" })
+    .order("name");
+
+  if (error) throw error;
+  assertAllRows("listAllTrucks", data, count);
+  return data;
+}

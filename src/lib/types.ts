@@ -34,3 +34,6 @@ export type NewLocation = Omit<Location, "id" | "created_at" | "updated_at" | "c
 export type LocationPatch = Partial<
   Pick<Location, "latitude" | "longitude" | "label" | "starts_at" | "ends_at">
 >;
+
+// A `users` row: the app's own record beside an auth user, with `is_admin`.
+export type User = Database["public"]["Tables"]["users"]["Row"];
