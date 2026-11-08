@@ -176,7 +176,8 @@ through `isUuid`: on a path, in a query string or in a body.
 **`src/lib/stockholm.ts`.** `TZ`, `stockholmDay`, `stockholmMidnight` (moved from `live.ts`,
 #31), `stockholmDayBounds(now)`, `wallClockToUtc(day, "11:00")`, and `entryWindow(day, start,
 end)`, whose end at or before the start falls on the next day (#30), with `date-fns-tz`,
-correct across a DST change. The form and the checklist both call `entryWindow`; the API takes
+correct across a DST change. Both give null for a time the day doesn't have, such as 02:30 on
+2026-03-29 (PR for IS #225). The form and the checklist both call `entryWindow`; the API takes
 timestamps, so `parseNewLocation` still refuses an end at or before the start.
 
 **Proxy.** `proxy(request)`: the order of `requireAdmin`, on `/admin/:path*` and

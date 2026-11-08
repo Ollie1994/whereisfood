@@ -1,12 +1,11 @@
 import { isValid, parseISO } from "date-fns";
-import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
+import { formatInTimeZone } from "date-fns-tz";
+import { stockholmDay, stockholmMidnight, TZ } from "@/lib/stockholm";
 import type { Location, Truck } from "@/lib/types";
 
 // The `/api/live` response contract and the pure helpers the service, the route, the
 // map hooks and the popup share (Phase 6 plan, "Functions and types"). No React, no env
 // and no clock: every function that needs the time takes `now`.
-
-export const TZ = "Europe/Stockholm";
 
 export type TruckId = Truck["id"];
 
@@ -53,7 +52,9 @@ function isNullableString(value: unknown): value is string | null {
   return value === null || typeof value === "string";
 }
 
-function isTimestamp(value: unknown): value is string {
+// Exported for the location validators, so a timestamp the API takes passes the same
+// check as one the map reads.
+export function isTimestamp(value: unknown): value is string {
   return typeof value === "string" && TIMESTAMP.test(value) && isValid(instant(value));
 }
 
@@ -91,29 +92,13 @@ export function isLiveResponse(body: unknown): body is LiveResponse {
   return isRecord(body) && Array.isArray(body.entries) && body.entries.every(isLiveEntry);
 }
 
-// --- Stockholm calendar days ------------------------------------------------------
-
-const DAY_MS = 86_400_000;
+// --- Timestamps ------------------------------------------------------------------
 
 // Every timestamp string is read here, never by passing the string to `formatInTimeZone`:
 // date-fns-tz's own parser reads `…T24:00:00+00:00` as that day's 00:00 where `parseISO`
 // reads the next day's (probed, PR #190 round 2). The guard refuses hour 24 as well.
 function instant(timestamp: string): Date {
   return parseISO(timestamp);
-}
-
-// The Stockholm calendar date of `date`, as a count of days since 1970-01-01. Day
-// arithmetic on it is plain integer arithmetic, with no DST in it.
-function stockholmDay(date: Date): number {
-  const [y, m, d] = formatInTimeZone(date, TZ, "yyyy-MM-dd").split("-").map(Number);
-  return Date.UTC(y, m - 1, d) / DAY_MS;
-}
-
-// Midnight in Stockholm at the start of `day`. Not the previous midnight plus 24 h:
-// 2026-03-29 is 23 h long and 2026-10-25 is 25 h (`live.test.ts`'s DST cases).
-function stockholmMidnight(day: number): Date {
-  const date = new Date(day * DAY_MS).toISOString().slice(0, 10);
-  return fromZonedTime(`${date}T00:00:00`, TZ);
 }
 
 function ms(timestamp: string): number {

@@ -1,0 +1,130 @@
+import { describe, expect, it } from "vitest";
+import { entryWindow, stockholmDay, stockholmDayBounds, stockholmMidnight, wallClockToUtc } from "@/lib/stockholm";
+
+// 2026-03-29 is 23 hours long in Stockholm (02:00 CET → 03:00 CEST) and 2026-10-25 is 25
+// (03:00 CEST → 02:00 CET). `live.test.ts` covers the same helpers through the map's code.
+
+const HOUR = 3_600_000;
+const day = (date: string) => Date.parse(`${date}T00:00:00Z`) / 86_400_000;
+const iso = (date: Date | null | undefined) => date?.toISOString() ?? null;
+
+describe("stockholmDay", () => {
+  it("is Stockholm's date, not UTC's", () => {
+    expect(stockholmDay(new Date("2026-11-08T22:59:59Z"))).toBe(day("2026-11-08"));
+    expect(stockholmDay(new Date("2026-11-08T23:00:00Z"))).toBe(day("2026-11-09"));
+    expect(stockholmDay(new Date("2026-07-01T21:59:59Z"))).toBe(day("2026-07-01"));
+    expect(stockholmDay(new Date("2026-07-01T22:00:00Z"))).toBe(day("2026-07-02"));
+  });
+});
+
+describe("stockholmMidnight", () => {
+  it.each([
+    ["2026-03-29", "2026-03-28T23:00:00.000Z"],
+    ["2026-03-30", "2026-03-29T22:00:00.000Z"],
+    ["2026-10-25", "2026-10-24T22:00:00.000Z"],
+    ["2026-10-26", "2026-10-25T23:00:00.000Z"],
+  ])("%s starts at %s", (date, expected) => {
+    expect(iso(stockholmMidnight(day(date)))).toBe(expected);
+  });
+});
+
+describe("stockholmDayBounds", () => {
+  it("is 24 hours on an ordinary day", () => {
+    const { start, end } = stockholmDayBounds(new Date("2026-11-08T12:00:00Z"));
+    expect(iso(start)).toBe("2026-11-07T23:00:00.000Z");
+    expect(end.getTime() - start.getTime()).toBe(24 * HOUR);
+  });
+
+  it("is 23 hours on 2026-03-29", () => {
+    const { start, end } = stockholmDayBounds(new Date("2026-03-29T12:00:00Z"));
+    expect([iso(start), iso(end)]).toEqual(["2026-03-28T23:00:00.000Z", "2026-03-29T22:00:00.000Z"]);
+    expect(end.getTime() - start.getTime()).toBe(23 * HOUR);
+  });
+
+  it("is 25 hours on 2026-10-25", () => {
+    const { start, end } = stockholmDayBounds(new Date("2026-10-25T12:00:00Z"));
+    expect([iso(start), iso(end)]).toEqual(["2026-10-24T22:00:00.000Z", "2026-10-25T23:00:00.000Z"]);
+    expect(end.getTime() - start.getTime()).toBe(25 * HOUR);
+  });
+
+  it("holds its own midnight and not the next: [start, end)", () => {
+    const { start, end } = stockholmDayBounds(new Date("2026-11-07T23:00:00Z"));
+    expect(iso(start)).toBe("2026-11-07T23:00:00.000Z");
+    expect(iso(stockholmDayBounds(new Date(end.getTime() - 1)).end)).toBe(iso(end));
+    expect(iso(stockholmDayBounds(end).start)).toBe(iso(end));
+  });
+});
+
+describe("wallClockToUtc", () => {
+  it("reads the time in CET in winter and CEST in summer", () => {
+    expect(iso(wallClockToUtc(day("2026-11-08"), "11:00"))).toBe("2026-11-08T10:00:00.000Z");
+    expect(iso(wallClockToUtc(day("2026-07-01"), "11:00"))).toBe("2026-07-01T09:00:00.000Z");
+    expect(iso(wallClockToUtc(day("2026-11-08"), "00:00"))).toBe("2026-11-07T23:00:00.000Z");
+    expect(iso(wallClockToUtc(day("2026-11-08"), "23:59"))).toBe("2026-11-08T22:59:00.000Z");
+  });
+
+  it("on 2026-03-29, reads the times either side of the gap", () => {
+    expect(iso(wallClockToUtc(day("2026-03-29"), "01:59"))).toBe("2026-03-29T00:59:00.000Z");
+    expect(iso(wallClockToUtc(day("2026-03-29"), "03:00"))).toBe("2026-03-29T01:00:00.000Z");
+  });
+
+  // date-fns-tz 3.2.0 reads 02:30 here as 01:30 CET (probed, PR for IS #225).
+  it.each(["02:00", "02:30", "02:59"])("on 2026-03-29, gives null for %s, which the day doesn't have", (time) => {
+    expect(wallClockToUtc(day("2026-03-29"), time)).toBeNull();
+  });
+
+  it("on 2026-10-25, gives the second of a time that occurs twice, in CET", () => {
+    expect(iso(wallClockToUtc(day("2026-10-25"), "01:59"))).toBe("2026-10-24T23:59:00.000Z");
+    expect(iso(wallClockToUtc(day("2026-10-25"), "02:30"))).toBe("2026-10-25T01:30:00.000Z");
+    expect(iso(wallClockToUtc(day("2026-10-25"), "03:00"))).toBe("2026-10-25T02:00:00.000Z");
+  });
+
+  it.each(["24:00", "7:00", "11:60", "11:00:00", "", "11.00", " 11:00"])("gives null for %j", (time) => {
+    expect(wallClockToUtc(day("2026-11-08"), time)).toBeNull();
+  });
+});
+
+describe("entryWindow", () => {
+  const window = (date: string, start: string, end: string) => {
+    const result = entryWindow(day(date), start, end);
+    return result && [iso(result.startsAt), iso(result.endsAt)];
+  };
+
+  it("keeps an end after the start on the same day", () => {
+    expect(window("2026-11-08", "11:00", "13:00")).toEqual(["2026-11-08T10:00:00.000Z", "2026-11-08T12:00:00.000Z"]);
+  });
+
+  it("puts an end before the start on the next day (#30)", () => {
+    expect(window("2026-11-08", "22:00", "01:00")).toEqual(["2026-11-08T21:00:00.000Z", "2026-11-09T00:00:00.000Z"]);
+  });
+
+  it("puts an end equal to the start on the next day: 24 hours", () => {
+    expect(window("2026-11-08", "11:00", "11:00")).toEqual(["2026-11-08T10:00:00.000Z", "2026-11-09T10:00:00.000Z"]);
+  });
+
+  it("ends at the next midnight for 20:00–00:00", () => {
+    expect(window("2026-11-08", "20:00", "00:00")).toEqual(["2026-11-08T19:00:00.000Z", "2026-11-08T23:00:00.000Z"]);
+  });
+
+  it("crosses into 2026-03-29: 22:00–03:00 is 4 hours", () => {
+    const result = entryWindow(day("2026-03-28"), "22:00", "03:00");
+    expect(iso(result?.endsAt)).toBe("2026-03-29T01:00:00.000Z");
+    expect(result && result.endsAt.getTime() - result.startsAt.getTime()).toBe(4 * HOUR);
+  });
+
+  it("crosses into 2026-10-25: 22:00–03:00 is 6 hours", () => {
+    const result = entryWindow(day("2026-10-24"), "22:00", "03:00");
+    expect(iso(result?.endsAt)).toBe("2026-10-25T02:00:00.000Z");
+    expect(result && result.endsAt.getTime() - result.startsAt.getTime()).toBe(6 * HOUR);
+  });
+
+  it("gives null when the next day lacks the end time: 22:00–02:30 from 2026-03-28", () => {
+    expect(entryWindow(day("2026-03-28"), "22:00", "02:30")).toBeNull();
+  });
+
+  it("gives null when the day lacks the start time, or a time is malformed", () => {
+    expect(entryWindow(day("2026-03-29"), "02:30", "04:00")).toBeNull();
+    expect(entryWindow(day("2026-11-08"), "x", "13:00")).toBeNull();
+    expect(entryWindow(day("2026-11-08"), "11:00", "25:00")).toBeNull();
+  });
+});
