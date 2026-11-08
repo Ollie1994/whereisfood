@@ -69,8 +69,9 @@ export async function proxy(request: NextRequest) {
     if (isApi) return carry(written, adminRefusal(check.reason));
     if (check.reason === "unavailable") return carry(written, unavailablePage());
     // A limit: a logged-in non-admin lands on the login with no message, and a new link
-    // brings them back here. Only the admin has an account until the Owners phase (sign-ups
-    // are off), so the admin's own use doesn't reach it (PR for IS #223, round 1).
+    // brings them back here. Sign-ups are off, and until the Owners phase the plan creates
+    // only the admin's account, so the admin's own use doesn't reach it (PR for IS #223,
+    // round 1).
     //
     // Built from `request.url`, which Next then turns into `Location: /admin/login`: its proxy
     // adapter relativizes a redirect whose host matches `request.url`'s (`next/dist/server/
