@@ -121,7 +121,8 @@ the public map, and nobody else can write anything.
 
 **HTTP (`src/lib/http/admin.ts`).** `withAdmin(request, handler)`: wraps `withErrorHandling`,
 runs `requireAdmin`, answers 401 or 403, refuses a write that fails `isSameOrigin` (#16;
-the proxy refuses it first on `/api/admin/*`, before any Auth call, PR #237), and sets `Cache-Control: no-store` on what it returns (#15). The handler receives the
+the proxy refuses it first on `/api/admin/*`, before any Auth call, PR #237), and sets
+`Cache-Control: no-store` on what it returns (#15). The handler receives the
 admin's user id. `readJson(request)`: a body that isn't valid JSON answers 400 with a Swedish
 message, and no handler calls `request.json()` itself. `requestOrigin(request)`
 (`src/lib/http/origin.ts`): the scheme and host from `x-forwarded-host`, then `Host`, never
