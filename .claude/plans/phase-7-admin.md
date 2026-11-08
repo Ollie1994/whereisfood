@@ -125,7 +125,9 @@ and sets `Cache-Control: no-store` on what it returns (#15). The handler receive
 admin's user id. `readJson(request)`: a body that isn't valid JSON answers 400 with a Swedish
 message, and no handler calls `request.json()` itself. `requestOrigin(request)`
 (`src/lib/http/origin.ts`): the scheme and host from `x-forwarded-host`, then `Host`, never
-`request.url` (#16); the callback's and logout's redirects use it too. `isSameOrigin(request)`:
+`request.url` (#16). Redirects don't use it, since a client can set `x-forwarded-host`: the
+callback and logout send a relative `Location` (`redirectTo`), and the proxy one built from
+`request.url`, which Next makes relative (PR #237, round 1). `isSameOrigin(request)`:
 the `Origin` header equals `requestOrigin`, and a missing or `null` `Origin` is false.
 
 **Services (no HTTP knowledge).**
