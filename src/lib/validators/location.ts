@@ -8,8 +8,8 @@ import { isUuid } from "@/lib/validators/uuid";
 // no clock, no env (`CLAUDE.md`, "Time"). `created_by`, `source` and `cancelled_at` are
 // never read, so a body can't set them (Phase 7 plan, #17); every other unknown key is
 // dropped too. A limit: a dropped key beside a kept one is dropped silently, so a patch
-// holding `truck_id` and `label` changes the label only. The edit form shows the truck
-// read-only (the plan's acceptance criteria) and doesn't send it.
+// holding `truck_id` and `label` changes the label only. The plan's acceptance criteria
+// show the truck read-only on an edit (the form is #227's).
 
 export type Parsed<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -40,7 +40,8 @@ function coordinate(value: unknown): number | undefined {
 }
 
 // Absent, null or blank is no label. A limit: no length or character bound, and the
-// schema has none either (`0001_baseline.sql`); only the admin writes one.
+// schema has none either (`0001_baseline.sql`). Until the Owners phase only the admin
+// writes one, through `/api/admin/*`.
 function label(value: unknown): string | null | undefined {
   if (value === undefined || value === null) return null;
   if (typeof value !== "string") return undefined;
