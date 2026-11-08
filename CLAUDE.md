@@ -220,7 +220,7 @@ said otherwise: Phase 4 plan decision #14.
   `src/app/api/admin/` wraps its body in `withAdmin()` (`src/lib/http/admin.ts`), which
   wraps `withErrorHandling` for it. It answers 401 with no valid session, 403 for a
   non-admin or a write whose `Origin` isn't this origin, and 503 when Auth or the
-  database can't say, never 401 for that; every answer carries `Cache-Control: no-store`.
+  database can't say, never 401 for that; every answer's `Cache-Control` holds `no-store`.
   `tests/integration/admin-auth.test.ts` finds the routes on disk, so a new one is tested
   with no edit. A handler reads its body through `readJson()`, never `request.json()`
 
