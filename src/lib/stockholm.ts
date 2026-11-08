@@ -5,6 +5,7 @@
 export const TZ = "Europe/Stockholm";
 
 const DAY_MS = 86_400_000;
+const MINUTE_MS = 60_000;
 const SECOND_MS = 1_000;
 
 // Stockholm's wall time through `Intl`, not date-fns-tz's `formatInTimeZone`, which
@@ -13,6 +14,7 @@ const SECOND_MS = 1_000;
 // Sydney's, Santiago's and Havana's gap days (`process.env.TZ` set in-process, PR #238).
 const STOCKHOLM = new Intl.DateTimeFormat("en-CA", {
   timeZone: TZ,
+  era: "short",
   year: "numeric",
   month: "2-digit",
   day: "2-digit",
@@ -22,60 +24,52 @@ const STOCKHOLM = new Intl.DateTimeFormat("en-CA", {
   hourCycle: "h23",
 });
 
-function stockholmParts(instant: Date | number): Record<string, string> {
-  return Object.fromEntries(STOCKHOLM.formatToParts(instant).map(({ type, value }) => [type, value]));
+// Stockholm's wall time at `instant`, as the UTC milliseconds that read the same. Built
+// with `setUTCFullYear`, not a string: `Date.parse` gave NaN for "10000-01-01T00:30:00Z",
+// Stockholm's reading of 9999-12-31T23:30Z, and `Date.UTC` maps years 0–99 to 1900–1999.
+// `Intl` gives the ISO year 0 as "1" with era "BC" (probed, PR #238).
+function wallMs(instant: number): number {
+  const part = Object.fromEntries(STOCKHOLM.formatToParts(instant).map(({ type, value }) => [type, value]));
+  const year = Number(part.year);
+  const wall = new Date(0);
+  wall.setUTCFullYear(part.era === "BC" ? 1 - year : year, Number(part.month) - 1, Number(part.day));
+  wall.setUTCHours(Number(part.hour), Number(part.minute), Number(part.second), 0);
+  return wall.getTime();
 }
 
-// `yyyy-MM-dd HH:mm` in Stockholm.
-function stockholmWall(instant: Date | number): string {
-  const part = stockholmParts(instant);
-  return `${part.year.padStart(4, "0")}-${part.month}-${part.day} ${part.hour}:${part.minute}`;
-}
-
-// Stockholm's offset from UTC at `instant`, read from `Intl` to the second: before
-// 1893-04-01 Node's zone data has local mean time, +00:53:28, and to the minute a day's
-// start came out 28 s late (`stockholm.test.ts`'s 1850–2300 test, PR #238).
+// Stockholm's offset from UTC at `instant`, to the second: before 1893-04-01 Node's zone
+// data has local mean time, +00:53:28, and to the minute a day's start came out 28 s late
+// (`stockholm.test.ts`'s 1850–2300 test, PR #238).
 function offsetAt(instant: number): number {
-  const part = stockholmParts(instant);
-  const wall = Date.parse(
-    `${part.year.padStart(4, "0")}-${part.month}-${part.day}T${part.hour}:${part.minute}:${part.second}Z`,
-  );
-  return wall - Math.floor(instant / SECOND_MS) * SECOND_MS;
+  return wallMs(instant) - Math.floor(instant / SECOND_MS) * SECOND_MS;
 }
 
-// Every instant that reads as `time` on `day` in Stockholm: none in a gap, two in a
-// repeated hour, else one. Stockholm's offsets a day either side of the wall time cover
-// any change of offset near it: in Node's zone data from 1850 to 2300 the two closest
+// Every instant that reads as `minutes` past midnight on `day` in Stockholm: none in a gap,
+// two in a repeated hour, else one. Stockholm's offsets a day either side of the wall time
+// cover any change of offset near it: in Node's zone data from 1850 to 2300 the two closest
 // changes are 35 days apart (PR #238).
-function wallInstants(day: number, time: string): number[] {
-  const date = isoDate(day);
-  const wall = Date.parse(`${date}T${time}:00Z`);
+function wallInstants(day: number, minutes: number): number[] {
+  const wall = day * DAY_MS + minutes * MINUTE_MS;
   const offsets = new Set([offsetAt(wall - DAY_MS), offsetAt(wall), offsetAt(wall + DAY_MS)]);
-  return [...offsets].map((offset) => wall - offset).filter((ms) => stockholmWall(ms) === `${date} ${time}`);
+  return [...offsets]
+    .map((offset) => wall - offset)
+    .filter((ms) => Math.floor(wallMs(ms) / MINUTE_MS) * MINUTE_MS === wall);
 }
 
 // The Stockholm calendar date of `date`, as a count of days since 1970-01-01. Day
 // arithmetic on it is plain integer arithmetic, with no DST in it.
 export function stockholmDay(date: Date): number {
-  const [y, m, d] = stockholmWall(date).slice(0, 10).split("-").map(Number);
-  return Date.UTC(y, m - 1, d) / DAY_MS;
-}
-
-// `day` as `yyyy-MM-dd`.
-function isoDate(day: number): string {
-  return new Date(day * DAY_MS).toISOString().slice(0, 10);
+  return Math.floor(wallMs(date.getTime()) / DAY_MS);
 }
 
 // The first instant of Stockholm day `day`. Not the previous midnight plus 24 h:
 // 2026-03-29 is 23 h long and 2026-10-25 is 25 h (`live.test.ts`'s DST cases). The earlier
 // of two midnights, and where a gap ends when midnight falls in one. Node's zone data has
 // one of each from 1850 to 2300, 1916-10-01 and 1893-04-01, and one midnight on every
-// other day (PR #238). No throw of its own, since the map calls it while rendering. `Intl`
-// throws a RangeError past year 9999: 9999-12-31 threw, while every other day of years
-// 0001 and 9999 gave the day's start (PR #238). The location validator keeps entries to
-// UTC years up to 9998 for this.
+// other day (PR #238). No throw of its own, since the map calls it while rendering; every
+// day of years 0001, 9999 and 10000 gave the day's start (PR #238).
 export function stockholmMidnight(day: number): Date {
-  const midnights = wallInstants(day, "00:00");
+  const midnights = wallInstants(day, 0);
   if (midnights.length > 0) return new Date(Math.min(...midnights));
   const wall = day * DAY_MS;
   return new Date(wall - offsetAt(wall - DAY_MS));
@@ -98,7 +92,7 @@ const WALL_CLOCK = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 // host's own zone, the first on a New York or Los Angeles host (date-fns-tz 3.2.0, PR #238).
 export function wallClockToUtc(day: number, time: string): Date | null {
   if (!WALL_CLOCK.test(time)) return null;
-  const instants = wallInstants(day, time);
+  const instants = wallInstants(day, Number(time.slice(0, 2)) * 60 + Number(time.slice(3)));
   return instants.length > 0 ? new Date(Math.max(...instants)) : null;
 }
 

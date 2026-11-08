@@ -98,12 +98,10 @@ describe("parseNewLocation", () => {
     "2026-11-09",
     "2026-11-09T24:00:00+01:00",
     "not a time",
-    // UTC years outside 0001–9998: 0000 and 10000, whose `toISOString` forms Postgres
-    // refused, and 9999, whose last day `stockholm.ts` can't follow (PR #238).
+    // UTC years outside 0001–9999, whose `toISOString` forms Postgres refused (PR #238).
     "0000-11-09T11:00:00Z",
     "0001-01-01T00:30:00+01:00",
     "9999-12-31T23:30:00-01:00",
-    "9999-01-01T00:00:00Z",
   ])("refuses starts_at %j, and the same as ends_at", (time) => {
     expect(parseNewLocation({ ...BODY, starts_at: time })).toEqual(refused(LOCATION_ERRORS.startsAt));
     expect(parseNewLocation({ ...BODY, ends_at: time })).toEqual(refused(LOCATION_ERRORS.endsAt));
@@ -114,11 +112,11 @@ describe("parseNewLocation", () => {
   });
 
   // Not a sensible range (`location.ts`, `timestamp`'s limit).
-  it("accepts the first and last instants of UTC years 0001 and 9998, the year bound's edges", () => {
-    const result = parseNewLocation({ ...BODY, starts_at: "0001-01-01T00:00:00Z", ends_at: "9998-12-31T23:59:59.999Z" });
+  it("accepts the first and last instants of UTC years 0001 and 9999, the year bound's edges", () => {
+    const result = parseNewLocation({ ...BODY, starts_at: "0001-01-01T00:00:00Z", ends_at: "9999-12-31T23:59:59.999Z" });
     expect(result.ok && [result.value.starts_at, result.value.ends_at]).toEqual([
       "0001-01-01T00:00:00.000Z",
-      "9998-12-31T23:59:59.999Z",
+      "9999-12-31T23:59:59.999Z",
     ]);
   });
 

@@ -28,17 +28,34 @@ describe("stockholmMidnight", () => {
   });
 
   // What a day's start means, whatever the zone data says about the date: on day `d`, and
-  // the millisecond before it on `d - 1`. Every day of the years where Node's data has a
-  // gap or a repeat at midnight (1893, 1916) or an offset other than +1 or +2 (1945–1947),
-  // and the first of each month from 1850 to 2300 (PR #238).
-  it("is the first instant of its day, across 1850–2300", () => {
+  // the millisecond before it on `d - 1`. Checked on every day whose Stockholm offset at
+  // 00:00Z differs from the next day's, and the days either side, from 1850 to 2300, found
+  // with the test's own `Intl` formatter; and on every day of years 0001, 9999 and 10000,
+  // where `Date.parse` and `Date.UTC` once broke the module (PR #238).
+  it("is the first instant of its day, on every offset change from 1850 to 2300 and at the year edges", () => {
+    const offset = new Intl.DateTimeFormat("en", { timeZone: "Europe/Stockholm", timeZoneName: "longOffset" });
+    const offsetOn = (d: number) => offset.formatToParts(d * 86_400_000).find(({ type }) => type === "timeZoneName")?.value;
     const days = new Set<number>();
-    for (const year of [1893, 1916, 1945, 1946, 1947, 2026]) {
-      for (let d = day(`${year}-01-01`); d < day(`${year + 1}-01-01`); d++) days.add(d);
+    let changes = 0;
+    for (let d = day("1850-01-01"), previous = offsetOn(d); d <= day("2300-01-01"); d++) {
+      const current = offsetOn(d + 1);
+      if (current !== previous) {
+        changes++;
+        for (const near of [d - 1, d, d + 1, d + 2]) days.add(near);
+      }
+      previous = current;
     }
-    for (let year = 1850; year <= 2300; year++) {
-      for (let month = 1; month <= 12; month++) days.add(day(`${year}-${String(month).padStart(2, "0")}-01`));
+    for (const [from, to] of [
+      ["0001-01-01", "0002-01-01"],
+      ["9999-01-01", "+010001-01-01"],
+    ]) {
+      for (let d = Date.parse(`${from}T00:00:00Z`) / 86_400_000; d < Date.parse(`${to}T00:00:00Z`) / 86_400_000; d++) {
+        days.add(d);
+      }
     }
+    // Node's data has 667 changes in this range (PR #238); a broken scan finds none.
+    expect(changes).toBeGreaterThan(600);
+    expect(days.size).toBeGreaterThan(3_000);
     const wrong = [...days].filter((d) => {
       const midnight = stockholmMidnight(d);
       return stockholmDay(midnight) !== d || stockholmDay(new Date(midnight.getTime() - 1)) !== d - 1;
