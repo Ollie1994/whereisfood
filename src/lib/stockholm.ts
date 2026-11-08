@@ -36,21 +36,25 @@ export function stockholmDayBounds(now: Date): { start: Date; end: Date } {
 const WALL_CLOCK = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 
 // `time` ("11:00", as `<input type="time">` gives it) on Stockholm day `day`, in UTC.
-// Null for a malformed time, and for one the day doesn't have: `fromZonedTime` reads
-// 02:30 on 2026-03-29, inside the spring-forward gap, as 01:30 CET, so a form would save
-// another time than the one typed. On 2026-10-25 a time between 02:00 and 02:59 occurs
-// twice, and this gives the second, +01:00. Not `fromZonedTime`'s answer alone: which of
-// the two it gives depends on the host's own zone, the first on a New York or Los Angeles
-// host and the second on Stockholm, UTC, Tokyo or Sydney (date-fns-tz 3.2.0, `process.env.TZ`
-// set in-process, PR #238). So the instants an hour either side are checked too.
+// Null for a malformed time, and for one the day doesn't have (02:30 on 2026-03-29). On
+// 2026-10-25 a time between 02:00 and 02:59 occurs twice, and this gives the second, CET.
+//
+// Stockholm is UTC+1 (CET) or UTC+2 (CEST), so the answer is the wall time less one hour
+// or less two, whichever reads back as the wall time in Stockholm; tried in that order,
+// the later instant comes first. A limit: that holds from 1948 to 2100. Node's zone data,
+// sampled every 6 h from 1890, also has +00:53 before 1893 and +03:00 in 1945–1947, where
+// this gives null (PR #238). Not `fromZonedTime`: it reads 02:30 on 2026-03-29 as
+// 01:30 CET, and which 02:30 on 2026-10-25 it gives depends on the host's own zone, the
+// first on a New York or Los Angeles host (date-fns-tz 3.2.0, `process.env.TZ` set
+// in-process, PR #238).
 export function wallClockToUtc(day: number, time: string): Date | null {
   if (!WALL_CLOCK.test(time)) return null;
-  const wall = `${isoDate(day)} ${time}`;
-  const guess = fromZonedTime(`${isoDate(day)}T${time}:00`, TZ).getTime();
-  const later = [guess + HOUR_MS, guess, guess - HOUR_MS].find(
-    (ms) => formatInTimeZone(ms, TZ, "yyyy-MM-dd HH:mm") === wall,
+  const date = isoDate(day);
+  const wall = Date.parse(`${date}T${time}:00Z`);
+  const match = [wall - HOUR_MS, wall - 2 * HOUR_MS].find(
+    (ms) => formatInTimeZone(ms, TZ, "yyyy-MM-dd HH:mm") === `${date} ${time}`,
   );
-  return later === undefined ? null : new Date(later);
+  return match === undefined ? null : new Date(match);
 }
 
 // A shift from `start` to `end` on Stockholm day `day`. An end at or before the start, as

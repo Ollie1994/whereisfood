@@ -79,12 +79,13 @@ describe("wallClockToUtc", () => {
     expect(iso(wallClockToUtc(day("2026-10-25"), "03:00"))).toBe("2026-10-25T02:00:00.000Z");
   });
 
-  // `fromZonedTime` alone gives the first occurrence on a New York or Los Angeles host
-  // (PR #238). Node reads `process.env.TZ` again when it is assigned.
-  it.each(["America/New_York", "America/Los_Angeles", "UTC", "Asia/Tokyo"])(
+  // `fromZonedTime` gives the first occurrence on a New York or Los Angeles host (PR #238).
+  // Node reads `process.env.TZ` again when it is assigned, but deleting it leaves the last
+  // zone in place (probed, PR #238), so the zone is assigned back.
+  it.each(["America/New_York", "America/Los_Angeles", "UTC", "Asia/Tokyo", "Europe/Stockholm", "Australia/Sydney"])(
     "gives the same answers on a host in %s",
     (zone) => {
-      const original = process.env.TZ;
+      const original = Intl.DateTimeFormat().resolvedOptions().timeZone;
       process.env.TZ = zone;
       try {
         expect(Intl.DateTimeFormat().resolvedOptions().timeZone).toBe(zone);
@@ -94,9 +95,9 @@ describe("wallClockToUtc", () => {
         expect(iso(wallClockToUtc(day("2026-11-08"), "11:00"))).toBe("2026-11-08T10:00:00.000Z");
         expect(iso(stockholmMidnight(day("2026-10-25")))).toBe("2026-10-24T22:00:00.000Z");
       } finally {
-        if (original === undefined) delete process.env.TZ;
-        else process.env.TZ = original;
+        process.env.TZ = original;
       }
+      expect(Intl.DateTimeFormat().resolvedOptions().timeZone).toBe(original);
     },
   );
 

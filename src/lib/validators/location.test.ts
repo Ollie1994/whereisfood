@@ -107,10 +107,12 @@ describe("parseNewLocation", () => {
     expect(parseNewLocation({ ...BODY, ends_at: time })).toEqual(refused(LOCATION_ERRORS.endsAt));
     if (time !== undefined) {
       expect(parseLocationPatch({ starts_at: time })).toEqual(refused(LOCATION_ERRORS.startsAt));
+      expect(parseLocationPatch({ ends_at: time })).toEqual(refused(LOCATION_ERRORS.endsAt));
     }
   });
 
-  it("accepts the first and last instants of the years Postgres takes", () => {
+  // Postgres's range, not a sensible one (`location.ts`, `timestamp`'s limit).
+  it("accepts the first and last instants Postgres stores, the year bound's edges", () => {
     const result = parseNewLocation({ ...BODY, starts_at: "0001-01-01T00:00:00Z", ends_at: "9999-12-31T23:59:59.999Z" });
     expect(result.ok && [result.value.starts_at, result.value.ends_at]).toEqual([
       "0001-01-01T00:00:00.000Z",

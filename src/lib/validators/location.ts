@@ -28,11 +28,13 @@ export const LOCATION_ERRORS = {
   emptyPatch: "Ändringen innehåller inget att ändra",
 } as const;
 
-// Each field's check gives its value, or undefined when it refuses it.
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+
+// The field checks: each gives the field's value, or undefined to refuse it. An absent key
+// is refused too, except by `label`, which reads it as null; `parseLocationPatch` skips
+// absent keys before calling them.
 
 // A number, not a numeric string.
 function coordinate(value: unknown): number | undefined {
@@ -50,7 +52,10 @@ function label(value: unknown): string | null | undefined {
 
 // With an offset, as `isTimestamp` requires: one without would be read in the server's own
 // zone. In UTC, a year Postgres takes: local Postgres refused `0000-12-31T23:30:00.000Z`
-// and `+010000-01-01T00:30:00.000Z`, and took years 0001 and 9999 (PR #238).
+// and `+010000-01-01T00:30:00.000Z`, and took years 0001 and 9999 (PR #238). A limit: that is
+// Postgres's range, not a sensible one, so an entry from 0001 to 9999 passes here and would
+// cover every day. Nothing bounds an entry's dates yet; refusing one that has already
+// ended is open decision 9's, for the service.
 function timestamp(value: unknown): Date | undefined {
   if (!isTimestamp(value)) return undefined;
   const date = parseISO(value);
