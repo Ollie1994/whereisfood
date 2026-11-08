@@ -80,9 +80,10 @@ describe("wallClockToUtc", () => {
   });
 
   // `fromZonedTime` gives the first occurrence on a New York or Los Angeles host, and
-  // `formatInTimeZone` is an hour late on the host's own gap day (PR #238). Each case's date
-  // and time fall in its host's gap; Stockholm's own and UTC have none in 2026 that a
-  // Stockholm wall time reaches, so theirs is an ordinary time.
+  // `formatInTimeZone` is an hour late on the host's own gap day (PR #238). The first five
+  // cases' date and time fall in their host's gap. Tokyo and UTC have one offset all of 2026,
+  // and Stockholm's gaps are its own, which no wall time falls in, so theirs is an ordinary
+  // time.
   //
   // Node reads `process.env.TZ` again when it is assigned, but deleting it leaves the last
   // zone in place (probed, PR #238): the zone is assigned back first, then the variable is
