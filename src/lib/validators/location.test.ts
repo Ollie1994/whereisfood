@@ -129,6 +129,12 @@ describe("parseNewLocation", () => {
     expect(parseNewLocation({ ...BODY, ends_at: endsAt })).toEqual(refused(LOCATION_ERRORS.order));
   });
 
+  // `timestamp()`'s stated limit, pinned so a change to it is seen.
+  it("drops digits past the millisecond, so an entry inside one millisecond is refused", () => {
+    const result = parseNewLocation({ ...BODY, starts_at: "2026-11-09T10:00:00.0001Z", ends_at: "2026-11-09T10:00:00.0009Z" });
+    expect(result).toEqual(refused(LOCATION_ERRORS.order));
+  });
+
   it("accepts an end one millisecond after the start, across offsets", () => {
     const result = parseNewLocation({ ...BODY, ends_at: "2026-11-09T10:00:00.001Z" });
     expect(result.ok).toBe(true);

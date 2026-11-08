@@ -57,8 +57,8 @@ function label(value: unknown): string | null | undefined {
 // guards the string, not the date, so an entry from 0001 to 9999 passes here and would
 // cover every day. Nothing planned bounds an entry's length or far end: open decision 9
 // would refuse only one that has already ended. Also a limit: `Date` keeps milliseconds,
-// so digits past them are dropped, and two times a microsecond apart compare equal.
-// `toISOString` writes milliseconds only.
+// so digits past them are dropped: `…00.0001Z` and `…00.0009Z` both read as `…00.000Z`, and
+// an entry between them is refused as `order` (pinned in the test).
 function timestamp(value: unknown): Date | undefined {
   if (!isTimestamp(value)) return undefined;
   const date = parseISO(value);

@@ -5,7 +5,7 @@
 export const TZ = "Europe/Stockholm";
 
 const DAY_MS = 86_400_000;
-const HOUR_MS = 3_600_000;
+const SECOND_MS = 1_000;
 
 // Stockholm's wall time through `Intl`, not date-fns-tz's `formatInTimeZone`, which
 // rebuilds it with `setHours` in the host's own zone and is an hour late on the host's
@@ -18,13 +18,40 @@ const STOCKHOLM = new Intl.DateTimeFormat("en-CA", {
   day: "2-digit",
   hour: "2-digit",
   minute: "2-digit",
+  second: "2-digit",
   hourCycle: "h23",
 });
 
+function stockholmParts(instant: Date | number): Record<string, string> {
+  return Object.fromEntries(STOCKHOLM.formatToParts(instant).map(({ type, value }) => [type, value]));
+}
+
 // `yyyy-MM-dd HH:mm` in Stockholm.
 function stockholmWall(instant: Date | number): string {
-  const part = Object.fromEntries(STOCKHOLM.formatToParts(instant).map(({ type, value }) => [type, value]));
+  const part = stockholmParts(instant);
   return `${part.year.padStart(4, "0")}-${part.month}-${part.day} ${part.hour}:${part.minute}`;
+}
+
+// Stockholm's offset from UTC at `instant`, read from `Intl` to the second: before
+// 1893-04-01 Node's zone data has local mean time, +00:53:28, and to the minute a day's
+// start came out 28 s late (`stockholm.test.ts`'s 1850–2300 test, PR #238).
+function offsetAt(instant: number): number {
+  const part = stockholmParts(instant);
+  const wall = Date.parse(
+    `${part.year.padStart(4, "0")}-${part.month}-${part.day}T${part.hour}:${part.minute}:${part.second}Z`,
+  );
+  return wall - Math.floor(instant / SECOND_MS) * SECOND_MS;
+}
+
+// Every instant that reads as `time` on `day` in Stockholm: none in a gap, two in a
+// repeated hour, else one. Stockholm's offsets a day either side of the wall time cover
+// any change of offset near it: in Node's zone data from 1850 to 2300 the two closest
+// changes are 35 days apart (PR #238).
+function wallInstants(day: number, time: string): number[] {
+  const date = isoDate(day);
+  const wall = Date.parse(`${date}T${time}:00Z`);
+  const offsets = new Set([offsetAt(wall - DAY_MS), offsetAt(wall), offsetAt(wall + DAY_MS)]);
+  return [...offsets].map((offset) => wall - offset).filter((ms) => stockholmWall(ms) === `${date} ${time}`);
 }
 
 // The Stockholm calendar date of `date`, as a count of days since 1970-01-01. Day
@@ -39,15 +66,16 @@ function isoDate(day: number): string {
   return new Date(day * DAY_MS).toISOString().slice(0, 10);
 }
 
-// Midnight in Stockholm at the start of `day`. Not the previous midnight plus 24 h:
-// 2026-03-29 is 23 h long and 2026-10-25 is 25 h (`live.test.ts`'s DST cases). Through
-// `wallClockToUtc`, so the module has one conversion. It throws where that gives null, a
-// day outside 1948–2100 (`wallClockToUtc`'s limit); `stockholm.test.ts` reads every day
-// from 1948 to 2100.
+// The first instant of Stockholm day `day`. Not the previous midnight plus 24 h:
+// 2026-03-29 is 23 h long and 2026-10-25 is 25 h (`live.test.ts`'s DST cases). The earlier
+// of two midnights, and where a gap ends when midnight falls in one. Node's zone data has
+// one of each from 1850 to 2300, 1916-10-01 and 1893-04-01, and one midnight on every
+// other day (PR #238). Never throws: the map calls it while rendering.
 export function stockholmMidnight(day: number): Date {
-  const midnight = wallClockToUtc(day, "00:00");
-  if (!midnight) throw new Error(`No Stockholm midnight on ${isoDate(day)}`);
-  return midnight;
+  const midnights = wallInstants(day, "00:00");
+  if (midnights.length > 0) return new Date(Math.min(...midnights));
+  const wall = day * DAY_MS;
+  return new Date(wall - offsetAt(wall - DAY_MS));
 }
 
 // The Stockholm calendar day `now` falls on, as `[start, end)`.
@@ -62,27 +90,20 @@ const WALL_CLOCK = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 // Null for a malformed time, and for one the day doesn't have (02:30 on 2026-03-29). On
 // 2026-10-25 a time between 02:00 and 02:59 occurs twice, and this gives the second, CET.
 //
-// Stockholm is UTC+1 (CET) or UTC+2 (CEST), so the answer is the wall time less one hour
-// or less two, whichever reads back as the wall time through `stockholmWall`; tried in
-// that order, the later instant comes first. A limit: that holds from 1948 to 2100. Node's
-// zone data, sampled every 6 h from 1890, also has +00:53 before 1893 and +03:00 in
-// 1945–1947, where this gives null (PR #238). Not `fromZonedTime`: it reads 02:30 on
-// 2026-03-29 as 01:30 CET, and which 02:30 on 2026-10-25 it gives depends on the host's
-// own zone, the first on a New York or Los Angeles host (date-fns-tz 3.2.0, PR #238).
+// Through `wallInstants`, so no host zone is involved. Not `fromZonedTime`: it reads
+// 02:30 on 2026-03-29 as 01:30 CET, and which 02:30 on 2026-10-25 it gives depends on the
+// host's own zone, the first on a New York or Los Angeles host (date-fns-tz 3.2.0, PR #238).
 export function wallClockToUtc(day: number, time: string): Date | null {
   if (!WALL_CLOCK.test(time)) return null;
-  const date = isoDate(day);
-  const wall = Date.parse(`${date}T${time}:00Z`);
-  const match = [wall - HOUR_MS, wall - 2 * HOUR_MS].find(
-    (ms) => stockholmWall(ms) === `${date} ${time}`,
-  );
-  return match === undefined ? null : new Date(match);
+  const instants = wallInstants(day, time);
+  return instants.length > 0 ? new Date(Math.max(...instants)) : null;
 }
 
 // A shift from `start` to `end` on Stockholm day `day`. An end at or before the start, as
 // wall-clock times, falls on the next day: 22:00–01:00 ends at 01:00 tomorrow (#30). Null
-// when either time is null by `wallClockToUtc`. A limit: inside the hour 2026-10-25 repeats,
-// 02:45–02:15 means 30 minutes but gives 23.5 hours, the end read as the next day's.
+// when either time is null by `wallClockToUtc`. A limit: inside the hour an autumn change
+// repeats (02:00–02:59 on the last Sunday of October), 02:45–02:15 means 30 minutes but
+// gives 23.5 hours, the end read as the next day's.
 export function entryWindow(day: number, start: string, end: string): { startsAt: Date; endsAt: Date } | null {
   const startsAt = wallClockToUtc(day, start);
   // `HH:mm` strings compare in time order; a malformed one is null above or below.

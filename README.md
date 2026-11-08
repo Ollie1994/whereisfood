@@ -32,7 +32,7 @@ shut down in 2017.
 | Map        | MapLibre GL JS 6 + Protomaps PMTiles (a local file in development, Cloudflare R2 for deploys) |
 | Database   | Supabase Postgres |
 | Auth       | Supabase Auth (the admin only at launch) |
-| Time       | date-fns-tz: store UTC, display `Europe/Stockholm` |
+| Time       | Store UTC, display `Europe/Stockholm`, through `Intl` in `src/lib/stockholm.ts` |
 | Testing    | Vitest 4 (unit, plus integration tests against a local Supabase) |
 | Deployment | Vercel |
 

@@ -26,17 +26,25 @@ describe("stockholmMidnight", () => {
   ])("%s starts at %s", (date, expected) => {
     expect(iso(stockholmMidnight(day(date)))).toBe(expected);
   });
-});
 
-// `stockholmMidnight`'s stated range: it throws where `wallClockToUtc` gives null.
-it("has a midnight on every day from 1948 to 2100, and none on a +03:00 day in 1945", () => {
-  let days = 0;
-  for (let d = day("1948-01-01"); d <= day("2100-12-31"); d++) {
-    expect(stockholmDay(stockholmMidnight(d))).toBe(d);
-    days++;
-  }
-  expect(days).toBe(55_883);
-  expect(() => stockholmMidnight(day("1945-06-01"))).toThrow("No Stockholm midnight on 1945-06-01");
+  // What a day's start means, whatever the zone data says about the date: on day `d`, and
+  // the millisecond before it on `d - 1`. Every day of the years where Node's data has a
+  // gap or a repeat at midnight (1893, 1916) or an offset other than +1 or +2 (1945–1947),
+  // and the first of each month from 1850 to 2300 (PR #238). It never throws.
+  it("is the first instant of its day, across 1850–2300", () => {
+    const days = new Set<number>();
+    for (const year of [1893, 1916, 1945, 1946, 1947, 2026]) {
+      for (let d = day(`${year}-01-01`); d < day(`${year + 1}-01-01`); d++) days.add(d);
+    }
+    for (let year = 1850; year <= 2300; year++) {
+      for (let month = 1; month <= 12; month++) days.add(day(`${year}-${String(month).padStart(2, "0")}-01`));
+    }
+    const wrong = [...days].filter((d) => {
+      const midnight = stockholmMidnight(d);
+      return stockholmDay(midnight) !== d || stockholmDay(new Date(midnight.getTime() - 1)) !== d - 1;
+    });
+    expect(wrong.map((d) => new Date(d * 86_400_000).toISOString().slice(0, 10))).toEqual([]);
+  });
 });
 
 describe("stockholmDayBounds", () => {
