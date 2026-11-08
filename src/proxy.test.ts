@@ -1,5 +1,5 @@
 import type { CookieMethodsServer } from "@supabase/ssr";
-import { AuthRetryableFetchError, AuthSessionMissingError } from "@supabase/supabase-js";
+import { AuthApiError, AuthRetryableFetchError, AuthSessionMissingError } from "@supabase/supabase-js";
 import { unstable_doesMiddlewareMatch } from "next/experimental/testing/server";
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -170,6 +170,33 @@ describe("proxy with a session cookie", () => {
     const response = await proxy(request("/api/admin/trucks", SESSION));
 
     expect(response.status).toBe(403);
+    expect(response.headers.getSetCookie().join()).toContain("sb-127-auth-token=base64-rotated");
+  });
+
+  // What `@supabase/ssr` wrote when Auth refused a refresh with a 429 or a 500 (a stubbed
+  // `fetch`, `src/proxy.ts`): the session deleted, then the error.
+  it.each(["/admin", "/api/admin/trucks"])(
+    "answers %s 503 without the deletion a refused refresh wrote, so the session stays (plan #32)",
+    async (path) => {
+      getUser.mockImplementation(async () => {
+        adapter!.setAll!([{ name: "sb-127-auth-token", value: "", options: { path: "/", maxAge: 0 } }], {});
+        return { data: { user: null }, error: new AuthApiError("rate limited", 429, "over_request_rate_limit") };
+      });
+
+      const response = await proxy(request(path, SESSION));
+
+      expect(response.status).toBe(503);
+      expect(response.headers.getSetCookie()).toEqual([]);
+    },
+  );
+
+  it("keeps a refreshed session on a 503 when the database fails after the refresh", async () => {
+    refreshing(true);
+    getUserById.mockRejectedValue(new Error("connection refused"));
+
+    const response = await proxy(request("/api/admin/trucks", SESSION));
+
+    expect(response.status).toBe(503);
     expect(response.headers.getSetCookie().join()).toContain("sb-127-auth-token=base64-rotated");
   });
 

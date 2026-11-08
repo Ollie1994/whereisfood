@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { adminRefusal } from "@/lib/http/admin";
 import { SESSION_CHECK_FAILED } from "@/lib/login";
-import { requireAdmin } from "@/lib/services/admin-auth";
+import { hasSessionCookie, requireAdmin } from "@/lib/services/admin-auth";
 import { createSessionClient, writingCookies } from "@/lib/supabase-session";
 
 // NO `export const runtime` HERE — and none is needed. Next.js 16 rejects route
@@ -36,6 +36,12 @@ function carry(from: NextResponse, to: NextResponse): NextResponse {
   return to;
 }
 
+// Did the session client write a session, not only delete one? `hasSessionCookie`'s names,
+// with a value: `@supabase/ssr` deletes a cookie by writing it empty with `maxAge: 0`.
+function wroteSession(from: NextResponse): boolean {
+  return hasSessionCookie(from.cookies.getAll().filter(({ value }) => value !== "").map(({ name }) => name));
+}
+
 // A page's answer when the session can't be checked: Swedish text, not the login, which
 // would send the admin to spend one of the built-in email's few links an hour (#32).
 function unavailablePage(): NextResponse {
@@ -66,8 +72,18 @@ export async function proxy(request: NextRequest) {
     });
     if (check.ok) return carry(written, NextResponse.next({ request }));
 
+    // "Unavailable" isn't logged out (#32), so its answer carries a new session but never
+    // a deletion alone. A refresh Auth refused with a 429 or a 500 still deletes the
+    // session: auth-js 2.106.2's `_callRefreshToken` calls `_removeSession()` on any error
+    // but a retryable one (502–504, 520–530), and `@supabase/ssr` then wrote
+    // `sb-127-auth-token=''`, `maxAge=0` through `setAll` (a stubbed `fetch`, PR for IS #223,
+    // round 3). A refresh that worked before the database failed is kept.
+    if (check.reason === "unavailable") {
+      const answer = isApi ? adminRefusal(check.reason) : unavailablePage();
+      return wroteSession(written) ? carry(written, answer) : answer;
+    }
+
     if (isApi) return carry(written, adminRefusal(check.reason));
-    if (check.reason === "unavailable") return carry(written, unavailablePage());
     // A limit: a logged-in non-admin lands on the login with no message, and a new link
     // brings them back here. Sign-ups are off, and until the Owners phase the plan creates
     // only the admin's account, so the admin's own use doesn't reach it (PR for IS #223,
@@ -78,10 +94,11 @@ export async function proxy(request: NextRequest) {
     // web/adapter.js`). Under `next start` that held with `X-Forwarded-Host: evil.example`.
     // Not `redirectTo`'s relative path, which the adapter parses with `new NextURL(…)`: under
     // `next start` `/admin` answered 500 `TypeError: Invalid URL` (PR for IS #223, round 1).
-    // A limit: the adapter skips that rewrite when `next.config.ts` sets
+    // A limit: the adapter's code skips that rewrite when `next.config.ts` sets
     // `skipProxyUrlNormalize` (`define-env.js` turns it into the env flag the adapter reads)
     // or on edge rendering; then the browser gets `request.url`'s host, `localhost` under
-    // `next dev` (`origin.ts`). Neither is set here.
+    // `next dev` (`origin.ts`). Neither is set here. Seen under `next start` only: what a
+    // Vercel deploy sends wasn't read.
     return carry(written, NextResponse.redirect(new URL(LOGIN, request.url), 307));
   } catch (err) {
     // `withErrorHandling` doesn't wrap the proxy, so a throw (a missing variable) would

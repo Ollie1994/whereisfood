@@ -50,14 +50,15 @@ export async function withAdmin(
     });
     if (!check.ok) return adminRefusal(check.reason);
 
-    // A copy, because a handler's `Response.redirect()` or a fetched `Response` has
-    // immutable headers. Made inside `withErrorHandling`, so an answer the constructor
+    // A copy, because a handler's `Response.redirect()` has immutable headers (the
+    // immutable-headers test). Made inside `withErrorHandling`, so an answer the constructor
     // refuses (`Response.error()`'s status 0, a RangeError) is a 500 `{ error }`.
     const answer = await handler(check.userId);
     return new Response(answer.body, answer);
   });
 
-  // Every answer here is one this function made, so its headers can be set.
+  // A new answer: the copy above, `adminRefusal`'s, the 403 or `withErrorHandling`'s 500.
+  // Setting a header on each passed in the tests (the refusals, the 500, both copies).
   response.headers.set("Cache-Control", "no-store");
   return response;
 }

@@ -31,21 +31,22 @@ export type GetUser = () => Promise<{
 // `user_not_found`; an expired session whose refresh token Auth doesn't know → 400
 // `refresh_token_not_found`. From auth-js's `ErrorCode` list (`lib/error-codes.d.ts`), not
 // seen: `refresh_token_already_used` (a reused token was still accepted 11 s later, past
-// `config.toml`'s 10 s reuse interval) and `session_expired`.
+// `config.toml`'s 10 s reuse interval), `session_expired` and `user_banned`.
 //
 // Not a status range: a 4xx that isn't about the token, such as a gateway refusing the
 // anon key, would send the admin to the login (#32). Not `validation_failed`, which a
 // malformed refresh token gave, but which Auth uses for any bad request.
 //
-// A limit: a bad session answered with a code not listed here (`user_banned`, or one Auth
-// adds later) reads as "unavailable", so the browser shows the error page, not the login,
-// and keeps its cookies. `/admin/login` stays reachable, and its logout clears them.
+// A limit: a bad session answered with a code not listed here (one Auth adds later) reads
+// as "unavailable", so the browser shows the error page, not the login, and keeps its
+// cookies (the proxy carries no deletion then). `/admin/login`'s logout clears them.
 const INVALID_SESSION_CODES = new Set([
   "bad_jwt",
   "user_not_found",
   "refresh_token_not_found",
   "refresh_token_already_used",
   "session_expired",
+  "user_banned",
 ]);
 
 // A missing or invalid session, as opposed to Auth failing (#32). auth-js 2.106.2

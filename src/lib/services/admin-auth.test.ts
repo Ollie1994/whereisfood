@@ -72,6 +72,7 @@ describe("requireAdmin", () => {
     ["an unknown refresh token", new AuthApiError("Invalid Refresh Token: Refresh Token Not Found", 400, "refresh_token_not_found")],
     ["a used refresh token", new AuthApiError("Invalid Refresh Token: Already Used", 400, "refresh_token_already_used")],
     ["an expired session", new AuthApiError("Session Expired", 403, "session_expired")],
+    ["a banned user", new AuthApiError("User is banned", 403, "user_banned")],
   ])("reads %s as no-session, without reading users", async (_, error) => {
     expect(await requireAdmin({ cookieNames: SESSION, getUser: failed(error) })).toEqual({ ok: false, reason: "no-session" });
     expect(getUserById).not.toHaveBeenCalled();

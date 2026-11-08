@@ -45,8 +45,8 @@ export function isSameOrigin(request: HeaderSource): boolean {
 // For route handlers only. A proxy answer with a relative `Location` failed: `/admin`
 // answered 500 `TypeError: Invalid URL` under `next start` (the proxy says what it does).
 //
-// For a literal path only: the type admits `//host/…`, which a browser reads as another
-// site, so a path built from input could make this an open redirect.
+// For a literal path only: the type admits `//host/…` and `/\host/…`, which a browser
+// reads as another site, so a path built from input could make this an open redirect.
 export function redirectTo(path: `/${string}`, status: 303 | 307): NextResponse {
   return new NextResponse(null, { status, headers: { Location: path } });
 }
