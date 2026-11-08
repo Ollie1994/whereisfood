@@ -28,6 +28,17 @@ describe("stockholmMidnight", () => {
   });
 });
 
+// `stockholmMidnight`'s stated range: it throws where `wallClockToUtc` gives null.
+it("has a midnight on every day from 1948 to 2100, and none on a +03:00 day in 1945", () => {
+  let days = 0;
+  for (let d = day("1948-01-01"); d <= day("2100-12-31"); d++) {
+    expect(stockholmDay(stockholmMidnight(d))).toBe(d);
+    days++;
+  }
+  expect(days).toBe(55_883);
+  expect(() => stockholmMidnight(day("1945-06-01"))).toThrow("No Stockholm midnight on 1945-06-01");
+});
+
 describe("stockholmDayBounds", () => {
   it("is 24 hours on an ordinary day", () => {
     const { start, end } = stockholmDayBounds(new Date("2026-11-08T12:00:00Z"));
@@ -156,6 +167,12 @@ describe("entryWindow", () => {
     const result = entryWindow(day("2026-10-24"), "22:00", "03:00");
     expect(iso(result?.endsAt)).toBe("2026-10-25T02:00:00.000Z");
     expect(result && result.endsAt.getTime() - result.startsAt.getTime()).toBe(6 * HOUR);
+  });
+
+  // `entryWindow`'s stated limit, pinned so a change to it is seen.
+  it("reads 02:45–02:15 inside 2026-10-25's repeated hour as 23.5 hours", () => {
+    const result = entryWindow(day("2026-10-25"), "02:45", "02:15");
+    expect(result && result.endsAt.getTime() - result.startsAt.getTime()).toBe(23.5 * HOUR);
   });
 
   it("gives null when the next day lacks the end time: 22:00–02:30 from 2026-03-28", () => {

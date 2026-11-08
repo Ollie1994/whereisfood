@@ -175,8 +175,9 @@ through `isUuid`: on a path, in a query string or in a body.
 
 **`src/lib/stockholm.ts`.** `TZ`, `stockholmDay`, `stockholmMidnight` (moved from `live.ts`,
 #31), `stockholmDayBounds(now)`, `wallClockToUtc(day, "11:00")`, and `entryWindow(day, start,
-end)`, whose end at or before the start falls on the next day (#30), with `date-fns-tz`,
-correct across a DST change. Both give null for a time the day doesn't have, such as 02:30 on
+end)`, whose end at or before the start falls on the next day (#30), through `Intl`, not
+`date-fns-tz`, whose results depend on the host's zone (`CLAUDE.md`, "Time"; PR #238), correct
+across a DST change. Both give null for a time the day doesn't have, such as 02:30 on
 2026-03-29 (PR for IS #225). The form and the checklist both call `entryWindow`; the API takes
 timestamps, so `parseNewLocation` still refuses an end at or before the start.
 
@@ -277,8 +278,9 @@ failure is understood.
     no purge" bullet, whose "~1–2 minutes" can reach about 3 (step 8), the "Phase map" (the
     Phase 7 row, and retention and the app name in Phase 8's), "Product model" items 2 and 3
     (#22, #23), and "Open decisions" (#22 and #23 settle two, #25 and #26 move two to
-    Phase 8); Part 3's "Status codes" (404, 503, and 409 from `23505` as well) and "Hooks"; and
-    the README's status parts. It replaces each **between phases** marker in
+    Phase 8); Part 3's "Status codes" (404, 503, and 409 from `23505` as well) and "Hooks";
+    "One time zone"'s `live.ts`'s `TZ`, now `stockholm.ts`'s (PR #238); and the README's
+    status parts, with its stack table's Time row, which names `date-fns-tz` (PR #238). It replaces each **between phases** marker in
     "Decisions carried forward" with the decision here that took it up (#1–#9), and carries
     forward this plan's decisions that outlive the phase.
 

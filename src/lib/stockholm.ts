@@ -1,5 +1,3 @@
-import { fromZonedTime } from "date-fns-tz";
-
 // Stockholm calendar days and wall-clock times: the one copy of the midnight code, for the
 // map (`live.ts`), the admin form and the checklist (Phase 7 plan, #31). No clock: every
 // function that needs the time takes it.
@@ -43,10 +41,13 @@ function isoDate(day: number): string {
 
 // Midnight in Stockholm at the start of `day`. Not the previous midnight plus 24 h:
 // 2026-03-29 is 23 h long and 2026-10-25 is 25 h (`live.test.ts`'s DST cases). Through
-// `fromZonedTime`, which gave Stockholm's midnight on hosts whose own gap is at midnight
-// (Santiago, Havana, Asunción) as on New York and Stockholm hosts (PR #238).
+// `wallClockToUtc`, so the module has one conversion. It throws where that gives null, a
+// day outside 1948–2100 (`wallClockToUtc`'s limit); `stockholm.test.ts` reads every day
+// from 1948 to 2100.
 export function stockholmMidnight(day: number): Date {
-  return fromZonedTime(`${isoDate(day)}T00:00:00`, TZ);
+  const midnight = wallClockToUtc(day, "00:00");
+  if (!midnight) throw new Error(`No Stockholm midnight on ${isoDate(day)}`);
+  return midnight;
 }
 
 // The Stockholm calendar day `now` falls on, as `[start, end)`.
@@ -80,7 +81,8 @@ export function wallClockToUtc(day: number, time: string): Date | null {
 
 // A shift from `start` to `end` on Stockholm day `day`. An end at or before the start, as
 // wall-clock times, falls on the next day: 22:00–01:00 ends at 01:00 tomorrow (#30). Null
-// when either time is null by `wallClockToUtc`.
+// when either time is null by `wallClockToUtc`. A limit: inside the hour 2026-10-25 repeats,
+// 02:45–02:15 means 30 minutes but gives 23.5 hours, the end read as the next day's.
 export function entryWindow(day: number, start: string, end: string): { startsAt: Date; endsAt: Date } | null {
   const startsAt = wallClockToUtc(day, start);
   // `HH:mm` strings compare in time order; a malformed one is null above or below.

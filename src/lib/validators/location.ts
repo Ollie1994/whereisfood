@@ -56,7 +56,9 @@ function label(value: unknown): string | null | undefined {
 // `+010000-01-01T00:30:00.000Z`, and took years 0001 and 9999 (PR #238). A limit: that
 // guards the string, not the date, so an entry from 0001 to 9999 passes here and would
 // cover every day. Nothing planned bounds an entry's length or far end: open decision 9
-// would refuse only one that has already ended.
+// would refuse only one that has already ended. Also a limit: `Date` keeps milliseconds,
+// so digits past them are dropped, and two times a microsecond apart compare equal. The
+// form sends `toISOString`, which has milliseconds only.
 function timestamp(value: unknown): Date | undefined {
   if (!isTimestamp(value)) return undefined;
   const date = parseISO(value);
