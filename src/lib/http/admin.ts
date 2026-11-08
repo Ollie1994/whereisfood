@@ -27,8 +27,8 @@ export function adminRefusal(reason: Refusal): NextResponse {
 // Wraps `withErrorHandling`, so a throw is a 500 `{ error }`. In order: a write must come
 // from this origin (#16), with no network call before it (the proxy checks it first too);
 // then `requireAdmin`, with the cookies the request carries (the proxy has already
-// refreshed them, #12); then the handler, given the admin's id. Every answer, the handler's and a 500 included, is given
-// `Cache-Control: no-store` here (#15). When the proxy refreshed the session on the way
+// refreshed them, #12); then the handler, given the admin's id. Every answer, the
+// handler's and a 500 included, is given `Cache-Control: no-store` here (#15). When the proxy refreshed the session on the way
 // in, the browser gets `@supabase/ssr`'s `private, no-cache, no-store, must-revalidate,
 // max-age=0` instead, from the proxy's response (`next start`, the PR for IS #223).
 export async function withAdmin(
