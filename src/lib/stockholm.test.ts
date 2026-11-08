@@ -68,7 +68,7 @@ describe("wallClockToUtc", () => {
     expect(iso(wallClockToUtc(day("2026-03-29"), "03:00"))).toBe("2026-03-29T01:00:00.000Z");
   });
 
-  // date-fns-tz 3.2.0 reads 02:30 here as 01:30 CET (probed, PR for IS #225).
+  // Not 01:30 CET, which date-fns-tz 3.2.0's `fromZonedTime` gives for 02:30 (PR #238).
   it.each(["02:00", "02:30", "02:59"])("on 2026-03-29, gives null for %s, which the day doesn't have", (time) => {
     expect(wallClockToUtc(day("2026-03-29"), time)).toBeNull();
   });
