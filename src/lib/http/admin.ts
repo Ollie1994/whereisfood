@@ -50,14 +50,16 @@ export async function withAdmin(
     });
     if (!check.ok) return adminRefusal(check.reason);
 
-    return handler(check.userId);
+    // A copy, because a handler's `Response.redirect()` or a fetched `Response` has
+    // immutable headers. Made inside `withErrorHandling`, so an answer the constructor
+    // refuses (`Response.error()`'s status 0, a RangeError) is a 500 `{ error }`.
+    const answer = await handler(check.userId);
+    return new Response(answer.body, answer);
   });
 
-  // A copy, because a handler's `Response.redirect()` or a fetched `Response` has
-  // immutable headers, and setting one would throw here, outside `withErrorHandling`.
-  const answer = new Response(response.body, response);
-  answer.headers.set("Cache-Control", "no-store");
-  return answer;
+  // Every answer here is one this function made, so its headers can be set.
+  response.headers.set("Cache-Control", "no-store");
+  return response;
 }
 
 export type JsonBody = { ok: true; body: unknown } | { ok: false; response: Response };

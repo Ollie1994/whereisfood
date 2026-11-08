@@ -87,7 +87,7 @@ describe("requireAdmin", () => {
     ["a 503", new AuthRetryableFetchError("Service Unavailable", 503)],
     ["a 500 Auth answered", new AuthApiError("boom", 500, "unexpected_failure")],
     ["a 429", new AuthApiError("rate limited", 429, "over_request_rate_limit")],
-    // Round 1's case: a gateway refusing the anon key. Not reproduced: the local stack
+    // What a gateway refusing the anon key might send. Not reproduced: the local stack
     // answered a wrong anon key with no error.
     ["a 401 with no code", new AuthApiError("Invalid API key", 401, undefined)],
     ["a 400 validation_failed", new AuthApiError("Refresh token is not valid", 400, "validation_failed")],

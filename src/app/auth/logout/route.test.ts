@@ -94,8 +94,8 @@ describe("POST /auth/logout", () => {
   });
 });
 
-// Round 1 of the PR for IS #223: built from `requestOrigin`, the redirect went to whatever
-// host `X-Forwarded-Host` named; a client that sets it can set a matching `Origin` too.
+// A client can set `X-Forwarded-Host`, and a matching `Origin` with it; the redirect must
+// not name that host (`origin.ts`, `redirectTo`).
 it("redirects to a relative path whatever X-Forwarded-Host says", async () => {
   signOut.mockResolvedValue({ error: null });
   const response = await POST(

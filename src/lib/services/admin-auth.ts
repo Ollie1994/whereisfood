@@ -36,6 +36,10 @@ export type GetUser = () => Promise<{
 // Not a status range: a 4xx that isn't about the token, such as a gateway refusing the
 // anon key, would send the admin to the login (#32). Not `validation_failed`, which a
 // malformed refresh token gave, but which Auth uses for any bad request.
+//
+// A limit: a bad session answered with a code not listed here (`user_banned`, or one Auth
+// adds later) reads as "unavailable", so the browser shows the error page, not the login,
+// and keeps its cookies. `/admin/login` stays reachable, and its logout clears them.
 const INVALID_SESSION_CODES = new Set([
   "bad_jwt",
   "user_not_found",

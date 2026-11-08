@@ -142,6 +142,18 @@ describe("withAdmin", () => {
     expect(response.headers.get("location")).toBe(`${ORIGIN}/admin`);
     expect(response.headers.get("cache-control")).toBe("no-store");
   });
+
+  // `Response.error()` has status 0, which the `Response` constructor refuses with a RangeError.
+  it("answers a handler's answer it can't copy with 500 { error } and no-store", async () => {
+    authAnswers(userJson);
+    getUserById.mockResolvedValue({ id: ID, is_admin: true, truck_id: null, created_at: "" });
+
+    const response = await withAdmin(request({ cookie: sessionCookie() }), async () => Response.error());
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ error: "Internal server error" });
+    expect(response.headers.get("cache-control")).toBe("no-store");
+  });
 });
 
 describe("readJson", () => {

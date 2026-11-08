@@ -198,10 +198,10 @@ describe("proxy with a session cookie", () => {
     expect(response.headers.get("x-middleware-request-cookie")).toContain("sb-127-auth-token.1=part1");
   });
 
-  // Round 1 of the PR for IS #223: built from `requestOrigin`, the redirect went to
-  // whatever host `X-Forwarded-Host` named. Built from `request.url`, it names that URL's
-  // host, which Next's adapter then makes relative; that last step runs only in a real
-  // server (`next start`, the PR for IS #223), not here.
+  // A client can set `X-Forwarded-Host`; the redirect must not name its host. Built from
+  // `request.url`, it names that URL's host, which Next's adapter then makes relative;
+  // that last step runs only in a real server (`src/proxy.ts` says where it was seen),
+  // not here.
   it("redirects to request.url's host whatever X-Forwarded-Host says", async () => {
     getUser.mockResolvedValue({ data: { user: null }, error: new AuthSessionMissingError() });
     const forged = new NextRequest(`${ORIGIN}/admin`, {

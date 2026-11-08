@@ -57,8 +57,8 @@ describe("GET /auth/callback", () => {
   });
 });
 
-// Round 1 of the PR for IS #223: built from `requestOrigin`, the redirect went to whatever
-// host `X-Forwarded-Host` named.
+// A client can set `X-Forwarded-Host`; the redirect must not name its host. Under `next
+// start`, one built from `requestOrigin` named `evil.example` (`origin.ts`, `redirectTo`).
 it("redirects to a relative path whatever X-Forwarded-Host says", async () => {
   exchangeCodeForSession.mockResolvedValue({ data: {}, error: null });
   const response = await GET(

@@ -127,7 +127,8 @@ message, and no handler calls `request.json()` itself. `requestOrigin(request)`
 (`src/lib/http/origin.ts`): the scheme and host from `x-forwarded-host`, then `Host`, never
 `request.url` (#16). Redirects don't use it, since a client can set `x-forwarded-host`: the
 callback and logout send a relative `Location` (`redirectTo`), and the proxy one built from
-`request.url`, which Next makes relative (PR #237, round 1). `isSameOrigin(request)`:
+`request.url`, which Next makes relative under the conditions `src/proxy.ts` names (PR #237,
+round 1). `isSameOrigin(request)`:
 the `Origin` header equals `requestOrigin`, and a missing or `null` `Origin` is false.
 
 **Services (no HTTP knowledge).**

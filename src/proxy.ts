@@ -78,6 +78,10 @@ export async function proxy(request: NextRequest) {
     // web/adapter.js`). Under `next start` that held with `X-Forwarded-Host: evil.example`.
     // Not `redirectTo`'s relative path, which the adapter parses with `new NextURL(…)`: under
     // `next start` `/admin` answered 500 `TypeError: Invalid URL` (PR for IS #223, round 1).
+    // A limit: the adapter skips that rewrite when `next.config.ts` sets
+    // `skipProxyUrlNormalize` (`define-env.js` turns it into the env flag the adapter reads)
+    // or on edge rendering; then the browser gets `request.url`'s host, `localhost` under
+    // `next dev` (`origin.ts`). Neither is set here.
     return carry(written, NextResponse.redirect(new URL(LOGIN, request.url), 307));
   } catch (err) {
     // `withErrorHandling` doesn't wrap the proxy, so a throw (a missing variable) would
