@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { withErrorHandling } from "@/lib/http/handler";
-import { isSameOrigin, requestOrigin } from "@/lib/http/origin";
+import { isSameOrigin, redirectTo } from "@/lib/http/origin";
 import { createSessionClient, writingCookies } from "@/lib/supabase-session";
 
 // Ends this device's session: `LogoutButton`'s form POST. No admin check, so a
@@ -11,7 +11,7 @@ import { createSessionClient, writingCookies } from "@/lib/supabase-session";
 // (`@supabase/auth-js` 2.106.2, `dist/main`) returns without removing the session on a
 // session error, and on an Auth error other than 401, 403 or 404. Its test stubs both.
 //
-// 303, not `NextResponse.redirect`'s default 307: the browser follows a 303 with a GET,
+// 303, not 307 (`NextResponse.redirect`'s default): the browser follows a 303 with a GET,
 // and a 307 would re-POST to the login page (#28).
 export async function POST(request: NextRequest) {
   return withErrorHandling(async () => {
@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Otillåten begäran" }, { status: 403 });
     }
 
-    const response = NextResponse.redirect(new URL("/admin/login", requestOrigin(request)), 303);
+    const response = redirectTo("/admin/login", 303);
 
     // Outside the `try`: a missing variable is a 500 from `withErrorHandling`, as
     // `createSessionClient` says, not a logout that never reached Auth.

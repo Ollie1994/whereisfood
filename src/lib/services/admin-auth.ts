@@ -26,15 +26,32 @@ export type GetUser = () => Promise<{
   error: unknown;
 }>;
 
+// Auth's codes that say the session itself is bad. Seen on the local stack (PR for
+// IS #223): a malformed access token → 403 `bad_jwt`; a deleted user → 403
+// `user_not_found`; an expired session whose refresh token Auth doesn't know → 400
+// `refresh_token_not_found`. From auth-js's `ErrorCode` list (`lib/error-codes.d.ts`), not
+// seen: `refresh_token_already_used` (a reused token was still accepted 11 s later, past
+// `config.toml`'s 10 s reuse interval) and `session_expired`.
+//
+// Not a status range: a 4xx that isn't about the token, such as a gateway refusing the
+// anon key, would send the admin to the login (#32). Not `validation_failed`, which a
+// malformed refresh token gave, but which Auth uses for any bad request.
+const INVALID_SESSION_CODES = new Set([
+  "bad_jwt",
+  "user_not_found",
+  "refresh_token_not_found",
+  "refresh_token_already_used",
+  "session_expired",
+]);
+
 // A missing or invalid session, as opposed to Auth failing (#32). auth-js 2.106.2
 // (`dist/main`): `_getUser` answers `AuthSessionMissingError` when storage holds no access
-// token, and `handleError` (`lib/fetch.js`) turns Auth's `session_not_found` into one too.
-// Any other answer Auth gave with a 4xx status is an `AuthApiError` about the token it was
-// sent (a bad JWT, a used refresh token), except 429, which is a rate limit. A failed
-// fetch, a 5xx, a 429 or an unknown error is "unavailable".
+// token (a cookie that isn't a session, and a signed-out session, both gave it locally),
+// and `handleError` (`lib/fetch.js`) turns Auth's `session_not_found` into one too.
+// Anything else (a failed fetch, a 5xx, a 429, another code) is "unavailable".
 function isInvalidSession(error: unknown): boolean {
   if (isAuthSessionMissingError(error)) return true;
-  return isAuthApiError(error) && error.status >= 400 && error.status < 500 && error.status !== 429;
+  return isAuthApiError(error) && error.code !== undefined && INVALID_SESSION_CODES.has(error.code);
 }
 
 // In this order, each step only when the one before passed (`project-context.md`, "Admin

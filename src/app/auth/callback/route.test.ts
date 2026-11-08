@@ -27,7 +27,7 @@ describe("GET /auth/callback", () => {
     const response = await callback("?code=abc");
 
     expect(response.status).toBe(303);
-    expect(response.headers.get("location")).toBe(`${ORIGIN}/admin`);
+    expect(response.headers.get("location")).toBe("/admin");
     expect(exchangeCodeForSession).toHaveBeenCalledWith("abc");
   });
 
@@ -39,20 +39,33 @@ describe("GET /auth/callback", () => {
     exchangeCodeForSession.mockResolvedValue({ data: {}, error });
     const response = await callback("?code=abc");
 
-    expect(response.headers.get("location")).toBe(`${ORIGIN}/admin/login?error=unavailable`);
+    expect(response.headers.get("location")).toBe("/admin/login?error=unavailable");
   });
 
   it("sends a refused code to the login with ?error=link", async () => {
     exchangeCodeForSession.mockResolvedValue({ data: {}, error: new AuthApiError("used", 400, "validation_failed") });
     const response = await callback("?code=abc");
 
-    expect(response.headers.get("location")).toBe(`${ORIGIN}/admin/login?error=link`);
+    expect(response.headers.get("location")).toBe("/admin/login?error=link");
   });
 
   it("sends no code to the login with ?error=link without calling Auth", async () => {
     const response = await callback("");
 
-    expect(response.headers.get("location")).toBe(`${ORIGIN}/admin/login?error=link`);
+    expect(response.headers.get("location")).toBe("/admin/login?error=link");
     expect(exchangeCodeForSession).not.toHaveBeenCalled();
   });
+});
+
+// Round 1 of the PR for IS #223: built from `requestOrigin`, the redirect went to whatever
+// host `X-Forwarded-Host` named.
+it("redirects to a relative path whatever X-Forwarded-Host says", async () => {
+  exchangeCodeForSession.mockResolvedValue({ data: {}, error: null });
+  const response = await GET(
+    new NextRequest(`${ORIGIN}/auth/callback?code=abc`, {
+      headers: { host: "127.0.0.1:3000", "x-forwarded-host": "evil.example", "x-forwarded-proto": "https" },
+    }),
+  );
+
+  expect(response.headers.get("location")).toBe("/admin");
 });

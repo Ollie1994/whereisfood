@@ -28,28 +28,32 @@ export async function getActiveTruckById(id: string): Promise<Truck | null> {
 }
 
 // Every active truck, ordered by name in Swedish order (Å, Ä, Ö after Z): `trucks.name`
-// is declared with the `sv-SE-x-icu` collation (Phase 5 plan, #19). Throws rather than
+// is declared with the `sv-SE-x-icu` collation (Phase 5 plan, #19). Then by `id`: names
+// aren't unique, and two trucks of one name would otherwise come back in any order
+// (`db-trucks.test.ts`, "breaks a name tie"). Throws rather than
 // return part of the trucks past `max_rows` (`assertAllRows`).
 export async function listActiveTrucks(): Promise<Truck[]> {
   const { data, error, count } = await supabaseAdmin
     .from("trucks")
     .select(TRUCK_COLUMNS, { count: "exact" })
     .eq("is_active", true)
-    .order("name");
+    .order("name")
+    .order("id");
 
   if (error) throw error;
   assertAllRows("listActiveTrucks", data, count);
   return data;
 }
 
-// Every truck, inactive ones included, in the same Swedish name order: the admin's list
+// Every truck, inactive ones included, in the same order, by name then `id`: the admin's list
 // (Phase 7 plan, "Functions and types"). Throws rather than return part of the trucks past
 // `max_rows` (`assertAllRows`).
 export async function listAllTrucks(): Promise<Truck[]> {
   const { data, error, count } = await supabaseAdmin
     .from("trucks")
     .select(TRUCK_COLUMNS, { count: "exact" })
-    .order("name");
+    .order("name")
+    .order("id");
 
   if (error) throw error;
   assertAllRows("listAllTrucks", data, count);

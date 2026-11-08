@@ -54,7 +54,7 @@ describe("POST /auth/logout", () => {
     const response = await POST(logoutRequest());
 
     expect(response.status).toBe(303);
-    expect(response.headers.get("location")).toBe(`${ORIGIN}/admin/login`);
+    expect(response.headers.get("location")).toBe("/admin/login");
     expect(cleared(response).sort()).toEqual(["sb-127-auth-token", "sb-127-auth-token-code-verifier"]);
     expect(signOut).toHaveBeenCalledWith({ scope: "local" });
   });
@@ -92,4 +92,16 @@ describe("POST /auth/logout", () => {
     expect(response.headers.getSetCookie()).toEqual([]);
     expect(signOut).not.toHaveBeenCalled();
   });
+});
+
+// Round 1 of the PR for IS #223: built from `requestOrigin`, the redirect went to whatever
+// host `X-Forwarded-Host` named; a client that sets it can set a matching `Origin` too.
+it("redirects to a relative path whatever X-Forwarded-Host says", async () => {
+  signOut.mockResolvedValue({ error: null });
+  const response = await POST(
+    logoutRequest({ origin: "https://evil.example", "x-forwarded-host": "evil.example", "x-forwarded-proto": "https" }),
+  );
+
+  expect(response.status).toBe(303);
+  expect(response.headers.get("location")).toBe("/admin/login");
 });

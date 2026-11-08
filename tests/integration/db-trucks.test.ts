@@ -101,3 +101,18 @@ describe("listAllTrucks at the API's max_rows", () => {
     await resetTables();
   }, 30_000);
 });
+
+describe.each([
+  ["listActiveTrucks", listActiveTrucks],
+  ["listAllTrucks", listAllTrucks],
+])("%s", (_, list) => {
+  // Five trucks of one name, so the insert order matching the id order by chance is 1 in 120.
+  it("breaks a name tie by id", async () => {
+    const ids: string[] = [];
+    for (let n = 0; n < 5; n++) ids.push(await seedTruck("Samma namn"));
+
+    const listed = (await list()).map((truck) => truck.id).filter((id) => ids.includes(id));
+
+    expect(listed).toEqual([...ids].sort());
+  });
+});

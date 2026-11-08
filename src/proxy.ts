@@ -1,9 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { adminRefusal } from "@/lib/http/admin";
-import { requestOrigin } from "@/lib/http/origin";
 import { SESSION_CHECK_FAILED } from "@/lib/login";
 import { requireAdmin } from "@/lib/services/admin-auth";
-import { createSessionClient } from "@/lib/supabase-session";
+import { createSessionClient, writingCookies } from "@/lib/supabase-session";
 
 // NO `export const runtime` HERE — and none is needed. Next.js 16 rejects route
 // segment config in the Proxy file outright ("Route segment config is not allowed
@@ -25,8 +24,9 @@ import { createSessionClient } from "@/lib/supabase-session";
 
 const LOGIN = "/admin/login";
 
-// The rotated cookies the session client wrote, and the headers `@supabase/ssr` sent with
-// them, onto another answer, so a refusal doesn't drop a refreshed session.
+// What the session client wrote, onto the answer: the rotated cookies, and the headers
+// `@supabase/ssr` sends with them (`Cache-Control`, `Expires`, `Pragma`, its
+// `cookies.js`), so neither the forwarded answer nor a refusal drops a refreshed session.
 function carry(from: NextResponse, to: NextResponse): NextResponse {
   for (const cookie of from.cookies.getAll()) to.cookies.set(cookie);
   for (const name of ["cache-control", "expires", "pragma"]) {
@@ -52,35 +52,42 @@ export async function proxy(request: NextRequest) {
   if (pathname === LOGIN) return NextResponse.next();
 
   try {
-    // The adapter writes rotated cookies to the request it forwards, through a new
-    // `NextResponse.next({ request })`, and to the response (#12): the route or page
-    // then reads them, and so does the browser.
-    let response = NextResponse.next({ request });
-    const supabase = createSessionClient({
-      getAll: () => request.cookies.getAll(),
-      setAll(cookies, headers) {
-        for (const { name, value } of cookies) request.cookies.set(name, value);
-        response = NextResponse.next({ request });
-        for (const { name, value, options } of cookies) response.cookies.set(name, value, options);
-        for (const [key, value] of Object.entries(headers)) response.headers.set(key, value);
-      },
-    });
+    // `writingCookies` writes rotated cookies to `request` and collects them on `written`,
+    // across however many `setAll` calls a refresh makes (`@supabase/ssr` 0.10's
+    // `cookies.js` has three call sites). The forwarded answer is built after the check,
+    // from the updated `request`, so the route or page reads the new cookies, and `carry`
+    // hands them to the browser (#12).
+    const written = new NextResponse();
+    const supabase = createSessionClient(writingCookies(request, written));
 
     const check = await requireAdmin({
       cookieNames: request.cookies.getAll().map(({ name }) => name),
       getUser: () => supabase.auth.getUser(),
     });
-    if (check.ok) return response;
+    if (check.ok) return carry(written, NextResponse.next({ request }));
 
-    if (isApi) return carry(response, adminRefusal(check.reason));
-    if (check.reason === "unavailable") return carry(response, unavailablePage());
-    // Not `request.url`, whose host under `next dev` isn't the browser's (`origin.ts`).
-    return carry(response, NextResponse.redirect(new URL(LOGIN, requestOrigin(request))));
+    if (isApi) return carry(written, adminRefusal(check.reason));
+    if (check.reason === "unavailable") return carry(written, unavailablePage());
+    // A limit: a logged-in non-admin lands on the login with no message, and a new link
+    // brings them back here. Only the admin has an account until the Owners phase (sign-ups
+    // are off), so the admin's own use doesn't reach it (PR for IS #223, round 1).
+    //
+    // Built from `request.url`, which Next then turns into `Location: /admin/login`: its proxy
+    // adapter relativizes a redirect whose host matches `request.url`'s (`next/dist/server/
+    // web/adapter.js`). Under `next start` that held with `X-Forwarded-Host: evil.example`.
+    // Not `redirectTo`'s relative path, which the adapter parses with `new NextURL(…)`: under
+    // `next start` `/admin` answered 500 `TypeError: Invalid URL` (PR for IS #223, round 1).
+    return carry(written, NextResponse.redirect(new URL(LOGIN, request.url), 307));
   } catch (err) {
     // `withErrorHandling` doesn't wrap the proxy, so a throw (a missing variable) would
     // otherwise be Next's error page (#32).
     console.error("[proxy] unhandled error:", err);
-    if (isApi) return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    if (isApi) {
+      return NextResponse.json(
+        { error: "Internal server error" },
+        { status: 500, headers: { "Cache-Control": "no-store" } },
+      );
+    }
     return unavailablePage();
   }
 }

@@ -79,7 +79,7 @@ describe("withAdmin", () => {
 
   it.each([
     ["Auth answers 503", () => new Response("down", { status: 503 })],
-    ["Auth answers 500", () => Response.json({ code: "unexpected_failure", msg: "boom" }, { status: 500 })],
+    ["Auth answers 500", () => Response.json({ code: 500, error_code: "unexpected_failure", msg: "boom" }, { status: 500 })],
   ])("answers 503 { error } when %s (plan #32)", async (_, answer) => {
     authAnswers(answer);
 
@@ -98,7 +98,8 @@ describe("withAdmin", () => {
   });
 
   it("answers 401 when Auth refuses the token", async () => {
-    authAnswers(() => Response.json({ code: "bad_jwt", msg: "invalid JWT" }, { status: 403 }));
+    // The body local Auth sent for a malformed JWT (`curl` of `/auth/v1/user`, PR for IS #223).
+    authAnswers(() => Response.json({ code: 403, error_code: "bad_jwt", msg: "invalid JWT" }, { status: 403 }));
 
     expect((await withAdmin(request({ cookie: sessionCookie() }), handler)).status).toBe(401);
   });
@@ -125,6 +126,20 @@ describe("withAdmin", () => {
 
     expect(response.status).toBe(500);
     expect(await response.json()).toEqual({ error: "Internal server error" });
+    expect(response.headers.get("cache-control")).toBe("no-store");
+  });
+
+  // `Response.redirect`'s headers are immutable: setting one on it throws a TypeError.
+  it("adds no-store to a handler's answer whose headers are immutable", async () => {
+    authAnswers(userJson);
+    getUserById.mockResolvedValue({ id: ID, is_admin: true, truck_id: null, created_at: "" });
+
+    const response = await withAdmin(request({ cookie: sessionCookie() }), async () =>
+      Response.redirect(`${ORIGIN}/admin`, 303),
+    );
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe(`${ORIGIN}/admin`);
     expect(response.headers.get("cache-control")).toBe("no-store");
   });
 });

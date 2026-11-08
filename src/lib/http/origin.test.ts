@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isSameOrigin, requestOrigin } from "@/lib/http/origin";
+import { isSameOrigin, redirectTo, requestOrigin } from "@/lib/http/origin";
 
 // A request as `next dev` hands it over: `request.url` says `localhost` while the
 // headers say what the browser used (Phase 7 plan, #16).
@@ -65,5 +65,14 @@ describe("isSameOrigin", () => {
       origin: "http://127.0.0.1:3000",
     });
     expect(isSameOrigin(r)).toBe(false);
+  });
+});
+
+describe("redirectTo", () => {
+  it("answers with the path as a relative Location and the status given", () => {
+    const response = redirectTo("/admin/login?error=link", 303);
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe("/admin/login?error=link");
   });
 });

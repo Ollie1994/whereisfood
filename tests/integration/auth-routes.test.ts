@@ -118,7 +118,7 @@ describe("GET /auth/callback", () => {
     const response = await callback(request(`/auth/callback?code=${code}`, { cookie: cookieHeader(verifierJar) }));
 
     expect(response.status).toBe(303);
-    expect(response.headers.get("location")).toBe(`${ORIGIN}/admin`);
+    expect(response.headers.get("location")).toBe("/admin");
 
     const written = setCookies(response);
     const names = sessionCookieNames(written).filter((name) => written.get(name) !== "");
@@ -133,7 +133,7 @@ describe("GET /auth/callback", () => {
     const response = await callback(request(`/auth/callback?code=${code}`, { cookie: cookieHeader(verifierJar) }));
 
     expect(response.status).toBe(303);
-    expect(response.headers.get("location")).toBe(`${ORIGIN}/admin/login?error=link`);
+    expect(response.headers.get("location")).toBe("/admin/login?error=link");
     const written = setCookies(response);
     expect(sessionCookieNames(written).filter((name) => written.get(name) !== "")).toEqual([]);
   });
@@ -145,7 +145,7 @@ describe("GET /auth/callback", () => {
     const response = await callback(request(path));
 
     expect(response.status).toBe(303);
-    expect(response.headers.get("location")).toBe(`${ORIGIN}/admin/login?error=link`);
+    expect(response.headers.get("location")).toBe("/admin/login?error=link");
   });
 });
 
@@ -169,7 +169,7 @@ describe("POST /auth/logout", () => {
     const response = await logout(request("/auth/logout", { method: "POST", cookie: cookieHeader(jar) }));
 
     expect(response.status).toBe(303);
-    expect(response.headers.get("location")).toBe(`${ORIGIN}/admin/login`);
+    expect(response.headers.get("location")).toBe("/admin/login");
 
     const written = setCookies(response);
     const sent = [...jar.keys()].filter((name) => SESSION_COOKIE.test(name));

@@ -1,5 +1,5 @@
 import type { CookieMethodsServer } from "@supabase/ssr";
-import { AuthRetryableFetchError } from "@supabase/supabase-js";
+import { AuthRetryableFetchError, AuthSessionMissingError } from "@supabase/supabase-js";
 import { unstable_doesMiddlewareMatch } from "next/experimental/testing/server";
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -16,7 +16,9 @@ vi.mock("@/lib/db/users", () => ({ getUserById: (id: string) => getUserById(id) 
 
 const getUser = vi.fn();
 let adapter: CookieMethodsServer | undefined;
-vi.mock("@/lib/supabase-session", () => ({
+// The real `writingCookies`, so what a stubbed refresh writes goes through the app's adapter.
+vi.mock("@/lib/supabase-session", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/supabase-session")>()),
   createSessionClient: (cookies: CookieMethodsServer) => {
     adapter = cookies;
     return { auth: { getUser } };
@@ -28,6 +30,9 @@ const { proxy, config } = await import("@/proxy");
 const ORIGIN = "http://127.0.0.1:3000";
 const ID = "00000000-0000-4000-8000-000000000001";
 const SESSION = "sb-127-auth-token=base64-abc";
+// The proxy's login redirect: built from `request.url`, where `NextRequest` names
+// `127.0.0.1` as `localhost`. A real server then makes it relative (`src/proxy.ts`).
+const LOGIN_URL = new URL("/admin/login", new NextRequest(ORIGIN).url).href;
 
 function request(path: string, cookie = "") {
   const headers: Record<string, string> = { host: "127.0.0.1:3000" };
@@ -74,7 +79,7 @@ describe("proxy with no session cookie", () => {
     const response = await proxy(request(path, "theme=dark"));
 
     expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe(`${ORIGIN}/admin/login`);
+    expect(response.headers.get("location")).toBe(LOGIN_URL);
     expect(getUser).not.toHaveBeenCalled();
     expect(getUserById).not.toHaveBeenCalled();
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -111,7 +116,7 @@ describe("proxy with a session cookie", () => {
     getUserById.mockResolvedValue({ id: ID, is_admin: false, truck_id: null, created_at: "" });
 
     const page = await proxy(request("/admin", SESSION));
-    expect(page.headers.get("location")).toBe(`${ORIGIN}/admin/login`);
+    expect(page.headers.get("location")).toBe(LOGIN_URL);
     expect((await proxy(request("/api/admin/trucks", SESSION))).status).toBe(403);
   });
 
@@ -167,10 +172,48 @@ describe("proxy with a session cookie", () => {
     expect(response.status).toBe(403);
     expect(response.headers.getSetCookie().join()).toContain("sb-127-auth-token=base64-rotated");
   });
+
+  // `@supabase/ssr` 0.10 calls `setAll` from three places (`cookies.js`), so one refresh can
+  // write twice: here a long session in two chunks, then the old unchunked cookie cleared.
+  it("keeps every cookie from more than one setAll call", async () => {
+    getUser.mockImplementation(async () => {
+      adapter!.setAll!(
+        [
+          { name: "sb-127-auth-token.0", value: "base64-part0", options: { path: "/" } },
+          { name: "sb-127-auth-token.1", value: "part1", options: { path: "/" } },
+        ],
+        {},
+      );
+      adapter!.setAll!([{ name: "sb-127-auth-token", value: "", options: { path: "/", maxAge: 0 } }], {});
+      return { data: { user: { id: ID } }, error: null };
+    });
+    getUserById.mockResolvedValue({ id: ID, is_admin: true, truck_id: null, created_at: "" });
+
+    const response = await proxy(request("/admin", SESSION));
+
+    const setCookies = response.headers.getSetCookie().map((line) => line.split(";")[0]);
+    expect(setCookies).toEqual(
+      expect.arrayContaining(["sb-127-auth-token.0=base64-part0", "sb-127-auth-token.1=part1", "sb-127-auth-token="]),
+    );
+    expect(response.headers.get("x-middleware-request-cookie")).toContain("sb-127-auth-token.1=part1");
+  });
+
+  // Round 1 of the PR for IS #223: built from `requestOrigin`, the redirect went to
+  // whatever host `X-Forwarded-Host` named. Built from `request.url`, it names that URL's
+  // host, which Next's adapter then makes relative; that last step runs only in a real
+  // server (`next start`, the PR for IS #223), not here.
+  it("redirects to request.url's host whatever X-Forwarded-Host says", async () => {
+    getUser.mockResolvedValue({ data: { user: null }, error: new AuthSessionMissingError() });
+    const forged = new NextRequest(`${ORIGIN}/admin`, {
+      headers: { host: "127.0.0.1:3000", cookie: SESSION, "x-forwarded-host": "evil.example", "x-forwarded-proto": "https" },
+    });
+
+    expect((await proxy(forged)).headers.get("location")).toBe(LOGIN_URL);
+  });
 });
 
 describe("proxy on a throw", () => {
-  it("answers an admin route 500 { error }, not Next's error page", async () => {
+  it("answers an admin route 500 { error } with no-store, not Next's error page", async () => {
     // A throw `requireAdmin` doesn't catch: the cookie read, before it runs.
     const broken = request("/api/admin/trucks", SESSION);
     vi.spyOn(broken.cookies, "getAll").mockImplementation(() => {
@@ -181,5 +224,6 @@ describe("proxy on a throw", () => {
 
     expect(response.status).toBe(500);
     expect(await response.json()).toEqual({ error: "Internal server error" });
+    expect(response.headers.get("cache-control")).toBe("no-store");
   });
 });

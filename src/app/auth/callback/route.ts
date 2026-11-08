@@ -1,6 +1,6 @@
-import { NextResponse, type NextRequest } from "next/server";
+import type { NextRequest } from "next/server";
 import { withErrorHandling } from "@/lib/http/handler";
-import { requestOrigin } from "@/lib/http/origin";
+import { redirectTo } from "@/lib/http/origin";
 import { isTemporaryAuthError } from "@/lib/login";
 import { createSessionClient, writingCookies } from "@/lib/supabase-session";
 
@@ -12,14 +12,13 @@ import { createSessionClient, writingCookies } from "@/lib/supabase-session";
 // Outside the proxy and `/api/admin/` (Phase 7 plan, #28), so it sets its own cookies.
 export async function GET(request: NextRequest) {
   return withErrorHandling(async () => {
-    const origin = requestOrigin(request);
     const failed = (reason: "link" | "unavailable") =>
-      NextResponse.redirect(new URL(`/admin/login?error=${reason}`, origin), 303);
+      redirectTo(`/admin/login?error=${reason}`, 303);
 
     const code = request.nextUrl.searchParams.get("code");
     if (!code) return failed("link");
 
-    const response = NextResponse.redirect(new URL("/admin", origin), 303);
+    const response = redirectTo("/admin", 303);
     const supabase = createSessionClient(writingCookies(request, response));
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     // Auth down or failing isn't the link's fault: say so, so the admin doesn't spend one

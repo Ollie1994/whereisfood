@@ -67,9 +67,11 @@ describe("requireAdmin", () => {
 
   it.each([
     ["a missing session", new AuthSessionMissingError()],
-    ["a bad JWT (403)", new AuthApiError("invalid JWT", 403, "bad_jwt")],
-    ["a used refresh token (400)", new AuthApiError("Invalid Refresh Token", 400, "refresh_token_already_used")],
-    ["a deleted user (404)", new AuthApiError("User not found", 404, "user_not_found")],
+    ["a bad JWT", new AuthApiError("invalid JWT", 403, "bad_jwt")],
+    ["a deleted user", new AuthApiError("User from sub claim in JWT does not exist", 403, "user_not_found")],
+    ["an unknown refresh token", new AuthApiError("Invalid Refresh Token: Refresh Token Not Found", 400, "refresh_token_not_found")],
+    ["a used refresh token", new AuthApiError("Invalid Refresh Token: Already Used", 400, "refresh_token_already_used")],
+    ["an expired session", new AuthApiError("Session Expired", 403, "session_expired")],
   ])("reads %s as no-session, without reading users", async (_, error) => {
     expect(await requireAdmin({ cookieNames: SESSION, getUser: failed(error) })).toEqual({ ok: false, reason: "no-session" });
     expect(getUserById).not.toHaveBeenCalled();
@@ -85,6 +87,10 @@ describe("requireAdmin", () => {
     ["a 503", new AuthRetryableFetchError("Service Unavailable", 503)],
     ["a 500 Auth answered", new AuthApiError("boom", 500, "unexpected_failure")],
     ["a 429", new AuthApiError("rate limited", 429, "over_request_rate_limit")],
+    // Round 1's case: a gateway refusing the anon key. Not reproduced: the local stack
+    // answered a wrong anon key with no error.
+    ["a 401 with no code", new AuthApiError("Invalid API key", 401, undefined)],
+    ["a 400 validation_failed", new AuthApiError("Refresh token is not valid", 400, "validation_failed")],
     ["an unknown error", new AuthUnknownError("bad json", new Error("x"))],
     ["a plain Error", new Error("something else")],
   ])("reads %s from Auth as unavailable, not logged out (plan #32)", async (_, error) => {

@@ -53,8 +53,11 @@ export async function withAdmin(
     return handler(check.userId);
   });
 
-  response.headers.set("Cache-Control", "no-store");
-  return response;
+  // A copy, because a handler's `Response.redirect()` or a fetched `Response` has
+  // immutable headers, and setting one would throw here, outside `withErrorHandling`.
+  const answer = new Response(response.body, response);
+  answer.headers.set("Cache-Control", "no-store");
+  return answer;
 }
 
 export type JsonBody = { ok: true; body: unknown } | { ok: false; response: Response };
