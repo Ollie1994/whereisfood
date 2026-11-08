@@ -37,8 +37,9 @@ const WALL_CLOCK = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 // `time` ("11:00", as `<input type="time">` gives it) on Stockholm day `day`, in UTC.
 // Null for a malformed time, and for one the day doesn't have: `fromZonedTime` reads
 // 02:30 on 2026-03-29, inside the spring-forward gap, as 01:30 CET, so a form would save
-// another time than the one typed (probed, `stockholm.test.ts`). On 2026-10-25 a time
-// between 02:00 and 02:59 occurs twice, and `fromZonedTime` gives the second, +01:00.
+// another time than the one typed. On 2026-10-25 a time between 02:00 and 02:59 occurs
+// twice, and `fromZonedTime` gives the second, +01:00 (date-fns-tz 3.2.0, both probed in
+// the PR for IS #225).
 export function wallClockToUtc(day: number, time: string): Date | null {
   if (!WALL_CLOCK.test(time)) return null;
   const date = isoDate(day);

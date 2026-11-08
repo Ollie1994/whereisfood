@@ -32,7 +32,7 @@ describe("parseNewLocation", () => {
     });
   });
 
-  // #17: the server sets these. Every other unknown key is dropped too.
+  // #17: the server sets these. Other unknown keys are dropped too, `id` here.
   it("never reads created_by, source, cancelled_at or other keys", () => {
     const result = parseNewLocation({
       ...BODY,
