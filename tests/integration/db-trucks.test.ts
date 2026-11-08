@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it } from "vitest";
-import { getActiveTruckById, listActiveTrucks } from "@/lib/db/trucks";
+import { getActiveTruckById, listActiveTrucks, listAllTrucks } from "@/lib/db/trucks";
 import { keysOf, resetTables, seedTruck, seedTrucks } from "./helpers";
 
 // The keys every function's rows must have, WRITTEN OUT rather than derived from a
@@ -73,4 +73,46 @@ describe("listActiveTrucks at the API's max_rows", () => {
     // Removed here, inside this test's timeout, rather than by the next hook.
     await resetTables();
   }, 30_000);
+});
+
+describe("listAllTrucks", () => {
+  it("returns every truck in Swedish name order, inactive ones included, with exactly the selected keys", async () => {
+    const oel = await seedTruck("Öl", false);
+    const zebra = await seedTruck("Zebra");
+    const akes = await seedTruck("Åkes");
+    const alpha = await seedTruck("Alpha", false);
+    const fixtures = [oel, zebra, akes, alpha];
+
+    const trucks = await listAllTrucks();
+    const fixtureIds = trucks.map((truck) => truck.id).filter((id) => fixtures.includes(id));
+
+    expect(fixtureIds).toEqual([alpha, zebra, akes, oel]);
+    expect(trucks.every((truck) => keysOf(truck).join() === TRUCK_KEYS.join())).toBe(true);
+  });
+});
+
+describe("listAllTrucks at the API's max_rows", () => {
+  it("throws rather than return part of the trucks", async () => {
+    // One more than `max_rows` in `supabase/config.toml`; the seed's trucks add to the
+    // count, so only the 1000 that arrive is asserted.
+    await seedTrucks("Bulk", 1001);
+
+    await expect(listAllTrucks()).rejects.toThrow(/1000 of \d+ rows/);
+    await resetTables();
+  }, 30_000);
+});
+
+describe.each([
+  ["listActiveTrucks", listActiveTrucks],
+  ["listAllTrucks", listAllTrucks],
+])("%s", (_, list) => {
+  // Five trucks of one name, so the insert order matching the id order by chance is 1 in 120.
+  it("breaks a name tie by id", async () => {
+    const ids: string[] = [];
+    for (let n = 0; n < 5; n++) ids.push(await seedTruck("Samma namn"));
+
+    const listed = (await list()).map((truck) => truck.id).filter((id) => ids.includes(id));
+
+    expect(listed).toEqual([...ids].sort());
+  });
 });

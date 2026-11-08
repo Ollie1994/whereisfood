@@ -177,11 +177,11 @@ said otherwise: Phase 4 plan decision #14.
   checks that the select has every key of the row type; a cast also compiles when the
   column list leaves one out (Phase 5 plan decision #18). `tsc` doesn't see an *extra*
   column, so a key-set test per table guards that side (`db-locations.test.ts`,
-  `db-trucks.test.ts`), and a new table's reads get one
-- Every select names its columns through its table's constant, `LOCATION_COLUMNS` or
-  `TRUCK_COLUMNS`: one string literal each (a computed string loses supabase-js's
-  row-type inference, issue #48). `LOCATION_COLUMNS` leaves out `created_by` (Phase 5
-  plan decision #8)
+  `db-trucks.test.ts`, `db-users.test.ts`), and a new table's reads get one
+- Every select names its columns through its table's constant, `LOCATION_COLUMNS`,
+  `TRUCK_COLUMNS` or `USER_COLUMNS`: one string literal each (a computed string loses
+  supabase-js's row-type inference, issue #48). `LOCATION_COLUMNS` leaves out `created_by`
+  (Phase 5 plan decision #8)
 - **`max_rows` cuts a list read with no error** (limit 2000 over 1001 rows returned
   1000, `locations.ts`'s probe). So a list read without a `limit` selects with an exact
   count and calls `assertAllRows` (`src/lib/db/complete.ts`), and one with a `limit`
@@ -203,14 +203,26 @@ said otherwise: Phase 4 plan decision #14.
   unnecessary — the proxy always runs on Node.js in Next 16, which is what Supabase
   auth requires. `tsc`/lint/tests all pass with it, so only `next build` catches it.
 - Must export a named function: `export function proxy(request: NextRequest)`
-- Must export `config` with `matcher` to scope to protected routes only
+- Must export `config` with `matcher` to scope to protected routes only: `/admin/:path*`
+  and `/api/admin/:path*`, with `/admin/login` let through in the function. Never
+  `/api/live`, `/map`, `/auth/*` or `/dashboard`; `src/proxy.test.ts` pins the list
+  (Phase 7 plan, #10, #28)
 - The proxy and the admin routes check for a session cookie **before any network or
   DB call**, so a cookie-less flood costs only the function run (Phase 7)
+- The proxy is a first filter, not the only check: every admin route checks again
+  through `withAdmin` (API responses, below)
 
 **API responses**
 - All errors return `{ "error": "message" }` with the correct HTTP status code
 - Never expose stack traces or internal errors to the client
 - Every route handler wraps its body in `withErrorHandling()` (`src/lib/http/handler.ts`) so an unexpected throw becomes a 500 `{ error }` instead of Next's default error page. Expected failures are **returned** (`NextResponse.json({ error: msg }, { status: 400 })`), never thrown — returns pass through the wrapper untouched; the catch only intercepts genuine exceptions (e.g. a DB error from the db layer).
+- **Admin routes** (Phase 7 plan, #13, #15, #16, #32): every handler in a `route.ts` under
+  `src/app/api/admin/` wraps its body in `withAdmin()` (`src/lib/http/admin.ts`), which
+  wraps `withErrorHandling` for it. It answers 401 with no valid session, 403 for a
+  non-admin or a write whose `Origin` isn't this origin, and 503 when Auth or the
+  database can't say, never 401 for that; every answer's `Cache-Control` holds `no-store`.
+  `tests/integration/admin-auth.test.ts` finds the routes on disk, so a new one is tested
+  with no edit. A handler reads its body through `readJson()`, never `request.json()`
 
 **`/api/live` (the public read path, Phase 6)**
 - An ordinary (dynamic) route, cached by Vercel's CDN through

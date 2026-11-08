@@ -43,7 +43,8 @@ export const RESEND_NOTE = "En ny länk gör den förra ogiltig.";
 // An Auth answer that says nothing about the link or the session: Auth unreachable, a
 // 429, or a 5xx. `isAuthRetryableFetchError` covers a failed fetch and auth-js's
 // `NETWORK_ERROR_CODES` (502–504, 520–524, 530, `lib/fetch.js`). The inverse rule,
-// "unavailable unless the session is missing or invalid", is plan #32's for #223's gate.
+// "unavailable unless the session is missing or invalid", is `requireAdmin`'s
+// (`src/lib/services/admin-auth.ts`, plan #32).
 export function isTemporaryAuthError(error: { status?: number } | null): boolean {
   if (!error) return false;
   return isAuthRetryableFetchError(error) || error.status === 429 || (error.status ?? 0) >= 500;
@@ -66,3 +67,8 @@ export function callbackErrorMessage(error: string | string[] | undefined): stri
 
 // `/admin` when Auth couldn't say whether the session is valid.
 export const SESSION_CHECK_FAILED = "Det gick inte att kontrollera inloggningen just nu. Ladda om sidan om en stund.";
+
+// Logout's form: `LogoutButton`'s, and the proxy's 503 page's, which can't render a
+// component. One copy, so both post to the same route with the same label.
+export const LOGOUT_PATH = "/auth/logout";
+export const LOGOUT_LABEL = "Logga ut";

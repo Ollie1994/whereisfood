@@ -60,7 +60,7 @@ the public map, and nobody else can write anything.
 |---|---|
 | `src/lib/supabase-browser.ts` | `supabaseClient`, Auth only, safe in the browser (#27); from step 2, `@supabase/ssr`'s `createBrowserClient` (#12) |
 | `src/lib/supabase-session.ts` | The per-request session client, from `@supabase/ssr`, with a read-only cookie adapter and a writing one (#12) |
-| `src/lib/http/origin.ts` (+ test) | `requestOrigin()` and `isSameOrigin()`, shared by `withAdmin`, the callback and logout (#16) |
+| `src/lib/http/origin.ts` (+ test) | `requestOrigin()`, `isSameOrigin()`, `isWrite()`, `foreignOriginRefusal()` and `redirectTo()`, shared by `withAdmin`, the proxy, the callback and logout (#16) |
 | `src/lib/http/admin.ts` | `withAdmin()`, the one way into an admin route, and `readJson()` |
 | `src/lib/services/admin-auth.ts` (+ test) | `requireAdmin()`, `hasSessionCookie()` |
 | `src/lib/services/trucks.ts`, `locations.ts`, `checklist.ts` (+ tests) | Admin business logic |
@@ -120,12 +120,16 @@ the public map, and nobody else can write anything.
 ## Functions and types
 
 **HTTP (`src/lib/http/admin.ts`).** `withAdmin(request, handler)`: wraps `withErrorHandling`,
-runs `requireAdmin`, answers 401 or 403, refuses a write that fails `isSameOrigin` (#16),
-and sets `Cache-Control: no-store` on what it returns (#15). The handler receives the
+runs `requireAdmin`, answers 401 or 403, refuses a write that fails `isSameOrigin` (#16;
+the proxy refuses it first on `/api/admin/*`, before any Auth call, PR #237), and sets
+`Cache-Control: no-store` on what it returns (#15). The handler receives the
 admin's user id. `readJson(request)`: a body that isn't valid JSON answers 400 with a Swedish
 message, and no handler calls `request.json()` itself. `requestOrigin(request)`
 (`src/lib/http/origin.ts`): the scheme and host from `x-forwarded-host`, then `Host`, never
-`request.url` (#16); the callback's and logout's redirects use it too. `isSameOrigin(request)`:
+`request.url` (#16). Redirects don't use it, since a client can set `x-forwarded-host`: the
+callback and logout send a relative `Location` (`redirectTo`), and the proxy one built from
+`request.url`, which Next made relative under `next start`; `src/proxy.ts` says when it
+doesn't, and that a Vercel deploy wasn't checked (PR #237). `isSameOrigin(request)`:
 the `Origin` header equals `requestOrigin`, and a missing or `null` `Origin` is false.
 
 **Services (no HTTP knowledge).**
@@ -264,7 +268,8 @@ failure is understood.
     Steps 13–15 are ordered, blocked and closed as that procedure's part 6 says; this plan
     doesn't restate it. Step 15's content, the stale hits known so far: Part 1's "What runs"
     (the proxy, the admin screens), "Versions" (`server-only` and `@supabase/ssr` added,
-    and `next.config.ts`'s `allowedDevOrigins`), "Modules kept on purpose", "Folder structure",
+    and `next.config.ts`'s `allowedDevOrigins`), "Database"'s db-layer list (`users.ts`, and
+    `trucks.ts`'s `listAllTrucks`), "Modules kept on purpose", "Folder structure",
     "Environment", "Tests and gates", the Roadmap row; Part 2's "Admin and auth", which
     becomes a description of what was built, the "Read path" diagram's `POST/PATCH
     /api/locations`, which is `/api/admin/locations` (#10), the same section's "Saves trigger

@@ -23,7 +23,7 @@ type CookieSource = { getAll(): { name: string; value: string }[] };
 // and the rotated tokens are lost. Probed on the local stack with a session whose cookie
 // `expires_at` was set in the past, its JWT still valid: each of two `getUser` reads,
 // 11 s apart, logged one `@supabase/ssr` warning and still worked. A truly expired JWT
-// wasn't tried. So use it behind something that refreshes first: the proxy (#223).
+// wasn't tried. So use it behind something that refreshes first: the proxy (`src/proxy.ts`).
 export function readOnlyCookies(source: CookieSource): CookieMethodsServer {
   return { getAll: () => source.getAll() };
 }
