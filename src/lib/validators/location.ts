@@ -55,8 +55,8 @@ function label(value: unknown): string | null | undefined {
 // Postgres refused the forms it writes outside that, `0000-12-31T23:30:00.000Z` and
 // `+010000-01-01T00:30:00.000Z`, and took years 0001 and 9999 (PR #238). A limit: that
 // guards the strings, not the dates, so an entry from 0001 to 9999 passes here and would
-// cover every day. Nothing planned bounds an entry's length or far end: open decision 9
-// would refuse only one that has already ended. Also a limit: `Date` keeps milliseconds,
+// cover every day. Nothing planned bounds an entry's length or far end: the service refuses
+// only one that has already ended (plan #33). Also a limit: `Date` keeps milliseconds,
 // so digits past them are dropped: `…00.0001Z` and `…00.0009Z` both read as `…00.000Z`,
 // and an entry between them is refused as `order` (pinned in the test).
 function timestamp(value: unknown): Date | undefined {
