@@ -65,7 +65,7 @@ describe("callbackErrorMessage", () => {
 
   it("names both causes of a verifier that doesn't match, and sends the admin back to the usual browser (IS #240)", () => {
     expect(callbackErrorMessage("browser")).toBe(
-      "Inloggningslänken fungerade inte i den här webbläsaren. Den kan ha öppnats i en annan webbläsare än den som bad om den, eller ersatts av en nyare länk. Be om en ny i din vanliga webbläsare och öppna den senaste länken där. På mobilen: kopiera den dit i stället för att trycka på den i mejlappen.",
+      "Inloggningslänken fungerade inte i den här webbläsaren. Den kan ha öppnats i en annan webbläsare än den som bad om den, eller slutat gälla när en ny länk begärdes. Be om en ny i din vanliga webbläsare och öppna den där. På mobilen: kopiera den dit i stället för att trycka på den i mejlappen.",
     );
   });
 

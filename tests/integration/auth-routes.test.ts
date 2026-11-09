@@ -127,17 +127,16 @@ describe("GET /auth/callback", () => {
     expect(sessionCookieNames(written).filter((name) => written.get(name) !== "")).toEqual([]);
   });
 
-  // A browser holding another login's verifier: the jar's cookie, re-encoded as
-  // `@supabase/ssr` 0.10.3 writes it (`base64-` + base64url of auth-js's JSON string), with
-  // another verifier. Auth's own answer is asserted first, so a forged cookie the client
-  // can't read (a missing verifier, also `browser`) fails here instead of passing.
+  // A browser holding another login's verifier: a second fixture user asks for a link in
+  // its own jar. Auth's own answer is asserted first, so a jar the client can't read (a
+  // missing verifier, also `browser`) fails here instead of passing.
   it("sends a code with another login's verifier back with ?error=browser and no session", async () => {
-    const [name, value] = [...verifierJar].find(([key]) => key.endsWith("-code-verifier")) ?? [];
-    if (!name || !value?.startsWith("base64-")) throw new Error(`no base64 verifier cookie: ${name}`);
-    const stored = JSON.parse(Buffer.from(value.slice("base64-".length), "base64url").toString());
-    const [, ...rest] = String(stored).split("/");
-    const forged = [randomUUID() + randomUUID(), ...rest].join("/");
-    const wrongJar = new Map([[name, `base64-${Buffer.from(JSON.stringify(forged)).toString("base64url")}`]]);
+    const wrongJar = new Map<string, string>();
+    const { error: sendError } = await jarClient(wrongJar).auth.signInWithOtp({
+      email: fixtureEmail(await createFixtureAuthUser()),
+      options: { shouldCreateUser: false, emailRedirectTo: `${ORIGIN}/auth/callback` },
+    });
+    if (sendError) throw sendError;
 
     const { error } = await jarClient(new Map(wrongJar)).auth.exchangeCodeForSession(code);
     expect([error?.status, error?.code]).toEqual([400, "bad_code_verifier"]);

@@ -64,8 +64,10 @@ export function callbackErrorFor(error: { status?: number; code?: string }): Cal
   // This browser's PKCE verifier doesn't belong to the link: none stored, which auth-js
   // 2.106.2 reports before any request (`AuthPKCECodeVerifierMissingError`; #224's phone
   // failure, `auth-routes.test.ts`), or another one (`WRONG_VERIFIER`). The right browser
-  // gets these too once a later send replaced or removed its verifier (`loginMessage`'s
-  // comments), so the text names both causes. Not covered by the text: a code reused in
+  // gets these too after a refused or failed send, which replaces or removes its verifier
+  // and sends no link (`loginMessage`'s comments), so the text names that cause too. A
+  // send that succeeds can't lead here: the link it replaces fails at `/verify` first
+  // (`/auth/callback`'s header, `otp_expired`). Not covered by the text: a code reused in
   // the browser whose exchange already removed its verifier (`_exchangeCodeForSession`).
   if (isAuthPKCECodeVerifierMissingError(error) || error.code === WRONG_VERIFIER) return "browser";
   // Auth down or failing isn't the link's fault: say so, so the admin doesn't spend one
@@ -83,7 +85,7 @@ export function callbackErrorMessage(error: string | string[] | undefined): stri
   // admin back to their usual browser for the new link (IS #240). A new link, not the same
   // one: `/verify` uses a link up on its first visit (the `unavailable` text's comment).
   if (error === "browser") {
-    return "Inloggningslänken fungerade inte i den här webbläsaren. Den kan ha öppnats i en annan webbläsare än den som bad om den, eller ersatts av en nyare länk. Be om en ny i din vanliga webbläsare och öppna den senaste länken där. På mobilen: kopiera den dit i stället för att trycka på den i mejlappen.";
+    return "Inloggningslänken fungerade inte i den här webbläsaren. Den kan ha öppnats i en annan webbläsare än den som bad om den, eller slutat gälla när en ny länk begärdes. Be om en ny i din vanliga webbläsare och öppna den där. På mobilen: kopiera den dit i stället för att trycka på den i mejlappen.";
   }
   // Not "open the same link again": Auth's `/verify` uses a link up on its first visit
   // (local stack: a second visit to the same link answered `?error=access_denied`,
