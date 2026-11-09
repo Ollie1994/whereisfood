@@ -10,7 +10,7 @@ import {
 import { getActiveTruckById, listAllTrucks } from "@/lib/db/trucks";
 import { stockholmDay, stockholmMidnight, stockholmWallClock } from "@/lib/stockholm";
 import type { Location, LocationPatch } from "@/lib/types";
-import { crossFieldError, type NewLocationInput } from "@/lib/validators/location";
+import { LOCATION_ERRORS, crossFieldError, type NewLocationInput } from "@/lib/validators/location";
 
 // Admin location logic (Phase 7 plan, "Functions and types"). No HTTP: a refusal is a
 // reason, which the route turns into a status. The clock comes in as `now`, from the route
@@ -35,10 +35,13 @@ export const LIST_DAYS = 14;
 
 const refuse = (reason: Refusal["reason"], error: string): Refusal => ({ ok: false, reason, error });
 
-// The exclusion constraint's code, which the db layer lets through unchanged.
-function isOverlap(error: unknown): boolean {
-  return typeof error === "object" && error !== null && (error as { code?: unknown }).code === "23P01";
+// A Postgres error's code, which the db layer lets through unchanged.
+function hasCode(error: unknown, code: string): boolean {
+  return typeof error === "object" && error !== null && (error as { code?: unknown }).code === code;
 }
+
+// The exclusion constraint's code.
+const isOverlap = (error: unknown) => hasCode(error, "23P01");
 
 // "2026-08-22 11:00–14:00", or with both dates when the end falls on another day.
 function describeWindow(entry: Pick<Location, "starts_at" | "ends_at">): string {
@@ -69,6 +72,11 @@ const hasEnded = (entry: Pick<Location, "ends_at">, now: Date) => Date.parse(ent
 
 // Live entries overlapping today and the next `LIST_DAYS - 1` days, by start, each with its
 // truck's name. From `listAllTrucks`, so an inactive truck's entry keeps its name.
+//
+// A limit, the owner's call (PR #243, round 2): every truck's entries for 14 days, so
+// `findLocationsOverlapping` throws, and the list answers 500, past `MAX_ROWS` live rows:
+// about 50 trucks with two entries a day, each entered two weeks ahead. The same wall as
+// `/api/live`'s (`project-context.md`, "1,000 rows, a hard wall"), and the same first fix.
 export async function listAdminEntries(now: Date): Promise<AdminEntry[]> {
   const today = stockholmDay(now);
   const rows = await findLocationsOverlapping(
@@ -105,10 +113,12 @@ export async function createEntry(input: NewLocationInput, adminId: string, now:
 
 // An edit of a live entry. The patch is checked alone by `parseLocationPatch`; here the
 // merged entry is (`crossFieldError`), so a patch with one time or one coordinate is
-// refused with 400. The write then sends both times when either changes, and both
-// coordinates when either does: the pair checked is the pair stored, even when another
-// edit lands between the read and the write (PR for IS #226, round 1). An entry that has
-// ended can't be edited, and an edit can't end it in the past (#33).
+// refused with 400. Only the patch is written, so an edit in another tab between the read
+// and the write keeps the fields this patch doesn't hold. Its other time can then make the
+// stored pair out of order: the CHECK refuses that with `23514`, answered with the same
+// 400. Its other coordinate can't take the pair out of the box: `isInGothenburg` checks
+// each axis on its own. An entry that has ended can't be edited, and an edit can't end it
+// in the past (#33).
 export async function editEntry(id: string, patch: LocationPatch, now: Date): Promise<EntryResult> {
   const current = await getLocationById(id);
   if (!current) return refuse("not-found", ENTRY_ERRORS.notFound);
@@ -119,22 +129,13 @@ export async function editEntry(id: string, patch: LocationPatch, now: Date): Pr
   if (invalid) return refuse("invalid", invalid);
   if (hasEnded(merged, now)) return refuse("invalid", ENTRY_ERRORS.ended);
 
-  const write: LocationPatch = { ...patch };
-  if (patch.starts_at !== undefined || patch.ends_at !== undefined) {
-    write.starts_at = merged.starts_at;
-    write.ends_at = merged.ends_at;
-  }
-  if (patch.latitude !== undefined || patch.longitude !== undefined) {
-    write.latitude = merged.latitude;
-    write.longitude = merged.longitude;
-  }
-
   try {
-    const entry = await updateLocation(id, write);
+    const entry = await updateLocation(id, patch);
     // Cancelled between the read and the write.
     return entry ? { ok: true, entry } : refuse("not-found", ENTRY_ERRORS.notFound);
   } catch (error) {
     if (isOverlap(error)) return overlapRefusal(current.truck_id, merged, id);
+    if (hasCode(error, "23514")) return refuse("invalid", LOCATION_ERRORS.order);
     throw error;
   }
 }

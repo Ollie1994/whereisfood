@@ -88,6 +88,9 @@ export function parseNewLocation(body: unknown): Parsed<NewLocationInput> {
   const latitude = coordinate(body.latitude);
   const longitude = coordinate(body.longitude);
   if (latitude === undefined || longitude === undefined) return refuse(LOCATION_ERRORS.position);
+  // Before the label and times, so a pin outside the box is named first, as before
+  // `crossFieldError` (pinned in the test); that check below then holds for it.
+  if (!isInGothenburg(latitude, longitude)) return refuse(LOCATION_ERRORS.outside);
 
   const name = label(body.label);
   if (name === undefined) return refuse(LOCATION_ERRORS.label);

@@ -55,6 +55,13 @@ describe("parseNewLocation", () => {
     expect(parseNewLocation({ ...BODY, truck_id: truckId })).toEqual(refused(LOCATION_ERRORS.truck));
   });
 
+  // The phone form gets the pin's fault first, not after the times are fixed.
+  it("names a pin outside Gothenburg before a bad label or time", () => {
+    expect(parseNewLocation({ ...BODY, latitude: 59.3293, label: 7, ends_at: "nope" })).toEqual(
+      refused(LOCATION_ERRORS.outside),
+    );
+  });
+
   it("refuses a transposed pair as outside Gothenburg", () => {
     expect(parseNewLocation({ ...BODY, latitude: LNG, longitude: LAT })).toEqual(refused(LOCATION_ERRORS.outside));
   });

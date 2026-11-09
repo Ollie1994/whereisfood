@@ -227,9 +227,12 @@ describe("confirmLocation", () => {
 
     expect(keysOf(confirmed!)).toEqual(LOCATION_KEYS);
     const stored = await readLocation(seeded.id);
-    // Later than the seed's own `now()`, so not the 2000-01-01 written: both times are the
-    // database's, so the test's own clock plays no part.
+    // Between the seed's `now()` and that of a row inserted after the confirm, so not the
+    // 2000-01-01 written nor any later value: every time compared is the database's, and
+    // the test's own clock plays no part.
+    const after = await seedLocation(truckId);
     expect(Date.parse(stored.updated_at)).toBeGreaterThan(Date.parse(seeded.updated_at));
+    expect(Date.parse(stored.updated_at)).toBeLessThanOrEqual(Date.parse(after.created_at));
     expect({ ...stored, updated_at: seeded.updated_at }).toEqual(seeded);
   });
 

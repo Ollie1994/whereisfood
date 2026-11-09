@@ -93,7 +93,7 @@ the public map, and nobody else can write anything.
 | `src/lib/live.ts` | `TZ`, `stockholmDay` and `stockholmMidnight` move out, imported from `stockholm.ts` (#31) |
 | `supabase/config.toml` | Sign-ups off, redirect URLs |
 | `src/lib/db/trucks.ts` | `listAllTrucks`, `insertTruck`, `updateTruck` |
-| `src/lib/db/locations.ts` | `getLocationById`, `confirmLocation`, `findTruckLocationsOverlapping` |
+| `src/lib/db/locations.ts` | `getLocationById`, `confirmLocation`, `findTruckLocationsOverlapping`; `listRecentLocationsForTruck`'s limit check moved into `checkLimit`, shared with the last, same rule and message (PR for IS #226, round 1) |
 | `src/lib/types.ts` | `NewTruck`, `TruckPatch`, `User` |
 | `src/hooks/useMapLibre.tsx` | Only if the pin picker needs its setup shared; then a `/map` browser check |
 | `tests/integration/helpers.ts` | A session cookie for route tests (open decision 7) |
@@ -107,10 +107,7 @@ the public map, and nobody else can write anything.
 - `supabase/migrations/`: `users.is_admin` exists, and no step here adds a column (#18).
 - `src/app/api/live/route.ts`, `src/lib/services/live.ts`: admin entries reach the map through
   the existing read path.
-- `src/lib/db/locations.ts`'s `findLocationsOverlapping` and
-  `listRecentLocationsForTruck`: reused, as Phase 5 #9 planned. The second's limit check
-  moved into `checkLimit`, which `findTruckLocationsOverlapping` shares, with the same
-  rule and message (PR for IS #226, round 1).
+- `src/lib/db/locations.ts`'s `findLocationsOverlapping`: reused, as Phase 5 #9 planned.
 
 ### Outside the repo (steps, not files)
 
@@ -151,7 +148,8 @@ the `Origin` header equals `requestOrigin`, and a missing or `null` `Origin` is 
   through `getActiveTruckById`, where null gives a 400 with a Swedish message, and sets
   `created_by` and `source` itself (#17). `editEntry` reads the row with `getLocationById` (null gives a 404), merges the patch,
   and checks the merged row's time order and `isInGothenburg`, so a partial patch answers
-  400, and writes both times (or both coordinates) when the patch holds one. `23P01`
+  400. It writes only the patch, and answers the CHECK's `23514`, which another tab's edit
+  between the read and the write can bring, with the same 400 (PR #243, round 2). `23P01`
   becomes a conflict result naming the existing entry's Stockholm times, found through
   `findTruckLocationsOverlapping`, leaving out the entry being edited: not
   `findLocationsOverlapping`, which reads every truck and throws on a window holding more
@@ -279,12 +277,15 @@ failure is understood.
     Steps 13–15 are ordered, blocked and closed as that procedure's part 6 says; this plan
     doesn't restate it. Step 15's content, the stale hits known so far: Part 1's "What runs"
     (the proxy, the admin screens), "Versions" (`server-only` and `@supabase/ssr` added,
-    and `next.config.ts`'s `allowedDevOrigins`), "Database"'s db-layer list (`users.ts`, and
-    `trucks.ts`'s `listAllTrucks`), "Modules kept on purpose", "Folder structure",
+    and `next.config.ts`'s `allowedDevOrigins`), "Database"'s db-layer list (`users.ts`,
+    `trucks.ts`'s `listAllTrucks`, and `locations.ts`'s `getLocationById`, `confirmLocation`
+    and `findTruckLocationsOverlapping`, PR #243), "Modules kept on purpose", "Folder structure",
     "Environment", "Tests and gates", the Roadmap row; Part 2's "Admin and auth", which
     becomes a description of what was built, the "Read path" diagram's `POST/PATCH
     /api/locations`, which is `/api/admin/locations` (#10), the same section's "Saves trigger
-    no purge" bullet, whose "~1–2 minutes" can reach about 3 (step 8), the "Phase map" (the
+    no purge" bullet, whose "~1–2 minutes" can reach about 3 (step 8), and its "1,000 rows, a
+    hard wall" bullet, which gains a second reader: the admin list's 14-day window, a stated
+    limit in `listAdminEntries`, the owner's call (PR #243, round 2); the "Phase map" (the
     Phase 7 row, and retention and the app name in Phase 8's), "Product model" items 2 and 3
     (#22, #23), and "Open decisions" (#22 and #23 settle two, #25 and #26 move two to
     Phase 8), the "Read path" section's "One time zone" bullet, whose `live.ts`'s `TZ` is now

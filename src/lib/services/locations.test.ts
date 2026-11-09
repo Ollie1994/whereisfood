@@ -237,26 +237,26 @@ describe("editEntry", () => {
     );
   });
 
-  // The pair checked is the pair written, whatever another edit stored in between.
-  it.each([
-    [
-      "one time writes both",
-      { ends_at: "2026-08-22T12:30:00.000Z" },
-      { starts_at: "2026-08-22T09:00:00+00:00", ends_at: "2026-08-22T12:30:00.000Z" },
-    ],
-    [
-      "one coordinate writes both",
-      { latitude: 57.7 },
-      { latitude: 57.7, longitude: 11.952503 },
-    ],
-    ["a label writes only the label", { label: "Heden" }, { label: "Heden" }],
-  ])("%s", async (_, patch, written) => {
+  // Only the patch is written, so another tab's edit of the other field stays.
+  it("writes one time alone, not the time it read beside it", async () => {
     db.getLocationById.mockResolvedValue(row());
     db.updateLocation.mockResolvedValue(row());
 
-    await editEntry(ID, patch, NOW);
+    await editEntry(ID, { ends_at: "2026-08-22T12:30:00.000Z" }, NOW);
 
-    expect(db.updateLocation).toHaveBeenCalledWith(ID, written);
+    expect(db.updateLocation).toHaveBeenCalledWith(ID, { ends_at: "2026-08-22T12:30:00.000Z" });
+  });
+
+  // Another tab moved the start past this patch's end between the read and the write.
+  it("answers the CHECK's 23514 with the order message, not a 500", async () => {
+    db.getLocationById.mockResolvedValue(row());
+    db.updateLocation.mockRejectedValue(Object.assign(new Error("violates check constraint"), { code: "23514" }));
+
+    expect(await editEntry(ID, { ends_at: "2026-08-22T12:30:00.000Z" }, NOW)).toEqual({
+      ok: false,
+      reason: "invalid",
+      error: LOCATION_ERRORS.order,
+    });
   });
 });
 
