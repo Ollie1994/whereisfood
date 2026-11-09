@@ -38,7 +38,11 @@ export function useAdminLocations(): {
   busyIds: readonly string[];
   editing: AdminEntry | null;
   actions: number;
+  // After a save: the entries again, and an older action's error goes.
   reload: () => Promise<void>;
+  // "Försök igen": the reads whose error shows, with `retrying` while they run.
+  retry: () => Promise<void>;
+  retrying: boolean;
   startEdit: (entry: AdminEntry) => void;
   stopEdit: () => void;
   confirm: (entry: AdminEntry) => Promise<void>;
@@ -58,6 +62,11 @@ export function useAdminLocations(): {
   // The newest entries read sent: reads can answer out of order when actions overlap, and
   // only the newest is applied.
   const latestRead = useRef(0);
+  const latestTrucksRead = useRef(0);
+  // Whether the trucks' read failed, read when a reload runs rather than from the render
+  // the reload was made in: a read failing during an action is then still retried.
+  const trucksFailed = useRef(false);
+  const [retrying, setRetrying] = useState(false);
 
   // Applies an entries read if it is still the newest one sent.
   const applyEntries = useCallback((id: number, read: Read<AdminEntry[]>) => {
@@ -68,7 +77,10 @@ export function useAdminLocations(): {
     setEntries(read.data);
   }, []);
 
-  const applyTrucks = useCallback((read: Read<Truck[]>) => {
+  // Applies a trucks read if it is still the newest one sent.
+  const applyTrucks = useCallback((id: number, read: Read<Truck[]>) => {
+    if (id !== latestTrucksRead.current) return;
+    trucksFailed.current = !read.ok;
     if (!read.ok) return setTrucksError(read.error);
     setTrucksError(null);
     setTrucks(read.data);
@@ -76,21 +88,38 @@ export function useAdminLocations(): {
 
   // The entries, and the trucks again only if their read failed: no list action changes a
   // truck.
+  const readAgain = useCallback(
+    async (withTrucks: boolean) => {
+      const id = ++latestRead.current;
+      const trucksId = withTrucks ? ++latestTrucksRead.current : 0;
+      const [entriesRead, trucksRead] = await Promise.all([
+        fetchEntries(),
+        withTrucks ? fetchTrucks() : undefined,
+      ]);
+      applyEntries(id, entriesRead);
+      if (trucksRead) applyTrucks(trucksId, trucksRead);
+    },
+    [applyEntries, applyTrucks],
+  );
+
   const reload = useCallback(async () => {
-    const id = ++latestRead.current;
-    const [entriesRead, trucksRead] = await Promise.all([
-      fetchEntries(),
-      trucksError ? fetchTrucks() : undefined,
-    ]);
-    applyEntries(id, entriesRead);
-    if (trucksRead) applyTrucks(trucksRead);
-  }, [applyEntries, applyTrucks, trucksError]);
+    setActionError(null);
+    await readAgain(trucksFailed.current);
+  }, [readAgain]);
+
+  async function retry() {
+    if (retrying) return;
+    setRetrying(true);
+    await readAgain(trucksFailed.current);
+    setRetrying(false);
+  }
 
   // The first reads, started here and applied in their callbacks (the lint rule above).
   useEffect(() => {
     const id = ++latestRead.current;
+    const trucksId = ++latestTrucksRead.current;
     void fetchEntries().then((read) => applyEntries(id, read));
-    void fetchTrucks().then(applyTrucks);
+    void fetchTrucks().then((read) => applyTrucks(trucksId, read));
     const tick = setInterval(() => setNow(new Date()), TICK_MS);
     return () => clearInterval(tick);
   }, [applyEntries, applyTrucks]);
@@ -111,7 +140,7 @@ export function useAdminLocations(): {
       setEditing((open) => (open?.id === entry.id ? null : open));
     }
     // Reloaded on a refusal too: a 404 means the entry is gone, and the list should say so.
-    await reload();
+    await readAgain(trucksFailed.current);
   }
 
   return {
@@ -123,6 +152,8 @@ export function useAdminLocations(): {
     editing,
     actions,
     reload,
+    retry,
+    retrying,
     startEdit: setEditing,
     stopEdit: () => setEditing(null),
     confirm: (entry) => act(entry, "confirm"),

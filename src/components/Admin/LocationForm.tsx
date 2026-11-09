@@ -1,7 +1,9 @@
 "use client";
 
+import { ALERT } from "@/components/Admin/styles";
 import type { LocationFormState } from "@/hooks/useLocationForm";
 import type { AdminEntry } from "@/lib/services/locations";
+import { TIMES_READ_ONLY } from "@/lib/admin-form";
 import { SPOTS } from "@/lib/spots";
 import type { Truck } from "@/lib/types";
 
@@ -24,7 +26,7 @@ export default function LocationForm({
   waiting: boolean;
   onStopEdit: () => void;
 }) {
-  const { values, setField, nextDay, saving, error, saved, submit } = form;
+  const { values, setField, nextDay, timesLocked, saving, error, saved, submit } = form;
   const active = trucks.filter((truck) => truck.is_active);
 
   return (
@@ -74,6 +76,7 @@ export default function LocationForm({
           value={values.date}
           onChange={(event) => setField("date", event.target.value)}
           className={FIELD}
+          disabled={timesLocked}
           required
         />
       </label>
@@ -86,6 +89,7 @@ export default function LocationForm({
             value={values.start}
             onChange={(event) => setField("start", event.target.value)}
             className={FIELD}
+            disabled={timesLocked}
             required
           />
         </label>
@@ -96,14 +100,16 @@ export default function LocationForm({
             value={values.end}
             onChange={(event) => setField("end", event.target.value)}
             className={FIELD}
+            disabled={timesLocked}
             required
           />
         </label>
       </div>
-      {nextDay && <p className="text-sm text-foreground/70">Slutar imorgon</p>}
+      {timesLocked && <p className="text-sm text-foreground/70">{TIMES_READ_ONLY}</p>}
+      {nextDay && !timesLocked && <p className="text-sm text-foreground/70">Slutar imorgon</p>}
 
       {error && (
-        <p role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-800">
+        <p role="alert" className={ALERT}>
           {error}
         </p>
       )}

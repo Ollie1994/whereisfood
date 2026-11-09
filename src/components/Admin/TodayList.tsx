@@ -1,8 +1,7 @@
+import { SMALL_BUTTON as ACTION } from "@/components/Admin/styles";
 import { entryTimeText, updatedText } from "@/lib/admin-form";
 import { hasEnded } from "@/lib/admin-list";
 import type { AdminEntry } from "@/lib/services/locations";
-
-const ACTION = "rounded-md border border-foreground/30 px-3 py-2 text-sm disabled:opacity-60";
 
 // Today's and the next 13 days' entries (plan #24), each with "Stämmer fortfarande" and
 // "Ställ in", and "Ändra" while it hasn't ended: #33 refuses an edit of one that has, so an

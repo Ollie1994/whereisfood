@@ -8,6 +8,7 @@ import {
   endsNextDay,
   formFromEntry,
   savedText,
+  timesEditable,
 } from "@/lib/admin-form";
 import type { AdminEntry } from "@/lib/services/locations";
 import type { Location } from "@/lib/types";
@@ -21,6 +22,8 @@ export type LocationFormState = {
   values: FormValues;
   setField: (field: keyof FormValues, value: string) => void;
   nextDay: boolean;
+  // An edit of an entry the form can't show exactly: its date and times are read-only.
+  timesLocked: boolean;
   saving: boolean;
   error: string | null;
   // "Sparat." or `SAVED_LATER`, until a field, another entry or a list button changes.
@@ -93,5 +96,7 @@ export function useLocationForm({
     await onSaved(target !== null);
   }
 
-  return { values, setField, nextDay: endsNextDay(values.start, values.end), saving, error, saved, submit };
+  const timesLocked = editing !== null && !timesEditable(editing);
+  const nextDay = endsNextDay(values.start, values.end);
+  return { values, setField, nextDay, timesLocked, saving, error, saved, submit };
 }

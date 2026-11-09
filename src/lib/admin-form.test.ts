@@ -13,6 +13,7 @@ import {
   entryTimeText,
   formFromEntry,
   savedText,
+  timesEditable,
   updatedText,
 } from "@/lib/admin-form";
 import { LIST_DAYS } from "@/lib/admin-list";
@@ -88,10 +89,10 @@ describe("formFromEntry and editRequest", () => {
     expect(formFromEntry(ENTRY)).toEqual({ truckId: TRUCK, date: "2026-08-22", place: "", start: "11:00", end: "13:00" });
   });
 
-  it("sends only what changed", () => {
+  it("sends the place when it changed, and both times when a time changed", () => {
     expect(editRequest({ ...formFromEntry(ENTRY), end: "14:00" }, ENTRY)).toEqual({
       ok: true,
-      body: { ends_at: "2026-08-22T12:00:00.000Z" },
+      body: { starts_at: "2026-08-22T09:00:00.000Z", ends_at: "2026-08-22T12:00:00.000Z" },
     });
     expect(editRequest({ ...formFromEntry(ENTRY), place: "Heden" }, ENTRY)).toMatchObject({
       body: { label: "Heden", latitude: expect.any(Number), longitude: expect.any(Number) },
@@ -111,12 +112,23 @@ describe("formFromEntry and editRequest", () => {
     });
   });
 
-  it("sends only the start when only the start changes, so a two-day entry keeps its end", () => {
-    const long = { ...ENTRY, ends_at: "2026-08-24T11:00:00+00:00" };
-    expect(editRequest({ ...formFromEntry(long), start: "10:00" }, long)).toEqual({
-      ok: true,
-      body: { starts_at: "2026-08-22T08:00:00.000Z" },
-    });
+  // The three cases round 3 found the per-field rule broke: none sends a time now.
+  it.each([
+    ["a two-day entry, start moved", { ...ENTRY, ends_at: "2026-08-24T11:00:00+00:00" }, { start: "10:00" }],
+    ["a two-day entry, date moved", { ...ENTRY, ends_at: "2026-08-24T11:00:00+00:00" }, { date: "2026-08-23" }],
+    [
+      "an entry whose end falls in the DST gap on the form's day",
+      { ...ENTRY, starts_at: "2026-03-29T00:00:00+00:00", ends_at: "2026-03-30T00:30:00+00:00" },
+      { start: "00:30" },
+    ],
+  ])("sends no time for %s, which the form can't show exactly", (_, entry, change) => {
+    expect(timesEditable(entry)).toBe(false);
+    expect(editRequest({ ...formFromEntry(entry), ...change }, entry)).toEqual({ ok: true, body: {} });
+  });
+
+  it("edits the times of an entry the form shows exactly, overnight ones included", () => {
+    expect(timesEditable(ENTRY)).toBe(true);
+    expect(timesEditable({ ...ENTRY, starts_at: "2026-08-22T20:00:00+00:00", ends_at: "2026-08-23T00:00:00+00:00" })).toBe(true);
   });
 
   // 11–13 with the start moved to 14:00: the form now reads the end as tomorrow's (#30).

@@ -23,6 +23,9 @@ export function savedText(entry: Pick<Location, "starts_at">, now: Date): string
   return shownFrom >= listEnd ? SAVED_LATER : SAVED;
 }
 
+// Under the times of an entry the form can't show exactly (`timesEditable`).
+export const TIMES_READ_ONLY = "Den här postens tider kan inte ändras här. Ställ in den och lägg in en ny.";
+
 export const FORM_ERRORS = {
   truck: "Välj en foodtruck",
   place: "Välj en plats",
@@ -102,10 +105,24 @@ export function createRequest(values: FormValues): EntryRequest {
 // route's merged-row checks see what the admin changed. An empty patch is sent as is, and
 // the route answers it with its own message.
 //
-// Each time only when the admin changed what sets it: the start by the date or the start
-// field, the end by the date, the end field, or the start crossing it ("Slutar imorgon"
-// turning on or off, #30). The form holds the start date and minutes, so an entry longer
-// than a day, or stored with seconds, keeps the time the admin didn't touch (tested).
+// Whether the form can show `entry`'s times exactly: its date, start and end rebuild to
+// the stored window. Not for an entry longer than a day, one stored with seconds, or one
+// whose wall times fall in a DST gap: the form shows such an entry's times read-only, and
+// an edit of it changes its place alone (`editRequest`). The form's own entries always
+// fit, since `entryWindow` ends one within a day of its start.
+export function timesEditable(
+  entry: Pick<Location, "truck_id" | "starts_at" | "ends_at">,
+): boolean {
+  const window = windowOf(formFromEntry(entry));
+  return (
+    !("error" in window) &&
+    window.startsAt.getTime() === Date.parse(entry.starts_at) &&
+    window.endsAt.getTime() === Date.parse(entry.ends_at)
+  );
+}
+
+// Both times when the admin changed the date or a time field of an entry the form shows
+// exactly (`timesEditable`), so the stored window is the form's; none otherwise.
 export function editRequest(
   values: FormValues,
   entry: Pick<Location, "truck_id" | "starts_at" | "ends_at">,
@@ -117,18 +134,14 @@ export function editRequest(
     Object.assign(body, place);
   }
   const filled = formFromEntry(entry);
-  const dateChanged = values.date !== filled.date;
-  const startChanged = dateChanged || values.start !== filled.start;
-  const endChanged =
-    dateChanged ||
-    values.end !== filled.end ||
-    endsNextDay(values.start, values.end) !== endsNextDay(filled.start, filled.end);
-  if (!startChanged && !endChanged) return { ok: true, body };
+  const timesChanged =
+    values.date !== filled.date || values.start !== filled.start || values.end !== filled.end;
+  if (!timesChanged || !timesEditable(entry)) return { ok: true, body };
 
   const window = windowOf(values);
   if ("error" in window) return { ok: false, error: window.error };
-  if (startChanged) body.starts_at = window.startsAt.toISOString();
-  if (endChanged) body.ends_at = window.endsAt.toISOString();
+  body.starts_at = window.startsAt.toISOString();
+  body.ends_at = window.endsAt.toISOString();
   return { ok: true, body };
 }
 
