@@ -75,7 +75,7 @@ the public map, and nobody else can write anything.
 | `src/app/api/admin/checklist/route.ts` | The morning list |
 | `src/app/api/admin/places/route.ts` | A truck's recent places |
 | `src/app/admin/layout.tsx`, `page.tsx`, `login/page.tsx`, `trucks/page.tsx` | The screens, phone-first |
-| `src/components/Admin/*` | `LoginForm`, `LogoutButton`, `TodayList`, `Checklist`, `LocationForm`, `PlacePicker`, `TruckForm`; `AdminLocations`, the client part that shares the list's state with the form (PR for IS #227) |
+| `src/components/Admin/*` | `LoginForm`, `LogoutButton`, `TodayList`, `Checklist`, `LocationForm`, `PlacePicker`, `TruckForm`; `AdminLocations`, the client part that shares the list's state with the form, and `styles.ts`, their shared class strings (PR #244) |
 | `src/lib/admin-form.ts` (+ test), `src/lib/admin-api.ts`, `src/lib/admin-list.ts` | The admin screen's pure parts (the form's request, the list's texts), its fetch to the admin routes, and `LIST_DAYS`, which the service and the form both read (PR #244) |
 | `src/hooks/useLogin.ts`, `useAdminLocations.ts`, `useChecklist.ts`, `useLocationForm.ts`, `usePlacePicker.ts`, `useGeolocation.ts`, `useTrucks.ts` | All state lives here |
 | `tests/integration/db-users.test.ts` | The key-set test a new table's reads need |

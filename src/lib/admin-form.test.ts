@@ -112,7 +112,7 @@ describe("formFromEntry and editRequest", () => {
     });
   });
 
-  // The three cases round 3 found the per-field rule broke: none sends a time now.
+  // Entries the form can't show exactly: an edit of one sends no time.
   it.each([
     ["a two-day entry, start moved", { ...ENTRY, ends_at: "2026-08-24T11:00:00+00:00" }, { start: "10:00" }],
     ["a two-day entry, date moved", { ...ENTRY, ends_at: "2026-08-24T11:00:00+00:00" }, { date: "2026-08-23" }],
