@@ -75,6 +75,16 @@ export function stockholmDay(date: Date): number {
   return Math.floor(wallMs(date.getTime()) / DAY_MS);
 }
 
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+// A calendar date as `<input type="date">` gives it, "2026-08-22", as the day number
+// `stockholmDay` counts in; null for anything else.
+export function dayOf(date: string): number | null {
+  if (!DATE.test(date)) return null;
+  const ms = Date.parse(`${date}T00:00:00Z`);
+  return Number.isNaN(ms) ? null : ms / DAY_MS;
+}
+
 // The first instant of Stockholm day `day`. Not the previous midnight plus 24 h:
 // 2026-03-29 is 23 h long and 2026-10-25 is 25 h (`live.test.ts`'s DST cases). The earlier
 // of two midnights, and where a gap ends when midnight falls in one. Node's zone data has
@@ -95,6 +105,11 @@ export function stockholmDayBounds(now: Date): { start: Date; end: Date } {
 }
 
 const WALL_CLOCK = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+
+// A wall-clock time as `<input type="time">` gives it, "00:00" to "23:59".
+export function isWallClock(time: string): boolean {
+  return WALL_CLOCK.test(time);
+}
 
 // `time` ("11:00", as `<input type="time">` gives it) on Stockholm day `day`, in UTC.
 // Null for a malformed time, and for one the day doesn't have (02:30 on 2026-03-29). On

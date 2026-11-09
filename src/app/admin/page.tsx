@@ -1,11 +1,12 @@
 import { cookies } from "next/headers";
 import Link from "next/link";
+import AdminLocations from "@/components/Admin/AdminLocations";
 import { SESSION_CHECK_FAILED } from "@/lib/login";
 import { createSessionClient, readOnlyCookies } from "@/lib/supabase-session";
 
-// Minimal until later steps add the data: it shows only who is logged in, so the phone
-// checkpoint (#224) can see the login worked. Behind the proxy, which lets only an admin
-// through and refreshes the session first, so this read sees fresh tokens
+// Who is logged in, then the entry form and the list (`AdminLocations`, Phase 7 plan, step
+// 7), which read and write through the admin API routes. Behind the proxy, which lets only
+// an admin through and refreshes the session first, so this read sees fresh tokens
 // (`src/proxy.ts`; `readOnlyCookies` says why that matters).
 export default async function AdminPage() {
   const supabase = createSessionClient(readOnlyCookies(await cookies()));
@@ -39,8 +40,11 @@ export default async function AdminPage() {
 
   return (
     <>
-      <h1 className="text-2xl font-semibold">Admin</h1>
-      <p className="text-sm text-foreground/70">Inloggad som {email}.</p>
+      <div className="flex flex-col gap-1">
+        <h1 className="text-2xl font-semibold">Admin</h1>
+        <p className="text-sm text-foreground/70">Inloggad som {email}.</p>
+      </div>
+      <AdminLocations />
     </>
   );
 }
