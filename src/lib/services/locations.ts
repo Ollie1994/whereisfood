@@ -69,18 +69,19 @@ const hasEnded = (entry: Pick<Location, "ends_at">, now: Date) => Date.parse(ent
 // truck's name. From `listAllTrucks`, so an inactive truck's entry keeps its name.
 export async function listAdminEntries(now: Date): Promise<AdminEntry[]> {
   const today = stockholmDay(now);
-  const [rows, trucks] = await Promise.all([
-    findLocationsOverlapping(
-      stockholmMidnight(today).toISOString(),
-      stockholmMidnight(today + LIST_DAYS).toISOString(),
-    ),
-    listAllTrucks(),
-  ]);
+  const rows = await findLocationsOverlapping(
+    stockholmMidnight(today).toISOString(),
+    stockholmMidnight(today + LIST_DAYS).toISOString(),
+  );
+  // After the entries, not beside them: a truck created with an entry between two parallel
+  // reads would have an entry and no name.
+  const trucks = await listAllTrucks();
 
   const names = new Map(trucks.map((truck) => [truck.id, truck.name]));
   return rows.map((row) => {
     const name = names.get(row.truck_id);
-    // `truck_id` references `trucks`, so only a truck deleted between the two reads.
+    // `truck_id` references `trucks`, and the trucks are read after the entries, so only a
+    // truck deleted between the two reads, which the app never does.
     if (name === undefined) throw new Error(`listAdminEntries: no truck ${row.truck_id}`);
     return { ...row, truck_name: name };
   });
