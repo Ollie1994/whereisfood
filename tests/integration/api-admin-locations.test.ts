@@ -238,6 +238,46 @@ describe("POST /api/admin/locations/[id]/confirm", () => {
     expect(response.status).toBe(404);
     expect(await readLocation(seeded.id)).toEqual(seeded);
   });
+
+  it("answers an unknown id with 404 and a malformed one with 400", async () => {
+    const unknown = await call(CONFIRM, "POST", randomUUID());
+    expect(unknown.status).toBe(404);
+    expect(await unknown.json()).toEqual({ error: "Posten finns inte" });
+
+    const malformed = await call(CONFIRM, "POST", "nope");
+    expect(malformed.status).toBe(400);
+    expect(await malformed.json()).toEqual({ error: "Ogiltigt id" });
+  });
+});
+
+// #33 with an overlap: the other entry has ended, so it can't be edited, and the text
+// points to the entry being saved.
+describe("an overlap with an entry that has ended", () => {
+  it("answers 409 telling the admin to change this entry's time", async () => {
+    // Ended two hours before `base`, so at least an hour ago; the new entry starts before
+    // that end and runs past now, so #33 lets it through to the overlap.
+    const ended = await seedLocation(truckId, {
+      starts_at: new Date(base - 5 * HOUR).toISOString(),
+      ends_at: new Date(base - 2 * HOUR).toISOString(),
+    });
+
+    const response = await POST(
+      request("POST", {
+        truck_id: truckId,
+        ...FIXTURE_PLACE,
+        starts_at: new Date(base - 3 * HOUR).toISOString(),
+        ends_at: new Date(base + HOUR).toISOString(),
+      }),
+    );
+
+    expect(response.status).toBe(409);
+    const [startDate, startTime] = stockholmText(ended.starts_at);
+    const [endDate, endTime] = stockholmText(ended.ends_at);
+    const until = endDate === startDate ? endTime : `${endDate} ${endTime}`;
+    expect(await response.json()).toEqual({
+      error: `Överlappar med ${startDate} ${startTime}–${until}, som redan har slutat. Ändra tiden på den här posten.`,
+    });
+  });
 });
 
 describe("GET /api/admin/locations", () => {

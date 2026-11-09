@@ -153,7 +153,8 @@ the `Origin` header equals `requestOrigin`, and a missing or `null` `Origin` is 
   becomes a conflict result naming the existing entry's Stockholm times, found through
   `findTruckLocationsOverlapping`, leaving out the entry being edited: not
   `findLocationsOverlapping`, which reads every truck and throws on a window holding more
-  than `max_rows` rows (PR for IS #226, round 1).
+  than `max_rows` rows (PR for IS #226, round 1). When that entry has ended, the text asks
+  to change this entry's time instead, since #33 refuses to edit it (PR #243, round 4).
 - `cancelEntry(id, now)`, `confirmEntry(id, now)`: null for a missing or cancelled entry,
   which the route answers with 404.
 - `getChecklist(now)`: #22's rules.
@@ -587,7 +588,8 @@ that pre-fill unchanged is refused.
   within about 3 minutes.
 - [ ] An entry can be made for a later day through the form's date field.
 - [ ] An overlapping save returns 409 with "Överlappar med <the real times> — redigera den
-  istället", and nothing is changed or replaced.
+  istället", or, when that entry has ended, "…, som redan har slutat. Ändra tiden på den här
+  posten." (#33; the owner's wording, PR #243), and nothing is changed or replaced.
 - [ ] Cancelling never deletes a row, and a second cancel leaves `cancelled_at` as it was.
 - [ ] "Stämmer fortfarande" moves `updated_at`, the popup's "Uppdaterad" follows, and no other
   column changes. A cancelled or missing entry gives 404.

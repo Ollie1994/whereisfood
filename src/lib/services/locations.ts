@@ -59,29 +59,36 @@ function describeWindow(entry: Pick<Location, "starts_at" | "ends_at">): string 
 // The refusal for a `23P01`, naming the truck's entry it overlaps. Read after the failed
 // write, so that entry may since have been cancelled: then the text names none. Two rows of
 // the truck's, not every truck's: one may be the entry being edited, and a window can span
-// years, where `findLocationsOverlapping` throws past `max_rows`.
+// years, where `findLocationsOverlapping` throws past `max_rows`. When that entry has
+// ended, #33 refuses to edit it, so the text points to the entry being saved (the owner's
+// wording).
 async function overlapRefusal(
   truckId: string,
   window: Pick<Location, "starts_at" | "ends_at">,
   editedId: string | null,
+  now: Date,
 ): Promise<Refusal> {
   const rows = await findTruckLocationsOverlapping(truckId, window.starts_at, window.ends_at, 2);
   const other = rows.find((row) => row.id !== editedId);
-  return refuse(
-    "conflict",
-    other ? `Överlappar med ${describeWindow(other)} — redigera den istället` : ENTRY_ERRORS.overlap,
-  );
+  if (!other) return refuse("conflict", ENTRY_ERRORS.overlap);
+  const advice = hasEnded(other, now)
+    ? ", som redan har slutat. Ändra tiden på den här posten."
+    : " — redigera den istället";
+  return refuse("conflict", `Överlappar med ${describeWindow(other)}${advice}`);
 }
 
-const hasEnded = (entry: Pick<Location, "ends_at">, now: Date) => Date.parse(entry.ends_at) <= now.getTime();
+function hasEnded(entry: Pick<Location, "ends_at">, now: Date): boolean {
+  return Date.parse(entry.ends_at) <= now.getTime();
+}
 
 // Live entries overlapping today and the next `LIST_DAYS - 1` days, by start, each with its
 // truck's name. From `listAllTrucks`, so an inactive truck's entry keeps its name.
 //
 // A limit, named in the plan's step 15: every truck's entries for 14 days, so
 // `findLocationsOverlapping` throws, and the list answers 500, past `MAX_ROWS` live rows:
-// about 50 trucks with two entries a day, each entered two weeks ahead. The same wall as
-// `/api/live`'s (`project-context.md`, "1,000 rows, a hard wall"), and the same first fix.
+// about 36 trucks with two entries a day, each entered two weeks ahead (1,000 / 28). The
+// same wall as `/api/live`'s (`project-context.md`, "1,000 rows, a hard wall"), and the
+// same first fix.
 export async function listAdminEntries(now: Date): Promise<AdminEntry[]> {
   const today = stockholmDay(now);
   const rows = await findLocationsOverlapping(
@@ -111,7 +118,7 @@ export async function createEntry(input: NewLocationInput, adminId: string, now:
   try {
     return { ok: true, entry: await insertLocation({ ...input, source: "admin", created_by: adminId }) };
   } catch (error) {
-    if (isOverlap(error)) return overlapRefusal(input.truck_id, input, null);
+    if (isOverlap(error)) return overlapRefusal(input.truck_id, input, null, now);
     throw error;
   }
 }
@@ -125,6 +132,11 @@ export async function createEntry(input: NewLocationInput, adminId: string, now:
 // as every app write's does: `isInGothenburg` checks each axis on its own. The schema has
 // no range CHECK (`0001_baseline.sql`), so a row written outside the app isn't covered.
 // An entry that has ended can't be edited, and an edit can't end it in the past (#33).
+//
+// Limits: the write has no precondition on what was read, so each cross-field rule needs
+// its own answer to an edit landing in between, as the two above have; a new rule must add
+// one. And the box is checked on the merged row whatever the patch holds, so a row written
+// outside the app, outside the box, takes no edit until its pin is moved.
 export async function editEntry(id: string, patch: LocationPatch, now: Date): Promise<EntryResult> {
   const current = await getLocationById(id);
   if (!current) return refuse("not-found", ENTRY_ERRORS.notFound);
@@ -144,7 +156,7 @@ export async function editEntry(id: string, patch: LocationPatch, now: Date): Pr
       // The window as stored plus this patch, not this tab's read: another tab may have
       // moved the time the patch doesn't hold. This tab's read if the row is gone since.
       const stored = await getLocationById(id);
-      return overlapRefusal(current.truck_id, { ...(stored ?? current), ...patch }, id);
+      return overlapRefusal(current.truck_id, { ...(stored ?? current), ...patch }, id, now);
     }
     if (isOrderCheck(error)) return refuse("invalid", LOCATION_ERRORS.order);
     throw error;

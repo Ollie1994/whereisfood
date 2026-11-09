@@ -133,6 +133,22 @@ describe("createEntry", () => {
     expect(result).toMatchObject({ error: "Överlappar med 2026-08-22 22:00–2026-08-23 01:00 — redigera den istället" });
   });
 
+  // #33 refuses to edit an ended entry, so the text points to this one instead.
+  it("tells the admin to change this entry's time when the other one has ended", async () => {
+    db.getActiveTruckById.mockResolvedValue({ id: TRUCK });
+    db.insertLocation.mockRejectedValue(overlapError);
+    db.findTruckLocationsOverlapping.mockResolvedValue([
+      row({ starts_at: "2026-08-22T05:00:00+00:00", ends_at: "2026-08-22T07:30:00+00:00" }),
+    ]);
+    const input = { ...INPUT, starts_at: "2026-08-22T07:00:00.000Z" };
+
+    expect(await createEntry(input, ADMIN, NOW)).toEqual({
+      ok: false,
+      reason: "conflict",
+      error: "Överlappar med 2026-08-22 07:00–09:30, som redan har slutat. Ändra tiden på den här posten.",
+    });
+  });
+
   it("gives the plain overlap text when the other entry is gone by the time it is read", async () => {
     db.getActiveTruckById.mockResolvedValue({ id: TRUCK });
     db.insertLocation.mockRejectedValue(overlapError);
