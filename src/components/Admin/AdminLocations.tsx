@@ -34,7 +34,8 @@ export default function AdminLocations() {
         form={form}
         trucks={trucks}
         editing={editing}
-        // A cancel or confirm of the entry being edited runs first: a cancel closes the edit.
+        // A cancel or confirm of the entry being edited runs first: a cancel closes
+        // the edit.
         waiting={editing !== null && busyIds.includes(editing.id)}
         onStopEdit={stopEdit}
       />
