@@ -3,7 +3,6 @@ import {
   DEFAULT_END,
   DEFAULT_START,
   FORM_ERRORS,
-  LIST_DAYS,
   SAVED,
   SAVED_LATER,
   createRequest,
@@ -16,6 +15,7 @@ import {
   savedText,
   updatedText,
 } from "@/lib/admin-form";
+import { LIST_DAYS } from "@/lib/admin-list";
 
 const TRUCK = "11111111-1111-1111-1111-111111111111";
 // 10:00 Stockholm (CEST) on Saturday 2026-08-22.
@@ -97,6 +97,18 @@ describe("formFromEntry and editRequest", () => {
       body: { label: "Heden", latitude: expect.any(Number), longitude: expect.any(Number) },
     });
     expect(editRequest(formFromEntry(ENTRY), ENTRY)).toEqual({ ok: true, body: {} });
+  });
+
+  // The form holds the start date and minutes; an entry it can't show exactly keeps its
+  // times when only the place changes.
+  it.each([
+    ["longer than a day", { ...ENTRY, ends_at: "2026-08-24T11:00:00+00:00" }],
+    ["stored with seconds", { ...ENTRY, starts_at: "2026-08-22T09:00:30+00:00" }],
+  ])("leaves the times of an entry %s alone on a place-only edit", (_, entry) => {
+    expect(editRequest({ ...formFromEntry(entry), place: "Heden" }, entry)).toEqual({
+      ok: true,
+      body: { latitude: expect.any(Number), longitude: expect.any(Number), label: "Heden" },
+    });
   });
 });
 

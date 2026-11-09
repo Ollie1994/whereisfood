@@ -1,3 +1,4 @@
+import { LIST_DAYS } from "@/lib/admin-list";
 import { SPOTS } from "@/lib/spots";
 import { entryWindow, stockholmDay, stockholmWallClock } from "@/lib/stockholm";
 import type { Location } from "@/lib/types";
@@ -10,11 +11,6 @@ import type { Location } from "@/lib/types";
 // when they have passed: saving them unchanged is refused by #33 (plan #34).
 export const DEFAULT_START = "11:00";
 export const DEFAULT_END = "13:00";
-
-// How far ahead the admin's list reads, from the start of today (#24): `listAdminEntries`
-// reads with it, and the form says when a saved entry falls past it. Here, not in the
-// service, so the browser can import it.
-export const LIST_DAYS = 14;
 
 export const SAVED = "Sparat.";
 export const SAVED_LATER = "Sparat. Posten är mer än två veckor fram och visas i listan när den närmar sig.";
@@ -105,12 +101,23 @@ export function createRequest(values: FormValues): EntryRequest {
 // The body of `PATCH /api/admin/locations/[id]`: only what differs from the entry, so the
 // route's merged-row checks see what the admin changed. An empty patch is sent as is, and
 // the route answers it with its own message.
-export function editRequest(values: FormValues, entry: Pick<Location, "starts_at" | "ends_at">): EntryRequest {
+//
+// The times only when the admin changed the date or a time field: the form holds the start
+// date and minutes, so an entry longer than a day, or stored with seconds, would come back
+// as another window and be rewritten by an edit of its place alone (tested).
+export function editRequest(
+  values: FormValues,
+  entry: Pick<Location, "truck_id" | "starts_at" | "ends_at">,
+): EntryRequest {
   const body: Record<string, unknown> = {};
   if (values.place) {
     const place = placeOf(values.place);
     if (!place) return { ok: false, error: FORM_ERRORS.place };
     Object.assign(body, place);
+  }
+  const filled = formFromEntry(entry);
+  if (values.date === filled.date && values.start === filled.start && values.end === filled.end) {
+    return { ok: true, body };
   }
   const window = windowOf(values);
   if ("error" in window) return { ok: false, error: window.error };

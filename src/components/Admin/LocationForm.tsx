@@ -21,7 +21,7 @@ export default function LocationForm({
   trucks: Truck[];
   editing: AdminEntry | null;
   actions: number;
-  onSaved: () => Promise<void>;
+  onSaved: (closeEdit: boolean) => Promise<void>;
   onStopEdit: () => void;
 }) {
   const { values, setField, nextDay, saving, error, saved, submit } = useLocationForm({ editing, actions, onSaved });

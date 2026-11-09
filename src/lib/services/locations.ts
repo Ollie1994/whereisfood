@@ -7,7 +7,7 @@ import {
   insertLocation,
   updateLocation,
 } from "@/lib/db/locations";
-import { LIST_DAYS } from "@/lib/admin-form";
+import { LIST_DAYS } from "@/lib/admin-list";
 import { getActiveTruckById, listAllTrucks } from "@/lib/db/trucks";
 import { stockholmDay, stockholmMidnight, stockholmWallClock } from "@/lib/stockholm";
 import type { Location, LocationPatch } from "@/lib/types";

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { adminFetch } from "@/lib/admin-api";
 import {
   type FormValues,
@@ -22,9 +22,10 @@ export function useLocationForm({
 }: {
   editing: AdminEntry | null;
   // The list's count of cancels and confirms: "Sparat." goes when it moves, so it isn't
-  // read as the list button's result (the owner's browser check, PR for IS #227).
+  // read as the list button's result (the owner's browser check).
   actions: number;
-  onSaved: () => Promise<void>;
+  // After a save: reload the list, and close the edit when `closeEdit`.
+  onSaved: (closeEdit: boolean) => Promise<void>;
 }): {
   values: FormValues;
   setField: (field: keyof FormValues, value: string) => void;
@@ -42,8 +43,13 @@ export function useLocationForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
-
   const [seenActions, setSeenActions] = useState(actions);
+  // The edit open now, read after a save's request: the admin may have opened another
+  // entry meanwhile, whose form that save's ending mustn't touch.
+  const openEdit = useRef(editing);
+  useEffect(() => {
+    openEdit.current = editing;
+  }, [editing]);
 
   // "Sparat." stays when a saved edit closes, and goes when another entry opens.
   if (editing !== filledFrom) {
@@ -64,7 +70,8 @@ export function useLocationForm({
 
   async function submit() {
     if (saving) return;
-    const request = editing ? editRequest(values, editing) : createRequest(values);
+    const target = editing;
+    const request = target ? editRequest(values, target) : createRequest(values);
     if (!request.ok) {
       setError(request.error);
       return;
@@ -73,19 +80,25 @@ export function useLocationForm({
     setSaving(true);
     setError(null);
     const result = await adminFetch<{ entry: Location }>(
-      editing ? `/api/admin/locations/${editing.id}` : "/api/admin/locations",
-      { method: editing ? "PATCH" : "POST", body: request.body },
+      target ? `/api/admin/locations/${target.id}` : "/api/admin/locations",
+      { method: target ? "PATCH" : "POST", body: request.body },
     );
     setSaving(false);
+
+    // Another entry opened meanwhile: its form stays as it is; the list still reloads.
+    if (openEdit.current !== target) {
+      if (result.ok) await onSaved(false);
+      return;
+    }
     if (!result.ok) {
       setError(result.error);
       return;
     }
 
-    // A new entry keeps its truck and date for the next one; an edit closes (`onSaved`).
-    if (!editing) setValues((current) => ({ ...emptyForm(new Date()), truckId: current.truckId, date: current.date }));
+    // A new entry keeps its truck and date for the next one; an edit closes.
+    if (!target) setValues((current) => ({ ...emptyForm(new Date()), truckId: current.truckId, date: current.date }));
     setSaved(savedText(result.data.entry, new Date()));
-    await onSaved();
+    await onSaved(target !== null);
   }
 
   return { values, setField, nextDay: endsNextDay(values.start, values.end), saving, error, saved, submit };

@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 //
 // `scheme-light-dark` tells the browser the page follows the system's dark mode, as
 // `globals.css`'s colours do, so it draws the date and time pickers' icons light on dark;
-// without it they were dark on the dark page (the owner's browser check, PR for IS #227).
+// without it they were dark on the dark page (the owner's browser check).
 // Here, not in `globals.css`, so the public map is unchanged.
 export default function AdminLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (

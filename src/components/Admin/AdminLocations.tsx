@@ -8,7 +8,7 @@ import { useAdminLocations } from "@/hooks/useAdminLocations";
 // reloads the list and "Ändra" fills the form.
 export default function AdminLocations() {
   const list = useAdminLocations();
-  const { entries, trucks, now, loading, error, busyId, editing, actions } = list;
+  const { entries, trucks, now, error, busyIds, editing, actions } = list;
   const { reload, startEdit, stopEdit, confirm, cancel } = list;
 
   return (
@@ -18,8 +18,8 @@ export default function AdminLocations() {
         editing={editing}
         actions={actions}
         onStopEdit={stopEdit}
-        onSaved={async () => {
-          stopEdit();
+        onSaved={async (closeEdit) => {
+          if (closeEdit) stopEdit();
           await reload();
         }}
       />
@@ -31,13 +31,15 @@ export default function AdminLocations() {
             {error}
           </p>
         )}
-        {loading ? (
-          <p className="text-sm text-foreground/70">Hämtar…</p>
+        {/* No list until it has been read once: an empty one would say there are no
+            entries when they couldn't be read. */}
+        {entries === null ? (
+          !error && <p className="text-sm text-foreground/70">Hämtar…</p>
         ) : (
           <TodayList
             entries={entries}
             now={now}
-            busyId={busyId}
+            busyIds={busyIds}
             onEdit={startEdit}
             onConfirm={(entry) => void confirm(entry)}
             onCancel={(entry) => void cancel(entry)}
