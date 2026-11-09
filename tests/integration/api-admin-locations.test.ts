@@ -24,7 +24,7 @@ let cookie: string;
 let adminId: string;
 let truckId: string;
 // The next whole hour, read once per test: read per window, two windows built either side
-// of an hour boundary would land an hour apart (PR for IS #226, round 1).
+// of an hour boundary would land an hour apart.
 let base: number;
 
 beforeAll(async () => {

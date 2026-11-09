@@ -181,11 +181,13 @@ function checkLimit(fn: string, limit: number): void {
 }
 
 // One truck's first `limit` live rows overlapping [from, to), by `starts_at`, with
-// `findLocationsOverlapping`'s half-open bounds. No `id` tie-break: the exclusion constraint
-// keeps one truck's live rows from overlapping, so no two share a `starts_at`. For a read that needs a few of the
-// truck's rows, not every truck's: `findLocationsOverlapping` throws once a window holds
-// more than `max_rows` rows, and a window can span years (`validators/location.ts`).
-// `limit` as below, checked before any request.
+// `findLocationsOverlapping`'s half-open bounds. For a read that needs a few of the truck's
+// rows, not every truck's: `findLocationsOverlapping` throws once a window holds more than
+// `max_rows` rows, and a window can span years (`validators/location.ts`). `limit` as
+// below, checked before any request.
+//
+// No `id` tie-break: two live rows of one truck can't share a `starts_at`
+// (`db-locations.test.ts` inserts a second at the same start and gets `23P01`).
 export async function findTruckLocationsOverlapping(
   truckId: string,
   from: string,

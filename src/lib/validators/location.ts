@@ -68,15 +68,18 @@ function timestamp(value: unknown): Date | undefined {
 
 const refuse = (error: string): { ok: false; error: string } => ({ ok: false, error });
 
-// The checks across fields, in one place for a new entry here and for a patch's merged
-// entry in `editEntry`: the pair inside the Gothenburg box, and an end after the start
-// (compared as instants). The error, or null when both hold.
+// An end at or before the start, compared as instants: the one copy of the order rule.
+function orderError(startsAt: string, endsAt: string): string | null {
+  return Date.parse(endsAt) <= Date.parse(startsAt) ? LOCATION_ERRORS.order : null;
+}
+
+// The checks across fields, for a patch's merged entry in `editEntry`: the pair inside the
+// Gothenburg box, then the order rule, the two `parseNewLocation` makes. The error, or null.
 export function crossFieldError(
   entry: Pick<NewLocationInput, "latitude" | "longitude" | "starts_at" | "ends_at">,
 ): string | null {
   if (!isInGothenburg(entry.latitude, entry.longitude)) return LOCATION_ERRORS.outside;
-  if (Date.parse(entry.ends_at) <= Date.parse(entry.starts_at)) return LOCATION_ERRORS.order;
-  return null;
+  return orderError(entry.starts_at, entry.ends_at);
 }
 
 export function parseNewLocation(body: unknown): Parsed<NewLocationInput> {
@@ -88,8 +91,7 @@ export function parseNewLocation(body: unknown): Parsed<NewLocationInput> {
   const latitude = coordinate(body.latitude);
   const longitude = coordinate(body.longitude);
   if (latitude === undefined || longitude === undefined) return refuse(LOCATION_ERRORS.position);
-  // Before the label and times, so a pin outside the box is named first, as before
-  // `crossFieldError` (pinned in the test); that check below then holds for it.
+  // Before the label and times, so a pin outside the box is named first (pinned in the test).
   if (!isInGothenburg(latitude, longitude)) return refuse(LOCATION_ERRORS.outside);
 
   const name = label(body.label);
@@ -108,7 +110,7 @@ export function parseNewLocation(body: unknown): Parsed<NewLocationInput> {
     starts_at: startsAt.toISOString(),
     ends_at: endsAt.toISOString(),
   };
-  const error = crossFieldError(value);
+  const error = orderError(value.starts_at, value.ends_at);
   return error ? refuse(error) : { ok: true, value };
 }
 

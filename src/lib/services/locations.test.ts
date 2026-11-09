@@ -247,16 +247,51 @@ describe("editEntry", () => {
     expect(db.updateLocation).toHaveBeenCalledWith(ID, { ends_at: "2026-08-22T12:30:00.000Z" });
   });
 
-  // Another tab moved the start past this patch's end between the read and the write.
-  it("answers the CHECK's 23514 with the order message, not a 500", async () => {
+  // Another tab moved the start past this patch's end between the read and the write. The
+  // message is Postgres's, as `db-locations.test.ts` pins its constraint name.
+  it("answers the order CHECK's 23514 with the order message, not a 500", async () => {
     db.getLocationById.mockResolvedValue(row());
-    db.updateLocation.mockRejectedValue(Object.assign(new Error("violates check constraint"), { code: "23514" }));
+    db.updateLocation.mockRejectedValue(
+      Object.assign(
+        new Error('new row for relation "locations" violates check constraint "locations_ends_after_starts"'),
+        { code: "23514" },
+      ),
+    );
 
     expect(await editEntry(ID, { ends_at: "2026-08-22T12:30:00.000Z" }, NOW)).toEqual({
       ok: false,
       reason: "invalid",
       error: LOCATION_ERRORS.order,
     });
+  });
+
+  it.each([
+    ["another CHECK's 23514", Object.assign(new Error('violates check constraint "locations_other"'), { code: "23514" })],
+    ["any other database error", Object.assign(new Error("boom"), { code: "22P02" })],
+  ])("lets %s through", async (_, error) => {
+    db.getLocationById.mockResolvedValue(row());
+    db.updateLocation.mockRejectedValue(error);
+
+    await expect(editEntry(ID, { label: "Heden" }, NOW)).rejects.toBe(error);
+  });
+
+  // Another tab moved the start to 08:00 after this tab read 11:00–14:00; this patch's end
+  // then makes the stored window 08:00–15:00, which overlaps an 08:30 entry.
+  it("names the overlap from the stored window plus the patch, not this tab's read", async () => {
+    db.getLocationById
+      .mockResolvedValueOnce(row())
+      .mockResolvedValueOnce(row({ starts_at: "2026-08-22T06:00:00+00:00" }));
+    db.updateLocation.mockRejectedValue(overlapError);
+    db.findTruckLocationsOverlapping.mockResolvedValue([]);
+
+    await editEntry(ID, { ends_at: "2026-08-22T13:00:00.000Z" }, NOW);
+
+    expect(db.findTruckLocationsOverlapping).toHaveBeenCalledWith(
+      TRUCK,
+      "2026-08-22T06:00:00+00:00",
+      "2026-08-22T13:00:00.000Z",
+      2,
+    );
   });
 });
 

@@ -139,6 +139,16 @@ describe("updateLocation", () => {
     expect(await updateLocation(randomUUID(), { label: "Heden" })).toBeNull();
   });
 
+  // `editEntry` tells the order CHECK from any other `23514` by this name.
+  it("lets an inverted window's 23514 through, naming locations_ends_after_starts", async () => {
+    const { id } = await seedLocation(truckId, { starts_at: LUNCH_START, ends_at: LUNCH_END });
+
+    await expect(updateLocation(id, { ends_at: "2026-08-22T08:00:00.000Z" })).rejects.toMatchObject({
+      code: "23514",
+      message: expect.stringContaining("locations_ends_after_starts"),
+    });
+  });
+
   it("returns null for a cancelled row and leaves it unchanged", async () => {
     const { id } = await seedLocation(truckId, { cancelled_at: "2026-08-21T08:00:00.000Z" });
 
@@ -333,6 +343,15 @@ describe("findTruckLocationsOverlapping", () => {
         (row) => row.id,
       ),
     ).toEqual([first.id]);
+  });
+
+  // Why it orders by `starts_at` alone: one truck's live rows can't share one.
+  it("can't meet a starts_at tie: a second live row at the same start is 23P01", async () => {
+    await seedLocation(truckId, { starts_at: LUNCH_START, ends_at: LUNCH_END });
+
+    await expect(
+      seedLocation(truckId, { starts_at: LUNCH_START, ends_at: "2026-08-22T09:30:00.000Z" }),
+    ).rejects.toMatchObject({ code: "23P01" });
   });
 
   it.each([0, 1.5, 1001])("throws on limit %s before any request", async (limit) => {

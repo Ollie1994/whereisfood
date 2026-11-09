@@ -59,7 +59,7 @@ function wallInstants(day: number, minutes: number): number[] {
 // `date`'s Stockholm calendar date and clock time, as "2026-08-22" and "11:00", through
 // `wallMs`, so no host zone is involved. From the fields, not `toISOString`, which writes
 // Stockholm's 10000-01-01 (UTC 9999-12-31T23:30Z, which the validator takes) as
-// "+010000-01-01T…" (PR for IS #226, round 1).
+// "+010000-01-01T…" (`new Date(Date.UTC(10000, 0, 1, 0, 30)).toISOString()` in Node).
 export function stockholmWallClock(date: Date): { date: string; time: string } {
   const wall = new Date(wallMs(date.getTime()));
   const pad = (n: number, width = 2) => String(n).padStart(width, "0");

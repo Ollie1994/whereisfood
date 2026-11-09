@@ -148,7 +148,7 @@ the `Origin` header equals `requestOrigin`, and a missing or `null` `Origin` is 
   through `getActiveTruckById`, where null gives a 400 with a Swedish message, and sets
   `created_by` and `source` itself (#17). `editEntry` reads the row with `getLocationById` (null gives a 404), merges the patch,
   and checks the merged row's time order and `isInGothenburg`, so a partial patch answers
-  400. It writes only the patch, and answers the CHECK's `23514`, which another tab's edit
+  400. It writes only the patch, and answers the order CHECK's `23514`, which another tab's edit
   between the read and the write can bring, with the same 400 (PR #243, round 2). `23P01`
   becomes a conflict result naming the existing entry's Stockholm times, found through
   `findTruckLocationsOverlapping`, leaving out the entry being edited: not

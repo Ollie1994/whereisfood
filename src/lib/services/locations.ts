@@ -43,6 +43,11 @@ function hasCode(error: unknown, code: string): boolean {
 // The exclusion constraint's code.
 const isOverlap = (error: unknown) => hasCode(error, "23P01");
 
+// The time-order CHECK, by its name in the message: `23514` is every CHECK's code
+// (`db-locations.test.ts` pins the name in `updateLocation`'s error).
+const isOrderCheck = (error: unknown) =>
+  hasCode(error, "23514") && String((error as { message?: unknown }).message).includes("locations_ends_after_starts");
+
 // "2026-08-22 11:00–14:00", or with both dates when the end falls on another day.
 function describeWindow(entry: Pick<Location, "starts_at" | "ends_at">): string {
   const start = stockholmWallClock(new Date(entry.starts_at));
@@ -54,7 +59,7 @@ function describeWindow(entry: Pick<Location, "starts_at" | "ends_at">): string 
 // The refusal for a `23P01`, naming the truck's entry it overlaps. Read after the failed
 // write, so that entry may since have been cancelled: then the text names none. Two rows of
 // the truck's, not every truck's: one may be the entry being edited, and a window can span
-// years, where `findLocationsOverlapping` throws past `max_rows` (PR for IS #226, round 1).
+// years, where `findLocationsOverlapping` throws past `max_rows`.
 async function overlapRefusal(
   truckId: string,
   window: Pick<Location, "starts_at" | "ends_at">,
@@ -73,7 +78,7 @@ const hasEnded = (entry: Pick<Location, "ends_at">, now: Date) => Date.parse(ent
 // Live entries overlapping today and the next `LIST_DAYS - 1` days, by start, each with its
 // truck's name. From `listAllTrucks`, so an inactive truck's entry keeps its name.
 //
-// A limit, the owner's call (PR #243, round 2): every truck's entries for 14 days, so
+// A limit, named in the plan's step 15: every truck's entries for 14 days, so
 // `findLocationsOverlapping` throws, and the list answers 500, past `MAX_ROWS` live rows:
 // about 50 trucks with two entries a day, each entered two weeks ahead. The same wall as
 // `/api/live`'s (`project-context.md`, "1,000 rows, a hard wall"), and the same first fix.
@@ -116,9 +121,10 @@ export async function createEntry(input: NewLocationInput, adminId: string, now:
 // refused with 400. Only the patch is written, so an edit in another tab between the read
 // and the write keeps the fields this patch doesn't hold. Its other time can then make the
 // stored pair out of order: the CHECK refuses that with `23514`, answered with the same
-// 400. Its other coordinate can't take the pair out of the box: `isInGothenburg` checks
-// each axis on its own. An entry that has ended can't be edited, and an edit can't end it
-// in the past (#33).
+// 400. Its other coordinate keeps the pair in the box when that coordinate passed it too,
+// as every app write's does: `isInGothenburg` checks each axis on its own. The schema has
+// no range CHECK (`0001_baseline.sql`), so a row written outside the app isn't covered.
+// An entry that has ended can't be edited, and an edit can't end it in the past (#33).
 export async function editEntry(id: string, patch: LocationPatch, now: Date): Promise<EntryResult> {
   const current = await getLocationById(id);
   if (!current) return refuse("not-found", ENTRY_ERRORS.notFound);
@@ -134,8 +140,13 @@ export async function editEntry(id: string, patch: LocationPatch, now: Date): Pr
     // Cancelled between the read and the write.
     return entry ? { ok: true, entry } : refuse("not-found", ENTRY_ERRORS.notFound);
   } catch (error) {
-    if (isOverlap(error)) return overlapRefusal(current.truck_id, merged, id);
-    if (hasCode(error, "23514")) return refuse("invalid", LOCATION_ERRORS.order);
+    if (isOverlap(error)) {
+      // The window as stored plus this patch, not this tab's read: another tab may have
+      // moved the time the patch doesn't hold. This tab's read if the row is gone since.
+      const stored = await getLocationById(id);
+      return overlapRefusal(current.truck_id, { ...(stored ?? current), ...patch }, id);
+    }
+    if (isOrderCheck(error)) return refuse("invalid", LOCATION_ERRORS.order);
     throw error;
   }
 }
