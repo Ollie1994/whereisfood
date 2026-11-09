@@ -288,7 +288,8 @@ failure is understood.
     hard wall" bullet, which gains a second reader: the admin list's 14-day window, a stated
     limit in `listAdminEntries`, the owner's call (PR #243, round 2); the "Phase map" (the
     Phase 7 row, and retention and the app name in Phase 8's), "Product model" items 2 and 3
-    (#22, #23), and "Open decisions" (#22 and #23 settle two, #25 and #26 move two to
+    (#22, #23) and item 4, whose overlap message gains #33's ended-entry text (PR #243, round
+    4), and "Open decisions" (#22 and #23 settle two, #25 and #26 move two to
     Phase 8), the "Read path" section's "One time zone" bullet, whose `live.ts`'s `TZ` is now
     `stockholm.ts`'s (PR #238); Part 3's "Status codes" (404, 503, and 409 from `23505` as
     well) and "Hooks"; and the README's status parts. It replaces each **between phases** marker in
