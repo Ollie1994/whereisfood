@@ -227,8 +227,8 @@ describe("confirmLocation", () => {
 
     expect(keysOf(confirmed!)).toEqual(LOCATION_KEYS);
     const stored = await readLocation(seeded.id);
-    // Later than the seed's own `now()`, so not the 2000-01-01 written. Read against the
-    // database's clock only: the Docker VM's and the test's can drift apart.
+    // Later than the seed's own `now()`, so not the 2000-01-01 written: both times are the
+    // database's, so the test's own clock plays no part.
     expect(Date.parse(stored.updated_at)).toBeGreaterThan(Date.parse(seeded.updated_at));
     expect({ ...stored, updated_at: seeded.updated_at }).toEqual(seeded);
   });
@@ -316,11 +316,13 @@ describe("findTruckLocationsOverlapping", () => {
       ends_at: "2026-08-22T12:00:00.000Z",
       cancelled_at: "2026-08-21T08:00:00.000Z",
     });
+    await seedLocation(truckId, { starts_at: "2026-08-22T12:00:00.000Z", ends_at: "2026-08-22T13:00:00.000Z" });
     await seedLocation(otherTruck, { starts_at: "2026-08-22T09:00:00.000Z", ends_at: "2026-08-22T10:00:00.000Z" });
 
     const rows = await findTruckLocationsOverlapping(truckId, "2026-08-22T09:00:00.000Z", "2026-08-22T12:00:00.000Z", 10);
 
-    // The 08:00–09:00 row ends at `from` and is out; the cancelled one and the other truck's are out.
+    // Out: the 08:00–09:00 row, ending at `from`; the 12:00–13:00 row, starting at `to`; the
+    // cancelled one; the other truck's.
     expect(rows.map((row) => row.id)).toEqual([first.id, later.id]);
     expect(keysOf(rows[0])).toEqual(LOCATION_KEYS);
     expect(
