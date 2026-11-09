@@ -19,7 +19,8 @@ import {
 
 // `/auth/callback` and `/auth/logout` against the local stack (Phase 7 plan, step 2).
 // Each `sessionUser`/`sessionFor` is a sign-in, under local Auth's limit (`helpers.ts`,
-// `signedInClient`).
+// `signedInClient`). The file also asks for a link three times (`signInWithOtp`), and
+// `config.toml`'s `sign_in_sign_ups` limits "sign up and sign-in requests".
 
 const ORIGIN = "http://127.0.0.1:3000";
 // Mailpit, the local stack's mail catcher: `supabase/config.toml`, `[local_smtp]`'s port.
@@ -114,6 +115,41 @@ describe("GET /auth/callback", () => {
     expect(code).not.toBe("");
   });
 
+  // The next two run before the exchange test, which then shows the code wasn't spent: if
+  // either ever spends it, the failure shows there, not here.
+
+  // #224's phone failure: the link opened in a browser without the verifier cookie.
+  it("sends a code with no verifier cookie back with ?error=browser and no session", async () => {
+    const response = await callback(request(`/auth/callback?code=${code}`));
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe("/admin/login?error=browser");
+    const written = setCookies(response);
+    expect(sessionCookieNames(written).filter((name) => written.get(name) !== "")).toEqual([]);
+  });
+
+  // A browser holding another login's verifier: a send Auth refuses still stores one before
+  // the request (`loginMessage`'s comment), so an address with no account gives a jar with
+  // a verifier and sends no mail. Auth's own answer is asserted first: a missing verifier
+  // also gives `browser`, so only that assertion tells the two apart.
+  it("sends a code with another login's verifier back with ?error=browser and no session", async () => {
+    const wrongJar = new Map<string, string>();
+    const { error: sendError } = await jarClient(wrongJar).auth.signInWithOtp({
+      email: fixtureEmail(randomUUID()),
+      options: { shouldCreateUser: false, emailRedirectTo: `${ORIGIN}/auth/callback` },
+    });
+    expect(sendError?.code).toBe("otp_disabled");
+
+    const { error } = await jarClient(new Map(wrongJar)).auth.exchangeCodeForSession(code);
+    expect([error?.status, error?.code]).toEqual([400, "bad_code_verifier"]);
+
+    const response = await callback(request(`/auth/callback?code=${code}`, { cookie: cookieHeader(wrongJar) }));
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe("/admin/login?error=browser");
+    const written = setCookies(response);
+    expect(sessionCookieNames(written).filter((name) => written.get(name) !== "")).toEqual([]);
+  });
+
   it("exchanges the code, writes a session cookie Auth accepts, and lands on /admin", async () => {
     const response = await callback(request(`/auth/callback?code=${code}`, { cookie: cookieHeader(verifierJar) }));
 
@@ -129,7 +165,9 @@ describe("GET /auth/callback", () => {
     expect(data.user?.id).toBe(userId);
   });
 
-  it("sends a used code back to the login with ?error=link and no session", async () => {
+  // With its verifier still sent, which a browser no longer holds after its own exchange
+  // (`_exchangeCodeForSession` removes it); without one, a used code gets `browser`.
+  it("sends a used code, sent with its verifier, back to the login with ?error=link and no session", async () => {
     const response = await callback(request(`/auth/callback?code=${code}`, { cookie: cookieHeader(verifierJar) }));
 
     expect(response.status).toBe(303);

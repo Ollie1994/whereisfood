@@ -1,4 +1,4 @@
-import { AuthApiError, AuthRetryableFetchError } from "@supabase/supabase-js";
+import { AuthApiError, AuthPKCECodeVerifierMissingError, AuthRetryableFetchError } from "@supabase/supabase-js";
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -40,6 +40,16 @@ describe("GET /auth/callback", () => {
     const response = await callback("?code=abc");
 
     expect(response.headers.get("location")).toBe("/admin/login?error=unavailable");
+  });
+
+  it.each([
+    ["a missing verifier", new AuthPKCECodeVerifierMissingError()],
+    ["a verifier Auth refuses", new AuthApiError("mismatch", 400, "bad_code_verifier")],
+  ])("sends %s to the login with ?error=browser, not ?error=link", async (_, error) => {
+    exchangeCodeForSession.mockResolvedValue({ data: {}, error });
+    const response = await callback("?code=abc");
+
+    expect(response.headers.get("location")).toBe("/admin/login?error=browser");
   });
 
   it("sends a refused code to the login with ?error=link", async () => {

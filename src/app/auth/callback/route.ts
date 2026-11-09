@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { withErrorHandling } from "@/lib/http/handler";
 import { redirectTo } from "@/lib/http/origin";
-import { isTemporaryAuthError } from "@/lib/login";
+import { callbackErrorFor, type CallbackError } from "@/lib/login";
 import { createSessionClient, writingCookies } from "@/lib/supabase-session";
 
 // Finishes a magic-link login. Auth's `/verify` answers 303 here with `?code=…`, or with
@@ -12,8 +12,7 @@ import { createSessionClient, writingCookies } from "@/lib/supabase-session";
 // Outside the proxy and `/api/admin/` (Phase 7 plan, #28), so it sets its own cookies.
 export async function GET(request: NextRequest) {
   return withErrorHandling(async () => {
-    const failed = (reason: "link" | "unavailable") =>
-      redirectTo(`/admin/login?error=${reason}`, 303);
+    const failed = (reason: CallbackError) => redirectTo(`/admin/login?error=${reason}`, 303);
 
     const code = request.nextUrl.searchParams.get("code");
     if (!code) return failed("link");
@@ -21,9 +20,7 @@ export async function GET(request: NextRequest) {
     const response = redirectTo("/admin", 303);
     const supabase = createSessionClient(writingCookies(request, response));
     const { error } = await supabase.auth.exchangeCodeForSession(code);
-    // Auth down or failing isn't the link's fault: say so, so the admin doesn't spend one
-    // of the built-in email's few sends an hour on a new link (plan #32's reasoning).
-    if (error) return failed(isTemporaryAuthError(error) ? "unavailable" : "link");
+    if (error) return failed(callbackErrorFor(error));
 
     return response;
   });

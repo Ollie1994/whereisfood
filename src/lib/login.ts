@@ -1,4 +1,4 @@
-import { isAuthRetryableFetchError } from "@supabase/supabase-js";
+import { isAuthPKCECodeVerifierMissingError, isAuthRetryableFetchError } from "@supabase/supabase-js";
 
 // The login form's states and their Swedish text, kept pure so they are tested without a
 // browser. `useLogin` runs the request; `LoginForm` renders what this returns.
@@ -23,8 +23,11 @@ export function loginStatusFor(error: { status?: number; code?: string } | null)
 
 export function loginMessage(status: LoginStatus): string | null {
   switch (status) {
+    // The browser, not the device: on the phone a link tapped in the Gmail app opened in a
+    // browser without the PKCE verifier cookie and failed twice; copied into Chrome, where
+    // the login page was, it worked (IS #224's checkpoint).
     case "sent":
-      return "Om adressen har ett konto har vi skickat en inloggningslänk. Öppna den på den här enheten.";
+      return "Om adressen har ett konto har vi skickat en inloggningslänk. Öppna den i den här webbläsaren. På mobilen: kopiera länken och klistra in den i adressfältet här, i stället för att trycka på den i mejlappen.";
     // Even a refused send replaces the PKCE code verifier (`signInWithOtp` stores a new one
     // before the request, `@supabase/auth-js` 2.106.2), so earlier links stop working.
     case "rate-limited":
@@ -50,11 +53,39 @@ export function isTemporaryAuthError(error: { status?: number } | null): boolean
   return isAuthRetryableFetchError(error) || error.status === 429 || (error.status ?? 0) >= 500;
 }
 
-// `/auth/callback` sends a failed login back with `?error=link`, or `?error=unavailable`
-// when Auth failed for a reason that isn't the link (`isTemporaryAuthError`).
+// Why `/auth/callback` sends a failed login back to the login page, as its `?error=`.
+export type CallbackError = "link" | "browser" | "unavailable";
+
+// Auth's answer to a verifier that doesn't match the code: 400 and this code, on the local
+// stack (`auth-routes.test.ts`, a real emailed code with another login's verifier).
+const WRONG_VERIFIER = "bad_code_verifier";
+
+export function callbackErrorFor(error: { status?: number; code?: string }): CallbackError {
+  // This browser's PKCE verifier doesn't belong to the link: none stored, which auth-js
+  // 2.106.2 reports before any request (`AuthPKCECodeVerifierMissingError`; #224's phone
+  // failure, `auth-routes.test.ts`), or another one (`WRONG_VERIFIER`). The right browser
+  // gets these too after a refused or failed send, which replaces or removes its verifier
+  // (`loginMessage`'s comments), so the text names that cause too. A link that a later
+  // send superseded fails at `/verify` first (`/auth/callback`'s header, `otp_expired`).
+  // Not covered by the text: a code reused in the browser whose exchange already removed
+  // its verifier (`_exchangeCodeForSession`).
+  if (isAuthPKCECodeVerifierMissingError(error) || error.code === WRONG_VERIFIER) return "browser";
+  // Auth down or failing isn't the link's fault: say so, so the admin doesn't spend one
+  // of the built-in email's few sends an hour on a new link (plan #32's reasoning).
+  if (isTemporaryAuthError(error)) return "unavailable";
+  return "link";
+}
+
+// The text for each `?error=` the callback sends (`callbackErrorFor`).
 export function callbackErrorMessage(error: string | string[] | undefined): string | null {
   if (error === "link") {
     return "Inloggningslänken fungerade inte. Den kan ha gått ut eller redan använts. Be om en ny.";
+  }
+  // Shown in the browser the link opened in, which may be the wrong one, so it sends the
+  // admin back to their usual browser for the new link (IS #240). A new link, not the same
+  // one: `/verify` uses a link up on its first visit (the `unavailable` text's comment).
+  if (error === "browser") {
+    return "Inloggningslänken fungerade inte i den här webbläsaren. Den kan ha öppnats i en annan webbläsare än den som bad om den, eller slutat gälla när en ny länk begärdes. Be om en ny i din vanliga webbläsare och öppna den där. På mobilen: kopiera den dit i stället för att trycka på den i mejlappen.";
   }
   // Not "open the same link again": Auth's `/verify` uses a link up on its first visit
   // (local stack: a second visit to the same link answered `?error=access_denied`,
