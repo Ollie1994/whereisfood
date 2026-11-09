@@ -125,6 +125,31 @@ export async function cancelLocation(
   return updateLiveRow(id, { cancelled_at: cancelledAt });
 }
 
+// The row when it isn't cancelled; null for an unknown id or a cancelled row, the same
+// rows `updateLiveRow` finds.
+export async function getLocationById(id: string): Promise<Location | null> {
+  const { data, error } = await supabaseAdmin
+    .from("locations")
+    .select(LOCATION_COLUMNS)
+    .eq("id", id)
+    .is("cancelled_at", null)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
+// "Stämmer fortfarande" on a live row: an UPDATE that writes only `updated_at`, and the
+// `locations_updated_at` trigger then stores its own `now()`, not `confirmedAt` (Phase 7
+// plan, #18; `db-locations.test.ts` writes 2000-01-01 and reads back the transaction's
+// time). Null when the row is missing or cancelled.
+export async function confirmLocation(
+  id: string,
+  confirmedAt: string,
+): Promise<Location | null> {
+  return updateLiveRow(id, { updated_at: confirmedAt });
+}
+
 // Live rows of every truck overlapping [from, to): `starts_at < to AND ends_at > from`.
 // Half-open, so a row ending exactly at `from` is out. Not filtered on the truck's
 // `is_active` (plan, open decision 6). Ordered by `starts_at`, then `id`: rows sharing a
@@ -148,6 +173,43 @@ export async function findLocationsOverlapping(from: string, to: string): Promis
   return data;
 }
 
+// The `limit` rule below, for every read that takes one.
+function checkLimit(fn: string, limit: number): void {
+  if (!Number.isInteger(limit) || limit < 1 || limit > MAX_ROWS) {
+    throw new Error(`${fn}: limit must be an integer from 1 to ${MAX_ROWS}, got ${limit}`);
+  }
+}
+
+// One truck's first `limit` live rows overlapping [from, to), by `starts_at`, with
+// `findLocationsOverlapping`'s half-open bounds. For a read that needs a few of the truck's
+// rows, not every truck's: `findLocationsOverlapping` throws once a window holds more than
+// `max_rows` rows, and a window can span years (`validators/location.ts`). `limit` as
+// below, checked before any request.
+//
+// No `id` tie-break: two live rows of one truck can't share a `starts_at`
+// (`db-locations.test.ts` inserts a second at the same start and gets `23P01`).
+export async function findTruckLocationsOverlapping(
+  truckId: string,
+  from: string,
+  to: string,
+  limit: number,
+): Promise<Location[]> {
+  checkLimit("findTruckLocationsOverlapping", limit);
+
+  const { data, error } = await supabaseAdmin
+    .from("locations")
+    .select(LOCATION_COLUMNS)
+    .eq("truck_id", truckId)
+    .is("cancelled_at", null)
+    .lt("starts_at", to)
+    .gt("ends_at", from)
+    .order("starts_at")
+    .limit(limit);
+
+  if (error) throw error;
+  return data;
+}
+
 // The truck's latest `limit` live rows that started before `before`, newest `starts_at`
 // first. `before` is usually now, so future entries don't fill "recent places".
 //
@@ -164,11 +226,7 @@ export async function listRecentLocationsForTruck(
   before: string,
   limit: number,
 ): Promise<Location[]> {
-  if (!Number.isInteger(limit) || limit < 1 || limit > MAX_ROWS) {
-    throw new Error(
-      `listRecentLocationsForTruck: limit must be an integer from 1 to ${MAX_ROWS}, got ${limit}`,
-    );
-  }
+  checkLimit("listRecentLocationsForTruck", limit);
 
   const { data, error } = await supabaseAdmin
     .from("locations")

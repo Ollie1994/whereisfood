@@ -2,7 +2,10 @@ import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   cancelLocation,
+  confirmLocation,
   findLocationsOverlapping,
+  findTruckLocationsOverlapping,
+  getLocationById,
   insertLocation,
   listRecentLocationsForTruck,
   updateLocation,
@@ -136,6 +139,16 @@ describe("updateLocation", () => {
     expect(await updateLocation(randomUUID(), { label: "Heden" })).toBeNull();
   });
 
+  // `editEntry` tells the order CHECK from any other `23514` by this name.
+  it("lets an inverted window's 23514 through, naming locations_ends_after_starts", async () => {
+    const { id } = await seedLocation(truckId, { starts_at: LUNCH_START, ends_at: LUNCH_END });
+
+    await expect(updateLocation(id, { ends_at: "2026-08-22T08:00:00.000Z" })).rejects.toMatchObject({
+      code: "23514",
+      message: expect.stringContaining("locations_ends_after_starts"),
+    });
+  });
+
   it("returns null for a cancelled row and leaves it unchanged", async () => {
     const { id } = await seedLocation(truckId, { cancelled_at: "2026-08-21T08:00:00.000Z" });
 
@@ -194,6 +207,51 @@ describe("cancelLocation", () => {
 
   it("returns null for an unknown id", async () => {
     expect(await cancelLocation(randomUUID(), "2026-08-22T08:00:00.000Z")).toBeNull();
+  });
+});
+
+describe("getLocationById", () => {
+  it("returns a live row with exactly the selected keys", async () => {
+    const { id } = await seedLocation(truckId);
+
+    const row = await getLocationById(id);
+
+    expect(row?.id).toBe(id);
+    expect(keysOf(row!)).toEqual(LOCATION_KEYS);
+  });
+
+  it("returns null for a cancelled row and for an unknown id", async () => {
+    const { id } = await seedLocation(truckId, { cancelled_at: "2026-08-21T08:00:00.000Z" });
+
+    expect(await getLocationById(id)).toBeNull();
+    expect(await getLocationById(randomUUID())).toBeNull();
+  });
+});
+
+describe("confirmLocation", () => {
+  // Plan #18: the trigger stores its own `now()`, not the value written.
+  it("moves updated_at to the trigger's now(), not the value written, and nothing else", async () => {
+    const seeded = await seedLocation(truckId);
+
+    const confirmed = await confirmLocation(seeded.id, "2000-01-01T00:00:00.000Z");
+
+    expect(keysOf(confirmed!)).toEqual(LOCATION_KEYS);
+    const stored = await readLocation(seeded.id);
+    // Between the seed's `now()` and that of a row inserted after the confirm, so not the
+    // 2000-01-01 written nor any later value: every time compared is the database's, and
+    // the test's own clock plays no part.
+    const after = await seedLocation(truckId);
+    expect(Date.parse(stored.updated_at)).toBeGreaterThan(Date.parse(seeded.updated_at));
+    expect(Date.parse(stored.updated_at)).toBeLessThanOrEqual(Date.parse(after.created_at));
+    expect({ ...stored, updated_at: seeded.updated_at }).toEqual(seeded);
+  });
+
+  it("returns null for a cancelled row, leaving updated_at, and for an unknown id", async () => {
+    const seeded = await seedLocation(truckId, { cancelled_at: "2026-08-21T08:00:00.000Z" });
+
+    expect(await confirmLocation(seeded.id, "2026-08-22T08:00:00.000Z")).toBeNull();
+    expect((await readLocation(seeded.id)).updated_at).toBe(seeded.updated_at);
+    expect(await confirmLocation(randomUUID(), "2026-08-22T08:00:00.000Z")).toBeNull();
   });
 });
 
@@ -257,6 +315,52 @@ describe("findLocationsOverlapping", () => {
     await seedLocation(truckId, { starts_at: LUNCH_END, ends_at: "2026-08-22T15:00:00.000Z" });
 
     expect((await overlappingIds(LUNCH_START, LUNCH_END, [truckId])).ids).toEqual([]);
+  });
+});
+
+describe("findTruckLocationsOverlapping", () => {
+  it("finds only this truck's live rows in the window, half-open, by starts_at, up to limit", async () => {
+    const otherTruck = await seedTruck("Other");
+    const first = await seedLocation(truckId, { starts_at: "2026-08-22T09:00:00.000Z", ends_at: "2026-08-22T10:00:00.000Z" });
+    const later = await seedLocation(truckId, { starts_at: "2026-08-22T10:00:00.000Z", ends_at: "2026-08-22T11:00:00.000Z" });
+    await seedLocation(truckId, { starts_at: "2026-08-22T08:00:00.000Z", ends_at: "2026-08-22T09:00:00.000Z" });
+    await seedLocation(truckId, {
+      starts_at: "2026-08-22T11:00:00.000Z",
+      ends_at: "2026-08-22T12:00:00.000Z",
+      cancelled_at: "2026-08-21T08:00:00.000Z",
+    });
+    await seedLocation(truckId, { starts_at: "2026-08-22T12:00:00.000Z", ends_at: "2026-08-22T13:00:00.000Z" });
+    await seedLocation(otherTruck, { starts_at: "2026-08-22T09:00:00.000Z", ends_at: "2026-08-22T10:00:00.000Z" });
+
+    const rows = await findTruckLocationsOverlapping(truckId, "2026-08-22T09:00:00.000Z", "2026-08-22T12:00:00.000Z", 10);
+
+    // Out: the 08:00–09:00 row, ending at `from`; the 12:00–13:00 row, starting at `to`; the
+    // cancelled one; the other truck's.
+    expect(rows.map((row) => row.id)).toEqual([first.id, later.id]);
+    expect(keysOf(rows[0])).toEqual(LOCATION_KEYS);
+    expect(
+      (await findTruckLocationsOverlapping(truckId, "2026-08-22T09:00:00.000Z", "2026-08-22T12:00:00.000Z", 1)).map(
+        (row) => row.id,
+      ),
+    ).toEqual([first.id]);
+  });
+
+  // Why it orders by `starts_at` alone: one truck's live rows can't share one.
+  it("can't meet a starts_at tie: a second live row at the same start is 23P01", async () => {
+    await seedLocation(truckId, { starts_at: LUNCH_START, ends_at: LUNCH_END });
+
+    await expect(
+      seedLocation(truckId, { starts_at: LUNCH_START, ends_at: "2026-08-22T09:30:00.000Z" }),
+    ).rejects.toMatchObject({ code: "23P01" });
+  });
+
+  it.each([0, 1.5, 1001])("throws on limit %s before any request", async (limit) => {
+    const from = vi.spyOn(supabaseAdmin, "from");
+
+    await expect(
+      findTruckLocationsOverlapping(truckId, LUNCH_START, LUNCH_END, limit),
+    ).rejects.toThrow(/findTruckLocationsOverlapping: limit must be an integer from 1 to 1000/);
+    expect(from).not.toHaveBeenCalled();
   });
 });
 

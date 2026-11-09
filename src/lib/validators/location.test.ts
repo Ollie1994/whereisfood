@@ -55,6 +55,14 @@ describe("parseNewLocation", () => {
     expect(parseNewLocation({ ...BODY, truck_id: truckId })).toEqual(refused(LOCATION_ERRORS.truck));
   });
 
+  // A new entry gets the pin's fault first, not after the times are fixed. An edit's box
+  // check is `editEntry`'s, on the merged row, after the patch's own fields.
+  it("names a pin outside Gothenburg before a bad label or time", () => {
+    expect(parseNewLocation({ ...BODY, latitude: 59.3293, label: 7, ends_at: "nope" })).toEqual(
+      refused(LOCATION_ERRORS.outside),
+    );
+  });
+
   it("refuses a transposed pair as outside Gothenburg", () => {
     expect(parseNewLocation({ ...BODY, latitude: LNG, longitude: LAT })).toEqual(refused(LOCATION_ERRORS.outside));
   });

@@ -55,8 +55,8 @@ function label(value: unknown): string | null | undefined {
 // Postgres refused the forms it writes outside that, `0000-12-31T23:30:00.000Z` and
 // `+010000-01-01T00:30:00.000Z`, and took years 0001 and 9999 (PR #238). A limit: that
 // guards the strings, not the dates, so an entry from 0001 to 9999 passes here and would
-// cover every day. Nothing planned bounds an entry's length or far end: open decision 9
-// would refuse only one that has already ended. Also a limit: `Date` keeps milliseconds,
+// cover every day. Nothing planned bounds an entry's length or far end: the service refuses
+// only one that has already ended (plan #33). Also a limit: `Date` keeps milliseconds,
 // so digits past them are dropped: `…00.0001Z` and `…00.0009Z` both read as `…00.000Z`,
 // and an entry between them is refused as `order` (pinned in the test).
 function timestamp(value: unknown): Date | undefined {
@@ -68,6 +68,20 @@ function timestamp(value: unknown): Date | undefined {
 
 const refuse = (error: string): { ok: false; error: string } => ({ ok: false, error });
 
+// An end at or before the start, compared as instants: the one copy of the order rule.
+function orderError(startsAt: string, endsAt: string): string | null {
+  return Date.parse(endsAt) <= Date.parse(startsAt) ? LOCATION_ERRORS.order : null;
+}
+
+// The checks across fields, for a patch's merged entry in `editEntry`: the pair inside the
+// Gothenburg box, then the order rule, the two `parseNewLocation` makes. The error, or null.
+export function crossFieldError(
+  entry: Pick<NewLocationInput, "latitude" | "longitude" | "starts_at" | "ends_at">,
+): string | null {
+  if (!isInGothenburg(entry.latitude, entry.longitude)) return LOCATION_ERRORS.outside;
+  return orderError(entry.starts_at, entry.ends_at);
+}
+
 export function parseNewLocation(body: unknown): Parsed<NewLocationInput> {
   if (!isRecord(body)) return refuse(LOCATION_ERRORS.body);
 
@@ -77,6 +91,7 @@ export function parseNewLocation(body: unknown): Parsed<NewLocationInput> {
   const latitude = coordinate(body.latitude);
   const longitude = coordinate(body.longitude);
   if (latitude === undefined || longitude === undefined) return refuse(LOCATION_ERRORS.position);
+  // Before the label and times, so a pin outside the box is named first (pinned in the test).
   if (!isInGothenburg(latitude, longitude)) return refuse(LOCATION_ERRORS.outside);
 
   const name = label(body.label);
@@ -86,19 +101,17 @@ export function parseNewLocation(body: unknown): Parsed<NewLocationInput> {
   if (!startsAt) return refuse(LOCATION_ERRORS.startsAt);
   const endsAt = timestamp(body.ends_at);
   if (!endsAt) return refuse(LOCATION_ERRORS.endsAt);
-  if (endsAt.getTime() <= startsAt.getTime()) return refuse(LOCATION_ERRORS.order);
 
-  return {
-    ok: true,
-    value: {
-      truck_id: truckId,
-      latitude,
-      longitude,
-      label: name,
-      starts_at: startsAt.toISOString(),
-      ends_at: endsAt.toISOString(),
-    },
+  const value = {
+    truck_id: truckId,
+    latitude,
+    longitude,
+    label: name,
+    starts_at: startsAt.toISOString(),
+    ends_at: endsAt.toISOString(),
   };
+  const error = orderError(value.starts_at, value.ends_at);
+  return error ? refuse(error) : { ok: true, value };
 }
 
 // Each key the patch holds, checked alone. Across fields (the box, the time order) is

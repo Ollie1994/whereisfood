@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { entryWindow, stockholmDay, stockholmDayBounds, stockholmMidnight, wallClockToUtc } from "@/lib/stockholm";
+import {
+  entryWindow,
+  stockholmDay,
+  stockholmDayBounds,
+  stockholmMidnight,
+  stockholmWallClock,
+  wallClockToUtc,
+} from "@/lib/stockholm";
 
 // 2026-03-29 is 23 hours long in Stockholm (02:00 CET → 03:00 CEST) and 2026-10-25 is 25
 // (03:00 CEST → 02:00 CET). `live.test.ts` covers the same helpers through the map's code.
@@ -14,6 +21,22 @@ describe("stockholmDay", () => {
     expect(stockholmDay(new Date("2026-11-08T23:00:00Z"))).toBe(day("2026-11-09"));
     expect(stockholmDay(new Date("2026-07-01T21:59:59Z"))).toBe(day("2026-07-01"));
     expect(stockholmDay(new Date("2026-07-01T22:00:00Z"))).toBe(day("2026-07-02"));
+  });
+});
+
+describe("stockholmWallClock", () => {
+  it.each([
+    ["2026-08-22T09:00:00Z", "2026-08-22", "11:00"],
+    ["2026-11-08T22:59:00Z", "2026-11-08", "23:59"],
+    ["2026-11-08T23:00:00Z", "2026-11-09", "00:00"],
+    // Both 02:30s of 2026-10-25, CEST then CET.
+    ["2026-10-25T00:30:00Z", "2026-10-25", "02:30"],
+    ["2026-10-25T01:30:00Z", "2026-10-25", "02:30"],
+    // The validator's last UTC year, which Stockholm reads as year 10000, and its first.
+    ["9999-12-31T23:30:00Z", "10000-01-01", "00:30"],
+    ["0001-01-01T00:00:00Z", "0001-01-01", "00:53"],
+  ])("reads %s as %s %s", (instant, date, time) => {
+    expect(stockholmWallClock(new Date(instant))).toEqual({ date, time });
   });
 });
 
