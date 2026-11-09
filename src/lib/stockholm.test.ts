@@ -5,6 +5,8 @@ import {
   stockholmDayBounds,
   stockholmMidnight,
   stockholmWallClock,
+  dayOf,
+  isWallClock,
   wallClockToUtc,
 } from "@/lib/stockholm";
 
@@ -21,6 +23,20 @@ describe("stockholmDay", () => {
     expect(stockholmDay(new Date("2026-11-08T23:00:00Z"))).toBe(day("2026-11-09"));
     expect(stockholmDay(new Date("2026-07-01T21:59:59Z"))).toBe(day("2026-07-01"));
     expect(stockholmDay(new Date("2026-07-01T22:00:00Z"))).toBe(day("2026-07-02"));
+  });
+});
+
+describe("dayOf and isWallClock", () => {
+  it("reads a date input's value as a day number, or null", () => {
+    expect(dayOf("1970-01-02")).toBe(1);
+    expect(dayOf("")).toBeNull();
+    expect(dayOf("2026-13-40")).toBeNull();
+    expect(dayOf("10000-01-01")).toBeNull();
+  });
+
+  it("takes 00:00 to 23:59 only", () => {
+    expect(["00:00", "23:59", "11:00"].every(isWallClock)).toBe(true);
+    expect(["24:00", "25:00", "11:60", "1100", ""].some(isWallClock)).toBe(false);
   });
 });
 

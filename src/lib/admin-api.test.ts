@@ -19,7 +19,8 @@ describe("adminFetch", () => {
     expect(await adminFetch("/api/admin/locations")).toEqual({ ok: false, error: "Överlappar med …" });
   });
 
-  // A body cut off mid-way, or a proxy's HTML page, with a 2xx status.
+  // A body cut off mid-way or a proxy's HTML page with a 2xx status, and a refusal whose
+  // body has no `{ error }`.
   it.each([
     ["a 2xx whose body isn't JSON", 200, "<html>"],
     ["a 2xx with an empty body", 200, ""],

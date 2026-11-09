@@ -9,7 +9,8 @@ import type { Location, Truck } from "@/lib/types";
 //
 // A limit: an open edit holds the entry as it was when "Ändra" was pressed. If another tab
 // moves one of its times, an edit here that changes the other time writes back the one it
-// read (`editRequest` sends both). An edit of an entry gone from a reload closes.
+// read (`editRequest` sends both). And an edit of an entry cancelled elsewhere stays open
+// until its save answers "Posten finns inte": closing it on a reload could happen mid-save.
 
 export const CANCEL_QUESTION = "Ställa in den här posten? Den försvinner från kartan.";
 
@@ -17,22 +18,18 @@ const MINUTE_MS = 60_000;
 
 type Read<T> = { ok: true; data: T } | { ok: false; error: string };
 
-// Module-level, so the effect below only starts them and sets state in their callback, not
-// in the effect's body (`react-hooks/set-state-in-effect`). Each checks the shape it reads:
-// `adminFetch` types its data but can't check it.
-async function fetchEntries(): Promise<Read<AdminEntry[]>> {
-  const result = await adminFetch<{ entries?: unknown }>("/api/admin/locations");
+// A list under `key` in a route's answer, checked to be an array: `adminFetch` types
+// its data but can't check it. Module-level, so the effect below only starts it and sets
+// state in its callback, not in the effect's body (`react-hooks/set-state-in-effect`).
+async function fetchList<T>(path: string, key: string): Promise<Read<T[]>> {
+  const result = await adminFetch<Record<string, unknown>>(path);
   if (!result.ok) return result;
-  const entries = result.data.entries;
-  return Array.isArray(entries) ? { ok: true, data: entries } : { ok: false, error: API_ERRORS.unknown };
+  const list = result.data[key];
+  return Array.isArray(list) ? { ok: true, data: list as T[] } : { ok: false, error: API_ERRORS.unknown };
 }
 
-async function fetchTrucks(): Promise<Read<Truck[]>> {
-  const result = await adminFetch<{ trucks?: unknown }>("/api/admin/trucks");
-  if (!result.ok) return result;
-  const trucks = result.data.trucks;
-  return Array.isArray(trucks) ? { ok: true, data: trucks } : { ok: false, error: API_ERRORS.unknown };
-}
+const fetchEntries = () => fetchList<AdminEntry>("/api/admin/locations", "entries");
+const fetchTrucks = () => fetchList<Truck>("/api/admin/trucks", "trucks");
 
 export function useAdminLocations(): {
   // Null until the entries have been read once, so a failed first read shows no "no
@@ -55,7 +52,8 @@ export function useAdminLocations(): {
   startEdit: (entry: AdminEntry) => void;
   stopEdit: () => void;
   confirm: (entry: AdminEntry) => Promise<void>;
-  cancel: (entry: AdminEntry) => Promise<void>;
+  // Asks first; `onConfirmed` runs once the admin has said yes.
+  cancel: (entry: AdminEntry, onConfirmed?: () => void) => Promise<void>;
 } {
   const [entries, setEntries] = useState<AdminEntry[] | null>(null);
   const [trucks, setTrucks] = useState<Truck[]>([]);
@@ -75,15 +73,13 @@ export function useAdminLocations(): {
   // the reload was made in: a read failing during an action is then still retried.
   const trucksFailed = useRef(false);
 
-  // Applies an entries read if it is still the newest one sent. An edit of an entry the
-  // read no longer has closes: it was cancelled, or moved past the list's days, elsewhere.
+  // Applies an entries read if it is still the newest one sent.
   const applyEntries = useCallback((id: number, read: Read<AdminEntry[]>) => {
     if (id !== latestRead.current) return;
     setNow(new Date());
     if (!read.ok) return setEntriesError(read.error);
     setEntriesError(null);
     setEntries(read.data);
-    setEditing((open) => (open && !read.data.some((entry) => entry.id === open.id) ? null : open));
   }, []);
 
   // Applies a trucks read if it is still the newest one sent.
@@ -122,21 +118,22 @@ export function useAdminLocations(): {
   }
 
   // The first reads, started here and applied in their callbacks (the lint rule above);
-  // then the list's clock, on each minute's turn so "Har slutat" isn't up to a minute late.
+  // then the list's clock, set again at each minute's turn so "Har slutat" isn't up to a
+  // minute late. Each tick aims at the next turn afresh, so a late one doesn't carry over.
   useEffect(() => {
     const id = ++latestRead.current;
     const trucksId = ++latestTrucksRead.current;
     void fetchEntries().then((read) => applyEntries(id, read));
     void fetchTrucks().then((read) => applyTrucks(trucksId, read));
-    let tick: ReturnType<typeof setInterval> | undefined;
-    const first = setTimeout(() => {
-      setNow(new Date());
-      tick = setInterval(() => setNow(new Date()), MINUTE_MS);
-    }, MINUTE_MS - (Date.now() % MINUTE_MS));
-    return () => {
-      clearTimeout(first);
-      clearInterval(tick);
+    let tick: ReturnType<typeof setTimeout>;
+    const arm = () => {
+      tick = setTimeout(() => {
+        setNow(new Date());
+        arm();
+      }, MINUTE_MS - (Date.now() % MINUTE_MS));
     };
+    arm();
+    return () => clearTimeout(tick);
   }, [applyEntries, applyTrucks]);
 
   async function act(entry: AdminEntry, action: "confirm" | "cancel") {
@@ -172,8 +169,10 @@ export function useAdminLocations(): {
     stopEdit: () => setEditing(null),
     confirm: (entry) => act(entry, "confirm"),
     // A cancelled entry leaves the map and can't be brought back from here, so it asks.
-    cancel: async (entry) => {
-      if (window.confirm(CANCEL_QUESTION)) await act(entry, "cancel");
+    cancel: async (entry, onConfirmed) => {
+      if (!window.confirm(CANCEL_QUESTION)) return;
+      onConfirmed?.();
+      await act(entry, "cancel");
     },
   };
 }

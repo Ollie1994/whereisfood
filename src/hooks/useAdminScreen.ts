@@ -24,10 +24,8 @@ export function useAdminScreen() {
       form.clearSaved();
       return list.confirm(entry);
     },
-    cancel: (entry: AdminEntry) => {
-      form.clearSaved();
-      return list.cancel(entry);
-    },
+    // "Sparat." goes once the cancel is confirmed, not when its question is turned down.
+    cancel: (entry: AdminEntry) => list.cancel(entry, form.clearSaved),
     // A cancel or confirm of the entry being edited runs first: a cancel closes the edit.
     waiting: editing !== null && list.busyIds.includes(editing.id),
   };

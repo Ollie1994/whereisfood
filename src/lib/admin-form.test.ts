@@ -16,7 +16,6 @@ import {
   updatedText,
 } from "@/lib/admin-form";
 import { LIST_DAYS } from "@/lib/admin-list";
-import { dayOf } from "@/lib/stockholm";
 
 const TRUCK = "11111111-1111-1111-1111-111111111111";
 // 10:00 Stockholm (CEST) on Saturday 2026-08-22.
@@ -35,13 +34,7 @@ describe("emptyForm", () => {
   });
 });
 
-describe("dayOf and endsNextDay", () => {
-  it("reads a date input's value, or null", () => {
-    expect(dayOf("1970-01-02")).toBe(1);
-    expect(dayOf("")).toBeNull();
-    expect(dayOf("2026-13-40")).toBeNull();
-  });
-
+describe("endsNextDay", () => {
   it("is next-day for an end at or before the start (#30)", () => {
     expect(endsNextDay("22:00", "02:00")).toBe(true);
     expect(endsNextDay("11:00", "11:00")).toBe(true);
@@ -193,6 +186,12 @@ describe("entryTimeText and updatedText", () => {
     ["2026-08-25T09:00:00Z", "2026-08-25T11:00:00Z", "2026-08-25 11:00–13:00"],
     // Longer than a day: the end's date, not "slutar dagen efter".
     ["2026-08-22T09:00:00Z", "2026-08-24T11:00:00Z", "idag 11:00–2026-08-24 13:00"],
+    // Its end's day in the same words as its start's.
+    ["2026-08-21T09:00:00Z", "2026-08-23T11:00:00Z", "igår 11:00–imorgon 13:00"],
+    // Stockholm's date reaches year 10000 here, which `dayOf` doesn't read.
+    ["9999-12-31T21:00:00Z", "9999-12-31T23:30:00Z", "9999-12-31 22:00–00:30 (slutar dagen efter)"],
+    // Overnight, counted by day numbers too.
+    ["2026-08-22T20:00:00Z", "2026-08-23T00:00:00Z", "idag 22:00–02:00 (slutar dagen efter)"],
   ])("reads %s–%s as %s", (starts_at, ends_at, text) => {
     expect(entryTimeText({ starts_at, ends_at }, NOW)).toBe(text);
   });

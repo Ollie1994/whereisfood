@@ -1,6 +1,6 @@
 import { LIST_DAYS } from "@/lib/admin-list";
 import { SPOTS } from "@/lib/spots";
-import { dayOf, entryWindow, stockholmDay, stockholmWallClock } from "@/lib/stockholm";
+import { dayOf, entryWindow, isWallClock, stockholmDay, stockholmWallClock } from "@/lib/stockholm";
 import type { Location } from "@/lib/types";
 
 // The admin screen's pure parts: the form's values, the request they make, and the list's
@@ -44,12 +44,10 @@ export type FormValues = {
 
 export type EntryRequest = { ok: true; body: Record<string, unknown> } | { ok: false; error: string };
 
-const TIME = /^\d{2}:\d{2}$/;
-
 // An end at or before the start, as wall-clock times, falls on the next day (#30).
 // Two times only: a field being cleared to type a new one isn't "Slutar imorgon".
 export function endsNextDay(start: string, end: string): boolean {
-  return TIME.test(start) && TIME.test(end) && end <= start;
+  return isWallClock(start) && isWallClock(end) && end <= start;
 }
 
 export function emptyForm(now: Date): FormValues {
@@ -138,25 +136,31 @@ export function editRequest(
   return { ok: true, body };
 }
 
-// "igår", "idag", "imorgon" or the date, for the day `date` falls on.
-function dayText(date: string, now: Date): string {
-  const offset = (dayOf(date) ?? 0) - stockholmDay(now);
-  return offset === -1 ? "igår" : offset === 0 ? "idag" : offset === 1 ? "imorgon" : date;
+// "igår", "idag", "imorgon" or the date, for the Stockholm day `instant` falls on. Counted
+// with `stockholmDay`, not by parsing the date text: Stockholm's date can have five digits
+// (`stockholmWallClock`), which `dayOf` doesn't read.
+function dayText(instant: Date, now: Date): string {
+  const offset = stockholmDay(instant) - stockholmDay(now);
+  if (offset === -1) return "igår";
+  if (offset === 0) return "idag";
+  if (offset === 1) return "imorgon";
+  return stockholmWallClock(instant).date;
 }
 
 // "idag 11:00–13:00", "imorgon 22:00–02:00 (slutar dagen efter)", "2026-08-25 11:00–13:00",
-// or with the end's date when it falls more than a day after the start's.
+// or with the end's day when it falls more than a day after the start's.
 export function entryTimeText(entry: Pick<Location, "starts_at" | "ends_at">, now: Date): string {
-  const start = stockholmWallClock(new Date(entry.starts_at));
-  const end = stockholmWallClock(new Date(entry.ends_at));
-  const days = (dayOf(end.date) ?? 0) - (dayOf(start.date) ?? 0);
-  const until = days > 1 ? `${end.date} ${end.time}` : end.time;
+  const startsAt = new Date(entry.starts_at);
+  const endsAt = new Date(entry.ends_at);
+  const days = stockholmDay(endsAt) - stockholmDay(startsAt);
+  const endTime = stockholmWallClock(endsAt).time;
+  const until = days > 1 ? `${dayText(endsAt, now)} ${endTime}` : endTime;
   const nextDay = days === 1 ? " (slutar dagen efter)" : "";
-  return `${dayText(start.date, now)} ${start.time}–${until}${nextDay}`;
+  return `${dayText(startsAt, now)} ${stockholmWallClock(startsAt).time}–${until}${nextDay}`;
 }
 
 // "Uppdaterad idag 09:12", or with "igår" or the date for an older one.
 export function updatedText(updatedAt: string, now: Date): string {
-  const at = stockholmWallClock(new Date(updatedAt));
-  return `Uppdaterad ${dayText(at.date, now)} ${at.time}`;
+  const at = new Date(updatedAt);
+  return `Uppdaterad ${dayText(at, now)} ${stockholmWallClock(at).time}`;
 }

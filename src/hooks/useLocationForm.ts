@@ -89,10 +89,11 @@ export function useLocationForm({
     }
 
     // A new entry keeps its truck and date for the next one; an edit closes. The saved
-    // entry decides the text; with none in the answer, the plain one.
+    // entry decides the text; with no readable start in the answer, the plain one.
     if (!target) setValues((current) => ({ ...emptyForm(new Date()), truckId: current.truckId, date: current.date }));
-    const entry = result.data.entry;
-    setSaved(entry ? savedText(entry, new Date()) : SAVED);
+    const startsAt = result.data.entry?.starts_at;
+    const readable = typeof startsAt === "string" && !Number.isNaN(Date.parse(startsAt));
+    setSaved(readable ? savedText({ starts_at: startsAt }, new Date()) : SAVED);
     await onSaved(target !== null);
   }
 

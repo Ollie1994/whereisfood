@@ -106,6 +106,11 @@ export function stockholmDayBounds(now: Date): { start: Date; end: Date } {
 
 const WALL_CLOCK = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 
+// A wall-clock time as `<input type="time">` gives it, "00:00" to "23:59".
+export function isWallClock(time: string): boolean {
+  return WALL_CLOCK.test(time);
+}
+
 // `time` ("11:00", as `<input type="time">` gives it) on Stockholm day `day`, in UTC.
 // Null for a malformed time, and for one the day doesn't have (02:30 on 2026-03-29). On
 // 2026-10-25 a time between 02:00 and 02:59 occurs twice, and this gives the second, CET.
