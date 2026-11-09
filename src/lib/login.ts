@@ -65,10 +65,10 @@ export function callbackErrorFor(error: { status?: number; code?: string }): Cal
   // 2.106.2 reports before any request (`AuthPKCECodeVerifierMissingError`; #224's phone
   // failure, `auth-routes.test.ts`), or another one (`WRONG_VERIFIER`). The right browser
   // gets these too after a refused or failed send, which replaces or removes its verifier
-  // and sends no link (`loginMessage`'s comments), so the text names that cause too. A
-  // send that succeeds can't lead here: the link it replaces fails at `/verify` first
-  // (`/auth/callback`'s header, `otp_expired`). Not covered by the text: a code reused in
-  // the browser whose exchange already removed its verifier (`_exchangeCodeForSession`).
+  // (`loginMessage`'s comments), so the text names that cause too. A link that a later
+  // send superseded fails at `/verify` first (`/auth/callback`'s header, `otp_expired`).
+  // Not covered by the text: a code reused in the browser whose exchange already removed
+  // its verifier (`_exchangeCodeForSession`).
   if (isAuthPKCECodeVerifierMissingError(error) || error.code === WRONG_VERIFIER) return "browser";
   // Auth down or failing isn't the link's fault: say so, so the admin doesn't spend one
   // of the built-in email's few sends an hour on a new link (plan #32's reasoning).

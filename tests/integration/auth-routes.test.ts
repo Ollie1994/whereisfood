@@ -19,7 +19,8 @@ import {
 
 // `/auth/callback` and `/auth/logout` against the local stack (Phase 7 plan, step 2).
 // Each `sessionUser`/`sessionFor` is a sign-in, under local Auth's limit (`helpers.ts`,
-// `signedInClient`).
+// `signedInClient`). The file also asks for a link three times (`signInWithOtp`), and
+// `config.toml`'s `sign_in_sign_ups` limits "sign up and sign-in requests".
 
 const ORIGIN = "http://127.0.0.1:3000";
 // Mailpit, the local stack's mail catcher: `supabase/config.toml`, `[local_smtp]`'s port.
@@ -127,16 +128,17 @@ describe("GET /auth/callback", () => {
     expect(sessionCookieNames(written).filter((name) => written.get(name) !== "")).toEqual([]);
   });
 
-  // A browser holding another login's verifier: a second fixture user asks for a link in
-  // its own jar. Auth's own answer is asserted first, so a jar the client can't read (a
-  // missing verifier, also `browser`) fails here instead of passing.
+  // A browser holding another login's verifier: a send Auth refuses still stores one before
+  // the request (`loginMessage`'s comment), so an address with no account gives a jar with
+  // a verifier and sends no mail. Auth's own answer is asserted first: a missing verifier
+  // also gives `browser`, so only that assertion tells the two apart.
   it("sends a code with another login's verifier back with ?error=browser and no session", async () => {
     const wrongJar = new Map<string, string>();
     const { error: sendError } = await jarClient(wrongJar).auth.signInWithOtp({
-      email: fixtureEmail(await createFixtureAuthUser()),
+      email: fixtureEmail(randomUUID()),
       options: { shouldCreateUser: false, emailRedirectTo: `${ORIGIN}/auth/callback` },
     });
-    if (sendError) throw sendError;
+    expect(sendError?.code).toBe("otp_disabled");
 
     const { error } = await jarClient(new Map(wrongJar)).auth.exchangeCodeForSession(code);
     expect([error?.status, error?.code]).toEqual([400, "bad_code_verifier"]);
