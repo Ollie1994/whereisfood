@@ -115,7 +115,8 @@ describe("GET /auth/callback", () => {
   });
 
   // #224's phone failure: the link opened in a browser without the verifier cookie. Before
-  // the exchange test, which then shows the code wasn't spent.
+  // the exchange test, which then shows the code wasn't spent: if this call ever spends it,
+  // the failure shows there, not here.
   it("sends a code with no verifier cookie back with ?error=browser and no session", async () => {
     const response = await callback(request(`/auth/callback?code=${code}`));
 

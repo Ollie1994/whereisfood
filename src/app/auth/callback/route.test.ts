@@ -42,8 +42,11 @@ describe("GET /auth/callback", () => {
     expect(response.headers.get("location")).toBe("/admin/login?error=unavailable");
   });
 
-  it("sends a missing verifier to the login with ?error=browser, not ?error=link", async () => {
-    exchangeCodeForSession.mockResolvedValue({ data: {}, error: new AuthPKCECodeVerifierMissingError() });
+  it.each([
+    ["a missing verifier", new AuthPKCECodeVerifierMissingError()],
+    ["a verifier Auth refuses", new AuthApiError("mismatch", 400, "bad_code_verifier")],
+  ])("sends %s to the login with ?error=browser, not ?error=link", async (_, error) => {
+    exchangeCodeForSession.mockResolvedValue({ data: {}, error });
     const response = await callback("?code=abc");
 
     expect(response.headers.get("location")).toBe("/admin/login?error=browser");

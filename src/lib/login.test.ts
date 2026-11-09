@@ -55,19 +55,15 @@ describe("loginMessage", () => {
 });
 
 describe("callbackErrorMessage", () => {
-  it("explains a failed link", () => {
-    expect(callbackErrorMessage("link")).toMatch(/Inloggningslänken fungerade inte/);
+  it("explains an expired or used link", () => {
+    expect(callbackErrorMessage("link")).toMatch(/Inloggningslänken fungerade inte\. Den kan ha gått ut eller redan använts\. Be om en ny\./);
   });
 
-  it("sends a link opened in another browser back to the usual one, copying it on a phone (IS #240)", () => {
+  it("names both causes of a verifier that doesn't match, and sends the admin back to the usual browser (IS #240)", () => {
     const browser = callbackErrorMessage("browser");
-    expect(browser).toMatch(/öppnades i en annan webbläsare/);
-    expect(browser).toMatch(/Be om en ny i din vanliga webbläsare och öppna länken där\./);
+    expect(browser).toMatch(/Den kan ha öppnats i en annan webbläsare än den som bad om den, eller ersatts av en nyare länk\./);
+    expect(browser).toMatch(/Be om en ny i din vanliga webbläsare och öppna den senaste länken där\./);
     expect(browser).toMatch(/På mobilen: kopiera den dit i stället för att trycka på den i mejlappen\./);
-  });
-
-  it("doesn't blame the browser for an expired or used link", () => {
-    expect(callbackErrorMessage("link")).not.toMatch(/webbläsare/);
   });
 
   it("tells an Auth failure apart from a bad link", () => {
@@ -82,8 +78,9 @@ describe("callbackErrorMessage", () => {
 });
 
 describe("callbackErrorFor", () => {
-  it("is browser when this browser holds no PKCE verifier", () => {
+  it("is browser when this browser holds no PKCE verifier, or one that doesn't match", () => {
     expect(callbackErrorFor(new AuthPKCECodeVerifierMissingError())).toBe("browser");
+    expect(callbackErrorFor(new AuthApiError("mismatch", 400, "bad_code_verifier"))).toBe("browser");
   });
 
   it("is unavailable for a temporary Auth failure", () => {
