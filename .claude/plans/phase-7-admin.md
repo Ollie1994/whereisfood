@@ -144,7 +144,8 @@ the `Origin` header equals `requestOrigin`, and a missing or `null` `Origin` is 
 - `listAdminEntries(now)`: the live entries from the start of today for 14 days, with
   truck names from `listAllTrucks`, so an entry of a truck set inactive keeps its name,
   uncached (#24).
-- `createEntry(input, adminId)`, `editEntry(id, patch)`: `createEntry` takes the truck
+- `createEntry(input, adminId, now)`, `editEntry(id, patch, now)`, `now` for #33's checks:
+  `createEntry` takes the truck
   through `getActiveTruckById`, where null gives a 400 with a Swedish message, and sets
   `created_by` and `source` itself (#17). `editEntry` reads the row with `getLocationById` (null gives a 404), merges the patch,
   and checks the merged row's time order and `isInGothenburg`, so a partial patch answers
@@ -528,6 +529,17 @@ email's 2 an hour on nothing, and a throw in the proxy would answer with Next's 
 and on a throw from `getUserById`. An admin route answers 503 `{ error }`, and a page shows a
 Swedish error, not the login.
 
+### #33 — An entry that has ended can't be saved or edited (open decision 9)
+
+The owner's call (2026-11-09), on open decision 9's proposal with one addition. `createEntry`
+refuses an entry whose end is at or before now; `editEntry` refuses an entry that has ended,
+and an edit whose merged end is at or before now. An entry in progress can be edited. Each is
+a 400 with a Swedish message, checked in the service, since it reads the clock (`CLAUDE.md`,
+"Time"). The addition, refusing an edit of an ended entry, keeps the app from rewriting what
+the map already showed. Cancel and "Stämmer fortfarande" keep step 6's rule: 404 only for a
+missing or cancelled entry. What the form pre-fills once 11–13 has passed is #227's: saving
+that pre-fill unchanged is refused.
+
 ---
 
 ## Acceptance Criteria
@@ -620,11 +632,16 @@ Swedish error, not the login.
 
 1. **Magic link or a 6-digit code (step 4).** A link that opens in another browser than the one
    that asked for it may fail. If it does on the owner's phone, an emailed code avoids it, and
-   that is an email template setting.
+   that is an email template setting. **Settled 2026-11-08 (#224, the owner's call):** keep the
+   link, with a hint to open it in the browser that asked for it (#240, PR #242); the 6-digit
+   code is recorded in #241 to revisit.
 2. **How long a login lasts (step 4).** The admin shouldn't log in every morning, and the
-   built-in email is limited to 2 an hour.
+   built-in email is limited to 2 an hour. **Settled 2026-11-08 (#224, the owner's call):** keep
+   Supabase's default. A session holds until logout, through a browser restart and the access
+   token's expiry, with no time limit set.
 3. **Getting a phone past Deployment Protection (step 4).** The emailed link lands on a
-   protected preview URL, so the phone needs a Vercel login or another way in.
+   protected preview URL, so the phone needs a Vercel login or another way in. **Settled
+   2026-11-08 (#224, the owner's call):** log in to Vercel in the phone's browser, for previews.
 4. **Preview redirect URLs (step 2).** Preview URLs change, so Supabase's allow-list needs a
    pattern that fits, and it must not admit anyone else's Vercel deployments.
 5. **How a local admin user gets created (step 2).** A seed row or a small script, whichever is
@@ -639,7 +656,7 @@ Swedish error, not the login.
 9. **Saving an entry in the past (step 6).** The proposal: refuse an entry that has already
    ended, allow editing one in progress. It also settles what the form shows after 13:00, when
    the 11–13 pre-fill has passed. Clock-dependent, so it lives in the service (`CLAUDE.md`,
-   "Time").
+   "Time"). **Settled: #33** (the owner's call, 2026-11-09).
 10. **The public `<title>` (step 7).** `src/app/layout.tsx` says "Var är maten? | Göteborg". #26's
     temporary name covers the admin screens; whether the public title changes too is the owner's
     call.

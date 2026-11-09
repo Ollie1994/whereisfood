@@ -75,8 +75,9 @@ describe.each(ROUTES)("$path", ({ importPath, params }) => {
   });
 });
 
-// A write behind `withAdmin`. `GET /api/admin/trucks` is the only route so far, so this
-// throwaway handler stands in for the writes later steps add (#223's failure modes).
+// A write behind `withAdmin`, through a throwaway handler that echoes the admin's id and
+// body, so the origin and JSON checks are tested apart from any route's own work (#223's
+// failure modes). The location writes' own cases are `api-admin-locations.test.ts`'s.
 describe("a write through withAdmin, on the admin's session", () => {
   const write = (request: NextRequest) =>
     withAdmin(request, async (adminId) => {

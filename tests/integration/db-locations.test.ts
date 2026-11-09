@@ -2,7 +2,9 @@ import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   cancelLocation,
+  confirmLocation,
   findLocationsOverlapping,
+  getLocationById,
   insertLocation,
   listRecentLocationsForTruck,
   updateLocation,
@@ -194,6 +196,50 @@ describe("cancelLocation", () => {
 
   it("returns null for an unknown id", async () => {
     expect(await cancelLocation(randomUUID(), "2026-08-22T08:00:00.000Z")).toBeNull();
+  });
+});
+
+describe("getLocationById", () => {
+  it("returns a live row with exactly the selected keys", async () => {
+    const { id } = await seedLocation(truckId);
+
+    const row = await getLocationById(id);
+
+    expect(row?.id).toBe(id);
+    expect(keysOf(row!)).toEqual(LOCATION_KEYS);
+  });
+
+  it("returns null for a cancelled row and for an unknown id", async () => {
+    const { id } = await seedLocation(truckId, { cancelled_at: "2026-08-21T08:00:00.000Z" });
+
+    expect(await getLocationById(id)).toBeNull();
+    expect(await getLocationById(randomUUID())).toBeNull();
+  });
+});
+
+describe("confirmLocation", () => {
+  // Plan #18: the trigger stores its own `now()`, not the value written.
+  it("moves updated_at to the trigger's now(), not the value written, and nothing else", async () => {
+    const seeded = await seedLocation(truckId);
+    const before = Date.now();
+
+    const confirmed = await confirmLocation(seeded.id, "2000-01-01T00:00:00.000Z");
+
+    expect(keysOf(confirmed!)).toEqual(LOCATION_KEYS);
+    const stored = await readLocation(seeded.id);
+    // The local stack's clock and the test's share the machine; a minute either way
+    // allows for the transaction's start.
+    expect(Math.abs(Date.parse(stored.updated_at) - before)).toBeLessThan(60_000);
+    expect(Date.parse(stored.updated_at)).toBeGreaterThan(Date.parse(seeded.updated_at));
+    expect({ ...stored, updated_at: seeded.updated_at }).toEqual(seeded);
+  });
+
+  it("returns null for a cancelled row, leaving updated_at, and for an unknown id", async () => {
+    const seeded = await seedLocation(truckId, { cancelled_at: "2026-08-21T08:00:00.000Z" });
+
+    expect(await confirmLocation(seeded.id, "2026-08-22T08:00:00.000Z")).toBeNull();
+    expect((await readLocation(seeded.id)).updated_at).toBe(seeded.updated_at);
+    expect(await confirmLocation(randomUUID(), "2026-08-22T08:00:00.000Z")).toBeNull();
   });
 });
 

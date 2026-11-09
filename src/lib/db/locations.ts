@@ -125,6 +125,31 @@ export async function cancelLocation(
   return updateLiveRow(id, { cancelled_at: cancelledAt });
 }
 
+// The row when it isn't cancelled; null for an unknown id or a cancelled row, the same
+// rows `updateLiveRow` finds.
+export async function getLocationById(id: string): Promise<Location | null> {
+  const { data, error } = await supabaseAdmin
+    .from("locations")
+    .select(LOCATION_COLUMNS)
+    .eq("id", id)
+    .is("cancelled_at", null)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
+// "Stämmer fortfarande" on a live row: an UPDATE that writes only `updated_at`, and the
+// `locations_updated_at` trigger then stores its own `now()`, not `confirmedAt` (Phase 7
+// plan, #18; `db-locations.test.ts` writes 2000-01-01 and reads back the transaction's
+// time). Null when the row is missing or cancelled.
+export async function confirmLocation(
+  id: string,
+  confirmedAt: string,
+): Promise<Location | null> {
+  return updateLiveRow(id, { updated_at: confirmedAt });
+}
+
 // Live rows of every truck overlapping [from, to): `starts_at < to AND ends_at > from`.
 // Half-open, so a row ending exactly at `from` is out. Not filtered on the truck's
 // `is_active` (plan, open decision 6). Ordered by `starts_at`, then `id`: rows sharing a

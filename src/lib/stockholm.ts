@@ -56,6 +56,13 @@ function wallInstants(day: number, minutes: number): number[] {
     .filter((ms) => Math.floor(wallMs(ms) / MINUTE_MS) * MINUTE_MS === wall);
 }
 
+// `date`'s Stockholm calendar date and clock time, as "2026-08-22" and "11:00", through
+// `wallMs`, so no host zone is involved.
+export function stockholmWallClock(date: Date): { date: string; time: string } {
+  const wall = new Date(wallMs(date.getTime())).toISOString();
+  return { date: wall.slice(0, 10), time: wall.slice(11, 16) };
+}
+
 // The Stockholm calendar date of `date`, as a count of days since 1970-01-01. Day
 // arithmetic on it is plain integer arithmetic, with no DST in it.
 export function stockholmDay(date: Date): number {
