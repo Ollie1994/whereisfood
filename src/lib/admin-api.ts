@@ -1,0 +1,30 @@
+// The admin screen's requests to its own API routes (`CLAUDE.md`, "Supabase": the browser
+// reads and writes only through them). Same origin, so the session cookies go along, and
+// a write carries the `Origin` header `withAdmin` checks (Phase 7 plan, #16).
+
+export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string };
+
+export const API_ERRORS = {
+  network: "Det gick inte att nå servern. Försök igen.",
+  unknown: "Något gick fel. Försök igen.",
+} as const;
+
+export async function adminFetch<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<ApiResult<T>> {
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      method: init.method ?? "GET",
+      headers: init.body === undefined ? undefined : { "Content-Type": "application/json" },
+      body: init.body === undefined ? undefined : JSON.stringify(init.body),
+      cache: "no-store",
+    });
+  } catch {
+    return { ok: false, error: API_ERRORS.network };
+  }
+
+  // Every route answers JSON, `{ error }` on a refusal (`CLAUDE.md`, "API responses").
+  const json: unknown = await response.json().catch(() => null);
+  if (response.ok) return { ok: true, data: json as T };
+  const error = (json as { error?: unknown } | null)?.error;
+  return { ok: false, error: typeof error === "string" ? error : API_ERRORS.unknown };
+}
