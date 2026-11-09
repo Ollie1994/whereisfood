@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { adminFetch } from "@/lib/admin-api";
 import {
   type FormValues,
@@ -14,6 +14,19 @@ import type { Location } from "@/lib/types";
 
 // The location form: a new entry, or an edit of `editing`. The route holds the rules (#33,
 // overlaps); a refusal's `{ error }`, the overlap text included, is shown as it comes.
+// While a save is in flight the screen locks "Avbryt" and the list's buttons (`saving`), so
+// the entry being saved is still the one open when its answer comes.
+
+export type LocationFormState = {
+  values: FormValues;
+  setField: (field: keyof FormValues, value: string) => void;
+  nextDay: boolean;
+  saving: boolean;
+  error: string | null;
+  // "Sparat." or `SAVED_LATER`, until a field, another entry or a list button changes.
+  saved: string | null;
+  submit: () => Promise<void>;
+};
 
 export function useLocationForm({
   editing,
@@ -26,16 +39,7 @@ export function useLocationForm({
   actions: number;
   // After a save: reload the list, and close the edit when `closeEdit`.
   onSaved: (closeEdit: boolean) => Promise<void>;
-}): {
-  values: FormValues;
-  setField: (field: keyof FormValues, value: string) => void;
-  nextDay: boolean;
-  saving: boolean;
-  error: string | null;
-  // "Sparat." or `SAVED_LATER`, until a field, another entry or a list button changes.
-  saved: string | null;
-  submit: () => Promise<void>;
-} {
+}): LocationFormState {
   const [values, setValues] = useState(() => (editing ? formFromEntry(editing) : emptyForm(new Date())));
   // The entry the values were filled from, so a new `editing` refills them during render
   // (React's "storing information from previous renders"), with no effect.
@@ -44,12 +48,6 @@ export function useLocationForm({
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [seenActions, setSeenActions] = useState(actions);
-  // The edit open now, read after a save's request: the admin may have opened another
-  // entry meanwhile, whose form that save's ending mustn't touch.
-  const openEdit = useRef(editing);
-  useEffect(() => {
-    openEdit.current = editing;
-  }, [editing]);
 
   // "Sparat." stays when a saved edit closes, and goes when another entry opens.
   if (editing !== filledFrom) {
@@ -84,12 +82,6 @@ export function useLocationForm({
       { method: target ? "PATCH" : "POST", body: request.body },
     );
     setSaving(false);
-
-    // Another entry opened meanwhile: its form stays as it is; the list still reloads.
-    if (openEdit.current !== target) {
-      if (result.ok) await onSaved(false);
-      return;
-    }
     if (!result.ok) {
       setError(result.error);
       return;

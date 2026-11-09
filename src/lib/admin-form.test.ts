@@ -110,6 +110,29 @@ describe("formFromEntry and editRequest", () => {
       body: { latitude: expect.any(Number), longitude: expect.any(Number), label: "Heden" },
     });
   });
+
+  it("sends only the start when only the start changes, so a two-day entry keeps its end", () => {
+    const long = { ...ENTRY, ends_at: "2026-08-24T11:00:00+00:00" };
+    expect(editRequest({ ...formFromEntry(long), start: "10:00" }, long)).toEqual({
+      ok: true,
+      body: { starts_at: "2026-08-22T08:00:00.000Z" },
+    });
+  });
+
+  // 11–13 with the start moved to 14:00: the form now reads the end as tomorrow's (#30).
+  it("sends the end too when the start crosses it", () => {
+    expect(editRequest({ ...formFromEntry(ENTRY), start: "14:00" }, ENTRY)).toEqual({
+      ok: true,
+      body: { starts_at: "2026-08-22T12:00:00.000Z", ends_at: "2026-08-23T11:00:00.000Z" },
+    });
+  });
+
+  it("sends both when the date changes", () => {
+    expect(editRequest({ ...formFromEntry(ENTRY), date: "2026-08-23" }, ENTRY)).toEqual({
+      ok: true,
+      body: { starts_at: "2026-08-23T09:00:00.000Z", ends_at: "2026-08-23T11:00:00.000Z" },
+    });
+  });
 });
 
 describe("savedText", () => {

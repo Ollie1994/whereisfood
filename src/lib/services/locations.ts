@@ -7,7 +7,7 @@ import {
   insertLocation,
   updateLocation,
 } from "@/lib/db/locations";
-import { LIST_DAYS } from "@/lib/admin-list";
+import { LIST_DAYS, hasEnded } from "@/lib/admin-list";
 import { getActiveTruckById, listAllTrucks } from "@/lib/db/trucks";
 import { stockholmDay, stockholmMidnight, stockholmWallClock } from "@/lib/stockholm";
 import type { Location, LocationPatch } from "@/lib/types";
@@ -90,10 +90,6 @@ function overlapAdvice(
   const started = (iso: string) => Date.parse(iso) <= now.getTime();
   if (started(other.starts_at) && started(window.starts_at)) return OVERLAP_ADVICE.running;
   return OVERLAP_ADVICE.edit;
-}
-
-function hasEnded(entry: Pick<Location, "ends_at">, now: Date): boolean {
-  return Date.parse(entry.ends_at) <= now.getTime();
 }
 
 // Live entries overlapping today and the next `LIST_DAYS - 1` days, by start, each with its

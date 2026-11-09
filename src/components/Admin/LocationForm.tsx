@@ -1,6 +1,6 @@
 "use client";
 
-import { useLocationForm } from "@/hooks/useLocationForm";
+import type { LocationFormState } from "@/hooks/useLocationForm";
 import type { AdminEntry } from "@/lib/services/locations";
 import { SPOTS } from "@/lib/spots";
 import type { Truck } from "@/lib/types";
@@ -10,21 +10,21 @@ const LABEL = "flex flex-col gap-1 text-sm font-medium";
 
 // A new entry, or an edit of `editing`. Creating lists active trucks only; an edit shows
 // the entry's own truck read-only, an inactive one too, since a patch can't change it
-// (Phase 7 plan, step 7).
+// (Phase 7 plan, step 7). Its state is `useLocationForm`'s, held by `AdminLocations`.
 export default function LocationForm({
+  form,
   trucks,
   editing,
-  actions,
-  onSaved,
+  waiting,
   onStopEdit,
 }: {
+  form: LocationFormState;
   trucks: Truck[];
   editing: AdminEntry | null;
-  actions: number;
-  onSaved: (closeEdit: boolean) => Promise<void>;
+  waiting: boolean;
   onStopEdit: () => void;
 }) {
-  const { values, setField, nextDay, saving, error, saved, submit } = useLocationForm({ editing, actions, onSaved });
+  const { values, setField, nextDay, saving, error, saved, submit } = form;
   const active = trucks.filter((truck) => truck.is_active);
 
   return (
@@ -116,13 +116,18 @@ export default function LocationForm({
       <div className="flex gap-3">
         <button
           type="submit"
-          disabled={saving}
+          disabled={saving || waiting}
           className="flex-1 rounded-md bg-foreground px-4 py-3 text-base font-medium text-background disabled:opacity-60"
         >
           {saving ? "Sparar…" : "Spara"}
         </button>
         {editing && (
-          <button type="button" onClick={onStopEdit} className="rounded-md border border-foreground/30 px-4 py-3 text-base">
+          <button
+            type="button"
+            onClick={onStopEdit}
+            disabled={saving}
+            className="rounded-md border border-foreground/30 px-4 py-3 text-base disabled:opacity-60"
+          >
             Avbryt
           </button>
         )}
