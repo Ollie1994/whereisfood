@@ -32,6 +32,9 @@ describe("stockholmWallClock", () => {
     // Both 02:30s of 2026-10-25, CEST then CET.
     ["2026-10-25T00:30:00Z", "2026-10-25", "02:30"],
     ["2026-10-25T01:30:00Z", "2026-10-25", "02:30"],
+    // The validator's last UTC year, which Stockholm reads as year 10000, and its first.
+    ["9999-12-31T23:30:00Z", "10000-01-01", "00:30"],
+    ["0001-01-01T00:00:00Z", "0001-01-01", "00:53"],
   ])("reads %s as %s %s", (instant, date, time) => {
     expect(stockholmWallClock(new Date(instant))).toEqual({ date, time });
   });

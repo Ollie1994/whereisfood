@@ -2,15 +2,15 @@ import {
   cancelLocation,
   confirmLocation,
   findLocationsOverlapping,
+  findTruckLocationsOverlapping,
   getLocationById,
   insertLocation,
   updateLocation,
 } from "@/lib/db/locations";
 import { getActiveTruckById, listAllTrucks } from "@/lib/db/trucks";
-import { isInGothenburg } from "@/lib/geo";
 import { stockholmDay, stockholmMidnight, stockholmWallClock } from "@/lib/stockholm";
 import type { Location, LocationPatch } from "@/lib/types";
-import { LOCATION_ERRORS, type NewLocationInput } from "@/lib/validators/location";
+import { crossFieldError, type NewLocationInput } from "@/lib/validators/location";
 
 // Admin location logic (Phase 7 plan, "Functions and types"). No HTTP: a refusal is a
 // reason, which the route turns into a status. The clock comes in as `now`, from the route
@@ -49,14 +49,16 @@ function describeWindow(entry: Pick<Location, "starts_at" | "ends_at">): string 
 }
 
 // The refusal for a `23P01`, naming the truck's entry it overlaps. Read after the failed
-// write, so that entry may since have been cancelled: then the text names none.
+// write, so that entry may since have been cancelled: then the text names none. Two rows of
+// the truck's, not every truck's: one may be the entry being edited, and a window can span
+// years, where `findLocationsOverlapping` throws past `max_rows` (PR for IS #226, round 1).
 async function overlapRefusal(
   truckId: string,
   window: Pick<Location, "starts_at" | "ends_at">,
   editedId: string | null,
 ): Promise<Refusal> {
-  const rows = await findLocationsOverlapping(window.starts_at, window.ends_at);
-  const other = rows.find((row) => row.truck_id === truckId && row.id !== editedId);
+  const rows = await findTruckLocationsOverlapping(truckId, window.starts_at, window.ends_at, 2);
+  const other = rows.find((row) => row.id !== editedId);
   return refuse(
     "conflict",
     other ? `Överlappar med ${describeWindow(other)} — redigera den istället` : ENTRY_ERRORS.overlap,
@@ -102,21 +104,33 @@ export async function createEntry(input: NewLocationInput, adminId: string, now:
 }
 
 // An edit of a live entry. The patch is checked alone by `parseLocationPatch`; here the
-// merged entry is, so a patch with one time or one coordinate is refused with 400 and
-// never reaches the database's `23514`. An entry that has ended can't be edited, and an
-// edit can't end it in the past (#33).
+// merged entry is (`crossFieldError`), so a patch with one time or one coordinate is
+// refused with 400. The write then sends both times when either changes, and both
+// coordinates when either does: the pair checked is the pair stored, even when another
+// edit lands between the read and the write (PR for IS #226, round 1). An entry that has
+// ended can't be edited, and an edit can't end it in the past (#33).
 export async function editEntry(id: string, patch: LocationPatch, now: Date): Promise<EntryResult> {
   const current = await getLocationById(id);
   if (!current) return refuse("not-found", ENTRY_ERRORS.notFound);
   if (hasEnded(current, now)) return refuse("invalid", ENTRY_ERRORS.endedEdit);
 
   const merged = { ...current, ...patch };
-  if (!isInGothenburg(merged.latitude, merged.longitude)) return refuse("invalid", LOCATION_ERRORS.outside);
-  if (Date.parse(merged.ends_at) <= Date.parse(merged.starts_at)) return refuse("invalid", LOCATION_ERRORS.order);
+  const invalid = crossFieldError(merged);
+  if (invalid) return refuse("invalid", invalid);
   if (hasEnded(merged, now)) return refuse("invalid", ENTRY_ERRORS.ended);
 
+  const write: LocationPatch = { ...patch };
+  if (patch.starts_at !== undefined || patch.ends_at !== undefined) {
+    write.starts_at = merged.starts_at;
+    write.ends_at = merged.ends_at;
+  }
+  if (patch.latitude !== undefined || patch.longitude !== undefined) {
+    write.latitude = merged.latitude;
+    write.longitude = merged.longitude;
+  }
+
   try {
-    const entry = await updateLocation(id, patch);
+    const entry = await updateLocation(id, write);
     // Cancelled between the read and the write.
     return entry ? { ok: true, entry } : refuse("not-found", ENTRY_ERRORS.notFound);
   } catch (error) {

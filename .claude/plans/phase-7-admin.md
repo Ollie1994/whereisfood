@@ -93,7 +93,7 @@ the public map, and nobody else can write anything.
 | `src/lib/live.ts` | `TZ`, `stockholmDay` and `stockholmMidnight` move out, imported from `stockholm.ts` (#31) |
 | `supabase/config.toml` | Sign-ups off, redirect URLs |
 | `src/lib/db/trucks.ts` | `listAllTrucks`, `insertTruck`, `updateTruck` |
-| `src/lib/db/locations.ts` | `getLocationById`, `confirmLocation` |
+| `src/lib/db/locations.ts` | `getLocationById`, `confirmLocation`, `findTruckLocationsOverlapping` |
 | `src/lib/types.ts` | `NewTruck`, `TruckPatch`, `User` |
 | `src/hooks/useMapLibre.tsx` | Only if the pin picker needs its setup shared; then a `/map` browser check |
 | `tests/integration/helpers.ts` | A session cookie for route tests (open decision 7) |
@@ -108,7 +108,9 @@ the public map, and nobody else can write anything.
 - `src/app/api/live/route.ts`, `src/lib/services/live.ts`: admin entries reach the map through
   the existing read path.
 - `src/lib/db/locations.ts`'s `findLocationsOverlapping` and
-  `listRecentLocationsForTruck`: reused, as Phase 5 #9 planned.
+  `listRecentLocationsForTruck`: reused, as Phase 5 #9 planned. The second's limit check
+  moved into `checkLimit`, which `findTruckLocationsOverlapping` shares, with the same
+  rule and message (PR for IS #226, round 1).
 
 ### Outside the repo (steps, not files)
 
@@ -149,9 +151,11 @@ the `Origin` header equals `requestOrigin`, and a missing or `null` `Origin` is 
   through `getActiveTruckById`, where null gives a 400 with a Swedish message, and sets
   `created_by` and `source` itself (#17). `editEntry` reads the row with `getLocationById` (null gives a 404), merges the patch,
   and checks the merged row's time order and `isInGothenburg`, so a partial patch answers
-  400 and never reaches `23514`. `23P01` becomes a conflict result naming the existing
-  entry's Stockholm times, found through `findLocationsOverlapping`, filtered on the
-  truck and leaving out the entry being edited.
+  400, and writes both times (or both coordinates) when the patch holds one. `23P01`
+  becomes a conflict result naming the existing entry's Stockholm times, found through
+  `findTruckLocationsOverlapping`, leaving out the entry being edited: not
+  `findLocationsOverlapping`, which reads every truck and throws on a window holding more
+  than `max_rows` rows (PR for IS #226, round 1).
 - `cancelEntry(id, now)`, `confirmEntry(id, now)`: null for a missing or cancelled entry,
   which the route answers with 404.
 - `getChecklist(now)`: #22's rules.
@@ -166,6 +170,8 @@ the `Origin` header equals `requestOrigin`, and a missing or `null` `Origin` is 
 - `getLocationById(id)`: a live row, or null for a missing or cancelled one.
 - `confirmLocation(id, confirmedAt)`: through `updateLiveRow`, so a cancelled row gives
   null. It writes `updated_at`, and the trigger then sets its own `now()` (#18).
+- `findTruckLocationsOverlapping(truckId, from, to, limit)`: one truck's live rows in a
+  window, with `listRecentLocationsForTruck`'s limit rule, for the overlap message.
 
 **Validators (pure).** `parseNewLocation` (shape, order of the times, `isInGothenburg`),
 `parseLocationPatch` (the shape of the keys it holds; `editEntry` checks across fields),

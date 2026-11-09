@@ -4,6 +4,7 @@ import {
   cancelLocation,
   confirmLocation,
   findLocationsOverlapping,
+  findTruckLocationsOverlapping,
   getLocationById,
   insertLocation,
   listRecentLocationsForTruck,
@@ -221,15 +222,13 @@ describe("confirmLocation", () => {
   // Plan #18: the trigger stores its own `now()`, not the value written.
   it("moves updated_at to the trigger's now(), not the value written, and nothing else", async () => {
     const seeded = await seedLocation(truckId);
-    const before = Date.now();
 
     const confirmed = await confirmLocation(seeded.id, "2000-01-01T00:00:00.000Z");
 
     expect(keysOf(confirmed!)).toEqual(LOCATION_KEYS);
     const stored = await readLocation(seeded.id);
-    // The local stack's clock and the test's share the machine; a minute either way
-    // allows for the transaction's start.
-    expect(Math.abs(Date.parse(stored.updated_at) - before)).toBeLessThan(60_000);
+    // Later than the seed's own `now()`, so not the 2000-01-01 written. Read against the
+    // database's clock only: the Docker VM's and the test's can drift apart.
     expect(Date.parse(stored.updated_at)).toBeGreaterThan(Date.parse(seeded.updated_at));
     expect({ ...stored, updated_at: seeded.updated_at }).toEqual(seeded);
   });
@@ -303,6 +302,41 @@ describe("findLocationsOverlapping", () => {
     await seedLocation(truckId, { starts_at: LUNCH_END, ends_at: "2026-08-22T15:00:00.000Z" });
 
     expect((await overlappingIds(LUNCH_START, LUNCH_END, [truckId])).ids).toEqual([]);
+  });
+});
+
+describe("findTruckLocationsOverlapping", () => {
+  it("finds only this truck's live rows in the window, half-open, by starts_at, up to limit", async () => {
+    const otherTruck = await seedTruck("Other");
+    const first = await seedLocation(truckId, { starts_at: "2026-08-22T09:00:00.000Z", ends_at: "2026-08-22T10:00:00.000Z" });
+    const later = await seedLocation(truckId, { starts_at: "2026-08-22T10:00:00.000Z", ends_at: "2026-08-22T11:00:00.000Z" });
+    await seedLocation(truckId, { starts_at: "2026-08-22T08:00:00.000Z", ends_at: "2026-08-22T09:00:00.000Z" });
+    await seedLocation(truckId, {
+      starts_at: "2026-08-22T11:00:00.000Z",
+      ends_at: "2026-08-22T12:00:00.000Z",
+      cancelled_at: "2026-08-21T08:00:00.000Z",
+    });
+    await seedLocation(otherTruck, { starts_at: "2026-08-22T09:00:00.000Z", ends_at: "2026-08-22T10:00:00.000Z" });
+
+    const rows = await findTruckLocationsOverlapping(truckId, "2026-08-22T09:00:00.000Z", "2026-08-22T12:00:00.000Z", 10);
+
+    // The 08:00–09:00 row ends at `from` and is out; the cancelled one and the other truck's are out.
+    expect(rows.map((row) => row.id)).toEqual([first.id, later.id]);
+    expect(keysOf(rows[0])).toEqual(LOCATION_KEYS);
+    expect(
+      (await findTruckLocationsOverlapping(truckId, "2026-08-22T09:00:00.000Z", "2026-08-22T12:00:00.000Z", 1)).map(
+        (row) => row.id,
+      ),
+    ).toEqual([first.id]);
+  });
+
+  it.each([0, 1.5, 1001])("throws on limit %s before any request", async (limit) => {
+    const from = vi.spyOn(supabaseAdmin, "from");
+
+    await expect(
+      findTruckLocationsOverlapping(truckId, LUNCH_START, LUNCH_END, limit),
+    ).rejects.toThrow(/findTruckLocationsOverlapping: limit must be an integer from 1 to 1000/);
+    expect(from).not.toHaveBeenCalled();
   });
 });
 

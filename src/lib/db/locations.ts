@@ -173,6 +173,41 @@ export async function findLocationsOverlapping(from: string, to: string): Promis
   return data;
 }
 
+// The `limit` rule below, for every read that takes one.
+function checkLimit(fn: string, limit: number): void {
+  if (!Number.isInteger(limit) || limit < 1 || limit > MAX_ROWS) {
+    throw new Error(`${fn}: limit must be an integer from 1 to ${MAX_ROWS}, got ${limit}`);
+  }
+}
+
+// One truck's first `limit` live rows overlapping [from, to), by `starts_at`, then `id`,
+// with `findLocationsOverlapping`'s half-open bounds. For a read that needs a few of the
+// truck's rows, not every truck's: `findLocationsOverlapping` throws once a window holds
+// more than `max_rows` rows, and a window can span years (`validators/location.ts`).
+// `limit` as below, checked before any request.
+export async function findTruckLocationsOverlapping(
+  truckId: string,
+  from: string,
+  to: string,
+  limit: number,
+): Promise<Location[]> {
+  checkLimit("findTruckLocationsOverlapping", limit);
+
+  const { data, error } = await supabaseAdmin
+    .from("locations")
+    .select(LOCATION_COLUMNS)
+    .eq("truck_id", truckId)
+    .is("cancelled_at", null)
+    .lt("starts_at", to)
+    .gt("ends_at", from)
+    .order("starts_at")
+    .order("id")
+    .limit(limit);
+
+  if (error) throw error;
+  return data;
+}
+
 // The truck's latest `limit` live rows that started before `before`, newest `starts_at`
 // first. `before` is usually now, so future entries don't fill "recent places".
 //
@@ -189,11 +224,7 @@ export async function listRecentLocationsForTruck(
   before: string,
   limit: number,
 ): Promise<Location[]> {
-  if (!Number.isInteger(limit) || limit < 1 || limit > MAX_ROWS) {
-    throw new Error(
-      `listRecentLocationsForTruck: limit must be an integer from 1 to ${MAX_ROWS}, got ${limit}`,
-    );
-  }
+  checkLimit("listRecentLocationsForTruck", limit);
 
   const { data, error } = await supabaseAdmin
     .from("locations")

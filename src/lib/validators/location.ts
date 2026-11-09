@@ -68,6 +68,17 @@ function timestamp(value: unknown): Date | undefined {
 
 const refuse = (error: string): { ok: false; error: string } => ({ ok: false, error });
 
+// The checks across fields, in one place for a new entry here and for a patch's merged
+// entry in `editEntry`: the pair inside the Gothenburg box, and an end after the start
+// (compared as instants). The error, or null when both hold.
+export function crossFieldError(
+  entry: Pick<NewLocationInput, "latitude" | "longitude" | "starts_at" | "ends_at">,
+): string | null {
+  if (!isInGothenburg(entry.latitude, entry.longitude)) return LOCATION_ERRORS.outside;
+  if (Date.parse(entry.ends_at) <= Date.parse(entry.starts_at)) return LOCATION_ERRORS.order;
+  return null;
+}
+
 export function parseNewLocation(body: unknown): Parsed<NewLocationInput> {
   if (!isRecord(body)) return refuse(LOCATION_ERRORS.body);
 
@@ -77,7 +88,6 @@ export function parseNewLocation(body: unknown): Parsed<NewLocationInput> {
   const latitude = coordinate(body.latitude);
   const longitude = coordinate(body.longitude);
   if (latitude === undefined || longitude === undefined) return refuse(LOCATION_ERRORS.position);
-  if (!isInGothenburg(latitude, longitude)) return refuse(LOCATION_ERRORS.outside);
 
   const name = label(body.label);
   if (name === undefined) return refuse(LOCATION_ERRORS.label);
@@ -86,19 +96,17 @@ export function parseNewLocation(body: unknown): Parsed<NewLocationInput> {
   if (!startsAt) return refuse(LOCATION_ERRORS.startsAt);
   const endsAt = timestamp(body.ends_at);
   if (!endsAt) return refuse(LOCATION_ERRORS.endsAt);
-  if (endsAt.getTime() <= startsAt.getTime()) return refuse(LOCATION_ERRORS.order);
 
-  return {
-    ok: true,
-    value: {
-      truck_id: truckId,
-      latitude,
-      longitude,
-      label: name,
-      starts_at: startsAt.toISOString(),
-      ends_at: endsAt.toISOString(),
-    },
+  const value = {
+    truck_id: truckId,
+    latitude,
+    longitude,
+    label: name,
+    starts_at: startsAt.toISOString(),
+    ends_at: endsAt.toISOString(),
   };
+  const error = crossFieldError(value);
+  return error ? refuse(error) : { ok: true, value };
 }
 
 // Each key the patch holds, checked alone. Across fields (the box, the time order) is

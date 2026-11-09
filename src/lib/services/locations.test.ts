@@ -8,6 +8,7 @@ const db = {
   cancelLocation: vi.fn(),
   confirmLocation: vi.fn(),
   findLocationsOverlapping: vi.fn(),
+  findTruckLocationsOverlapping: vi.fn(),
   getLocationById: vi.fn(),
   insertLocation: vi.fn(),
   updateLocation: vi.fn(),
@@ -18,6 +19,7 @@ vi.mock("@/lib/db/locations", () => ({
   cancelLocation: (...args: unknown[]) => db.cancelLocation(...args),
   confirmLocation: (...args: unknown[]) => db.confirmLocation(...args),
   findLocationsOverlapping: (...args: unknown[]) => db.findLocationsOverlapping(...args),
+  findTruckLocationsOverlapping: (...args: unknown[]) => db.findTruckLocationsOverlapping(...args),
   getLocationById: (...args: unknown[]) => db.getLocationById(...args),
   insertLocation: (...args: unknown[]) => db.insertLocation(...args),
   updateLocation: (...args: unknown[]) => db.updateLocation(...args),
@@ -105,8 +107,7 @@ describe("createEntry", () => {
   it("answers an overlap with the truck's other entry, in Stockholm time", async () => {
     db.getActiveTruckById.mockResolvedValue({ id: TRUCK });
     db.insertLocation.mockRejectedValue(overlapError);
-    db.findLocationsOverlapping.mockResolvedValue([
-      row({ id: "33333333-3333-4333-8333-333333333333", truck_id: "44444444-4444-4444-8444-444444444444" }),
+    db.findTruckLocationsOverlapping.mockResolvedValue([
       row({ id: "55555555-5555-4555-8555-555555555555", starts_at: "2026-08-22T10:00:00+00:00", ends_at: "2026-08-22T13:30:00+00:00" }),
     ]);
 
@@ -115,13 +116,15 @@ describe("createEntry", () => {
       reason: "conflict",
       error: "Överlappar med 2026-08-22 12:00–15:30 — redigera den istället",
     });
-    expect(db.findLocationsOverlapping).toHaveBeenCalledWith(INPUT.starts_at, INPUT.ends_at);
+    // The truck's rows only, two at most: never every truck's, which can pass `max_rows`.
+    expect(db.findTruckLocationsOverlapping).toHaveBeenCalledWith(TRUCK, INPUT.starts_at, INPUT.ends_at, 2);
+    expect(db.findLocationsOverlapping).not.toHaveBeenCalled();
   });
 
   it("names the end's date when the other entry ends on another day", async () => {
     db.getActiveTruckById.mockResolvedValue({ id: TRUCK });
     db.insertLocation.mockRejectedValue(overlapError);
-    db.findLocationsOverlapping.mockResolvedValue([
+    db.findTruckLocationsOverlapping.mockResolvedValue([
       row({ starts_at: "2026-08-22T20:00:00+00:00", ends_at: "2026-08-22T23:00:00+00:00" }),
     ]);
 
@@ -133,7 +136,7 @@ describe("createEntry", () => {
   it("gives the plain overlap text when the other entry is gone by the time it is read", async () => {
     db.getActiveTruckById.mockResolvedValue({ id: TRUCK });
     db.insertLocation.mockRejectedValue(overlapError);
-    db.findLocationsOverlapping.mockResolvedValue([]);
+    db.findTruckLocationsOverlapping.mockResolvedValue([]);
 
     expect(await createEntry(INPUT, ADMIN, NOW)).toEqual({ ok: false, reason: "conflict", error: ENTRY_ERRORS.overlap });
   });
@@ -215,7 +218,7 @@ describe("editEntry", () => {
   it("answers an overlap naming the truck's other entry, never the one being edited", async () => {
     db.getLocationById.mockResolvedValue(row());
     db.updateLocation.mockRejectedValue(overlapError);
-    db.findLocationsOverlapping.mockResolvedValue([
+    db.findTruckLocationsOverlapping.mockResolvedValue([
       row(),
       row({ id: "55555555-5555-4555-8555-555555555555", starts_at: "2026-08-22T12:00:00+00:00", ends_at: "2026-08-22T14:00:00+00:00" }),
     ]);
@@ -226,7 +229,34 @@ describe("editEntry", () => {
       error: "Överlappar med 2026-08-22 14:00–16:00 — redigera den istället",
     });
     // The merged window, not the patch.
-    expect(db.findLocationsOverlapping).toHaveBeenCalledWith("2026-08-22T09:00:00+00:00", "2026-08-22T13:00:00.000Z");
+    expect(db.findTruckLocationsOverlapping).toHaveBeenCalledWith(
+      TRUCK,
+      "2026-08-22T09:00:00+00:00",
+      "2026-08-22T13:00:00.000Z",
+      2,
+    );
+  });
+
+  // The pair checked is the pair written, whatever another edit stored in between.
+  it.each([
+    [
+      "one time writes both",
+      { ends_at: "2026-08-22T12:30:00.000Z" },
+      { starts_at: "2026-08-22T09:00:00+00:00", ends_at: "2026-08-22T12:30:00.000Z" },
+    ],
+    [
+      "one coordinate writes both",
+      { latitude: 57.7 },
+      { latitude: 57.7, longitude: 11.952503 },
+    ],
+    ["a label writes only the label", { label: "Heden" }, { label: "Heden" }],
+  ])("%s", async (_, patch, written) => {
+    db.getLocationById.mockResolvedValue(row());
+    db.updateLocation.mockResolvedValue(row());
+
+    await editEntry(ID, patch, NOW);
+
+    expect(db.updateLocation).toHaveBeenCalledWith(ID, written);
   });
 });
 

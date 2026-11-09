@@ -11,8 +11,8 @@ import { FIXTURE_PLACE, cookieHeader, readLocation, resetTables, seedLocation, s
 // The location routes on the admin's session against the local stack (Phase 7 plan, step
 // 6). Refusals of anyone else are `admin-auth.test.ts`'s. One sign-in (`sessionUser`).
 //
-// The routes read the real clock, so every window here is built from `Date.now()`: ahead
-// of it, or behind it for an entry that has ended (#33).
+// The routes read the real clock, so every window here is built from `base`, the next whole
+// hour: ahead of now, or behind it for an entry that has ended (#33).
 
 const ORIGIN = "http://127.0.0.1:3000";
 const HOUR = 3_600_000;
@@ -23,6 +23,9 @@ type Handler = (request: NextRequest, context: { params: Promise<{ id: string }>
 let cookie: string;
 let adminId: string;
 let truckId: string;
+// The next whole hour, read once per test: read per window, two windows built either side
+// of an hour boundary would land an hour apart (PR for IS #226, round 1).
+let base: number;
 
 beforeAll(async () => {
   await resetTables();
@@ -33,6 +36,7 @@ beforeAll(async () => {
 afterAll(resetTables);
 
 beforeEach(async () => {
+  base = Math.ceil(Date.now() / HOUR) * HOUR;
   truckId = await seedTruck("Platsbil");
 });
 
@@ -46,9 +50,9 @@ function call(handler: Handler, method: string, id: string, body?: unknown) {
   return handler(request(method, body), { params: Promise.resolve({ id }) });
 }
 
-// A window starting `fromNow` after the next whole hour, `hours` long, as ISO strings.
+// A window starting `fromNow` after `base`, `hours` long, as ISO strings.
 function window(fromNow: number, hours = 2) {
-  const start = Math.ceil(Date.now() / HOUR) * HOUR + fromNow;
+  const start = base + fromNow;
   return { starts_at: new Date(start).toISOString(), ends_at: new Date(start + hours * HOUR).toISOString() };
 }
 
