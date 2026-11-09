@@ -47,23 +47,26 @@ describe("loginMessage", () => {
     expect(loginMessage("failed")).toMatch(/fungerar inte längre/);
   });
 
+  // The owner's approved wording, whole (IS #240): a change to it is a change to this test.
   it("says to open the link in this browser, copying it on a phone (IS #240)", () => {
-    const sent = loginMessage("sent");
-    expect(sent).toMatch(/Öppna den i den här webbläsaren\./);
-    expect(sent).toMatch(/På mobilen: kopiera länken .*i stället för att trycka på den i mejlappen\./);
+    expect(loginMessage("sent")).toBe(
+      "Om adressen har ett konto har vi skickat en inloggningslänk. Öppna den i den här webbläsaren. På mobilen: kopiera länken och klistra in den i adressfältet här, i stället för att trycka på den i mejlappen.",
+    );
   });
 });
 
 describe("callbackErrorMessage", () => {
+  // The owner's approved wording, whole (IS #240): a change to it is a change to this test.
   it("explains an expired or used link", () => {
-    expect(callbackErrorMessage("link")).toMatch(/Inloggningslänken fungerade inte\. Den kan ha gått ut eller redan använts\. Be om en ny\./);
+    expect(callbackErrorMessage("link")).toBe(
+      "Inloggningslänken fungerade inte. Den kan ha gått ut eller redan använts. Be om en ny.",
+    );
   });
 
   it("names both causes of a verifier that doesn't match, and sends the admin back to the usual browser (IS #240)", () => {
-    const browser = callbackErrorMessage("browser");
-    expect(browser).toMatch(/Den kan ha öppnats i en annan webbläsare än den som bad om den, eller ersatts av en nyare länk\./);
-    expect(browser).toMatch(/Be om en ny i din vanliga webbläsare och öppna den senaste länken där\./);
-    expect(browser).toMatch(/På mobilen: kopiera den dit i stället för att trycka på den i mejlappen\./);
+    expect(callbackErrorMessage("browser")).toBe(
+      "Inloggningslänken fungerade inte i den här webbläsaren. Den kan ha öppnats i en annan webbläsare än den som bad om den, eller ersatts av en nyare länk. Be om en ny i din vanliga webbläsare och öppna den senaste länken där. På mobilen: kopiera den dit i stället för att trycka på den i mejlappen.",
+    );
   });
 
   it("tells an Auth failure apart from a bad link", () => {

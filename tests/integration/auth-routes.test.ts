@@ -114,12 +114,35 @@ describe("GET /auth/callback", () => {
     expect(code).not.toBe("");
   });
 
-  // #224's phone failure: the link opened in a browser without the verifier cookie. Before
-  // the exchange test, which then shows the code wasn't spent: if this call ever spends it,
-  // the failure shows there, not here.
+  // The next two run before the exchange test, which then shows the code wasn't spent: if
+  // either ever spends it, the failure shows there, not here.
+
+  // #224's phone failure: the link opened in a browser without the verifier cookie.
   it("sends a code with no verifier cookie back with ?error=browser and no session", async () => {
     const response = await callback(request(`/auth/callback?code=${code}`));
 
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe("/admin/login?error=browser");
+    const written = setCookies(response);
+    expect(sessionCookieNames(written).filter((name) => written.get(name) !== "")).toEqual([]);
+  });
+
+  // A browser holding another login's verifier: the jar's cookie, re-encoded as
+  // `@supabase/ssr` 0.10.3 writes it (`base64-` + base64url of auth-js's JSON string), with
+  // another verifier. Auth's own answer is asserted first, so a forged cookie the client
+  // can't read (a missing verifier, also `browser`) fails here instead of passing.
+  it("sends a code with another login's verifier back with ?error=browser and no session", async () => {
+    const [name, value] = [...verifierJar].find(([key]) => key.endsWith("-code-verifier")) ?? [];
+    if (!name || !value?.startsWith("base64-")) throw new Error(`no base64 verifier cookie: ${name}`);
+    const stored = JSON.parse(Buffer.from(value.slice("base64-".length), "base64url").toString());
+    const [, ...rest] = String(stored).split("/");
+    const forged = [randomUUID() + randomUUID(), ...rest].join("/");
+    const wrongJar = new Map([[name, `base64-${Buffer.from(JSON.stringify(forged)).toString("base64url")}`]]);
+
+    const { error } = await jarClient(new Map(wrongJar)).auth.exchangeCodeForSession(code);
+    expect([error?.status, error?.code]).toEqual([400, "bad_code_verifier"]);
+
+    const response = await callback(request(`/auth/callback?code=${code}`, { cookie: cookieHeader(wrongJar) }));
     expect(response.status).toBe(303);
     expect(response.headers.get("location")).toBe("/admin/login?error=browser");
     const written = setCookies(response);
@@ -141,7 +164,9 @@ describe("GET /auth/callback", () => {
     expect(data.user?.id).toBe(userId);
   });
 
-  it("sends a used code back to the login with ?error=link and no session", async () => {
+  // With its verifier still sent, which a browser no longer holds after its own exchange
+  // (`_exchangeCodeForSession` removes it); without one, a used code gets `browser`.
+  it("sends a used code, sent with its verifier, back to the login with ?error=link and no session", async () => {
     const response = await callback(request(`/auth/callback?code=${code}`, { cookie: cookieHeader(verifierJar) }));
 
     expect(response.status).toBe(303);

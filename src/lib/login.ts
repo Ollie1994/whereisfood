@@ -56,9 +56,8 @@ export function isTemporaryAuthError(error: { status?: number } | null): boolean
 // Why `/auth/callback` sends a failed login back to the login page, as its `?error=`.
 export type CallbackError = "link" | "browser" | "unavailable";
 
-// Auth's answer to a verifier that doesn't match the code (local stack, 2026-11-09: a real
-// emailed code posted to `/token?grant_type=pkce` with another verifier got 400 and this
-// code). Only that probe pins it: the tests stub it.
+// Auth's answer to a verifier that doesn't match the code: 400 and this code, on the local
+// stack (`auth-routes.test.ts`, a real emailed code with another login's verifier).
 const WRONG_VERIFIER = "bad_code_verifier";
 
 export function callbackErrorFor(error: { status?: number; code?: string }): CallbackError {
@@ -66,8 +65,8 @@ export function callbackErrorFor(error: { status?: number; code?: string }): Cal
   // 2.106.2 reports before any request (`AuthPKCECodeVerifierMissingError`; #224's phone
   // failure, `auth-routes.test.ts`), or another one (`WRONG_VERIFIER`). The right browser
   // gets these too once a later send replaced or removed its verifier (`loginMessage`'s
-  // comments) or an exchange removed it (`_exchangeCodeForSession`), so the text names
-  // both causes.
+  // comments), so the text names both causes. Not covered by the text: a code reused in
+  // the browser whose exchange already removed its verifier (`_exchangeCodeForSession`).
   if (isAuthPKCECodeVerifierMissingError(error) || error.code === WRONG_VERIFIER) return "browser";
   // Auth down or failing isn't the link's fault: say so, so the admin doesn't spend one
   // of the built-in email's few sends an hour on a new link (plan #32's reasoning).
