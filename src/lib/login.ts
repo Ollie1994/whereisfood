@@ -23,8 +23,11 @@ export function loginStatusFor(error: { status?: number; code?: string } | null)
 
 export function loginMessage(status: LoginStatus): string | null {
   switch (status) {
+    // The browser, not the device: on the phone a link tapped in the Gmail app opened in a
+    // browser without the PKCE verifier cookie and failed twice; copied into Chrome, where
+    // the login page was, it worked (IS #224's checkpoint).
     case "sent":
-      return "Om adressen har ett konto har vi skickat en inloggningslänk. Öppna den på den här enheten.";
+      return "Om adressen har ett konto har vi skickat en inloggningslänk. Öppna den i den här webbläsaren. På mobilen: kopiera länken och klistra in den i adressfältet här, i stället för att trycka på den i mejlappen.";
     // Even a refused send replaces the PKCE code verifier (`signInWithOtp` stores a new one
     // before the request, `@supabase/auth-js` 2.106.2), so earlier links stop working.
     case "rate-limited":
@@ -53,8 +56,10 @@ export function isTemporaryAuthError(error: { status?: number } | null): boolean
 // `/auth/callback` sends a failed login back with `?error=link`, or `?error=unavailable`
 // when Auth failed for a reason that isn't the link (`isTemporaryAuthError`).
 export function callbackErrorMessage(error: string | string[] | undefined): string | null {
+  // Usually shown in the browser the link wrongly opened in (the one without the verifier),
+  // so it sends the admin back to their usual browser for the new link (IS #224, #240).
   if (error === "link") {
-    return "Inloggningslänken fungerade inte. Den kan ha gått ut eller redan använts. Be om en ny.";
+    return "Inloggningslänken fungerade inte. Den kan ha gått ut, redan använts eller öppnats i en annan webbläsare än den som bad om den. Be om en ny i din vanliga webbläsare och öppna länken där. På mobilen: kopiera den dit i stället för att trycka på den i mejlappen.";
   }
   // Not "open the same link again": Auth's `/verify` uses a link up on its first visit
   // (local stack: a second visit to the same link answered `?error=access_denied`,

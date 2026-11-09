@@ -45,11 +45,27 @@ describe("loginMessage", () => {
     expect(loginMessage("rate-limited")).toMatch(/fungerar inte längre/);
     expect(loginMessage("failed")).toMatch(/fungerar inte längre/);
   });
+
+  it("says to open the link in this browser, copying it on a phone (IS #240)", () => {
+    const sent = loginMessage("sent");
+    expect(sent).toMatch(/i den här webbläsaren/);
+    expect(sent).toMatch(/kopiera/);
+    expect(sent).toMatch(/mejlappen/);
+    expect(sent).not.toMatch(/enheten/);
+  });
 });
 
 describe("callbackErrorMessage", () => {
   it("explains a failed link", () => {
     expect(callbackErrorMessage("link")).toMatch(/Inloggningslänken fungerade inte/);
+  });
+
+  it("sends a failed link back to the usual browser, copying it on a phone (IS #240)", () => {
+    const link = callbackErrorMessage("link");
+    expect(link).toMatch(/en annan webbläsare/);
+    expect(link).toMatch(/Be om en ny i din vanliga webbläsare/);
+    expect(link).toMatch(/kopiera/);
+    expect(link).toMatch(/mejlappen/);
   });
 
   it("tells an Auth failure apart from a bad link", () => {
