@@ -153,8 +153,9 @@ the `Origin` header equals `requestOrigin`, and a missing or `null` `Origin` is 
   becomes a conflict result naming the existing entry's Stockholm times, found through
   `findTruckLocationsOverlapping`, leaving out the entry being edited: not
   `findLocationsOverlapping`, which reads every truck and throws on a window holding more
-  than `max_rows` rows (PR for IS #226, round 1). When that entry has ended, the text asks
-  to change this entry's time instead, since #33 refuses to edit it (PR #243, round 4).
+  than `max_rows` rows (PR for IS #226, round 1). When #33 would refuse the edit that clears
+  it (that entry has ended, or runs while this one starts by now), the text asks to change
+  this entry's time instead (PR #243, rounds 4 and 5).
 - `cancelEntry(id, now)`, `confirmEntry(id, now)`: null for a missing or cancelled entry,
   which the route answers with 404.
 - `getChecklist(now)`: #22's rules.
@@ -288,8 +289,8 @@ failure is understood.
     hard wall" bullet, which gains a second reader: the admin list's 14-day window, a stated
     limit in `listAdminEntries`, the owner's call (PR #243, round 2); the "Phase map" (the
     Phase 7 row, and retention and the app name in Phase 8's), "Product model" items 2 and 3
-    (#22, #23) and item 4, whose overlap message gains #33's ended-entry text (PR #243, round
-    4), and "Open decisions" (#22 and #23 settle two, #25 and #26 move two to
+    (#22, #23); "Product model" item 4, whose overlap message gains the two texts #33 needs
+    (PR #243, rounds 4 and 5); "Open decisions" (#22 and #23 settle two, #25 and #26 move two to
     Phase 8), the "Read path" section's "One time zone" bullet, whose `live.ts`'s `TZ` is now
     `stockholm.ts`'s (PR #238); Part 3's "Status codes" (404, 503, and 409 from `23505` as
     well) and "Hooks"; and the README's status parts. It replaces each **between phases** marker in
@@ -589,8 +590,9 @@ that pre-fill unchanged is refused.
   within about 3 minutes.
 - [ ] An entry can be made for a later day through the form's date field.
 - [ ] An overlapping save returns 409 with "Överlappar med <the real times> — redigera den
-  istället", or, when that entry has ended, "…, som redan har slutat. Ändra tiden på den här
-  posten." (#33; the owner's wording, PR #243), and nothing is changed or replaced.
+  istället", or, when #33 would refuse that edit, "…, som redan har slutat. Ändra tiden på den
+  här posten." or "…, som pågår nu. Ändra tiden på den här posten." (the owner's wording,
+  PR #243), and nothing is changed or replaced.
 - [ ] Cancelling never deletes a row, and a second cancel leaves `cancelled_at` as it was.
 - [ ] "Stämmer fortfarande" moves `updated_at`, the popup's "Uppdaterad" follows, and no other
   column changes. A cancelled or missing entry gives 404.

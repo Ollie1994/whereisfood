@@ -149,6 +149,25 @@ describe("createEntry", () => {
     });
   });
 
+  // The other entry runs 09:00–12:00 Stockholm and it is 10:00. Ending it at this entry's
+  // start would end it in the past, which #33 refuses; moving that start past now wouldn't.
+  it.each([
+    ["starts by now", "2026-08-22T07:30:00.000Z", ", som pågår nu. Ändra tiden på den här posten."],
+    ["starts after now", "2026-08-22T09:00:00.000Z", " — redigera den istället"],
+  ])("with the other entry running, a new entry that %s gets its own advice", async (_, startsAt, advice) => {
+    db.getActiveTruckById.mockResolvedValue({ id: TRUCK });
+    db.insertLocation.mockRejectedValue(overlapError);
+    db.findTruckLocationsOverlapping.mockResolvedValue([
+      row({ starts_at: "2026-08-22T07:00:00+00:00", ends_at: "2026-08-22T10:00:00+00:00" }),
+    ]);
+
+    expect(await createEntry({ ...INPUT, starts_at: startsAt }, ADMIN, NOW)).toEqual({
+      ok: false,
+      reason: "conflict",
+      error: `Överlappar med 2026-08-22 09:00–12:00${advice}`,
+    });
+  });
+
   it("gives the plain overlap text when the other entry is gone by the time it is read", async () => {
     db.getActiveTruckById.mockResolvedValue({ id: TRUCK });
     db.insertLocation.mockRejectedValue(overlapError);
@@ -251,6 +270,21 @@ describe("editEntry", () => {
       "2026-08-22T13:00:00.000Z",
       2,
     );
+  });
+
+  // The edit path passes its own `now` to the advice too.
+  it("tells the admin to change this entry's time when an edit overlaps an ended entry", async () => {
+    db.getLocationById.mockResolvedValue(row({ starts_at: "2026-08-22T08:30:00+00:00" }));
+    db.updateLocation.mockRejectedValue(overlapError);
+    db.findTruckLocationsOverlapping.mockResolvedValue([
+      row({ id: "55555555-5555-4555-8555-555555555555", starts_at: "2026-08-22T06:00:00+00:00", ends_at: "2026-08-22T07:30:00+00:00" }),
+    ]);
+
+    expect(await editEntry(ID, { starts_at: "2026-08-22T07:00:00.000Z" }, NOW)).toEqual({
+      ok: false,
+      reason: "conflict",
+      error: "Överlappar med 2026-08-22 08:00–09:30, som redan har slutat. Ändra tiden på den här posten.",
+    });
   });
 
   // Only the patch is written, so another tab's edit of the other field stays.

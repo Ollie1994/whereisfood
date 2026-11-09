@@ -63,11 +63,11 @@ function stockholmText(iso: string): [string, string] {
   const [date, time] = SV.format(new Date(iso)).split(" ");
   return [date, time];
 }
-function overlapText(other: { starts_at: string; ends_at: string }): string {
+function overlapText(other: { starts_at: string; ends_at: string }, advice = " — redigera den istället"): string {
   const [startDate, startTime] = stockholmText(other.starts_at);
   const [endDate, endTime] = stockholmText(other.ends_at);
   const until = endDate === startDate ? endTime : `${endDate} ${endTime}`;
-  return `Överlappar med ${startDate} ${startTime}–${until} — redigera den istället`;
+  return `Överlappar med ${startDate} ${startTime}–${until}${advice}`;
 }
 
 async function countLocations(truck: string): Promise<number> {
@@ -252,30 +252,35 @@ describe("POST /api/admin/locations/[id]/confirm", () => {
 
 // #33 with an overlap: the other entry has ended, so it can't be edited, and the text
 // points to the entry being saved.
-describe("an overlap with an entry that has ended", () => {
-  it("answers 409 telling the admin to change this entry's time", async () => {
-    // Ended two hours before `base`, so at least an hour ago; the new entry starts before
-    // that end and runs past now, so #33 lets it through to the overlap.
-    const ended = await seedLocation(truckId, {
-      starts_at: new Date(base - 5 * HOUR).toISOString(),
-      ends_at: new Date(base - 2 * HOUR).toISOString(),
-    });
+// #33 with an overlap: an edit of the other entry that would clear it is refused, so the
+// text points to the entry being saved. `base` is at most an hour after now.
+describe("an overlap #33 won't let the admin fix on the other entry", () => {
+  const at = (hours: number) => new Date(base + hours * HOUR).toISOString();
+  const post = (startsAt: string, endsAt: string) =>
+    POST(request("POST", { truck_id: truckId, ...FIXTURE_PLACE, starts_at: startsAt, ends_at: endsAt }));
 
-    const response = await POST(
-      request("POST", {
-        truck_id: truckId,
-        ...FIXTURE_PLACE,
-        starts_at: new Date(base - 3 * HOUR).toISOString(),
-        ends_at: new Date(base + HOUR).toISOString(),
-      }),
-    );
+  it("answers an ended entry's overlap with 'som redan har slutat'", async () => {
+    // Ended at `base - 2h`, so at least an hour ago.
+    const ended = await seedLocation(truckId, { starts_at: at(-5), ends_at: at(-2) });
+
+    const response = await post(at(-3), at(1));
 
     expect(response.status).toBe(409);
-    const [startDate, startTime] = stockholmText(ended.starts_at);
-    const [endDate, endTime] = stockholmText(ended.ends_at);
-    const until = endDate === startDate ? endTime : `${endDate} ${endTime}`;
     expect(await response.json()).toEqual({
-      error: `Överlappar med ${startDate} ${startTime}–${until}, som redan har slutat. Ändra tiden på den här posten.`,
+      error: overlapText(ended, ", som redan har slutat. Ändra tiden på den här posten."),
+    });
+  });
+
+  it("answers a running entry's overlap with 'som pågår nu' when the new one starts by now", async () => {
+    // Started at `base - 3h`, at least two hours ago, and ends after now; the new entry
+    // starts at `base - 2h`, at least an hour ago.
+    const running = await seedLocation(truckId, { starts_at: at(-3), ends_at: at(2) });
+
+    const response = await post(at(-2), at(3));
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      error: overlapText(running, ", som pågår nu. Ändra tiden på den här posten."),
     });
   });
 });

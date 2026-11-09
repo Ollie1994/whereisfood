@@ -30,6 +30,14 @@ export const ENTRY_ERRORS = {
   overlap: "Överlappar med en annan post för samma foodtruck",
 } as const;
 
+// What the 409 tells the admin after "Överlappar med <the other entry's times>": edit that
+// entry, or, when #33 would refuse that edit, change this one (the owner's wording).
+export const OVERLAP_ADVICE = {
+  edit: " — redigera den istället",
+  ended: ", som redan har slutat. Ändra tiden på den här posten.",
+  running: ", som pågår nu. Ändra tiden på den här posten.",
+} as const;
+
 // How far ahead the admin's list reads, from the start of today (#24).
 export const LIST_DAYS = 14;
 
@@ -59,9 +67,7 @@ function describeWindow(entry: Pick<Location, "starts_at" | "ends_at">): string 
 // The refusal for a `23P01`, naming the truck's entry it overlaps. Read after the failed
 // write, so that entry may since have been cancelled: then the text names none. Two rows of
 // the truck's, not every truck's: one may be the entry being edited, and a window can span
-// years, where `findLocationsOverlapping` throws past `max_rows`. When that entry has
-// ended, #33 refuses to edit it, so the text points to the entry being saved (the owner's
-// wording).
+// years, where `findLocationsOverlapping` throws past `max_rows`.
 async function overlapRefusal(
   truckId: string,
   window: Pick<Location, "starts_at" | "ends_at">,
@@ -71,10 +77,21 @@ async function overlapRefusal(
   const rows = await findTruckLocationsOverlapping(truckId, window.starts_at, window.ends_at, 2);
   const other = rows.find((row) => row.id !== editedId);
   if (!other) return refuse("conflict", ENTRY_ERRORS.overlap);
-  const advice = hasEnded(other, now)
-    ? ", som redan har slutat. Ändra tiden på den här posten."
-    : " — redigera den istället";
-  return refuse("conflict", `Överlappar med ${describeWindow(other)}${advice}`);
+  return refuse("conflict", `Överlappar med ${describeWindow(other)}${overlapAdvice(other, window, now)}`);
+}
+
+// #33 refuses to edit an entry that has ended, and an edit ending one in the past. So when
+// the other entry has ended, or is running while this one starts by now (its end can't move
+// back to this start), the advice is to change this entry.
+function overlapAdvice(
+  other: Pick<Location, "starts_at" | "ends_at">,
+  window: Pick<Location, "starts_at">,
+  now: Date,
+): string {
+  if (hasEnded(other, now)) return OVERLAP_ADVICE.ended;
+  const started = (iso: string) => Date.parse(iso) <= now.getTime();
+  if (started(other.starts_at) && started(window.starts_at)) return OVERLAP_ADVICE.running;
+  return OVERLAP_ADVICE.edit;
 }
 
 function hasEnded(entry: Pick<Location, "ends_at">, now: Date): boolean {
@@ -133,10 +150,12 @@ export async function createEntry(input: NewLocationInput, adminId: string, now:
 // no range CHECK (`0001_baseline.sql`), so a row written outside the app isn't covered.
 // An entry that has ended can't be edited, and an edit can't end it in the past (#33).
 //
-// Limits: the write has no precondition on what was read, so each cross-field rule needs
-// its own answer to an edit landing in between, as the two above have; a new rule must add
-// one. And the box is checked on the merged row whatever the patch holds, so a row written
-// outside the app, outside the box, takes no edit until its pin is moved.
+// Limits: the write has no precondition on what was read, so each rule on the merged row
+// needs its own answer to an edit landing in between. The order and box rules have theirs,
+// above. #33's merged end is judged on this tab's read: an end another tab wrote in
+// between passed the same check there, at its own now. A new rule must add its answer. And
+// the box is checked on the merged row whatever the patch holds, so a row written outside
+// the app, outside the box, takes no edit until its pin is moved.
 export async function editEntry(id: string, patch: LocationPatch, now: Date): Promise<EntryResult> {
   const current = await getLocationById(id);
   if (!current) return refuse("not-found", ENTRY_ERRORS.notFound);
