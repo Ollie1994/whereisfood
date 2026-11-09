@@ -1,29 +1,37 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { adminFetch } from "@/lib/admin-api";
+import { API_ERRORS, adminFetch } from "@/lib/admin-api";
 import type { AdminEntry } from "@/lib/services/locations";
 import type { Location, Truck } from "@/lib/types";
 
 // The admin screen's list: entries from today for 14 days and every truck, read through
 // the uncached admin routes, so the admin sees their own change on the next read (plan
 // #15, #24). Cancel and "Stämmer fortfarande" reload the entries; an edit is the form's.
+//
+// A limit: an open edit holds the entry as it was when "Ändra" was pressed. If another tab
+// moves one of its times, an edit here that changes the other time writes back the one it
+// read (`editRequest` sends both). An edit of an entry gone from a reload closes.
 
 export const CANCEL_QUESTION = "Ställa in den här posten? Den försvinner från kartan.";
 
-// How often the list's clock moves, so "Har slutat" and "idag" follow the time.
-const TICK_MS = 60_000;
+const MINUTE_MS = 60_000;
 
 type Read<T> = { ok: true; data: T } | { ok: false; error: string };
 
 // Module-level, so the effect below only starts them and sets state in their callback, not
-// in the effect's body (`react-hooks/set-state-in-effect`).
+// in the effect's body (`react-hooks/set-state-in-effect`). Each checks the shape it reads:
+// `adminFetch` types its data but can't check it.
 async function fetchEntries(): Promise<Read<AdminEntry[]>> {
-  const result = await adminFetch<{ entries: AdminEntry[] }>("/api/admin/locations");
-  return result.ok ? { ok: true, data: result.data.entries } : result;
+  const result = await adminFetch<{ entries?: unknown }>("/api/admin/locations");
+  if (!result.ok) return result;
+  const entries = result.data.entries;
+  return Array.isArray(entries) ? { ok: true, data: entries } : { ok: false, error: API_ERRORS.unknown };
 }
 
 async function fetchTrucks(): Promise<Read<Truck[]>> {
-  const result = await adminFetch<{ trucks: Truck[] }>("/api/admin/trucks");
-  return result.ok ? { ok: true, data: result.data.trucks } : result;
+  const result = await adminFetch<{ trucks?: unknown }>("/api/admin/trucks");
+  if (!result.ok) return result;
+  const trucks = result.data.trucks;
+  return Array.isArray(trucks) ? { ok: true, data: trucks } : { ok: false, error: API_ERRORS.unknown };
 }
 
 export function useAdminLocations(): {
@@ -37,9 +45,10 @@ export function useAdminLocations(): {
   errors: { entries: string | null; trucks: string | null; action: string | null };
   busyIds: readonly string[];
   editing: AdminEntry | null;
-  actions: number;
-  // After a save: the entries again, and an older action's error goes.
+  // After a save: the entries again (and the trucks, while their read has failed).
   reload: () => Promise<void>;
+  // When a save starts: a list action's error from before it goes.
+  clearActionError: () => void;
   // "Försök igen": the reads whose error shows, with `retrying` while they run.
   retry: () => Promise<void>;
   retrying: boolean;
@@ -57,24 +66,24 @@ export function useAdminLocations(): {
   // Every entry with a request in flight, so one finishing doesn't free another's buttons.
   const [busyIds, setBusyIds] = useState<readonly string[]>([]);
   const [editing, setEditing] = useState<AdminEntry | null>(null);
-  // How many cancels and confirms have run, so the form can drop its "Sparat." after one.
-  const [actions, setActions] = useState(0);
-  // The newest entries read sent: reads can answer out of order when actions overlap, and
-  // only the newest is applied.
+  const [retrying, setRetrying] = useState(false);
+  // The newest reads sent: reads can answer out of order when actions overlap, and only the
+  // newest of each is applied.
   const latestRead = useRef(0);
   const latestTrucksRead = useRef(0);
   // Whether the trucks' read failed, read when a reload runs rather than from the render
   // the reload was made in: a read failing during an action is then still retried.
   const trucksFailed = useRef(false);
-  const [retrying, setRetrying] = useState(false);
 
-  // Applies an entries read if it is still the newest one sent.
+  // Applies an entries read if it is still the newest one sent. An edit of an entry the
+  // read no longer has closes: it was cancelled, or moved past the list's days, elsewhere.
   const applyEntries = useCallback((id: number, read: Read<AdminEntry[]>) => {
     if (id !== latestRead.current) return;
     setNow(new Date());
     if (!read.ok) return setEntriesError(read.error);
     setEntriesError(null);
     setEntries(read.data);
+    setEditing((open) => (open && !read.data.some((entry) => entry.id === open.id) ? null : open));
   }, []);
 
   // Applies a trucks read if it is still the newest one sent.
@@ -86,8 +95,6 @@ export function useAdminLocations(): {
     setTrucks(read.data);
   }, []);
 
-  // The entries, and the trucks again only if their read failed: no list action changes a
-  // truck.
   const readAgain = useCallback(
     async (withTrucks: boolean) => {
       const id = ++latestRead.current;
@@ -102,30 +109,37 @@ export function useAdminLocations(): {
     [applyEntries, applyTrucks],
   );
 
-  const reload = useCallback(async () => {
-    setActionError(null);
-    await readAgain(trucksFailed.current);
-  }, [readAgain]);
+  const reload = useCallback(() => readAgain(trucksFailed.current), [readAgain]);
 
   async function retry() {
     if (retrying) return;
     setRetrying(true);
-    await readAgain(trucksFailed.current);
-    setRetrying(false);
+    try {
+      await readAgain(trucksFailed.current);
+    } finally {
+      setRetrying(false);
+    }
   }
 
-  // The first reads, started here and applied in their callbacks (the lint rule above).
+  // The first reads, started here and applied in their callbacks (the lint rule above);
+  // then the list's clock, on each minute's turn so "Har slutat" isn't up to a minute late.
   useEffect(() => {
     const id = ++latestRead.current;
     const trucksId = ++latestTrucksRead.current;
     void fetchEntries().then((read) => applyEntries(id, read));
     void fetchTrucks().then((read) => applyTrucks(trucksId, read));
-    const tick = setInterval(() => setNow(new Date()), TICK_MS);
-    return () => clearInterval(tick);
+    let tick: ReturnType<typeof setInterval> | undefined;
+    const first = setTimeout(() => {
+      setNow(new Date());
+      tick = setInterval(() => setNow(new Date()), MINUTE_MS);
+    }, MINUTE_MS - (Date.now() % MINUTE_MS));
+    return () => {
+      clearTimeout(first);
+      clearInterval(tick);
+    };
   }, [applyEntries, applyTrucks]);
 
   async function act(entry: AdminEntry, action: "confirm" | "cancel") {
-    setActions((count) => count + 1);
     setActionError(null);
     setBusyIds((ids) => [...ids, entry.id]);
     const result = await adminFetch<{ entry: Location }>(`/api/admin/locations/${entry.id}/${action}`, {
@@ -150,8 +164,8 @@ export function useAdminLocations(): {
     errors: { entries: entriesError, trucks: trucksError, action: actionError },
     busyIds,
     editing,
-    actions,
     reload,
+    clearActionError: () => setActionError(null),
     retry,
     retrying,
     startEdit: setEditing,

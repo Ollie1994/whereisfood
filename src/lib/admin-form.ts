@@ -1,6 +1,6 @@
 import { LIST_DAYS } from "@/lib/admin-list";
 import { SPOTS } from "@/lib/spots";
-import { entryWindow, stockholmDay, stockholmWallClock } from "@/lib/stockholm";
+import { dayOf, entryWindow, stockholmDay, stockholmWallClock } from "@/lib/stockholm";
 import type { Location } from "@/lib/types";
 
 // The admin screen's pure parts: the form's values, the request they make, and the list's
@@ -44,19 +44,12 @@ export type FormValues = {
 
 export type EntryRequest = { ok: true; body: Record<string, unknown> } | { ok: false; error: string };
 
-const DAY_MS = 86_400_000;
-const DATE = /^\d{4}-\d{2}-\d{2}$/;
-
-// `<input type="date">`'s "2026-08-22" as a Stockholm day number (`stockholm.ts`), or null.
-export function dayOf(date: string): number | null {
-  if (!DATE.test(date)) return null;
-  const ms = Date.parse(`${date}T00:00:00Z`);
-  return Number.isNaN(ms) ? null : ms / DAY_MS;
-}
+const TIME = /^\d{2}:\d{2}$/;
 
 // An end at or before the start, as wall-clock times, falls on the next day (#30).
+// Two times only: a field being cleared to type a new one isn't "Slutar imorgon".
 export function endsNextDay(start: string, end: string): boolean {
-  return end <= start;
+  return TIME.test(start) && TIME.test(end) && end <= start;
 }
 
 export function emptyForm(now: Date): FormValues {
@@ -151,12 +144,15 @@ function dayText(date: string, now: Date): string {
   return offset === -1 ? "igår" : offset === 0 ? "idag" : offset === 1 ? "imorgon" : date;
 }
 
-// "idag 11:00–13:00", "imorgon 22:00–02:00 (slutar dagen efter)", "2026-08-25 11:00–13:00".
+// "idag 11:00–13:00", "imorgon 22:00–02:00 (slutar dagen efter)", "2026-08-25 11:00–13:00",
+// or with the end's date when it falls more than a day after the start's.
 export function entryTimeText(entry: Pick<Location, "starts_at" | "ends_at">, now: Date): string {
   const start = stockholmWallClock(new Date(entry.starts_at));
   const end = stockholmWallClock(new Date(entry.ends_at));
-  const nextDay = end.date !== start.date ? " (slutar dagen efter)" : "";
-  return `${dayText(start.date, now)} ${start.time}–${end.time}${nextDay}`;
+  const days = (dayOf(end.date) ?? 0) - (dayOf(start.date) ?? 0);
+  const until = days > 1 ? `${end.date} ${end.time}` : end.time;
+  const nextDay = days === 1 ? " (slutar dagen efter)" : "";
+  return `${dayText(start.date, now)} ${start.time}–${until}${nextDay}`;
 }
 
 // "Uppdaterad idag 09:12", or with "igår" or the date for an older one.

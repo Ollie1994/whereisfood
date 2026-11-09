@@ -2,6 +2,7 @@ import { useState } from "react";
 import { adminFetch } from "@/lib/admin-api";
 import {
   type FormValues,
+  SAVED,
   createRequest,
   editRequest,
   emptyForm,
@@ -28,18 +29,19 @@ export type LocationFormState = {
   error: string | null;
   // "Sparat." or `SAVED_LATER`, until a field, another entry or a list button changes.
   saved: string | null;
+  // For the list's buttons: their result isn't this form's, so "Sparat." goes.
+  clearSaved: () => void;
   submit: () => Promise<void>;
 };
 
 export function useLocationForm({
   editing,
-  actions,
+  onSaving,
   onSaved,
 }: {
   editing: AdminEntry | null;
-  // The list's count of cancels and confirms: "Sparat." goes when it moves, so it isn't
-  // read as the list button's result (the owner's browser check).
-  actions: number;
+  // When a save starts.
+  onSaving: () => void;
   // After a save: reload the list, and close the edit when `closeEdit`.
   onSaved: (closeEdit: boolean) => Promise<void>;
 }): LocationFormState {
@@ -50,7 +52,6 @@ export function useLocationForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
-  const [seenActions, setSeenActions] = useState(actions);
 
   // "Sparat." stays when a saved edit closes, and goes when another entry opens.
   if (editing !== filledFrom) {
@@ -58,10 +59,6 @@ export function useLocationForm({
     setValues(editing ? formFromEntry(editing) : emptyForm(new Date()));
     setError(null);
     if (editing) setSaved(null);
-  }
-  if (actions !== seenActions) {
-    setSeenActions(actions);
-    setSaved(null);
   }
 
   function setField(field: keyof FormValues, value: string) {
@@ -80,7 +77,8 @@ export function useLocationForm({
 
     setSaving(true);
     setError(null);
-    const result = await adminFetch<{ entry: Location }>(
+    onSaving();
+    const result = await adminFetch<{ entry?: Location }>(
       target ? `/api/admin/locations/${target.id}` : "/api/admin/locations",
       { method: target ? "PATCH" : "POST", body: request.body },
     );
@@ -90,13 +88,25 @@ export function useLocationForm({
       return;
     }
 
-    // A new entry keeps its truck and date for the next one; an edit closes.
+    // A new entry keeps its truck and date for the next one; an edit closes. The saved
+    // entry decides the text; with none in the answer, the plain one.
     if (!target) setValues((current) => ({ ...emptyForm(new Date()), truckId: current.truckId, date: current.date }));
-    setSaved(savedText(result.data.entry, new Date()));
+    const entry = result.data.entry;
+    setSaved(entry ? savedText(entry, new Date()) : SAVED);
     await onSaved(target !== null);
   }
 
   const timesLocked = editing !== null && !timesEditable(editing);
   const nextDay = endsNextDay(values.start, values.end);
-  return { values, setField, nextDay, timesLocked, saving, error, saved, submit };
+  return {
+    values,
+    setField,
+    nextDay,
+    timesLocked,
+    saving,
+    error,
+    saved,
+    clearSaved: () => setSaved(null),
+    submit,
+  };
 }

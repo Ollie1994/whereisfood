@@ -22,9 +22,13 @@ export async function adminFetch<T>(path: string, init: { method?: string; body?
     return { ok: false, error: API_ERRORS.network };
   }
 
-  // Every route answers JSON, `{ error }` on a refusal (`CLAUDE.md`, "API responses").
+  // Every route answers JSON, `{ error }` on a refusal (`CLAUDE.md`, "API responses"). A
+  // 2xx whose body didn't parse (a connection cut mid-body, a proxy's page) is an error
+  // too, so no caller reads `data` from a null. The callers check the shape they need.
   const json: unknown = await response.json().catch(() => null);
-  if (response.ok) return { ok: true, data: json as T };
+  if (response.ok) {
+    return json === null ? { ok: false, error: API_ERRORS.unknown } : { ok: true, data: json as T };
+  }
   const error = (json as { error?: unknown } | null)?.error;
   return { ok: false, error: typeof error === "string" ? error : API_ERRORS.unknown };
 }

@@ -6,7 +6,6 @@ import {
   SAVED,
   SAVED_LATER,
   createRequest,
-  dayOf,
   editRequest,
   emptyForm,
   endsNextDay,
@@ -17,6 +16,7 @@ import {
   updatedText,
 } from "@/lib/admin-form";
 import { LIST_DAYS } from "@/lib/admin-list";
+import { dayOf } from "@/lib/stockholm";
 
 const TRUCK = "11111111-1111-1111-1111-111111111111";
 // 10:00 Stockholm (CEST) on Saturday 2026-08-22.
@@ -46,6 +46,13 @@ describe("dayOf and endsNextDay", () => {
     expect(endsNextDay("22:00", "02:00")).toBe(true);
     expect(endsNextDay("11:00", "11:00")).toBe(true);
     expect(endsNextDay("11:00", "13:00")).toBe(false);
+  });
+
+  // A field cleared to type a new time is "", which compares before every time.
+  it("isn't next-day while a time field is empty", () => {
+    expect(endsNextDay("11:00", "")).toBe(false);
+    expect(endsNextDay("", "")).toBe(false);
+    expect(endsNextDay("", "13:00")).toBe(false);
   });
 });
 
@@ -184,6 +191,8 @@ describe("entryTimeText and updatedText", () => {
     ["2026-08-22T09:00:00Z", "2026-08-22T11:00:00Z", "idag 11:00–13:00"],
     ["2026-08-23T20:00:00Z", "2026-08-24T00:00:00Z", "imorgon 22:00–02:00 (slutar dagen efter)"],
     ["2026-08-25T09:00:00Z", "2026-08-25T11:00:00Z", "2026-08-25 11:00–13:00"],
+    // Longer than a day: the end's date, not "slutar dagen efter".
+    ["2026-08-22T09:00:00Z", "2026-08-24T11:00:00Z", "idag 11:00–2026-08-24 13:00"],
   ])("reads %s–%s as %s", (starts_at, ends_at, text) => {
     expect(entryTimeText({ starts_at, ends_at }, NOW)).toBe(text);
   });

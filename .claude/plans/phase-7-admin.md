@@ -77,7 +77,7 @@ the public map, and nobody else can write anything.
 | `src/app/admin/layout.tsx`, `page.tsx`, `login/page.tsx`, `trucks/page.tsx` | The screens, phone-first |
 | `src/components/Admin/*` | `LoginForm`, `LogoutButton`, `TodayList`, `Checklist`, `LocationForm`, `PlacePicker`, `TruckForm`; `AdminLocations`, the client part that shares the list's state with the form, and `styles.ts`, their shared class strings (PR #244) |
 | `src/lib/admin-form.ts` (+ test), `src/lib/admin-api.ts`, `src/lib/admin-list.ts` | The admin screen's pure parts (the form's request, the list's texts), its fetch to the admin routes, and `LIST_DAYS`, which the service and the form both read (PR #244) |
-| `src/hooks/useLogin.ts`, `useAdminLocations.ts`, `useChecklist.ts`, `useLocationForm.ts`, `usePlacePicker.ts`, `useGeolocation.ts`, `useTrucks.ts` | All state lives here |
+| `src/hooks/useLogin.ts`, `useAdminLocations.ts`, `useChecklist.ts`, `useLocationForm.ts`, `usePlacePicker.ts`, `useGeolocation.ts`, `useTrucks.ts`; `useAdminScreen.ts`, which joins the list's and the form's (PR #244) | All state lives here |
 | `tests/integration/db-users.test.ts` | The key-set test a new table's reads need |
 | `tests/integration/auth-routes.test.ts` | `/auth/callback` and `/auth/logout` against the local stack |
 | `tests/integration/admin-auth.test.ts` | 401 and 403 on every admin route, found on disk (#13) |
