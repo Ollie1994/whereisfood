@@ -126,6 +126,21 @@ describe("formFromEntry and editRequest", () => {
     expect(editRequest({ ...formFromEntry(entry), ...change }, entry)).toEqual({ ok: true, body: {} });
   });
 
+  // `timesEditable`'s comment: every entry the form itself creates fits it, so only rows
+  // written outside the app show read-only times.
+  it.each([
+    ["lunch", { start: "11:00", end: "13:00" }],
+    ["past midnight", { start: "22:00", end: "02:00" }],
+    ["across the spring gap", { date: "2026-03-28", start: "23:00", end: "04:00" }],
+    ["in the autumn's repeated hour", { date: "2026-10-25", start: "02:30", end: "05:00" }],
+    ["a full day, end equal to start", { start: "11:00", end: "11:00" }],
+  ])("finds every entry the form creates editable: %s", (_, change) => {
+    const created = createRequest({ ...FORM, ...change });
+    if (!created.ok) throw new Error(created.error);
+    const { starts_at, ends_at } = created.body as { starts_at: string; ends_at: string };
+    expect(timesEditable({ truck_id: TRUCK, starts_at, ends_at })).toBe(true);
+  });
+
   it("edits the times of an entry the form shows exactly, overnight ones included", () => {
     expect(timesEditable(ENTRY)).toBe(true);
     expect(timesEditable({ ...ENTRY, starts_at: "2026-08-22T20:00:00+00:00", ends_at: "2026-08-23T00:00:00+00:00" })).toBe(true);
