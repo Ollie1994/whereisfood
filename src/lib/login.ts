@@ -53,13 +53,30 @@ export function isTemporaryAuthError(error: { status?: number } | null): boolean
   return isAuthRetryableFetchError(error) || error.status === 429 || (error.status ?? 0) >= 500;
 }
 
-// `/auth/callback` sends a failed login back with `?error=link`, or `?error=unavailable`
-// when Auth failed for a reason that isn't the link (`isTemporaryAuthError`).
+// Why `/auth/callback` sends a failed login back to the login page, as its `?error=`.
+export type CallbackError = "link" | "browser" | "unavailable";
+
+export function callbackErrorFor(error: { status?: number; code?: string }): CallbackError {
+  // This browser holds no PKCE verifier: auth-js 2.106.2 returns
+  // `AuthPKCECodeVerifierMissingError` (400, this code) before any request to Auth.
+  // #224's phone failure, a link tapped in the Gmail app; `auth-routes.test.ts` calls the
+  // callback with a real code and no cookie, and the same code still exchanges afterwards.
+  if (error.code === "pkce_code_verifier_not_found") return "browser";
+  // Auth down or failing isn't the link's fault: say so, so the admin doesn't spend one
+  // of the built-in email's few sends an hour on a new link (plan #32's reasoning).
+  if (isTemporaryAuthError(error)) return "unavailable";
+  return "link";
+}
+
+// The text for each `?error=` the callback sends (`callbackErrorFor`).
 export function callbackErrorMessage(error: string | string[] | undefined): string | null {
-  // Usually shown in the browser the link wrongly opened in (the one without the verifier),
-  // so it sends the admin back to their usual browser for the new link (IS #224, #240).
   if (error === "link") {
-    return "Inloggningslänken fungerade inte. Den kan ha gått ut, redan använts eller öppnats i en annan webbläsare än den som bad om den. Be om en ny i din vanliga webbläsare och öppna länken där. På mobilen: kopiera den dit i stället för att trycka på den i mejlappen.";
+    return "Inloggningslänken fungerade inte. Den kan ha gått ut eller redan använts. Be om en ny.";
+  }
+  // Shown in the browser the link opened in, the one without the verifier, so it sends the
+  // admin back to their usual browser for the new link (IS #240).
+  if (error === "browser") {
+    return "Inloggningslänken öppnades i en annan webbläsare än den som bad om den. Be om en ny i din vanliga webbläsare och öppna länken där. På mobilen: kopiera den dit i stället för att trycka på den i mejlappen.";
   }
   // Not "open the same link again": Auth's `/verify` uses a link up on its first visit
   // (local stack: a second visit to the same link answered `?error=access_denied`,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { AuthApiError, AuthRetryableFetchError } from "@supabase/supabase-js";
+import { AuthApiError, AuthPKCECodeVerifierMissingError, AuthRetryableFetchError } from "@supabase/supabase-js";
 import {
+  callbackErrorFor,
   callbackErrorMessage,
   isTemporaryAuthError,
   loginMessage,
@@ -48,10 +49,8 @@ describe("loginMessage", () => {
 
   it("says to open the link in this browser, copying it on a phone (IS #240)", () => {
     const sent = loginMessage("sent");
-    expect(sent).toMatch(/i den här webbläsaren/);
-    expect(sent).toMatch(/kopiera/);
-    expect(sent).toMatch(/mejlappen/);
-    expect(sent).not.toMatch(/enheten/);
+    expect(sent).toMatch(/Öppna den i den här webbläsaren\./);
+    expect(sent).toMatch(/På mobilen: kopiera länken .*i stället för att trycka på den i mejlappen\./);
   });
 });
 
@@ -60,12 +59,15 @@ describe("callbackErrorMessage", () => {
     expect(callbackErrorMessage("link")).toMatch(/Inloggningslänken fungerade inte/);
   });
 
-  it("sends a failed link back to the usual browser, copying it on a phone (IS #240)", () => {
-    const link = callbackErrorMessage("link");
-    expect(link).toMatch(/en annan webbläsare/);
-    expect(link).toMatch(/Be om en ny i din vanliga webbläsare/);
-    expect(link).toMatch(/kopiera/);
-    expect(link).toMatch(/mejlappen/);
+  it("sends a link opened in another browser back to the usual one, copying it on a phone (IS #240)", () => {
+    const browser = callbackErrorMessage("browser");
+    expect(browser).toMatch(/öppnades i en annan webbläsare/);
+    expect(browser).toMatch(/Be om en ny i din vanliga webbläsare och öppna länken där\./);
+    expect(browser).toMatch(/På mobilen: kopiera den dit i stället för att trycka på den i mejlappen\./);
+  });
+
+  it("doesn't blame the browser for an expired or used link", () => {
+    expect(callbackErrorMessage("link")).not.toMatch(/webbläsare/);
   });
 
   it("tells an Auth failure apart from a bad link", () => {
@@ -76,6 +78,22 @@ describe("callbackErrorMessage", () => {
     expect(callbackErrorMessage(undefined)).toBeNull();
     expect(callbackErrorMessage("other")).toBeNull();
     expect(callbackErrorMessage(["link", "link"])).toBeNull();
+  });
+});
+
+describe("callbackErrorFor", () => {
+  it("is browser when this browser holds no PKCE verifier", () => {
+    expect(callbackErrorFor(new AuthPKCECodeVerifierMissingError())).toBe("browser");
+  });
+
+  it("is unavailable for a temporary Auth failure", () => {
+    expect(callbackErrorFor(new AuthRetryableFetchError("network down", 0))).toBe("unavailable");
+    expect(callbackErrorFor(new AuthApiError("boom", 500, "unexpected_failure"))).toBe("unavailable");
+  });
+
+  it("is link for any other answer about the code", () => {
+    expect(callbackErrorFor(new AuthApiError("used", 400, "validation_failed"))).toBe("link");
+    expect(callbackErrorFor({})).toBe("link");
   });
 });
 

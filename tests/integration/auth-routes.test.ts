@@ -114,6 +114,17 @@ describe("GET /auth/callback", () => {
     expect(code).not.toBe("");
   });
 
+  // #224's phone failure: the link opened in a browser without the verifier cookie. Before
+  // the exchange test, which then shows the code wasn't spent.
+  it("sends a code with no verifier cookie back with ?error=browser and no session", async () => {
+    const response = await callback(request(`/auth/callback?code=${code}`));
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe("/admin/login?error=browser");
+    const written = setCookies(response);
+    expect(sessionCookieNames(written).filter((name) => written.get(name) !== "")).toEqual([]);
+  });
+
   it("exchanges the code, writes a session cookie Auth accepts, and lands on /admin", async () => {
     const response = await callback(request(`/auth/callback?code=${code}`, { cookie: cookieHeader(verifierJar) }));
 
