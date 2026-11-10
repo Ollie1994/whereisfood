@@ -14,6 +14,9 @@ export const DEFAULT_START = "11:00";
 export const DEFAULT_END = "13:00";
 
 export const SAVED = "Sparat.";
+
+// An entry's place in the list and the checklist when it has no name.
+export const UNKNOWN_PLACE = "Okänd plats";
 export const SAVED_LATER = "Sparat. Posten är mer än två veckor fram och visas i listan när den närmar sig.";
 
 // What the form says after a save: plain, or that the list won't show the entry yet (#24's

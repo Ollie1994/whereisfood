@@ -1,12 +1,12 @@
 import { ALERT, SMALL_BUTTON } from "@/components/Admin/styles";
 import type { ChecklistState } from "@/hooks/useChecklist";
 import { CHECKLIST_EMPTY, fromText } from "@/lib/admin-checklist";
-import { entryTimeText } from "@/lib/admin-form";
+import { UNKNOWN_PLACE, entryTimeText } from "@/lib/admin-form";
 
 // The morning checklist (Phase 7 plan, step 11): each suggestion with ✓, which enters it as an
 // ordinary entry, and ✗, which hides it on this device today. `now` is the list's clock.
 export default function Checklist({ checklist, now }: { checklist: ChecklistState; now: Date }) {
-  const { checklist: read, shown, errors, busyIds, retry, confirm, dismiss } = checklist;
+  const { checklist: read, shown, errors, busyIds, reload, confirm, dismiss } = checklist;
 
   return (
     <section className="flex flex-col gap-3">
@@ -16,7 +16,7 @@ export default function Checklist({ checklist, now }: { checklist: ChecklistStat
           <p role="alert" className={ALERT}>
             {errors.read}
           </p>
-          <button type="button" onClick={retry} className={`self-start ${SMALL_BUTTON}`}>
+          <button type="button" onClick={reload} className={`self-start ${SMALL_BUTTON}`}>
             Försök igen
           </button>
         </div>
@@ -39,7 +39,7 @@ export default function Checklist({ checklist, now }: { checklist: ChecklistStat
                 <div className="flex flex-col">
                   <span className="font-medium">{suggestion.truck_name}</span>
                   <span className="text-sm">
-                    {suggestion.label ?? "Okänd plats"}, {entryTimeText(suggestion, now)}
+                    {suggestion.label ?? UNKNOWN_PLACE}, {entryTimeText(suggestion, now)}
                   </span>
                   <span className="text-xs text-foreground/60">{fromText(suggestion, read.day)}</span>
                 </div>

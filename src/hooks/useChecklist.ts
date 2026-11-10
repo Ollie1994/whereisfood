@@ -5,7 +5,8 @@ import type { Checklist, Suggestion } from "@/lib/services/checklist";
 
 // The morning checklist (Phase 7 plan, #20, #22): read through the uncached admin route, on
 // opening, on each `revision` (a save or cancel elsewhere on the screen changes what the
-// trucks have today) and after each ✓. ✓ posts the ordinary create, so an overlap answers
+// trucks have today), when the screen's Stockholm `day` turns, after each ✓, and on
+// `reload`. ✓ posts the ordinary create, so an overlap answers
 // 409 like the form's; ✗ hides the suggestion on this device for the checklist's day.
 //
 // A limit: the server leaves out what has ended when it reads, so a suggestion ending while
@@ -26,16 +27,21 @@ export type ChecklistState = {
   creates: number;
   // When a save starts elsewhere on the screen: a ✓'s error from before it goes.
   clearActionError: () => void;
-  retry: () => void;
+  // Reads again: "Försök igen", and a save elsewhere answered 404 or 409.
+  reload: () => void;
   confirm: (suggestion: Suggestion) => Promise<void>;
   dismiss: (suggestion: Suggestion) => void;
 };
 
 export function useChecklist({
   revision,
+  day,
   onCreated,
 }: {
   revision: number;
+  // The Stockholm day of the screen's clock, so a screen left open past midnight reads
+  // today's checklist, not yesterday's.
+  day: number;
   onCreated: () => Promise<void>;
 }): ChecklistState {
   const [checklist, setChecklist] = useState<Checklist | null>(null);
@@ -50,7 +56,7 @@ export function useChecklist({
   // checklist shown was read before the entry existed, and a second ✓ would answer 409. `after`
   // is the newest read sent when the ✓ succeeded.
   const [confirmed, setConfirmed] = useState<readonly Confirmed[]>([]);
-  // Bumped to read again after a ✓, refused or not, and on "Försök igen".
+  // Bumped to read again after a ✓, refused or not, and on `reload`.
   const [reads, setReads] = useState(0);
   // The newest read sent: reads can answer out of order, and only the newest is applied.
   const latestRead = useRef(0);
@@ -65,12 +71,14 @@ export function useChecklist({
       setReadError(null);
       setChecklist(read);
       setConfirmed((list) => stillHidden(list, id));
+      // Read here, not in the updater, which React may run twice.
+      const stored = readDismissed(storage, read.day);
       setDismissed((last) => ({
         day: read.day,
-        ids: [...new Set([...(last.day === read.day ? last.ids : []), ...readDismissed(storage, read.day)])],
+        ids: [...new Set([...(last.day === read.day ? last.ids : []), ...stored])],
       }));
     });
-  }, [revision, reads]);
+  }, [revision, day, reads]);
 
   async function confirm(suggestion: Suggestion) {
     setActionError(null);
@@ -91,6 +99,7 @@ export function useChecklist({
 
   function dismiss(suggestion: Suggestion) {
     if (!checklist) return;
+    setActionError(null);
     const { day } = checklist;
     // With what another tab hid on this device since.
     const ids = [
@@ -111,7 +120,7 @@ export function useChecklist({
     busyIds,
     creates,
     clearActionError: () => setActionError(null),
-    retry: () => setReads((count) => count + 1),
+    reload: () => setReads((count) => count + 1),
     confirm,
     dismiss,
   };
