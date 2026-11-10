@@ -1,9 +1,11 @@
 import { useAdminLocations } from "@/hooks/useAdminLocations";
+import { useChecklist } from "@/hooks/useChecklist";
 import { useLocationForm } from "@/hooks/useLocationForm";
 import { usePlacePicker } from "@/hooks/usePlacePicker";
 import type { AdminEntry } from "@/lib/services/locations";
 
-// The admin screen's hooks, joined: a save closes its edit and reloads the list, a save
+// The admin screen's hooks, joined: the checklist's ✓ reloads the list, and a save or cancel
+// reloads the checklist; a save closes its edit and reloads the list, a save
 // starting clears a list action's older error, a save answered 404 or 409 reloads the list
 // (`onGone`), and a list button clears the form's "Sparat.". Here, not in a component
 // (`CLAUDE.md`, "UI Rules": components only render).
@@ -19,11 +21,14 @@ export function useAdminScreen() {
     },
     onGone: reload,
   });
+  // The checklist reads again after a save or a cancel, which change what the trucks have
+  // today; its ✓ reloads the list.
+  const checklist = useChecklist({ revision: form.saves + list.cancels, onCreated: reload });
   // The place picker fills the form's place, and reads the form's truck's places.
   const picker = usePlacePicker({
     truckId: form.values.truckId,
     generation: form.generation,
-    revision: form.saves + list.cancels,
+    revision: form.saves + list.cancels + checklist.creates,
     timesLocked: form.timesLocked,
     onFill: form.fill,
   });
@@ -32,6 +37,7 @@ export function useAdminScreen() {
     list,
     form,
     picker,
+    checklist,
     confirm: (entry: AdminEntry) => {
       form.clearSaved();
       return list.confirm(entry);
