@@ -432,6 +432,20 @@ describe("getRecentPlaces", () => {
     expect(db.listRecentLocationsForTruck).toHaveBeenCalledWith(TRUCK, NOW.toISOString(), RECENT_ENTRIES);
   });
 
+  // Where the two kinds of key meet: a name and no name at one pin are two places.
+  it("keeps a named and an unnamed place at the same pin apart", async () => {
+    db.listRecentLocationsForTruck.mockResolvedValue([
+      at(57.70, 11.95, "Järntorget", 21),
+      at(57.70, 11.95, null, 20),
+      at(57.70, 11.95, null, 19),
+    ]);
+
+    expect(await getRecentPlaces(TRUCK, NOW)).toEqual([
+      place(57.70, 11.95, "Järntorget", 21),
+      place(57.70, 11.95, null, 20),
+    ]);
+  });
+
   it(`offers at most ${RECENT_PLACES}`, async () => {
     db.listRecentLocationsForTruck.mockResolvedValue(
       Array.from({ length: RECENT_PLACES + 2 }, (_, i) => at(57.7, 11.9 + i / 100, `Plats ${i}`, 21 - i)),

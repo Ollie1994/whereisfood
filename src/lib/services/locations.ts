@@ -203,9 +203,11 @@ export async function confirmEntry(id: string, now: Date): Promise<Location | nu
 // `now`, each with its newest entry's pin and times: one per name, so a spot whose pin was
 // moved a little by a map tap shows once, and one per pin for a place with no name (#35).
 //
-// A limit: the pins aren't checked against the Gothenburg box here or in the picker. Every
-// app write was (the location validator), so only a row written outside the app can fall
-// outside it, and one past ±90 latitude would throw in the picker map's marker.
+// Limits: names are compared exactly, case included, so "Heden" and "heden" are two places.
+// And the pins aren't checked against the Gothenburg box here or in the picker. Every app
+// write was (the location validator), so only a row written outside the app can fall
+// outside it; one past ±90 latitude throws in the picker map, as it opens on the pin or
+// moves its marker there (`LngLat`), and the admin screen shows the error page.
 export async function getRecentPlaces(truckId: string, now: Date): Promise<RecentPlace[]> {
   const rows = await listRecentLocationsForTruck(truckId, now.toISOString(), RECENT_ENTRIES);
   const places = new Map<string, RecentPlace>();

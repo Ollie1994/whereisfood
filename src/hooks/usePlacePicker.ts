@@ -59,7 +59,8 @@ export function usePlacePicker({
   // The GPS request whose fix may still fill the form, or null once it may not: the form was
   // refilled, or a spot, recent place or map tap was picked while the phone was locating.
   // A limit: the refill clears it in an effect, so a fix landing between a refill's update
-  // and that effect still fills the new form; the window is one render.
+  // and that effect still fills the new form, or, refused, gives no message (it is tagged
+  // with the older generation); the window is one render.
   const pendingFix = useRef<object | null>(null);
   const geolocation = useGeolocation();
 

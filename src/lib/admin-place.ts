@@ -53,8 +53,6 @@ export const GEO_ERRORS = {
   failed: "Positionen kunde inte hämtas. Försök igen.",
 } as const;
 
-// A limit: browsers also give code 1 on a page served without HTTPS, where no setting
-// helps. The admin screen runs over HTTPS or at `127.0.0.1` (plan #36).
 export function geoError(code: number): string {
   return code === 1 ? GEO_ERRORS.denied : GEO_ERRORS.failed;
 }

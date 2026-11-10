@@ -61,7 +61,7 @@ export default function PlacePicker({ picker, pin, label, onLabel }: PlacePicker
           <div className="flex flex-wrap gap-2">
             {recentPlaces.map((place) => (
               <button
-                key={`${place.label}|${place.latitude}|${place.longitude}`}
+                key={JSON.stringify([place.label, place.latitude, place.longitude])}
                 type="button"
                 onClick={() => picker.pickRecent(place)}
                 className={SMALL_BUTTON}

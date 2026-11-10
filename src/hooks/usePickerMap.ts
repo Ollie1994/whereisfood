@@ -40,11 +40,13 @@ export function usePickerMap(
         containerRef.current,
         start ? { center: [start.longitude, start.latitude], zoom: PIN_ZOOM } : undefined,
       );
-    } catch {
+    } catch (error) {
       // MapLibre's constructor throws `GPUInitializationError` when the browser gives it no
-      // WebGL2 context (`_setupPainter`, maplibre-gl-dev.mjs 6.11.2). Uncaught here, the
-      // throw would replace the admin screen, and the form with it, by the error page. Set
-      // from a callback, not the effect's body (`react-hooks/set-state-in-effect`).
+      // WebGL2 context (`_setupPainter`, maplibre-gl-dev.mjs 6.11.2), after cleaning up its
+      // container. Uncaught here, the throw would replace the admin screen, and the form
+      // with it, by the error page. Any other error is a defect, not the browser's, and is
+      // thrown on. Set from a callback, not the effect's body (`react-hooks/set-state-in-effect`).
+      if (!(error instanceof maplibregl.GPUInitializationError)) throw error;
       queueMicrotask(() => setFailed(true));
       return;
     }
