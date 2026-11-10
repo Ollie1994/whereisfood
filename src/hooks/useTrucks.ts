@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { type Read, adminFetch, adminList } from "@/lib/admin-api";
+import { type ApiResult, adminFetch, fetchTrucks } from "@/lib/admin-api";
 import {
   TRUCK_TEXTS,
   type TruckFormValues,
@@ -19,7 +19,6 @@ import type { Truck } from "@/lib/types";
 // A limit, as on the entries screen (`useLocationForm`): "Ändra" on another truck, or
 // "Avbryt", replaces the form's values without asking, so unsaved changes are dropped.
 
-const fetchTrucks = () => adminList<Truck>("/api/admin/trucks", "trucks");
 
 export type TrucksState = {
   // Null until the trucks have been read once.
@@ -58,7 +57,7 @@ export function useTrucks(): TrucksState {
   // The newest read sent: reads can answer out of order, and only the newest is applied.
   const latestRead = useRef(0);
 
-  const apply = useCallback((id: number, read: Read<Truck[]>) => {
+  const apply = useCallback((id: number, read: ApiResult<Truck[]>) => {
     if (id !== latestRead.current) return;
     if (!read.ok) return setListError(read.error);
     setListError(null);

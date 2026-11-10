@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { type Read, adminFetch, adminList } from "@/lib/admin-api";
+import { type ApiResult, adminFetch, adminList, fetchTrucks } from "@/lib/admin-api";
 import type { AdminEntry } from "@/lib/services/locations";
 import type { Location, Truck } from "@/lib/types";
 
@@ -11,14 +11,16 @@ import type { Location, Truck } from "@/lib/types";
 // moves one of its times, an edit here that changes the other time writes back the one it
 // read (`editRequest` sends both). And an edit of an entry cancelled elsewhere stays open,
 // its save answering "Posten finns inte" and the list read again (`onGone`), until
-// "Avbryt": closing it on a reload could happen mid-save, and would erase that error.
+// "Avbryt": closing it on a reload could happen mid-save, and would erase that error. Also,
+// the trucks are read when the screen opens and after a failed read only, so a truck set
+// inactive in another tab stays offered, its save refused with 400, until the screen opens
+// again; the admin links (`AdminNav`) open it afresh.
 
 export const CANCEL_QUESTION = "Ställa in den här posten? Den försvinner från kartan.";
 
 const MINUTE_MS = 60_000;
 
 const fetchEntries = () => adminList<AdminEntry>("/api/admin/locations", "entries");
-const fetchTrucks = () => adminList<Truck>("/api/admin/trucks", "trucks");
 
 export function useAdminLocations(): {
   // Null until the entries have been read once, so a failed first read shows no "no
@@ -66,7 +68,7 @@ export function useAdminLocations(): {
   const trucksFailed = useRef(false);
 
   // Applies an entries read if it is still the newest one sent.
-  const applyEntries = useCallback((id: number, read: Read<AdminEntry[]>) => {
+  const applyEntries = useCallback((id: number, read: ApiResult<AdminEntry[]>) => {
     if (id !== latestRead.current) return;
     setNow(new Date());
     if (!read.ok) return setEntriesError(read.error);
@@ -75,7 +77,7 @@ export function useAdminLocations(): {
   }, []);
 
   // Applies a trucks read if it is still the newest one sent.
-  const applyTrucks = useCallback((id: number, read: Read<Truck[]>) => {
+  const applyTrucks = useCallback((id: number, read: ApiResult<Truck[]>) => {
     if (id !== latestTrucksRead.current) return;
     trucksFailed.current = !read.ok;
     if (!read.ok) return setTrucksError(read.error);

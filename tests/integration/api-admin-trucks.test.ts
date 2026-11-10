@@ -10,11 +10,10 @@ import { FIXTURE_PREFIX, cookieHeader, keysOf, removeTrucks, resetTables, seedLo
 
 // The truck routes on the admin's session against the local stack (Phase 7 plan, steps 3
 // and 10). Refusals of anyone else are `admin-auth.test.ts`'s. One sign-in (`sessionUser`).
-// Every truck a test expects a `POST` to make is read through `created`, which has it removed
-// after the test (`removeTrucks`). One a `POST` makes unexpectedly (a 409 test's second, if
-// the conflict check broke) isn't, and is caught by `afterAll`'s `resetTables` through the
-// fixture prefix every name carries. Every handle is the test's own (`handle`): the tables
-// are reset once per file, since a reset also removes the signed-in admin.
+// Every truck a `POST` creates is removed after its test (`post`, `removeTrucks`), one a test
+// didn't expect included, and every name carries the fixture prefix as well. Every handle is
+// the test's own (`handle`): the tables are reset once per file, since a reset also removes
+// the signed-in admin.
 
 const ORIGIN = "http://127.0.0.1:3000";
 const HOUR = 3_600_000;
@@ -34,7 +33,12 @@ function request(method: string, body?: unknown) {
   return new NextRequest(`${ORIGIN}/api/admin/trucks`, { method, headers, body: text });
 }
 
-const post = (body: unknown) => POST(request("POST", body));
+// Any truck a `POST` creates is noted for removal, the test's expectation aside.
+async function post(body: unknown): Promise<Response> {
+  const response = await POST(request("POST", body));
+  if (response.status === 201) made.push(((await response.clone().json()) as { truck: { id: string } }).truck.id);
+  return response;
+}
 const patch = (id: string, body: unknown) => PATCH(request("PATCH", body), { params: Promise.resolve({ id }) });
 const named = (name: string) => `${FIXTURE_PREFIX}${name}`;
 // A handle no other test uses.
@@ -48,9 +52,7 @@ afterEach(async () => {
 
 async function created(response: Response): Promise<{ id: string; instagram_handle: string | null }> {
   expect(response.status).toBe(201);
-  const { truck } = (await response.json()) as { truck: { id: string; instagram_handle: string | null } };
-  made.push(truck.id);
-  return truck;
+  return ((await response.json()) as { truck: { id: string; instagram_handle: string | null } }).truck;
 }
 
 describe("GET /api/admin/trucks", () => {

@@ -1,4 +1,4 @@
-import { ALERT, FIELD, FIELDSET, LABEL } from "@/components/Admin/styles";
+import { ALERT, FIELD, FIELDSET, LABEL, PRIMARY_BUTTON, SECONDARY_BUTTON } from "@/components/Admin/styles";
 import type { TrucksState } from "@/hooks/useTrucks";
 
 interface TruckFormProps {
@@ -81,7 +81,7 @@ export default function TruckForm({ trucks }: TruckFormProps) {
         <button
           type="submit"
           disabled={saving}
-          className="flex-1 rounded-md bg-foreground px-4 py-3 text-base font-medium text-background disabled:opacity-60"
+          className={PRIMARY_BUTTON}
         >
           {saving ? "Sparar…" : "Spara"}
         </button>
@@ -90,7 +90,7 @@ export default function TruckForm({ trucks }: TruckFormProps) {
             type="button"
             onClick={stopEdit}
             disabled={saving}
-            className="rounded-md border border-foreground/30 px-4 py-3 text-base disabled:opacity-60"
+            className={SECONDARY_BUTTON}
           >
             Avbryt
           </button>

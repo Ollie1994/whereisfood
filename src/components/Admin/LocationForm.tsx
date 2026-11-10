@@ -1,7 +1,7 @@
 "use client";
 
 import PlacePicker from "@/components/Admin/PlacePicker";
-import { ALERT, FIELD, FIELDSET, LABEL } from "@/components/Admin/styles";
+import { ALERT, FIELD, FIELDSET, LABEL, PRIMARY_BUTTON, SECONDARY_BUTTON } from "@/components/Admin/styles";
 import type { LocationFormState } from "@/hooks/useLocationForm";
 import type { PlacePickerState } from "@/hooks/usePlacePicker";
 import type { AdminEntry } from "@/lib/services/locations";
@@ -125,7 +125,7 @@ export default function LocationForm({
         <button
           type="submit"
           disabled={saving || waiting}
-          className="flex-1 rounded-md bg-foreground px-4 py-3 text-base font-medium text-background disabled:opacity-60"
+          className={PRIMARY_BUTTON}
         >
           {saving ? "Sparar…" : "Spara"}
         </button>
@@ -134,7 +134,7 @@ export default function LocationForm({
             type="button"
             onClick={onStopEdit}
             disabled={saving}
-            className="rounded-md border border-foreground/30 px-4 py-3 text-base disabled:opacity-60"
+            className={SECONDARY_BUTTON}
           >
             Avbryt
           </button>
