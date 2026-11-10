@@ -32,3 +32,15 @@ export async function adminFetch<T>(path: string, init: { method?: string; body?
   const error = (json as { error?: unknown } | null)?.error;
   return { ok: false, error: typeof error === "string" ? error : API_ERRORS.unknown };
 }
+
+export type Read<T> = { ok: true; data: T } | { ok: false; error: string };
+
+// A list under `key` in a route's answer, checked to be an array: `adminFetch` types its
+// data but can't check it. A plain async function, so a hook's effect only starts it and
+// sets state in its callback, not in the effect's body (`react-hooks/set-state-in-effect`).
+export async function adminList<T>(path: string, key: string): Promise<Read<T[]>> {
+  const result = await adminFetch<Record<string, unknown>>(path);
+  if (!result.ok) return result;
+  const list = result.data[key];
+  return Array.isArray(list) ? { ok: true, data: list as T[] } : { ok: false, error: API_ERRORS.unknown };
+}

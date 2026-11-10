@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { API_ERRORS, adminFetch } from "@/lib/admin-api";
+import { type Read, adminFetch, adminList } from "@/lib/admin-api";
 import type { AdminEntry } from "@/lib/services/locations";
 import type { Location, Truck } from "@/lib/types";
 
@@ -16,20 +16,8 @@ export const CANCEL_QUESTION = "Ställa in den här posten? Den försvinner frå
 
 const MINUTE_MS = 60_000;
 
-type Read<T> = { ok: true; data: T } | { ok: false; error: string };
-
-// A list under `key` in a route's answer, checked to be an array: `adminFetch` types
-// its data but can't check it. Module-level, so the effect below only starts it and sets
-// state in its callback, not in the effect's body (`react-hooks/set-state-in-effect`).
-async function fetchList<T>(path: string, key: string): Promise<Read<T[]>> {
-  const result = await adminFetch<Record<string, unknown>>(path);
-  if (!result.ok) return result;
-  const list = result.data[key];
-  return Array.isArray(list) ? { ok: true, data: list as T[] } : { ok: false, error: API_ERRORS.unknown };
-}
-
-const fetchEntries = () => fetchList<AdminEntry>("/api/admin/locations", "entries");
-const fetchTrucks = () => fetchList<Truck>("/api/admin/trucks", "trucks");
+const fetchEntries = () => adminList<AdminEntry>("/api/admin/locations", "entries");
+const fetchTrucks = () => adminList<Truck>("/api/admin/trucks", "trucks");
 
 export function useAdminLocations(): {
   // Null until the entries have been read once, so a failed first read shows no "no

@@ -3,8 +3,9 @@ import { pick } from "@/lib/db/pick";
 import { supabaseAdmin } from "@/lib/supabase";
 import type { NewTruck, Truck, TruckPatch } from "@/lib/types";
 
-// DB access only — no business logic. Reads use the service role (RLS bypassed
-// server-side); errors propagate unchanged. An id that isn't a uuid raises `22P02`, not
+// DB access only — no business logic. Reads and writes use the service role (RLS bypassed
+// server-side); errors propagate unchanged, and no function deletes (`CLAUDE.md`, "db
+// layer"). An id that isn't a uuid raises `22P02`, not
 // null (probed 2026-10-19 on `getActiveTruckById`). Callers must check the shape first;
 // `isUuid` (`src/lib/validators/uuid.ts`) exists for it.
 
