@@ -1,14 +1,15 @@
 "use client";
 
+import Checklist from "@/components/Admin/Checklist";
 import LocationForm from "@/components/Admin/LocationForm";
 import TodayList from "@/components/Admin/TodayList";
 import { ALERT, SMALL_BUTTON } from "@/components/Admin/styles";
 import { useAdminScreen } from "@/hooks/useAdminScreen";
 
-// The admin screen's client part: the form above the list, from `useAdminScreen`, which
-// joins their state.
+// The admin screen's client part: the morning checklist, then the form above the list, from
+// `useAdminScreen`, which joins their state.
 export default function AdminLocations() {
-  const { list, form, picker, confirm, cancel, waiting } = useAdminScreen();
+  const { list, form, picker, checklist, confirm, cancel, waiting } = useAdminScreen();
   const { entries, trucks, now, errors, busyIds, editing, retry, retrying, startEdit, stopEdit } = list;
 
   // "Försök igen" under a failed read: the trucks' (the form can't create without them) or
@@ -34,6 +35,7 @@ export default function AdminLocations() {
           {retryButton}
         </div>
       )}
+      <Checklist checklist={checklist} now={now} />
       <LocationForm form={form} picker={picker} trucks={trucks} editing={editing} waiting={waiting} onStopEdit={stopEdit} />
 
       <section className="flex flex-col gap-3">

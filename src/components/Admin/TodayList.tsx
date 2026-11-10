@@ -1,5 +1,5 @@
 import { SMALL_BUTTON as ACTION } from "@/components/Admin/styles";
-import { entryTimeText, updatedText } from "@/lib/admin-form";
+import { UNKNOWN_PLACE, entryTimeText, updatedText } from "@/lib/admin-form";
 import { hasEnded } from "@/lib/admin-list";
 import type { AdminEntry } from "@/lib/services/locations";
 
@@ -38,7 +38,7 @@ export default function TodayList({
             <div className="flex flex-col">
               <span className="font-medium">{entry.truck_name}</span>
               <span className="text-sm">
-                {entry.label ?? "Okänd plats"}, {entryTimeText(entry, now)}
+                {entry.label ?? UNKNOWN_PLACE}, {entryTimeText(entry, now)}
                 {ended && " · Har slutat"}
               </span>
               <span className="text-xs text-foreground/60">{updatedText(entry.updated_at, now)}</span>

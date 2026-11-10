@@ -1,7 +1,7 @@
 import { LIST_DAYS } from "@/lib/admin-list";
 import { type Pin, samePin } from "@/lib/admin-place";
 import type { Place, RecentPlace } from "@/lib/services/locations";
-import { dayOf, entryWindow, isWallClock, stockholmDay, stockholmWallClock } from "@/lib/stockholm";
+import { dayOf, entryWallTimes, entryWindow, isWallClock, stockholmDay, stockholmWallClock } from "@/lib/stockholm";
 import type { Location } from "@/lib/types";
 
 // The admin screen's pure parts: the form's values, the request they make, and the list's
@@ -15,6 +15,9 @@ export const DEFAULT_END = "13:00";
 
 export const SAVED = "Sparat.";
 export const SAVED_LATER = "Sparat. Posten är mer än två veckor fram och visas i listan när den närmar sig.";
+
+// An entry's place in the list and the checklist when it has no name.
+export const UNKNOWN_PLACE = "Okänd plats";
 
 // What the form says after a save: plain, or that the list won't show the entry yet (#24's
 // limit), so a save past the window doesn't look like it failed (the owner's browser check).
@@ -137,17 +140,11 @@ export function createRequest(values: FormValues): EntryRequest {
 // the route answers it with its own message.
 //
 // Whether the form can show `entry`'s times exactly: its date, start and end rebuild to
-// the stored window. Not for an entry longer than a day, one stored with seconds, or one
-// whose wall times fall in a DST gap: the form shows such an entry's times read-only, and
-// an edit of it changes its place and name alone (`editRequest`). The form's own entries
-// always fit, since `entryWindow` ends one within a day of its start.
+// the stored window (`entryWallTimes`, which says which entries don't). The form shows such
+// an entry's times read-only, and an edit of it changes its place and name alone
+// (`editRequest`). The form's own entries always fit: they are `entryWindow`'s.
 export function timesEditable(entry: Pick<Location, "starts_at" | "ends_at">): boolean {
-  const window = windowOf(timesOf(entry));
-  return (
-    !("error" in window) &&
-    window.startsAt.getTime() === Date.parse(entry.starts_at) &&
-    window.endsAt.getTime() === Date.parse(entry.ends_at)
-  );
+  return entryWallTimes(new Date(entry.starts_at), new Date(entry.ends_at)) !== null;
 }
 
 // The pin when it moved, the name when it changed, and both times when the admin changed

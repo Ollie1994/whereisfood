@@ -83,7 +83,8 @@ the public map, and nobody else can write anything.
 | `src/lib/db/pick.ts`, `src/lib/services/postgres.ts`, `src/lib/http/id.ts`, `src/lib/validators/body.ts` | Shared by the location and truck code: the columns a write may send, a Postgres error's code and constraint, the `[id]` routes' path id, and the validators' body checks (IS #230) |
 | `src/lib/http/trucks.ts` | The truck routes' statuses (IS #230) |
 | `src/lib/admin-place.ts` (+ test) | The place picker's pure parts: the pin from a tap or GPS fix, its texts, the places answer's check (IS #229) |
-| `src/hooks/useLogin.ts`, `useAdminLocations.ts`, `useChecklist.ts`, `useLocationForm.ts`, `usePlacePicker.ts`, `useGeolocation.ts`, `useTrucks.ts`; `useAdminScreen.ts`, which joins the list's and the form's (PR #244) and the place picker's (IS #229); `usePickerMap.ts`, the picker map's MapLibre setup (IS #229) | All state lives here |
+| `src/lib/admin-checklist.ts` (+ test) | The checklist's pure parts: the answer's check, ✓'s request, ✗'s storage, its texts (IS #231) |
+| `src/hooks/useLogin.ts`, `useAdminLocations.ts`, `useChecklist.ts`, `useLocationForm.ts`, `usePlacePicker.ts`, `useGeolocation.ts`, `useTrucks.ts`; `useAdminScreen.ts`, which joins the list's and the form's (PR #244) and the place picker's (IS #229) and the checklist's (IS #231); `usePickerMap.ts`, the picker map's MapLibre setup (IS #229) | All state lives here |
 | `tests/integration/db-users.test.ts` | The key-set test a new table's reads need |
 | `tests/integration/auth-routes.test.ts` | `/auth/callback` and `/auth/logout` against the local stack |
 | `tests/integration/admin-auth.test.ts` | 401 and 403 on every admin route, found on disk (#13) |
@@ -196,7 +197,10 @@ are right on 23- and 25-hour days, except for a shift inside the repeated autumn
 ends before it starts, which `entryWindow` reads as next-day (its stated limit, PR #238).
 Both give null for a time the day doesn't have, such as 02:30 on 2026-03-29 (PR for IS
 #225). The form and the checklist both call `entryWindow`; the API takes timestamps, so
-`parseNewLocation` still refuses an end at or before the start.
+`parseNewLocation` still refuses an end at or before the start. `entryWallTimes(startsAt,
+endsAt)` reads back the date and times `entryWindow` rebuilds a stored entry from, or null
+when it can't: the form's `timesEditable` and the checklist's move to today both use it
+(PR for IS #231, round 2).
 
 **Proxy.** `proxy(request)`: the order of `requireAdmin`, on `/admin/:path*` and
 `/api/admin/:path*`, with `/admin/login` let through. A page gets a redirect to the login,
