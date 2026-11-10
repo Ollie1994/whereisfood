@@ -26,7 +26,7 @@ import { stockholmDay } from "@/lib/stockholm";
 // Limits: the server leaves out what has ended when it reads, so a suggestion ending while
 // the screen is open stays until the next read, and its ✓ is refused ("Tiden har redan
 // passerat"), after which it is read again and gone. And a device whose clock is a day or
-// more ahead shows no suggestions, reading each minute.
+// more ahead shows no suggestions, reading again each time `now` is set.
 
 // A getter: reading `window.localStorage` throws when site data is blocked (`readDismissed`).
 const storage = () => window.localStorage;
@@ -82,7 +82,7 @@ export function useChecklist({
   const appliedDay = useRef<string | null>(null);
 
   const behind = isBehind(checklist, now);
-  // Today's day number, or each minute's tick while the checklist's day is behind it.
+  // Today's day number, or the time each time `now` is set while the checklist's day is behind.
   const turn = behind ? now.getTime() : stockholmDay(now);
   const current = behind ? null : checklist;
 
