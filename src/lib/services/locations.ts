@@ -10,6 +10,7 @@ import {
 } from "@/lib/db/locations";
 import { LIST_DAYS, hasEnded } from "@/lib/admin-list";
 import { getActiveTruckById, listAllTrucks } from "@/lib/db/trucks";
+import { hasCode, namesConstraint } from "@/lib/services/postgres";
 import { stockholmDay, stockholmMidnight, stockholmWallClock } from "@/lib/stockholm";
 import type { Location, LocationPatch } from "@/lib/types";
 import { LOCATION_ERRORS, crossFieldError, type NewLocationInput } from "@/lib/validators/location";
@@ -54,18 +55,13 @@ export const OVERLAP_ADVICE = {
 
 const refuse = (reason: Refusal["reason"], error: string): Refusal => ({ ok: false, reason, error });
 
-// A Postgres error's code, which the db layer lets through unchanged.
-function hasCode(error: unknown, code: string): boolean {
-  return typeof error === "object" && error !== null && (error as { code?: unknown }).code === code;
-}
-
 // The exclusion constraint's code.
 const isOverlap = (error: unknown) => hasCode(error, "23P01");
 
-// The time-order CHECK, by its name in the message: `23514` is every CHECK's code
-// (`db-locations.test.ts` pins the name in `updateLocation`'s error).
+// The time-order CHECK, by its name (`db-locations.test.ts` pins it in `updateLocation`'s
+// error).
 const isOrderCheck = (error: unknown) =>
-  hasCode(error, "23514") && String((error as { message?: unknown }).message).includes("locations_ends_after_starts");
+  hasCode(error, "23514") && namesConstraint(error, "locations_ends_after_starts");
 
 // "2026-08-22 11:00–14:00", or with both dates when the end falls on another day.
 function describeWindow(entry: Pick<Location, "starts_at" | "ends_at">): string {
