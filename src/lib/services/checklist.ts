@@ -1,0 +1,111 @@
+import { hasEnded } from "@/lib/admin-list";
+import { findLocationsOverlapping } from "@/lib/db/locations";
+import { listActiveTrucks } from "@/lib/db/trucks";
+import { entryWindow, stockholmDay, stockholmMidnight, stockholmWallClock } from "@/lib/stockholm";
+import type { Location } from "@/lib/types";
+
+// The morning checklist (Phase 7 plan, #20, #22): what each active truck did on this weekday
+// recently, moved to today, for the admin to confirm (✓, an ordinary create) or dismiss (✗,
+// on the device only). No HTTP, and the clock comes in as `now` (`CLAUDE.md`, "Time").
+
+// How many weeks back the checklist looks, one day window per week (#22).
+export const LOOK_BACK_WEEKS = 4;
+
+// A suggestion: a past entry's truck, place and wall-clock times on today's date, and which
+// entry it came from. `from_id` is what ✗ hides it by; `from_starts_at` is that entry's start,
+// so the admin can see how old it is.
+export type Suggestion = Pick<Location, "truck_id" | "latitude" | "longitude" | "label" | "starts_at" | "ends_at"> & {
+  truck_name: string;
+  from_id: string;
+  from_starts_at: string;
+};
+
+export type Checklist = { day: string; suggestions: Suggestion[] };
+
+// `entry`'s wall-clock times on Stockholm day `day`, through `entryWindow`, so an end at or
+// before the start lands on the next day (#30). Null when `entryWindow` can't rebuild the
+// entry on its own day: longer than a day, stored with seconds, or with a time in its day's
+// DST gap. That is `timesEditable`'s test (`admin-form.ts`), the form's, which can't show such
+// an entry's times either. Null too for a time today doesn't have (02:30 on 2026-03-29).
+function movedTo(entry: Location, day: number): { startsAt: Date; endsAt: Date } | null {
+  const start = stockholmWallClock(new Date(entry.starts_at));
+  const end = stockholmWallClock(new Date(entry.ends_at));
+  const own = entryWindow(stockholmDay(new Date(entry.starts_at)), start.time, end.time);
+  if (
+    !own ||
+    own.startsAt.getTime() !== Date.parse(entry.starts_at) ||
+    own.endsAt.getTime() !== Date.parse(entry.ends_at)
+  ) {
+    return null;
+  }
+  return entryWindow(day, start.time, end.time);
+}
+
+const overlaps = (a: Pick<Location, "starts_at" | "ends_at">, b: Pick<Location, "starts_at" | "ends_at">) =>
+  Date.parse(a.starts_at) < Date.parse(b.ends_at) && Date.parse(b.starts_at) < Date.parse(a.ends_at);
+
+// For each active truck, in `listActiveTrucks`' order: of this weekday in the last
+// `LOOK_BACK_WEEKS` weeks, the most recent day it had a live entry starting that day, and
+// all of that day's entries, so lunch and dinner both show, each by start (#22). The day
+// windows are whole Stockholm days back from `stockholmDay(now)`, never `now - 7 × 24 h`
+// (#31). Left out: a suggestion already ended, one overlapping a live entry the truck has
+// now, and one whose times `movedTo` can't move.
+//
+// Limits: a truck that cancelled today can be suggested again, since cancelled rows aren't
+// read (#22); ✗ hides it. Each week's window reads every truck's rows through
+// `findLocationsOverlapping`, which throws past `MAX_ROWS` in one day, the same wall as
+// `listAdminEntries`' 14 days.
+export async function getChecklist(now: Date): Promise<Checklist> {
+  const today = stockholmDay(now);
+  const day = stockholmWallClock(now).date;
+  const trucks = await listActiveTrucks();
+  if (trucks.length === 0) return { day, suggestions: [] };
+
+  const pastDays = Array.from({ length: LOOK_BACK_WEEKS }, (_, week) => today - 7 * (week + 1));
+  const weeks = await Promise.all(
+    pastDays.map(async (pastDay) => {
+      const rows = await findLocationsOverlapping(
+        stockholmMidnight(pastDay).toISOString(),
+        stockholmMidnight(pastDay + 1).toISOString(),
+      );
+      // A row overlapping the window from the day before didn't start that day.
+      return rows.filter((row) => stockholmDay(new Date(row.starts_at)) === pastDay);
+    }),
+  );
+
+  const moved: Suggestion[] = [];
+  for (const truck of trucks) {
+    const latest = weeks.map((rows) => rows.filter((row) => row.truck_id === truck.id)).find((rows) => rows.length > 0);
+    for (const entry of latest ?? []) {
+      const window = movedTo(entry, today);
+      if (!window) continue;
+      moved.push({
+        truck_id: truck.id,
+        truck_name: truck.name,
+        latitude: entry.latitude,
+        longitude: entry.longitude,
+        label: entry.label,
+        starts_at: window.startsAt.toISOString(),
+        ends_at: window.endsAt.toISOString(),
+        from_id: entry.id,
+        from_starts_at: entry.starts_at,
+      });
+    }
+  }
+
+  const open = moved.filter((suggestion) => !hasEnded(suggestion, now));
+  if (open.length === 0) return { day, suggestions: [] };
+
+  // The live rows across every suggestion's window: one read, not one per truck. A
+  // suggestion ends by tomorrow's end (`entryWindow`), so the window spans two days at most.
+  const from = new Date(Math.min(...open.map((s) => Date.parse(s.starts_at)))).toISOString();
+  const to = new Date(Math.max(...open.map((s) => Date.parse(s.ends_at)))).toISOString();
+  const current = await findLocationsOverlapping(from, to);
+
+  return {
+    day,
+    suggestions: open.filter(
+      (suggestion) => !current.some((row) => row.truck_id === suggestion.truck_id && overlaps(row, suggestion)),
+    ),
+  };
+}
