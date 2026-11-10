@@ -277,7 +277,7 @@ describe("entryWallTimes", () => {
     expect(entryWallTimes(at(startsAt), at(endsAt))).toBeNull();
   });
 
-  it("reads back every window entryWindow makes, across both changes", () => {
+  it("reads back entryWindow's windows across both changes", () => {
     for (const [date, start, end] of [
       ["2026-03-29", "01:00", "04:00"],
       ["2026-10-25", "02:30", "02:15"],
