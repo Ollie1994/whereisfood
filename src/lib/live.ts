@@ -78,9 +78,9 @@ export function isLiveResponse(body: unknown): body is LiveResponse {
 
 // --- Timestamps ------------------------------------------------------------------
 
-// Every timestamp string is read here, never by passing the string to `formatInTimeZone`:
-// date-fns-tz's own parser reads `…T24:00:00+00:00` as that day's 00:00 where `parseISO`
-// reads the next day's (probed, PR #190 round 2). The guard refuses hour 24 as well.
+// Every timestamp string is read here, by `parseISO`, which reads `…T24:00:00+00:00` as the
+// next day's 00:00, where date-fns-tz's own parser read that day's (probed, PR #190 round 2).
+// The guard refuses hour 24 as well.
 function instant(timestamp: string): Date {
   return parseISO(timestamp);
 }

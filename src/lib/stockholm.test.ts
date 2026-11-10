@@ -173,7 +173,7 @@ describe("wallClockToUtc", () => {
     ["Asia/Tokyo", "2026-11-08", "11:00", "2026-11-08T10:00:00.000Z"],
     ["UTC", "2026-11-08", "11:00", "2026-11-08T10:00:00.000Z"],
     ["Europe/Stockholm", "2026-11-08", "11:00", "2026-11-08T10:00:00.000Z"],
-  ])("gives the same answers on a host in %s, its gap day %s %s included", (zone, date, time, expected) => {
+  ])("gives the same answers on a host in %s, %s %s included", (zone, date, time, expected) => {
     const env = process.env.TZ;
     const original = Intl.DateTimeFormat().resolvedOptions().timeZone;
     process.env.TZ = zone;

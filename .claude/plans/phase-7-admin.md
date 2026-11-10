@@ -189,8 +189,8 @@ refused here, since the db layer throws on an empty one. `created_by`, `source` 
 `cancelled_at` are never read from a body (#17). Every id that reaches the db layer goes
 through `isUuid`: on a path, in a query string or in a body.
 
-**`src/lib/stockholm.ts`.** `TZ`, `stockholmDay`, `stockholmMidnight` (moved from `live.ts`,
-#31), `stockholmDayBounds(now)`, `wallClockToUtc(day, "11:00")`, and `entryWindow(day, start,
+**`src/lib/stockholm.ts`.** `TZ` (module-local since IS #239), `stockholmDay`,
+`stockholmMidnight` (moved from `live.ts`, #31), `stockholmDayBounds(now)`, `wallClockToUtc(day, "11:00")`, and `entryWindow(day, start,
 end)`, whose end at or before the start falls on the next day (#30), through `Intl`, not
 `date-fns-tz`, whose results depend on the host's zone (`CLAUDE.md`, "Time"; PR #238). They
 are right on 23- and 25-hour days, except for a shift inside the repeated autumn hour that

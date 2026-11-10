@@ -443,24 +443,24 @@ describe("text helpers", () => {
 // hour late crosses Stockholm's midnight, so its date and weekday would change too: on that
 // host `formatInTimeZone` read 2026-03-28 22:30Z (Saturday 23:30 in Stockholm) as
 // "2026-3-29 00:30", weekday 7 (probed in PR #252, round 1). Stockholm's own gaps hold no
-// Stockholm wall time, so its host's case is an ordinary one. `resolvedOptions` reports
-// Nuuk by its older name, America/Godthab. Node reads `process.env.TZ` again when it is assigned, and deleting it leaves the
-// last zone in place, so the zone is assigned back before the variable is (as
-// `stockholm.test.ts` does).
+// Stockholm wall time, so its host's case is an ordinary one. The host's zone is compared
+// with `Intl`'s own name for it, which for Nuuk is an older alias in some ICU versions. Node
+// reads `process.env.TZ` again when it is assigned, and deleting it leaves the last zone in
+// place, so the zone is assigned back before the variable is (as `stockholm.test.ts` does).
 describe("text helpers on a host in another zone", () => {
   const HOUR = 3_600_000;
   const DAY = 24 * HOUR;
   const iso = (ms: number) => new Date(ms).toISOString();
 
   it.each([
-    ["America/New_York", "America/New_York", "2026-03-08T01:30:00Z", "02:30", "02:30–04:30", "söndags", "8 mars"],
-    ["America/Los_Angeles", "America/Los_Angeles", "2026-03-08T01:30:00Z", "02:30", "02:30–04:30", "söndags", "8 mars"],
-    ["Australia/Sydney", "Australia/Sydney", "2026-10-04T00:30:00Z", "02:30", "02:30–04:30", "söndags", "4 okt"],
-    ["America/Santiago", "America/Santiago", "2026-09-05T22:30:00Z", "00:30", "00:30–02:30", "söndags", "6 sep"],
-    ["America/Havana", "America/Havana", "2026-03-07T23:30:00Z", "00:30", "00:30–02:30", "söndags", "8 mars"],
-    ["America/Nuuk", "America/Godthab", "2026-03-28T22:30:00Z", "23:30", "23:30–01:30 imorgon", "lördags", "28 mars"],
-    ["Europe/Stockholm", "Europe/Stockholm", "2026-03-08T01:30:00Z", "02:30", "02:30–04:30", "söndags", "8 mars"],
-  ])("on %s, %s reads %s", (zone, resolved, startsAt, start, hours, day, date) => {
+    ["America/New_York", "2026-03-08T01:30:00Z", "02:30", "02:30–04:30", "söndags", "8 mars"],
+    ["America/Los_Angeles", "2026-03-08T01:30:00Z", "02:30", "02:30–04:30", "söndags", "8 mars"],
+    ["Australia/Sydney", "2026-10-04T00:30:00Z", "02:30", "02:30–04:30", "söndags", "4 okt"],
+    ["America/Santiago", "2026-09-05T22:30:00Z", "00:30", "00:30–02:30", "söndags", "6 sep"],
+    ["America/Havana", "2026-03-07T23:30:00Z", "00:30", "00:30–02:30", "söndags", "8 mars"],
+    ["America/Nuuk", "2026-03-28T22:30:00Z", "23:30", "23:30–01:30 imorgon", "lördags", "28 mars"],
+    ["Europe/Stockholm", "2026-03-08T01:30:00Z", "02:30", "02:30–04:30", "söndags", "8 mars"],
+  ])("on a host in %s, %s reads %s in Stockholm", (zone, startsAt, start, hours, day, date) => {
     const t = Date.parse(startsAt);
     const e = entry({ starts_at: startsAt, ends_at: iso(t + 2 * HOUR), updated_at: startsAt });
     // 15 minutes on: still the start's Stockholm day in every case, Nuuk's 23:30 included.
@@ -469,7 +469,9 @@ describe("text helpers on a host in another zone", () => {
     const original = Intl.DateTimeFormat().resolvedOptions().timeZone;
     process.env.TZ = zone;
     try {
-      expect(Intl.DateTimeFormat().resolvedOptions().timeZone).toBe(resolved);
+      expect(Intl.DateTimeFormat().resolvedOptions().timeZone).toBe(
+        new Intl.DateTimeFormat("en", { timeZone: zone }).resolvedOptions().timeZone,
+      );
       expect(hoursText(e, soon)).toBe(hours);
       expect(statusText({ entry: e, status: "later" })).toBe(`Öppnar ${start}`);
       expect(freshnessText(startsAt, soon)).toBe(`Uppdaterad ${start}`);
