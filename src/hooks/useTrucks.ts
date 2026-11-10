@@ -13,7 +13,8 @@ import type { Truck } from "@/lib/types";
 // The trucks screen's state (Phase 7 plan, step 10): every truck, read through the uncached
 // admin route, the form for a new truck or an edit of `editing`, and "Sätt inaktiv" /
 // "Aktivera" on each truck. No delete: setting inactive is an edit (`CLAUDE.md`,
-// "Locations"). A save or a list button reads the trucks again, on a refusal too.
+// "Locations"). A list button reads the trucks again, on a refusal too; a save, when it
+// succeeds or answers 404.
 //
 // A limit, as on the entries screen (`useLocationForm`): "Ändra" on another truck, or
 // "Avbryt", replaces the form's values without asking, so unsaved changes are dropped.
