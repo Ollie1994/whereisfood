@@ -252,11 +252,11 @@ Cloudflare dashboard (no API token needed):
     the branch slug is 33 characters or fewer.
   - Here `range` is the only header pmtiles sends (4.5.0, the installed and locked
     version; `package.json` allows `^4.5.0`): `FetchSource.getBytes` adds it to the
-    custom headers, and `useMapLibre` sets none. `if-match` is in the rule because
-    `.claude/context/project-context.md`'s R2 note lists it, not because the map sends
-    it. After a pmtiles upgrade, check `getBytes` again. A header it adds that isn't
-    CORS-safelisted (the Fetch standard's list), and that the rule lacks, fails the
-    browser's preflight; to see it with curl, add that header to
+    custom headers, and `createBaseMap` (`src/lib/map-setup.ts`) sets none. `if-match`
+    is in the rule because `.claude/context/project-context.md`'s R2 note lists it, not
+    because the map sends it. After a pmtiles upgrade, check `getBytes` again. A header
+    it adds that isn't CORS-safelisted (the Fetch standard's list), and that the rule
+    lacks, fails the browser's preflight; to see it with curl, add that header to
     `Access-Control-Request-Headers` in the preflight below.
   - Locally, only `http://localhost:3000` is allowed. `127.0.0.1:3000`, another port
     (a leftover server can push `npm run dev` to `:3001`) or the `Network:` address

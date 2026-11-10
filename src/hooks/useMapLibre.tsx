@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { flushSync } from "react-dom";
-// Namespace import: MapLibre 6 is ESM-only and has no default export.
+// Namespace import, for the reason `map-setup.ts` gives.
 import * as maplibregl from "maplibre-gl";
 import TruckPopup from "@/components/Map/TruckPopup";
 import { diffMarkers, statusText, type MarkerEntry, type TruckId } from "@/lib/live";

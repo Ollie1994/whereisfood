@@ -67,6 +67,7 @@ the public map, and nobody else can write anything.
 | `src/lib/db/users.ts` | `getUserById()` |
 | `src/lib/validators/truck.ts`, `location.ts` (+ tests) | Pure input checks |
 | `src/lib/stockholm.ts` (+ test) | Stockholm calendar days, day bounds and wall-clock time to UTC, with `live.ts`'s helpers moved in (#31) |
+| `src/lib/map-setup.ts` | `createBaseMap`, the basemap setup the public map and the place picker share, out of `useMapLibre.tsx` so the picker's lazy chunk doesn't carry the public map (IS #229) |
 | `src/app/auth/callback/route.ts` | Finishes the login |
 | `src/app/auth/logout/route.ts` (+ test) | Ends the session, outside `/api/admin/` (#28); its test stubs an Auth error, which the local stack can't produce on demand |
 | `src/app/api/admin/trucks/route.ts`, `trucks/[id]/route.ts` | List, create, edit |
@@ -97,7 +98,7 @@ the public map, and nobody else can write anything.
 | `src/lib/db/trucks.ts` | `listAllTrucks`, `insertTruck`, `updateTruck` |
 | `src/lib/db/locations.ts` | `getLocationById`, `confirmLocation`, `findTruckLocationsOverlapping`; `listRecentLocationsForTruck`'s limit check moved into `checkLimit`, shared with the last, same rule and message (PR for IS #226, round 1) |
 | `src/lib/types.ts` | `NewTruck`, `TruckPatch`, `User` |
-| `src/hooks/useMapLibre.tsx` | Only if the pin picker needs its setup shared; then a `/map` browser check |
+| `src/hooks/useMapLibre.tsx` | Only if the pin picker needs its setup shared; then a `/map` browser check. It did: the setup moved to `map-setup.ts` (IS #229) |
 | `tests/integration/helpers.ts` | A session cookie for route tests (open decision 7) |
 | `supabase/seed.sql` | #196's comments, and a local admin user if that proves simplest (open decision 5) |
 | `README.md` | Creating the admin user, the hosted auth settings |
@@ -284,7 +285,8 @@ failure is understood.
     (the proxy, the admin screens), "Versions" (`server-only` and `@supabase/ssr` added,
     and `next.config.ts`'s `allowedDevOrigins`), "Database"'s db-layer list (`users.ts`,
     `trucks.ts`'s `listAllTrucks`, and `locations.ts`'s `getLocationById`, `confirmLocation`
-    and `findTruckLocationsOverlapping`, PR #243), "Modules kept on purpose", "Folder structure",
+    and `findTruckLocationsOverlapping`, PR #243), "Modules kept on purpose" (`basemap.ts`'s
+    user is now `map-setup.ts`, and `geo.ts`'s Phase 7 use is built, PR #245), "Folder structure",
     "Environment", "Tests and gates", the Roadmap row; Part 2's "Admin and auth", which
     becomes a description of what was built, the "Read path" diagram's `POST/PATCH
     /api/locations`, which is `/api/admin/locations` (#10), the same section's "Saves trigger
@@ -296,7 +298,8 @@ failure is understood.
     (PR #243, rounds 4 and 5); "Open decisions" (#22 and #23 settle two, #25 and #26 move two to
     Phase 8), the "Read path" section's "One time zone" bullet, whose `live.ts`'s `TZ` is now
     `stockholm.ts`'s (PR #238); Part 3's "Status codes" (404, 503, and 409 from `23505` as
-    well) and "Hooks"; and the README's status parts. It replaces each **between phases** marker in
+    well) and "Hooks" (map init is `map-setup.ts`'s, and the admin hooks are new, PR #245); and
+    the README's status parts. It replaces each **between phases** marker in
     "Decisions carried forward" with the decision here that took it up (#1–#9), and carries
     forward this plan's decisions that outlive the phase.
 
