@@ -433,6 +433,67 @@ describe("text helpers", () => {
         "Uppdaterad 20 dec 2025 09:00",
       );
     });
+
+    // `isTimestamp` takes both; `parseISO` reads the first as -000001-12-31T01:00Z. Before
+    // 1893 Stockholm's offset is local mean time, +00:53:28 (`stockholm.ts`).
+    it("a year before 1 keeps its sign, and year 0 its four digits", () => {
+      expect(freshnessText("0000-01-01T00:00:00+23:00", at("2026-11-10T12:00:00+01:00"))).toBe(
+        "Uppdaterad 31 dec -0001 01:53",
+      );
+      expect(freshnessText("0000-06-01T12:00:00+00:00", at("2026-11-10T12:00:00+01:00"))).toBe(
+        "Uppdaterad 1 juni 0000 12:53",
+      );
+    });
+  });
+});
+
+// The popup's times on a host in another zone (IS #239). Each case's instant reads, in
+// Stockholm, as a wall time in its host's own DST gap that day: date-fns-tz's
+// `formatInTimeZone` rebuilt that wall time in the host's zone and was an hour late there
+// (2026-03-08 01:30Z read "03:30" on a New York host, PR #238). Nuuk's is the case where an
+// hour late crosses Stockholm's midnight, so its date and weekday would change too: on that
+// host `formatInTimeZone` read 2026-03-28 22:30Z (Saturday 23:30 in Stockholm) as
+// "2026-3-29 00:30", weekday 7 (probed in PR #252, round 1). Stockholm's own gaps hold no
+// Stockholm wall time, so its host's case is an ordinary one. Each case checks the host's
+// UTC offset at its instant (`getTimezoneOffset`, probed with `process.env.TZ` set
+// in-process, PR #252 round 3), so the zone took hold with no zone name compared. Node
+// reads `process.env.TZ` again when it is assigned, and deleting it leaves the last zone in
+// place, so the zone is assigned back before the variable is (as `stockholm.test.ts` does).
+describe("text helpers on a host in another zone", () => {
+  const HOUR = 3_600_000;
+  const DAY = 24 * HOUR;
+  const iso = (ms: number) => new Date(ms).toISOString();
+
+  it.each([
+    ["America/New_York", 300, "2026-03-08T01:30:00Z", "02:30", "02:30–04:30", "söndags", "8 mars"],
+    ["America/Los_Angeles", 480, "2026-03-08T01:30:00Z", "02:30", "02:30–04:30", "söndags", "8 mars"],
+    ["Australia/Sydney", -660, "2026-10-04T00:30:00Z", "02:30", "02:30–04:30", "söndags", "4 okt"],
+    ["America/Santiago", 240, "2026-09-05T22:30:00Z", "00:30", "00:30–02:30", "söndags", "6 sep"],
+    ["America/Havana", 300, "2026-03-07T23:30:00Z", "00:30", "00:30–02:30", "söndags", "8 mars"],
+    ["America/Nuuk", 120, "2026-03-28T22:30:00Z", "23:30", "23:30–01:30 imorgon", "lördags", "28 mars"],
+    ["Europe/Stockholm", -60, "2026-03-08T01:30:00Z", "02:30", "02:30–04:30", "söndags", "8 mars"],
+  ])("on a host in %s (offset %i), %s reads %s in Stockholm", (zone, offset, startsAt, start, hours, day, date) => {
+    const t = Date.parse(startsAt);
+    const e = entry({ starts_at: startsAt, ends_at: iso(t + 2 * HOUR), updated_at: startsAt });
+    // 15 minutes on: still the start's Stockholm day in every case, Nuuk's 23:30 included.
+    const soon = new Date(t + HOUR / 4);
+    const env = process.env.TZ;
+    const original = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    process.env.TZ = zone;
+    try {
+      expect(new Date(t).getTimezoneOffset()).toBe(offset);
+      expect(hoursText(e, soon)).toBe(hours);
+      expect(statusText({ entry: e, status: "later" })).toBe(`Öppnar ${start}`);
+      expect(freshnessText(startsAt, soon)).toBe(`Uppdaterad ${start}`);
+      expect(freshnessText(startsAt, new Date(t + 3 * DAY))).toBe(`Uppdaterad i ${day} ${start}`);
+      expect(freshnessText(startsAt, new Date(t + 10 * DAY))).toBe(`Uppdaterad ${date} ${start}`);
+    } finally {
+      process.env.TZ = original;
+      if (env === undefined) delete process.env.TZ;
+      else process.env.TZ = env;
+    }
+    expect(Intl.DateTimeFormat().resolvedOptions().timeZone).toBe(original);
+    expect(process.env.TZ).toBe(env);
   });
 });
 

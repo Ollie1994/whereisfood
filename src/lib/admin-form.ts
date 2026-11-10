@@ -172,7 +172,7 @@ export function editRequest(values: FormValues, entry: EditedEntry): EntryReques
 
 // "igår", "idag", "imorgon" or the date, for the Stockholm day `instant` falls on. Counted
 // with `stockholmDay`, not by parsing the date text: Stockholm's date can have five digits
-// (`stockholmWallClock`), which `dayOf` doesn't read.
+// or a sign (`stockholmWallClock`), which `dayOf` doesn't read.
 function dayText(instant: Date, now: Date): string {
   const offset = stockholmDay(instant) - stockholmDay(now);
   if (offset === -1) return "igår";

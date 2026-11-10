@@ -98,7 +98,7 @@ the public map, and nobody else can write anything.
 | `src/lib/supabase.ts` | Gains `import "server-only"`, loses `supabaseClient` (#27) |
 | `vitest.config.ts` | An alias for `server-only`, if a probe shows it is needed |
 | `src/proxy.ts`, `src/proxy.test.ts` (new) | The real matcher and checks; the test pins the matcher (#10) |
-| `src/lib/live.ts` | `TZ`, `stockholmDay` and `stockholmMidnight` move out, imported from `stockholm.ts` (#31); `isTimestamp` moves to `timestamp.ts` (IS #229) |
+| `src/lib/live.ts` | `TZ`, `stockholmDay` and `stockholmMidnight` move out, imported from `stockholm.ts` (#31); `isTimestamp` moves to `timestamp.ts` (IS #229); the popup text reads Stockholm wall time through `stockholmWallClock`, not `formatInTimeZone`, and `live.ts` no longer imports `TZ` (IS #239) |
 | `supabase/config.toml` | Sign-ups off, redirect URLs |
 | `src/lib/db/trucks.ts` | `listAllTrucks`, `insertTruck`, `updateTruck` (through `pick.ts`, IS #230) |
 | `src/lib/db/locations.ts` | `getLocationById`, `confirmLocation`, `findTruckLocationsOverlapping`; `listRecentLocationsForTruck`'s limit check moved into `checkLimit`, shared with the last, same rule and message (PR for IS #226, round 1) |
@@ -190,8 +190,8 @@ refused here, since the db layer throws on an empty one. `created_by`, `source` 
 through `isUuid`: on a path, in a query string or in a body.
 
 **`src/lib/stockholm.ts`.** `TZ`, `stockholmDay`, `stockholmMidnight` (moved from `live.ts`,
-#31), `stockholmDayBounds(now)`, `wallClockToUtc(day, "11:00")`, and `entryWindow(day, start,
-end)`, whose end at or before the start falls on the next day (#30), through `Intl`, not
+#31; `TZ` module-local since IS #239), `stockholmDayBounds(now)`, `wallClockToUtc(day,
+"11:00")`, and `entryWindow(day, start, end)`, whose end at or before the start falls on the next day (#30), through `Intl`, not
 `date-fns-tz`, whose results depend on the host's zone (`CLAUDE.md`, "Time"; PR #238). They
 are right on 23- and 25-hour days, except for a shift inside the repeated autumn hour that
 ends before it starts, which `entryWindow` reads as next-day (its stated limit, PR #238).

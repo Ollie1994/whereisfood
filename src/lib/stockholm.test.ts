@@ -52,6 +52,10 @@ describe("stockholmWallClock", () => {
     // The validator's last UTC year, which Stockholm reads as year 10000, and its first.
     ["9999-12-31T23:30:00Z", "10000-01-01", "00:30"],
     ["0001-01-01T00:00:00Z", "0001-01-01", "00:53"],
+    // Years 0 and -1 (`isTimestamp` takes "0000-01-01T00:00:00+23:00", -0001-12-31T01:00Z):
+    // the sign goes ahead of the padding (PR #252, round 4).
+    ["0000-06-01T12:00:00Z", "0000-06-01", "12:53"],
+    ["-000001-12-31T01:00:00Z", "-0001-12-31", "01:53"],
   ])("reads %s as %s %s", (instant, date, time) => {
     expect(stockholmWallClock(new Date(instant))).toEqual({ date, time });
   });
@@ -156,10 +160,10 @@ describe("wallClockToUtc", () => {
   });
 
   // `fromZonedTime` gives the first occurrence on a New York or Los Angeles host, and
-  // `formatInTimeZone` is an hour late on the host's own gap day (PR #238). The first five
-  // cases' date and time fall in their host's gap. Tokyo and UTC have one offset all of 2026,
-  // and Stockholm's gaps are its own, which no wall time falls in, so theirs is an ordinary
-  // time.
+  // `formatInTimeZone` is an hour late for a wall time in the host's own gap (PR #238). The
+  // first five cases' date and time fall in their host's gap. Tokyo and UTC have one offset
+  // all of 2026, and Stockholm's gaps are its own, which no wall time falls in, so theirs is
+  // an ordinary time.
   //
   // Node reads `process.env.TZ` again when it is assigned, but deleting it leaves the last
   // zone in place (probed, PR #238): the zone is assigned back first, then the variable is
@@ -173,7 +177,7 @@ describe("wallClockToUtc", () => {
     ["Asia/Tokyo", "2026-11-08", "11:00", "2026-11-08T10:00:00.000Z"],
     ["UTC", "2026-11-08", "11:00", "2026-11-08T10:00:00.000Z"],
     ["Europe/Stockholm", "2026-11-08", "11:00", "2026-11-08T10:00:00.000Z"],
-  ])("gives the same answers on a host in %s, its gap day %s %s included", (zone, date, time, expected) => {
+  ])("gives the same answers on a host in %s, %s %s included", (zone, date, time, expected) => {
     const env = process.env.TZ;
     const original = Intl.DateTimeFormat().resolvedOptions().timeZone;
     process.env.TZ = zone;

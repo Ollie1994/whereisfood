@@ -1,6 +1,5 @@
 import { parseISO } from "date-fns";
-import { formatInTimeZone } from "date-fns-tz";
-import { stockholmDay, stockholmMidnight, TZ } from "@/lib/stockholm";
+import { stockholmDay, stockholmMidnight, stockholmWallClock } from "@/lib/stockholm";
 import { isTimestamp } from "@/lib/timestamp";
 import type { Location, Truck } from "@/lib/types";
 
@@ -79,9 +78,9 @@ export function isLiveResponse(body: unknown): body is LiveResponse {
 
 // --- Timestamps ------------------------------------------------------------------
 
-// Every timestamp string is read here, never by passing the string to `formatInTimeZone`:
-// date-fns-tz's own parser reads `…T24:00:00+00:00` as that day's 00:00 where `parseISO`
-// reads the next day's (probed, PR #190 round 2). The guard refuses hour 24 as well.
+// Every timestamp string is read here, by `parseISO`, never by another parser: date-fns-tz's
+// own parser reads `…T24:00:00+00:00` as that day's 00:00 where `parseISO` reads the next
+// day's (probed, PR #190 round 2). The guard refuses hour 24 as well.
 function instant(timestamp: string): Date {
   return parseISO(timestamp);
 }
@@ -158,19 +157,32 @@ export function diffMarkers(
 
 // --- Popup text ------------------------------------------------------------------------
 
+// Stockholm wall time through `stockholm.ts`'s `Intl` reading, not date-fns-tz's
+// `formatInTimeZone`, which was an hour late for a Stockholm wall time inside the host's own
+// DST gap: 2026-03-08 01:30Z read "03:30" on a New York host (IS #239; `live.test.ts`'s
+// host-zone cases).
 function clock(date: Date): string {
-  return formatInTimeZone(date, TZ, "HH:mm");
+  return stockholmWallClock(date).time;
 }
 
-// Index = ISO weekday (`i`) - 1, and month (`M`) - 1.
+// Index = ISO weekday - 1 (Monday first), and month - 1.
 const WEEKDAYS = ["måndags", "tisdags", "onsdags", "torsdags", "fredags", "lördags", "söndags"];
 const MONTHS = ["jan", "feb", "mars", "apr", "maj", "juni", "juli", "aug", "sep", "okt", "nov", "dec"];
 
+// The weekday of Stockholm day `day` (`stockholmDay`'s count): day 0, 1970-01-01, was a
+// Thursday.
+function weekday(day: number): string {
+  return WEEKDAYS[(((day + 3) % 7) + 7) % 7];
+}
+
 // "24 okt" in Stockholm, with the year when it isn't `now`'s: "20 dec 2025".
+// The day and month are read from the end of `stockholmWallClock`'s date, not by splitting
+// on "-", which a year before 1 also holds ("-0001-12-31").
 function shortDate(date: Date, now: Date): string {
-  const [year, month, day] = formatInTimeZone(date, TZ, "yyyy-M-d").split("-");
-  const text = `${day} ${MONTHS[Number(month) - 1]}`;
-  return year === formatInTimeZone(now, TZ, "yyyy") ? text : `${text} ${year}`;
+  const wall = stockholmWallClock(date).date;
+  const year = wall.slice(0, -6);
+  const text = `${Number(wall.slice(-2))} ${MONTHS[Number(wall.slice(-5, -3)) - 1]}`;
+  return year === stockholmWallClock(now).date.slice(0, -6) ? text : `${text} ${year}`;
 }
 
 // The word for Stockholm day `day` (the day of `date`), seen from `today`, `now`'s.
@@ -209,13 +221,13 @@ export function statusText(marker: MarkerEntry): string {
 // By Stockholm calendar days between `updated_at` and `now` (plan, open decision 5).
 export function freshnessText(updatedAt: string, now: Date): string {
   const at = instant(updatedAt);
-  const days = stockholmDay(now) - stockholmDay(at);
+  const atDay = stockholmDay(at);
+  const days = stockholmDay(now) - atDay;
   const time = clock(at);
   if (days <= 0) return `Uppdaterad ${time}`;
   if (days === 1) return `Uppdaterad igår ${time}`;
   if (days < 7) {
-    const weekday = WEEKDAYS[Number(formatInTimeZone(at, TZ, "i")) - 1];
-    return `Uppdaterad i ${weekday} ${time}`;
+    return `Uppdaterad i ${weekday(atDay)} ${time}`;
   }
   return `Uppdaterad ${shortDate(at, now)} ${time}`;
 }

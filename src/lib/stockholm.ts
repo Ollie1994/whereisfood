@@ -2,16 +2,17 @@
 // map (`live.ts`), the admin form and the checklist (Phase 7 plan, #31). No clock: every
 // function that needs the time takes it.
 
-export const TZ = "Europe/Stockholm";
+const TZ = "Europe/Stockholm";
 
 const DAY_MS = 86_400_000;
 const MINUTE_MS = 60_000;
 const SECOND_MS = 1_000;
 
 // Stockholm's wall time through `Intl`, not date-fns-tz's `formatInTimeZone`, which
-// rebuilds it with `setHours` in the host's own zone and is an hour late on the host's
-// gap day: 2026-03-08 01:30Z read "03:30" on a New York host and "02:30" here, as did
-// Sydney's, Santiago's and Havana's gap days (`process.env.TZ` set in-process, PR #238).
+// rebuilds it with `setHours` in the host's own zone and is an hour late for a wall time
+// inside the host's own gap: 2026-03-08 01:30Z read "03:30" on a New York host and "02:30"
+// here, and wall times in Sydney's, Santiago's and Havana's gaps were an hour late too
+// (`process.env.TZ` set in-process, PR #238).
 const STOCKHOLM = new Intl.DateTimeFormat("en-CA", {
   timeZone: TZ,
   era: "short",
@@ -59,12 +60,15 @@ function wallInstants(day: number, minutes: number): number[] {
 // `date`'s Stockholm calendar date and clock time, as "2026-08-22" and "11:00", through
 // `wallMs`, so no host zone is involved. From the fields, not `toISOString`, which writes
 // Stockholm's 10000-01-01 (UTC 9999-12-31T23:30Z, which the validator takes) as
-// "+010000-01-01T…" (`new Date(Date.UTC(10000, 0, 1, 0, 30)).toISOString()` in Node).
+// "+010000-01-01T…" (`new Date(Date.UTC(10000, 0, 1, 0, 30)).toISOString()` in Node). A year
+// before 1 keeps its sign ahead of the padding, "-0001-12-31": padded as a number it read
+// "00-1-12-31" (PR #252, round 4).
 export function stockholmWallClock(date: Date): { date: string; time: string } {
   const wall = new Date(wallMs(date.getTime()));
   const pad = (n: number, width = 2) => String(n).padStart(width, "0");
+  const year = wall.getUTCFullYear();
   return {
-    date: `${pad(wall.getUTCFullYear(), 4)}-${pad(wall.getUTCMonth() + 1)}-${pad(wall.getUTCDate())}`,
+    date: `${year < 0 ? "-" : ""}${pad(Math.abs(year), 4)}-${pad(wall.getUTCMonth() + 1)}-${pad(wall.getUTCDate())}`,
     time: `${pad(wall.getUTCHours())}:${pad(wall.getUTCMinutes())}`,
   };
 }
@@ -144,7 +148,7 @@ export function entryWindow(day: number, start: string, end: string): { startsAt
 // - a time with seconds;
 // - a time in the first copy of the hour an autumn change repeats, which `wallClockToUtc`
 //   reads as the second (02:30 CEST on 2026-10-25);
-// - a start whose date isn't four digits (`dayOf`).
+// - a start whose date isn't a four-digit year, unsigned (`dayOf`): "10000-…", "-0001-…".
 // `entryWindow`'s windows fit, as its end is on the start's day or at or before the start's
 // wall time the next, and it gives the second copy of a repeated hour: probed on every day of
 // 2026, every start and end at 30-minute steps, 840,769 windows, all read back (PR #249,
