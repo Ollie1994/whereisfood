@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  entryWallTimes,
   entryWindow,
   stockholmDay,
   stockholmDayBounds,
@@ -247,5 +248,43 @@ describe("entryWindow", () => {
     expect(entryWindow(day("2026-03-29"), "02:30", "04:00")).toBeNull();
     expect(entryWindow(day("2026-11-08"), "x", "13:00")).toBeNull();
     expect(entryWindow(day("2026-11-08"), "11:00", "25:00")).toBeNull();
+  });
+});
+
+describe("entryWallTimes", () => {
+  const at = (iso: string) => new Date(iso);
+
+  it.each([
+    ["a lunch", "2026-08-22T09:00:00Z", "2026-08-22T12:00:00Z", { date: "2026-08-22", start: "11:00", end: "14:00" }],
+    ["a shift past midnight", "2026-08-22T20:00:00Z", "2026-08-23T00:00:00Z", { date: "2026-08-22", start: "22:00", end: "02:00" }],
+    ["24 h, ending at the start's wall time", "2026-08-22T09:00:00Z", "2026-08-23T09:00:00Z", { date: "2026-08-22", start: "11:00", end: "11:00" }],
+    // 03:00 CEST on 10-24 to 02:59 CET on 10-25: 24 h 59 min, made by `entryWindow`.
+    ["entryWindow's 25-hour window across the autumn change", "2026-10-24T01:00:00Z", "2026-10-25T01:59:00Z", { date: "2026-10-24", start: "03:00", end: "02:59" }],
+    ["the second copy of the repeated hour", "2026-10-25T01:30:00Z", "2026-10-25T04:00:00Z", { date: "2026-10-25", start: "02:30", end: "05:00" }],
+  ])("reads %s", (_, startsAt, endsAt, times) => {
+    expect(entryWallTimes(at(startsAt), at(endsAt))).toEqual(times);
+  });
+
+  it.each([
+    ["an end past the start's wall time the next day", "2026-08-22T09:00:00Z", "2026-08-23T10:00:00Z"],
+    // 01:00 CET on 03-29 to 02:30 CEST on 03-30: 02:30 doesn't exist on 03-29.
+    ["one whose end's wall time is in the start's day's gap", "2026-03-29T00:00:00Z", "2026-03-30T00:30:00Z"],
+    ["a time with seconds", "2026-08-22T09:00:30Z", "2026-08-22T12:00:00Z"],
+    ["the first copy of the repeated hour (02:30 CEST on 10-25)", "2026-10-25T00:30:00Z", "2026-10-25T04:00:00Z"],
+    // Stockholm's 10000-01-01 00:30.
+    ["a five-digit year", "9999-12-31T23:30:00Z", "+010000-01-01T02:00:00Z"],
+  ])("is null for %s", (_, startsAt, endsAt) => {
+    expect(entryWallTimes(at(startsAt), at(endsAt))).toBeNull();
+  });
+
+  it("reads back every window entryWindow makes, across both changes", () => {
+    for (const [date, start, end] of [
+      ["2026-03-29", "01:00", "04:00"],
+      ["2026-10-25", "02:30", "02:15"],
+      ["2026-10-24", "23:00", "02:30"],
+    ]) {
+      const window = entryWindow(dayOf(date)!, start, end)!;
+      expect(entryWallTimes(window.startsAt, window.endsAt)).toEqual({ date, start, end });
+    }
   });
 });

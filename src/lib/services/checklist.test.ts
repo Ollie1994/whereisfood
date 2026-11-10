@@ -300,10 +300,17 @@ describe("getChecklist", () => {
     expect((await getChecklist(NOW)).suggestions).toEqual([]);
   });
 
-  it("suggests nothing with no active truck, and reads no current rows with no open suggestion", async () => {
+  it("suggests nothing with no active truck, and reads no current rows", async () => {
     db.trucks = [];
     db.rows = [row(A, "2026-08-19T09:00:00Z", "2026-08-19T12:00:00Z")];
     expect(await getChecklist(NOW)).toEqual({ day: "2026-08-26", suggestions: [] });
+    expect(db.findLocationsOverlapping).toHaveBeenCalledTimes(LOOK_BACK_WEEKS);
+  });
+
+  it("reads no current rows when an active truck's suggestions have all ended", async () => {
+    // 15:00 Stockholm: last week's 11:00–14:00 has ended today.
+    db.rows = [row(A, "2026-08-19T09:00:00Z", "2026-08-19T12:00:00Z")];
+    expect((await getChecklist(new Date("2026-08-26T13:00:00Z"))).suggestions).toEqual([]);
     expect(db.findLocationsOverlapping).toHaveBeenCalledTimes(LOOK_BACK_WEEKS);
   });
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { checklistOf, confirmBody, readDismissed, writeDismissed } from "@/lib/admin-checklist";
+import { type Confirmed, checklistOf, confirmBody, readDismissed, stillHidden, writeDismissed } from "@/lib/admin-checklist";
 import { API_ERRORS, adminFetch } from "@/lib/admin-api";
 import type { Checklist, Suggestion } from "@/lib/services/checklist";
 
@@ -49,7 +49,7 @@ export function useChecklist({
   // Suggestions a ✓ created, hidden until a read sent after it applies: until then the
   // checklist shown was read before the entry existed, and a second ✓ would answer 409. `after`
   // is the newest read sent when the ✓ succeeded.
-  const [confirmed, setConfirmed] = useState<readonly { id: string; after: number }[]>([]);
+  const [confirmed, setConfirmed] = useState<readonly Confirmed[]>([]);
   // Bumped to read again after a ✓, refused or not, and on "Försök igen".
   const [reads, setReads] = useState(0);
   // The newest read sent: reads can answer out of order, and only the newest is applied.
@@ -64,7 +64,7 @@ export function useChecklist({
       if (!read) return setReadError(result.ok ? API_ERRORS.unknown : result.error);
       setReadError(null);
       setChecklist(read);
-      setConfirmed((list) => list.filter(({ after }) => after >= id));
+      setConfirmed((list) => stillHidden(list, id));
       setDismissed((last) => ({
         day: read.day,
         ids: [...new Set([...(last.day === read.day ? last.ids : []), ...readDismissed(storage, read.day)])],

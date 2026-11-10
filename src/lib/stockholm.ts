@@ -135,3 +135,26 @@ export function entryWindow(day: number, start: string, end: string): { startsAt
   const endsAt = wallClockToUtc(end <= start ? day + 1 : day, end);
   return startsAt && endsAt ? { startsAt, endsAt } : null;
 }
+
+// The start's Stockholm date and the two wall-clock times that `entryWindow` rebuilds
+// [startsAt, endsAt) from exactly; null when it can't. The form shows an entry's times by
+// them (`timesEditable`), and the checklist moves an entry to today by them. Null for:
+// - an end later than the start's wall time on the next day, which `entryWindow` puts on the
+//   start's day (and whose wall time may not exist there, in a DST gap);
+// - a time with seconds;
+// - a time in the first copy of the hour an autumn change repeats, which `wallClockToUtc`
+//   reads as the second (02:30 CEST on 2026-10-25);
+// - a start whose date isn't four digits (`dayOf`).
+// Every window `entryWindow` makes fits: its end is on the start's day or at or before the
+// start's wall time the next, and it gives the second copy of a repeated hour.
+export function entryWallTimes(startsAt: Date, endsAt: Date): { date: string; start: string; end: string } | null {
+  const start = stockholmWallClock(startsAt);
+  const end = stockholmWallClock(endsAt);
+  const day = dayOf(start.date);
+  const window = day === null ? null : entryWindow(day, start.time, end.time);
+  const exact =
+    window !== null &&
+    window.startsAt.getTime() === startsAt.getTime() &&
+    window.endsAt.getTime() === endsAt.getTime();
+  return exact ? { date: start.date, start: start.time, end: end.time } : null;
+}

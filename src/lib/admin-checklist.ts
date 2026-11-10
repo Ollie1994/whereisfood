@@ -43,6 +43,16 @@ export function fromText(suggestion: Pick<Suggestion, "from_starts_at">, day: st
   return weeks <= 1 ? "Förra veckan" : `För ${weeks} veckor sedan`;
 }
 
+// A suggestion a ✓ created, and the newest checklist read sent when it did (`useChecklist`).
+export type Confirmed = { id: string; after: number };
+
+// The ✓-created suggestions still to hide once read `readId` applies: those created after it
+// was sent, since that read may predate the entry. A read sent later drops them, as the
+// server leaves them out by then (they overlap the entry the ✓ made).
+export function stillHidden(confirmed: readonly Confirmed[], readId: number): Confirmed[] {
+  return confirmed.filter(({ after }) => after >= readId);
+}
+
 // ✗ hides a suggestion on this device for the checklist's day (plan #20): its `from_id`, under
 // one key holding that day alone, so a new day starts empty and old days don't pile up.
 export const DISMISSED_KEY = "wif-checklist-dismissed";

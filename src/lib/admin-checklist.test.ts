@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { DISMISSED_KEY, checklistOf, confirmBody, fromText, readDismissed, writeDismissed } from "@/lib/admin-checklist";
+import {
+  DISMISSED_KEY,
+  checklistOf,
+  confirmBody,
+  fromText,
+  readDismissed,
+  stillHidden,
+  writeDismissed,
+} from "@/lib/admin-checklist";
 import type { Suggestion } from "@/lib/services/checklist";
 
 const SUGGESTION: Suggestion = {
@@ -86,6 +94,23 @@ describe("fromText", () => {
   it("counts Stockholm days across the spring change", () => {
     // Monday 03-23 11:00 CET, from Monday 03-30.
     expect(fromText({ from_starts_at: "2026-03-23T10:00:00+00:00" }, "2026-03-30")).toBe("Förra veckan");
+  });
+});
+
+describe("stillHidden", () => {
+  const confirmed = [
+    { id: "a", after: 3 },
+    { id: "b", after: 5 },
+  ];
+
+  it("keeps a ✓ made after the read was sent, or while it was the newest", () => {
+    expect(stillHidden(confirmed, 3)).toEqual(confirmed);
+    expect(stillHidden(confirmed, 5)).toEqual([{ id: "b", after: 5 }]);
+  });
+
+  it("drops a ✓ once a read sent after it applies", () => {
+    expect(stillHidden(confirmed, 4)).toEqual([{ id: "b", after: 5 }]);
+    expect(stillHidden(confirmed, 6)).toEqual([]);
   });
 });
 

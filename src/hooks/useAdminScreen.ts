@@ -8,8 +8,9 @@ import type { AdminEntry } from "@/lib/services/locations";
 // The admin screen's hooks, joined: a save closes its edit and reloads the list, a save
 // starting (the form's or a checklist ✓) clears the list's and the checklist's older action
 // errors, a save answered 404 or 409 reloads the list (`onGone`), and a list button or a ✓
-// clears the form's "Sparat.". A ✓ also reloads the list, and a save or cancel reloads the
-// checklist. Here, not in a component (`CLAUDE.md`, "UI Rules": components only render).
+// clears the form's "Sparat."; a list button clears the checklist's error too. A ✓ also
+// reloads the list, and a save or cancel reloads the checklist. Here, not in a component
+// (`CLAUDE.md`, "UI Rules": components only render).
 export function useAdminScreen() {
   const list = useAdminLocations();
   const { editing, stopEdit, reload, clearActionError } = list;
@@ -50,10 +51,16 @@ export function useAdminScreen() {
     },
     confirm: (entry: AdminEntry) => {
       form.clearSaved();
+      checklist.clearActionError();
       return list.confirm(entry);
     },
-    // "Sparat." goes once the cancel is confirmed, not when its question is turned down.
-    cancel: (entry: AdminEntry) => list.cancel(entry, form.clearSaved),
+    // "Sparat." and a ✓'s error go once the cancel is confirmed, not when its question is
+    // turned down. A cancel re-reads the checklist, under which an older ✓ error would stay.
+    cancel: (entry: AdminEntry) =>
+      list.cancel(entry, () => {
+        form.clearSaved();
+        checklist.clearActionError();
+      }),
     // A cancel or confirm of the entry being edited runs first: a cancel closes the edit.
     waiting: editing !== null && list.busyIds.includes(editing.id),
   };
