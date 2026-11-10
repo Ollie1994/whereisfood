@@ -212,6 +212,24 @@ export async function seedTruck(name = "Truck", isActive = true): Promise<string
   return id;
 }
 
+// Removes trucks a test made through the code under test (`insertTruck`, `POST
+// /api/admin/trucks`) rather than `seedTruck`, with their locations: the rule is that such
+// a truck is removed by its own test (`CLAUDE.md`, "Supabase"), not left to `resetTables`'
+// prefix. ⚠ The errors are checked: supabase-js returns them rather than throwing, and an
+// ignored one leaves rows behind (`helpers.test.ts`'s bystanders, PR #106 r3).
+export async function removeTrucks(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const { error: locationError } = await supabaseAdmin.from("locations").delete().in("truck_id", ids);
+  if (locationError) throw locationError;
+  // The removed ids are counted too, since a delete that matches nothing returns no error.
+  // Every id must go: stricter than `resetTables`, which stops only when it removed none.
+  const { data, error } = await supabaseAdmin.from("trucks").delete().in("id", ids).select("id");
+  if (error) throw error;
+  if (data.length !== ids.length) {
+    throw new Error(`removeTrucks: removed ${data.length} of ${ids.length} trucks`);
+  }
+}
+
 // A row's keys, sorted, for the db tests' key-set checks: each compares them with a
 // list written out in the test, the only guard against an extra selected column.
 export function keysOf(row: object): string[] {

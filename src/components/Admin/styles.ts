@@ -4,3 +4,7 @@ export const SMALL_BUTTON = "rounded-md border border-foreground/30 px-3 py-2 te
 export const ALERT = "rounded-md bg-red-50 p-3 text-sm text-red-800";
 export const FIELD = "rounded-md border border-foreground/30 bg-background px-3 py-3 text-base";
 export const LABEL = "flex flex-col gap-1 text-sm font-medium";
+export const FIELDSET = "flex min-w-0 flex-col gap-4 disabled:opacity-60";
+export const PRIMARY_BUTTON =
+  "flex-1 rounded-md bg-foreground px-4 py-3 text-base font-medium text-background disabled:opacity-60";
+export const SECONDARY_BUTTON = "rounded-md border border-foreground/30 px-4 py-3 text-base disabled:opacity-60";

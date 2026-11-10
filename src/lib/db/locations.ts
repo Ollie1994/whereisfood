@@ -1,5 +1,6 @@
 import type { TablesUpdate } from "@/lib/database.types";
 import { MAX_ROWS, assertAllRows } from "@/lib/db/complete";
+import { pick } from "@/lib/db/pick";
 import { supabaseAdmin } from "@/lib/supabase";
 import type { Location, LocationPatch, NewLocation } from "@/lib/types";
 
@@ -55,16 +56,6 @@ const PATCH_KEYS: Record<keyof LocationPatch, true> = {
   starts_at: true,
   ends_at: true,
 };
-
-// A copy of `source` with only the keys `keys` lists. Typed `T`: `keys` names every
-// key of `T`, so each key `source` must have is copied.
-function pick<T extends object>(source: T, keys: Record<keyof T, true>): T {
-  const picked = {} as T;
-  for (const key of Object.keys(keys) as (keyof T)[]) {
-    if (key in source) picked[key] = source[key];
-  }
-  return picked;
-}
 
 // Insert and return the stored row. Raises `23P01` on an overlap with a live row of the
 // same truck, `23514` when `ends_at <= starts_at`.

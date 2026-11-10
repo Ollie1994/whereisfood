@@ -1,8 +1,12 @@
+import type { Truck } from "@/lib/types";
+
 // The admin screen's requests to its own API routes (`CLAUDE.md`, "Supabase": the browser
 // reads and writes only through them). Same origin, so the session cookies go along, and
 // a write carries the `Origin` header `withAdmin` checks (Phase 7 plan, #16).
 
-export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string };
+// A refusal carries the route's status, so a caller can tell "gone" (404) from the rest;
+// a failed request or an unreadable 2xx has none.
+export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string; status?: number };
 
 export const API_ERRORS = {
   network: "Det gick inte att nå servern. Försök igen.",
@@ -30,5 +34,18 @@ export async function adminFetch<T>(path: string, init: { method?: string; body?
     return json === null ? { ok: false, error: API_ERRORS.unknown } : { ok: true, data: json as T };
   }
   const error = (json as { error?: unknown } | null)?.error;
-  return { ok: false, error: typeof error === "string" ? error : API_ERRORS.unknown };
+  return { ok: false, error: typeof error === "string" ? error : API_ERRORS.unknown, status: response.status };
 }
+
+// A list under `key` in a route's answer, checked to be an array: `adminFetch` types its
+// data but can't check it. A plain async function, so a hook's effect only starts it and
+// sets state in its callback, not in the effect's body (`react-hooks/set-state-in-effect`).
+export async function adminList<T>(path: string, key: string): Promise<ApiResult<T[]>> {
+  const result = await adminFetch<Record<string, unknown>>(path);
+  if (!result.ok) return result;
+  const list = result.data[key];
+  return Array.isArray(list) ? { ok: true, data: list as T[] } : { ok: false, error: API_ERRORS.unknown };
+}
+
+// Every truck, inactive ones included: the entries screen's form and the trucks screen.
+export const fetchTrucks = () => adminList<Truck>("/api/admin/trucks", "trucks");

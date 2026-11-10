@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { API_ERRORS, adminFetch } from "@/lib/admin-api";
+import { type ApiResult, adminFetch, adminList, fetchTrucks } from "@/lib/admin-api";
 import type { AdminEntry } from "@/lib/services/locations";
 import type { Location, Truck } from "@/lib/types";
 
@@ -9,27 +9,18 @@ import type { Location, Truck } from "@/lib/types";
 //
 // A limit: an open edit holds the entry as it was when "Ändra" was pressed. If another tab
 // moves one of its times, an edit here that changes the other time writes back the one it
-// read (`editRequest` sends both). And an edit of an entry cancelled elsewhere stays open
-// until its save answers "Posten finns inte": closing it on a reload could happen mid-save.
+// read (`editRequest` sends both). And an edit of an entry cancelled elsewhere stays open,
+// its save answering "Posten finns inte" and the list read again (`onGone`), until
+// "Avbryt": closing it on a reload could happen mid-save, and would erase that error. Also,
+// the trucks are read when the screen opens and after a failed read only, so a truck set
+// inactive in another tab stays offered, its save refused with 400, until the screen opens
+// again; the admin links (`AdminNav`) open it afresh.
 
 export const CANCEL_QUESTION = "Ställa in den här posten? Den försvinner från kartan.";
 
 const MINUTE_MS = 60_000;
 
-type Read<T> = { ok: true; data: T } | { ok: false; error: string };
-
-// A list under `key` in a route's answer, checked to be an array: `adminFetch` types
-// its data but can't check it. Module-level, so the effect below only starts it and sets
-// state in its callback, not in the effect's body (`react-hooks/set-state-in-effect`).
-async function fetchList<T>(path: string, key: string): Promise<Read<T[]>> {
-  const result = await adminFetch<Record<string, unknown>>(path);
-  if (!result.ok) return result;
-  const list = result.data[key];
-  return Array.isArray(list) ? { ok: true, data: list as T[] } : { ok: false, error: API_ERRORS.unknown };
-}
-
-const fetchEntries = () => fetchList<AdminEntry>("/api/admin/locations", "entries");
-const fetchTrucks = () => fetchList<Truck>("/api/admin/trucks", "trucks");
+const fetchEntries = () => adminList<AdminEntry>("/api/admin/locations", "entries");
 
 export function useAdminLocations(): {
   // Null until the entries have been read once, so a failed first read shows no "no
@@ -77,7 +68,7 @@ export function useAdminLocations(): {
   const trucksFailed = useRef(false);
 
   // Applies an entries read if it is still the newest one sent.
-  const applyEntries = useCallback((id: number, read: Read<AdminEntry[]>) => {
+  const applyEntries = useCallback((id: number, read: ApiResult<AdminEntry[]>) => {
     if (id !== latestRead.current) return;
     setNow(new Date());
     if (!read.ok) return setEntriesError(read.error);
@@ -86,7 +77,7 @@ export function useAdminLocations(): {
   }, []);
 
   // Applies a trucks read if it is still the newest one sent.
-  const applyTrucks = useCallback((id: number, read: Read<Truck[]>) => {
+  const applyTrucks = useCallback((id: number, read: ApiResult<Truck[]>) => {
     if (id !== latestTrucksRead.current) return;
     trucksFailed.current = !read.ok;
     if (!read.ok) return setTrucksError(read.error);
@@ -120,7 +111,7 @@ export function useAdminLocations(): {
     }
   }
 
-  // The first reads, started here and applied in their callbacks (the lint rule above);
+  // The first reads, started here and applied in their callbacks (`adminList`'s comment);
   // then the list's clock, set again at each minute's turn so "Har slutat" isn't up to a
   // minute late. Each tick aims at the next turn afresh, so a late one doesn't carry over.
   useEffect(() => {

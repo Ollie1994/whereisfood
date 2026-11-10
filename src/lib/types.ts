@@ -37,3 +37,10 @@ export type LocationPatch = Partial<
 
 // A `users` row: the app's own record beside an auth user, with `is_admin`.
 export type User = Database["public"]["Tables"]["users"]["Row"];
+
+// What a new truck supplies: every column but those the database fills (`id`,
+// `created_at`). Every key is required, `is_active` included, so a caller states each.
+export type NewTruck = Omit<Truck, "id" | "created_at">;
+
+// What an edit may change: any column a new truck supplies.
+export type TruckPatch = Partial<NewTruck>;

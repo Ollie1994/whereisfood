@@ -1,9 +1,11 @@
 import { assertAllRows } from "@/lib/db/complete";
+import { pick } from "@/lib/db/pick";
 import { supabaseAdmin } from "@/lib/supabase";
-import type { Truck } from "@/lib/types";
+import type { NewTruck, Truck, TruckPatch } from "@/lib/types";
 
-// DB access only — no business logic. Reads use the service role (RLS bypassed
-// server-side); errors propagate unchanged. An id that isn't a uuid raises `22P02`, not
+// DB access only — no business logic. Reads and writes use the service role (RLS bypassed
+// server-side); errors propagate unchanged, and no function deletes (`CLAUDE.md`, "db
+// layer"). An id that isn't a uuid raises `22P02`, not
 // null (probed 2026-10-19 on `getActiveTruckById`). Callers must check the shape first;
 // `isUuid` (`src/lib/validators/uuid.ts`) exists for it.
 
@@ -55,4 +57,49 @@ export async function listActiveTrucks(): Promise<Truck[]> {
 // types").
 export async function listAllTrucks(): Promise<Truck[]> {
   return listTrucksWhere("listAllTrucks", false);
+}
+
+// The columns each write may send, picked at runtime: why, `locations.ts` above its
+// `INSERT_KEYS`. One list, since an edit may change any column a new truck supplies.
+const WRITE_KEYS: Record<keyof NewTruck, true> = {
+  name: true,
+  instagram_handle: true,
+  cuisine_type: true,
+  description: true,
+  is_active: true,
+};
+
+// Insert and return the stored row. Raises `23505` when another truck has the
+// `instagram_handle` (`trucks_instagram_handle_key`, pinned in `db-trucks.test.ts`).
+export async function insertTruck(truck: NewTruck): Promise<Truck> {
+  const { data, error } = await supabaseAdmin
+    .from("trucks")
+    .insert(pick(truck, WRITE_KEYS))
+    .select(TRUCK_COLUMNS)
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+// Edit a truck and return it; null when no truck has this id. "Set inactive" is an edit of
+// `is_active`: no function here deletes. Raises `23505` like `insertTruck`.
+//
+// ⚠ THROWS ON AN EMPTY PATCH, before any request, as `updateLocation` does and for its
+// reason: PostgREST answers an empty PATCH by updating no row, which would read as null.
+export async function updateTruck(id: string, patch: TruckPatch): Promise<Truck | null> {
+  const picked = pick(patch, WRITE_KEYS);
+  if (Object.values(picked).every((value) => value === undefined)) {
+    throw new Error("updateTruck: the patch sets no column");
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("trucks")
+    .update(picked)
+    .eq("id", id)
+    .select(TRUCK_COLUMNS)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
 }

@@ -2,6 +2,7 @@ import { parseISO } from "date-fns";
 import { isInGothenburg } from "@/lib/geo";
 import { isTimestamp } from "@/lib/timestamp";
 import type { LocationPatch, NewLocation } from "@/lib/types";
+import { BODY_ERRORS, type Parsed, isRecord, refuse } from "@/lib/validators/body";
 import { isUuid } from "@/lib/validators/uuid";
 
 // A location body from `readJson`, checked and reduced to the keys a client may set. Pure:
@@ -11,13 +12,11 @@ import { isUuid } from "@/lib/validators/uuid";
 // holding `truck_id` and `label` changes the label only. The plan's acceptance criteria
 // show the truck read-only on an edit (the form is #227's).
 
-export type Parsed<T> = { ok: true; value: T } | { ok: false; error: string };
-
 // A new entry as a client sends it: the service adds `created_by` and `source` (#17).
 export type NewLocationInput = Omit<NewLocation, "created_by" | "source">;
 
 export const LOCATION_ERRORS = {
-  body: "Begärans innehåll måste vara ett objekt",
+  body: BODY_ERRORS.body,
   truck: "Ogiltig foodtruck",
   position: "Ogiltig position",
   outside: "Platsen ligger utanför Göteborg",
@@ -25,12 +24,8 @@ export const LOCATION_ERRORS = {
   startsAt: "Ogiltig starttid",
   endsAt: "Ogiltig sluttid",
   order: "Sluttiden måste vara efter starttiden",
-  emptyPatch: "Ändringen innehåller inget att ändra",
+  emptyPatch: BODY_ERRORS.emptyPatch,
 } as const;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 // The field checks: each gives the field's value, or undefined to refuse it. An absent key
 // is refused too, except by `label`, which reads it as null; `parseLocationPatch` skips
@@ -65,8 +60,6 @@ function timestamp(value: unknown): Date | undefined {
   const year = date.getUTCFullYear();
   return year >= 1 && year <= 9999 ? date : undefined;
 }
-
-const refuse = (error: string): { ok: false; error: string } => ({ ok: false, error });
 
 // An end at or before the start, compared as instants: the one copy of the order rule.
 function orderError(startsAt: string, endsAt: string): string | null {

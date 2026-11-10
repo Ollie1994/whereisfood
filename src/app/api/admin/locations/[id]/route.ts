@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { readJson, withAdmin } from "@/lib/http/admin";
-import { entryAnswer, entryId, type IdContext } from "@/lib/http/entries";
+import { entryAnswer } from "@/lib/http/entries";
+import { type IdContext, pathId } from "@/lib/http/id";
 import { editEntry } from "@/lib/services/locations";
 import { parseLocationPatch } from "@/lib/validators/location";
 
@@ -9,7 +10,7 @@ import { parseLocationPatch } from "@/lib/validators/location";
 // "Locations").
 export async function PATCH(request: NextRequest, context: IdContext) {
   return withAdmin(request, async () => {
-    const id = await entryId(context);
+    const id = await pathId(context);
     if (!id.ok) return id.response;
     const json = await readJson(request);
     if (!json.ok) return json.response;

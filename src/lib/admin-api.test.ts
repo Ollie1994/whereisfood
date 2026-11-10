@@ -16,18 +16,18 @@ describe("adminFetch", () => {
 
   it("gives a refusal's `{ error }` as the error", async () => {
     answer(409, '{"error":"Överlappar med …"}');
-    expect(await adminFetch("/api/admin/locations")).toEqual({ ok: false, error: "Överlappar med …" });
+    expect(await adminFetch("/api/admin/locations")).toEqual({ ok: false, error: "Överlappar med …", status: 409 });
   });
 
   // A body cut off mid-way or a proxy's HTML page with a 2xx status, and a refusal whose
   // body has no `{ error }`.
   it.each([
-    ["a 2xx whose body isn't JSON", 200, "<html>"],
-    ["a 2xx with an empty body", 200, ""],
-    ["a refusal with no `{ error }`", 500, "{}"],
-  ])("gives %s as an error, never null data", async (_, status, body) => {
+    ["a 2xx whose body isn't JSON", 200, "<html>", undefined],
+    ["a 2xx with an empty body", 200, "", undefined],
+    ["a refusal with no `{ error }`", 500, "{}", 500],
+  ])("gives %s as an error, never null data", async (_, status, body, kept) => {
     answer(status, body);
-    expect(await adminFetch("/api/admin/locations")).toEqual({ ok: false, error: API_ERRORS.unknown });
+    expect(await adminFetch("/api/admin/locations")).toEqual({ ok: false, error: API_ERRORS.unknown, status: kept });
   });
 
   it("gives a failed request as the network error", async () => {
