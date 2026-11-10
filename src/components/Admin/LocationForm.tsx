@@ -42,7 +42,8 @@ export default function LocationForm({
 
       {/* Locked while a save runs: its answer empties or closes the form, which would drop
           anything typed meanwhile. A limit: only form controls lock, so a tap on the picker's
-          map or a GPS fix during the save still moves the pin, which the answer replaces. */}
+          map or a GPS fix during the save still moves the pin. A save that succeeds replaces
+          it; after a refusal the moved pin stays in the form, shown in "Nål". */}
       <fieldset disabled={saving} className={FIELDSET}>
         {editing ? (
           <p className="text-sm">

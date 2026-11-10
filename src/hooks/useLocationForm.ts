@@ -52,7 +52,8 @@ export function useLocationForm({
   onSaving: () => void;
   // After a save: reload the list, and close the edit when `closeEdit`.
   onSaved: (closeEdit: boolean) => Promise<void>;
-  // After a 404: the entry is gone, so the list is read again and says so.
+  // After a 404 or 409, about an entry the list may not show (gone, or the one it overlaps):
+  // the list is read again, so it says so.
   onGone: () => Promise<void>;
 }): LocationFormState {
   const [values, setValues] = useState(() => (editing ? formFromEntry(editing) : emptyForm(new Date())));
@@ -103,7 +104,7 @@ export function useLocationForm({
     setSaving(false);
     if (!result.ok) {
       setError(result.error);
-      if (result.status === 404) await onGone();
+      if (result.status === 404 || result.status === 409) await onGone();
       return;
     }
 

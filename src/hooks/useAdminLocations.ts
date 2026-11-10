@@ -9,8 +9,9 @@ import type { Location, Truck } from "@/lib/types";
 //
 // A limit: an open edit holds the entry as it was when "Ändra" was pressed. If another tab
 // moves one of its times, an edit here that changes the other time writes back the one it
-// read (`editRequest` sends both). And an edit of an entry cancelled elsewhere stays open
-// until its save answers "Posten finns inte": closing it on a reload could happen mid-save.
+// read (`editRequest` sends both). And an edit of an entry cancelled elsewhere stays open,
+// its save answering "Posten finns inte" and the list read again (`onGone`), until
+// "Avbryt": closing it on a reload could happen mid-save, and would erase that error.
 
 export const CANCEL_QUESTION = "Ställa in den här posten? Den försvinner från kartan.";
 

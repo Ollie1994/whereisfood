@@ -30,12 +30,6 @@ describe("adminFetch", () => {
     expect(await adminFetch("/api/admin/locations")).toEqual({ ok: false, error: API_ERRORS.unknown, status: kept });
   });
 
-  // A caller reads "gone" from it, so a missing entry or truck is re-read off the list.
-  it("keeps a refusal's status", async () => {
-    answer(404, '{"error":"Posten finns inte"}');
-    expect(await adminFetch("/api/admin/locations/x")).toMatchObject({ ok: false, status: 404 });
-  });
-
   it("gives a failed request as the network error", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => Promise.reject(new TypeError("Failed to fetch"))));
     expect(await adminFetch("/api/admin/locations")).toEqual({ ok: false, error: API_ERRORS.network });

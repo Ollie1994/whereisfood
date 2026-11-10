@@ -14,7 +14,7 @@ import type { Truck } from "@/lib/types";
 // admin route, the form for a new truck or an edit of `editing`, and "Sätt inaktiv" /
 // "Aktivera" on each truck. No delete: setting inactive is an edit (`CLAUDE.md`,
 // "Locations"). A list button reads the trucks again, on a refusal too; a save, when it
-// succeeds or answers 404.
+// succeeds or answers 404 or 409.
 //
 // A limit, as on the entries screen (`useLocationForm`): "Ändra" on another truck, or
 // "Avbryt", replaces the form's values without asking, so unsaved changes are dropped.
@@ -109,9 +109,10 @@ export function useTrucks(): TrucksState {
     setSaving(false);
     if (!result.ok) {
       setFormError(result.error);
-      // A 404 means the truck is gone: the list is read again, so it says so. The edit stays
-      // open with the error, as the entry form's does; "Avbryt" closes it.
-      if (result.status === 404) await reload();
+      // A 404 or 409 is about a truck this list may not show: gone, or holding the handle. The
+      // list is read again, so it says so. The edit stays open with the error, as the entry
+      // form's does; "Avbryt" closes it.
+      if (result.status === 404 || result.status === 409) await reload();
       return;
     }
 

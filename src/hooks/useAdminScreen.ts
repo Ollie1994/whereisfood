@@ -4,8 +4,9 @@ import { usePlacePicker } from "@/hooks/usePlacePicker";
 import type { AdminEntry } from "@/lib/services/locations";
 
 // The admin screen's hooks, joined: a save closes its edit and reloads the list, a save
-// starting clears a list action's older error, and a list button clears the form's
-// "Sparat.". Here, not in a component (`CLAUDE.md`, "UI Rules": components only render).
+// starting clears a list action's older error, a save answered 404 or 409 reloads the list
+// (`onGone`), and a list button clears the form's "Sparat.". Here, not in a component
+// (`CLAUDE.md`, "UI Rules": components only render).
 export function useAdminScreen() {
   const list = useAdminLocations();
   const { editing, stopEdit, reload, clearActionError } = list;

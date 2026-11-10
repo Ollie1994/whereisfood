@@ -35,7 +35,7 @@ export async function adminFetch<T>(path: string, init: { method?: string; body?
   return { ok: false, error: typeof error === "string" ? error : API_ERRORS.unknown, status: response.status };
 }
 
-export type Read<T> = { ok: true; data: T } | { ok: false; error: string };
+export type Read<T> = ApiResult<T>;
 
 // A list under `key` in a route's answer, checked to be an array: `adminFetch` types its
 // data but can't check it. A plain async function, so a hook's effect only starts it and
