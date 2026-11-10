@@ -118,8 +118,9 @@ describe.each([
   });
 });
 
-// A truck these tests write through the code under test, named with the fixture prefix so
-// `resetTables` removes it (`CLAUDE.md`, "Supabase").
+// A truck these tests write through the code under test: removed after each test
+// (`removeTrucks`, below), and named with the fixture prefix so a failed run's is caught
+// by `resetTables`.
 const NEW_TRUCK = {
   name: `${FIXTURE_PREFIX}Ny bil`,
   instagram_handle: "itest_fixture_ny",

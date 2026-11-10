@@ -45,12 +45,15 @@ export function useLocationForm({
   editing,
   onSaving,
   onSaved,
+  onGone,
 }: {
   editing: AdminEntry | null;
   // When a save starts.
   onSaving: () => void;
   // After a save: reload the list, and close the edit when `closeEdit`.
   onSaved: (closeEdit: boolean) => Promise<void>;
+  // After a 404: the entry is gone, so the list is read again and says so.
+  onGone: () => Promise<void>;
 }): LocationFormState {
   const [values, setValues] = useState(() => (editing ? formFromEntry(editing) : emptyForm(new Date())));
   // The entry the values were filled from, so a new `editing` refills them during render
@@ -100,6 +103,7 @@ export function useLocationForm({
     setSaving(false);
     if (!result.ok) {
       setError(result.error);
+      if (result.status === 404) await onGone();
       return;
     }
 

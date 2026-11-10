@@ -221,8 +221,13 @@ export async function removeTrucks(ids: string[]): Promise<void> {
   if (ids.length === 0) return;
   const { error: locationError } = await supabaseAdmin.from("locations").delete().in("truck_id", ids);
   if (locationError) throw locationError;
-  const { error } = await supabaseAdmin.from("trucks").delete().in("id", ids);
+  // The removed ids are counted too, as `resetTables` does: a delete that matches nothing
+  // returns no error.
+  const { data, error } = await supabaseAdmin.from("trucks").delete().in("id", ids).select("id");
   if (error) throw error;
+  if (data.length !== ids.length) {
+    throw new Error(`removeTrucks: removed ${data.length} of ${ids.length} trucks`);
+  }
 }
 
 // A row's keys, sorted, for the db tests' key-set checks: each compares them with a

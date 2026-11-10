@@ -16,6 +16,7 @@ export function useAdminScreen() {
       if (closeEdit) stopEdit();
       await reload();
     },
+    onGone: reload,
   });
   // The place picker fills the form's place, and reads the form's truck's places.
   const picker = usePlacePicker({

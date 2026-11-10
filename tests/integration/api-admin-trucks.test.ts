@@ -10,8 +10,9 @@ import { FIXTURE_PREFIX, cookieHeader, keysOf, removeTrucks, resetTables, seedLo
 
 // The truck routes on the admin's session against the local stack (Phase 7 plan, steps 3
 // and 10). Refusals of anyone else are `admin-auth.test.ts`'s. One sign-in (`sessionUser`).
-// Every truck a test creates is named with the fixture prefix, so `resetTables` removes it,
-// and every handle is the test's own (`handle`): the tables are reset once per file, since
+// Every truck a test makes through `POST` is removed after the test (`removeTrucks`), and is
+// named with the fixture prefix too, so a failed run's are caught by `resetTables`;
+// every handle is the test's own (`handle`): the tables are reset once per file, since
 // a reset also removes the signed-in admin.
 
 const ORIGIN = "http://127.0.0.1:3000";

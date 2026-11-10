@@ -41,7 +41,8 @@ export default function LocationForm({
       <h2 className="text-lg font-semibold">{editing ? "Ändra post" : "Ny post"}</h2>
 
       {/* Locked while a save runs: its answer empties or closes the form, which would drop
-          anything typed meanwhile. */}
+          anything typed meanwhile. A limit: only form controls lock, so a tap on the picker's
+          map or a GPS fix during the save still moves the pin, which the answer replaces. */}
       <fieldset disabled={saving} className={FIELDSET}>
         {editing ? (
           <p className="text-sm">

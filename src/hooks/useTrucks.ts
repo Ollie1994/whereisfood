@@ -108,8 +108,10 @@ export function useTrucks(): TrucksState {
     setSaving(false);
     if (!result.ok) {
       setFormError(result.error);
-      // A 404 means the truck is gone, and the list should say so.
-      return reload();
+      // A 404 means the truck is gone: the list is read again, so it says so. The edit stays
+      // open with the error, as the entry form's does; "Avbryt" closes it.
+      if (result.status === 404) await reload();
+      return;
     }
 
     // A new truck's form empties for the next; an edit closes.

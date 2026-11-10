@@ -2,7 +2,9 @@
 // reads and writes only through them). Same origin, so the session cookies go along, and
 // a write carries the `Origin` header `withAdmin` checks (Phase 7 plan, #16).
 
-export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string };
+// A refusal carries the route's status, so a caller can tell "gone" (404) from the rest;
+// a failed request or an unreadable 2xx has none.
+export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string; status?: number };
 
 export const API_ERRORS = {
   network: "Det gick inte att nå servern. Försök igen.",
@@ -30,7 +32,7 @@ export async function adminFetch<T>(path: string, init: { method?: string; body?
     return json === null ? { ok: false, error: API_ERRORS.unknown } : { ok: true, data: json as T };
   }
   const error = (json as { error?: unknown } | null)?.error;
-  return { ok: false, error: typeof error === "string" ? error : API_ERRORS.unknown };
+  return { ok: false, error: typeof error === "string" ? error : API_ERRORS.unknown, status: response.status };
 }
 
 export type Read<T> = { ok: true; data: T } | { ok: false; error: string };
