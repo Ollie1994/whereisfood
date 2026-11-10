@@ -108,7 +108,7 @@ export function useAdminLocations(): {
     }
   }
 
-  // The first reads, started here and applied in their callbacks (the lint rule above);
+  // The first reads, started here and applied in their callbacks (`adminList`'s comment);
   // then the list's clock, set again at each minute's turn so "Har slutat" isn't up to a
   // minute late. Each tick aims at the next turn afresh, so a late one doesn't carry over.
   useEffect(() => {
