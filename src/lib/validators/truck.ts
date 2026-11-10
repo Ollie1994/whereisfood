@@ -1,28 +1,22 @@
 import type { NewTruck, TruckPatch } from "@/lib/types";
-import type { Parsed } from "@/lib/validators/location";
+import { BODY_ERRORS, type Parsed, isRecord, refuse } from "@/lib/validators/body";
 
 // A truck body from `readJson`, checked and reduced to the keys a client may set. Pure: no
 // clock, no env (`CLAUDE.md`, "Time"). `id` and `created_at` are never read, and every
 // other unknown key is dropped too.
 
 export const TRUCK_ERRORS = {
-  body: "Begärans innehåll måste vara ett objekt",
+  body: BODY_ERRORS.body,
   name: "Ange foodtruckens namn",
   handle: "Ogiltigt Instagram-konto: bara a–z, 0–9, punkt och understreck, högst 30 tecken",
   cuisine: "Ogiltig typ av mat",
   description: "Ogiltig beskrivning",
   active: "Ogiltig status",
-  emptyPatch: "Ändringen innehåller inget att ändra",
+  emptyPatch: BODY_ERRORS.emptyPatch,
 } as const;
 
 // Instagram's character set and length cap, as the plan's #29 has them.
 const HANDLE = /^[a-z0-9._]{1,30}$/;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-const refuse = (error: string): { ok: false; error: string } => ({ ok: false, error });
 
 // The field checks: each gives the field's value, or undefined to refuse it.
 

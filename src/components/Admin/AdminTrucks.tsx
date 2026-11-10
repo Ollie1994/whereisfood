@@ -8,7 +8,7 @@ import { useTrucks } from "@/hooks/useTrucks";
 // The trucks screen's client part: the form above the list, from `useTrucks`.
 export default function AdminTrucks() {
   const trucks = useTrucks();
-  const { trucks: list, listError, retry, busyIds, actionError, saving, startEdit, setActive } = trucks;
+  const { trucks: list, listError, retry, retrying, busyIds, actionError, saving, startEdit, setActive } = trucks;
 
   return (
     <>
@@ -21,8 +21,13 @@ export default function AdminTrucks() {
             <p role="alert" className={ALERT}>
               {listError}
             </p>
-            <button type="button" onClick={retry} className={`self-start ${SMALL_BUTTON}`}>
-              Försök igen
+            <button
+              type="button"
+              onClick={() => void retry()}
+              disabled={retrying}
+              className={`self-start ${SMALL_BUTTON}`}
+            >
+              {retrying ? "Hämtar…" : "Försök igen"}
             </button>
           </div>
         )}

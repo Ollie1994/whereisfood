@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { NextRequest } from "next/server";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { GET as LIVE } from "@/app/api/live/route";
 import { GET, POST } from "@/app/api/admin/trucks/route";
 import { PATCH } from "@/app/api/admin/trucks/[id]/route";
 import type { LiveResponse } from "@/lib/live";
 import { supabaseAdmin } from "@/lib/supabase";
-import { FIXTURE_PREFIX, cookieHeader, keysOf, resetTables, seedLocation, seedTruck, sessionUser } from "./helpers";
+import { FIXTURE_PREFIX, cookieHeader, keysOf, removeTrucks, resetTables, seedLocation, seedTruck, sessionUser } from "./helpers";
 
 // The truck routes on the admin's session against the local stack (Phase 7 plan, steps 3
 // and 10). Refusals of anyone else are `admin-auth.test.ts`'s. One sign-in (`sessionUser`).
@@ -38,9 +38,17 @@ const named = (name: string) => `${FIXTURE_PREFIX}${name}`;
 // A handle no other test uses.
 const handle = (stem: string) => `itest_${stem}_${randomUUID().slice(0, 8)}`;
 
+// Trucks these tests made through `POST`, removed after each test by `removeTrucks`.
+const made: string[] = [];
+afterEach(async () => {
+  await removeTrucks(made.splice(0));
+});
+
 async function created(response: Response): Promise<{ id: string; instagram_handle: string | null }> {
   expect(response.status).toBe(201);
-  return ((await response.json()) as { truck: { id: string; instagram_handle: string | null } }).truck;
+  const { truck } = (await response.json()) as { truck: { id: string; instagram_handle: string | null } };
+  made.push(truck.id);
+  return truck;
 }
 
 describe("GET /api/admin/trucks", () => {

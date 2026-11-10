@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { readJson, withAdmin } from "@/lib/http/admin";
-import { entryId, type IdContext } from "@/lib/http/entries";
+import { type IdContext, pathId } from "@/lib/http/id";
 import { truckAnswer } from "@/lib/http/trucks";
 import { editTruck } from "@/lib/services/trucks";
 import { parseTruckPatch } from "@/lib/validators/truck";
@@ -9,7 +9,7 @@ import { parseTruckPatch } from "@/lib/validators/truck";
 // truck, 409 for a handle another truck has. No DELETE, ever (`CLAUDE.md`, "Locations").
 export async function PATCH(request: NextRequest, context: IdContext) {
   return withAdmin(request, async () => {
-    const id = await entryId(context);
+    const id = await pathId(context);
     if (!id.ok) return id.response;
     const json = await readJson(request);
     if (!json.ok) return json.response;

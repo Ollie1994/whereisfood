@@ -1,7 +1,7 @@
 "use client";
 
 import PlacePicker from "@/components/Admin/PlacePicker";
-import { ALERT, FIELD, LABEL } from "@/components/Admin/styles";
+import { ALERT, FIELD, FIELDSET, LABEL } from "@/components/Admin/styles";
 import type { LocationFormState } from "@/hooks/useLocationForm";
 import type { PlacePickerState } from "@/hooks/usePlacePicker";
 import type { AdminEntry } from "@/lib/services/locations";
@@ -40,67 +40,71 @@ export default function LocationForm({
     >
       <h2 className="text-lg font-semibold">{editing ? "Ändra post" : "Ny post"}</h2>
 
-      {editing ? (
-        <p className="text-sm">
-          <span className="font-medium">Foodtruck:</span> {editing.truck_name}
-        </p>
-      ) : (
-        <label className={LABEL}>
-          Foodtruck
-          <select value={values.truckId} onChange={(event) => setField("truckId", event.target.value)} className={FIELD}>
-            <option value="">Välj foodtruck</option>
-            {active.map((truck) => (
-              <option key={truck.id} value={truck.id}>
-                {truck.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
+      {/* Locked while a save runs: its answer empties or closes the form, which would drop
+          anything typed meanwhile. */}
+      <fieldset disabled={saving} className={FIELDSET}>
+        {editing ? (
+          <p className="text-sm">
+            <span className="font-medium">Foodtruck:</span> {editing.truck_name}
+          </p>
+        ) : (
+          <label className={LABEL}>
+            Foodtruck
+            <select value={values.truckId} onChange={(event) => setField("truckId", event.target.value)} className={FIELD}>
+              <option value="">Välj foodtruck</option>
+              {active.map((truck) => (
+                <option key={truck.id} value={truck.id}>
+                  {truck.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
-      <PlacePicker
-        picker={picker}
-        pin={values.pin}
-        label={values.label}
-        onLabel={(label) => setField("label", label)}
-      />
-
-      <label className={LABEL}>
-        Datum
-        <input
-          type="date"
-          value={values.date}
-          onChange={(event) => setField("date", event.target.value)}
-          className={FIELD}
-          disabled={timesLocked}
-          required
+        <PlacePicker
+          picker={picker}
+          pin={values.pin}
+          label={values.label}
+          onLabel={(label) => setField("label", label)}
         />
-      </label>
 
-      <div className="grid grid-cols-2 gap-3">
         <label className={LABEL}>
-          Från
+          Datum
           <input
-            type="time"
-            value={values.start}
-            onChange={(event) => setField("start", event.target.value)}
+            type="date"
+            value={values.date}
+            onChange={(event) => setField("date", event.target.value)}
             className={FIELD}
             disabled={timesLocked}
             required
           />
         </label>
-        <label className={LABEL}>
-          Till
-          <input
-            type="time"
-            value={values.end}
-            onChange={(event) => setField("end", event.target.value)}
-            className={FIELD}
-            disabled={timesLocked}
-            required
-          />
-        </label>
-      </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <label className={LABEL}>
+            Från
+            <input
+              type="time"
+              value={values.start}
+              onChange={(event) => setField("start", event.target.value)}
+              className={FIELD}
+              disabled={timesLocked}
+              required
+            />
+          </label>
+          <label className={LABEL}>
+            Till
+            <input
+              type="time"
+              value={values.end}
+              onChange={(event) => setField("end", event.target.value)}
+              className={FIELD}
+              disabled={timesLocked}
+              required
+            />
+          </label>
+        </div>
+      </fieldset>
       {timesLocked && <p className="text-sm text-foreground/70">{TIMES_READ_ONLY}</p>}
       {nextDay && !timesLocked && <p className="text-sm text-foreground/70">Slutar imorgon</p>}
 

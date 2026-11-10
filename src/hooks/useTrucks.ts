@@ -13,7 +13,10 @@ import type { Truck } from "@/lib/types";
 // The trucks screen's state (Phase 7 plan, step 10): every truck, read through the uncached
 // admin route, the form for a new truck or an edit of `editing`, and "Sätt inaktiv" /
 // "Aktivera" on each truck. No delete: setting inactive is an edit (`CLAUDE.md`,
-// "Locations"). A save or a list button reads the trucks again.
+// "Locations"). A save or a list button reads the trucks again, on a refusal too.
+//
+// A limit, as on the entries screen (`useLocationForm`): "Ändra" on another truck, or
+// "Avbryt", replaces the form's values without asking, so unsaved changes are dropped.
 
 const fetchTrucks = () => adminList<Truck>("/api/admin/trucks", "trucks");
 
@@ -21,7 +24,8 @@ export type TrucksState = {
   // Null until the trucks have been read once.
   trucks: Truck[] | null;
   listError: string | null;
-  retry: () => void;
+  retry: () => Promise<void>;
+  retrying: boolean;
   editing: Truck | null;
   startEdit: (truck: Truck) => void;
   stopEdit: () => void;
@@ -42,6 +46,7 @@ export type TrucksState = {
 export function useTrucks(): TrucksState {
   const [trucks, setTrucks] = useState<Truck[] | null>(null);
   const [listError, setListError] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState(false);
   const [editing, setEditing] = useState<Truck | null>(null);
   const [values, setValues] = useState(emptyTruckForm);
   const [saving, setSaving] = useState(false);
@@ -70,6 +75,17 @@ export function useTrucks(): TrucksState {
     void fetchTrucks().then((read) => apply(id, read));
   }, [apply]);
 
+  // "Försök igen": one read at a time, and the button says it's working.
+  async function retry() {
+    if (retrying) return;
+    setRetrying(true);
+    try {
+      await reload();
+    } finally {
+      setRetrying(false);
+    }
+  }
+
   function open(truck: Truck | null) {
     setEditing(truck);
     setValues(truck ? truckFormFrom(truck) : emptyTruckForm());
@@ -90,7 +106,11 @@ export function useTrucks(): TrucksState {
       body: request.body,
     });
     setSaving(false);
-    if (!result.ok) return setFormError(result.error);
+    if (!result.ok) {
+      setFormError(result.error);
+      // A 404 means the truck is gone, and the list should say so.
+      return reload();
+    }
 
     // A new truck's form empties for the next; an edit closes.
     setEditing(null);
@@ -117,7 +137,8 @@ export function useTrucks(): TrucksState {
   return {
     trucks,
     listError,
-    retry: () => void reload(),
+    retry,
+    retrying,
     editing,
     startEdit: (truck) => open(truck),
     stopEdit: () => open(null),

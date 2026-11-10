@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { getActiveTruckById, insertTruck, listActiveTrucks, listAllTrucks, updateTruck } from "@/lib/db/trucks";
 import { supabaseAdmin } from "@/lib/supabase";
-import { FIXTURE_PREFIX, keysOf, resetTables, seedLocation, seedTruck, seedTrucks } from "./helpers";
+import { FIXTURE_PREFIX, keysOf, removeTrucks, resetTables, seedLocation, seedTruck, seedTrucks } from "./helpers";
 
 // The keys every function's rows must have, WRITTEN OUT rather than derived from a
 // type, which would grow with the table. `tsc` catches a column missing from the
@@ -128,6 +128,18 @@ const NEW_TRUCK = {
   is_active: true,
 };
 
+// Trucks these tests made through `insertTruck`, removed after each test by `removeTrucks`.
+const made: string[] = [];
+afterEach(async () => {
+  await removeTrucks(made.splice(0));
+});
+
+async function insert(truck: Parameters<typeof insertTruck>[0]) {
+  const stored = await insertTruck(truck);
+  made.push(stored.id);
+  return stored;
+}
+
 async function readTruck(id: string) {
   const { data, error } = await supabaseAdmin.from("trucks").select().eq("id", id).single();
   if (error) throw error;
@@ -136,7 +148,7 @@ async function readTruck(id: string) {
 
 describe("insertTruck", () => {
   it("stores the truck and returns it with exactly the selected keys", async () => {
-    const truck = await insertTruck(NEW_TRUCK);
+    const truck = await insert(NEW_TRUCK);
 
     expect(truck).toMatchObject(NEW_TRUCK);
     expect(keysOf(truck)).toEqual(TRUCK_KEYS);
@@ -147,7 +159,7 @@ describe("insertTruck", () => {
   it("writes only the truck's own columns", async () => {
     const extra = { ...NEW_TRUCK, id: randomUUID(), created_at: "2000-01-01T00:00:00Z" } as typeof NEW_TRUCK;
 
-    const truck = await insertTruck(extra);
+    const truck = await insert(extra);
 
     expect(truck.id).not.toBe((extra as unknown as { id: string }).id);
     expect(Date.parse(truck.created_at)).toBeGreaterThan(Date.parse("2020-01-01T00:00:00Z"));
@@ -155,17 +167,17 @@ describe("insertTruck", () => {
 
   // The service maps this to 409 by the constraint's name.
   it("raises 23505 naming trucks_instagram_handle_key for a handle another truck has", async () => {
-    await insertTruck(NEW_TRUCK);
+    await insert(NEW_TRUCK);
 
-    await expect(insertTruck({ ...NEW_TRUCK, name: `${FIXTURE_PREFIX}Annan` })).rejects.toMatchObject({
+    await expect(insert({ ...NEW_TRUCK, name: `${FIXTURE_PREFIX}Annan` })).rejects.toMatchObject({
       code: "23505",
       message: expect.stringContaining("trucks_instagram_handle_key"),
     });
   });
 
   it("stores two trucks with no handle", async () => {
-    await insertTruck({ ...NEW_TRUCK, instagram_handle: null });
-    await expect(insertTruck({ ...NEW_TRUCK, instagram_handle: null })).resolves.toMatchObject({ instagram_handle: null });
+    await insert({ ...NEW_TRUCK, instagram_handle: null });
+    await expect(insert({ ...NEW_TRUCK, instagram_handle: null })).resolves.toMatchObject({ instagram_handle: null });
   });
 });
 
@@ -207,7 +219,7 @@ describe("updateTruck", () => {
   });
 
   it("raises 23505 for a handle another truck has", async () => {
-    await insertTruck(NEW_TRUCK);
+    await insert(NEW_TRUCK);
     const id = await seedTruck("Kopia");
 
     await expect(updateTruck(id, { instagram_handle: NEW_TRUCK.instagram_handle })).rejects.toMatchObject({ code: "23505" });

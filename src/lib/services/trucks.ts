@@ -25,6 +25,11 @@ export async function listTrucks(): Promise<Truck[]> {
 
 // A new truck. A handle another truck has is a conflict; the validator has already put it in
 // its one form (#29), so a different case, `@` or spacing can't get past this.
+//
+// A limit: the unique index compares the text as stored, so this holds only while every
+// stored handle is in that form. Every app write is; `seed.sql`'s three are, and so were all
+// four local handles (2026-11-10, `!~ '^[a-z0-9._]{1,30}$'` counted 0). A row written
+// outside the app in another form would let its account in twice.
 export async function createTruck(input: NewTruck): Promise<TruckResult> {
   try {
     return { ok: true, truck: await insertTruck(input) };
