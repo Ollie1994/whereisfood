@@ -4,6 +4,7 @@ import {
   checklistOf,
   confirmBody,
   fromText,
+  isBehind,
   readDismissed,
   stillHidden,
   writeDismissed,
@@ -94,6 +95,27 @@ describe("fromText", () => {
   it("counts Stockholm days across the spring change", () => {
     // Monday 03-23 11:00 CET, from Monday 03-30.
     expect(fromText({ from_starts_at: "2026-03-23T10:00:00+00:00" }, "2026-03-30")).toBe("Förra veckan");
+  });
+});
+
+describe("isBehind", () => {
+  it("is false before the first read, and on the same Stockholm day", () => {
+    expect(isBehind(null, new Date("2026-08-26T06:00:00Z"))).toBe(false);
+    // 23:59 and 00:00 Stockholm (CEST) on 08-26.
+    expect(isBehind({ day: "2026-08-26" }, new Date("2026-08-26T21:59:00Z"))).toBe(false);
+    expect(isBehind({ day: "2026-08-26" }, new Date("2026-08-25T22:00:00Z"))).toBe(false);
+  });
+
+  it("is true once the screen's Stockholm day has turned past the read's", () => {
+    // 00:00 Stockholm on 08-27.
+    expect(isBehind({ day: "2026-08-26" }, new Date("2026-08-26T22:00:00Z"))).toBe(true);
+    // 00:00 CET on 2026-10-26, after the 25-hour day.
+    expect(isBehind({ day: "2026-10-25" }, new Date("2026-10-25T23:00:00Z"))).toBe(true);
+    expect(isBehind({ day: "2026-10-25" }, new Date("2026-10-25T22:59:00Z"))).toBe(false);
+  });
+
+  it("is false for a read whose day is ahead of the screen's", () => {
+    expect(isBehind({ day: "2026-08-27" }, new Date("2026-08-26T21:59:00Z"))).toBe(false);
   });
 });
 

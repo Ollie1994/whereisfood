@@ -3,7 +3,6 @@ import { useChecklist } from "@/hooks/useChecklist";
 import { useLocationForm } from "@/hooks/useLocationForm";
 import { usePlacePicker } from "@/hooks/usePlacePicker";
 import type { Suggestion } from "@/lib/services/checklist";
-import { stockholmDay } from "@/lib/stockholm";
 import type { AdminEntry } from "@/lib/services/locations";
 
 // The admin screen's hooks, joined: a save closes its edit and reloads the list, a save
@@ -39,7 +38,7 @@ export function useAdminScreen() {
   // cancel, a ✓ or the day turning.
   const checklist = useChecklist({
     revision: form.saves + list.cancels,
-    day: stockholmDay(list.now),
+    now: list.now,
     onCreated: reload,
   });
   // The place picker fills the form's place, and reads the form's truck's places.

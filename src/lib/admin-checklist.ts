@@ -43,6 +43,13 @@ export function fromText(suggestion: Pick<Suggestion, "from_starts_at">, day: st
   return weeks <= 1 ? "Förra veckan" : `För ${weeks} veckor sedan`;
 }
 
+// Whether a checklist read's day, the server's, is before the Stockholm day of the screen's
+// clock `now`: the read crossed midnight, or one clock is off. A day ahead of it isn't.
+export function isBehind(checklist: Pick<Checklist, "day"> | null, now: Date): boolean {
+  const readDay = checklist === null ? null : dayOf(checklist.day);
+  return readDay !== null && readDay < stockholmDay(now);
+}
+
 // A suggestion a ✓ created, and the newest checklist read sent when it did (`useChecklist`).
 export type Confirmed = { id: string; after: number };
 

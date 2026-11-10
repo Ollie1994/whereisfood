@@ -1,23 +1,38 @@
 import { useEffect, useRef, useState } from "react";
-import { type Confirmed, checklistOf, confirmBody, readDismissed, stillHidden, writeDismissed } from "@/lib/admin-checklist";
+import {
+  type Confirmed,
+  checklistOf,
+  confirmBody,
+  isBehind,
+  readDismissed,
+  stillHidden,
+  writeDismissed,
+} from "@/lib/admin-checklist";
 import { API_ERRORS, adminFetch } from "@/lib/admin-api";
 import type { Checklist, Suggestion } from "@/lib/services/checklist";
+import { stockholmDay } from "@/lib/stockholm";
 
 // The morning checklist (Phase 7 plan, #20, #22): read through the uncached admin route, on
 // opening, on each `revision` (a save or cancel elsewhere on the screen changes what the
-// trucks have today), when the screen's Stockholm `day` turns, after each ✓, and on
-// `reload`. ✓ posts the ordinary create, so an overlap answers
-// 409 like the form's; ✗ hides the suggestion on this device for the checklist's day.
+// trucks have today), when the Stockholm day of the screen's clock `now` turns, after each
+// ✓, and on `reload`. ✓ posts the ordinary create, so an overlap answers 409 like the
+// form's; ✗ hides the suggestion on this device for the checklist's day.
 //
-// A limit: the server leaves out what has ended when it reads, so a suggestion ending while
+// The checklist's day is the server's. While it is behind the screen's (the read crossed
+// midnight, or one clock is off), nothing is shown, so no ✓ or ✗ acts on yesterday's
+// suggestions, and it is read again at each minute's tick of `now` until they agree.
+//
+// Limits: the server leaves out what has ended when it reads, so a suggestion ending while
 // the screen is open stays until the next read, and its ✓ is refused ("Tiden har redan
-// passerat"), after which it is read again and gone.
+// passerat"), after which it is read again and gone. And a device whose clock is a day or
+// more ahead shows no suggestions, reading each minute.
 
 // A getter: reading `window.localStorage` throws when site data is blocked (`readDismissed`).
 const storage = () => window.localStorage;
 
 export type ChecklistState = {
-  // Null until read once, so a failed first read shows no "no suggestions" under its error.
+  // Null until read once, so a failed first read shows no "no suggestions" under its error,
+  // and while its day is behind the screen's.
   checklist: Checklist | null;
   // The suggestions not hidden by ✗, nor by a ✓ that created them.
   shown: Suggestion[];
@@ -35,18 +50,18 @@ export type ChecklistState = {
 
 export function useChecklist({
   revision,
-  day,
+  now,
   onCreated,
 }: {
   revision: number;
-  // The Stockholm day of the screen's clock, so a screen left open past midnight reads
-  // today's checklist, not yesterday's.
-  day: number;
+  // The screen's clock, which moves each minute (`useAdminLocations`).
+  now: Date;
   onCreated: () => Promise<void>;
 }): ChecklistState {
   const [checklist, setChecklist] = useState<Checklist | null>(null);
   const [readError, setReadError] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
+  // A ✓'s error, with the suggestion it is about, so a ✗ of that one clears it.
+  const [actionError, setActionError] = useState<{ id: string; text: string } | null>(null);
   // By `from_id`, every suggestion with a ✓ in flight.
   const [busyIds, setBusyIds] = useState<readonly string[]>([]);
   // The ids hidden on `day`: kept here too, so a ✗ holds for this screen when storage fails.
@@ -60,6 +75,11 @@ export function useChecklist({
   const [reads, setReads] = useState(0);
   // The newest read sent: reads can answer out of order, and only the newest is applied.
   const latestRead = useRef(0);
+
+  const behind = isBehind(checklist, now);
+  // Today's day number, or each minute's tick while the checklist's day is behind it.
+  const turn = behind ? now.getTime() : stockholmDay(now);
+  const current = behind ? null : checklist;
 
   useEffect(() => {
     const id = ++latestRead.current;
@@ -78,7 +98,7 @@ export function useChecklist({
         ids: [...new Set([...(last.day === read.day ? last.ids : []), ...stored])],
       }));
     });
-  }, [revision, day, reads]);
+  }, [revision, turn, reads]);
 
   async function confirm(suggestion: Suggestion) {
     setActionError(null);
@@ -88,7 +108,7 @@ export function useChecklist({
       setConfirmed((list) => [...list, { id: suggestion.from_id, after: latestRead.current }]);
       setCreates((count) => count + 1);
     } else {
-      setActionError(`${suggestion.truck_name}: ${result.error}`);
+      setActionError({ id: suggestion.from_id, text: `${suggestion.truck_name}: ${result.error}` });
     }
     setBusyIds((ids) => ids.filter((id) => id !== suggestion.from_id));
     // Read again either way, before the list's reload rather than after it: a created entry,
@@ -98,9 +118,9 @@ export function useChecklist({
   }
 
   function dismiss(suggestion: Suggestion) {
-    if (!checklist) return;
-    setActionError(null);
-    const { day } = checklist;
+    if (!current) return;
+    setActionError((error) => (error?.id === suggestion.from_id ? null : error));
+    const { day } = current;
     // With what another tab hid on this device since.
     const ids = [
       ...new Set([...(dismissed.day === day ? dismissed.ids : []), ...readDismissed(storage, day), suggestion.from_id]),
@@ -110,13 +130,14 @@ export function useChecklist({
   }
 
   const hidden = [
-    ...(checklist && dismissed.day === checklist.day ? dismissed.ids : []),
+    ...(current && dismissed.day === current.day ? dismissed.ids : []),
     ...confirmed.map(({ id }) => id),
   ];
   return {
-    checklist,
-    shown: checklist ? checklist.suggestions.filter((s) => !hidden.includes(s.from_id)) : [],
-    errors: { read: readError, action: actionError },
+    // Null while behind, too: the screen says "Hämtar…", not yesterday's list.
+    checklist: current,
+    shown: current ? current.suggestions.filter((s) => !hidden.includes(s.from_id)) : [],
+    errors: { read: readError, action: actionError?.text ?? null },
     busyIds,
     creates,
     clearActionError: () => setActionError(null),
