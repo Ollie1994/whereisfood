@@ -52,6 +52,8 @@ export function useAdminLocations(): {
   startEdit: (entry: AdminEntry) => void;
   stopEdit: () => void;
   confirm: (entry: AdminEntry) => Promise<void>;
+  // Counts cancels that succeeded: a truck's recent places leave cancelled entries out.
+  cancels: number;
   // Asks first; `onConfirmed` runs once the admin has said yes.
   cancel: (entry: AdminEntry, onConfirmed?: () => void) => Promise<void>;
 } {
@@ -65,6 +67,7 @@ export function useAdminLocations(): {
   const [busyIds, setBusyIds] = useState<readonly string[]>([]);
   const [editing, setEditing] = useState<AdminEntry | null>(null);
   const [retrying, setRetrying] = useState(false);
+  const [cancels, setCancels] = useState(0);
   // The newest reads sent: reads can answer out of order when actions overlap, and only the
   // newest of each is applied.
   const latestRead = useRef(0);
@@ -149,6 +152,7 @@ export function useAdminLocations(): {
     // pressed.
     if (result.ok && action === "cancel") {
       setEditing((open) => (open?.id === entry.id ? null : open));
+      setCancels((count) => count + 1);
     }
     // Reloaded on a refusal too: a 404 means the entry is gone, and the list should say so.
     await readAgain(trucksFailed.current);
@@ -165,6 +169,7 @@ export function useAdminLocations(): {
     clearActionError: () => setActionError(null),
     retry,
     retrying,
+    cancels,
     startEdit: setEditing,
     stopEdit: () => setEditing(null),
     confirm: (entry) => act(entry, "confirm"),

@@ -5,6 +5,7 @@ import {
   findTruckLocationsOverlapping,
   getLocationById,
   insertLocation,
+  listRecentLocationsForTruck,
   updateLocation,
 } from "@/lib/db/locations";
 import { LIST_DAYS, hasEnded } from "@/lib/admin-list";
@@ -19,6 +20,18 @@ import { LOCATION_ERRORS, crossFieldError, type NewLocationInput } from "@/lib/v
 
 // An entry with its truck's name, for the admin's list.
 export type AdminEntry = Location & { truck_name: string };
+
+// Where an entry stands: what the place picker fills and a recent place offers.
+export type Place = Pick<Location, "latitude" | "longitude" | "label">;
+
+// A recent place, with the times of the truck's newest entry there, which picking it fills
+// (Phase 7 plan, #23, #35).
+export type RecentPlace = Place & Pick<Location, "starts_at" | "ends_at">;
+
+// The recent places offered: from the truck's last `RECENT_ENTRIES` entries, at most
+// `RECENT_PLACES` (Phase 7 plan, #35).
+export const RECENT_ENTRIES = 50;
+export const RECENT_PLACES = 5;
 
 export type Refusal = { ok: false; reason: "invalid" | "not-found" | "conflict"; error: string };
 export type EntryResult = { ok: true; entry: Location } | Refusal;
@@ -184,4 +197,24 @@ export async function cancelEntry(id: string, now: Date): Promise<Location | nul
 // "Stämmer fortfarande": moves `updated_at` (#18). Null for a missing or cancelled entry.
 export async function confirmEntry(id: string, now: Date): Promise<Location | null> {
   return confirmLocation(id, now.toISOString());
+}
+
+// The truck's distinct places, newest first, from its live entries that started before
+// `now`, each with its newest entry's pin and times: one per name, so a spot whose pin was
+// moved a little by a map tap shows once, and one per pin for a place with no name (#35).
+//
+// Limits: names are compared exactly, case included, so "Heden" and "heden" are two places.
+// And the pins aren't checked against the Gothenburg box here or in the picker. Every app
+// write was (the location validator), so only a row written outside the app can fall
+// outside it; one past ±90 latitude throws in the picker map, as it opens on the pin or
+// moves its marker there (`LngLat`), and the admin screen shows the error page.
+export async function getRecentPlaces(truckId: string, now: Date): Promise<RecentPlace[]> {
+  const rows = await listRecentLocationsForTruck(truckId, now.toISOString(), RECENT_ENTRIES);
+  const places = new Map<string, RecentPlace>();
+  for (const { latitude, longitude, label, starts_at, ends_at } of rows) {
+    const key = JSON.stringify(label === null ? [null, latitude, longitude] : [label]);
+    if (!places.has(key)) places.set(key, { latitude, longitude, label, starts_at, ends_at });
+    if (places.size === RECENT_PLACES) break;
+  }
+  return [...places.values()];
 }

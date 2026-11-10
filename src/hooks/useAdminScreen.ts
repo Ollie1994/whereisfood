@@ -1,8 +1,9 @@
 import { useAdminLocations } from "@/hooks/useAdminLocations";
 import { useLocationForm } from "@/hooks/useLocationForm";
+import { usePlacePicker } from "@/hooks/usePlacePicker";
 import type { AdminEntry } from "@/lib/services/locations";
 
-// The admin screen's two hooks, joined: a save closes its edit and reloads the list, a save
+// The admin screen's hooks, joined: a save closes its edit and reloads the list, a save
 // starting clears a list action's older error, and a list button clears the form's
 // "Sparat.". Here, not in a component (`CLAUDE.md`, "UI Rules": components only render).
 export function useAdminScreen() {
@@ -16,10 +17,19 @@ export function useAdminScreen() {
       await reload();
     },
   });
+  // The place picker fills the form's place, and reads the form's truck's places.
+  const picker = usePlacePicker({
+    truckId: form.values.truckId,
+    generation: form.generation,
+    revision: form.saves + list.cancels,
+    timesLocked: form.timesLocked,
+    onFill: form.fill,
+  });
 
   return {
     list,
     form,
+    picker,
     confirm: (entry: AdminEntry) => {
       form.clearSaved();
       return list.confirm(entry);

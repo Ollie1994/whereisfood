@@ -21,7 +21,14 @@ import type { Location } from "@/lib/types";
 
 export type LocationFormState = {
   values: FormValues;
-  setField: (field: keyof FormValues, value: string) => void;
+  setField: <K extends keyof FormValues>(field: K, value: FormValues[K]) => void;
+  // Several fields at once: a known spot's or recent place's pin, name and times.
+  fill: (fields: Partial<FormValues>) => void;
+  // Changes each time the values are refilled: another entry opens, an edit closes, or a
+  // new entry is saved. The place picker drops a GPS fix asked for before the change.
+  generation: number;
+  // Counts saves, created or edited: the place picker reads the truck's places again.
+  saves: number;
   nextDay: boolean;
   // An edit of an entry the form can't show exactly: its date and times are read-only.
   timesLocked: boolean;
@@ -52,17 +59,25 @@ export function useLocationForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
+  const [generation, setGeneration] = useState(0);
+  const [saves, setSaves] = useState(0);
 
   // "Sparat." stays when a saved edit closes, and goes when another entry opens.
   if (editing !== filledFrom) {
     setFilledFrom(editing);
+    setGeneration((count) => count + 1);
     setValues(editing ? formFromEntry(editing) : emptyForm(new Date()));
     setError(null);
     if (editing) setSaved(null);
   }
 
-  function setField(field: keyof FormValues, value: string) {
+  function setField<K extends keyof FormValues>(field: K, value: FormValues[K]) {
     setValues((current) => ({ ...current, [field]: value }));
+    setSaved(null);
+  }
+
+  function fill(fields: Partial<FormValues>) {
+    setValues((current) => ({ ...current, ...fields }));
     setSaved(null);
   }
 
@@ -90,7 +105,11 @@ export function useLocationForm({
 
     // A new entry keeps its truck and date for the next one; an edit closes. The saved
     // entry decides the text; with no readable start in the answer, the plain one.
-    if (!target) setValues((current) => ({ ...emptyForm(new Date()), truckId: current.truckId, date: current.date }));
+    if (!target) {
+      setValues((current) => ({ ...emptyForm(new Date()), truckId: current.truckId, date: current.date }));
+      setGeneration((count) => count + 1);
+    }
+    setSaves((count) => count + 1);
     const startsAt = result.data.entry?.starts_at;
     const readable = typeof startsAt === "string" && !Number.isNaN(Date.parse(startsAt));
     setSaved(readable ? savedText({ starts_at: startsAt }, new Date()) : SAVED);
@@ -102,6 +121,9 @@ export function useLocationForm({
   return {
     values,
     setField,
+    fill,
+    generation,
+    saves,
     nextDay,
     timesLocked,
     saving,

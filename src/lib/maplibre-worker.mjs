@@ -1,5 +1,5 @@
 // Where MapLibre 6's worker is served from. ONE definition, shared by the browser
-// (`useMapLibre.tsx` passes `workerUrl(getVersion())` to `setWorkerUrl`) and by Node
+// (`map-setup.ts` passes `workerUrl(getVersion())` to `setWorkerUrl`) and by Node
 // (`scripts/copy-maplibre-worker.mjs` copies the files there), so the two cannot
 // drift apart. Plain `.mjs` because the script runs on Node without a TS loader.
 //

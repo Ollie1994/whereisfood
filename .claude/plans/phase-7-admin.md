@@ -67,6 +67,8 @@ the public map, and nobody else can write anything.
 | `src/lib/db/users.ts` | `getUserById()` |
 | `src/lib/validators/truck.ts`, `location.ts` (+ tests) | Pure input checks |
 | `src/lib/stockholm.ts` (+ test) | Stockholm calendar days, day bounds and wall-clock time to UTC, with `live.ts`'s helpers moved in (#31) |
+| `src/lib/map-setup.ts` | `createBaseMap`, the basemap setup the public map and the place picker share, out of `useMapLibre.tsx` so the picker's lazy chunk doesn't carry the public map (IS #229) |
+| `src/lib/timestamp.ts` | `isTimestamp`, out of `live.ts`, which the validator, the place picker and the map's reader share, so the admin screen doesn't load `live.ts` (IS #229) |
 | `src/app/auth/callback/route.ts` | Finishes the login |
 | `src/app/auth/logout/route.ts` (+ test) | Ends the session, outside `/api/admin/` (#28); its test stubs an Auth error, which the local stack can't produce on demand |
 | `src/app/api/admin/trucks/route.ts`, `trucks/[id]/route.ts` | List, create, edit |
@@ -75,9 +77,10 @@ the public map, and nobody else can write anything.
 | `src/app/api/admin/checklist/route.ts` | The morning list |
 | `src/app/api/admin/places/route.ts` | A truck's recent places |
 | `src/app/admin/layout.tsx`, `page.tsx`, `login/page.tsx`, `trucks/page.tsx` | The screens, phone-first |
-| `src/components/Admin/*` | `LoginForm`, `LogoutButton`, `TodayList`, `Checklist`, `LocationForm`, `PlacePicker`, `TruckForm`; `AdminLocations`, the client part that shares the list's state with the form, and `styles.ts`, their shared class strings (PR #244) |
+| `src/components/Admin/*` | `LoginForm`, `LogoutButton`, `TodayList`, `Checklist`, `LocationForm`, `PlacePicker`, `TruckForm`; `AdminLocations`, the client part that shares the list's state with the form, and `styles.ts`, their shared class strings (PR #244); `PickerMap`, the picker's map, loaded when opened (IS #229) |
 | `src/lib/admin-form.ts` (+ test), `src/lib/admin-api.ts`, `src/lib/admin-list.ts` | The admin screen's pure parts (the form's request, the list's texts), its fetch to the admin routes, and `LIST_DAYS`, which the service and the form both read (PR #244) |
-| `src/hooks/useLogin.ts`, `useAdminLocations.ts`, `useChecklist.ts`, `useLocationForm.ts`, `usePlacePicker.ts`, `useGeolocation.ts`, `useTrucks.ts`; `useAdminScreen.ts`, which joins the list's and the form's (PR #244) | All state lives here |
+| `src/lib/admin-place.ts` (+ test) | The place picker's pure parts: the pin from a tap or GPS fix, its texts, the places answer's check (IS #229) |
+| `src/hooks/useLogin.ts`, `useAdminLocations.ts`, `useChecklist.ts`, `useLocationForm.ts`, `usePlacePicker.ts`, `useGeolocation.ts`, `useTrucks.ts`; `useAdminScreen.ts`, which joins the list's and the form's (PR #244) and the place picker's (IS #229); `usePickerMap.ts`, the picker map's MapLibre setup (IS #229) | All state lives here |
 | `tests/integration/db-users.test.ts` | The key-set test a new table's reads need |
 | `tests/integration/auth-routes.test.ts` | `/auth/callback` and `/auth/logout` against the local stack |
 | `tests/integration/admin-auth.test.ts` | 401 and 403 on every admin route, found on disk (#13) |
@@ -91,12 +94,12 @@ the public map, and nobody else can write anything.
 | `src/lib/supabase.ts` | Gains `import "server-only"`, loses `supabaseClient` (#27) |
 | `vitest.config.ts` | An alias for `server-only`, if a probe shows it is needed |
 | `src/proxy.ts`, `src/proxy.test.ts` (new) | The real matcher and checks; the test pins the matcher (#10) |
-| `src/lib/live.ts` | `TZ`, `stockholmDay` and `stockholmMidnight` move out, imported from `stockholm.ts` (#31) |
+| `src/lib/live.ts` | `TZ`, `stockholmDay` and `stockholmMidnight` move out, imported from `stockholm.ts` (#31); `isTimestamp` moves to `timestamp.ts` (IS #229) |
 | `supabase/config.toml` | Sign-ups off, redirect URLs |
 | `src/lib/db/trucks.ts` | `listAllTrucks`, `insertTruck`, `updateTruck` |
 | `src/lib/db/locations.ts` | `getLocationById`, `confirmLocation`, `findTruckLocationsOverlapping`; `listRecentLocationsForTruck`'s limit check moved into `checkLimit`, shared with the last, same rule and message (PR for IS #226, round 1) |
 | `src/lib/types.ts` | `NewTruck`, `TruckPatch`, `User` |
-| `src/hooks/useMapLibre.tsx` | Only if the pin picker needs its setup shared; then a `/map` browser check |
+| `src/hooks/useMapLibre.tsx` | Only if the pin picker needs its setup shared; then a `/map` browser check. It did: the setup moved to `map-setup.ts` (IS #229) |
 | `tests/integration/helpers.ts` | A session cookie for route tests (open decision 7) |
 | `supabase/seed.sql` | #196's comments, and a local admin user if that proves simplest (open decision 5) |
 | `README.md` | Creating the admin user, the hosted auth settings |
@@ -160,7 +163,8 @@ the `Origin` header equals `requestOrigin`, and a missing or `null` `Origin` is 
 - `cancelEntry(id, now)`, `confirmEntry(id, now)`: null for a missing or cancelled entry,
   which the route answers with 404.
 - `getChecklist(now)`: #22's rules.
-- `getRecentPlaces(truckId, now)`: distinct places from `listRecentLocationsForTruck`.
+- `getRecentPlaces(truckId, now)`: distinct places from `listRecentLocationsForTruck`, by #35's
+  numbers.
 
 **db layer.** The rules are `CLAUDE.md`'s ("db layer").
 - `getUserById(id)`, with a `USER_COLUMNS` literal, returned uncast: `.maybeSingle()`, null
@@ -282,7 +286,8 @@ failure is understood.
     (the proxy, the admin screens), "Versions" (`server-only` and `@supabase/ssr` added,
     and `next.config.ts`'s `allowedDevOrigins`), "Database"'s db-layer list (`users.ts`,
     `trucks.ts`'s `listAllTrucks`, and `locations.ts`'s `getLocationById`, `confirmLocation`
-    and `findTruckLocationsOverlapping`, PR #243), "Modules kept on purpose", "Folder structure",
+    and `findTruckLocationsOverlapping`, PR #243), "Modules kept on purpose" (`basemap.ts`'s
+    user is now `map-setup.ts`, and `geo.ts`'s Phase 7 use is built, PR #245), "Folder structure",
     "Environment", "Tests and gates", the Roadmap row; Part 2's "Admin and auth", which
     becomes a description of what was built, the "Read path" diagram's `POST/PATCH
     /api/locations`, which is `/api/admin/locations` (#10), the same section's "Saves trigger
@@ -294,7 +299,8 @@ failure is understood.
     (PR #243, rounds 4 and 5); "Open decisions" (#22 and #23 settle two, #25 and #26 move two to
     Phase 8), the "Read path" section's "One time zone" bullet, whose `live.ts`'s `TZ` is now
     `stockholm.ts`'s (PR #238); Part 3's "Status codes" (404, 503, and 409 from `23505` as
-    well) and "Hooks"; and the README's status parts. It replaces each **between phases** marker in
+    well) and "Hooks" (map init is `map-setup.ts`'s, and the admin hooks are new, PR #245); and
+    the README's status parts. It replaces each **between phases** marker in
     "Decisions carried forward" with the decision here that took it up (#1–#9), and carries
     forward this plan's decisions that outlive the phase.
 
@@ -557,6 +563,35 @@ The owner's call (2026-11-09, #227). No special case: the admin changes the time
 today) or the date (lunch tomorrow), and saving the pre-fill unchanged shows #33's "Tiden har
 redan passerat" in the form. Rejected: tomorrow's date after 13:00, which makes dinner today
 three changes, and times from the next whole hour, which departs from #23.
+
+### #35 — The place picker: a name field, a map on demand, five recent places
+
+The owner's calls (2026-11-10, #229), on Claude's proposals. The form gets an optional
+"Platsnamn" field: a known spot or a recent place fills it with its name, a map tap or a GPS
+fix moves the pin and leaves the name as it is, so a coarse spot's name (`spots.ts`) stays
+while its pin is placed exactly. A blank name is stored as none. Rejected: no field, which
+would save every tapped pin with no name, so the popup shows no place and a recent place
+shows only as coordinates. The map opens from "Välj på kartan" and closes with "Klar", which
+keeps the phone form short; a GPS fix opens it on the fix, so the admin sees the pin.
+Rejected: a map always shown. Recent places are the distinct places (one per name, with its
+newest pin; one per pin for a place with no name: the owner's call, PR #245, round 4) of the
+truck's 50 most recent live entries that started before now, newest first, at most 5.
+Rejected: 10 from 100, more to scan on a phone. Picking one also fills the times of the
+truck's newest entry there, on the form's date, as #23 has recent places bring their own
+times (the owner's call, 2026-11-10, PR #245); an edit whose times are read-only keeps them.
+When the form can't show that entry's times exactly (`timesEditable`, e.g. Fri 10:00 to Sun
+18:00), the pick fills the place alone and says "Tiderna fylldes inte i: den senaste posten
+där går inte att visa här. Kontrollera tiderna." (the owner's call, PR #245, round 3).
+
+### #36 — Issues are checked locally; the phone and the preview are for checkpoints
+
+The owner's call (2026-11-10, #229). An issue's browser checks run in a local browser at phone
+width at `127.0.0.1:3000`, against the local stack. The phone, on `dev`'s preview, is for the
+checkpoint issues (steps 4, 8 and 12). The preview project's Redirect URLs stay `dev`'s alias
+alone (open decision 4), so a branch's preview can't finish a login (`README.md`, "Hosted
+preview database"). The phone first tries GPS in step 12, which enters an entry by each
+place method. Rejected: adding a branch's exact callback URL for the length of its PR, a
+hosted setting to add and remove per branch.
 
 ---
 

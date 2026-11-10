@@ -1,5 +1,6 @@
 import { LIST_DAYS } from "@/lib/admin-list";
-import { SPOTS } from "@/lib/spots";
+import { type Pin, samePin } from "@/lib/admin-place";
+import type { Place, RecentPlace } from "@/lib/services/locations";
 import { dayOf, entryWindow, isWallClock, stockholmDay, stockholmWallClock } from "@/lib/stockholm";
 import type { Location } from "@/lib/types";
 
@@ -33,14 +34,19 @@ export const FORM_ERRORS = {
   time: "Den tiden finns inte den dagen",
 } as const;
 
-// What the form holds. `place` is a spot's name, or "" for an edit that keeps its place.
+// What the form holds. `pin` is where the entry stands, null until one is picked; `label`
+// is the place's name as filled by a spot or recent place or typed, blank for none.
 export type FormValues = {
   truckId: string;
   date: string;
-  place: string;
+  pin: Pin | null;
+  label: string;
   start: string;
   end: string;
 };
+
+// What the form reads from an entry it edits.
+type EditedEntry = Pick<Location, "truck_id" | "latitude" | "longitude" | "label" | "starts_at" | "ends_at">;
 
 export type EntryRequest = { ok: true; body: Record<string, unknown> } | { ok: false; error: string };
 
@@ -51,33 +57,65 @@ export function endsNextDay(start: string, end: string): boolean {
 }
 
 export function emptyForm(now: Date): FormValues {
-  return { truckId: "", date: stockholmWallClock(now).date, place: "", start: DEFAULT_START, end: DEFAULT_END };
+  return {
+    truckId: "",
+    date: stockholmWallClock(now).date,
+    pin: null,
+    label: "",
+    start: DEFAULT_START,
+    end: DEFAULT_END,
+  };
 }
 
-// An entry as the form shows it for an edit: its own truck, Stockholm date and times, and
-// its place kept unless the admin picks a spot.
-export function formFromEntry(entry: Pick<Location, "truck_id" | "starts_at" | "ends_at">): FormValues {
+type FormTimes = Pick<FormValues, "date" | "start" | "end">;
+
+// An entry's Stockholm date and times, as the form shows them.
+function timesOf(entry: Pick<Location, "starts_at" | "ends_at">): FormTimes {
   const start = stockholmWallClock(new Date(entry.starts_at));
   const end = stockholmWallClock(new Date(entry.ends_at));
-  return { truckId: entry.truck_id, date: start.date, place: "", start: start.time, end: end.time };
+  return { date: start.date, start: start.time, end: end.time };
 }
 
-function windowOf(values: FormValues): { startsAt: Date; endsAt: Date } | { error: string } {
+// An entry as the form shows it for an edit: its own truck, place, name and times.
+export function formFromEntry(entry: EditedEntry): FormValues {
+  return {
+    truckId: entry.truck_id,
+    pin: { latitude: entry.latitude, longitude: entry.longitude },
+    label: entry.label ?? "",
+    ...timesOf(entry),
+  };
+}
+
+// The form's place for a known spot or a recent place: its pin and its name.
+export function placeValues(place: Place): Pick<FormValues, "pin" | "label"> {
+  return { pin: { latitude: place.latitude, longitude: place.longitude }, label: place.label ?? "" };
+}
+
+// A recent place also brings its newest entry's Stockholm times (plan #23, #35); the form's
+// date stays, so an end at or before the start reads as the next day's again (#30). Not
+// the times of an entry the form can't show exactly (`timesEditable`), such as one longer
+// than a day: they'd make another window. Its place alone, then.
+export function recentValues(
+  place: RecentPlace,
+): Pick<FormValues, "pin" | "label"> & Partial<Pick<FormValues, "start" | "end">> {
+  if (!timesEditable(place)) return placeValues(place);
+  const { start, end } = timesOf(place);
+  return { ...placeValues(place), start, end };
+}
+
+// A blank name is none, as the route reads it (`parseNewLocation`).
+const labelOf = (values: FormValues): string | null => values.label.trim() || null;
+
+function windowOf(values: FormTimes): { startsAt: Date; endsAt: Date } | { error: string } {
   const day = dayOf(values.date);
   if (day === null) return { error: FORM_ERRORS.date };
   return entryWindow(day, values.start, values.end) ?? { error: FORM_ERRORS.time };
 }
 
-function placeOf(name: string): Record<string, unknown> | null {
-  const spot = SPOTS.find((candidate) => candidate.name === name);
-  return spot ? { latitude: spot.latitude, longitude: spot.longitude, label: spot.name } : null;
-}
-
 // The body of `POST /api/admin/locations`. The route checks the rest (#33, overlaps).
 export function createRequest(values: FormValues): EntryRequest {
   if (!values.truckId) return { ok: false, error: FORM_ERRORS.truck };
-  const place = placeOf(values.place);
-  if (!place) return { ok: false, error: FORM_ERRORS.place };
+  if (!values.pin) return { ok: false, error: FORM_ERRORS.place };
   const window = windowOf(values);
   if ("error" in window) return { ok: false, error: window.error };
 
@@ -85,7 +123,9 @@ export function createRequest(values: FormValues): EntryRequest {
     ok: true,
     body: {
       truck_id: values.truckId,
-      ...place,
+      latitude: values.pin.latitude,
+      longitude: values.pin.longitude,
+      label: labelOf(values),
       starts_at: window.startsAt.toISOString(),
       ends_at: window.endsAt.toISOString(),
     },
@@ -99,12 +139,10 @@ export function createRequest(values: FormValues): EntryRequest {
 // Whether the form can show `entry`'s times exactly: its date, start and end rebuild to
 // the stored window. Not for an entry longer than a day, one stored with seconds, or one
 // whose wall times fall in a DST gap: the form shows such an entry's times read-only, and
-// an edit of it changes its place alone (`editRequest`). The form's own entries always
-// fit, since `entryWindow` ends one within a day of its start.
-export function timesEditable(
-  entry: Pick<Location, "truck_id" | "starts_at" | "ends_at">,
-): boolean {
-  const window = windowOf(formFromEntry(entry));
+// an edit of it changes its place and name alone (`editRequest`). The form's own entries
+// always fit, since `entryWindow` ends one within a day of its start.
+export function timesEditable(entry: Pick<Location, "starts_at" | "ends_at">): boolean {
+  const window = windowOf(timesOf(entry));
   return (
     !("error" in window) &&
     window.startsAt.getTime() === Date.parse(entry.starts_at) &&
@@ -112,19 +150,18 @@ export function timesEditable(
   );
 }
 
-// Both times when the admin changed the date or a time field of an entry the form shows
-// exactly (`timesEditable`), so the stored window is the form's; none otherwise.
-export function editRequest(
-  values: FormValues,
-  entry: Pick<Location, "truck_id" | "starts_at" | "ends_at">,
-): EntryRequest {
+// The pin when it moved, the name when it changed, and both times when the admin changed
+// the date or a time field of an entry the form shows exactly (`timesEditable`), so the
+// stored window is the form's; no times otherwise.
+export function editRequest(values: FormValues, entry: EditedEntry): EntryRequest {
   const body: Record<string, unknown> = {};
-  if (values.place) {
-    const place = placeOf(values.place);
-    if (!place) return { ok: false, error: FORM_ERRORS.place };
-    Object.assign(body, place);
+  if (values.pin && !samePin(values.pin, entry)) {
+    body.latitude = values.pin.latitude;
+    body.longitude = values.pin.longitude;
   }
-  const filled = formFromEntry(entry);
+  const label = labelOf(values);
+  if (label !== entry.label) body.label = label;
+  const filled = timesOf(entry);
   const timesChanged =
     values.date !== filled.date || values.start !== filled.start || values.end !== filled.end;
   if (!timesChanged || !timesEditable(entry)) return { ok: true, body };

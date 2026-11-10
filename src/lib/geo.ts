@@ -4,8 +4,9 @@
 //      typos and the lat/lng transposition that would otherwise land a pin in the
 //      Indian Ocean — transposed Järntorget is 11.95 N / 57.70 E, in the Arabian
 //      Sea. (Null island, 0/0, is a different failure and has its own test.)
-//   2. The admin location entry (Phase 7) will validate map taps and GPS fixes
-//      against it before a location is written.
+//   2. The admin's location entry: the place picker refuses a map tap or GPS fix
+//      outside it (`pinFrom`, `admin-place.ts`), and the admin routes refuse a
+//      location outside it (`validators/location.ts`).
 //
 // Two copies would drift, and a drifted box fails silently in the direction that
 // matters least visibly: it accepts a wrong pin rather than rejecting a right one.

@@ -1,26 +1,27 @@
 "use client";
 
-import { ALERT } from "@/components/Admin/styles";
+import PlacePicker from "@/components/Admin/PlacePicker";
+import { ALERT, FIELD, LABEL } from "@/components/Admin/styles";
 import type { LocationFormState } from "@/hooks/useLocationForm";
+import type { PlacePickerState } from "@/hooks/usePlacePicker";
 import type { AdminEntry } from "@/lib/services/locations";
 import { TIMES_READ_ONLY } from "@/lib/admin-form";
-import { SPOTS } from "@/lib/spots";
 import type { Truck } from "@/lib/types";
-
-const FIELD = "rounded-md border border-foreground/30 bg-background px-3 py-3 text-base";
-const LABEL = "flex flex-col gap-1 text-sm font-medium";
 
 // A new entry, or an edit of `editing`. Creating lists active trucks only; an edit shows
 // the entry's own truck read-only, an inactive one too, since a patch can't change it
-// (Phase 7 plan, step 7). Its state is `useLocationForm`'s, held by `AdminLocations`.
+// (Phase 7 plan, step 7). Its state is `useLocationForm`'s and the place picker's
+// `usePlacePicker`'s, held by `AdminLocations`.
 export default function LocationForm({
   form,
+  picker,
   trucks,
   editing,
   waiting,
   onStopEdit,
 }: {
   form: LocationFormState;
+  picker: PlacePickerState;
   trucks: Truck[];
   editing: AdminEntry | null;
   waiting: boolean;
@@ -57,17 +58,12 @@ export default function LocationForm({
         </label>
       )}
 
-      <label className={LABEL}>
-        Plats
-        <select value={values.place} onChange={(event) => setField("place", event.target.value)} className={FIELD}>
-          <option value="">{editing ? `Behåll ${editing.label ?? "platsen"}` : "Välj plats"}</option>
-          {SPOTS.map((spot) => (
-            <option key={spot.name} value={spot.name}>
-              {spot.name}
-            </option>
-          ))}
-        </select>
-      </label>
+      <PlacePicker
+        picker={picker}
+        pin={values.pin}
+        label={values.label}
+        onLabel={(label) => setField("label", label)}
+      />
 
       <label className={LABEL}>
         Datum
