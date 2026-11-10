@@ -433,6 +433,14 @@ describe("text helpers", () => {
         "Uppdaterad 20 dec 2025 09:00",
       );
     });
+
+    // `isTimestamp` takes it; it read "Uppdaterad 12 jan 00 01:53" while the date was split
+    // on "-" (PR #252, round 4).
+    it("a year before 1 keeps its sign", () => {
+      expect(freshnessText("0000-01-01T00:00:00+23:00", at("2026-11-10T12:00:00+01:00"))).toBe(
+        "Uppdaterad 31 dec -0001 01:53",
+      );
+    });
   });
 });
 

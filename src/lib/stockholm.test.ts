@@ -52,6 +52,10 @@ describe("stockholmWallClock", () => {
     // The validator's last UTC year, which Stockholm reads as year 10000, and its first.
     ["9999-12-31T23:30:00Z", "10000-01-01", "00:30"],
     ["0001-01-01T00:00:00Z", "0001-01-01", "00:53"],
+    // Years 0 and -1 (`isTimestamp` takes "0000-01-01T00:00:00+23:00", -0001-12-31T01:00Z):
+    // the sign goes ahead of the padding (PR #252, round 4).
+    ["0000-06-01T12:00:00Z", "0000-06-01", "12:53"],
+    ["-000001-12-31T01:00:00Z", "-0001-12-31", "01:53"],
   ])("reads %s as %s %s", (instant, date, time) => {
     expect(stockholmWallClock(new Date(instant))).toEqual({ date, time });
   });

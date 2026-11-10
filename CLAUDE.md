@@ -254,7 +254,7 @@ said otherwise: Phase 4 plan decision #14.
   `timeZone`), not `date-fns-tz`'s zone functions: on a host in another zone,
   `formatInTimeZone` was an hour late for a wall time inside that host's own DST gap, and
   `fromZonedTime` picked a repeated hour by the host's zone (probed, PR #238; the owner's
-  call). The map's popup text reads it there too (IS #239)
+  call). `live.ts`'s popup text reads it through `stockholmWallClock` too (IS #239)
 - Validators stay pure: no `new Date()`, no env. Anything clock-dependent lives in the
   service
 

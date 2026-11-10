@@ -176,10 +176,13 @@ function weekday(day: number): string {
 }
 
 // "24 okt" in Stockholm, with the year when it isn't `now`'s: "20 dec 2025".
+// The day and month are read from the end of `stockholmWallClock`'s date, not by splitting
+// on "-", which a year before 1 also holds ("-0001-12-31").
 function shortDate(date: Date, now: Date): string {
-  const [year, month, day] = stockholmWallClock(date).date.split("-");
-  const text = `${Number(day)} ${MONTHS[Number(month) - 1]}`;
-  return year === stockholmWallClock(now).date.split("-")[0] ? text : `${text} ${year}`;
+  const wall = stockholmWallClock(date).date;
+  const year = wall.slice(0, -6);
+  const text = `${Number(wall.slice(-2))} ${MONTHS[Number(wall.slice(-5, -3)) - 1]}`;
+  return year === stockholmWallClock(now).date.slice(0, -6) ? text : `${text} ${year}`;
 }
 
 // The word for Stockholm day `day` (the day of `date`), seen from `today`, `now`'s.
