@@ -68,6 +68,7 @@ the public map, and nobody else can write anything.
 | `src/lib/validators/truck.ts`, `location.ts` (+ tests) | Pure input checks |
 | `src/lib/stockholm.ts` (+ test) | Stockholm calendar days, day bounds and wall-clock time to UTC, with `live.ts`'s helpers moved in (#31) |
 | `src/lib/map-setup.ts` | `createBaseMap`, the basemap setup the public map and the place picker share, out of `useMapLibre.tsx` so the picker's lazy chunk doesn't carry the public map (IS #229) |
+| `src/lib/timestamp.ts` | `isTimestamp`, out of `live.ts`, which the validator, the place picker and the map's reader share, so the admin screen doesn't load `live.ts` (IS #229) |
 | `src/app/auth/callback/route.ts` | Finishes the login |
 | `src/app/auth/logout/route.ts` (+ test) | Ends the session, outside `/api/admin/` (#28); its test stubs an Auth error, which the local stack can't produce on demand |
 | `src/app/api/admin/trucks/route.ts`, `trucks/[id]/route.ts` | List, create, edit |
@@ -93,7 +94,7 @@ the public map, and nobody else can write anything.
 | `src/lib/supabase.ts` | Gains `import "server-only"`, loses `supabaseClient` (#27) |
 | `vitest.config.ts` | An alias for `server-only`, if a probe shows it is needed |
 | `src/proxy.ts`, `src/proxy.test.ts` (new) | The real matcher and checks; the test pins the matcher (#10) |
-| `src/lib/live.ts` | `TZ`, `stockholmDay` and `stockholmMidnight` move out, imported from `stockholm.ts` (#31) |
+| `src/lib/live.ts` | `TZ`, `stockholmDay` and `stockholmMidnight` move out, imported from `stockholm.ts` (#31); `isTimestamp` moves to `timestamp.ts` (IS #229) |
 | `supabase/config.toml` | Sign-ups off, redirect URLs |
 | `src/lib/db/trucks.ts` | `listAllTrucks`, `insertTruck`, `updateTruck` |
 | `src/lib/db/locations.ts` | `getLocationById`, `confirmLocation`, `findTruckLocationsOverlapping`; `listRecentLocationsForTruck`'s limit check moved into `checkLimit`, shared with the last, same rule and message (PR for IS #226, round 1) |
