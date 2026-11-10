@@ -47,9 +47,9 @@ const overlaps = (a: Pick<Location, "starts_at" | "ends_at">, b: Pick<Location, 
 // Limits: a truck that cancelled today can be suggested again, since cancelled rows aren't
 // read (#22); ✗ hides it. When none of the most recent day's entries can be moved, the
 // truck gets no suggestion, and an older week isn't tried: only an entry the form didn't
-// write can be one that `movedTo` refuses. Each week's window reads every truck's rows through
-// `findLocationsOverlapping`, which throws past `MAX_ROWS` in one day, the same wall as
-// `listAdminEntries`' 14 days.
+// write can be one that `movedTo` refuses. Each week's window reads every truck's rows
+// through `findLocationsOverlapping`, which throws past `MAX_ROWS` in one day, the same wall
+// as `listAdminEntries`' 14 days.
 export async function getChecklist(now: Date): Promise<Checklist> {
   const today = stockholmDay(now);
   const day = stockholmWallClock(now).date;
