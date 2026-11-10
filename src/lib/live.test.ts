@@ -439,9 +439,12 @@ describe("text helpers", () => {
 // The popup's times on a host in another zone (IS #239). Each case's instant reads, in
 // Stockholm, as a wall time in its host's own DST gap that day: date-fns-tz's
 // `formatInTimeZone` rebuilt that wall time in the host's zone and was an hour late there
-// (2026-03-08 01:30Z read "03:30" on a New York host, PR #238). Stockholm's own gaps hold no
-// Stockholm wall time, so its host's case is an ordinary one. All five changes fall on a
-// Sunday. Node reads `process.env.TZ` again when it is assigned, and deleting it leaves the
+// (2026-03-08 01:30Z read "03:30" on a New York host, PR #238). Nuuk's is the case where an
+// hour late crosses Stockholm's midnight, so its date and weekday would change too: on that
+// host `formatInTimeZone` read 2026-03-28 22:30Z (Saturday 23:30 in Stockholm) as
+// "2026-3-29 00:30", weekday 7 (probed in PR #252, round 1). Stockholm's own gaps hold no
+// Stockholm wall time, so its host's case is an ordinary one. `resolvedOptions` reports
+// Nuuk by its older name, America/Godthab. Node reads `process.env.TZ` again when it is assigned, and deleting it leaves the
 // last zone in place, so the zone is assigned back before the variable is (as
 // `stockholm.test.ts` does).
 describe("text helpers on a host in another zone", () => {
@@ -450,24 +453,27 @@ describe("text helpers on a host in another zone", () => {
   const iso = (ms: number) => new Date(ms).toISOString();
 
   it.each([
-    ["America/New_York", "2026-03-08T01:30:00Z", "02:30", "04:30", "8 mars"],
-    ["America/Los_Angeles", "2026-03-08T01:30:00Z", "02:30", "04:30", "8 mars"],
-    ["Australia/Sydney", "2026-10-04T00:30:00Z", "02:30", "04:30", "4 okt"],
-    ["America/Santiago", "2026-09-05T22:30:00Z", "00:30", "02:30", "6 sep"],
-    ["America/Havana", "2026-03-07T23:30:00Z", "00:30", "02:30", "8 mars"],
-    ["Europe/Stockholm", "2026-03-08T01:30:00Z", "02:30", "04:30", "8 mars"],
-  ])("on %s, %s reads %s", (zone, startsAt, start, end, date) => {
+    ["America/New_York", "America/New_York", "2026-03-08T01:30:00Z", "02:30", "02:30–04:30", "söndags", "8 mars"],
+    ["America/Los_Angeles", "America/Los_Angeles", "2026-03-08T01:30:00Z", "02:30", "02:30–04:30", "söndags", "8 mars"],
+    ["Australia/Sydney", "Australia/Sydney", "2026-10-04T00:30:00Z", "02:30", "02:30–04:30", "söndags", "4 okt"],
+    ["America/Santiago", "America/Santiago", "2026-09-05T22:30:00Z", "00:30", "00:30–02:30", "söndags", "6 sep"],
+    ["America/Havana", "America/Havana", "2026-03-07T23:30:00Z", "00:30", "00:30–02:30", "söndags", "8 mars"],
+    ["America/Nuuk", "America/Godthab", "2026-03-28T22:30:00Z", "23:30", "23:30–01:30 imorgon", "lördags", "28 mars"],
+    ["Europe/Stockholm", "Europe/Stockholm", "2026-03-08T01:30:00Z", "02:30", "02:30–04:30", "söndags", "8 mars"],
+  ])("on %s, %s reads %s", (zone, resolved, startsAt, start, hours, day, date) => {
     const t = Date.parse(startsAt);
     const e = entry({ starts_at: startsAt, ends_at: iso(t + 2 * HOUR), updated_at: startsAt });
+    // 15 minutes on: still the start's Stockholm day in every case, Nuuk's 23:30 included.
+    const soon = new Date(t + HOUR / 4);
     const env = process.env.TZ;
     const original = Intl.DateTimeFormat().resolvedOptions().timeZone;
     process.env.TZ = zone;
     try {
-      expect(Intl.DateTimeFormat().resolvedOptions().timeZone).toBe(zone);
-      expect(hoursText(e, new Date(t + HOUR / 2))).toBe(`${start}–${end}`);
+      expect(Intl.DateTimeFormat().resolvedOptions().timeZone).toBe(resolved);
+      expect(hoursText(e, soon)).toBe(hours);
       expect(statusText({ entry: e, status: "later" })).toBe(`Öppnar ${start}`);
-      expect(freshnessText(startsAt, new Date(t + HOUR))).toBe(`Uppdaterad ${start}`);
-      expect(freshnessText(startsAt, new Date(t + 3 * DAY))).toBe(`Uppdaterad i söndags ${start}`);
+      expect(freshnessText(startsAt, soon)).toBe(`Uppdaterad ${start}`);
+      expect(freshnessText(startsAt, new Date(t + 3 * DAY))).toBe(`Uppdaterad i ${day} ${start}`);
       expect(freshnessText(startsAt, new Date(t + 10 * DAY))).toBe(`Uppdaterad ${date} ${start}`);
     } finally {
       process.env.TZ = original;

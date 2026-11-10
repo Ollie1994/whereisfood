@@ -158,8 +158,9 @@ export function diffMarkers(
 // --- Popup text ------------------------------------------------------------------------
 
 // Stockholm wall time through `stockholm.ts`'s `Intl` reading, not date-fns-tz's
-// `formatInTimeZone`, which was an hour late on the host's own DST-gap day: 2026-03-08 01:30Z
-// read "03:30" on a New York host (IS #239; `live.test.ts`'s host-zone cases).
+// `formatInTimeZone`, which was an hour late for a Stockholm wall time inside the host's own
+// DST gap: 2026-03-08 01:30Z read "03:30" on a New York host (IS #239; `live.test.ts`'s
+// host-zone cases).
 function clock(date: Date): string {
   return stockholmWallClock(date).time;
 }
@@ -168,9 +169,10 @@ function clock(date: Date): string {
 const WEEKDAYS = ["måndags", "tisdags", "onsdags", "torsdags", "fredags", "lördags", "söndags"];
 const MONTHS = ["jan", "feb", "mars", "apr", "maj", "juni", "juli", "aug", "sep", "okt", "nov", "dec"];
 
-// The Stockholm weekday of `date`, by its day number: day 0, 1970-01-01, was a Thursday.
-function weekday(date: Date): string {
-  return WEEKDAYS[(((stockholmDay(date) + 3) % 7) + 7) % 7];
+// The weekday of Stockholm day `day` (`stockholmDay`'s count): day 0, 1970-01-01, was a
+// Thursday.
+function weekday(day: number): string {
+  return WEEKDAYS[(((day + 3) % 7) + 7) % 7];
 }
 
 // "24 okt" in Stockholm, with the year when it isn't `now`'s: "20 dec 2025".
@@ -216,12 +218,13 @@ export function statusText(marker: MarkerEntry): string {
 // By Stockholm calendar days between `updated_at` and `now` (plan, open decision 5).
 export function freshnessText(updatedAt: string, now: Date): string {
   const at = instant(updatedAt);
-  const days = stockholmDay(now) - stockholmDay(at);
+  const atDay = stockholmDay(at);
+  const days = stockholmDay(now) - atDay;
   const time = clock(at);
   if (days <= 0) return `Uppdaterad ${time}`;
   if (days === 1) return `Uppdaterad igår ${time}`;
   if (days < 7) {
-    return `Uppdaterad i ${weekday(at)} ${time}`;
+    return `Uppdaterad i ${weekday(atDay)} ${time}`;
   }
   return `Uppdaterad ${shortDate(at, now)} ${time}`;
 }

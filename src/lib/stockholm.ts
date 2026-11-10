@@ -2,7 +2,7 @@
 // map (`live.ts`), the admin form and the checklist (Phase 7 plan, #31). No clock: every
 // function that needs the time takes it.
 
-export const TZ = "Europe/Stockholm";
+const TZ = "Europe/Stockholm";
 
 const DAY_MS = 86_400_000;
 const MINUTE_MS = 60_000;

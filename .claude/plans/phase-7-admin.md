@@ -98,7 +98,7 @@ the public map, and nobody else can write anything.
 | `src/lib/supabase.ts` | Gains `import "server-only"`, loses `supabaseClient` (#27) |
 | `vitest.config.ts` | An alias for `server-only`, if a probe shows it is needed |
 | `src/proxy.ts`, `src/proxy.test.ts` (new) | The real matcher and checks; the test pins the matcher (#10) |
-| `src/lib/live.ts` | `TZ`, `stockholmDay` and `stockholmMidnight` move out, imported from `stockholm.ts` (#31); `isTimestamp` moves to `timestamp.ts` (IS #229); the popup text reads Stockholm wall time through `stockholmWallClock`, not `formatInTimeZone` (IS #239) |
+| `src/lib/live.ts` | `TZ`, `stockholmDay` and `stockholmMidnight` move out, imported from `stockholm.ts` (#31); `isTimestamp` moves to `timestamp.ts` (IS #229); the popup text reads Stockholm wall time through `stockholmWallClock`, not `formatInTimeZone`, and `live.ts` no longer imports `TZ`, now local to `stockholm.ts` (IS #239) |
 | `supabase/config.toml` | Sign-ups off, redirect URLs |
 | `src/lib/db/trucks.ts` | `listAllTrucks`, `insertTruck`, `updateTruck` (through `pick.ts`, IS #230) |
 | `src/lib/db/locations.ts` | `getLocationById`, `confirmLocation`, `findTruckLocationsOverlapping`; `listRecentLocationsForTruck`'s limit check moved into `checkLimit`, shared with the last, same rule and message (PR for IS #226, round 1) |
