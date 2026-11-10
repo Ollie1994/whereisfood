@@ -573,6 +573,16 @@ Rejected: a map always shown. Recent places are the distinct places (name and pi
 truck's 50 most recent live entries that started before now, newest first, at most 5.
 Rejected: 10 from 100, more to scan on a phone.
 
+### #36 — Issues are checked locally; the phone and the preview are for checkpoints
+
+The owner's call (2026-11-10, #229). An issue's browser checks run in a local browser at phone
+width at `127.0.0.1:3000`, against the local stack. The phone, on `dev`'s preview, is for the
+checkpoint issues (steps 4, 8 and 12). The preview project's Redirect URLs stay `dev`'s alias
+alone (open decision 4), so a branch's preview can't finish a login (`README.md`, "Hosted
+preview database"). The phone first tries GPS in step 12, which enters an entry by each
+place method. Rejected: adding a branch's exact callback URL for the length of its PR, a
+hosted setting to add and remove per branch.
+
 ---
 
 ## Acceptance Criteria
