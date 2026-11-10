@@ -20,7 +20,8 @@ import { stockholmDay } from "@/lib/stockholm";
 //
 // The checklist's day is the server's. While it is behind the screen's (the read crossed
 // midnight, or one clock is off), nothing is shown, so no ✓ or ✗ acts on yesterday's
-// suggestions, and it is read again at each minute's tick of `now` until they agree.
+// suggestions, and it is read again each time `now` is set until they agree, then once more,
+// as `turn` goes back from a time to the day.
 //
 // Limits: the server leaves out what has ended when it reads, so a suggestion ending while
 // the screen is open stays until the next read, and its ✓ is refused ("Tiden har redan
@@ -54,13 +55,15 @@ export function useChecklist({
   onCreated,
 }: {
   revision: number;
-  // The screen's clock, which moves each minute (`useAdminLocations`).
+  // The screen's clock, set each minute and on each list read (`useAdminLocations`).
   now: Date;
   onCreated: () => Promise<void>;
 }): ChecklistState {
   const [checklist, setChecklist] = useState<Checklist | null>(null);
   const [readError, setReadError] = useState<string | null>(null);
-  // A ✓'s error, with the suggestion it is about, so a ✗ of that one clears it.
+  // A ✓'s error, with the suggestion it is about: a ✗ of that one clears it, and so does any
+  // ✗ once that suggestion has left the list (a 409's re-read leaves it out), and a read of a
+  // new day.
   const [actionError, setActionError] = useState<{ id: string; text: string } | null>(null);
   // By `from_id`, every suggestion with a ✓ in flight.
   const [busyIds, setBusyIds] = useState<readonly string[]>([]);
@@ -75,6 +78,8 @@ export function useChecklist({
   const [reads, setReads] = useState(0);
   // The newest read sent: reads can answer out of order, and only the newest is applied.
   const latestRead = useRef(0);
+  // The day of the read applied last.
+  const appliedDay = useRef<string | null>(null);
 
   const behind = isBehind(checklist, now);
   // Today's day number, or each minute's tick while the checklist's day is behind it.
@@ -89,6 +94,8 @@ export function useChecklist({
       // A failed read keeps the last good checklist under its error, and what ✓ hid.
       if (!read) return setReadError(result.ok ? API_ERRORS.unknown : result.error);
       setReadError(null);
+      if (appliedDay.current !== null && appliedDay.current !== read.day) setActionError(null);
+      appliedDay.current = read.day;
       setChecklist(read);
       setConfirmed((list) => stillHidden(list, id));
       // Read here, not in the updater, which React may run twice.
@@ -117,9 +124,16 @@ export function useChecklist({
     if (result.ok) await onCreated();
   }
 
+  const hidden = [
+    ...(current && dismissed.day === current.day ? dismissed.ids : []),
+    ...confirmed.map(({ id }) => id),
+  ];
+  const shown = current ? current.suggestions.filter((s) => !hidden.includes(s.from_id)) : [];
+
   function dismiss(suggestion: Suggestion) {
     if (!current) return;
-    setActionError((error) => (error?.id === suggestion.from_id ? null : error));
+    const listed = shown.map((s) => s.from_id);
+    setActionError((error) => (error && (error.id === suggestion.from_id || !listed.includes(error.id)) ? null : error));
     const { day } = current;
     // With what another tab hid on this device since.
     const ids = [
@@ -129,14 +143,10 @@ export function useChecklist({
     writeDismissed(storage, day, ids);
   }
 
-  const hidden = [
-    ...(current && dismissed.day === current.day ? dismissed.ids : []),
-    ...confirmed.map(({ id }) => id),
-  ];
   return {
     // Null while behind, too: the screen says "Hämtar…", not yesterday's list.
     checklist: current,
-    shown: current ? current.suggestions.filter((s) => !hidden.includes(s.from_id)) : [],
+    shown,
     errors: { read: readError, action: actionError?.text ?? null },
     busyIds,
     creates,
