@@ -434,11 +434,14 @@ describe("text helpers", () => {
       );
     });
 
-    // `isTimestamp` takes it; it read "Uppdaterad 12 jan 00 01:53" while the date was split
-    // on "-" (PR #252, round 4).
-    it("a year before 1 keeps its sign", () => {
+    // `isTimestamp` takes both; `parseISO` reads the first as -000001-12-31T01:00Z. Before
+    // 1893 Stockholm's offset is local mean time, +00:53:28 (`stockholm.ts`).
+    it("a year before 1 keeps its sign, and year 0 its four digits", () => {
       expect(freshnessText("0000-01-01T00:00:00+23:00", at("2026-11-10T12:00:00+01:00"))).toBe(
         "Uppdaterad 31 dec -0001 01:53",
+      );
+      expect(freshnessText("0000-06-01T12:00:00+00:00", at("2026-11-10T12:00:00+01:00"))).toBe(
+        "Uppdaterad 1 juni 0000 12:53",
       );
     });
   });
