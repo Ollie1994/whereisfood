@@ -1,6 +1,5 @@
 import { parseISO } from "date-fns";
-import { formatInTimeZone } from "date-fns-tz";
-import { stockholmDay, stockholmMidnight, TZ } from "@/lib/stockholm";
+import { stockholmDay, stockholmMidnight, stockholmWallClock } from "@/lib/stockholm";
 import { isTimestamp } from "@/lib/timestamp";
 import type { Location, Truck } from "@/lib/types";
 
@@ -158,19 +157,27 @@ export function diffMarkers(
 
 // --- Popup text ------------------------------------------------------------------------
 
+// Stockholm wall time through `stockholm.ts`'s `Intl` reading, not date-fns-tz's
+// `formatInTimeZone`, which was an hour late on the host's own DST-gap day: 2026-03-08 01:30Z
+// read "03:30" on a New York host (IS #239; `live.test.ts`'s host-zone cases).
 function clock(date: Date): string {
-  return formatInTimeZone(date, TZ, "HH:mm");
+  return stockholmWallClock(date).time;
 }
 
-// Index = ISO weekday (`i`) - 1, and month (`M`) - 1.
+// Index = ISO weekday - 1 (Monday first), and month - 1.
 const WEEKDAYS = ["måndags", "tisdags", "onsdags", "torsdags", "fredags", "lördags", "söndags"];
 const MONTHS = ["jan", "feb", "mars", "apr", "maj", "juni", "juli", "aug", "sep", "okt", "nov", "dec"];
 
+// The Stockholm weekday of `date`, by its day number: day 0, 1970-01-01, was a Thursday.
+function weekday(date: Date): string {
+  return WEEKDAYS[(((stockholmDay(date) + 3) % 7) + 7) % 7];
+}
+
 // "24 okt" in Stockholm, with the year when it isn't `now`'s: "20 dec 2025".
 function shortDate(date: Date, now: Date): string {
-  const [year, month, day] = formatInTimeZone(date, TZ, "yyyy-M-d").split("-");
-  const text = `${day} ${MONTHS[Number(month) - 1]}`;
-  return year === formatInTimeZone(now, TZ, "yyyy") ? text : `${text} ${year}`;
+  const [year, month, day] = stockholmWallClock(date).date.split("-");
+  const text = `${Number(day)} ${MONTHS[Number(month) - 1]}`;
+  return year === stockholmWallClock(now).date.split("-")[0] ? text : `${text} ${year}`;
 }
 
 // The word for Stockholm day `day` (the day of `date`), seen from `today`, `now`'s.
@@ -214,8 +221,7 @@ export function freshnessText(updatedAt: string, now: Date): string {
   if (days <= 0) return `Uppdaterad ${time}`;
   if (days === 1) return `Uppdaterad igår ${time}`;
   if (days < 7) {
-    const weekday = WEEKDAYS[Number(formatInTimeZone(at, TZ, "i")) - 1];
-    return `Uppdaterad i ${weekday} ${time}`;
+    return `Uppdaterad i ${weekday(at)} ${time}`;
   }
   return `Uppdaterad ${shortDate(at, now)} ${time}`;
 }
