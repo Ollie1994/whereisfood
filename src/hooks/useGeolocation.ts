@@ -4,8 +4,8 @@ import { GEO_ERRORS, geoError } from "@/lib/admin-place";
 export type GeoFix = { ok: true; latitude: number; longitude: number } | { ok: false; error: string };
 
 // "Jag är här nu": one fresh position from the browser, or a Swedish reason. Browsers offer
-// it only in a secure context (HTTPS, or this machine's own address), so a phone tries it on
-// the preview.
+// it only in a secure context (MDN, "Geolocation API"), so a phone tries it on the preview's
+// HTTPS; Chrome gave a position at `http://127.0.0.1:3000` (the owner's check, #229).
 export function useGeolocation() {
   const [locating, setLocating] = useState(false);
 

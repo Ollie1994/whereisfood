@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
-// Namespace import: MapLibre 6 is ESM-only and has no default export.
+// Namespace import, for the reason `useMapLibre.tsx` gives.
 import * as maplibregl from "maplibre-gl";
 import { createBaseMap } from "@/hooks/useMapLibre";
 import type { Pin } from "@/lib/admin-place";

@@ -12,8 +12,9 @@ export type Pin = Pick<Place, "latitude" | "longitude">;
 
 export type PinResult = { ok: true; pin: Pin } | { ok: false; error: string };
 
-// A tapped or GPS position as a pin, refused outside the Gothenburg box with the same text
-// the route gives (`isInGothenburg`), so the form is never filled with a pin it can't save.
+// A tapped or GPS position as a pin, refused outside the Gothenburg box with the same check
+// and text as the route's (`isInGothenburg`), so a tap or fix the route would refuse as
+// outside the box doesn't fill the form.
 export function pinFrom(latitude: number, longitude: number): PinResult {
   if (!isInGothenburg(latitude, longitude)) return { ok: false, error: LOCATION_ERRORS.outside };
   return { ok: true, pin: { latitude, longitude } };

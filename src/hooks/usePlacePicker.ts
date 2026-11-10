@@ -8,8 +8,7 @@ import { SPOTS } from "@/lib/spots";
 // The place picker's state (Phase 7 plan, step 9): the chosen truck's recent places, the
 // map's open state, and the refusal of a tap or GPS fix outside the Gothenburg box. The
 // pin and the name are the form's (`useLocationForm`): a spot or recent place sets both
-// (`onPlace`), a map tap or GPS fix the pin alone (`onPin`), so a coarse spot's name stays
-// while its pin is moved.
+// (`onPlace`), a map tap or GPS fix the pin alone (`onPin`), as plan #35 sets.
 
 type Recent = { truckId: string; places: Place[] | null };
 

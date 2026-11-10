@@ -196,8 +196,7 @@ export async function confirmEntry(id: string, now: Date): Promise<Location | nu
 }
 
 // The truck's distinct places, newest first, from its live entries that started before
-// `now`: one per label and pin, so a spot used every week shows once. An unknown truck has
-// none.
+// `now`: one per label and pin, so a spot used every week shows once.
 export async function getRecentPlaces(truckId: string, now: Date): Promise<Place[]> {
   const rows = await listRecentLocationsForTruck(truckId, now.toISOString(), RECENT_ENTRIES);
   const places = new Map<string, Place>();
