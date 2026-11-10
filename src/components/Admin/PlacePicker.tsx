@@ -28,7 +28,7 @@ interface PlacePickerProps {
 }
 
 // The form's place: a known spot, a recent place, a map tap or "Jag är här nu", and the
-// place's name, which a spot or recent place fills.
+// place's name. What each pick fills is `usePlacePicker`'s.
 export default function PlacePicker({ picker, pin, label, onLabel }: PlacePickerProps) {
   const { recentPlaces, recentLoading, recentError, message, mapOpen, locating } = picker;
 

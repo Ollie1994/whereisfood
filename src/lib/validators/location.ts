@@ -1,6 +1,6 @@
 import { parseISO } from "date-fns";
 import { isInGothenburg } from "@/lib/geo";
-import { isTimestamp } from "@/lib/live";
+import { isTimestamp } from "@/lib/timestamp";
 import type { LocationPatch, NewLocation } from "@/lib/types";
 import { isUuid } from "@/lib/validators/uuid";
 

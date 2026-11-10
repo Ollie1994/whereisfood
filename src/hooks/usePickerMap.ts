@@ -62,9 +62,9 @@ export function usePickerMap(
     const lngLat: [number, number] = [pin.longitude, pin.latitude];
     if (markerRef.current) markerRef.current.setLngLat(lngLat);
     else markerRef.current = new maplibregl.Marker({ color: PIN_COLOR }).setLngLat(lngLat).addTo(map);
-    // A spot or recent place picked while the map is open may be out of view, or the map
-    // zoomed out past where a pin can be judged.
-    if (!map.getBounds().contains(lngLat)) {
+    // A new pin may be out of view, or the map zoomed out past where a pin can be judged;
+    // a tap at a wide zoom then zooms in on it too.
+    if (!map.getBounds().contains(lngLat) || map.getZoom() < PIN_ZOOM) {
       map.easeTo({ center: lngLat, zoom: Math.max(map.getZoom(), PIN_ZOOM) });
     }
   }, [builds, pin]);

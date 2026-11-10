@@ -227,6 +227,13 @@ describe("recentValues", () => {
       body: { starts_at: "2026-08-22T20:00:00.000Z", ends_at: "2026-08-23T00:00:00.000Z" },
     });
   });
+
+  // Fri 10:00 to Sun 18:00 would come back as one day's 10:00–18:00.
+  it("fills the place alone from an entry the form can't show exactly", () => {
+    const recent = { ...place, starts_at: "2026-08-14T08:00:00+00:00", ends_at: "2026-08-16T16:00:00+00:00" };
+
+    expect(recentValues(recent)).toEqual({ pin: { latitude: 57.7024223, longitude: 11.9789581 }, label: "Heden" });
+  });
 });
 
 describe("savedText", () => {

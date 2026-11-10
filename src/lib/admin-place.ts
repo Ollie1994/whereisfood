@@ -1,7 +1,7 @@
 import { isInGothenburg } from "@/lib/geo";
-import { isTimestamp } from "@/lib/live";
 import type { Place, RecentPlace } from "@/lib/services/locations";
 import { SPOTS } from "@/lib/spots";
+import { isTimestamp } from "@/lib/timestamp";
 import { LOCATION_ERRORS } from "@/lib/validators/location";
 
 // The place picker's pure parts (Phase 7 plan, step 9): the pin a map tap or a GPS fix

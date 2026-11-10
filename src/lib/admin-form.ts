@@ -92,8 +92,11 @@ export function placeValues(place: Place): Pick<FormValues, "pin" | "label"> {
 }
 
 // A recent place also brings its newest entry's Stockholm times (plan #23, #35); the form's
-// date stays, so an end at or before the start reads as the next day's again (#30).
-export function recentValues(place: RecentPlace): Pick<FormValues, "pin" | "label" | "start" | "end"> {
+// date stays, so an end at or before the start reads as the next day's again (#30). Not
+// the times of an entry the form can't show exactly (`timesEditable`), such as one longer
+// than a day: they'd make another window. Its place alone, then.
+export function recentValues(place: RecentPlace): Partial<FormValues> {
+  if (!timesEditable(place)) return placeValues(place);
   const { start, end } = timesOf(place);
   return { ...placeValues(place), start, end };
 }

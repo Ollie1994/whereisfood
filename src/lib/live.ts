@@ -1,6 +1,7 @@
-import { isValid, parseISO } from "date-fns";
+import { parseISO } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import { stockholmDay, stockholmMidnight, TZ } from "@/lib/stockholm";
+import { isTimestamp } from "@/lib/timestamp";
 import type { Location, Truck } from "@/lib/types";
 
 // The `/api/live` response contract and the pure helpers the service, the route, the
@@ -34,15 +35,7 @@ export type FetchState = "loading" | "ok" | "failing";
 
 // --- The guard the client applies to a 2xx body ---------------------------------
 
-// A date, a time with optional fractional seconds, and an offset. PostgREST returns
-// `…T09:00:00+00:00`, and `updated_at` (from `now()`) with microseconds,
-// `…T06:50:08.606373+00:00` (local stack, 2026-10-25). The pattern comes first
-// because `parseISO` alone accepts `"2026"`, and a string with no offset, which it
-// reads in the browser's own time zone. The time's and the offset's hours are bounded
-// here because `isValid(instant(…))` (`parseISO`) accepts `T24:00:00` and `+24:00`; it
-// refuses `+01:60` itself (all pinned in `live.test.ts`).
-const TIMESTAMP =
-  /^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-](?:[01]\d|2[0-3]):\d{2})$/;
+// Timestamps are checked by `isTimestamp` (`timestamp.ts`).
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -50,12 +43,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isNullableString(value: unknown): value is string | null {
   return value === null || typeof value === "string";
-}
-
-// Exported for the location validators, so a timestamp the API takes passes the same
-// check as one the map reads.
-export function isTimestamp(value: unknown): value is string {
-  return typeof value === "string" && TIMESTAMP.test(value) && isValid(instant(value));
 }
 
 // MapLibre's `LngLat` constructor throws outside ±90 latitude and doesn't check

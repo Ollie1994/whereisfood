@@ -33,12 +33,15 @@ export type PlacePickerState = {
 export function usePlacePicker({
   truckId,
   generation,
+  saves,
   timesLocked,
   onFill,
 }: {
   truckId: string;
   // `useLocationForm`'s: a change means the form now holds another entry, or a fresh one.
   generation: number;
+  // `useLocationForm`'s count of saves, after which a truck's places are read again.
+  saves: number;
   // The form's times are read-only, so a recent place leaves them.
   timesLocked: boolean;
   onFill: (fields: Partial<FormValues>) => void;
@@ -50,8 +53,9 @@ export function usePlacePicker({
   // The generation the message belongs to: a refill clears it during render, as
   // `useLocationForm` refills its values, with no effect.
   const [messageFor, setMessageFor] = useState(generation);
-  // For a GPS fix that comes back after the form changed, which is then dropped.
-  const generationRef = useRef(generation);
+  // The GPS request whose fix may still fill the form, or null once it may not: the form was
+  // refilled, or a spot, recent place or map tap was picked while the phone was locating.
+  const pendingFix = useRef<object | null>(null);
   const geolocation = useGeolocation();
 
   if (generation !== messageFor) {
@@ -60,23 +64,26 @@ export function usePlacePicker({
   }
 
   useEffect(() => {
-    generationRef.current = generation;
-  });
+    pendingFix.current = null;
+  }, [generation]);
 
-  // Read again when the truck changes, after a save or another entry opens (a place may have
-  // been added), and on "Försök igen". An answer for a truck no longer chosen is dropped.
+  // Read again when the truck changes, after a save (a place may have been added), and on
+  // "Försök igen". An answer for a truck no longer chosen is dropped, and a failed re-read
+  // keeps the truck's last good list.
   useEffect(() => {
     if (!truckId) return;
     let current = true;
     void adminFetch<{ places?: unknown }>(`/api/admin/places?truckId=${encodeURIComponent(truckId)}`).then(
       (result) => {
-        if (current) setRecent({ truckId, places: result.ok ? recentPlaceList(result.data.places) : null });
+        if (!current) return;
+        const places = result.ok ? recentPlaceList(result.data.places) : null;
+        setRecent((last) => (!places && last?.truckId === truckId && last.places ? last : { truckId, places }));
       },
     );
     return () => {
       current = false;
     };
-  }, [truckId, generation, retries]);
+  }, [truckId, saves, retries]);
 
   const shown = truckId && recent?.truckId === truckId ? recent : null;
 
@@ -99,23 +106,30 @@ export function usePlacePicker({
     pickSpot: (name) => {
       const spot = SPOTS.find((candidate) => candidate.name === name);
       if (!spot) return;
+      pendingFix.current = null;
       setMessage(null);
       onFill(placeValues({ latitude: spot.latitude, longitude: spot.longitude, label: spot.name }));
     },
     pickRecent: (place) => {
+      pendingFix.current = null;
       setMessage(null);
       onFill(timesLocked ? placeValues(place) : recentValues(place));
     },
     mapOpen,
     toggleMap: () => setMapOpen((open) => !open),
-    tapMap: (latitude, longitude) => void pin(latitude, longitude),
+    tapMap: (latitude, longitude) => {
+      pendingFix.current = null;
+      pin(latitude, longitude);
+    },
     // The map opens on the fix, so the admin sees where the phone thinks it is.
     locate: async () => {
       if (geolocation.locating) return;
-      const askedFor = generationRef.current;
+      const request = {};
+      pendingFix.current = request;
       setMessage(null);
       const fix = await geolocation.locate();
-      if (generationRef.current !== askedFor) return;
+      if (pendingFix.current !== request) return;
+      pendingFix.current = null;
       if (!fix.ok) setMessage(fix.error);
       else if (pin(fix.latitude, fix.longitude)) setMapOpen(true);
     },
