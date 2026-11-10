@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { type TestContext, afterAll, beforeAll, describe, expect, it } from "vitest";
 import { GET } from "@/app/api/admin/checklist/route";
 import { POST } from "@/app/api/admin/locations/route";
 import { POST as CANCEL } from "@/app/api/admin/locations/[id]/cancel/route";
@@ -14,7 +14,9 @@ import { cookieHeader, resetTables, seedLocation, seedTruck, sessionUser } from 
 // ends at 01:00 tomorrow, after any time of today, so it hasn't ended whenever the test runs.
 // The windows come from `stockholm.ts`, which `stockholm.test.ts` checks against `Intl`. The
 // rules that need a fixed clock call `getChecklist` with one, against the same database.
-// Only fixture trucks' suggestions are read: the seed's trucks have their own.
+// Only fixture trucks' suggestions are read: the seed's trucks have their own. A case whose
+// read lands on another Stockholm day than its seed was built for skips, rather than fail:
+// `today` is read before the seed, and the route reads the clock again.
 
 const ORIGIN = "http://127.0.0.1:3000";
 
@@ -40,8 +42,15 @@ function lateShift(day: number) {
   return { starts_at: iso(window.startsAt), ends_at: iso(window.endsAt) };
 }
 
-async function readChecklist(): Promise<{ day: string; suggestions: Suggestion[] }> {
+// The route's answer, skipping the case if Stockholm's day is no longer `today`.
+async function read(ctx: TestContext, today: number): Promise<Response> {
   const response = await GET(request("/api/admin/checklist"));
+  if (stockholmDay(new Date()) !== today) ctx.skip();
+  return response;
+}
+
+async function readChecklist(ctx: TestContext, today: number): Promise<{ day: string; suggestions: Suggestion[] }> {
+  const response = await read(ctx, today);
   expect(response.status).toBe(200);
   return response.json();
 }
@@ -50,12 +59,12 @@ const ofTruck = (suggestions: Suggestion[], truckId: string) => suggestions.filt
 const windows = (suggestions: Suggestion[]) => suggestions.map((s) => [Date.parse(s.starts_at), Date.parse(s.ends_at)]);
 
 describe("GET /api/admin/checklist", () => {
-  it("suggests last week's entry on today's date, uncached, with today's Stockholm date", async () => {
+  it("suggests last week's entry on today's date, uncached, with today's Stockholm date", async (ctx) => {
     const truckId = await seedTruck("Checklistbil");
     const today = stockholmDay(new Date());
     const source = await seedLocation(truckId, { ...lateShift(today - 7), label: "Heden" });
 
-    const response = await GET(request("/api/admin/checklist"));
+    const response = await read(ctx, today);
 
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
@@ -77,34 +86,34 @@ describe("GET /api/admin/checklist", () => {
     ]);
   });
 
-  it("✓ is the ordinary create, and the suggestion then leaves the checklist", async () => {
+  it("✓ is the ordinary create, and the suggestion then leaves the checklist", async (ctx) => {
     const truckId = await seedTruck("Bekräftad");
     const today = stockholmDay(new Date());
     await seedLocation(truckId, lateShift(today - 7));
 
-    const [suggestion] = ofTruck((await readChecklist()).suggestions, truckId);
+    const [suggestion] = ofTruck((await readChecklist(ctx, today)).suggestions, truckId);
     const { truck_id, latitude, longitude, label, starts_at, ends_at } = suggestion;
     const created = await POST(request("/api/admin/locations", "POST", { truck_id, latitude, longitude, label, starts_at, ends_at }));
 
     expect(created.status).toBe(201);
-    expect(ofTruck((await readChecklist()).suggestions, truckId)).toEqual([]);
+    expect(ofTruck((await readChecklist(ctx, today)).suggestions, truckId)).toEqual([]);
   });
 
-  it("leaves out a suggestion overlapping the truck's live entry, and suggests it again once that is cancelled", async () => {
+  it("leaves out a suggestion overlapping the truck's live entry, and suggests it again once that is cancelled", async (ctx) => {
     const truckId = await seedTruck("Upptagen");
     const today = stockholmDay(new Date());
     await seedLocation(truckId, lateShift(today - 7));
     const tonight = lateShift(today);
     const existing = await seedLocation(truckId, { starts_at: tonight.starts_at, ends_at: tonight.ends_at });
 
-    expect(ofTruck((await readChecklist()).suggestions, truckId)).toEqual([]);
+    expect(ofTruck((await readChecklist(ctx, today)).suggestions, truckId)).toEqual([]);
 
     const cancelled = await CANCEL(request(`/api/admin/locations/${existing.id}/cancel`, "POST"), {
       params: Promise.resolve({ id: existing.id }),
     });
     expect(cancelled.status).toBe(200);
 
-    expect(ofTruck((await readChecklist()).suggestions, truckId)).toHaveLength(1);
+    expect(ofTruck((await readChecklist(ctx, today)).suggestions, truckId)).toHaveLength(1);
   });
 });
 

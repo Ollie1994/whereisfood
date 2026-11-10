@@ -1,3 +1,4 @@
+import { timesEditable } from "@/lib/admin-form";
 import { hasEnded } from "@/lib/admin-list";
 import { findLocationsOverlapping } from "@/lib/db/locations";
 import { listActiveTrucks } from "@/lib/db/trucks";
@@ -23,21 +24,13 @@ export type Suggestion = Pick<Location, "truck_id" | "latitude" | "longitude" | 
 export type Checklist = { day: string; suggestions: Suggestion[] };
 
 // `entry`'s wall-clock times on Stockholm day `day`, through `entryWindow`, so an end at or
-// before the start lands on the next day (#30). Null when `entryWindow` can't rebuild the
-// entry on its own day: longer than a day, stored with seconds, or with a time in its day's
-// DST gap. That is `timesEditable`'s test (`admin-form.ts`), the form's, which can't show such
-// an entry's times either. Null too for a time today doesn't have (02:30 on 2026-03-29).
+// before the start lands on the next day (#30). Null for an entry whose times the form can't
+// show either (`timesEditable`, which says which), and for a time today doesn't have (02:30
+// on 2026-03-29).
 function movedTo(entry: Location, day: number): { startsAt: Date; endsAt: Date } | null {
+  if (!timesEditable(entry)) return null;
   const start = stockholmWallClock(new Date(entry.starts_at));
   const end = stockholmWallClock(new Date(entry.ends_at));
-  const own = entryWindow(stockholmDay(new Date(entry.starts_at)), start.time, end.time);
-  if (
-    !own ||
-    own.startsAt.getTime() !== Date.parse(entry.starts_at) ||
-    own.endsAt.getTime() !== Date.parse(entry.ends_at)
-  ) {
-    return null;
-  }
   return entryWindow(day, start.time, end.time);
 }
 
@@ -52,18 +45,20 @@ const overlaps = (a: Pick<Location, "starts_at" | "ends_at">, b: Pick<Location, 
 // now, and one whose times `movedTo` can't move.
 //
 // Limits: a truck that cancelled today can be suggested again, since cancelled rows aren't
-// read (#22); ✗ hides it. Each week's window reads every truck's rows through
+// read (#22); ✗ hides it. When none of the most recent day's entries can be moved, the
+// truck gets no suggestion, and an older week isn't tried: only an entry the form didn't
+// write can be one that `movedTo` refuses. Each week's window reads every truck's rows through
 // `findLocationsOverlapping`, which throws past `MAX_ROWS` in one day, the same wall as
 // `listAdminEntries`' 14 days.
 export async function getChecklist(now: Date): Promise<Checklist> {
   const today = stockholmDay(now);
   const day = stockholmWallClock(now).date;
-  const trucks = await listActiveTrucks();
-  if (trucks.length === 0) return { day, suggestions: [] };
 
+  // Together: the week reads don't depend on the trucks.
   const pastDays = Array.from({ length: LOOK_BACK_WEEKS }, (_, week) => today - 7 * (week + 1));
-  const weeks = await Promise.all(
-    pastDays.map(async (pastDay) => {
+  const [trucks, ...weeks] = await Promise.all([
+    listActiveTrucks(),
+    ...pastDays.map(async (pastDay) => {
       const rows = await findLocationsOverlapping(
         stockholmMidnight(pastDay).toISOString(),
         stockholmMidnight(pastDay + 1).toISOString(),
@@ -71,7 +66,7 @@ export async function getChecklist(now: Date): Promise<Checklist> {
       // A row overlapping the window from the day before didn't start that day.
       return rows.filter((row) => stockholmDay(new Date(row.starts_at)) === pastDay);
     }),
-  );
+  ]);
 
   const moved: Suggestion[] = [];
   for (const truck of trucks) {

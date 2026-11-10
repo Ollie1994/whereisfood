@@ -164,6 +164,12 @@ describe("formFromEntry and editRequest", () => {
       { ...ENTRY, starts_at: "2026-03-29T00:00:00+00:00", ends_at: "2026-03-30T00:30:00+00:00" },
       { start: "00:30" },
     ],
+    [
+      // 02:30 CEST, the first copy of the hour 2026-10-25 repeats; the form's 02:30 is CET's.
+      "an entry starting in the first copy of the repeated autumn hour",
+      { ...ENTRY, starts_at: "2026-10-25T00:30:00+00:00", ends_at: "2026-10-25T04:00:00+00:00" },
+      { start: "03:00" },
+    ],
   ])("sends no time for %s, which the form can't show exactly", (_, entry, change) => {
     expect(timesEditable(entry)).toBe(false);
     expect(editRequest({ ...formFromEntry(entry), ...change }, entry)).toEqual({ ok: true, body: {} });

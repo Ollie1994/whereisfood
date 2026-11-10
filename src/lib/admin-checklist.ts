@@ -65,13 +65,12 @@ export function readDismissed(store: () => Store, day: string): string[] {
   }
 }
 
-// Stores the ids hidden on `day`; false when it couldn't, and the hook still hides them until
-// the screen is opened again.
-export function writeDismissed(store: () => Store, day: string, ids: readonly string[]): boolean {
+// Stores the ids hidden on `day`. A failure is dropped: the hook still hides them until the
+// screen is opened again.
+export function writeDismissed(store: () => Store, day: string, ids: readonly string[]): void {
   try {
     store().setItem(DISMISSED_KEY, JSON.stringify({ day, ids }));
-    return true;
   } catch {
-    return false;
+    // Nothing stored; see above.
   }
 }

@@ -18,12 +18,14 @@ const storage = () => window.localStorage;
 export type ChecklistState = {
   // Null until read once, so a failed first read shows no "no suggestions" under its error.
   checklist: Checklist | null;
-  // The suggestions not hidden by ✗.
+  // The suggestions not hidden by ✗, nor by a ✓ that created them.
   shown: Suggestion[];
   errors: { read: string | null; action: string | null };
   busyIds: readonly string[];
   // Counts ✓s that created an entry: the place picker's recent places can change.
   creates: number;
+  // When a save starts elsewhere on the screen: a ✓'s error from before it goes.
+  clearActionError: () => void;
   retry: () => void;
   confirm: (suggestion: Suggestion) => Promise<void>;
   dismiss: (suggestion: Suggestion) => void;
@@ -44,6 +46,10 @@ export function useChecklist({
   // The ids hidden on `day`: kept here too, so a ✗ holds for this screen when storage fails.
   const [dismissed, setDismissed] = useState<{ day: string; ids: readonly string[] }>({ day: "", ids: [] });
   const [creates, setCreates] = useState(0);
+  // Suggestions a ✓ created, hidden until a read sent after it applies: until then the
+  // checklist shown was read before the entry existed, and a second ✓ would answer 409. `after`
+  // is the newest read sent when the ✓ succeeded.
+  const [confirmed, setConfirmed] = useState<readonly { id: string; after: number }[]>([]);
   // Bumped to read again after a ✓, refused or not, and on "Försök igen".
   const [reads, setReads] = useState(0);
   // The newest read sent: reads can answer out of order, and only the newest is applied.
@@ -54,10 +60,11 @@ export function useChecklist({
     void adminFetch<unknown>("/api/admin/checklist").then((result) => {
       if (id !== latestRead.current) return;
       const read = result.ok ? checklistOf(result.data) : null;
-      // A failed read keeps the last good checklist under its error.
+      // A failed read keeps the last good checklist under its error, and what ✓ hid.
       if (!read) return setReadError(result.ok ? API_ERRORS.unknown : result.error);
       setReadError(null);
       setChecklist(read);
+      setConfirmed((list) => list.filter(({ after }) => after >= id));
       setDismissed((last) => ({
         day: read.day,
         ids: [...new Set([...(last.day === read.day ? last.ids : []), ...readDismissed(storage, read.day)])],
@@ -69,15 +76,17 @@ export function useChecklist({
     setActionError(null);
     setBusyIds((ids) => [...ids, suggestion.from_id]);
     const result = await adminFetch("/api/admin/locations", { method: "POST", body: confirmBody(suggestion) });
-    setBusyIds((ids) => ids.filter((id) => id !== suggestion.from_id));
     if (result.ok) {
+      setConfirmed((list) => [...list, { id: suggestion.from_id, after: latestRead.current }]);
       setCreates((count) => count + 1);
-      await onCreated();
     } else {
       setActionError(`${suggestion.truck_name}: ${result.error}`);
     }
-    // Read again either way: a created entry, or a 409's, now overlaps the suggestion.
+    setBusyIds((ids) => ids.filter((id) => id !== suggestion.from_id));
+    // Read again either way, before the list's reload rather than after it: a created entry,
+    // or a 409's, now overlaps the suggestion.
     setReads((count) => count + 1);
+    if (result.ok) await onCreated();
   }
 
   function dismiss(suggestion: Suggestion) {
@@ -91,13 +100,17 @@ export function useChecklist({
     writeDismissed(storage, day, ids);
   }
 
-  const hidden = checklist && dismissed.day === checklist.day ? dismissed.ids : [];
+  const hidden = [
+    ...(checklist && dismissed.day === checklist.day ? dismissed.ids : []),
+    ...confirmed.map(({ id }) => id),
+  ];
   return {
     checklist,
     shown: checklist ? checklist.suggestions.filter((s) => !hidden.includes(s.from_id)) : [],
     errors: { read: readError, action: actionError },
     busyIds,
     creates,
+    clearActionError: () => setActionError(null),
     retry: () => setReads((count) => count + 1),
     confirm,
     dismiss,

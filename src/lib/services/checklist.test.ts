@@ -216,6 +216,20 @@ describe("getChecklist", () => {
     expect((await getChecklist(NOW)).suggestions).toEqual([]);
   });
 
+  it("leaves out an entry in the first copy of the repeated autumn hour, which the form can't show", async () => {
+    // Sunday 2026-11-01 00:30 CET; last Sunday, 10-25, repeated 02:00–02:59.
+    const now = new Date("2026-10-31T23:30:00Z");
+    db.rows = [
+      // 02:30 CEST, the first copy, to 05:00 CET.
+      row(A, "2026-10-25T00:30:00Z", "2026-10-25T04:00:00Z"),
+      // 02:30 CET, the second, to 05:00 CET.
+      row(B, "2026-10-25T01:30:00Z", "2026-10-25T04:00:00Z"),
+    ];
+
+    // 02:30–05:00 on 11-01, which has no change: CET.
+    expect(windows(await getChecklist(now))).toEqual([[B, iso("2026-11-01T01:30:00Z"), iso("2026-11-01T04:00:00Z")]]);
+  });
+
   it("leaves out a suggestion that has already ended, and keeps one still running", async () => {
     // 15:30 Stockholm: lunch 11–14 has ended, 15–17 runs, dinner 17–19 is ahead.
     const now = new Date("2026-08-26T13:30:00Z");
@@ -286,13 +300,10 @@ describe("getChecklist", () => {
     expect((await getChecklist(NOW)).suggestions).toEqual([]);
   });
 
-  it("reads no locations with no active truck, and not today's with no open suggestion", async () => {
+  it("suggests nothing with no active truck, and reads no current rows with no open suggestion", async () => {
     db.trucks = [];
+    db.rows = [row(A, "2026-08-19T09:00:00Z", "2026-08-19T12:00:00Z")];
     expect(await getChecklist(NOW)).toEqual({ day: "2026-08-26", suggestions: [] });
-    expect(db.findLocationsOverlapping).not.toHaveBeenCalled();
-
-    db.trucks = [truck(A, "Burgarbilen")];
-    expect((await getChecklist(NOW)).suggestions).toEqual([]);
     expect(db.findLocationsOverlapping).toHaveBeenCalledTimes(LOOK_BACK_WEEKS);
   });
 

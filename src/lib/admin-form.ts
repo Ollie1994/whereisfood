@@ -137,8 +137,10 @@ export function createRequest(values: FormValues): EntryRequest {
 // the route answers it with its own message.
 //
 // Whether the form can show `entry`'s times exactly: its date, start and end rebuild to
-// the stored window. Not for an entry longer than a day, one stored with seconds, or one
-// whose wall times fall in a DST gap: the form shows such an entry's times read-only, and
+// the stored window. Not for an entry longer than a day (its end's wall time can then fall
+// in a DST gap on its start's day), one stored with seconds, or one with a time in the first
+// copy of the hour an autumn change repeats, which `wallClockToUtc` reads as the second
+// (02:30 CEST on 2026-10-25; `admin-form.test.ts`): the form shows such an entry's times read-only, and
 // an edit of it changes its place and name alone (`editRequest`). The form's own entries
 // always fit, since `entryWindow` ends one within a day of its start.
 export function timesEditable(entry: Pick<Location, "starts_at" | "ends_at">): boolean {

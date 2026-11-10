@@ -92,7 +92,7 @@ describe("fromText", () => {
 describe("readDismissed / writeDismissed", () => {
   it("reads back what was written for the same day", () => {
     const { store } = memory();
-    expect(writeDismissed(store, "2026-08-26", ["a", "b"])).toBe(true);
+    writeDismissed(store, "2026-08-26", ["a", "b"]);
     expect(readDismissed(store, "2026-08-26")).toEqual(["a", "b"]);
   });
 
@@ -120,10 +120,10 @@ describe("readDismissed / writeDismissed", () => {
     expect(readDismissed(store, "2026-08-26")).toEqual(["a", "b"]);
   });
 
-  it("tolerates a store that throws, or a getter that throws, with none read and false written", () => {
+  it("tolerates a store that throws, or a getter that throws, with none read and no throw on a write", () => {
     expect(readDismissed(blocked, "2026-08-26")).toEqual([]);
     expect(readDismissed(throwing, "2026-08-26")).toEqual([]);
-    expect(writeDismissed(blocked, "2026-08-26", ["a"])).toBe(false);
-    expect(writeDismissed(throwing, "2026-08-26", ["a"])).toBe(false);
+    expect(() => writeDismissed(blocked, "2026-08-26", ["a"])).not.toThrow();
+    expect(() => writeDismissed(throwing, "2026-08-26", ["a"])).not.toThrow();
   });
 });

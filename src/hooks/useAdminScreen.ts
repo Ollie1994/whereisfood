@@ -2,27 +2,30 @@ import { useAdminLocations } from "@/hooks/useAdminLocations";
 import { useChecklist } from "@/hooks/useChecklist";
 import { useLocationForm } from "@/hooks/useLocationForm";
 import { usePlacePicker } from "@/hooks/usePlacePicker";
+import type { Suggestion } from "@/lib/services/checklist";
 import type { AdminEntry } from "@/lib/services/locations";
 
-// The admin screen's hooks, joined: the checklist's ✓ reloads the list, and a save or cancel
-// reloads the checklist; a save closes its edit and reloads the list, a save
-// starting clears a list action's older error, a save answered 404 or 409 reloads the list
-// (`onGone`), and a list button clears the form's "Sparat.". Here, not in a component
-// (`CLAUDE.md`, "UI Rules": components only render).
+// The admin screen's hooks, joined: a save closes its edit and reloads the list, a save
+// starting (the form's or a checklist ✓) clears the list's and the checklist's older action
+// errors, a save answered 404 or 409 reloads the list (`onGone`), and a list button or a ✓
+// clears the form's "Sparat.". A ✓ also reloads the list, and a save or cancel reloads the
+// checklist. Here, not in a component (`CLAUDE.md`, "UI Rules": components only render).
 export function useAdminScreen() {
   const list = useAdminLocations();
   const { editing, stopEdit, reload, clearActionError } = list;
   const form = useLocationForm({
     editing,
-    onSaving: clearActionError,
+    // Called on a save, after this render has defined `checklist`.
+    onSaving: () => {
+      clearActionError();
+      checklist.clearActionError();
+    },
     onSaved: async (closeEdit) => {
       if (closeEdit) stopEdit();
       await reload();
     },
     onGone: reload,
   });
-  // The checklist reads again after a save or a cancel, which change what the trucks have
-  // today; its ✓ reloads the list.
   const checklist = useChecklist({ revision: form.saves + list.cancels, onCreated: reload });
   // The place picker fills the form's place, and reads the form's truck's places.
   const picker = usePlacePicker({
@@ -37,7 +40,14 @@ export function useAdminScreen() {
     list,
     form,
     picker,
-    checklist,
+    checklist: {
+      ...checklist,
+      confirm: (suggestion: Suggestion) => {
+        form.clearSaved();
+        clearActionError();
+        return checklist.confirm(suggestion);
+      },
+    },
     confirm: (entry: AdminEntry) => {
       form.clearSaved();
       return list.confirm(entry);
