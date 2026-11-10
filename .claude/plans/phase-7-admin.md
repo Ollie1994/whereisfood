@@ -80,7 +80,7 @@ the public map, and nobody else can write anything.
 | `src/components/Admin/*` | `LoginForm`, `LogoutButton`, `TodayList`, `Checklist`, `LocationForm`, `PlacePicker`, `TruckForm`; `AdminLocations`, the client part that shares the list's state with the form, and `styles.ts`, their shared class strings (PR #244); `PickerMap`, the picker's map, loaded when opened (IS #229) |
 | `src/lib/admin-form.ts` (+ test), `src/lib/admin-api.ts`, `src/lib/admin-list.ts` | The admin screen's pure parts (the form's request, the list's texts), its fetch to the admin routes, and `LIST_DAYS`, which the service and the form both read (PR #244) |
 | `src/lib/admin-place.ts` (+ test) | The place picker's pure parts: the pin from a tap or GPS fix, its texts, the places answer's check (IS #229) |
-| `src/hooks/useLogin.ts`, `useAdminLocations.ts`, `useChecklist.ts`, `useLocationForm.ts`, `usePlacePicker.ts`, `useGeolocation.ts`, `useTrucks.ts`; `useAdminScreen.ts`, which joins the list's and the form's (PR #244); `usePickerMap.ts`, the picker map's MapLibre setup (IS #229) | All state lives here |
+| `src/hooks/useLogin.ts`, `useAdminLocations.ts`, `useChecklist.ts`, `useLocationForm.ts`, `usePlacePicker.ts`, `useGeolocation.ts`, `useTrucks.ts`; `useAdminScreen.ts`, which joins the list's and the form's (PR #244) and the place picker's (IS #229); `usePickerMap.ts`, the picker map's MapLibre setup (IS #229) | All state lives here |
 | `tests/integration/db-users.test.ts` | The key-set test a new table's reads need |
 | `tests/integration/auth-routes.test.ts` | `/auth/callback` and `/auth/logout` against the local stack |
 | `tests/integration/admin-auth.test.ts` | 401 and 403 on every admin route, found on disk (#13) |
@@ -573,7 +573,8 @@ while its pin is placed exactly. A blank name is stored as none. Rejected: no fi
 would save every tapped pin with no name, so the popup shows no place and a recent place
 shows only as coordinates. The map opens from "Välj på kartan" and closes with "Klar", which
 keeps the phone form short; a GPS fix opens it on the fix, so the admin sees the pin.
-Rejected: a map always shown. Recent places are the distinct places (name and pin) of the
+Rejected: a map always shown. Recent places are the distinct places (one per name, with its
+newest pin; one per pin for a place with no name: the owner's call, PR #245, round 4) of the
 truck's 50 most recent live entries that started before now, newest first, at most 5.
 Rejected: 10 from 100, more to scan on a phone. Picking one also fills the times of the
 truck's newest entry there, on the form's date, as #23 has recent places bring their own

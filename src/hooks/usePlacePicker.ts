@@ -52,21 +52,16 @@ export function usePlacePicker({
   const [recent, setRecent] = useState<Recent | null>(null);
   const [retries, setRetries] = useState(0);
   const [mapOpen, setMapOpen] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  // The generation the message belongs to: a refill clears it during render, as
-  // `useLocationForm` refills its values, with no effect.
-  const [messageFor, setMessageFor] = useState(generation);
+  // The message with the form generation it was given in: a refill hides it.
+  const [note, setNote] = useState<{ text: string; generation: number } | null>(null);
+  const message = note?.generation === generation ? note.text : null;
+  const setMessage = (text: string | null) => setNote(text === null ? null : { text, generation });
   // The GPS request whose fix may still fill the form, or null once it may not: the form was
   // refilled, or a spot, recent place or map tap was picked while the phone was locating.
   // A limit: the refill clears it in an effect, so a fix landing between a refill's update
   // and that effect still fills the new form; the window is one render.
   const pendingFix = useRef<object | null>(null);
   const geolocation = useGeolocation();
-
-  if (generation !== messageFor) {
-    setMessageFor(generation);
-    setMessage(null);
-  }
 
   useEffect(() => {
     pendingFix.current = null;

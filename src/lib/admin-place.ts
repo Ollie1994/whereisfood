@@ -43,6 +43,7 @@ export const PICKER_TEXTS = {
   recentFailed: "Senaste platserna kunde inte hämtas.",
   recentTimesKept: "Tiderna fylldes inte i: den senaste posten där går inte att visa här. Kontrollera tiderna.",
   mapFailed: "Kartan kunde inte laddas. Ladda om sidan och försök igen.",
+  mapUnsupported: "Kartan kan inte visas i den här webbläsaren. Välj plats på något av de andra sätten.",
 } as const;
 
 // `navigator.geolocation`'s refusals (`GeolocationPositionError`'s codes), in Swedish.
@@ -52,6 +53,8 @@ export const GEO_ERRORS = {
   failed: "Positionen kunde inte hämtas. Försök igen.",
 } as const;
 
+// A limit: browsers also give code 1 on a page served without HTTPS, where no setting
+// helps. The admin screen runs over HTTPS or at `127.0.0.1` (plan #36).
 export function geoError(code: number): string {
   return code === 1 ? GEO_ERRORS.denied : GEO_ERRORS.failed;
 }

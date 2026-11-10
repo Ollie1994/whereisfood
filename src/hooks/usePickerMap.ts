@@ -11,11 +11,12 @@ const PIN_COLOR = "#dc2626";
 // The place picker's map: the basemap on `containerRef`, a tap handed to `onTap` as
 // latitude and longitude, and one marker at `pin`, moved when it changes, never the map
 // rebuilt (`CLAUDE.md`, "UI Rules"). Opens on the pin it is given, or on Gothenburg.
+// True when the map couldn't be built here, for `PickerMap` to say so.
 export function usePickerMap(
   containerRef: RefObject<HTMLDivElement | null>,
   pin: Pin | null,
   onTap: (latitude: number, longitude: number) => void,
-) {
+): boolean {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markerRef = useRef<maplibregl.Marker | null>(null);
   // The latest of each, for the map's click handler and its first view, which are set once.
@@ -23,6 +24,7 @@ export function usePickerMap(
   const pinRef = useRef(pin);
   // Counts maps built, so the pin effect re-runs after a build, as `useMapLibre`'s does.
   const [builds, setBuilds] = useState(0);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     onTapRef.current = onTap;
@@ -32,10 +34,20 @@ export function usePickerMap(
   useEffect(() => {
     if (!containerRef.current) return;
     const start = pinRef.current;
-    const created = createBaseMap(
-      containerRef.current,
-      start ? { center: [start.longitude, start.latitude], zoom: PIN_ZOOM } : undefined,
-    );
+    let created: maplibregl.Map | null;
+    try {
+      created = createBaseMap(
+        containerRef.current,
+        start ? { center: [start.longitude, start.latitude], zoom: PIN_ZOOM } : undefined,
+      );
+    } catch {
+      // MapLibre's constructor throws `GPUInitializationError` when the browser gives it no
+      // WebGL2 context (`_setupPainter`, maplibre-gl-dev.mjs 6.11.2). Uncaught here, the
+      // throw would replace the admin screen, and the form with it, by the error page. Set
+      // from a callback, not the effect's body (`react-hooks/set-state-in-effect`).
+      queueMicrotask(() => setFailed(true));
+      return;
+    }
     // A limit: with no tiles URL the box stays empty, with no message, as `/map` does.
     if (!created) return;
     // Latitude first, the app's order (`geo.ts`); MapLibre's `[lng, lat]` stays here.
@@ -68,4 +80,6 @@ export function usePickerMap(
       map.easeTo({ center: lngLat, zoom: Math.max(map.getZoom(), PIN_ZOOM) });
     }
   }, [builds, pin]);
+
+  return failed;
 }

@@ -413,19 +413,21 @@ describe("getRecentPlaces", () => {
     db.listRecentLocationsForTruck.mockResolvedValue([
       at(57.70, 11.95, "Järntorget", 21),
       at(57.71, 11.96, null, 20),
-      at(57.70, 11.95, "Järntorget", 19),
-      // The same pin under another name, and the same name at another pin, are other places.
+      // The same name at a pin a map tap moved: the same place, its newest pin kept.
+      at(57.7001, 11.9502, "Järntorget", 19),
+      // The same pin under another name is another place.
       at(57.70, 11.95, "Torget", 18),
-      at(57.72, 11.95, "Järntorget", 17),
+      // Unnamed: one per pin.
+      at(57.72, 11.95, null, 17),
       at(57.71, 11.96, null, 16),
     ]);
 
-    // Each with its newest entry's times (plan #23, #35).
+    // Each with its newest entry's pin and times (plan #23, #35).
     expect(await getRecentPlaces(TRUCK, NOW)).toEqual([
       place(57.70, 11.95, "Järntorget", 21),
       place(57.71, 11.96, null, 20),
       place(57.70, 11.95, "Torget", 18),
-      place(57.72, 11.95, "Järntorget", 17),
+      place(57.72, 11.95, null, 17),
     ]);
     expect(db.listRecentLocationsForTruck).toHaveBeenCalledWith(TRUCK, NOW.toISOString(), RECENT_ENTRIES);
   });

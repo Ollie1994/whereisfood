@@ -200,13 +200,17 @@ export async function confirmEntry(id: string, now: Date): Promise<Location | nu
 }
 
 // The truck's distinct places, newest first, from its live entries that started before
-// `now`: one per label and pin, so a spot used every week shows once, with the times of
-// its newest entry there.
+// `now`, each with its newest entry's pin and times: one per name, so a spot whose pin was
+// moved a little by a map tap shows once, and one per pin for a place with no name (#35).
+//
+// A limit: the pins aren't checked against the Gothenburg box here or in the picker. Every
+// app write was (the location validator), so only a row written outside the app can fall
+// outside it, and one past ±90 latitude would throw in the picker map's marker.
 export async function getRecentPlaces(truckId: string, now: Date): Promise<RecentPlace[]> {
   const rows = await listRecentLocationsForTruck(truckId, now.toISOString(), RECENT_ENTRIES);
   const places = new Map<string, RecentPlace>();
   for (const { latitude, longitude, label, starts_at, ends_at } of rows) {
-    const key = JSON.stringify([label, latitude, longitude]);
+    const key = JSON.stringify(label === null ? [null, latitude, longitude] : [label]);
     if (!places.has(key)) places.set(key, { latitude, longitude, label, starts_at, ends_at });
     if (places.size === RECENT_PLACES) break;
   }
