@@ -41,6 +41,7 @@ export function placeText(place: Place): string {
 
 export const PICKER_TEXTS = {
   recentFailed: "Senaste platserna kunde inte hämtas.",
+  recentTimesKept: "Tiderna fylldes inte i: den senaste posten där går inte att visa här. Kontrollera tiderna.",
   mapFailed: "Kartan kunde inte laddas. Ladda om sidan och försök igen.",
 } as const;
 

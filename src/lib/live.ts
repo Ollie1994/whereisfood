@@ -35,8 +35,6 @@ export type FetchState = "loading" | "ok" | "failing";
 
 // --- The guard the client applies to a 2xx body ---------------------------------
 
-// Timestamps are checked by `isTimestamp` (`timestamp.ts`).
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }

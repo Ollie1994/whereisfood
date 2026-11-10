@@ -578,6 +578,9 @@ truck's 50 most recent live entries that started before now, newest first, at mo
 Rejected: 10 from 100, more to scan on a phone. Picking one also fills the times of the
 truck's newest entry there, on the form's date, as #23 has recent places bring their own
 times (the owner's call, 2026-11-10, PR #245); an edit whose times are read-only keeps them.
+When the form can't show that entry's times exactly (`timesEditable`, e.g. Fri 10:00 to Sun
+18:00), the pick fills the place alone and says "Tiderna fylldes inte i: den senaste posten
+där går inte att visa här. Kontrollera tiderna." (the owner's call, PR #245, round 3).
 
 ### #36 — Issues are checked locally; the phone and the preview are for checkpoints
 

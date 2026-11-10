@@ -145,14 +145,14 @@ describe("isLiveResponse", () => {
     ["a timestamp with no time", top("starts_at", "2026-10-31")],
     // `parseISO` reads this in the runtime's own time zone; the pattern refuses it.
     ["a timestamp with no offset", top("starts_at", "2026-10-31T09:00:00")],
-    // Matches the pattern; only `isValid(instant(…))` refuses it.
+    // Matches the pattern; only `isValid(parseISO(…))` (`timestamp.ts`) refuses it.
     ["an impossible date", top("starts_at", "2026-02-30T09:00:00+00:00")],
-    // `isValid(instant(…))` accepts this one; only the pattern refuses it.
+    // `isValid(parseISO(…))` (`timestamp.ts`) accepts this one; only the pattern refuses it.
     ["an offset of +24:00", top("starts_at", "2026-10-31T09:00:00+24:00")],
     ["an hour of 24 in starts_at", top("starts_at", "2026-10-31T24:00:00+00:00")],
     ["an hour of 24 in ends_at", top("ends_at", "2026-10-31T24:00:00+00:00")],
     ["an hour of 24 in updated_at", top("updated_at", "2026-10-31T24:00:00+00:00")],
-    // The pattern accepts this one; only `isValid(instant(…))` refuses it.
+    // The pattern accepts this one; only `isValid(parseISO(…))` (`timestamp.ts`) refuses it.
     ["an offset of +01:60", top("starts_at", "2026-10-31T09:00:00+01:60")],
   ])("rejects a body whose one entry has %s", (_name, broken) => {
     expect(isLiveResponse({ entries: [broken] })).toBe(false);

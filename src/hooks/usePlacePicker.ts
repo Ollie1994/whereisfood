@@ -9,12 +9,14 @@ import { SPOTS } from "@/lib/spots";
 // The place picker's state (Phase 7 plan, step 9): the chosen truck's recent places, the
 // map's open state, and the refusal of a tap or GPS fix outside the Gothenburg box. The
 // values are the form's (`useLocationForm`), filled through `onFill`: a spot sets the pin
-// and the name, a recent place its times too, a map tap or GPS fix the pin alone (#23, #35).
+// and the name; a recent place its times too, when the form can show them, else a note says
+// they weren't filled; a map tap or GPS fix the pin alone (#23, #35).
 
 type Recent = { truckId: string; places: RecentPlace[] | null };
 
 export type PlacePickerState = {
-  // The chosen truck's recent places, or null with no truck, while they load, or on a failure.
+  // The chosen truck's recent places, or null with no truck, while the first read loads, or
+  // when it failed; a failed re-read keeps the last good list.
   recentPlaces: RecentPlace[] | null;
   recentLoading: boolean;
   recentError: string | null;
@@ -26,22 +28,23 @@ export type PlacePickerState = {
   tapMap: (latitude: number, longitude: number) => void;
   locate: () => Promise<void>;
   locating: boolean;
-  // Why a tap or GPS fix didn't fill the form, until the next pick or the form's next refill.
+  // What a pick didn't fill: a tap or GPS fix refused, or a recent place's times left out.
+  // Until the next pick or the form's next refill.
   message: string | null;
 };
 
 export function usePlacePicker({
   truckId,
   generation,
-  saves,
+  revision,
   timesLocked,
   onFill,
 }: {
   truckId: string;
   // `useLocationForm`'s: a change means the form now holds another entry, or a fresh one.
   generation: number;
-  // `useLocationForm`'s count of saves, after which a truck's places are read again.
-  saves: number;
+  // Changes after each save or cancel, either of which can change a truck's places.
+  revision: number;
   // The form's times are read-only, so a recent place leaves them.
   timesLocked: boolean;
   onFill: (fields: Partial<FormValues>) => void;
@@ -55,6 +58,8 @@ export function usePlacePicker({
   const [messageFor, setMessageFor] = useState(generation);
   // The GPS request whose fix may still fill the form, or null once it may not: the form was
   // refilled, or a spot, recent place or map tap was picked while the phone was locating.
+  // A limit: the refill clears it in an effect, so a fix landing between a refill's update
+  // and that effect still fills the new form; the window is one render.
   const pendingFix = useRef<object | null>(null);
   const geolocation = useGeolocation();
 
@@ -67,7 +72,7 @@ export function usePlacePicker({
     pendingFix.current = null;
   }, [generation]);
 
-  // Read again when the truck changes, after a save (a place may have been added), and on
+  // Read again when the truck changes, on each `revision`, and on
   // "Försök igen". An answer for a truck no longer chosen is dropped, and a failed re-read
   // keeps the truck's last good list.
   useEffect(() => {
@@ -83,7 +88,7 @@ export function usePlacePicker({
     return () => {
       current = false;
     };
-  }, [truckId, saves, retries]);
+  }, [truckId, revision, retries]);
 
   const shown = truckId && recent?.truckId === truckId ? recent : null;
 
@@ -110,16 +115,18 @@ export function usePlacePicker({
       setMessage(null);
       onFill(placeValues({ latitude: spot.latitude, longitude: spot.longitude, label: spot.name }));
     },
+    // Read-only times stay, with the form's own note; times the form can't show get this one.
     pickRecent: (place) => {
       pendingFix.current = null;
-      setMessage(null);
-      onFill(timesLocked ? placeValues(place) : recentValues(place));
+      const values = timesLocked ? placeValues(place) : recentValues(place);
+      setMessage(timesLocked || "start" in values ? null : PICKER_TEXTS.recentTimesKept);
+      onFill(values);
     },
     mapOpen,
     toggleMap: () => setMapOpen((open) => !open),
+    // A refused tap fills nothing, so a fix on its way still may.
     tapMap: (latitude, longitude) => {
-      pendingFix.current = null;
-      pin(latitude, longitude);
+      if (pin(latitude, longitude)) pendingFix.current = null;
     },
     // The map opens on the fix, so the admin sees where the phone thinks it is.
     locate: async () => {

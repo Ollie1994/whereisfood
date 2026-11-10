@@ -21,7 +21,7 @@ export function useAdminScreen() {
   const picker = usePlacePicker({
     truckId: form.values.truckId,
     generation: form.generation,
-    saves: form.saves,
+    revision: form.saves + list.cancels,
     timesLocked: form.timesLocked,
     onFill: form.fill,
   });

@@ -95,7 +95,9 @@ export function placeValues(place: Place): Pick<FormValues, "pin" | "label"> {
 // date stays, so an end at or before the start reads as the next day's again (#30). Not
 // the times of an entry the form can't show exactly (`timesEditable`), such as one longer
 // than a day: they'd make another window. Its place alone, then.
-export function recentValues(place: RecentPlace): Partial<FormValues> {
+export function recentValues(
+  place: RecentPlace,
+): Pick<FormValues, "pin" | "label"> & Partial<Pick<FormValues, "start" | "end">> {
   if (!timesEditable(place)) return placeValues(place);
   const { start, end } = timesOf(place);
   return { ...placeValues(place), start, end };
