@@ -17,11 +17,12 @@ export function useAdminScreen() {
       await reload();
     },
   });
-  // The place picker fills the form's pin and name, and reads the form's truck's places.
+  // The place picker fills the form's place, and reads the form's truck's places.
   const picker = usePlacePicker({
     truckId: form.values.truckId,
-    onPin: (pin) => form.setField("pin", pin),
-    onPlace: form.setPlace,
+    generation: form.generation,
+    timesLocked: form.timesLocked,
+    onFill: form.fill,
   });
 
   return {

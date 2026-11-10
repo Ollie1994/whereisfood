@@ -396,36 +396,48 @@ describe("listAdminEntries", () => {
 });
 
 describe("getRecentPlaces", () => {
-  const at = (latitude: number, longitude: number, label: string | null) => row({ latitude, longitude, label });
+  // An entry 16:00–20:00 Stockholm on 2026-08-<day>, at a place.
+  const times = (day: number) => ({
+    starts_at: `2026-08-${day}T14:00:00+00:00`,
+    ends_at: `2026-08-${day}T18:00:00+00:00`,
+  });
+  const place = (latitude: number, longitude: number, label: string | null, day: number) => ({
+    latitude,
+    longitude,
+    label,
+    ...times(day),
+  });
+  const at = (...args: Parameters<typeof place>) => row(place(...args));
 
   it("reads the truck's last entries before now and keeps each place once, newest first", async () => {
     db.listRecentLocationsForTruck.mockResolvedValue([
-      at(57.70, 11.95, "Järntorget"),
-      at(57.71, 11.96, null),
-      at(57.70, 11.95, "Järntorget"),
+      at(57.70, 11.95, "Järntorget", 21),
+      at(57.71, 11.96, null, 20),
+      at(57.70, 11.95, "Järntorget", 19),
       // The same pin under another name, and the same name at another pin, are other places.
-      at(57.70, 11.95, "Torget"),
-      at(57.72, 11.95, "Järntorget"),
-      at(57.71, 11.96, null),
+      at(57.70, 11.95, "Torget", 18),
+      at(57.72, 11.95, "Järntorget", 17),
+      at(57.71, 11.96, null, 16),
     ]);
 
+    // Each with its newest entry's times (plan #23, #35).
     expect(await getRecentPlaces(TRUCK, NOW)).toEqual([
-      { latitude: 57.70, longitude: 11.95, label: "Järntorget" },
-      { latitude: 57.71, longitude: 11.96, label: null },
-      { latitude: 57.70, longitude: 11.95, label: "Torget" },
-      { latitude: 57.72, longitude: 11.95, label: "Järntorget" },
+      place(57.70, 11.95, "Järntorget", 21),
+      place(57.71, 11.96, null, 20),
+      place(57.70, 11.95, "Torget", 18),
+      place(57.72, 11.95, "Järntorget", 17),
     ]);
     expect(db.listRecentLocationsForTruck).toHaveBeenCalledWith(TRUCK, NOW.toISOString(), RECENT_ENTRIES);
   });
 
   it(`offers at most ${RECENT_PLACES}`, async () => {
     db.listRecentLocationsForTruck.mockResolvedValue(
-      Array.from({ length: RECENT_PLACES + 2 }, (_, i) => at(57.7, 11.9 + i / 100, `Plats ${i}`)),
+      Array.from({ length: RECENT_PLACES + 2 }, (_, i) => at(57.7, 11.9 + i / 100, `Plats ${i}`, 21 - i)),
     );
 
     const places = await getRecentPlaces(TRUCK, NOW);
 
-    expect(places.map((place) => place.label)).toEqual(
+    expect(places.map((entry) => entry.label)).toEqual(
       Array.from({ length: RECENT_PLACES }, (_, i) => `Plats ${i}`),
     );
   });

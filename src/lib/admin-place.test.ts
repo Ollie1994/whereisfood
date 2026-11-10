@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GEO_ERRORS, geoError, pinFrom, pinText, placeList, placeText, spotAt } from "@/lib/admin-place";
+import { GEO_ERRORS, geoError, pinFrom, pinText, placeText, recentPlaceList, spotAt } from "@/lib/admin-place";
 import { GOTHENBURG_BBOX } from "@/lib/geo";
 import { SPOTS } from "@/lib/spots";
 import { LOCATION_ERRORS } from "@/lib/validators/location";
@@ -21,14 +21,22 @@ describe("pinFrom", () => {
 });
 
 describe("spotAt", () => {
-  it("names the known spot standing at the pin, and none elsewhere", () => {
-    const spot = SPOTS[0];
-    expect(spotAt({ latitude: spot.latitude, longitude: spot.longitude })).toBe(spot.name);
-    expect(spotAt({ latitude: spot.latitude + 0.0001, longitude: spot.longitude })).toBe("");
-    expect(spotAt(null)).toBe("");
+  const spot = SPOTS[0];
+  const pin = { latitude: spot.latitude, longitude: spot.longitude };
+
+  it("names the known spot the form holds, pin and name both, and none otherwise", () => {
+    expect(spotAt(pin, spot.name)).toBe(spot.name);
+    expect(spotAt({ ...pin, latitude: spot.latitude + 0.0001 }, spot.name)).toBe("");
+    expect(spotAt(null, "")).toBe("");
+  });
+
+  // The list then shows no choice, so choosing the spot again fires a change and fills its
+  // name back.
+  it("names none once the spot's name was changed", () => {
+    expect(spotAt(pin, `${spot.name} väst`)).toBe("");
+    expect(spotAt(pin, "")).toBe("");
   });
 });
-
 describe("placeText and pinText", () => {
   it("shows a place by its name, or its pin to five decimals", () => {
     expect(placeText({ latitude: 57.7, longitude: 11.95, label: "Heden" })).toBe("Heden");
@@ -46,22 +54,26 @@ describe("geoError", () => {
   });
 });
 
-describe("placeList", () => {
-  it("takes a list of places, unnamed ones included", () => {
+describe("recentPlaceList", () => {
+  const times = { starts_at: "2026-08-22T09:00:00+00:00", ends_at: "2026-08-22T11:00:00+00:00" };
+
+  it("takes a list of recent places, unnamed ones included", () => {
     const places = [
-      { latitude: 57.7, longitude: 11.95, label: "Heden" },
-      { latitude: 57.71, longitude: 11.96, label: null },
+      { latitude: 57.7, longitude: 11.95, label: "Heden", ...times },
+      { latitude: 57.71, longitude: 11.96, label: null, ...times },
     ];
-    expect(placeList(places)).toEqual(places);
-    expect(placeList([])).toEqual([]);
+    expect(recentPlaceList(places)).toEqual(places);
+    expect(recentPlaceList([])).toEqual([]);
   });
 
   it.each([
     ["no list", { places: [] }],
-    ["a missing label", [{ latitude: 57.7, longitude: 11.95 }]],
-    ["a string coordinate", [{ latitude: "57.7", longitude: 11.95, label: null }]],
+    ["a missing label", [{ latitude: 57.7, longitude: 11.95, ...times }]],
+    ["a string coordinate", [{ latitude: "57.7", longitude: 11.95, label: null, ...times }]],
     ["a null item", [null]],
+    ["no times", [{ latitude: 57.7, longitude: 11.95, label: null }]],
+    ["a time with no offset", [{ latitude: 57.7, longitude: 11.95, label: null, ...times, ends_at: "2026-08-22T11:00:00" }]],
   ])("refuses %s", (_, value) => {
-    expect(placeList(value)).toBeNull();
+    expect(recentPlaceList(value)).toBeNull();
   });
 });

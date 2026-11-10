@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
-// Namespace import, for the reason `useMapLibre.tsx` gives.
+// Namespace import, for the reason `map-setup.ts` gives.
 import * as maplibregl from "maplibre-gl";
-import { createBaseMap } from "@/hooks/useMapLibre";
 import type { Pin } from "@/lib/admin-place";
+import { createBaseMap } from "@/lib/map-setup";
 
 // Close enough to see which side of a square the pin is on.
 const PIN_ZOOM = 16;
@@ -36,6 +36,7 @@ export function usePickerMap(
       containerRef.current,
       start ? { center: [start.longitude, start.latitude], zoom: PIN_ZOOM } : undefined,
     );
+    // A limit: with no tiles URL the box stays empty, with no message, as `/map` does.
     if (!created) return;
     // Latitude first, the app's order (`geo.ts`); MapLibre's `[lng, lat]` stays here.
     created.on("click", (event) => onTapRef.current(event.lngLat.lat, event.lngLat.lng));
@@ -61,7 +62,10 @@ export function usePickerMap(
     const lngLat: [number, number] = [pin.longitude, pin.latitude];
     if (markerRef.current) markerRef.current.setLngLat(lngLat);
     else markerRef.current = new maplibregl.Marker({ color: PIN_COLOR }).setLngLat(lngLat).addTo(map);
-    // A spot or recent place picked while the map is open may be out of view.
-    if (!map.getBounds().contains(lngLat)) map.easeTo({ center: lngLat });
+    // A spot or recent place picked while the map is open may be out of view, or the map
+    // zoomed out past where a pin can be judged.
+    if (!map.getBounds().contains(lngLat)) {
+      map.easeTo({ center: lngLat, zoom: Math.max(map.getZoom(), PIN_ZOOM) });
+    }
   }, [builds, pin]);
 }

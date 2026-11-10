@@ -313,11 +313,11 @@ describe("GET /api/admin/places", () => {
     return PLACES(new NextRequest(`${ORIGIN}/api/admin/places${query}`, { headers: { host: "127.0.0.1:3000", cookie } }));
   }
 
-  it("lists the truck's places from entries that started, newest first, each once", async () => {
+  it("lists the truck's places from entries that started, newest first, each once with its newest times", async () => {
     const heden = { latitude: 57.7024223, longitude: 11.9789581, label: "Heden" };
     await seedLocation(truckId, { ...window(-3 * DAY), ...heden });
-    await seedLocation(truckId, { ...window(-2 * DAY), ...FIXTURE_PLACE });
-    await seedLocation(truckId, { ...window(-DAY), ...heden });
+    const fixture = await seedLocation(truckId, { ...window(-2 * DAY), ...FIXTURE_PLACE });
+    const newest = await seedLocation(truckId, { ...window(-DAY), ...heden });
     // Not yet started, cancelled, or another truck's: none is offered.
     await seedLocation(truckId, { ...window(HOUR), latitude: 57.71, longitude: 11.97, label: "Imorgon" });
     await seedLocation(truckId, {
@@ -333,7 +333,13 @@ describe("GET /api/admin/places", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
-    expect(await response.json()).toEqual({ places: [heden, FIXTURE_PLACE] });
+    const timesOf = (row: { starts_at: string; ends_at: string }) => ({ starts_at: row.starts_at, ends_at: row.ends_at });
+    expect(await response.json()).toEqual({
+      places: [
+        { ...heden, ...timesOf(newest) },
+        { ...FIXTURE_PLACE, ...timesOf(fixture) },
+      ],
+    });
   });
 
   it.each([

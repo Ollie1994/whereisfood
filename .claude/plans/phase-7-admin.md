@@ -571,7 +571,9 @@ shows only as coordinates. The map opens from "Välj på kartan" and closes with
 keeps the phone form short; a GPS fix opens it on the fix, so the admin sees the pin.
 Rejected: a map always shown. Recent places are the distinct places (name and pin) of the
 truck's 50 most recent live entries that started before now, newest first, at most 5.
-Rejected: 10 from 100, more to scan on a phone.
+Rejected: 10 from 100, more to scan on a phone. Picking one also fills the times of the
+truck's newest entry there, on the form's date, as #23 has recent places bring their own
+times (the owner's call, 2026-11-10, PR #245); an edit whose times are read-only keeps them.
 
 ### #36 — Issues are checked locally; the phone and the preview are for checkpoints
 

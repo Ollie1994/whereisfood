@@ -36,7 +36,7 @@ export default function PlacePicker({ picker, pin, label, onLabel }: PlacePicker
     <div className="flex flex-col gap-3">
       <label className={LABEL}>
         Plats
-        <select value={spotAt(pin)} onChange={(event) => picker.pickSpot(event.target.value)} className={FIELD}>
+        <select value={spotAt(pin, label)} onChange={(event) => picker.pickSpot(event.target.value)} className={FIELD}>
           <option value="">Välj känd plats</option>
           {SPOTS.map((spot) => (
             <option key={spot.name} value={spot.name}>
@@ -47,7 +47,14 @@ export default function PlacePicker({ picker, pin, label, onLabel }: PlacePicker
       </label>
 
       {recentLoading && <p className="text-sm text-foreground/70">Hämtar senaste platser…</p>}
-      {recentError && <p className="text-sm text-foreground/70">{recentError}</p>}
+      {recentError && (
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm text-foreground/70">{recentError}</p>
+          <button type="button" onClick={picker.retryRecent} className={SMALL_BUTTON}>
+            Försök igen
+          </button>
+        </div>
+      )}
       {recentPlaces && recentPlaces.length > 0 && (
         <div className="flex flex-col gap-2">
           <p className="text-sm font-medium">Senaste platser</p>
@@ -56,7 +63,7 @@ export default function PlacePicker({ picker, pin, label, onLabel }: PlacePicker
               <button
                 key={`${place.label}|${place.latitude}|${place.longitude}`}
                 type="button"
-                onClick={() => picker.pickPlace(place)}
+                onClick={() => picker.pickRecent(place)}
                 className={SMALL_BUTTON}
               >
                 {placeText(place)}

@@ -12,6 +12,7 @@ import {
   entryTimeText,
   formFromEntry,
   placeValues,
+  recentValues,
   savedText,
   timesEditable,
   updatedText,
@@ -200,6 +201,30 @@ describe("formFromEntry and editRequest", () => {
     expect(editRequest({ ...formFromEntry(ENTRY), date: "2026-08-23" }, ENTRY)).toEqual({
       ok: true,
       body: { starts_at: "2026-08-23T09:00:00.000Z", ends_at: "2026-08-23T11:00:00.000Z" },
+    });
+  });
+});
+
+describe("recentValues", () => {
+  const place = { latitude: 57.7024223, longitude: 11.9789581, label: "Heden" };
+
+  it("fills the pin, the name and the newest entry's Stockholm times, not the date", () => {
+    // 16:00–20:00 CEST.
+    const recent = { ...place, starts_at: "2026-08-15T14:00:00+00:00", ends_at: "2026-08-15T18:00:00+00:00" };
+    const values = { ...FORM, ...recentValues(recent) };
+
+    expect(values).toEqual({ ...FORM, pin: { latitude: 57.7024223, longitude: 11.9789581 }, label: "Heden", start: "16:00", end: "20:00" });
+  });
+
+  // Winter's 22:00–02:00 brought to a summer date keeps its wall-clock times (#30).
+  it("keeps a shift past midnight next-day, across a DST change", () => {
+    const recent = { ...place, starts_at: "2026-01-10T21:00:00+00:00", ends_at: "2026-01-11T01:00:00+00:00" };
+    const values = { ...FORM, ...recentValues(recent) };
+
+    expect([values.start, values.end]).toEqual(["22:00", "02:00"]);
+    expect(endsNextDay(values.start, values.end)).toBe(true);
+    expect(createRequest(values)).toMatchObject({
+      body: { starts_at: "2026-08-22T20:00:00.000Z", ends_at: "2026-08-23T00:00:00.000Z" },
     });
   });
 });

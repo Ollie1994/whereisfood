@@ -3,63 +3,13 @@ import { createRoot, type Root } from "react-dom/client";
 import { flushSync } from "react-dom";
 // Namespace import: MapLibre 6 is ESM-only and has no default export.
 import * as maplibregl from "maplibre-gl";
-import { Protocol } from "pmtiles";
 import TruckPopup from "@/components/Map/TruckPopup";
-import { BASEMAP_SOURCE, SPRITE_URL, basemapLayers } from "@/lib/basemap";
 import { diffMarkers, statusText, type MarkerEntry, type TruckId } from "@/lib/live";
-import { workerUrl } from "@/lib/maplibre-worker.mjs";
-
-export const GOTHENBURG: [number, number] = [11.9746, 57.7089];
-const PMTILES_URL = process.env.NEXT_PUBLIC_PMTILES_URL;
+import { createBaseMap } from "@/lib/map-setup";
 
 // Open is filled, later is outlined (plan, open decision 8). The colour and size are
 // placeholders until the owner has looked at them on the map.
 const MARKER_COLOR = "#16a34a";
-
-// Registered once on the client, lazily in the first `createBaseMap` (never on the server):
-// the `pmtiles://` protocol, and MapLibre 6's worker URL.
-//
-// The worker is a separate file in v6, and it imports a shared chunk. Both are served
-// from `public/maplibre/<version>/`, copied from node_modules by
-// `scripts/copy-maplibre-worker.mjs`. Where, why versioned, and why MapLibre's
-// documented Turbopack form does NOT work here: `src/lib/maplibre-worker.mjs`.
-let mapLibreInitialised = false;
-
-// The basemap on `container`, for the public map and the admin's place picker, or null
-// with no tiles URL. Call it from an effect: the registration above is client-only.
-export function createBaseMap(
-  container: HTMLElement,
-  view: { center: [number, number]; zoom: number } = { center: GOTHENBURG, zoom: 13 },
-): maplibregl.Map | null {
-  if (!PMTILES_URL) return null;
-
-  if (!mapLibreInitialised) {
-    maplibregl.setWorkerUrl(workerUrl(maplibregl.getVersion()));
-    maplibregl.addProtocol("pmtiles", new Protocol().tile);
-    mapLibreInitialised = true;
-  }
-
-  return new maplibregl.Map({
-    container,
-    center: view.center,
-    zoom: view.zoom,
-    style: {
-      version: 8,
-      glyphs:
-        "https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf",
-      sprite: SPRITE_URL,
-      sources: {
-        [BASEMAP_SOURCE]: {
-          type: "vector",
-          url: `pmtiles://${PMTILES_URL}`,
-          attribution:
-            '<a href="https://protomaps.com">Protomaps</a> © <a href="https://openstreetmap.org">OpenStreetMap</a>',
-        },
-      },
-      layers: basemapLayers(),
-    },
-  });
-}
 
 type OpenPopup = { truckId: TruckId; popup: maplibregl.Popup; root: Root };
 

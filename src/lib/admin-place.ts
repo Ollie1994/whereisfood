@@ -1,5 +1,6 @@
 import { isInGothenburg } from "@/lib/geo";
-import type { Place } from "@/lib/services/locations";
+import { isTimestamp } from "@/lib/live";
+import type { Place, RecentPlace } from "@/lib/services/locations";
 import { SPOTS } from "@/lib/spots";
 import { LOCATION_ERRORS } from "@/lib/validators/location";
 
@@ -22,9 +23,10 @@ export function pinFrom(latitude: number, longitude: number): PinResult {
 
 export const samePin = (a: Pin, b: Pin) => a.latitude === b.latitude && a.longitude === b.longitude;
 
-// The known spot standing at `pin`, for the spot list's shown choice, or "" for none.
-export function spotAt(pin: Pin | null): string {
-  return (pin && SPOTS.find((spot) => samePin(spot, pin))?.name) ?? "";
+// The known spot the form holds, pin and name both, for the spot list's shown choice, or ""
+// for none: once the name is changed, choosing the spot again fills its name back.
+export function spotAt(pin: Pin | null, label: string): string {
+  return (pin && SPOTS.find((spot) => samePin(spot, pin) && spot.name === label)?.name) ?? "";
 }
 
 // "57.70123, 11.95345": five decimals, about a metre.
@@ -53,16 +55,19 @@ export function geoError(code: number): string {
   return code === 1 ? GEO_ERRORS.denied : GEO_ERRORS.failed;
 }
 
-// `/api/admin/places`'s `places`, or null when it isn't a list of places.
-export function placeList(value: unknown): Place[] | null {
+// `/api/admin/places`'s `places`, or null when it isn't a list of recent places.
+export function recentPlaceList(value: unknown): RecentPlace[] | null {
   if (!Array.isArray(value)) return null;
-  const valid = value.every(
-    (item: unknown) =>
-      typeof item === "object" &&
-      item !== null &&
-      Number.isFinite((item as Place).latitude) &&
-      Number.isFinite((item as Place).longitude) &&
-      ((item as Place).label === null || typeof (item as Place).label === "string"),
-  );
-  return valid ? (value as Place[]) : null;
+  const valid = value.every((item: unknown) => {
+    if (typeof item !== "object" || item === null) return false;
+    const place = item as RecentPlace;
+    return (
+      Number.isFinite(place.latitude) &&
+      Number.isFinite(place.longitude) &&
+      (place.label === null || typeof place.label === "string") &&
+      isTimestamp(place.starts_at) &&
+      isTimestamp(place.ends_at)
+    );
+  });
+  return valid ? (value as RecentPlace[]) : null;
 }

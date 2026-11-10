@@ -1,6 +1,6 @@
 import { LIST_DAYS } from "@/lib/admin-list";
 import { type Pin, samePin } from "@/lib/admin-place";
-import type { Place } from "@/lib/services/locations";
+import type { Place, RecentPlace } from "@/lib/services/locations";
 import { dayOf, entryWindow, isWallClock, stockholmDay, stockholmWallClock } from "@/lib/stockholm";
 import type { Location } from "@/lib/types";
 
@@ -89,6 +89,13 @@ export function formFromEntry(entry: EditedEntry): FormValues {
 // The form's place for a known spot or a recent place: its pin and its name.
 export function placeValues(place: Place): Pick<FormValues, "pin" | "label"> {
   return { pin: { latitude: place.latitude, longitude: place.longitude }, label: place.label ?? "" };
+}
+
+// A recent place also brings its newest entry's Stockholm times (plan #23, #35); the form's
+// date stays, so an end at or before the start reads as the next day's again (#30).
+export function recentValues(place: RecentPlace): Pick<FormValues, "pin" | "label" | "start" | "end"> {
+  const { start, end } = timesOf(place);
+  return { ...placeValues(place), start, end };
 }
 
 // A blank name is none, as the route reads it (`parseNewLocation`).

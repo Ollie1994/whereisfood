@@ -24,6 +24,10 @@ export type AdminEntry = Location & { truck_name: string };
 // Where an entry stands: what the place picker fills and a recent place offers.
 export type Place = Pick<Location, "latitude" | "longitude" | "label">;
 
+// A recent place, with the times of the truck's newest entry there, which picking it fills
+// (Phase 7 plan, #23, #35).
+export type RecentPlace = Place & Pick<Location, "starts_at" | "ends_at">;
+
 // The recent places offered: from the truck's last `RECENT_ENTRIES` entries, at most
 // `RECENT_PLACES` (Phase 7 plan, #35).
 export const RECENT_ENTRIES = 50;
@@ -196,13 +200,14 @@ export async function confirmEntry(id: string, now: Date): Promise<Location | nu
 }
 
 // The truck's distinct places, newest first, from its live entries that started before
-// `now`: one per label and pin, so a spot used every week shows once.
-export async function getRecentPlaces(truckId: string, now: Date): Promise<Place[]> {
+// `now`: one per label and pin, so a spot used every week shows once, with the times of
+// its newest entry there.
+export async function getRecentPlaces(truckId: string, now: Date): Promise<RecentPlace[]> {
   const rows = await listRecentLocationsForTruck(truckId, now.toISOString(), RECENT_ENTRIES);
-  const places = new Map<string, Place>();
-  for (const { latitude, longitude, label } of rows) {
+  const places = new Map<string, RecentPlace>();
+  for (const { latitude, longitude, label, starts_at, ends_at } of rows) {
     const key = JSON.stringify([label, latitude, longitude]);
-    if (!places.has(key)) places.set(key, { latitude, longitude, label });
+    if (!places.has(key)) places.set(key, { latitude, longitude, label, starts_at, ends_at });
     if (places.size === RECENT_PLACES) break;
   }
   return [...places.values()];

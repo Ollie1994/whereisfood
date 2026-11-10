@@ -6,13 +6,12 @@ import {
   createRequest,
   editRequest,
   emptyForm,
-  placeValues,
   endsNextDay,
   formFromEntry,
   savedText,
   timesEditable,
 } from "@/lib/admin-form";
-import type { AdminEntry, Place } from "@/lib/services/locations";
+import type { AdminEntry } from "@/lib/services/locations";
 import type { Location } from "@/lib/types";
 
 // The location form: a new entry, or an edit of `editing`. The route holds the rules (#33,
@@ -23,8 +22,11 @@ import type { Location } from "@/lib/types";
 export type LocationFormState = {
   values: FormValues;
   setField: <K extends keyof FormValues>(field: K, value: FormValues[K]) => void;
-  // A known spot or a recent place: its pin and its name together.
-  setPlace: (place: Place) => void;
+  // Several fields at once: a known spot's or recent place's pin, name and times.
+  fill: (fields: Partial<FormValues>) => void;
+  // Changes each time the values are refilled: another entry opens, an edit closes, or a
+  // new entry is saved. The place picker drops a GPS fix asked for before the change.
+  generation: number;
   nextDay: boolean;
   // An edit of an entry the form can't show exactly: its date and times are read-only.
   timesLocked: boolean;
@@ -55,10 +57,12 @@ export function useLocationForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
+  const [generation, setGeneration] = useState(0);
 
   // "Sparat." stays when a saved edit closes, and goes when another entry opens.
   if (editing !== filledFrom) {
     setFilledFrom(editing);
+    setGeneration((count) => count + 1);
     setValues(editing ? formFromEntry(editing) : emptyForm(new Date()));
     setError(null);
     if (editing) setSaved(null);
@@ -69,8 +73,8 @@ export function useLocationForm({
     setSaved(null);
   }
 
-  function setPlace(place: Place) {
-    setValues((current) => ({ ...current, ...placeValues(place) }));
+  function fill(fields: Partial<FormValues>) {
+    setValues((current) => ({ ...current, ...fields }));
     setSaved(null);
   }
 
@@ -98,7 +102,10 @@ export function useLocationForm({
 
     // A new entry keeps its truck and date for the next one; an edit closes. The saved
     // entry decides the text; with no readable start in the answer, the plain one.
-    if (!target) setValues((current) => ({ ...emptyForm(new Date()), truckId: current.truckId, date: current.date }));
+    if (!target) {
+      setValues((current) => ({ ...emptyForm(new Date()), truckId: current.truckId, date: current.date }));
+      setGeneration((count) => count + 1);
+    }
     const startsAt = result.data.entry?.starts_at;
     const readable = typeof startsAt === "string" && !Number.isNaN(Date.parse(startsAt));
     setSaved(readable ? savedText({ starts_at: startsAt }, new Date()) : SAVED);
@@ -110,7 +117,8 @@ export function useLocationForm({
   return {
     values,
     setField,
-    setPlace,
+    fill,
+    generation,
     nextDay,
     timesLocked,
     saving,
