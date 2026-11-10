@@ -42,10 +42,13 @@ const overlaps = (a: Pick<Location, "starts_at" | "ends_at">, b: Pick<Location, 
 // now, and one whose times `movedTo` can't move.
 //
 // Limits: a truck that cancelled today can be suggested again, since cancelled rows aren't
-// read (#22); ✗ hides it. When none of the most recent day's entries can be moved
-// (`movedTo`), the truck gets no suggestion, and an older week isn't tried. Each week's
-// window reads every truck's rows through `findLocationsOverlapping`, which throws past
-// `MAX_ROWS` in one day, the same wall as `listAdminEntries`' 14 days.
+// read (#22); ✗ hides it. When none of the most recent day's entries can be moved, the
+// truck gets no suggestion, and an older week isn't tried. That is an entry the form can't
+// show either (`entryWallTimes` lists them; one only the API can write, such as 02:30 CEST
+// on 2026-10-25, is among them even when today has that time once), or one at a time today
+// doesn't have. Each week's window reads every truck's rows through
+// `findLocationsOverlapping`, which throws past `MAX_ROWS` in one day, the same wall as
+// `listAdminEntries`' 14 days.
 export async function getChecklist(now: Date): Promise<Checklist> {
   const today = stockholmDay(now);
   const day = stockholmWallClock(now).date;

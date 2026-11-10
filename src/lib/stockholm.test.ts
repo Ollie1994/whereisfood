@@ -259,7 +259,7 @@ describe("entryWallTimes", () => {
     ["a shift past midnight", "2026-08-22T20:00:00Z", "2026-08-23T00:00:00Z", { date: "2026-08-22", start: "22:00", end: "02:00" }],
     ["24 h, ending at the start's wall time", "2026-08-22T09:00:00Z", "2026-08-23T09:00:00Z", { date: "2026-08-22", start: "11:00", end: "11:00" }],
     // 03:00 CEST on 10-24 to 02:59 CET on 10-25: 24 h 59 min, made by `entryWindow`.
-    ["entryWindow's 25-hour window across the autumn change", "2026-10-24T01:00:00Z", "2026-10-25T01:59:00Z", { date: "2026-10-24", start: "03:00", end: "02:59" }],
+    ["entryWindow's window over 24 hours across the autumn change", "2026-10-24T01:00:00Z", "2026-10-25T01:59:00Z", { date: "2026-10-24", start: "03:00", end: "02:59" }],
     ["the second copy of the repeated hour", "2026-10-25T01:30:00Z", "2026-10-25T04:00:00Z", { date: "2026-10-25", start: "02:30", end: "05:00" }],
   ])("reads %s", (_, startsAt, endsAt, times) => {
     expect(entryWallTimes(at(startsAt), at(endsAt))).toEqual(times);
