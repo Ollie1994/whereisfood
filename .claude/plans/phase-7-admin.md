@@ -197,7 +197,10 @@ are right on 23- and 25-hour days, except for a shift inside the repeated autumn
 ends before it starts, which `entryWindow` reads as next-day (its stated limit, PR #238).
 Both give null for a time the day doesn't have, such as 02:30 on 2026-03-29 (PR for IS
 #225). The form and the checklist both call `entryWindow`; the API takes timestamps, so
-`parseNewLocation` still refuses an end at or before the start.
+`parseNewLocation` still refuses an end at or before the start. `entryWallTimes(startsAt,
+endsAt)` reads back the date and times `entryWindow` rebuilds a stored entry from, or null
+when it can't: the form's `timesEditable` and the checklist's move to today both use it
+(PR for IS #231, round 2).
 
 **Proxy.** `proxy(request)`: the order of `requireAdmin`, on `/admin/:path*` and
 `/api/admin/:path*`, with `/admin/login` let through. A page gets a redirect to the login,
