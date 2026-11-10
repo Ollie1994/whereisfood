@@ -156,8 +156,8 @@ describe("wallClockToUtc", () => {
   });
 
   // `fromZonedTime` gives the first occurrence on a New York or Los Angeles host, and
-  // `formatInTimeZone` is an hour late on the host's own gap day (PR #238). The first five
-  // cases' date and time fall in their host's gap. Tokyo and UTC have one offset all of 2026,
+  // `formatInTimeZone` is an hour late for a wall time in the host's own gap (PR #238). The
+  // first five cases' date and time fall in their host's gap. Tokyo and UTC have one offset all of 2026,
   // and Stockholm's gaps are its own, which no wall time falls in, so theirs is an ordinary
   // time.
   //
