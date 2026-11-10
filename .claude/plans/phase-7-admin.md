@@ -77,8 +77,10 @@ the public map, and nobody else can write anything.
 | `src/app/api/admin/checklist/route.ts` | The morning list |
 | `src/app/api/admin/places/route.ts` | A truck's recent places |
 | `src/app/admin/layout.tsx`, `page.tsx`, `login/page.tsx`, `trucks/page.tsx` | The screens, phone-first |
-| `src/components/Admin/*` | `LoginForm`, `LogoutButton`, `TodayList`, `Checklist`, `LocationForm`, `PlacePicker`, `TruckForm`; `AdminLocations`, the client part that shares the list's state with the form, and `styles.ts`, their shared class strings (PR #244); `PickerMap`, the picker's map, loaded when opened (IS #229) |
-| `src/lib/admin-form.ts` (+ test), `src/lib/admin-api.ts`, `src/lib/admin-list.ts` | The admin screen's pure parts (the form's request, the list's texts), its fetch to the admin routes, and `LIST_DAYS`, which the service and the form both read (PR #244) |
+| `src/components/Admin/*` | `LoginForm`, `LogoutButton`, `TodayList`, `Checklist`, `LocationForm`, `PlacePicker`, `TruckForm`; `AdminLocations`, the client part that shares the list's state with the form, and `styles.ts`, their shared class strings (PR #244); `PickerMap`, the picker's map, loaded when opened (IS #229); `AdminTrucks`, the trucks screen's client part, `TruckList`, and `AdminNav`, the screens' links (IS #230, #37) |
+| `src/lib/admin-form.ts` (+ test), `src/lib/admin-api.ts`, `src/lib/admin-list.ts` | The admin screen's pure parts (the form's request, the list's texts), its fetch to the admin routes, and `LIST_DAYS`, which the service and the form both read (PR #244); `admin-api.ts`'s `adminList`, the list read both hooks share (IS #230) |
+| `src/lib/admin-trucks.ts` (+ test) | The trucks screen's pure parts: the form's values and requests, its texts (IS #230) |
+| `src/lib/db/pick.ts`, `src/lib/services/postgres.ts`, `src/lib/http/trucks.ts` | Shared by the location and truck code: the columns a write may send, a Postgres error's code and constraint, and the truck routes' statuses (IS #230) |
 | `src/lib/admin-place.ts` (+ test) | The place picker's pure parts: the pin from a tap or GPS fix, its texts, the places answer's check (IS #229) |
 | `src/hooks/useLogin.ts`, `useAdminLocations.ts`, `useChecklist.ts`, `useLocationForm.ts`, `usePlacePicker.ts`, `useGeolocation.ts`, `useTrucks.ts`; `useAdminScreen.ts`, which joins the list's and the form's (PR #244) and the place picker's (IS #229); `usePickerMap.ts`, the picker map's MapLibre setup (IS #229) | All state lives here |
 | `tests/integration/db-users.test.ts` | The key-set test a new table's reads need |
@@ -96,7 +98,7 @@ the public map, and nobody else can write anything.
 | `src/proxy.ts`, `src/proxy.test.ts` (new) | The real matcher and checks; the test pins the matcher (#10) |
 | `src/lib/live.ts` | `TZ`, `stockholmDay` and `stockholmMidnight` move out, imported from `stockholm.ts` (#31); `isTimestamp` moves to `timestamp.ts` (IS #229) |
 | `supabase/config.toml` | Sign-ups off, redirect URLs |
-| `src/lib/db/trucks.ts` | `listAllTrucks`, `insertTruck`, `updateTruck` |
+| `src/lib/db/trucks.ts` | `listAllTrucks`, `insertTruck`, `updateTruck` (through `pick.ts`, IS #230) |
 | `src/lib/db/locations.ts` | `getLocationById`, `confirmLocation`, `findTruckLocationsOverlapping`; `listRecentLocationsForTruck`'s limit check moved into `checkLimit`, shared with the last, same rule and message (PR for IS #226, round 1) |
 | `src/lib/types.ts` | `NewTruck`, `TruckPatch`, `User` |
 | `src/hooks/useMapLibre.tsx` | Only if the pin picker needs its setup shared; then a `/map` browser check. It did: the setup moved to `map-setup.ts` (IS #229) |
@@ -592,6 +594,14 @@ alone (open decision 4), so a branch's preview can't finish a login (`README.md`
 preview database"). The phone first tries GPS in step 12, which enters an entry by each
 place method. Rejected: adding a branch's exact callback URL for the length of its PR, a
 hosted setting to add and remove per branch.
+
+### #37 — The trucks screen: header links, and a question before setting inactive
+
+The owner's calls (2026-11-10, #230), on Claude's proposals. Every admin screen but the login
+has "Poster" and "Foodtrucks" in its header, the current one marked (`AdminNav`). Rejected: a
+link at each page's bottom. A truck is set inactive from its list button, "Sätt inaktiv",
+which asks "Sätta foodtrucken som inaktiv? Den försvinner från kartan." first, as "Ställ in"
+asks for an entry; "Aktivera" asks nothing. Rejected: an "Aktiv" checkbox in the edit form.
 
 ---
 
