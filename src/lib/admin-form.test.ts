@@ -11,6 +11,7 @@ import {
   endsNextDay,
   entryTimeText,
   formFromEntry,
+  placeValues,
   savedText,
   timesEditable,
   updatedText,
@@ -20,11 +21,20 @@ import { LIST_DAYS } from "@/lib/admin-list";
 const TRUCK = "11111111-1111-1111-1111-111111111111";
 // 10:00 Stockholm (CEST) on Saturday 2026-08-22.
 const NOW = new Date("2026-08-22T08:00:00.000Z");
-const FORM = { truckId: TRUCK, date: "2026-08-22", place: "Järntorget", start: "11:00", end: "13:00" };
+const JARNTORGET = { latitude: 57.6998935, longitude: 11.952503 };
+const HEDEN = { latitude: 57.7024223, longitude: 11.9789581, label: "Heden" };
+const FORM = { truckId: TRUCK, date: "2026-08-22", pin: JARNTORGET, label: "Järntorget", start: "11:00", end: "13:00" };
 
 describe("emptyForm", () => {
   it("is today in Stockholm, 11–13 (#23), with no truck or place", () => {
-    expect(emptyForm(NOW)).toEqual({ truckId: "", date: "2026-08-22", place: "", start: DEFAULT_START, end: DEFAULT_END });
+    expect(emptyForm(NOW)).toEqual({
+      truckId: "",
+      date: "2026-08-22",
+      pin: null,
+      label: "",
+      start: DEFAULT_START,
+      end: DEFAULT_END,
+    });
     expect([DEFAULT_START, DEFAULT_END]).toEqual(["11:00", "13:00"]);
   });
 
@@ -50,7 +60,7 @@ describe("endsNextDay", () => {
 });
 
 describe("createRequest", () => {
-  it("sends the spot's place and the Stockholm times in UTC", () => {
+  it("sends the pin, the name and the Stockholm times in UTC", () => {
     expect(createRequest(FORM)).toEqual({
       ok: true,
       body: {
@@ -73,20 +83,35 @@ describe("createRequest", () => {
 
   it.each([
     ["no truck", { truckId: "" }, FORM_ERRORS.truck],
-    ["no place", { place: "" }, FORM_ERRORS.place],
-    ["an unknown place", { place: "Ingenstans" }, FORM_ERRORS.place],
+    ["no place", { pin: null }, FORM_ERRORS.place],
     ["no date", { date: "" }, FORM_ERRORS.date],
     ["a time the day doesn't have", { date: "2026-03-29", start: "02:30", end: "04:00" }, FORM_ERRORS.time],
   ])("refuses %s before any request", (_, change, error) => {
     expect(createRequest({ ...FORM, ...change })).toEqual({ ok: false, error });
   });
+
+  // A map tap or a GPS fix fills no name: the route stores none, and the popup shows none.
+  it.each([
+    ["trimmed", "  Heden norra ", "Heden norra"],
+    ["blank as none", "   ", null],
+    ["empty as none", "", null],
+  ])("sends the name %s", (_, label, sent) => {
+    expect(createRequest({ ...FORM, label })).toMatchObject({ body: { label: sent } });
+  });
 });
 
 describe("formFromEntry and editRequest", () => {
-  const ENTRY = { truck_id: TRUCK, starts_at: "2026-08-22T09:00:00+00:00", ends_at: "2026-08-22T11:00:00+00:00" };
+  const ENTRY = {
+    truck_id: TRUCK,
+    ...JARNTORGET,
+    label: "Järntorget",
+    starts_at: "2026-08-22T09:00:00+00:00",
+    ends_at: "2026-08-22T11:00:00+00:00",
+  };
 
-  it("shows an entry's truck, Stockholm date and times, keeping its place", () => {
-    expect(formFromEntry(ENTRY)).toEqual({ truckId: TRUCK, date: "2026-08-22", place: "", start: "11:00", end: "13:00" });
+  it("shows an entry's truck, pin, name, Stockholm date and times", () => {
+    expect(formFromEntry(ENTRY)).toEqual(FORM);
+    expect(formFromEntry({ ...ENTRY, label: null }).label).toBe("");
   });
 
   it("sends the place when it changed, and both times when a time changed", () => {
@@ -94,10 +119,27 @@ describe("formFromEntry and editRequest", () => {
       ok: true,
       body: { starts_at: "2026-08-22T09:00:00.000Z", ends_at: "2026-08-22T12:00:00.000Z" },
     });
-    expect(editRequest({ ...formFromEntry(ENTRY), place: "Heden" }, ENTRY)).toMatchObject({
+    expect(editRequest({ ...formFromEntry(ENTRY), ...placeValues(HEDEN) }, ENTRY)).toMatchObject({
       body: { label: "Heden", latitude: expect.any(Number), longitude: expect.any(Number) },
     });
     expect(editRequest(formFromEntry(ENTRY), ENTRY)).toEqual({ ok: true, body: {} });
+  });
+
+  it("sends a moved pin alone, keeping the name, as a map tap or GPS fix does", () => {
+    const pin = { latitude: 57.7, longitude: 11.95 };
+    expect(editRequest({ ...formFromEntry(ENTRY), pin }, ENTRY)).toEqual({ ok: true, body: pin });
+  });
+
+  it.each([
+    ["a new name", "Järntorget väst", "Järntorget väst"],
+    ["a cleared name, as none", "  ", null],
+  ])("sends %s alone", (_, label, sent) => {
+    expect(editRequest({ ...formFromEntry(ENTRY), label }, ENTRY)).toEqual({ ok: true, body: { label: sent } });
+  });
+
+  it("sends no name for an entry with none whose name stays blank", () => {
+    const unnamed = { ...ENTRY, label: null };
+    expect(editRequest(formFromEntry(unnamed), unnamed)).toEqual({ ok: true, body: {} });
   });
 
   // The form holds the start date and minutes; an entry it can't show exactly keeps its
@@ -106,7 +148,7 @@ describe("formFromEntry and editRequest", () => {
     ["longer than a day", { ...ENTRY, ends_at: "2026-08-24T11:00:00+00:00" }],
     ["stored with seconds", { ...ENTRY, starts_at: "2026-08-22T09:00:30+00:00" }],
   ])("leaves the times of an entry %s alone on a place-only edit", (_, entry) => {
-    expect(editRequest({ ...formFromEntry(entry), place: "Heden" }, entry)).toEqual({
+    expect(editRequest({ ...formFromEntry(entry), ...placeValues(HEDEN) }, entry)).toEqual({
       ok: true,
       body: { latitude: expect.any(Number), longitude: expect.any(Number), label: "Heden" },
     });
@@ -138,7 +180,7 @@ describe("formFromEntry and editRequest", () => {
     const created = createRequest({ ...FORM, ...change });
     if (!created.ok) throw new Error(created.error);
     const { starts_at, ends_at } = created.body as { starts_at: string; ends_at: string };
-    expect(timesEditable({ truck_id: TRUCK, starts_at, ends_at })).toBe(true);
+    expect(timesEditable({ starts_at, ends_at })).toBe(true);
   });
 
   it("edits the times of an entry the form shows exactly, overnight ones included", () => {

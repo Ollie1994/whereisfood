@@ -5,6 +5,7 @@ import { GET, POST } from "@/app/api/admin/locations/route";
 import { PATCH } from "@/app/api/admin/locations/[id]/route";
 import { POST as CANCEL } from "@/app/api/admin/locations/[id]/cancel/route";
 import { POST as CONFIRM } from "@/app/api/admin/locations/[id]/confirm/route";
+import { GET as PLACES } from "@/app/api/admin/places/route";
 import { supabaseAdmin } from "@/lib/supabase";
 import { FIXTURE_PLACE, cookieHeader, readLocation, resetTables, seedLocation, seedTruck, sessionUser } from "./helpers";
 
@@ -304,5 +305,44 @@ describe("GET /api/admin/locations", () => {
     );
     expect(ours.map((entry) => entry.id).sort()).toEqual([soon.id, ofInactive.id].sort());
     expect(ours.find((entry) => entry.id === ofInactive.id)?.truck_name).toBe("itest-fixture-Bortlagd");
+  });
+});
+
+describe("GET /api/admin/places", () => {
+  function places(query: string) {
+    return PLACES(new NextRequest(`${ORIGIN}/api/admin/places${query}`, { headers: { host: "127.0.0.1:3000", cookie } }));
+  }
+
+  it("lists the truck's places from entries that started, newest first, each once", async () => {
+    const heden = { latitude: 57.7024223, longitude: 11.9789581, label: "Heden" };
+    await seedLocation(truckId, { ...window(-3 * DAY), ...heden });
+    await seedLocation(truckId, { ...window(-2 * DAY), ...FIXTURE_PLACE });
+    await seedLocation(truckId, { ...window(-DAY), ...heden });
+    // Not yet started, cancelled, or another truck's: none is offered.
+    await seedLocation(truckId, { ...window(HOUR), latitude: 57.71, longitude: 11.97, label: "Imorgon" });
+    await seedLocation(truckId, {
+      ...window(-4 * DAY),
+      latitude: 57.72,
+      longitude: 11.97,
+      label: "Inställd",
+      cancelled_at: new Date().toISOString(),
+    });
+    await seedLocation(await seedTruck("Annan"), { ...window(-DAY), latitude: 57.73, longitude: 11.97, label: "Annan" });
+
+    const response = await places(`?truckId=${truckId}`);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(await response.json()).toEqual({ places: [heden, FIXTURE_PLACE] });
+  });
+
+  it.each([
+    ["a malformed truckId", "?truckId=abc"],
+    ["no truckId", ""],
+  ])("answers %s with 400, before the database", async (_, query) => {
+    const response = await places(query);
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "Ogiltig foodtruck" });
   });
 });

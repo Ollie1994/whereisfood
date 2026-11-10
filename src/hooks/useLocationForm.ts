@@ -6,12 +6,13 @@ import {
   createRequest,
   editRequest,
   emptyForm,
+  placeValues,
   endsNextDay,
   formFromEntry,
   savedText,
   timesEditable,
 } from "@/lib/admin-form";
-import type { AdminEntry } from "@/lib/services/locations";
+import type { AdminEntry, Place } from "@/lib/services/locations";
 import type { Location } from "@/lib/types";
 
 // The location form: a new entry, or an edit of `editing`. The route holds the rules (#33,
@@ -21,7 +22,9 @@ import type { Location } from "@/lib/types";
 
 export type LocationFormState = {
   values: FormValues;
-  setField: (field: keyof FormValues, value: string) => void;
+  setField: <K extends keyof FormValues>(field: K, value: FormValues[K]) => void;
+  // A known spot or a recent place: its pin and its name together.
+  setPlace: (place: Place) => void;
   nextDay: boolean;
   // An edit of an entry the form can't show exactly: its date and times are read-only.
   timesLocked: boolean;
@@ -61,8 +64,13 @@ export function useLocationForm({
     if (editing) setSaved(null);
   }
 
-  function setField(field: keyof FormValues, value: string) {
+  function setField<K extends keyof FormValues>(field: K, value: FormValues[K]) {
     setValues((current) => ({ ...current, [field]: value }));
+    setSaved(null);
+  }
+
+  function setPlace(place: Place) {
+    setValues((current) => ({ ...current, ...placeValues(place) }));
     setSaved(null);
   }
 
@@ -102,6 +110,7 @@ export function useLocationForm({
   return {
     values,
     setField,
+    setPlace,
     nextDay,
     timesLocked,
     saving,

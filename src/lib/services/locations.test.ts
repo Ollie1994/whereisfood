@@ -11,6 +11,7 @@ const db = {
   findTruckLocationsOverlapping: vi.fn(),
   getLocationById: vi.fn(),
   insertLocation: vi.fn(),
+  listRecentLocationsForTruck: vi.fn(),
   updateLocation: vi.fn(),
   getActiveTruckById: vi.fn(),
   listAllTrucks: vi.fn(),
@@ -22,6 +23,7 @@ vi.mock("@/lib/db/locations", () => ({
   findTruckLocationsOverlapping: (...args: unknown[]) => db.findTruckLocationsOverlapping(...args),
   getLocationById: (...args: unknown[]) => db.getLocationById(...args),
   insertLocation: (...args: unknown[]) => db.insertLocation(...args),
+  listRecentLocationsForTruck: (...args: unknown[]) => db.listRecentLocationsForTruck(...args),
   updateLocation: (...args: unknown[]) => db.updateLocation(...args),
 }));
 vi.mock("@/lib/db/trucks", () => ({
@@ -29,7 +31,17 @@ vi.mock("@/lib/db/trucks", () => ({
   listAllTrucks: (...args: unknown[]) => db.listAllTrucks(...args),
 }));
 
-const { ENTRY_ERRORS, cancelEntry, confirmEntry, createEntry, editEntry, listAdminEntries } = await import(
+const {
+  ENTRY_ERRORS,
+  RECENT_ENTRIES,
+  RECENT_PLACES,
+  cancelEntry,
+  confirmEntry,
+  createEntry,
+  editEntry,
+  getRecentPlaces,
+  listAdminEntries,
+} = await import(
   "@/lib/services/locations"
 );
 const { LOCATION_ERRORS } = await import("@/lib/validators/location");
@@ -380,5 +392,41 @@ describe("listAdminEntries", () => {
     await listAdminEntries(new Date("2026-11-08T23:30:00.000Z"));
 
     expect(db.findLocationsOverlapping).toHaveBeenCalledWith("2026-11-08T23:00:00.000Z", "2026-11-22T23:00:00.000Z");
+  });
+});
+
+describe("getRecentPlaces", () => {
+  const at = (latitude: number, longitude: number, label: string | null) => row({ latitude, longitude, label });
+
+  it("reads the truck's last entries before now and keeps each place once, newest first", async () => {
+    db.listRecentLocationsForTruck.mockResolvedValue([
+      at(57.70, 11.95, "Järntorget"),
+      at(57.71, 11.96, null),
+      at(57.70, 11.95, "Järntorget"),
+      // The same pin under another name, and the same name at another pin, are other places.
+      at(57.70, 11.95, "Torget"),
+      at(57.72, 11.95, "Järntorget"),
+      at(57.71, 11.96, null),
+    ]);
+
+    expect(await getRecentPlaces(TRUCK, NOW)).toEqual([
+      { latitude: 57.70, longitude: 11.95, label: "Järntorget" },
+      { latitude: 57.71, longitude: 11.96, label: null },
+      { latitude: 57.70, longitude: 11.95, label: "Torget" },
+      { latitude: 57.72, longitude: 11.95, label: "Järntorget" },
+    ]);
+    expect(db.listRecentLocationsForTruck).toHaveBeenCalledWith(TRUCK, NOW.toISOString(), RECENT_ENTRIES);
+  });
+
+  it(`offers at most ${RECENT_PLACES}`, async () => {
+    db.listRecentLocationsForTruck.mockResolvedValue(
+      Array.from({ length: RECENT_PLACES + 2 }, (_, i) => at(57.7, 11.9 + i / 100, `Plats ${i}`)),
+    );
+
+    const places = await getRecentPlaces(TRUCK, NOW);
+
+    expect(places.map((place) => place.label)).toEqual(
+      Array.from({ length: RECENT_PLACES }, (_, i) => `Plats ${i}`),
+    );
   });
 });

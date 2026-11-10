@@ -5,6 +5,7 @@ import {
   findTruckLocationsOverlapping,
   getLocationById,
   insertLocation,
+  listRecentLocationsForTruck,
   updateLocation,
 } from "@/lib/db/locations";
 import { LIST_DAYS, hasEnded } from "@/lib/admin-list";
@@ -19,6 +20,14 @@ import { LOCATION_ERRORS, crossFieldError, type NewLocationInput } from "@/lib/v
 
 // An entry with its truck's name, for the admin's list.
 export type AdminEntry = Location & { truck_name: string };
+
+// Where an entry stands: what the place picker fills and a recent place offers.
+export type Place = Pick<Location, "latitude" | "longitude" | "label">;
+
+// The recent places offered: from the truck's last `RECENT_ENTRIES` entries, at most
+// `RECENT_PLACES` (Phase 7 plan, #35).
+export const RECENT_ENTRIES = 50;
+export const RECENT_PLACES = 5;
 
 export type Refusal = { ok: false; reason: "invalid" | "not-found" | "conflict"; error: string };
 export type EntryResult = { ok: true; entry: Location } | Refusal;
@@ -184,4 +193,18 @@ export async function cancelEntry(id: string, now: Date): Promise<Location | nul
 // "Stämmer fortfarande": moves `updated_at` (#18). Null for a missing or cancelled entry.
 export async function confirmEntry(id: string, now: Date): Promise<Location | null> {
   return confirmLocation(id, now.toISOString());
+}
+
+// The truck's distinct places, newest first, from its live entries that started before
+// `now`: one per label and pin, so a spot used every week shows once. An unknown truck has
+// none.
+export async function getRecentPlaces(truckId: string, now: Date): Promise<Place[]> {
+  const rows = await listRecentLocationsForTruck(truckId, now.toISOString(), RECENT_ENTRIES);
+  const places = new Map<string, Place>();
+  for (const { latitude, longitude, label } of rows) {
+    const key = JSON.stringify([label, latitude, longitude]);
+    if (!places.has(key)) places.set(key, { latitude, longitude, label });
+    if (places.size === RECENT_PLACES) break;
+  }
+  return [...places.values()];
 }
