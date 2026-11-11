@@ -11,13 +11,13 @@ themselves later.
 It fills a real gap: Gothenburg has had no central food-truck map since Streetkäk
 shut down in 2017.
 
-> **Status: Phase 7 of 9 (admin) done; Phase 8 (CI/CD and security) next.** The map shows today's
-> entries from the database through `GET /api/live`, locally against a local Supabase
-> and on protected Vercel previews against a hosted one. One admin logs in with an
-> emailed link and keeps the map up to date from a phone-first admin screen. There is
-> no production deploy yet. Phase 4 removed the old design (automatic
-> ingestion from Make.com and email, plus a Swedish text parser), and Phase 5 replaced
-> its database schema; see [Project status](#project-status).
+> **Status: Phase 7 of 9 (admin) done; Phase 8 (CI/CD and security) next.** The map shows
+> today's entries from the database through `GET /api/live`, locally against a local
+> Supabase and on protected Vercel previews against a hosted one. One admin logs in with
+> an emailed link and keeps the map up to date from a phone-first admin screen. There is
+> no production deploy yet. Phase 4 removed the old design (automatic ingestion from
+> Make.com and email, plus a Swedish text parser), and Phase 5 replaced its database
+> schema; see [Project status](#project-status).
 
 ---
 
