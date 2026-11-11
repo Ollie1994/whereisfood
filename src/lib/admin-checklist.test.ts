@@ -13,6 +13,7 @@ import {
   writeDismissed,
 } from "@/lib/admin-checklist";
 import { OVERLAP_ADVICE } from "@/lib/admin-list";
+import { API_ERRORS } from "@/lib/admin-api";
 import type { Suggestion } from "@/lib/services/checklist";
 
 const SUGGESTION: Suggestion = {
@@ -216,7 +217,7 @@ describe("checklistRefusal", () => {
       `Överlappar med 2026-11-11 18:30–19:30${OVERLAP_ADVICE.edit}`,
       "Överlappar med en annan post för samma foodtruck",
       "Tiden har redan passerat",
-      "Det gick inte att nå servern. Försök igen.",
+      API_ERRORS.network,
     ]) {
       expect(checklistRefusal(error, 409)).toBe(error);
     }

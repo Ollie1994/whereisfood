@@ -376,7 +376,9 @@ table records what was simplified away and why; read it before adding anything b
    overlapping window is rejected with 409: *"Överlappar med 2026-08-22 11:00–14:00 —
    redigera den istället"*, or, when that entry has ended or is running while this one
    starts, *"…, som redan har slutat. Ändra tiden på den här posten."* and *"…, som pågår
-   nu. Ändra tiden på den här posten."*, since #33 refuses the edit then.
+   nu. Ändra tiden på den här posten."*, since #33 refuses the edit then. Under a checklist
+   ✓, which has no time to change, that last sentence reads *"Lägg in en annan tid med
+   formuläret."* (the owner's wording, IS #274).
 5. **Cancel** sets `cancelled_at`. Nothing is deleted.
 6. **Takedown on request:** a manual SQL delete of the truck **and its history**.
 7. **Content:** only public facts (name, location, hours, Instagram link). No copied
