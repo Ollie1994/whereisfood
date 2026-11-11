@@ -1684,14 +1684,14 @@ the repo; the numbers are dated.
 ## Phase 7 retrospective (2026-11-11, #233)
 
 **Rows counted: 420–542 (123 rows).** These run from the Phase 6 retrospective's own rows
-(420–424 and 430, PR #201) to the last row written before this retrospective started
-(542, PR #258, 2026-11-11). Rows 420–456 came before the Phase 7 plan: the Phase 6
-retrospective and its follow-up #200 (PR #202, rows 425–429), #203 and its child PRs
-(#204, #206, #208, #210, #212: rows 431–449), and the between-phases issues #213, #199
-and #193 (rows 450–456). Rows 457–542 are Phase 7 itself: the plan (PR #220), steps 1–11
-and #239 (PRs #235–#252), and the walkthrough's history and records (#254 and #257, PRs
-#255 and #258). Row 543 onward belong to the next range, this retrospective's own rows
-included.
+(420–424 and 430, PR #201) to the last row written before this retrospective started (542,
+PR #258, 2026-11-11). Rows 420–456 came before the Phase 7 plan: the Phase 6 retrospective
+and its follow-up #200 (PR #202, rows 425–429), the Phase 6 reconciliation (#189, PR #204,
+rows 431–433), #203 and its child PRs (#206, #208, #210, #212: rows 434–449), and the
+between-phases issues #213, #199 and #193 (rows 450–456). Rows 457–542 are Phase 7 itself:
+the plan (PR #220), steps 1–11 and #239 (PRs #235–#252), and the walkthrough's history and
+records (#254 and #257, PRs #255 and #258). Row 543 onward belong to the next range, this
+retrospective's own rows included.
 
 ```bash
 bash scripts/process-log.sh tally 9 420 542    # Cause
@@ -1734,8 +1734,8 @@ bash scripts/process-log.sh tally 8 420 542    # Escaped
 | r6 | 2 | 16 | 8.0 | 2 |
 
 - **A round's fixes are still the next round's main finding:** 42 of the 70 rounds after
-  round 1 have `overcorrection` as their headline (Phase 6: 23 of 42). Scoped rounds: 41
-  of 53; full rounds: 1 of 41.
+  round 1 have `overcorrection` as their headline (Phase 6: 23 of 42): 41 of the 53 scoped
+  rounds, 1 of the 17 later full rounds.
 - **No PR's rounds ran down.** Each PR's last round found 2 to 10. 32 of the 94 rounds
   found exactly 10.
 
@@ -1761,28 +1761,31 @@ fix-made and 47% `latent`; round 1's 147 were 46% `latent`.
 **The harm side.** 3.9 rounds per PR; 6.0 to 10.0 findings per round after round 1, per
 PR. About 40 findings stated as limits, 6 moved to issues and 82 declined. Read against
 the later rows of 441–542, no stated limit caused a problem in use; 8 limits' own texts
-were found wrong, all by review (472, 473, 479, 501, 515, 518, 521, 542). One decline did: README's "Today's entry" snippet,
-declined in row 535, left the row that made #254's insert return no rows (537).
+were found wrong, all by review (472, 473, 479, 501, 515, 518, 521, 542). One decline
+did: README's "Today's entry" snippet, declined in row 535, left the row that made #254's
+insert return no rows (537). Possibly a second: row 536 declined "the day check stricter
+than the checklist", the check that then passed Taco Loco over.
 
 ### The rules #1–#9 name
 
-Each against its decision's measure; the owner's decisions of 2026-11-11.
+Each against its decision's measure. The decisions are the owner's, of 2026-11-11, and
+plan #39 holds them.
 
 | Rule | Measure and result | Decision |
 |---|---|---|
 | #1 What a fix may add | Fix-added code after round 1: 18.8% → 20.1%; no drop. Its limits caused no problem in use | Keep |
 | #2 Cut first, reword last | New imprecision: 22.1% → 12.8% | Keep |
-| #4 The round ceiling | PRs past it: 7 of 17 → 2 of 20, both the owner's request (490, 525). `merged` rows: 2 in 351–441, 3 in 441–542 (453, 470, 537) | Adjust: full, scoped, full (#260) |
-| #5 Records skipped, final check | Records findings: 14.2% → 0.2%. The final check found errors in most PRs (#208: 1; #212: 2; #220: 2; #258: 4). Two record errors were found after merge: 453 (row 450, PR #214) and 537 (PR #255) | Keep |
+| #4 The round ceiling | PRs running three or more scoped rounds in a row, #203's measure: 7 of 17 → 0 of 20. Two PRs ran a sixth round, each at the owner's request (490, 525). `merged` rows rose against its "no rise": 2 in 351–441, 3 in 441–542 (453, 470, 537) | Adjust: full, scoped, full (#260) |
+| #5 Records skipped, final check | Records findings, of all named: 54 of 498 → 2 of 560. The final check found errors in at least 8 of the 20 PRs (#208, #212, #218, #220, #245, #252, #255, #258, by their bodies) and none in #210, #214 and #215. Two record errors were found after merge: 453 (row 450, PR #214) and 537 (PR #255) | Keep |
 | #6 Approved wording back to the owner | One row (513), from two (438, 439) | Keep |
-| #7 README status parts at reconciliation | No reconciliation in the range; #234 is the first | Keep; judged at #234 |
+| #7 README status parts at reconciliation | No reconciliation since the rule (PR #210); PR #204, the Phase 6 one (rows 431–433), holds its baseline, row 432. #234 is the first after it | Keep; judged at #234 |
 | #8 Stale hits wait for the plan | Phase 7 (from the plan, `06f9dd9`, 2026-11-05): no commit edited `project-context.md`, and none edited the README's status parts; the README's stack row (`75fd746`) isn't one. Stale hits went into step 15 | Keep |
 | #9 Point to where a rule lives | Restated copies after round 1, rows 450 onward: 9.8% → 6.4% | Keep |
 
-**Why the ceiling changes (#260).** Scoped rounds reviewed the previous round's fixes and
-found mostly what those fixes made; the defects no fix wrote came from round 1 and the
-later full rounds. The ceiling drops the second scoped round; #4's measure, `merged`
-rows, watches for fix-made errors that now get through.
+**Why the ceiling changes (#260).** Fix-made findings were the largest part of scoped
+rounds' (41%) and 5% of later full rounds'. Of the 150 defects no fix wrote, round 1 found
+67, scoped rounds 37 and later full rounds 46, so dropping the second scoped round also
+drops some of those. #4's measure, `merged` rows, watches what gets through.
 
 ### The Phase 6 retrospective's actions
 
@@ -1790,16 +1793,17 @@ rows, watches for fix-made errors that now get through.
 retrospective's copy grep matches: 36 of 123 (29%), from 28 of 69 (41%): 422, 423, 425,
 427, 428, 429, 432, 433, 437, 444, 447, 448, 455, 462, 465, 471, 478, 480, 481, 496, 499,
 502, 504, 507, 510, 512, 516, 517, 518, 519, 520, 534, 535, 536, 540, 542. Sweep misses
-still reach review: rows 427, 440, 470, 480, 481, 499, 510, 512, 518 and 527 name a copy,
-a term or a sibling read a sweep missed. Two say why: 470 (a missing table row holds no
-changed term) and 481 (the grep read the code, not the plan's prose).
+continue: rows 427, 440, 470, 480, 481, 499, 510, 512, 518 and 527 name a copy, a term or
+a sibling read a sweep missed. Review found nine; 470 merged and was found by `self` in a
+later PR's sweep. Two say why: 470 (a missing table row holds no changed term) and 481
+(the grep read the code, not the plan's prose).
 
 **2. Negative controls and the "Failure modes" field (#170). Keep, unchanged.**
-`incomplete-guard` rose from 8 of 69 (12%) to 24 of 123 (20%), most on auth and the admin
-hooks. Phase 7 changed no schema: `git log --since=2026-11-03 -- supabase/migrations
-tests/controls scripts/controls.mjs` lists nothing. Checks that couldn't fail: the Phase 6
-grep matches 420, 442, 482, 484 and 526; #233's research types 23 findings so (4.1%;
-#203: 16, 3.2%).
+`incomplete-guard` rose from 8 of 69 (12%) to 24 of 123 (20%); 12 of the 24 are on the
+admin PRs #236–#249 (471, 479–481, 500, 502, 507, 509, 514, 519, 520, 523). Phase 7
+changed no schema: `git log --since=2026-11-03 -- supabase/migrations tests/controls
+scripts/controls.mjs` lists nothing. Checks that couldn't fail: the Phase 6 grep matches
+420, 442, 482, 484 and 526; #233's research types 23 findings so (4.1%; #203: 16, 3.2%).
 
 **3. `scripts/process-log.sh check`. Keep, unchanged.** The log passes it as this section
 is written (exit 0).
@@ -1813,9 +1817,9 @@ limit rule stayed retired.
 
 ### New actions
 
-**None.** Of the four shares the rules aimed at, the one that didn't move is fix-added
-code (20.1% after round 1), and its findings come from a fix's effects elsewhere, which a
-check on the fix itself wouldn't see. Zero is a valid answer (part 4); the owner agreed (2026-11-11).
+**None** (part 4 allows zero; plan #39). Of the four shares the rules aimed at, the one
+that didn't move is fix-added code (20.1% after round 1), and no mechanism was found with
+evidence that it would move it.
 
 ### Follow-ups
 
