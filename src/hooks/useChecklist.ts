@@ -4,6 +4,7 @@ import {
   checklistOf,
   confirmBody,
   isBehind,
+  listMayHaveChanged,
   readDismissed,
   stillHidden,
   writeDismissed,
@@ -65,9 +66,10 @@ export function useChecklist({
   revision: number;
   // The screen's clock, set each minute and on each list read (`useAdminLocations`).
   now: Date;
-  // Reads the entry list again, after every ✓: one that created an entry; one refused with
-  // 409, for an entry this screen may not have read (IS #272); and one whose answer was lost,
-  // whose entry may exist all the same.
+  // Reads the entry list again after a ✓, when its answer may have changed what the list
+  // should show (`listMayHaveChanged`, IS #272). A limit: after an answer lost once the
+  // insert committed, the place picker's recent places aren't read again (`creates` counts
+  // only the ✓s known to have created an entry).
   reloadList: () => Promise<void>;
 }): ChecklistState {
   const [checklist, setChecklist] = useState<Checklist | null>(null);
@@ -136,9 +138,9 @@ export function useChecklist({
     }
     setBusy((rows) => answered(rows, suggestion.from_id, sent));
     // Read again either way, before the list's reload rather than after it: a created entry,
-    // or a 409's, now overlaps the suggestion.
+    // a 409's, or one an answer lost may have created, now overlaps the suggestion.
     setReads((count) => count + 1);
-    await reloadList();
+    if (listMayHaveChanged(result)) await reloadList();
   }
 
   const hidden = [
