@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { type ApiResult, adminFetch, adminList, fetchTrucks } from "@/lib/admin-api";
 import { type Busy, answered, stillBusy } from "@/lib/admin-busy";
+import { stockholmDay } from "@/lib/stockholm";
 import type { AdminEntry } from "@/lib/services/locations";
 import type { Location, Truck } from "@/lib/types";
 
 // The admin screen's list: entries from today for 14 days and every truck, read through
 // the uncached admin routes, so the admin sees their own change on the next read (plan
-// #15, #24). Cancel and "Stämmer fortfarande" reload the entries; an edit is the form's.
+// #15, #24). Cancel, "Stämmer fortfarande" and the day's turn reload the entries; an edit
+// is the form's.
 //
 // A limit: an open edit holds the entry as it was when "Ändra" was pressed. If another tab
 // moves one of its times, an edit here that changes the other time writes back the one it
@@ -107,6 +109,19 @@ export function useAdminLocations(): {
   );
 
   const reload = useCallback(() => readAgain(trucksFailed.current), [readAgain]);
+
+  // The entries again when the Stockholm day of the list's clock turns (IS #251): read only
+  // on opening and after actions, a screen left open past midnight kept the old day's 14
+  // days (reproduced with the browser's clock shifted, #251's comment). A limit: the server
+  // picks the window by its own clock, so a device clock ahead of it by more than the
+  // request takes gets the old day again, until the next read.
+  const today = stockholmDay(now);
+  const listedDay = useRef(today);
+  useEffect(() => {
+    if (listedDay.current === today) return;
+    listedDay.current = today;
+    void readAgain(trucksFailed.current);
+  }, [today, readAgain]);
 
   async function retry() {
     if (retrying) return;
