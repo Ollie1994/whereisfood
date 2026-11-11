@@ -405,17 +405,17 @@ Stockholm days before that day, and its one live entry, Burgarbilen at Järntorg
 runs from an hour before the push to 12 hours after it. No seed row ends after that
 entry, and none is added later. So the longer after the push a check runs, the older
 the seed history it finds on the preview, and a check that reads a recent window of
-past entries can find no seed rows: that is the seed's age, not a read-path bug. Rows
-written by hand also have `created_by` null, as the seed's do: the next paragraph has Phase
-7's, and "Today's entry" below writes more.
+past entries can find no seed rows: that is the seed's age, not a read-path bug. IS #254's
+insert (next paragraph) and "Today's entry" (below) also write rows with `created_by` null,
+as the seed does.
 
 Phase 7's walkthrough changed rows by hand once more, on 2026-11-11: IS #254's insert gave
-Taco Loco a lunch and a dinner on 2026-11-04, with `created_by` null like the seed's rows
-(Phase 7 plan, #38). For it to run, the owner first cancelled Taco Loco's entry from
-2026-11-04 13:22:59.114694 to 11-05 02:22:59.114694, Stockholm time: the insert skips a
-truck with a non-cancelled entry on the day it writes to, as on the day it runs (#38).
-That entry's window, an hour
-before to 12 hours after one moment, is the shape "Today's entry" below writes (IS #257).
+Taco Loco a lunch and a dinner on 2026-11-04 (Phase 7 plan, #38). Its first run wrote
+nothing. The insert skips a truck with a non-cancelled entry on the day it runs or the day
+it writes to: Burgarbilen had step 8's entries on 2026-11-11, and Taco Loco had one from
+2026-11-04 13:22:59.114694 to 11-05 02:22:59.114694, Stockholm time, whose window (an hour
+before to 12 hours after one moment) is the shape "Today's entry" below writes. The owner
+cancelled that Taco Loco entry, and the second run wrote the pair (IS #257).
 
 **Today's entry.** Before checking a preview's markers, run this in the project's SQL
 Editor. It gives Taco Loco (the seed's fixed id) an entry at the place of its latest
@@ -437,11 +437,11 @@ with no error. If it fails with `conflicting key value violates exclusion constr
 window: an earlier run of this snippet, or any other entry. Look before changing
 anything.
 
-Its row stays in the preview's history, and its times have seconds, which the checklist
-can't move to another day (`entryWallTimes`). While it is Taco Loco's most recent entry on
-that weekday, up to 4 weeks on, Taco Loco gets no suggestion, not even from an older week
-(`getChecklist`). IS #254's insert also skips Taco Loco on every day the row overlaps, and
-on those days a week later. So cancel it once the check is done ("Ställ in" on `/admin`).
+Its row stays in the preview's history, with times that have seconds, which the checklist
+can't move to another day (`entryWallTimes`). So, that day and later, it can keep Taco
+Loco's suggestions off the checklist and make IS #254's insert pass Taco Loco over. Cancel it
+when the check is done: "Ställ in" on `/admin` while it is listed there, or `cancelled_at =
+now()` in the SQL Editor.
 
 ---
 
