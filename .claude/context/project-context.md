@@ -134,7 +134,6 @@ every gate green (Phase 4 plan decision #13, process-log row 282). It wasn't ret
 | `@supabase/ssr` | ^0.10.3 | cookie sessions for the admin (Phase 7 plan #12) |
 | `server-only` | ^0.0.1 | makes `src/lib/supabase.ts` fail a client build (IS #221) |
 | `date-fns` | ^4.3 | `parseISO` and `isValid` only; Stockholm wall time is `src/lib/stockholm.ts`'s (`CLAUDE.md`, "Time") |
-| `date-fns-tz` | ^3.2 | imported nowhere since PR #252; IS #253 removes it |
 | `vitest` | ^4.1.12 | pulls in `vite` 8 |
 | `supabase` CLI | ^2.109 | dev dependency |
 
