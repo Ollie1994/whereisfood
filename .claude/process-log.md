@@ -1680,3 +1680,143 @@ the repo; the numbers are dated.
 - **The owner's view:** building needs little process; maintaining and developing further
   needs it. The project is for learning agentic development, and for making something of
   actual value and potential.
+
+## Phase 7 retrospective (2026-11-11, #233)
+
+**Rows counted: 420–542 (123 rows).** These run from the Phase 6 retrospective's own rows
+(420–424 and 430, PR #201) to the last row written before this retrospective started
+(542, PR #258, 2026-11-11). Rows 420–456 came before the Phase 7 plan: the Phase 6
+retrospective and its follow-up #200 (PR #202, rows 425–429), #203 and its child PRs
+(#204, #206, #208, #210, #212: rows 431–449), and the between-phases issues #213, #199
+and #193 (rows 450–456). Rows 457–542 are Phase 7 itself: the plan (PR #220), steps 1–11
+and #239 (PRs #235–#252), and the walkthrough's history and records (#254 and #257, PRs
+#255 and #258). Row 543 onward belong to the next range, this retrospective's own rows
+included.
+
+```bash
+bash scripts/process-log.sh tally 9 420 542    # Cause
+bash scripts/process-log.sh tally 7 420 542    # Caught by
+bash scripts/process-log.sh tally 8 420 542    # Escaped
+```
+
+### By `Cause`
+
+| Cause | Rows | Share | Phase 6 (351–419) |
+|---|---|---|---|
+| `overcorrection` | 44 | 36% | 24 (35%) |
+| `unverified-assumption` | 27 | 22% | 10 (14%) |
+| `incomplete-guard` | 24 | 20% | 8 (12%) |
+| `imprecise-claim` | 17 | 14% | 18 (26%) |
+| `gate-skipped` | 7 | 6% | 4 (6%) |
+| `missing-gate` | 2 | 2% | 1 (1%) |
+| `manual-drift` | 2 | 2% | 4 (6%) |
+| `stale-doc` | 0 | 0% | 0 (0%) |
+
+### By `Caught by`
+
+`tally 7` grouped all 123 rows: `code-review` 95, `self` 21, `user` 7 (Phase 6: 56, 13,
+0). **`Escaped`:** 112 `pre-merge`, 5 `pre-commit`, 4 `merged` (430, 453, 470, 537), 2
+`n/a`.
+
+### Review rounds
+
+94 rounds on 24 PRs, 779 findings, by the Phase 6 retrospective's round script with
+`first=420 last=542` and rows without a "found N" left out (row 513, a process miss on
+#245, is a `code-review` row but not a round):
+
+| Round | Rounds | Findings | Per round | Headline `overcorrection` |
+|---|---|---|---|---|
+| r1 | 24 | 200 | 8.3 | 0 |
+| r2 | 22 | 182 | 8.3 | 20 |
+| r3 | 17 | 141 | 8.3 | 10 |
+| r4 | 17 | 139 | 8.2 | 3 |
+| r5 | 12 | 101 | 8.4 | 7 |
+| r6 | 2 | 16 | 8.0 | 2 |
+
+- **A round's fixes are still the next round's main finding:** 42 of the 70 rounds after
+  round 1 have `overcorrection` as their headline (Phase 6: 23 of 42). Scoped rounds: 41
+  of 53; full rounds: 1 of 41.
+- **No PR's rounds ran down.** Each PR's last round found 2 to 10. 32 of the 94 rounds
+  found exactly 10.
+
+### #203's classification, re-run (plan #3)
+
+The findings in rows 441–542, the rows written after PR #206 merged, typed by #203's
+criterion: 78 rounds on 20 PRs, 560 named findings of 626. The counts, the rows behind
+them, the harm side and every finding as typed are on #233 (its research comment); the
+reading's limits are there too. After round 1, against #203's rows 351–433:
+
+| | #203 | Rows 441–542 | Rows 450–542 |
+|---|---:|---:|---:|
+| Findings after round 1 | 367 | 413 | 393 |
+| New code a fix added | 69 (18.8%) | 83 (20.1%) | 71 (18.1%) |
+| New imprecision | 81 (22.1%) | 53 (12.8%) | 53 (13.5%) |
+| Records | 52 (14.2%) | 1 (0.2%) | 1 (0.3%) |
+| Restated copy | 36 (9.8%) | 26 (6.3%) | 25 (6.4%) |
+
+**By kind of round:** scoped rounds' 316 findings were 41% fix-made (fix-added code or new
+imprecision) and 12% defects no fix wrote (`latent`); later full rounds' 97 were 5%
+fix-made and 47% `latent`; round 1's 147 were 46% `latent`.
+
+**The harm side.** 3.9 rounds per PR; 6.0 to 10.0 findings per round after round 1, per
+PR. About 40 findings stated as limits, 6 moved to issues and 82 declined. No stated
+limit caused a problem in use; 8 limits' own texts were found wrong, all by review (472,
+473, 479, 501, 515, 518, 521, 542). One decline did: README's "Today's entry" snippet,
+declined in row 535, left the row that made #254's insert return no rows (537).
+
+### The rules #1–#9 name
+
+Each against its decision's measure; the owner's decisions of 2026-11-11.
+
+| Rule | Measure and result | Decision |
+|---|---|---|
+| #1 What a fix may add | Fix-added code after round 1: 18.8% → 20.1%; no drop. Its limits caused no problem in use | Keep |
+| #2 Cut first, reword last | New imprecision: 22.1% → 12.8% | Keep |
+| #4 The round ceiling | PRs past it: 7 of 17 → 2 of 20, both the owner's request (490, 525). `merged` rows: 2 in 351–441, 3 in 441–542 (453, 470, 537) | Adjust: full, scoped, full (#260) |
+| #5 Records skipped, final check | Records findings: 14.2% → 0.2%. The final check found errors in most PRs (#208: 1; #212: 2; #220: 2; #258: 4). Two record errors were found after merge: 453 (row 450, PR #214) and 537 (PR #255) | Keep |
+| #6 Approved wording back to the owner | One row (513), from two (438, 439) | Keep |
+| #7 README status parts at reconciliation | No reconciliation in the range; #234 is the first | Keep; judged at #234 |
+| #8 Stale hits wait for the plan | Phase 7 (from the plan, `06f9dd9`, 2026-11-05): no commit edited `project-context.md`, and none edited the README's status parts; the README's stack row (`75fd746`) isn't one. Stale hits went into step 15 | Keep |
+| #9 Point to where a rule lives | Restated copies after round 1, rows 450 onward: 9.8% → 6.4% | Keep |
+
+**Why the ceiling changes (#260).** Scoped rounds reviewed the previous round's fixes and
+found mostly what those fixes made; the defects no fix wrote came from round 1 and the
+later full rounds. The ceiling drops the second scoped round; #4's measure, `merged`
+rows, watches for fix-made errors that now get through.
+
+### The Phase 6 retrospective's actions
+
+**1. The fix sweep and `scripts/sweep.sh` (#200). Keep, unchanged.** Rows the Phase 6
+retrospective's copy grep matches: 36 of 123 (29%), from 28 of 69 (41%): 422, 423, 425,
+427, 428, 429, 432, 433, 437, 444, 447, 448, 455, 462, 465, 471, 478, 480, 481, 496, 499,
+502, 504, 507, 510, 512, 516, 517, 518, 519, 520, 534, 535, 536, 540, 542. Sweep misses
+still reach review: rows 427, 440, 470, 480, 481, 499, 510, 512, 518 and 527 name a copy,
+a term or a sibling read a sweep missed. Two say why: 470 (a missing table row holds no
+changed term) and 481 (the grep read the code, not the plan's prose).
+
+**2. Negative controls and the "Failure modes" field (#170). Keep, unchanged.**
+`incomplete-guard` rose from 8 of 69 (12%) to 24 of 123 (20%), most on auth and the admin
+hooks. Phase 7 changed no schema: `git log --since=2026-11-03 -- supabase/migrations
+tests/controls scripts/controls.mjs` lists nothing. Checks that couldn't fail: the Phase 6
+grep matches 420, 442, 482, 484 and 526; #233's research types 23 findings so (4.1%;
+#203: 16, 3.2%).
+
+**3. `scripts/process-log.sh check`. Keep, unchanged.** The log passes it as this section
+is written (exit 0).
+
+**4. The claims check, with the probe words (#200). Keep, unchanged.** `imprecise-claim`
+fell from 18 of 69 (26%) to 17 of 123 (14%). It found a defect in what runs: row 488, its
+probe of every day of years 0001 and 9999 found 9999-12-31 threw.
+
+**5. `Caught by` groups. Keep, unchanged.** `tally 7` grouped all 123 rows. The level and
+limit rule stayed retired.
+
+### New actions
+
+**None.** The largest number no rule moved is fix-added code (20.1% after round 1), and
+its findings come from a fix's effects elsewhere, which a check on the fix itself
+wouldn't see. Zero is a valid answer (part 4); the owner agreed (2026-11-11).
+
+### Follow-ups
+
+- #260: the review round ceiling, full, scoped, full. In #234's `Blocked by`.
