@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { type ApiResult, adminFetch, fetchTrucks } from "@/lib/admin-api";
+import { type ApiResult, adminFetch, fetchTrucks, mayHaveChanged } from "@/lib/admin-api";
 import { type Busy, answered, stillBusy } from "@/lib/admin-busy";
 import {
   TRUCK_TEXTS,
@@ -14,8 +14,8 @@ import type { Truck } from "@/lib/types";
 // The trucks screen's state (Phase 7 plan, step 10): every truck, read through the uncached
 // admin route, the form for a new truck or an edit of `editing`, and "Sätt inaktiv" /
 // "Aktivera" on each truck. No delete: setting inactive is an edit (`CLAUDE.md`,
-// "Locations"). A list button reads the trucks again, on a refusal too; a save, when it
-// succeeds or answers 404 or 409.
+// "Locations"). A list button reads the trucks again, on a refusal too; a save, when its
+// answer may have left the list behind (`mayHaveChanged`, IS #275).
 //
 // A limit, as on the entries screen (`useLocationForm`): "Ändra" on another truck, or
 // "Avbryt", replaces the form's values without asking, so unsaved changes are dropped.
@@ -111,10 +111,11 @@ export function useTrucks(): TrucksState {
     setSaving(false);
     if (!result.ok) {
       setFormError(result.error);
-      // A 404 or 409 is about a truck this list may not show: gone, or holding the handle. The
-      // list is read again, so it says so. The edit stays open with the error, as the entry
-      // form's does; "Avbryt" closes it.
-      if (result.status === 404 || result.status === 409) await reload();
+      // A 404 or 409 is about a truck this list may not show: gone, or holding the handle; an
+      // answer lost after the write, or a 5xx, may follow one that committed. The list is read
+      // again, so it says so. The edit stays open with the error, as the entry form's does;
+      // "Avbryt" closes it.
+      if (mayHaveChanged(result)) await reload();
       return;
     }
 

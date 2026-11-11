@@ -52,9 +52,14 @@ export function useLocationForm({
   onSaving: () => void;
   // After a save: reload the list, and close the edit when `closeEdit`.
   onSaved: (closeEdit: boolean) => Promise<void>;
-  // After a refusal that may have left the list behind (`mayHaveChanged`, IS #275): a 404 or
-  // 409, about an entry it may not show (gone, or the one it overlaps), or an answer lost
-  // after the write may have committed, or a 5xx. The list is read again, so it says so.
+  // After an answer other than a readable success that may have left the list behind
+  // (`mayHaveChanged`, IS #275): a 404 or 409, about an entry it may not show (gone, or the
+  // one it overlaps); an answer with no status, whose write may have committed; or a 5xx.
+  // The list is read again, so it says so. Limits: after a write that committed but whose
+  // answer was lost, the form keeps its values and `saves` doesn't move, so the place picker
+  // isn't read again and a second "Spara" is refused with 409 against that entry. And
+  // `withAdmin`'s own 503 (Auth unreachable, before any write) reads the list and the
+  // checklist too, which shows that error three times.
   onStale: () => Promise<void>;
 }): LocationFormState {
   const [values, setValues] = useState(() => (editing ? formFromEntry(editing) : emptyForm(new Date())));

@@ -15,9 +15,11 @@ export const API_ERRORS = {
 
 // Whether a write's answer may have left the screen's list behind, so it is read again (IS
 // #272, #275): after a success; a 404, an entry gone; a 409, for an entry the screen may not
-// have read; an answer with no status, lost after the write may have committed; and a 5xx.
-// Not after another 4xx, which wrote nothing and names no entry: a 401's read would only show
-// the session's error twice. A form's save and a checklist ✓ both read by it.
+// have read; an answer with no status (a failed request, or a 2xx this couldn't read), whose
+// write may have committed; and a 5xx. Not after another 4xx: the app's own (400, 401, 403)
+// refuse before writing and name no entry, and a 401's read would only show the session's
+// error twice. The entries form, the trucks form and a checklist ✓ read by it. A limit: a
+// proxy's 4xx sent after it passed the write on (a 408 or 499) counts as nothing written.
 export function mayHaveChanged(result: { ok: true } | { ok: false; status?: number }): boolean {
   if (result.ok || result.status === undefined) return true;
   return result.status === 404 || result.status === 409 || result.status >= 500;

@@ -10,8 +10,8 @@ import type { AdminEntry } from "@/lib/services/locations";
 // errors, a refused save that may have left them behind reloads the list and the checklist
 // (`onStale`, `mayHaveChanged`), and a list button or a ✓ clears the form's "Sparat.";
 // "Stämmer fortfarande" and a confirmed "Ställ in" clear the checklist's error too. A ✓ also
-// reloads the list, unless refused with a 4xx other than 404 or 409 (`mayHaveChanged`), and
-// a save or cancel reloads the checklist.
+// reloads the list when its answer may have changed it (`mayHaveChanged`), and a save or
+// cancel reloads the checklist.
 // Here, not in a component (`CLAUDE.md`, "UI Rules": components only render).
 export function useAdminScreen() {
   const list = useAdminLocations();
@@ -28,8 +28,8 @@ export function useAdminScreen() {
       await reload();
     },
     // A 404 or 409 is about an entry the screen didn't know of, which the checklist may
-    // overlap too; a lost answer's write may exist. Called on a save, after this render has
-    // defined `checklist`.
+    // overlap too; after an answer with no status, or a 5xx, the write may exist. Called on a
+    // save, after this render has defined `checklist`.
     onStale: async () => {
       checklist.reload();
       await reload();

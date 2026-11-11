@@ -54,7 +54,8 @@ export type ChecklistState = {
   creates: number;
   // When a save starts elsewhere on the screen: a ✓'s error from before it goes.
   clearActionError: () => void;
-  // Reads again: "Försök igen", and a save elsewhere answered 404 or 409.
+  // Reads again: "Försök igen", and a save elsewhere whose answer may have left it behind
+  // (`useAdminScreen`'s `onStale`).
   reload: () => void;
   confirm: (suggestion: Suggestion) => Promise<void>;
   dismiss: (suggestion: Suggestion) => void;

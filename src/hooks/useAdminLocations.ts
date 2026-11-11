@@ -9,8 +9,9 @@ import type { Location, Truck } from "@/lib/types";
 // The admin screen's list: entries from today for 14 days and every truck, read through
 // the uncached admin routes, so the admin sees their own change on the next read (plan
 // #15, #24). The entries are read on opening, after a cancel or "Stämmer fortfarande", after
-// a save or a checklist ✓ that may have changed them (`reload`, which `useAdminScreen` calls;
-// for a ✓, `mayHaveChanged`), on "Försök igen", and at a minute's tick on a new day.
+// a save, after a refused save or a checklist ✓ whose answer may have changed them (`reload`,
+// which `useAdminScreen` calls by `mayHaveChanged`), on "Försök igen", and at a minute's
+// tick on a new day.
 //
 // A limit: an open edit holds the entry as it was when "Ändra" was pressed. If another tab
 // moves one of its times, an edit here that changes the other time writes back the one it
@@ -49,8 +50,8 @@ export function useAdminLocations(): {
   // by `startEdit`, `stopEdit` and a cancel's answer, and `useLocationForm` saves from it.
   actingIds: readonly string[];
   editing: AdminEntry | null;
-  // After a save, or a checklist ✓ that may have changed them (`mayHaveChanged`): the
-  // entries again (and the trucks, while their read has failed).
+  // After a save, or a refused save or a checklist ✓ whose answer may have changed them
+  // (`mayHaveChanged`): the entries again (and the trucks, while their read has failed).
   reload: () => Promise<void>;
   // When a save starts: a list action's error from before it goes.
   clearActionError: () => void;
