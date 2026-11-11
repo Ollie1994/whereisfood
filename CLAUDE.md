@@ -494,9 +494,9 @@ claims, it doesn't judge them; its header says what it can't see.
 
 **The round itself: `/code-review` at its default findings limit**, not `--max-findings
 all` (the owner's call, Phase 5 plan decision #20): fix, then repeat, up to this ceiling:
-full, scoped, scoped, full, then stop. If the last full round finds a defect in what
-runs, fix it, run one scoped round on those fixes, and stop. The owner can stop sooner
-or ask for more (IS #207). A scoped round sees only the fixes: #20 records a defect
+full, scoped, full, then stop (Phase 7 plan decision #39). If the last full round finds a
+defect in what runs, fix it, run one scoped round on those fixes, and stop. The owner can
+stop sooner or ask for more (IS #207). A scoped round sees only the fixes: #20 records a defect
 outside them that a scoped round and the full round 1 on PR #168 both missed, and a
 later full round, on PR #169, found (row 349). The log's "Columns" ("What one row is",
 then `Caught by`) say how a round is recorded as a row.
