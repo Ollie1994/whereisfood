@@ -405,11 +405,18 @@ Stockholm days before that day, and its one live entry, Burgarbilen at Järntorg
 runs from an hour before the push to 12 hours after it. No seed row ends after that
 entry, and none is added later. So the longer after the push a check runs, the older
 the seed history it finds on the preview, and a check that reads a recent window of
-past entries can find none: that is the seed's age, not a read-path bug.
+past entries can find no seed rows: that is the seed's age, not a read-path bug. IS #254's
+insert (next paragraph) and "Today's entry" (below) also write rows with `created_by` null,
+as the seed does.
 
-Phase 7's walkthrough adds rows by hand once more: IS #254's insert, which the owner runs
-on the walkthrough's day, gives one truck a lunch and a dinner 7 days earlier, with
-`created_by` null like the seed's rows (Phase 7 plan, #38).
+Phase 7's walkthrough changed rows by hand once more, on 2026-11-11: IS #254's insert gave
+Taco Loco a lunch and a dinner on 2026-11-04 (Phase 7 plan, #38). Its first run wrote
+nothing. The insert passes over a truck with a non-cancelled entry on the day it runs or
+the day it writes to (#38 has its full rule): Burgarbilen had step 8's entries on
+2026-11-11, and Taco Loco had one from 2026-11-04 13:22:59.114694 to 11-05 02:22:59.114694,
+Stockholm time, whose window (an hour before to 12 hours after one moment) is the shape
+"Today's entry" below writes. The owner cancelled that Taco Loco entry, and the second run
+wrote the pair (IS #257).
 
 **Today's entry.** Before checking a preview's markers, run this in the project's SQL
 Editor. It gives Taco Loco (the seed's fixed id) an entry at the place of its latest
@@ -430,6 +437,12 @@ with no error. If it fails with `conflicting key value violates exclusion constr
 "locations_no_overlap"`, a non-cancelled Taco Loco entry already overlaps that
 window: an earlier run of this snippet, or any other entry. Look before changing
 anything.
+
+Its row stays in the preview's history, and the checklist can leave out Taco Loco's
+suggestions because of it, that day and in later weeks (`getChecklist`; its times have
+seconds, which `entryWallTimes` can't move to another day). Cancel it with "Ställ in" on
+`/admin` when the check is done: the list shows it until the day it ends is over
+(`listAdminEntries`). After that, cancel it by its id in the SQL Editor.
 
 ---
 
