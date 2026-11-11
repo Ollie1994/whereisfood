@@ -1,3 +1,4 @@
+import { stockholmDay } from "@/lib/stockholm";
 import type { Location } from "@/lib/types";
 
 // How far ahead the admin's list reads, from the start of today (Phase 7 plan, #24). Its own
@@ -9,4 +10,11 @@ export const LIST_DAYS = 14;
 // for the service and the list's "Har slutat".
 export function hasEnded(entry: Pick<Location, "ends_at">, now: Date): boolean {
   return Date.parse(entry.ends_at) <= now.getTime();
+}
+
+// Whether the admin's list is from a Stockholm day before `now`'s (IS #251). `listedDay` is
+// the day, by the device's clock when it was sent, of the newest read that came back; null
+// before one has.
+export function listBehind(listedDay: number | null, now: Date): boolean {
+  return listedDay !== null && listedDay < stockholmDay(now);
 }

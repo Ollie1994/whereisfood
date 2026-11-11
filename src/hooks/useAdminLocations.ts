@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { type ApiResult, adminFetch, adminList, fetchTrucks } from "@/lib/admin-api";
 import { type Busy, answered, stillBusy } from "@/lib/admin-busy";
+import { listBehind } from "@/lib/admin-list";
 import { stockholmDay } from "@/lib/stockholm";
 import type { AdminEntry } from "@/lib/services/locations";
 import type { Location, Truck } from "@/lib/types";
 
 // The admin screen's list: entries from today for 14 days and every truck, read through
 // the uncached admin routes, so the admin sees their own change on the next read (plan
-// #15, #24). Cancel, "Stämmer fortfarande" and the day's turn reload the entries; an edit
-// is the form's.
+// #15, #24). The entries are read on opening, after a cancel or "Stämmer fortfarande", after
+// a save or a checklist ✓ (`reload`, which `useAdminScreen` calls), on "Försök igen", and at
+// a minute's tick on a new day.
 //
 // A limit: an open edit holds the entry as it was when "Ändra" was pressed. If another tab
 // moves one of its times, an edit here that changes the other time writes back the one it
@@ -40,7 +42,8 @@ export function useAdminLocations(): {
   // by `startEdit`, `stopEdit` and a cancel's answer, and `useLocationForm` saves from it.
   actingIds: readonly string[];
   editing: AdminEntry | null;
-  // After a save: the entries again (and the trucks, while their read has failed).
+  // After a save or a checklist ✓: the entries again (and the trucks, while their read has
+  // failed).
   reload: () => Promise<void>;
   // When a save starts: a list action's error from before it goes.
   clearActionError: () => void;
@@ -74,13 +77,17 @@ export function useAdminLocations(): {
   // Whether the trucks' read failed, read when a reload runs rather than from the render
   // the reload was made in: a read failing during an action is then still retried.
   const trucksFailed = useRef(false);
+  // The Stockholm day, by this device's clock when it was sent, of the newest entries read
+  // that came back (`listBehind`).
+  const listedDay = useRef<number | null>(null);
 
-  // Applies an entries read if it is still the newest one sent.
-  const applyEntries = useCallback((id: number, read: ApiResult<AdminEntry[]>) => {
+  // Applies an entries read, sent on Stockholm day `day`, if it is still the newest one sent.
+  const applyEntries = useCallback((id: number, day: number, read: ApiResult<AdminEntry[]>) => {
     if (id !== latestRead.current) return;
     setNow(new Date());
     setBusy((rows) => stillBusy(rows, id));
     if (!read.ok) return setEntriesError(read.error);
+    listedDay.current = day;
     setEntriesError(null);
     setEntries(read.data);
   }, []);
@@ -97,32 +104,19 @@ export function useAdminLocations(): {
   const readAgain = useCallback(
     async (withTrucks: boolean) => {
       const id = ++latestRead.current;
+      const day = stockholmDay(new Date());
       const trucksId = withTrucks ? ++latestTrucksRead.current : 0;
       const [entriesRead, trucksRead] = await Promise.all([
         fetchEntries(),
         withTrucks ? fetchTrucks() : undefined,
       ]);
-      applyEntries(id, entriesRead);
+      applyEntries(id, day, entriesRead);
       if (trucksRead) applyTrucks(trucksId, trucksRead);
     },
     [applyEntries, applyTrucks],
   );
 
   const reload = useCallback(() => readAgain(trucksFailed.current), [readAgain]);
-
-  // The entries again when the Stockholm day of the list's clock turns (IS #251): read only
-  // on opening, after an action or a save and on "Försök igen", a screen left open past
-  // midnight kept the old day's 14 days (reproduced with the browser's clock shifted, #251's
-  // comment). A limit: the server
-  // picks the window by its own clock, so a device clock ahead of it by more than the
-  // request takes gets the old day again, until the next read.
-  const today = stockholmDay(now);
-  const listedDay = useRef(today);
-  useEffect(() => {
-    if (listedDay.current === today) return;
-    listedDay.current = today;
-    void readAgain(trucksFailed.current);
-  }, [today, readAgain]);
 
   async function retry() {
     if (retrying) return;
@@ -137,21 +131,31 @@ export function useAdminLocations(): {
   // The first reads, started here and applied in their callbacks (`adminList`'s comment);
   // then the list's clock, set again at each minute's turn so "Har slutat" isn't up to a
   // minute late. Each tick aims at the next turn afresh, so a late one doesn't carry over.
+  //
+  // A tick on a Stockholm day after the list's (`listBehind`) reads the entries again (IS
+  // #251), so a screen left open past midnight, or asleep through it, lists the new day's 14
+  // days, and a read that fails is tried again at the next tick. Checked with the browser's
+  // clock moved to 23:59 (#251's comment). A limit: the server picks the window by its own
+  // clock, so a device clock ahead of it by more than the request takes gets the old day's
+  // window, counted as the new day's, until the next read.
   useEffect(() => {
     const id = ++latestRead.current;
+    const day = stockholmDay(new Date());
     const trucksId = ++latestTrucksRead.current;
-    void fetchEntries().then((read) => applyEntries(id, read));
+    void fetchEntries().then((read) => applyEntries(id, day, read));
     void fetchTrucks().then((read) => applyTrucks(trucksId, read));
     let tick: ReturnType<typeof setTimeout>;
     const arm = () => {
       tick = setTimeout(() => {
-        setNow(new Date());
+        const at = new Date();
+        setNow(at);
+        if (listBehind(listedDay.current, at)) void readAgain(trucksFailed.current);
         arm();
       }, MINUTE_MS - (Date.now() % MINUTE_MS));
     };
     arm();
     return () => clearTimeout(tick);
-  }, [applyEntries, applyTrucks]);
+  }, [applyEntries, applyTrucks, readAgain]);
 
   async function act(entry: AdminEntry, action: "confirm" | "cancel") {
     setActionError(null);
