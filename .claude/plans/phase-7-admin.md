@@ -122,7 +122,7 @@ the public map, and nobody else can write anything.
 - On the hosted preview project: sign-ups off, Site URL and redirect URLs, the admin's
   auth user and `users` row. `README.md` records the settings, never a secret.
 - On the hosted preview project, for step 12: IS #254's insert of a lunch and a dinner into
-  `locations` (#38), run by the owner in its SQL Editor.
+  `locations` (#38), run by the owner in its SQL Editor. `README.md` records it.
 
 ---
 
