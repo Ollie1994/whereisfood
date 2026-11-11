@@ -3,7 +3,7 @@
 Full project reference: `.claude/context/project-context.md`
 Read it at the start of any non-trivial task.
 
-**Current phase plan: `.claude/plans/phase-7-admin.md`.**
+**Current phase plan: none (the last one: `.claude/plans/phase-7-admin.md`).**
 
 While that line names no plan (between phases, after a reconciliation and before the
 next plan's step 0), the reconciled `project-context.md` is current and wins over the
@@ -328,6 +328,11 @@ the old route until regenerated, so `tsc` and `build` fail with `Cannot find mod
 '…/route.js'`, which reads like a broken import. `rm -rf .next` (gitignored build
 output) and re-run (process-log row 275, PR #133).
 
+**Where an issue's browser checks run** (Phase 7 plan decision #36): in a local browser at
+phone width at `127.0.0.1:3000`, against the local stack. The phone, on `dev`'s preview, is
+for a plan's checkpoint issues: the preview's Redirect URLs admit `dev`'s alias alone, so a
+branch's preview can't finish a login (`README.md`, "Hosted preview database").
+
 ⚠ **Browser checks: confirm which server answered, and that it is gone afterwards.**
 Stopping `npm start` or `npm run dev` from a background task on Windows ends `npm` but
 leaves its Next child processes running, still holding the port. The next server
@@ -402,7 +407,7 @@ Why: the process log's Phase 3 retrospective (its Action 1) and Phase 4 retrospe
 then the claims check (every round, the first included), in that order, so the claims
 check also reads what the sweep changed.
 
-**Applying a finding** (IS #205):
+**Applying a finding** (IS #205; Phase 7 plan decisions #1, #2):
 - **Scope.** A fix may always correct what's there, or remove what an earlier fix added.
   Before it adds a code path, option, output or rule, check what the defect needs: if
   the PR's normal use reaches it, the issue as it stood before round 1 requires it, the
@@ -414,9 +419,10 @@ check also reads what the sweep changed.
 - **A false or too-broad claim** (history stays as written, the sweep's step 3). In
   order: delete the sentence if a reader doesn't need what it's about; narrow or correct
   it to what a probe showed, naming the probe; reword only if neither works.
-- **Approved wording** (IS #207). A fix that changes wording or a decision the owner
-  approved in this PR or its issue goes back to the owner before it is applied, whatever
-  else in "Review rounds" allows. It doesn't cover text approved in an earlier PR.
+- **Approved wording** (IS #207; Phase 7 plan decision #6). A fix that changes wording or
+  a decision the owner approved in this PR or its issue goes back to the owner before it
+  is applied, whatever else in "Review rounds" allows. It doesn't cover text approved in
+  an earlier PR.
 
 **The sweep: after applying a round's fixes** (or whenever a claim is corrected
 outside a review):
@@ -443,22 +449,22 @@ outside a review):
 3. **Read every hit.** Fix the stale ones. A sibling with the same defect gets fixed in
    the PR; only one outside the PR's scope gets an issue instead, named in the sweep
    record. Rows 340 and 342: a fix guarded one read, and its siblings were found a round
-   later each. A hit or new text that restates a rule or fact owned elsewhere
-   becomes a pointer to that copy, not a second edit (row 307; rows 294–295 went part
-   of the way), and not a pointer to another pointer. Some restating is meant to stay: a
-   code comment's evidence, an issue's spec, a plan's steps, a log row's summary, a row
-   in "Decisions carried forward", `project-context.md`'s rules with their reasons, and
-   a short README summary (IS #211). History (process-log rows from earlier work, dated
-   entries) stays as written. A row this PR added records what its round did: fix it if it's false
-   about that round, not to match what a later round changed. While a plan is current, a
-   stale hit or finding in `project-context.md` or `README.md`'s status parts (the
-   process log's "How to use it", part 6, names them) is named in the plan's
-   reconciliation step, and isn't edited unless a step of the plan orders that edit. The
-   reconciliation PR fixes these like any other hit (IS #209).
-4. **Record the sweep** where the correction lives: that round's section of the PR
-   body, or a comment on the issue when only an issue body was corrected. Claim or
-   pattern → where it was checked → result, and `sweep.sh`'s counts with how each of
-   its hits was settled.
+   later each. A hit or new text that restates a rule or fact owned elsewhere becomes a
+   pointer to that copy, not a second edit (row 307; rows 294–295 went part of the way),
+   and not a pointer to another pointer. Some restating is meant to stay: a code
+   comment's evidence, an issue's spec, a plan's steps, a log row's summary, a row in
+   "Decisions carried forward", `project-context.md`'s rules with their reasons, and a
+   short README summary (IS #211; Phase 7 plan decision #9). History (process-log rows
+   from earlier work, dated entries) stays as written. A row this PR added records what
+   its round did: fix it if it's false about that round, not to match what a later round
+   changed. While a plan is current, a stale hit or finding in `project-context.md` or
+   `README.md`'s status parts (the process log's "How to use it", part 6, names them) is
+   named in the plan's reconciliation step, and isn't edited unless a step of the plan
+   orders that edit. The reconciliation PR fixes these like any other hit (IS #209; Phase
+   7 plan decision #8). 4. **Record the sweep** where the correction lives: that round's
+   section of the PR body, or a comment on the issue when only an issue body was
+   corrected. Claim or pattern → where it was checked → result, and `sweep.sh`'s counts
+   with how each of its hits was settled.
 
 Fixing only the lines a finding names is what let one correction miss its copies three
 rounds running; the sweep found the copy no finding had named (process-log row 295).
@@ -501,15 +507,15 @@ records a defect outside them that a scoped round and the full round 1 on PR #16
 missed, and a later full round, on PR #169, found (row 349). The log's "Columns" ("What
 one row is", then `Caught by`) say how a round is recorded as a row.
 
-**The final records check** (IS #207). Rounds skip the PR body, except its summary of
-what changed, and the PR's log rows: each round's request says so. After the last
-round's fixes, their sweep and claims check, one pass reads each record against its own
-round's diff, the summary against the final diff, and checks any last fixes no round saw
-for correctness. It isn't a round: a miss it finds is a log row like any other. Its
-result, with the last claims record, goes in the PR body. The message asking the owner
-to merge says it ran, what it changed, and any defect left open. Nothing reads the
-pass's own edits. If a commit or a change to the PR body follows the check, other than
-its own edits, it runs again on what the PR changed.
+**The final records check** (IS #207; Phase 7 plan decision #5). Rounds skip the PR body,
+except its summary of what changed, and the PR's log rows: each round's request says so.
+After the last round's fixes, their sweep and claims check, one pass reads each record
+against its own round's diff, the summary against the final diff, and checks any last
+fixes no round saw for correctness. It isn't a round: a miss it finds is a log row like
+any other. Its result, with the last claims record, goes in the PR body. The message
+asking the owner to merge says it ran, what it changed, and any defect left open. Nothing
+reads the pass's own edits. If a commit or a change to the PR body follows the check,
+other than its own edits, it runs again on what the PR changed.
 
 ---
 

@@ -120,7 +120,7 @@ quoting the one-line rule this replaced.)
    `project-context.md`'s "Decisions carried forward" table. Without that, the next
    plan replaces it as "the current plan" and the decision stops being read. Rows
    marked "between phases" are handled as CLAUDE.md's "Process Log" says. **The
-   reconciliation also brings `README.md`'s status parts in line, and fixes the stale
+   reconciliation also brings `README.md`'s status parts in line (Phase 7 plan #7), and fixes the stale
    hits and findings named in the plan's reconciliation step; its issue lists the parts
    and points to that step.** The status parts are the README's status banner, "Project
    status" with its subsections, and the phase sentence in "How it's designed to work".
