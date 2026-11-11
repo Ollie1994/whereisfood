@@ -15,8 +15,9 @@ reconciled at the end of Phases 5 (#165), 6 (#189) and 7 (#234). It has three pa
    included, condensed from `.claude/transition.md` (now history). Trust it for "what
    are we building", never as a description of the code. The exceptions are the
    sections marked "built in Phase 5", for what they say about the **schema** (Part 1's
-   "Database" says it matches them), "Read path", marked "built in Phase 6", and "Admin
-   and auth", marked "built in Phase 7".
+   "Database" says it matches them), "Read path", marked "built in Phase 6", "Admin
+   and auth", marked "built in Phase 7", and the Product model's launch items where they
+   cite a Phase 7 plan decision.
 3. **Standing rules** — conventions that hold in both.
 
 The current phase plan wins over this file. This file is reconciled with reality at
@@ -286,7 +287,8 @@ src/
 │   │                               (tests: handler, admin, origin)
 │   ├── validators/               ← location, truck, uuid, body (tests: all but body)
 │   ├── live.ts, live-loader.ts, stockholm.ts ← (+ tests); timestamp.ts
-│   ├── admin-*.ts                ← the admin screens' pure helpers (+ tests, but admin-list)
+│   ├── admin-*.ts                ← the admin screens' helpers, and admin-api.ts's fetch
+│   │                               wrapper (+ tests, but admin-list)
 │   ├── basemap.ts, geo.ts, spots.ts ← (+ tests); map-setup.ts
 │   ├── login.ts                  ← (+ test)
 │   ├── supabase.ts, supabase-browser.ts, supabase-session.ts
@@ -403,7 +405,7 @@ authoring tool for `SPOTS`).
 | 5 · Schema reset (done) | Squashed baseline: `trucks`, `locations`, `users`; `btree_gist` + exclusion constraint + `CHECK (ends_at > starts_at)` + `updated_at` trigger; RLS + explicit GRANTs (no anon SELECT on `trucks`/`locations`); regenerate types; rewrite `seed.sql`, `db/trucks.ts`, `db/locations.ts` (with the history queries) and the integration tests (constraint, cancelled rows don't block, CHECK, RLS) |
 | 6 · Live read path (done) | `GET /api/live` and its service; `useLocations` (polling, timer, marker diffing); the popup with freshness text and Instagram link; `fake-data.ts` and `map-types.ts` deleted; the `is_active` filter in the service; the tiles on R2; a hosted Supabase project for previews, with the hosted checks; the **first preview deploy**, with the CDN cache checked (MISS → HIT → STALE) and requests per visit counted; Node and npm in `package.json` (#139) |
 | 7 · Admin (done) | Magic-link login, admin only (sign-ups off, locally and on the preview); the session and `is_admin` checks in `proxy.ts` and `withAdmin` on every admin route, with `no-store` and the `Origin` check; trucks added, edited and set inactive (no delete); phone-first location entry by known spot, recent place, map tap or GPS; edit; cancel; "Stämmer fortfarande"; overlap → 409; the morning checklist; three phone checkpoints on the preview (#224, #228, #232) |
-| 8 · Launch | The history retention period, with the privacy note (Phase 7 plan #25); the app's final name, until then **WhereIsFood** in the admin screens and "Var är maten? | Göteborg" as the public title (#26, open decision 10); Supabase Pro (backups); a production Supabase project, new keys (Phase 6 plan #18); the tiles' custom domain on R2, and the CORS rule naming it (the bucket is Phase 6's, #7); production env, added only after checking the Ignored Build Step ("Pre-deploy automation (planned)"); security headers; Swedish privacy note; takedown procedure (one transaction: delete the truck's locations, clear or delete each `users` row pointing at it, then delete the truck; Phase 5 plan #7); tell trucks they're listed; acquisition plan; runbook (Vercel Attack Mode, usage emails); Vercel Pro + Spend Management before the first marketing push; **before the deploy**, "Pre-deploy automation (planned)": CI/CD, SAST, secret scanning, branch protection, 2FA on every account, and rotating every credential |
+| 8 · Launch | The history retention period, for the privacy note below (Phase 7 plan #25); the app's final name, until then **WhereIsFood** in the admin screens and "Var är maten? | Göteborg" as the public title (#26, open decision 10); Supabase Pro (backups); a production Supabase project, new keys (Phase 6 plan #18); the tiles' custom domain on R2, and the CORS rule naming it (the bucket is Phase 6's, #7); production env, added only after checking the Ignored Build Step ("Pre-deploy automation (planned)"); security headers; Swedish privacy note; takedown procedure (one transaction: delete the truck's locations, clear or delete each `users` row pointing at it, then delete the truck; Phase 5 plan #7); tell trucks they're listed; acquisition plan; runbook (Vercel Attack Mode, usage emails); Vercel Pro + Spend Management before the first marketing push; **before the deploy**, "Pre-deploy automation (planned)": CI/CD, SAST, secret scanning, branch protection, 2FA on every account, and rotating every credential |
 | later | Owners (claim flow, owner dashboard, override rules, custom SMTP); optional automation (Meta Business Discovery captions in the admin screen, a scheduler) |
 
 ## Data model (built in Phase 5)
@@ -573,7 +575,8 @@ browser cache on, 6.
 **Scaling limits** (Phase 6 #22, the owner's call: known and written down, nothing
 built for them now). The read path scales with visitors (one CDN copy per region),
 not with trucks. In the order they would be hit:
-- **1,000 rows, a hard wall.** `findLocationsOverlapping` and `listActiveTrucks` throw
+- **1,000 rows, a hard wall.** `findLocationsOverlapping`, `listActiveTrucks` and
+  `listAllTrucks` throw
   past `MAX_ROWS` rather than return part of the rows, so `/api/live` answers 500: a
   map opened then shows no markers, and one already open keeps its markers until each
   entry ends. It counts entries in the 26 h window and active trucks, not history;
@@ -581,8 +584,8 @@ not with trucks. In the order they would be hit:
   reader hits it sooner:** the admin list (`listAdminEntries`) reads every truck's
   entries for 14 days, so it answers 500 past about 36 trucks with two entries a day,
   each entered two weeks ahead (a stated limit, PR #243). First fix, for both: raise
-  `max_rows` and `MAX_ROWS` together (the hosted project's too). Trigger: the window
-  passing ~500 rows.
+  `max_rows` and `MAX_ROWS` together (the hosted project's too). Triggers: the admin
+  list's 14 days passing ~500 rows, which comes first, or the live window passing ~500.
 - **The whole response on every poll:** about 15 MB an hour for a visitor with the
   map open at 3,000 entries (measured on synthetic ones). Fix: fetch only the visible
   area, on a fixed grid so each cell stays one cached response.
@@ -847,8 +850,10 @@ The public map: `useMapLibre.tsx` (applying the marker diff, popups; map init is
 (polling, the 30 s tick, the fetch state; Part 2, "Read path"). The admin screens:
 `useLogin`, `useAdminScreen` (joins the screen's hooks), `useAdminLocations` (the list),
 `useLocationForm`, `usePlacePicker` with `usePickerMap` and `useGeolocation`,
-`useChecklist` and `useTrucks`. Each reads through its uncached admin route; what each
-holds is its header comment.
+`useChecklist` and `useTrucks`. The list, the form, the recent places, the checklist and
+the trucks go through their uncached admin routes; `useLogin` calls Supabase Auth,
+`useGeolocation` reads the browser's position, `usePickerMap` drives the picker's map and
+`useAdminScreen` joins the others. What each holds is its header comment.
 
 ## Status codes
 
@@ -920,7 +925,7 @@ says.
 | Phase 7 #17, #18, #19, #20, #33; open decision 9 | The server sets `created_by` and `source`; "Stämmer fortfarande" moves `updated_at` with no migration; "Inställt idag" isn't built; ✓ is an ordinary create and ✗ writes nothing to the database; an entry that has ended can't be saved or edited | Part 2 "Product model" and "Admin and auth" |
 | Phase 7 #22, #23, #24, #30, #34, #35 | The checklist's 4-week look-back at the most recent matching day; the 11–13 pre-fill, kept after 13:00; the date field; an end at or before the start is the next day; the place picker | Part 2 "Product model" |
 | Phase 7 #29 | Instagram handles are stored lower-case, with no `@`, matching `^[a-z0-9._]{1,30}$` | Part 2 "Admin and auth"; `src/lib/validators/truck.ts` |
-| Phase 7 #31 | Stockholm days come from `stockholm.ts`'s whole-day arithmetic, never `now - 7 × 24 h` | `CLAUDE.md` "Time" |
+| Phase 7 #31 | Stockholm days come from `stockholm.ts`'s whole-day arithmetic, never `now - 7 × 24 h` | `CLAUDE.md` "Time" (added by IS #234) |
 | Phase 7 #36 | An issue's browser checks run locally at phone width; the phone on `dev`'s preview is for checkpoints | `CLAUDE.md` "Testing" |
 | Phase 7 #37 | "Poster" and "Foodtrucks" in every admin header but the login's; a question before "Sätt inaktiv" | Part 2 "Admin and auth" |
 | Phase 7 #25, #26; open decision 10 | History retention and the app's final name are Phase 8's; until then the admin screens say WhereIsFood and the public title stays | Part 2 "Phase map" (Phase 8 row) and "Open decisions" |

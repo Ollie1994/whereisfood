@@ -46,7 +46,7 @@ No login for consumers. Only the admin logs in; truck owners get accounts later
 Next.js 16.4 (App Router) · React 19 · TypeScript · Tailwind CSS v4
 MapLibre GL JS 6 + Protomaps PMTiles (local file in dev, Cloudflare R2 for deploys)
 Supabase (Postgres + Auth)
-Vitest 4 · date-fns-tz
+Vitest 4 · date-fns (parsing; Stockholm time is `Intl`, through `src/lib/stockholm.ts`)
 ```
 
 **Read the Next docs that ship with the installed version** before writing Next code:
@@ -255,6 +255,9 @@ said otherwise: Phase 4 plan decision #14.
   `formatInTimeZone` was an hour late for a wall time inside that host's own DST gap, and
   `fromZonedTime` picked a repeated hour by the host's zone (probed, PR #238; the owner's
   call). `live.ts`'s popup text reads it through `stockholmWallClock` too (IS #239)
+- A day is a whole Stockholm day, from `stockholm.ts`'s day helpers: "a week ago" is seven
+  days back, never `now - 7 × 24 h`, which reads the wrong weekday across a DST change
+  (Phase 7 plan decision #31)
 - Validators stay pure: no `new Date()`, no env. Anything clock-dependent lives in the
   service
 
@@ -461,10 +464,11 @@ outside a review):
    `README.md`'s status parts (the process log's "How to use it", part 6, names them) is
    named in the plan's reconciliation step, and isn't edited unless a step of the plan
    orders that edit. The reconciliation PR fixes these like any other hit (IS #209; Phase
-   7 plan decision #8). 4. **Record the sweep** where the correction lives: that round's
-   section of the PR body, or a comment on the issue when only an issue body was
-   corrected. Claim or pattern → where it was checked → result, and `sweep.sh`'s counts
-   with how each of its hits was settled.
+   7 plan decision #8).
+4. **Record the sweep** where the correction lives: that round's section of the PR body,
+   or a comment on the issue when only an issue body was corrected. Claim or pattern →
+   where it was checked → result, and `sweep.sh`'s counts with how each of its hits was
+   settled.
 
 Fixing only the lines a finding names is what let one correction miss its copies three
 rounds running; the sweep found the copy no finding had named (process-log row 295).
