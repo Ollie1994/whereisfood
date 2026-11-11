@@ -12,7 +12,7 @@ import {
   stillHidden,
   writeDismissed,
 } from "@/lib/admin-checklist";
-import { CHANGE_THIS_ENTRY } from "@/lib/admin-list";
+import { OVERLAP_ADVICE } from "@/lib/admin-list";
 import type { Suggestion } from "@/lib/services/checklist";
 
 const SUGGESTION: Suggestion = {
@@ -196,24 +196,30 @@ describe("listMayHaveChanged", () => {
 });
 
 describe("checklistRefusal", () => {
-  const ended = "Överlappar med 2026-11-11 08:00–10:00, som redan har slutat";
-  const running = "Överlappar med 2026-11-11 11:30–13:00, som pågår nu";
+  // The texts the service sends (`OVERLAP_ADVICE`), so a rewording that stops ending in
+  // `CHANGE_THIS_ENTRY` fails here.
+  const ended = `Överlappar med 2026-11-11 08:00–10:00${OVERLAP_ADVICE.ended}`;
+  const running = `Överlappar med 2026-11-11 11:30–13:00${OVERLAP_ADVICE.running}`;
 
-  it("swaps the advice to change this entry's time for the form's, ended or running", () => {
-    expect(checklistRefusal(`${ended}.${CHANGE_THIS_ENTRY}`)).toBe(
+  it("swaps a 409's advice to change this entry's time for the form's, ended or running", () => {
+    expect(checklistRefusal(ended, 409)).toBe(
       "Överlappar med 2026-11-11 08:00–10:00, som redan har slutat. Lägg in en annan tid med formuläret.",
     );
-    expect(checklistRefusal(`${running}.${CHANGE_THIS_ENTRY}`)).toBe(`${running}.${USE_THE_FORM}`);
+    expect(checklistRefusal(running, 409)).toBe(
+      `Överlappar med 2026-11-11 11:30–13:00, som pågår nu.${USE_THE_FORM}`,
+    );
   });
 
-  it("leaves any other error as it came", () => {
+  it("leaves any other error, and that text under any other status, as it came", () => {
     for (const error of [
-      "Överlappar med 2026-11-11 18:30–19:30 — redigera den istället",
+      `Överlappar med 2026-11-11 18:30–19:30${OVERLAP_ADVICE.edit}`,
       "Överlappar med en annan post för samma foodtruck",
       "Tiden har redan passerat",
       "Det gick inte att nå servern. Försök igen.",
     ]) {
-      expect(checklistRefusal(error)).toBe(error);
+      expect(checklistRefusal(error, 409)).toBe(error);
     }
+    expect(checklistRefusal(running, 400)).toBe(running);
+    expect(checklistRefusal(running)).toBe(running);
   });
 });

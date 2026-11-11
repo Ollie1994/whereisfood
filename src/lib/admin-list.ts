@@ -7,9 +7,17 @@ import type { Location } from "@/lib/types";
 export const LIST_DAYS = 14;
 
 // The 409's advice, when #33 would refuse editing the other entry, to change this entry's
-// time instead (`OVERLAP_ADVICE`, the owner's wording). Here so the checklist can find it in
-// a ✓'s refusal and show its own (`checklistRefusal`, IS #274).
+// time instead (the owner's wording). Here, with `OVERLAP_ADVICE`, so the service builds the
+// 409 from it and the checklist finds it in a ✓'s refusal (`checklistRefusal`, IS #274).
 export const CHANGE_THIS_ENTRY = " Ändra tiden på den här posten.";
+
+// What the 409 tells the admin after "Överlappar med <the other entry's times>": edit that
+// entry, or, when #33 would refuse that edit, change this one (the owner's wording).
+export const OVERLAP_ADVICE = {
+  edit: " — redigera den istället",
+  ended: `, som redan har slutat.${CHANGE_THIS_ENTRY}`,
+  running: `, som pågår nu.${CHANGE_THIS_ENTRY}`,
+} as const;
 
 // An entry has ended at or after its `ends_at`: the rule #33 refuses edits by, in one copy
 // for the service and the list's "Har slutat".

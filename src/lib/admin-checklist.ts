@@ -61,13 +61,14 @@ export function stillHidden(confirmed: readonly Confirmed[], readId: number): Co
   return confirmed.filter(({ after }) => after >= readId);
 }
 
-// A ✓'s refusal as the checklist shows it (IS #274, the owner's wording): a ✓ has no time to
-// change, so the 409's advice to change this entry's time (`CHANGE_THIS_ENTRY`) becomes
-// advice to use the form. Any other error is shown as it came.
+// What a ✓'s refusal says in place of `CHANGE_THIS_ENTRY` (IS #274, the owner's wording).
 export const USE_THE_FORM = " Lägg in en annan tid med formuläret.";
 
-export function checklistRefusal(error: string): string {
-  if (!error.endsWith(CHANGE_THIS_ENTRY)) return error;
+// A ✓'s refusal as the checklist shows it: a ✓ has no time to change, so a 409's advice to
+// change this entry's time (`OVERLAP_ADVICE`'s `ended` and `running`) becomes advice to use
+// the form. Any other error, and any other status, is shown as it came.
+export function checklistRefusal(error: string, status?: number): string {
+  if (status !== 409 || !error.endsWith(CHANGE_THIS_ENTRY)) return error;
   return error.slice(0, -CHANGE_THIS_ENTRY.length) + USE_THE_FORM;
 }
 
