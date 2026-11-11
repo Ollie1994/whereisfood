@@ -134,9 +134,9 @@ export function useTrucks(): TrucksState {
       method: "PATCH",
       body: { is_active: active },
     });
-    // Read now, not in the updater: React runs it at the next render, after `reload` below
-    // has sent its read, and the row then waited for a read after that one, so it stayed
-    // busy (the browser check of IS #250).
+    // Read now, not in the updater: React may run that later, after `reload` below has sent
+    // its read. Read there, the row waited for a read after that one and stayed busy (the
+    // browser check of IS #250).
     const sent = latestRead.current;
     setBusy((rows) => answered(rows, truck.id, sent));
     if (!result.ok) setActionError(result.error);

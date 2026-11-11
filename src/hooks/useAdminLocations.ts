@@ -139,9 +139,9 @@ export function useAdminLocations(): {
     const result = await adminFetch<{ entry: Location }>(`/api/admin/locations/${entry.id}/${action}`, {
       method: "POST",
     });
-    // Read now, not in the updater: React runs it at the next render, after `readAgain`
-    // below has sent its read, and the row then waited for a read after that one, so it
-    // stayed busy (the browser check of IS #250, on `useTrucks`' copy).
+    // Read now, not in the updater: React may run that later, after `readAgain` below has
+    // sent its read. Read there, the row waited for a read after that one and stayed busy
+    // (the browser check of IS #250, on `useTrucks`' copy).
     const sent = latestRead.current;
     setBusy((rows) => answered(rows, entry.id, sent));
     if (!result.ok) setActionError(result.error);
