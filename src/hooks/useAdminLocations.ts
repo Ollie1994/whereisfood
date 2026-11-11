@@ -33,6 +33,9 @@ export function useAdminLocations(): {
   // list action.
   errors: { entries: string | null; trucks: string | null; action: string | null };
   busyIds: readonly string[];
+  // The entries whose action's request hasn't answered: the edit form's save waits for these
+  // only, since the read after an answer changes nothing the save sends.
+  actingIds: readonly string[];
   editing: AdminEntry | null;
   // After a save: the entries again (and the trucks, while their read has failed).
   reload: () => Promise<void>;
@@ -160,6 +163,7 @@ export function useAdminLocations(): {
     now,
     errors: { entries: entriesError, trucks: trucksError, action: actionError },
     busyIds: busy.map(({ id }) => id),
+    actingIds: busy.filter(({ after }) => after === null).map(({ id }) => id),
     editing,
     reload,
     clearActionError: () => setActionError(null),
