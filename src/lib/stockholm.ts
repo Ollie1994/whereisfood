@@ -8,8 +8,8 @@ const DAY_MS = 86_400_000;
 const MINUTE_MS = 60_000;
 const SECOND_MS = 1_000;
 
-// Stockholm's wall time through `Intl`, not date-fns-tz's `formatInTimeZone`, which
-// rebuilds it with `setHours` in the host's own zone and is an hour late for a wall time
+// Stockholm's wall time through `Intl`, not date-fns-tz 3.2.0's `formatInTimeZone`, which
+// rebuilt it with `setHours` in the host's own zone and was an hour late for a wall time
 // inside the host's own gap: 2026-03-08 01:30Z read "03:30" on a New York host and "02:30"
 // here, and wall times in Sydney's, Santiago's and Havana's gaps were an hour late too
 // (`process.env.TZ` set in-process, PR #238).
