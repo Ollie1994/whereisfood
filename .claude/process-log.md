@@ -1739,8 +1739,8 @@ bash scripts/process-log.sh tally 8 420 542    # Escaped
 - **A round's fixes are still the next round's main finding:** 42 of the 70 rounds after
   round 1 have `overcorrection` as their headline (Phase 6: 23 of 42): 41 of the 53 scoped
   rounds, 1 of the 17 later full rounds.
-- **No PR's rounds ran down.** Each PR's last round found 2 to 10. 32 of the 94 rounds
-  found exactly 10.
+- **No PR's rounds ran down.** Of the 22 PRs with more than one round, each one's last
+  round found 5 to 10. 32 of the 94 rounds found exactly 10.
 
 ### #203's classification, re-run (plan #3)
 
@@ -1761,8 +1761,8 @@ reading's limits are there too. After round 1, against #203's rows 351–433:
 imprecision) and 12% `latent` (a defect in code or design no fix wrote); later full rounds'
 97 were 5% fix-made and 47% `latent`; round 1's 147 were 46% `latent`.
 
-**The harm side.** 3.9 rounds per PR; 6.0 to 10.0 findings per round after round 1, per
-PR. About 40 findings stated as limits, 6 moved to issues and 82 declined. Read against
+**The harm side.** 3.9 rounds per PR; 6.0 to 10.0 findings per round after round 1, for
+each of the 18 PRs with a round after round 1. About 40 findings stated as limits, 6 moved to issues and 82 declined. Read against
 the later rows of 441–542, no stated limit caused a problem in use; 8 limits' own texts
 were found wrong, all by review (472, 473, 479, 501, 515, 518, 521, 542). One decline
 did: README's "Today's entry" snippet, declined in row 535, left the row that made #254's
@@ -1778,10 +1778,10 @@ plan #39 holds them.
 
 | Rule | Measure and result | Decision |
 |---|---|---|
-| #1 What a fix may add | Fix-added code after round 1: 18.8% → 20.1%; no drop. Its limits caused no problem in use | Keep |
+| #1 What a fix may add | Fix-added code after round 1: 18.8% → 20.1%; no drop. Its limits caused no problem in use, read against rows 441–542 | Keep |
 | #2 Cut first, reword last | New imprecision: 22.1% → 12.8% | Keep |
 | #3 Re-run #203's classification | Its own measure is the re-run: done, above and in #233's research comment | Done |
-| #4 The round ceiling | PRs past it: 2 of 20 (#238, #249, a sixth round each at the owner's request: 490, 525). #203's "7 of 17" counted three or more scoped rounds in a row, which the ceiling rules out: 0 of 20. `merged` rows, against its "no rise": 2 in 351–440, 3 in 441–542 (453, 470, 537) | Adjust: full, scoped, full (#260) |
+| #4 The round ceiling | PRs past it: 2 of 20 (#238, #249, a sixth round each at the owner's request: 490, 525). #203's "7 of 17" counted three or more scoped rounds in a row, which the ceiling rules out: 0 of 20. `merged` rows, against its "no rise": 2 in 351–441 (plan #4's count; row 441 isn't `merged`), 3 in 441–542 (453, 470, 537) | Adjust: full, scoped, full (#260) |
 | #5 Records skipped, final check | Records findings, of all named: 54 of 498 → 2 of 560. The final check found errors in at least 8 of the 20 PRs (#208, #212, #218, #220, #245, #252, #255, #258, by their bodies) and none in #210, #214 and #215. Its "no record errors found after merge" missed twice: 453 (row 450, PR #214) and 537 (PR #255) | Keep |
 | #6 Approved wording back to the owner | One row (513), from two (438, 439) | Keep |
 | #7 README status parts at reconciliation | No reconciliation since the rule (PR #210); PR #204, the Phase 6 one (rows 431–433), holds its baseline, row 432. #234 is the first after it | Keep; judged at #234 |
@@ -1792,9 +1792,10 @@ plan #39 holds them.
 later full rounds'. Of the 150 `latent` findings, round 1 found 67, scoped rounds 37 and
 later full rounds 46. The second scoped rounds, round 3 on 14 PRs (459, 465, 473, 479,
 484, 494, 500, 506, 512, 518, 522, 528, 535, 540), found 102 named findings: 10 `latent`,
-19 fix-added code, 24 new imprecision. Those 10 are what the change risks, unless the full
-round that now follows round 2 finds them. #4's two measures, PRs past the ceiling and
-`merged` rows, watch it.
+19 fix-added code, 24 new imprecision. The change leaves all of those to the full round
+that now follows round 2, which in this range found 5% fix-made findings. #4's two
+measures, PRs past the ceiling and `merged` rows, watch it; neither sees a defect the
+dropped round would have found and the full round didn't.
 
 ### The Phase 6 retrospective's actions
 
@@ -1802,10 +1803,10 @@ round that now follows round 2 finds them. #4's two measures, PRs past the ceili
 retrospective's copy grep matches: 36 of 123 (29%), from 28 of 69 (41%): 422, 423, 425,
 427, 428, 429, 432, 433, 437, 444, 447, 448, 455, 462, 465, 471, 478, 480, 481, 496, 499,
 502, 504, 507, 510, 512, 516, 517, 518, 519, 520, 534, 535, 536, 540, 542. Sweep misses
-continue: rows 427, 440, 470, 480, 481, 499, 510, 512, 518 and 527 name a copy, a term or
-a sibling read a sweep missed. Review found nine; 470 merged and was found by `self` in a
-later PR's sweep. Two say why: 470 (a missing table row holds no changed term) and 481
-(the grep read the code, not the plan's prose).
+continue: rows 426, 427, 440, 466, 470, 480, 481, 499, 510, 512, 518 and 527 name a copy,
+a term or a sibling read a sweep missed. Review found eleven; 470 merged and was found by
+`self` in a later PR's sweep. Two say why: 470 (a missing table row holds no changed term)
+and 481 (the grep read the code, not the plan's prose).
 
 **2. Negative controls and the "Failure modes" field (#170). Keep, unchanged.**
 `incomplete-guard` rose from 8 of 69 (12%) to 24 of 123 (20%); 12 of the 24 are on the
@@ -1817,14 +1818,15 @@ Kept unchanged, the owner's call (plan #39), although its target rose and the sc
 controls had nothing to run.
 
 **3. `scripts/process-log.sh check`. Keep, unchanged.** The log passes it as this section
-is written (exit 0).
+is written (exit 0), and no row in 420–542 records a miss of `add` or `check` (an awk over
+the Miss cells for `process-log.sh`, ``add`` or "log check" finds none).
 
 **4. The claims check, with the probe words (#200). Keep, unchanged.** `imprecise-claim`
 fell from 18 of 69 (26%) to 17 of 123 (14%). It found a defect in what runs: row 488, its
 probe of every day of years 0001 and 9999 found 9999-12-31 threw.
 
-**5. `Caught by` groups. Keep, unchanged.** `tally 7` grouped all 123 rows. The level and
-limit rule stayed retired.
+**5. `Caught by` groups. Keep, unchanged.** `tally 7` grouped all 123 rows, 420–542, each
+starting with a listed group. The level and limit rule stayed retired.
 
 ### New actions
 
