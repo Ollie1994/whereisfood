@@ -11,13 +11,13 @@ themselves later.
 It fills a real gap: Gothenburg has had no central food-truck map since Streetkäk
 shut down in 2017.
 
-> **Status: Phase 7 of 8 (admin) done; Phase 8 (launch) next.** The map shows today's
-> entries from the database through `GET /api/live`, locally against a local Supabase
-> and on protected Vercel previews against a hosted one. One admin logs in with an
-> emailed link and keeps the map up to date from a phone-first admin screen. There is
-> no production deploy yet. Phase 4 removed the old design (automatic
-> ingestion from Make.com and email, plus a Swedish text parser), and Phase 5 replaced
-> its database schema; see [Project status](#project-status).
+> **Status: Phase 7 of 9 (admin) done; Phase 8 (CI/CD and security) next.** The map shows
+> today's entries from the database through `GET /api/live`, locally against a local
+> Supabase and on protected Vercel previews against a hosted one. One admin logs in with
+> an emailed link and keeps the map up to date from a phone-first admin screen. There is
+> no production deploy yet. Phase 4 removed the old design (automatic ingestion from
+> Make.com and email, plus a Swedish text parser), and Phase 5 replaced its database
+> schema; see [Project status](#project-status).
 
 ---
 
@@ -45,7 +45,7 @@ Consumers are always anonymous. All user-facing text is in Swedish.
 
 This is the design. Phases 5 to 7 built the schema, the public read path (the map, its
 polling and cache, the popup's freshness text) and the admin screen with its entry
-flow; launch is Phase 8's.
+flow; CI/CD and security automation are Phase 8's, and the launch Phase 9's.
 
 - **The admin enters every location by hand.** A pin comes from a map tap, a known
   Gothenburg spot, a recently used place, or the phone's GPS. Start and end times are
@@ -97,7 +97,8 @@ The working rules live in [`CLAUDE.md`](CLAUDE.md) and the design reference in
 | 5 · Schema reset     | A fresh 3-table schema (`trucks`, `locations`, `users`) | ✅ Done |
 | 6 · Live read path   | `/api/live`, polling, map tiles on Cloudflare R2, first preview deploy | ✅ Done |
 | 7 · Admin            | Admin login, location entry, truck management, the morning checklist | ✅ Done |
-| 8 · Launch           | A custom domain for the tiles, production deploy | ⬜ Next |
+| 8 · CI/CD, security  | The gates in GitHub Actions, secret scanning, SAST, branch protection | ⬜ Next |
+| 9 · Launch           | A custom domain for the tiles, production deploy | ⬜ Not started |
 
 Phases 2 and 3 built automatic ingestion: Make.com webhooks and Mailgun email, run
 through a Swedish parser that turned captions into locations. It was dropped for the
@@ -138,7 +139,8 @@ branch and tag.
 
 ### What does not exist yet
 
-- A production deploy (Phase 8). Pushes to branches other than `main` build previews,
+- CI: every gate is run by hand until Phase 8 builds it
+- A production deploy (Phase 9). Pushes to branches other than `main` build previews,
   with one exception so far (see "Preview deploys")
 
 ---
@@ -201,7 +203,7 @@ Cloudflare dashboard (no API token needed):
 - **Public access:** the bucket's *Public Development URL* (`https://pub-<id>.r2.dev`),
   under Settings. Deploys set `NEXT_PUBLIC_PMTILES_URL` to
   `https://pub-<id>.r2.dev/gothenburg.pmtiles`. Cloudflare rate-limits `r2.dev` and
-  says it isn't for production, so launch moves the tiles to a custom domain (Phase 8).
+  says it isn't for production, so launch moves the tiles to a custom domain (Phase 9).
 - **CORS policy** (Settings): without it R2's responses carry no
   `Access-Control-Allow-Origin`, so the browser refuses them (the curl check below shows
   the header).
@@ -248,7 +250,7 @@ Cloudflare dashboard (no API token needed):
     production deployment once there is one. That URL, `whereisfood.vercel.app` and
     the domain Vercel assigned this project's production, `whereisfood-theta.vercel.app`
     (Settings → Environments), get no header, so each needs its own origin in the rule,
-    or a redirect to an address that has one (Phase 8). A production deployment's
+    or a redirect to an address that has one (Phase 9). A production deployment's
     commit-form URL is in the pattern like a preview's.
   - **CORS limits which pages can read the tiles, not who downloads them.** A page
     served from any origin the pattern matches can load them, whoever owns it. Any
@@ -461,7 +463,7 @@ seconds, which `entryWallTimes` can't move to another day). Cancel it with "Stä
 For the owner: Vercel project `whereisfood` in the team whose slug is `where-is-food`
 (Hobby), imported from this repo. A push to a branch other than `main` builds a
 preview, with one exception so far (below). Production builds from `main`, which was
-created at `dev`'s commit and built nothing; the next push to `main` is Phase 8's.
+created at `dev`'s commit and built nothing; the next push to `main` is Phase 9's.
 
 **Project settings** (set in #187, 2026-11-02):
 
@@ -490,14 +492,14 @@ the production branch was already `main`, so it got no variables and failed with
 `Missing env: NEXT_PUBLIC_SUPABASE_URL`; the next push to the branch built as a
 Preview (#187's PR). Why Vercel labelled it Production wasn't found.
 
-**Production keeps no variables until Phase 8.** "Standard Protection" is, in Vercel's
+**Production keeps no variables until Phase 9.** "Standard Protection" is, in Vercel's
 API, `prod_deployment_urls_and_all_previews` (its docs, "Vercel Authentication"): the
 production domain isn't in it and stays public. That mislabelled branch build failed
 instead of serving on `whereisfood-theta.vercel.app` only because Production has no
 variables and `src/lib/supabase.ts` throws at import without them. The Ignored Build
 Step above is set to cancel such a build by its branch, though no cancel has been
-seen yet. Phase 8 adds Production's variables after checking that it is still set,
-and doesn't promote a branch preview to Production (plan step 10 carries this to
+seen yet. Phase 9 adds Production's variables after checking that it is still set,
+and doesn't promote a branch preview to Production (Phase 6 plan step 10 carries this to
 `project-context.md`).
 
 **Checking the CDN cache.** With protection on, a request without a login gets
