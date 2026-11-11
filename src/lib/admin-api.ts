@@ -14,12 +14,13 @@ export const API_ERRORS = {
 } as const;
 
 // Whether a write's answer may have left the screen's list behind, so it is read again (IS
-// #272, #275): after any answer but a session refusal (401, 403), whose reads would be
-// refused the same way. A 404 or 409 is about a row the screen may not show; a 400 can come
-// from a row another tab changed (an edit's times out of order, an entry ended, a truck set
-// inactive); an answer with no status (a failed request, or a 2xx this couldn't read) or a
-// 5xx may follow a write that committed. The entries form, the trucks form and a checklist ✓
-// read by it.
+// #272, #275): after any answer but a 401 or 403, which `withAdmin` sends before any write
+// (and after a 401 the reads would be refused the same way). A 404 or 409 is about a row the
+// screen may not show; a 400 can come from a row another tab changed (an edit's times out of
+// order, an entry ended meanwhile); an answer with no status (a failed request, or a 2xx this
+// couldn't read) or a 5xx may follow a write that committed. The entries form, the trucks
+// form and a checklist ✓ read by it. A limit: a refusal that wrote nothing and names no row
+// (a malformed body, a 429) reads again too.
 export function mayHaveChanged(result: { ok: true } | { ok: false; status?: number }): boolean {
   return result.ok || (result.status !== 401 && result.status !== 403);
 }
