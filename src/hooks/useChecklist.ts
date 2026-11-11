@@ -48,7 +48,8 @@ export type ChecklistState = {
   // that error for a suggestion no longer listed. After the answer ✗ is on: it sends no
   // request.
   savingIds: readonly string[];
-  // Counts ✓s that created an entry: the place picker's recent places can change.
+  // Counts ✓s known to have created an entry (answered 2xx and read): the place picker's
+  // recent places can change.
   creates: number;
   // When a save starts elsewhere on the screen: a ✓'s error from before it goes.
   clearActionError: () => void;
@@ -67,9 +68,10 @@ export function useChecklist({
   // The screen's clock, set each minute and on each list read (`useAdminLocations`).
   now: Date;
   // Reads the entry list again after a ✓, when its answer may have changed what the list
-  // should show (`listMayHaveChanged`, IS #272). A limit: after an answer lost once the
-  // insert committed, the place picker's recent places aren't read again (`creates` counts
-  // only the ✓s known to have created an entry).
+  // should show (`listMayHaveChanged`, IS #272). Limits: after an answer with no status (a
+  // failed request, or a 2xx `adminFetch` couldn't read) whose insert committed, the place
+  // picker's recent places aren't read again (`creates`). And `withAdmin`'s own 503 (Auth
+  // unreachable, before any insert) reads the list too, which shows that error twice.
   reloadList: () => Promise<void>;
 }): ChecklistState {
   const [checklist, setChecklist] = useState<Checklist | null>(null);
