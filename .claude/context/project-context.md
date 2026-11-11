@@ -688,8 +688,8 @@ secret-scanning, Dependabot-alerts and vulnerability-alerts APIs, and no
   `.gitignore` can't: a value pasted into a tracked file, or `git add -f`.
 - **GitHub Actions running the four gates** on every PR into `dev`, and into `main`,
   which exists and gets its first push in Phase 9; whether Phase 8 protects it is that
-  plan's call. `test:all` needs a local Supabase in the job, and the
-  job needs a Node `devEngines` admits.
+  plan's call. `test:all` needs a local Supabase in the job, and the job needs a Node
+  `devEngines` admits.
 - **SAST.** SonarQube Cloud is the owner's preferred tool; self-hosted SonarQube would
   need a server. CodeQL, GitHub's own, is the alternative or a complement. Confirm the
   free tier for public repositories and the setup when it's built. Plus a dependency
@@ -700,9 +700,9 @@ secret-scanning, Dependabot-alerts and vulnerability-alerts APIs, and no
   reviewed like any other, and the pinned packages keep their browser check. **Before
   turning them on, decide** whether Dependabot's branches may build on Vercel with the
   Preview variables, the secret key among them (Git Fork Protection covers forks only),
-  or how to stop it. Check then
-  that Dependabot's updater runs a Node `devEngines` admits: below it, npm stops with
-  `EBADDEVENGINES` and no PR comes (not probed: nothing runs it yet).
+  or how to stop it. Check then that Dependabot's updater runs a Node `devEngines`
+  admits: below it, npm stops with `EBADDEVENGINES` and no PR comes (not probed: nothing
+  runs it yet).
 - **Branch protection** on `dev`, and `main` as above: PR required, the checks required,
   no force-push.
 - **Secrets in CI runs:** a workflow that Dependabot triggers reads the Dependabot
