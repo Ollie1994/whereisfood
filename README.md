@@ -125,7 +125,8 @@ branch and tag.
   emailed link (public sign-ups are off), then sees the morning checklist (what each
   truck did on this weekday recently, to confirm with ✓ or skip with ✗), a form to
   enter a location by known spot, recent place, map tap or GPS, and the list of entries
-  from today for two weeks, each with "Stämmer fortfarande", "Ändra" and "Ställ in".
+  from today for two weeks, each with "Stämmer fortfarande" and "Ställ in", and
+  "Ändra" until it ends.
   `/admin/trucks` adds and edits trucks and sets them inactive. Overlapping entries are
   refused with a message naming the other entry's times.
 - The admin is checked twice: in `src/proxy.ts`, and again in every admin API route

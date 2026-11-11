@@ -87,9 +87,10 @@ save-triggered cache purges, grey markers) without a concrete problem that needs
   the one description of that setup. There is no production deploy (Phase 8).
 - **The admin screens** (Phase 7), Swedish and phone-first: `/admin/login` (an emailed
   magic link), `/admin` ("Poster": the morning checklist, the entry form with its place
-  picker, and the list of entries from today for 14 days, each with "Stämmer
-  fortfarande", "Ändra" and "Ställ in") and `/admin/trucks` ("Foodtrucks": add, edit,
-  set inactive or active). Part 2's "Admin and auth" (built in Phase 7) describes them.
+  picker, and the list of entries from today for 14 days, each with "Stämmer fortfarande"
+  and "Ställ in", and "Ändra" until it ends) and `/admin/trucks` ("Foodtrucks": add,
+  edit, set inactive or active). Part 2's "Admin and auth" (built in Phase 7) describes
+  them.
 - **The admin API** is under `/api/admin/`: `trucks`, `trucks/[id]`, `locations`,
   `locations/[id]`, `locations/[id]/cancel`, `locations/[id]/confirm`, `places` and
   `checklist`, every handler inside `withAdmin`. `/auth/callback` and `POST
@@ -360,16 +361,17 @@ table records what was simplified away and why; read it before adding anything b
    truck had an entry starting then; all of that day's entries are suggested, moved to
    today by wall clock, so lunch and dinner both show (Phase 7 plan #22). ✓ creates
    today's entry through the ordinary create, overlap check included; ✗ hides the
-   suggestion on that device for the day and writes nothing (#20). **Nothing reaches
+   suggestion on that device for the day and writes nothing (#20). There is no "Alla
+   stämmer" button for the whole list (open decision 8: not now, #232). **Nothing reaches
    the map until it is confirmed.**
 3. **Fast entry.** A pin by map tap, a known spot (`SPOTS`), a recent place (from
    history) or GPS ("Jag är här nu"), with an optional place name (#35). Start and end
-   times are pre-filled with 11–13 (#23; the checklist and a recent place bring their
-   own), on a date that defaults to today (#24), and always required; an end at or
-   before the start means the next day (#30). An entry that has ended can't be saved
-   or edited (#33). A normal update should take under ~10 seconds: Phase 7's walkthrough
-   timed 14 to 38 s with both times changed, recorded as neither passed nor failed
-   (#232; IS #256).
+   times are pre-filled with 11–13, after 13:00 too (#23, #34; the checklist and a recent
+   place bring their own), on a date that defaults to today (#24), and always required;
+   an end at or before the start means the next day (#30). An entry that has ended can't
+   be saved or edited (#33). A normal update should take under ~10 seconds: Phase 7's
+   walkthrough timed 14 to 38 s with both times changed, recorded as neither passed nor
+   failed (#232; IS #256).
 4. **Overlaps are refused, not resolved.** A second entry for the same truck in an
    overlapping window is rejected with 409: *"Överlappar med 2026-08-22 11:00–14:00 —
    redigera den istället"*, or, when that entry has ended or is running while this one
@@ -392,11 +394,11 @@ first (Supabase's built-in email reaches only org members, 2/hour).
 
 ## Stack
 
-Next.js 16 · React 19 · TypeScript · Tailwind v4 · MapLibre GL + PMTiles (Cloudflare
-R2 at launch, the local file for development) · Supabase Postgres + Auth (cookie
-sessions through `@supabase/ssr`) · `Intl` for Stockholm time · Vercel. **No** Realtime, cron, Upstash, Mailgun or Make.com, and no
-Nominatim at runtime (`scripts/seed-dictionary.mjs` queries it by hand, as a dev-only
-authoring tool for `SPOTS`).
+Next.js 16 · React 19 · TypeScript · Tailwind v4 · MapLibre GL + PMTiles (Cloudflare R2
+at launch, the local file for development) · Supabase Postgres + Auth (cookie sessions
+through `@supabase/ssr`) · `Intl` for Stockholm time · Vercel. **No** Realtime, cron,
+Upstash, Mailgun or Make.com, and no Nominatim at runtime (`scripts/seed-dictionary.mjs`
+queries it by hand, as a dev-only authoring tool for `SPOTS`).
 
 ## Phase map
 
@@ -478,7 +480,7 @@ powers the checklist, "recent places" and proof of value to trucks.
   it bypasses RLS. The rule itself is `CLAUDE.md`'s.
 - All writes, `/api/live` and the admin screen's reads go through server-side routes
   (route → service → db layer; only the db layer uses `supabaseAdmin`). `/api/live` is
-  built (Phase 6); the writes and admin reads are Phase 7's.
+  built (Phase 6); the writes and admin reads were built in Phase 7.
 - Unverified third-party reports say free projects need explicit GRANTs for API access
   from 2026-10-30; already covered by the rule above.
 
@@ -489,7 +491,7 @@ cited as "Phase 6 #n", and its answered open decisions. The rules are `CLAUDE.md
 ("`/api/live`", "UI Rules").
 
 ```
-Admin saves ──► POST/PATCH /api/admin/locations ──► Supabase   (nothing else to do)
+Admin saves ──► POST, PATCH /api/admin/locations/… ──► Supabase   (nothing else to do)
 
 Visitor's map ──► GET /api/live (every 60 s, and when the tab regains focus)
                        │
@@ -528,8 +530,9 @@ Visitor's map ──► GET /api/live (every 60 s, and when the tab regains focu
   wipes the map for a minute.
 - **No `Set-Cookie`, `Vary: Cookie`, `private` or `no-store`** on this response; any
   of them stops Vercel caching it.
-- Saves trigger no purge; they show within about 3 minutes (60 s of cache, 60 s of
-  stale window and a 60 s poll; Phase 7 plan step 8, checked on the preview, #228).
+- Saves trigger no purge; they show within about 3 minutes: 60 s of cache, 60 s of stale
+  window and a 60 s poll (Phase 7 plan step 8's sum; #228 saw each change reach the map,
+  untimed).
 - Locally every request runs the function; the CDN only exists on Vercel. **Checked on
   the preview** (#187, 2026-11-02): `x-vercel-cache` went `MISS`, then `HIT` within 60
   s, then `STALE` between 60 and 120 s, and the browser sees `cache-control: public`
@@ -576,17 +579,18 @@ browser cache on, 6.
 built for them now). The read path scales with visitors (one CDN copy per region),
 not with trucks. In the order they would be hit:
 - **1,000 rows, a hard wall.** `findLocationsOverlapping` and `listActiveTrucks` throw
-  past `MAX_ROWS` rather than return part of the rows, so `/api/live` answers 500: a
-  map opened then shows no markers, and one already open keeps its markers until each
-  entry ends. It counts entries in the 26 h window and active trucks, not history;
-  about 50 trucks with one or two entries a day use a tenth of it or less. **The admin
-  reads hit it sooner:** the admin list (`listAdminEntries`) reads every truck's
-  entries for 14 days, so it answers 500 past about 36 trucks with two entries a day,
-  each entered two weeks ahead (a stated limit, PR #243); it and the trucks screen also
-  read `listAllTrucks`, which counts inactive trucks too; the checklist reads one day
-  window a week (`getChecklist`'s comment). First fix, for all of them: raise
-  `max_rows` and `MAX_ROWS` together (the hosted project's too). Triggers: the admin
-  list's 14 days passing ~500 rows, which comes first, or the live window passing ~500.
+  past `MAX_ROWS` rather than return part of the rows, so `/api/live` answers 500: a map
+  opened then shows no markers, and one already open keeps its markers until each entry
+  ends. It counts entries in the 26 h window and active trucks, not history; about 50
+  trucks with one or two entries a day use a tenth of it or less. **The admin reads hit
+  it sooner:** the admin list (`listAdminEntries`) reads every truck's entries for 14
+  days, so it answers 500 past about 36 trucks with two entries a day, each entered two
+  weeks ahead (a stated limit, PR #243); it and the trucks screen also read
+  `listAllTrucks`, which counts inactive trucks too; the checklist reads one day window a
+  week, then its suggestions' window, up to two days (`getChecklist`). First fix, for all
+  of them: raise `max_rows` and `MAX_ROWS` together (the hosted project's too). Triggers:
+  the admin list's 14 days passing ~500 rows, which comes first, or the live window
+  passing ~500.
 - **The whole response on every poll:** about 15 MB an hour for a visitor with the
   map open at 3,000 entries (measured on synthetic ones). Fix: fetch only the visible
   area, on a fixed grid so each cell stays one cached response.
@@ -627,7 +631,7 @@ as "Phase 7 #n", and its answered open decisions. The rules are `CLAUDE.md`'s
 - **Three clients** (#27): `supabase.ts` (`supabaseAdmin`, server only, behind
   `server-only`), `supabase-browser.ts` (`createBrowserClient`, for Auth only) and
   `supabase-session.ts` (the cookie-session clients for the proxy, the routes, the
-  callback and logout).
+  `/admin` page, the callback and logout).
 - **The check** (`requireAdmin`): no session cookie → reject before any network or DB
   call; then the session (`getUser`); then `users.is_admin`, read through the db layer
   (`getUserById`, #14). An Auth or database failure is "unavailable", never "logged out":
@@ -920,11 +924,11 @@ says.
 | Phase 7 #7 (IS #209) | The reconciliation also brings `README.md`'s status parts in line. Measure: reconciliation review findings on them (row 432; judged in IS #234's PR) | the process log's "How to use it", part 6 |
 | Phase 7 #8 (IS #209) | While a plan is current, stale hits in `project-context.md` or the README's status parts wait for the reconciliation, named in the plan's reconciliation step. Measure: unordered edits by other PRs (0 in Phase 7) | `CLAUDE.md` "Review rounds" (the sweep's step 3) and "Doc changes"; the process log's "How to use it", part 6 |
 | Phase 7 #9 (IS #211) | New text, like a sweep hit, points to where a rule or fact lives instead of restating it. Measure: restated copies' share after round 1 (6.4% in rows 450–542, from 9.8%) | `CLAUDE.md` "Review rounds" (the sweep's step 3) |
-| Phase 7 #39 (IS #233, PR #261) | The Phase 7 retrospective's calls: #1, #2 and #4–#9 kept, the ceiling adjusted; #3's re-run of #203's classification done (it doesn't outlive the phase); the Phase 6 retrospective's actions unchanged; no new action | the process log's Phase 7 retrospective; the Phase 7 rows above |
+| Phase 7 #39 (IS #233, PR #261) | The Phase 7 retrospective's calls: #1, #2 and #5–#9 kept, #4's ceiling adjusted; #3's re-run of #203's classification done (it doesn't outlive the phase); the Phase 6 retrospective's actions unchanged; no new action | the process log's Phase 7 retrospective; the Phase 7 rows above |
 | Phase 7 #10, #11, #13, #14, #15, #16, #32 | The admin API is under `/api/admin/*`, writes go through API routes, `withAdmin` wraps every admin handler (the test finds them on disk), `is_admin` is read through the db layer, admin answers carry `no-store`, a write from a foreign `Origin` is refused, and an Auth or database failure is 503, not "logged out" | `CLAUDE.md` "proxy.ts" and "API responses"; Part 2 "Admin and auth" |
 | Phase 7 #12, #27, #28 | Cookie sessions through `@supabase/ssr`; `supabase.ts` stays the server-only module beside `supabase-browser.ts` and `supabase-session.ts`; logout sits beside the callback, signs out locally, deletes the `sb-*` cookies and answers 303 | `CLAUDE.md` "Supabase"; Part 2 "Admin and auth" |
 | Phase 7 #17, #18, #19, #20, #33; open decision 9 | The server sets `created_by` and `source`; "Stämmer fortfarande" moves `updated_at` with no migration; "Inställt idag" isn't built; ✓ is an ordinary create and ✗ writes nothing to the database; an entry that has ended can't be saved or edited | Part 2 "Product model" and "Admin and auth" |
-| Phase 7 #22, #23, #24, #30, #34, #35 | The checklist's 4-week look-back at the most recent matching day; the 11–13 pre-fill, kept after 13:00; the date field; an end at or before the start is the next day; the place picker | Part 2 "Product model" |
+| Phase 7 #22, #23, #24, #30, #34, #35; open decision 8 | The checklist's 4-week look-back at the most recent matching day, with no "Alla stämmer" button for now; the 11–13 pre-fill, kept after 13:00; the date field; an end at or before the start is the next day; the place picker | Part 2 "Product model" |
 | Phase 7 #29 | Instagram handles are stored lower-case, with no `@`, matching `^[a-z0-9._]{1,30}$` | Part 2 "Admin and auth"; `src/lib/validators/truck.ts` |
 | Phase 7 #31 | Stockholm days come from `stockholm.ts`'s whole-day arithmetic, never `now - 7 × 24 h` | `CLAUDE.md` "Time" (added by IS #234) |
 | Phase 7 #36 | An issue's browser checks run locally at phone width; the phone on `dev`'s preview is for checkpoints | `CLAUDE.md` "Testing" |
