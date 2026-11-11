@@ -34,7 +34,8 @@ export function useAdminLocations(): {
   errors: { entries: string | null; trucks: string | null; action: string | null };
   busyIds: readonly string[];
   // The entries whose action's request hasn't answered: the edit form's save waits for these
-  // only, since the read after an answer changes nothing the save sends.
+  // only. The read after an answer doesn't touch what the save sends: `editing` is set only
+  // by `startEdit`, `stopEdit` and a cancel's answer, and `useLocationForm` saves from it.
   actingIds: readonly string[];
   editing: AdminEntry | null;
   // After a save: the entries again (and the trucks, while their read has failed).
