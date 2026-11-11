@@ -11,10 +11,11 @@ themselves later.
 It fills a real gap: Gothenburg has had no central food-truck map since Streetkäk
 shut down in 2017.
 
-> **Status: Phase 6 of 8 (live read path) done; Phase 7 (admin) next.** The map shows
-> today's entries from the database through `GET /api/live`, locally against a local
-> Supabase and on protected Vercel previews against a hosted one. There is no
-> production deploy and no admin screen yet. Phase 4 removed the old design (automatic
+> **Status: Phase 7 of 8 (admin) done; Phase 8 (launch) next.** The map shows today's
+> entries from the database through `GET /api/live`, locally against a local Supabase
+> and on protected Vercel previews against a hosted one. One admin logs in with an
+> emailed link and keeps the map up to date from a phone-first admin screen. There is
+> no production deploy yet. Phase 4 removed the old design (automatic
 > ingestion from Make.com and email, plus a Swedish text parser), and Phase 5 replaced
 > its database schema; see [Project status](#project-status).
 
@@ -42,9 +43,9 @@ Consumers are always anonymous. All user-facing text is in Swedish.
 
 ## How it's designed to work
 
-This is the design. Phases 5 and 6 built the schema and the public read path (the
-map, its polling and cache, the popup's freshness text); the admin screen and its
-entry flow are Phase 7's, and launch is Phase 8's.
+This is the design. Phases 5 to 7 built the schema, the public read path (the map, its
+polling and cache, the popup's freshness text) and the admin screen with its entry
+flow; launch is Phase 8's.
 
 - **The admin enters every location by hand.** A pin comes from a map tap, a known
   Gothenburg spot, a recently used place, or the phone's GPS. Start and end times are
@@ -95,8 +96,8 @@ The working rules live in [`CLAUDE.md`](CLAUDE.md) and the design reference in
 | 4 · Housekeeping     | Remove the old design, upgrade dependencies, rewrite the docs | ✅ Done |
 | 5 · Schema reset     | A fresh 3-table schema (`trucks`, `locations`, `users`) | ✅ Done |
 | 6 · Live read path   | `/api/live`, polling, map tiles on Cloudflare R2, first preview deploy | ✅ Done |
-| 7 · Admin            | Admin login and location entry | ⬜ Not started |
-| 8 · Launch           | A custom domain for the tiles, production deploy | ⬜ Not started |
+| 7 · Admin            | Admin login, location entry, truck management, the morning checklist | ✅ Done |
+| 8 · Launch           | A custom domain for the tiles, production deploy | ⬜ Next |
 
 Phases 2 and 3 built automatic ingestion: Make.com webhooks and Mailgun email, run
 through a Swedish parser that turned captions into locations. It was dropped for the
@@ -120,14 +121,23 @@ branch and tag.
   and `authenticated`) get no access to `trucks` or `locations`: only the server-side
   database layer reads them, with the `service_role` key. The dev seed has
   three trucks and four weeks of location history relative to the day it is loaded.
-- The database layer (`src/lib/db/`), which the live read path uses and the admin
-  screen will.
+- **The admin screen** (`/admin`, Swedish, phone-first). The admin logs in with an
+  emailed link (public sign-ups are off), then sees the morning checklist (what each
+  truck did on this weekday recently, to confirm with ✓ or skip with ✗), a form to
+  enter a location by known spot, recent place, map tap or GPS, and the list of entries
+  from today for two weeks, each with "Stämmer fortfarande" and "Ställ in", and
+  "Ändra" until it ends.
+  `/admin/trucks` adds and edits trucks and sets them inactive. Overlapping entries are
+  refused with a message naming the other entry's times.
+- The admin is checked twice: in `src/proxy.ts`, and again in every admin API route
+  (`/api/admin/…`), which only an admin's session reaches.
+- The database layer (`src/lib/db/`), which the live read path and the admin use.
 - Unit tests, and integration tests against a local Supabase for the schema (its
-  constraints, grants and row-level security), the database layer and `/api/live`.
+  constraints, grants and row-level security), the database layer, `/api/live`, the
+  login routes and every admin route.
 
 ### What does not exist yet
 
-- Admin login and location entry (Phase 7); `src/proxy.ts` is a stub
 - A production deploy (Phase 8). Pushes to branches other than `main` build previews,
   with one exception so far (see "Preview deploys")
 

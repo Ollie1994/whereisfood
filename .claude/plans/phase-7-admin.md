@@ -1,6 +1,6 @@
 # Phase 7 — Admin
 
-**Planned:** 2026-11-05 · **Status:** planned
+**Planned:** 2026-11-05 · **Status:** done (2026-11-11)
 
 **Source:** `project-context.md` Part 2 ("Phase map", "Product model", "Admin and auth",
 "Open decisions"), Part 3's "Decisions carried forward" (the nine rows marked **between
