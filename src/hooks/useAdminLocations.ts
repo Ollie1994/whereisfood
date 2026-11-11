@@ -28,7 +28,8 @@ const MINUTE_MS = 60_000;
 // The Stockholm day an entries read sent now counts for (`listedDay`): the day a minute ago,
 // so a read sent in the first minute of a day is followed by another at the next tick. The
 // server picks the window by its own clock, and a device clock ahead of it gets the old
-// day's window at midnight.
+// day's window at midnight. The minute is the tick's period: a shorter margin covers less
+// of that skew, and a longer one has several ticks each read again.
 const sentDay = () => stockholmDay(new Date(Date.now() - MINUTE_MS));
 
 const fetchEntries = () => adminList<AdminEntry>("/api/admin/locations", "entries");
