@@ -1757,8 +1757,8 @@ reading's limits are there too. After round 1, against #203's rows 351–433:
 | Restated copy | 36 (9.8%) | 26 (6.3%) | 25 (6.4%) |
 
 **By kind of round:** scoped rounds' 316 findings were 41% fix-made (fix-added code or new
-imprecision) and 12% defects no fix wrote (`latent`); later full rounds' 97 were 5%
-fix-made and 47% `latent`; round 1's 147 were 46% `latent`.
+imprecision) and 12% `latent` (a defect in code or design no fix wrote); later full rounds'
+97 were 5% fix-made and 47% `latent`; round 1's 147 were 46% `latent`.
 
 **The harm side.** 3.9 rounds per PR; 6.0 to 10.0 findings per round after round 1, per
 PR. About 40 findings stated as limits, 6 moved to issues and 82 declined. Read against
