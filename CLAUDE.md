@@ -46,7 +46,7 @@ No login for consumers. Only the admin logs in; truck owners get accounts later
 Next.js 16.4 (App Router) · React 19 · TypeScript · Tailwind CSS v4
 MapLibre GL JS 6 + Protomaps PMTiles (local file in dev, Cloudflare R2 for deploys)
 Supabase (Postgres + Auth)
-Vitest 4 · date-fns (parsing; Stockholm time is `Intl`, through `src/lib/stockholm.ts`)
+Vitest 4 · date-fns (parsing only; Stockholm time is Intl, in src/lib/stockholm.ts)
 ```
 
 **Read the Next docs that ship with the installed version** before writing Next code:
@@ -255,9 +255,10 @@ said otherwise: Phase 4 plan decision #14.
   `formatInTimeZone` was an hour late for a wall time inside that host's own DST gap, and
   `fromZonedTime` picked a repeated hour by the host's zone (probed, PR #238; the owner's
   call). `live.ts`'s popup text reads it through `stockholmWallClock` too (IS #239)
-- A day is a whole Stockholm day, from `stockholm.ts`'s day helpers: "a week ago" is seven
-  days back, never `now - 7 × 24 h`, which reads the wrong weekday across a DST change
-  (Phase 7 plan decision #31)
+- A look-back by days (the checklist's same weekday, a week back) counts whole Stockholm
+  days with `stockholm.ts`'s day helpers, never `now - 7 × 24 h`, which reads the wrong
+  weekday across a DST change (Phase 7 plan decision #31). A window measured in hours,
+  like `/api/live`'s 26 h, is another thing and stays in hours
 - Validators stay pure: no `new Date()`, no env. Anything clock-dependent lives in the
   service
 

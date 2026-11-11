@@ -405,7 +405,7 @@ authoring tool for `SPOTS`).
 | 5 · Schema reset (done) | Squashed baseline: `trucks`, `locations`, `users`; `btree_gist` + exclusion constraint + `CHECK (ends_at > starts_at)` + `updated_at` trigger; RLS + explicit GRANTs (no anon SELECT on `trucks`/`locations`); regenerate types; rewrite `seed.sql`, `db/trucks.ts`, `db/locations.ts` (with the history queries) and the integration tests (constraint, cancelled rows don't block, CHECK, RLS) |
 | 6 · Live read path (done) | `GET /api/live` and its service; `useLocations` (polling, timer, marker diffing); the popup with freshness text and Instagram link; `fake-data.ts` and `map-types.ts` deleted; the `is_active` filter in the service; the tiles on R2; a hosted Supabase project for previews, with the hosted checks; the **first preview deploy**, with the CDN cache checked (MISS → HIT → STALE) and requests per visit counted; Node and npm in `package.json` (#139) |
 | 7 · Admin (done) | Magic-link login, admin only (sign-ups off, locally and on the preview); the session and `is_admin` checks in `proxy.ts` and `withAdmin` on every admin route, with `no-store` and the `Origin` check; trucks added, edited and set inactive (no delete); phone-first location entry by known spot, recent place, map tap or GPS; edit; cancel; "Stämmer fortfarande"; overlap → 409; the morning checklist; three phone checkpoints on the preview (#224, #228, #232) |
-| 8 · Launch | The history retention period, for the privacy note below (Phase 7 plan #25); the app's final name, until then **WhereIsFood** in the admin screens and "Var är maten? | Göteborg" as the public title (#26, open decision 10); Supabase Pro (backups); a production Supabase project, new keys (Phase 6 plan #18); the tiles' custom domain on R2, and the CORS rule naming it (the bucket is Phase 6's, #7); production env, added only after checking the Ignored Build Step ("Pre-deploy automation (planned)"); security headers; Swedish privacy note; takedown procedure (one transaction: delete the truck's locations, clear or delete each `users` row pointing at it, then delete the truck; Phase 5 plan #7); tell trucks they're listed; acquisition plan; runbook (Vercel Attack Mode, usage emails); Vercel Pro + Spend Management before the first marketing push; **before the deploy**, "Pre-deploy automation (planned)": CI/CD, SAST, secret scanning, branch protection, 2FA on every account, and rotating every credential |
+| 8 · Launch | The history retention period, for the privacy note below (Phase 7 plan #25); the app's final name, until then **WhereIsFood** in the admin screens and "Var är maten? \| Göteborg" as the public title (#26, open decision 10); Supabase Pro (backups); a production Supabase project, new keys (Phase 6 plan #18); the tiles' custom domain on R2, and the CORS rule naming it (the bucket is Phase 6's, #7); production env, added only after checking the Ignored Build Step ("Pre-deploy automation (planned)"); security headers; Swedish privacy note; takedown procedure (one transaction: delete the truck's locations, clear or delete each `users` row pointing at it, then delete the truck; Phase 5 plan #7); tell trucks they're listed; acquisition plan; runbook (Vercel Attack Mode, usage emails); Vercel Pro + Spend Management before the first marketing push; **before the deploy**, "Pre-deploy automation (planned)": CI/CD, SAST, secret scanning, branch protection, 2FA on every account, and rotating every credential |
 | later | Owners (claim flow, owner dashboard, override rules, custom SMTP); optional automation (Meta Business Discovery captions in the admin screen, a scheduler) |
 
 ## Data model (built in Phase 5)
@@ -575,15 +575,16 @@ browser cache on, 6.
 **Scaling limits** (Phase 6 #22, the owner's call: known and written down, nothing
 built for them now). The read path scales with visitors (one CDN copy per region),
 not with trucks. In the order they would be hit:
-- **1,000 rows, a hard wall.** `findLocationsOverlapping`, `listActiveTrucks` and
-  `listAllTrucks` throw
+- **1,000 rows, a hard wall.** `findLocationsOverlapping` and `listActiveTrucks` throw
   past `MAX_ROWS` rather than return part of the rows, so `/api/live` answers 500: a
   map opened then shows no markers, and one already open keeps its markers until each
   entry ends. It counts entries in the 26 h window and active trucks, not history;
-  about 50 trucks with one or two entries a day use a tenth of it or less. **A second
-  reader hits it sooner:** the admin list (`listAdminEntries`) reads every truck's
+  about 50 trucks with one or two entries a day use a tenth of it or less. **The admin
+  reads hit it sooner:** the admin list (`listAdminEntries`) reads every truck's
   entries for 14 days, so it answers 500 past about 36 trucks with two entries a day,
-  each entered two weeks ahead (a stated limit, PR #243). First fix, for both: raise
+  each entered two weeks ahead (a stated limit, PR #243); it and the trucks screen also
+  read `listAllTrucks`, which counts inactive trucks too; the checklist reads one day
+  window a week (`getChecklist`'s comment). First fix, for all of them: raise
   `max_rows` and `MAX_ROWS` together (the hosted project's too). Triggers: the admin
   list's 14 days passing ~500 rows, which comes first, or the live window passing ~500.
 - **The whole response on every poll:** about 15 MB an hour for a visitor with the
@@ -848,7 +849,7 @@ export default function TruckPopup({ truck, location, onClose }: TruckPopupProps
 The public map: `useMapLibre.tsx` (applying the marker diff, popups; map init is
 `map-setup.ts`'s, shared with the place picker's map, PR #245) and `useLocations.ts`
 (polling, the 30 s tick, the fetch state; Part 2, "Read path"). The admin screens:
-`useLogin`, `useAdminScreen` (joins the screen's hooks), `useAdminLocations` (the list),
+`useLogin`, `useAdminScreen`, `useAdminLocations` (the list),
 `useLocationForm`, `usePlacePicker` with `usePickerMap` and `useGeolocation`,
 `useChecklist` and `useTrucks`. The list, the form, the recent places, the checklist and
 the trucks go through their uncached admin routes; `useLogin` calls Supabase Auth,
