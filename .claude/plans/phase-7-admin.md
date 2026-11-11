@@ -631,8 +631,8 @@ The owner's calls (2026-11-11), on the counts in `.claude/process-log.md`'s Phas
 retrospective. Rules #1, #2, #5, #6, #8 and #9 stay as they are; #3, the re-run, is done
 and doesn't outlive the phase; #7 is judged at #234, the first reconciliation since it.
 #4's ceiling becomes full, scoped, full, then stop, with one scoped round on the fixes when
-the last full round finds a defect in what runs; IS #260 edits `CLAUDE.md`, and #4's
-measure, `merged` rows, read row by row, watches the change. The Phase 6 retrospective's
+the last full round finds a defect in what runs; IS #260 edits `CLAUDE.md`, and #4's two
+measures, PRs past the ceiling and `merged` rows, watch the change. The Phase 6 retrospective's
 actions stay unchanged, and there is no new action.
 
 ---
