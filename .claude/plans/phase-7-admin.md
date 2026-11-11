@@ -315,8 +315,10 @@ failure is understood.
     the README's status parts. It replaces each **between phases** marker in
     "Decisions carried forward" with the decision here that took it up (#1–#9), and carries
     forward this plan's decisions that outlive the phase. #39 changes two of them: #3's row is
-    removed, as it didn't outlive the phase, and the ceiling's row cites #39 with #4. The
-    reconciliation also judges #7 against row 432 (#39).
+    removed, as it didn't outlive the phase, and the ceiling's row cites #39 with #4 and
+    takes #39's baseline (2 of 20 PRs past the ceiling) for #203's "7 of 17", which counted
+    three or more scoped rounds in a row. The reconciliation also judges #7 against row 432
+    (#39).
 
 ---
 
