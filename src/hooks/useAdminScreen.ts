@@ -27,9 +27,9 @@ export function useAdminScreen() {
       if (closeEdit) stopEdit();
       await reload();
     },
-    // A 404 or 409 is about an entry the screen didn't know of, which the checklist may
-    // overlap too; after an answer with no status, or a 5xx, the write may exist. Called on a
-    // save, after this render has defined `checklist`.
+    // The list and the checklist both, as an entry this screen didn't know of may overlap a
+    // suggestion (when: `mayHaveChanged`). Called on a save, after this render has defined
+    // `checklist`.
     onStale: async () => {
       checklist.reload();
       await reload();

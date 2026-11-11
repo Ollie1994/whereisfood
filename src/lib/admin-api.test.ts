@@ -47,7 +47,7 @@ describe("mayHaveChanged", () => {
   });
 
   it("is false after any other 4xx", () => {
-    for (const status of [400, 401, 403, 408, 422, 499]) {
+    for (const status of [400, 401, 403, 408, 422]) {
       expect(mayHaveChanged({ ok: false, status })).toBe(false);
     }
   });

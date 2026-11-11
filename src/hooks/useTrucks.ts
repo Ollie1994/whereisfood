@@ -111,10 +111,13 @@ export function useTrucks(): TrucksState {
     setSaving(false);
     if (!result.ok) {
       setFormError(result.error);
-      // A 404 or 409 is about a truck this list may not show: gone, or holding the handle; an
-      // answer lost after the write, or a 5xx, may follow one that committed. The list is read
-      // again, so it says so. The edit stays open with the error, as the entry form's does;
-      // "Avbryt" closes it.
+      // Read again when the answer may have left the list behind (`mayHaveChanged` says which):
+      // here a 404 or 409 is a truck gone, or holding the handle. The edit stays open with the
+      // error, as the entry form's does; "Avbryt" closes it. Limits: after a create that
+      // committed but whose answer was lost, or a 5xx after it, the form keeps its values, and
+      // a second "Spara" makes a second truck unless its handle is taken (a name isn't unique,
+      // and there is no delete). And `withAdmin`'s own 503, before any write, reads the list
+      // too, which shows that error twice.
       if (mayHaveChanged(result)) await reload();
       return;
     }

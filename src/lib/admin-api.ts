@@ -19,7 +19,7 @@ export const API_ERRORS = {
 // write may have committed; and a 5xx. Not after another 4xx: the app's own (400, 401, 403)
 // refuse before writing and name no entry, and a 401's read would only show the session's
 // error twice. The entries form, the trucks form and a checklist ✓ read by it. A limit: a
-// proxy's 4xx sent after it passed the write on (a 408 or 499) counts as nothing written.
+// proxy's 4xx sent after it passed the write on (a 408) counts as nothing written.
 export function mayHaveChanged(result: { ok: true } | { ok: false; status?: number }): boolean {
   if (result.ok || result.status === undefined) return true;
   return result.status === 404 || result.status === 409 || result.status >= 500;
