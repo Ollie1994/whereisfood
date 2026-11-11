@@ -1764,8 +1764,10 @@ PR. About 40 findings stated as limits, 6 moved to issues and 82 declined. Read 
 the later rows of 441–542, no stated limit caused a problem in use; 8 limits' own texts
 were found wrong, all by review (472, 473, 479, 501, 515, 518, 521, 542). One decline
 did: README's "Today's entry" snippet, declined in row 535, left the row that made #254's
-insert return no rows (537). Possibly a second: row 536 declined "the day check stricter
-than the checklist", the check that then passed Taco Loco over.
+insert return no rows (537). Not a second: row 536 declined "the day check is stricter
+than the checklist", but the 11-04 row started that day (13:22) and covered the dinner
+(17–19), so a check like the checklist's, or one on the two slots, would also have refused
+Taco Loco.
 
 ### The rules #1–#9 name
 
@@ -1774,19 +1776,20 @@ plan #39 holds them.
 
 | Rule | Measure and result | Decision |
 |---|---|---|
+| #3 Re-run #203's classification | Done: the section above and #233's research comment | Done; a one-off |
 | #1 What a fix may add | Fix-added code after round 1: 18.8% → 20.1%; no drop. Its limits caused no problem in use | Keep |
 | #2 Cut first, reword last | New imprecision: 22.1% → 12.8% | Keep |
-| #4 The round ceiling | PRs running three or more scoped rounds in a row, #203's measure: 7 of 17 → 0 of 20. Two PRs ran a sixth round, each at the owner's request (490, 525). `merged` rows rose against its "no rise": 2 in 351–441, 3 in 441–542 (453, 470, 537) | Adjust: full, scoped, full (#260) |
-| #5 Records skipped, final check | Records findings, of all named: 54 of 498 → 2 of 560. The final check found errors in at least 8 of the 20 PRs (#208, #212, #218, #220, #245, #252, #255, #258, by their bodies) and none in #210, #214 and #215. Two record errors were found after merge: 453 (row 450, PR #214) and 537 (PR #255) | Keep |
+| #4 The round ceiling | PRs past it: 2 of 20 (#238, #249, a sixth round each at the owner's request: 490, 525). #203's "7 of 17" counted three or more scoped rounds in a row, which the ceiling rules out: 0 of 20. `merged` rows: 2 in 351–441 (plan #4's count), 3 in 442–542 (453, 470, 537), none one a round could have caught: 453 on a one-round PR, 470 a sweep miss, 537 a record error | Adjust: full, scoped, full (#260) |
+| #5 Records skipped, final check | Records findings, of all named: 54 of 498 → 2 of 560. The final check found errors in at least 8 of the 20 PRs (#208, #212, #218, #220, #245, #252, #255, #258, by their bodies) and none in #210, #214 and #215. Its "no record errors found after merge" missed twice: 453 (row 450, PR #214) and 537 (PR #255) | Keep |
 | #6 Approved wording back to the owner | One row (513), from two (438, 439) | Keep |
 | #7 README status parts at reconciliation | No reconciliation since the rule (PR #210); PR #204, the Phase 6 one (rows 431–433), holds its baseline, row 432. #234 is the first after it | Keep; judged at #234 |
 | #8 Stale hits wait for the plan | Phase 7 (from the plan, `06f9dd9`, 2026-11-05): no commit edited `project-context.md`, and none edited the README's status parts; the README's stack row (`75fd746`) isn't one. Stale hits went into step 15 | Keep |
 | #9 Point to where a rule lives | Restated copies after round 1, rows 450 onward: 9.8% → 6.4% | Keep |
 
-**Why the ceiling changes (#260).** Fix-made findings were the largest part of scoped
-rounds' (41%) and 5% of later full rounds'. Of the 150 defects no fix wrote, round 1 found
-67, scoped rounds 37 and later full rounds 46, so dropping the second scoped round also
-drops some of those. #4's measure, `merged` rows, watches what gets through.
+**Why the ceiling changes (#260).** Fix-made findings were 41% of scoped rounds' and 5% of
+later full rounds'. Of the 150 `latent` findings (defects in code or design no fix wrote),
+round 1 found 67, scoped rounds 37 and later full rounds 46, so dropping the second scoped
+round also drops some of those. `merged` rows, read row by row, show what gets through.
 
 ### The Phase 6 retrospective's actions
 
@@ -1805,6 +1808,8 @@ admin PRs #236–#249 (471, 479–481, 500, 502, 507, 509, 514, 519, 520, 523). 
 changed no schema: `git log --since=2026-11-03 -- supabase/migrations tests/controls
 scripts/controls.mjs` lists nothing. Checks that couldn't fail: the Phase 6 grep matches
 420, 442, 482, 484 and 526; #233's research types 23 findings so (4.1%; #203: 16, 3.2%).
+Kept although its target rose: the schema controls had nothing to run, and the field
+reaches code guards only by hand; the owner's call (plan #39).
 
 **3. `scripts/process-log.sh check`. Keep, unchanged.** The log passes it as this section
 is written (exit 0).
