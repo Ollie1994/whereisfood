@@ -139,9 +139,7 @@ export function useAdminLocations(): {
     const result = await adminFetch<{ entry: Location }>(`/api/admin/locations/${entry.id}/${action}`, {
       method: "POST",
     });
-    // Read now, not in the updater: React may run that later, after `readAgain` below has
-    // sent its read. Read there, the row waited for a read after that one and stayed busy
-    // (the browser check of IS #250, on `useTrucks`' copy).
+    // Read now, not in the updater, before `readAgain` below: `useTrucks`' `setActive` says why.
     const sent = latestRead.current;
     setBusy((rows) => answered(rows, entry.id, sent));
     if (!result.ok) setActionError(result.error);

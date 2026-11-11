@@ -5,8 +5,9 @@
 //
 // Limits: a failed read frees the row while the list, under the read's error, still shows
 // it as it was, so a second tap can act on it again then. And a read that never answers
-// keeps the row's buttons off, and the edit form's save while that row is edited
-// (`useAdminScreen`'s `waiting`), until a later read applies or the page opens again.
+// keeps the row's buttons off, and on the entries screen the edit form's save while that
+// row is edited (`useAdminScreen`'s `waiting`), until a later read applies or the page opens
+// again.
 export type Busy = { id: string; after: number | null };
 
 // Row `id`'s request answered while `latestRead` was the newest read sent.
