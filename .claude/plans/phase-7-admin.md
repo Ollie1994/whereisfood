@@ -121,6 +121,8 @@ the public map, and nobody else can write anything.
 
 - On the hosted preview project: sign-ups off, Site URL and redirect URLs, the admin's
   auth user and `users` row. `README.md` records the settings, never a secret.
+- On the hosted preview project, for step 12: #38's insert of a lunch and a dinner into
+  `locations`, run by the owner in its SQL Editor.
 
 ---
 
@@ -267,9 +269,8 @@ failure is understood.
    and see it leave. Each shows within about 3 minutes, not at once: 60 s of cache, 60 s of
    stale window and a 60 s poll. Then leave a lunch and a dinner for one truck, not cancelled:
    the preview's seed history stops at 2026-11-01 and doesn't move with the date (`README.md`,
-   "Hosted preview database"), so these were to be step 12's history, until #38 inserted it by
-   SQL. *The phase's core works here,
-   even if everything after it slipped.*
+   "Hosted preview database"), so these were to be step 12's history, until #38 moved it to an
+   SQL insert. *The phase's core works here, even if everything after it slipped.*
 9. **`PlacePicker`.** `usePlacePicker`, `useGeolocation`, `getRecentPlaces`, the places
    route: map tap, recent places, GPS. A `/map` browser check if `useMapLibre.tsx` changes.
 10. **Truck management.** `insertTruck`, `updateTruck`, `createTruck`, `editTruck`,
@@ -279,10 +280,10 @@ failure is understood.
     `Checklist`, `useChecklist`, `api-admin-checklist.test.ts`. *Last, because it reuses the
     create path.* #196 rides along: the look-back is settled by then (#22).
 12. **Checkpoint: the whole walkthrough.** On the phone, on the preview, on the day the owner
-    runs #38's insert: the checklist, an entry by each place method, an overlap, an edit, a
-    cancel, a new truck. Time a normal
-    update against ~10 seconds, from opening the screen to the save; the public map follows
-    within about 3 minutes, as in step 8. Settle open decision 8.
+    runs #38's insert and before 13:00, when its lunch suggestion ends: the checklist, an entry
+    by each place method, an overlap, an edit, a cancel, a new truck. Time a normal update
+    against ~10 seconds, from opening the screen to the save; the public map follows within
+    about 3 minutes, as in step 8. Settle open decision 8.
 13. **Phase 7 retrospective**, by the milestone-retrospective procedure in
     `.claude/process-log.md` ("How to use it"). It includes #3's re-run, and judges each
     rule #1–#9 name.
@@ -615,10 +616,11 @@ asks for an entry; "Aktivera" asks nothing. Rejected: an "Aktiv" checkbox in the
 The owner's call (2026-11-11, IS #254). Step 12 doesn't wait 1 to 4 weeks for step 8's lunch
 and dinner. On the walkthrough's day the owner runs IS #254's insert in the preview's SQL
 Editor: a lunch 11:00–13:00 and a dinner 17:00–19:00, Stockholm time, 7 days earlier, for
-the first active truck by name with no live entry that day. The app can't write them: an
-entry that has ended can't be saved (#33). Lost: no check sees an entry made through the
-app come back as a suggestion, since `api-admin-checklist.test.ts` writes its history with
-`seedLocation`, not through the create route. Rejected: waiting until 2026-11-18.
+the first active truck by name with no live entry on either day, the walkthrough's or the
+one it writes to. The app can't write them: an entry that has ended can't be saved (#33).
+Lost: no check sees an entry made through the app come back as a suggestion, since
+`api-admin-checklist.test.ts` writes its history with `seedLocation`, not through the create
+route. Rejected: waiting until 2026-11-18.
 
 ---
 
