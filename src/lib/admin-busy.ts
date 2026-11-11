@@ -1,7 +1,8 @@
-// A list row's buttons stay off from the tap until a read sent after its request answered
-// applies, or fails (IS #250). Until that read, the row shows the entry or truck as it was
-// before the action, and with its buttons on, a second "Ställ in" answers "Posten finns
-// inte" for an entry just cancelled.
+// A row's buttons (an entry's, a truck's; a checklist suggestion's ✓) stay off from the tap
+// until a read sent after its request answered applies, or fails (IS #250, #269). Until that
+// read, the row shows as it was before the action, and with its buttons on, a second "Ställ
+// in" answers "Posten finns inte" for an entry just cancelled, and a second ✓ on a
+// suggestion refused for an overlap or a time already passed is refused again.
 //
 // Limits: a failed read frees the row while the list, under the read's error, still shows
 // it as it was, so a second tap can act on it again then. A read that never answers keeps
