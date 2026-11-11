@@ -308,7 +308,8 @@ and CI secret scan, and more) is `project-context.md`'s "Pre-deploy automation
 (planned)". Don't re-propose it for an earlier phase. Sources: the owner's decision
 "DECISION — Gates stay manual until deploy" (2026-09-06, archived; the note above the
 process log's table says how to read it). That "deploy" means the production deploy is
-the owner's reading (Phase 6 plan decision #2, IS #176).
+the owner's reading (Phase 6 plan decision #2, IS #176); since IS #265 the CI comes in
+Phase 8, a phase before that deploy, which still meets it.
 Until then the gates are the only enforcement, and `tsc` is one of them in its own
 right: vitest strips types and never type-checks, so a green test run says nothing
 about types. The gate list is four commands, and
