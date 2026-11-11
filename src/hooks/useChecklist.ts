@@ -9,6 +9,7 @@ import {
   writeDismissed,
 } from "@/lib/admin-checklist";
 import { API_ERRORS, adminFetch } from "@/lib/admin-api";
+import { type Busy, answered, stillBusy } from "@/lib/admin-busy";
 import type { Checklist, Suggestion } from "@/lib/services/checklist";
 import { stockholmDay } from "@/lib/stockholm";
 
@@ -65,8 +66,10 @@ export function useChecklist({
   // ✗ once that suggestion has left the list (a 409's re-read leaves it out), and a read of a
   // new day.
   const [actionError, setActionError] = useState<{ id: string; text: string } | null>(null);
-  // By `from_id`, every suggestion with a ✓ in flight.
-  const [busyIds, setBusyIds] = useState<readonly string[]>([]);
+  // By `from_id`, every suggestion with a ✓ in flight, or answered and waiting for the read
+  // after it (`admin-busy.ts`, IS #269): until that read, a refused ✓'s suggestion shows as
+  // it was, and a second ✓ would be refused again.
+  const [busy, setBusy] = useState<readonly Busy[]>([]);
   // The ids hidden on `day`: kept here too, so a ✗ holds for this screen when storage fails.
   const [dismissed, setDismissed] = useState<{ day: string; ids: readonly string[] }>({ day: "", ids: [] });
   const [creates, setCreates] = useState(0);
@@ -90,6 +93,7 @@ export function useChecklist({
     const id = ++latestRead.current;
     void adminFetch<unknown>("/api/admin/checklist").then((result) => {
       if (id !== latestRead.current) return;
+      setBusy((rows) => stillBusy(rows, id));
       const read = result.ok ? checklistOf(result.data) : null;
       // A failed read keeps the last good checklist under its error, and what ✓ hid.
       if (!read) return setReadError(result.ok ? API_ERRORS.unknown : result.error);
@@ -109,15 +113,17 @@ export function useChecklist({
 
   async function confirm(suggestion: Suggestion) {
     setActionError(null);
-    setBusyIds((ids) => [...ids, suggestion.from_id]);
+    setBusy((rows) => [...rows, { id: suggestion.from_id, after: null }]);
     const result = await adminFetch("/api/admin/locations", { method: "POST", body: confirmBody(suggestion) });
+    // Read now, not in an updater (`useTrucks`' `setActive` says why).
+    const sent = latestRead.current;
     if (result.ok) {
-      setConfirmed((list) => [...list, { id: suggestion.from_id, after: latestRead.current }]);
+      setConfirmed((list) => [...list, { id: suggestion.from_id, after: sent }]);
       setCreates((count) => count + 1);
     } else {
       setActionError({ id: suggestion.from_id, text: `${suggestion.truck_name}: ${result.error}` });
     }
-    setBusyIds((ids) => ids.filter((id) => id !== suggestion.from_id));
+    setBusy((rows) => answered(rows, suggestion.from_id, sent));
     // Read again either way, before the list's reload rather than after it: a created entry,
     // or a 409's, now overlaps the suggestion.
     setReads((count) => count + 1);
@@ -148,7 +154,7 @@ export function useChecklist({
     checklist: current,
     shown,
     errors: { read: readError, action: actionError?.text ?? null },
-    busyIds,
+    busyIds: busy.map(({ id }) => id),
     creates,
     clearActionError: () => setActionError(null),
     reload: () => setReads((count) => count + 1),
