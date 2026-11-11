@@ -658,9 +658,9 @@ as "Phase 7 #n", and its answered open decisions. The rules are `CLAUDE.md`'s
 ## Pre-deploy automation (planned)
 
 Planned by the owner on 2026-10-24 (IS #176) as **one piece of work, designed together,
-before the first production deploy**: Phase 8 builds it, before Phase 9's deploy (IS
-#265). Until then every gate is manual (`CLAUDE.md`, "Testing"). Nothing below exists
-yet unless marked **on**.
+before the first production deploy**: Phase 8 builds what's under "To build", and Phase
+9 runs "Before the production deploy" (IS #265). Until Phase 8, every gate is manual
+(`CLAUDE.md`, "Testing"). Nothing below exists yet unless marked **on**.
 
 **Already on** (repository and account settings, the owner, 2026-10-24):
 - **GitHub Secret Protection and push protection** on the repository, and push
@@ -669,7 +669,8 @@ yet unless marked **on**.
   rule is enabled, GitHub's preset "Dismiss low-impact alerts for development-scoped
   dependencies" (the owner's screenshot, 2026-10-24). Which alerts it has dismissed,
   including any on `eslint-config-next`, an exact pin in `devDependencies`, is reviewed
-  when the CI is designed, in Phase 8. The preset "Dismiss package malware alerts" is disabled.
+  in Phase 8, when the CI is designed. The preset "Dismiss package malware alerts" is
+  disabled.
 - **Two-factor authentication** (the rule is `CLAUDE.md`'s, "Secrets"): the owner's
   GitHub account and the Cloudflare, Supabase and Vercel accounts Phase 6 created all
   use a mobile authenticator app (the owner's confirmations in PRs #194, #195 and #197,
@@ -686,10 +687,9 @@ secret-scanning, Dependabot-alerts and vulnerability-alerts APIs, and no
   through `core.hooksPath`. **The same scan runs in CI**, because `--no-verify`, or a
   clone that never set `core.hooksPath`, skips a local hook. It covers what
   `.gitignore` can't: a value pasted into a tracked file, or `git add -f`.
-- **GitHub Actions running the four gates** on every PR into `dev`, and into `main`,
-  which exists and gets its first push in Phase 9; whether Phase 8 protects it is that
-  plan's call. `test:all` needs a local Supabase in the job, and the job needs a Node
-  `devEngines` admits.
+- **GitHub Actions running the four gates** on every PR into `dev`, and into `main`.
+  `test:all` needs a local Supabase in the job, and the job needs a Node `devEngines`
+  admits.
 - **SAST.** SonarQube Cloud is the owner's preferred tool; self-hosted SonarQube would
   need a server. CodeQL, GitHub's own, is the alternative or a complement. Confirm the
   free tier for public repositories and the setup when it's built. Plus a dependency
@@ -703,8 +703,9 @@ secret-scanning, Dependabot-alerts and vulnerability-alerts APIs, and no
   or how to stop it. Check then that Dependabot's updater runs a Node `devEngines`
   admits: below it, npm stops with `EBADDEVENGINES` and no PR comes (not probed: nothing
   runs it yet).
-- **Branch protection** on `dev`, and `main` as above: PR required, the checks required,
-  no force-push.
+- **Branch protection** on `dev` and `main`: PR required, the checks required, no
+  force-push. `main` exists, and its next push is Phase 9's (README, "Preview deploys");
+  whether Phase 8 protects it then is that plan's call.
 - **Secrets in CI runs:** a workflow that Dependabot triggers reads the Dependabot
   secrets store, not Actions secrets, and a PR from a fork reads neither. Required
   checks are set per branch, so a check that needs a token (SonarQube Cloud's, say)
@@ -717,8 +718,8 @@ secret-scanning, Dependabot-alerts and vulnerability-alerts APIs, and no
 **Before the production deploy:**
 - **Check every account against `CLAUDE.md`'s two-factor rule** ("Secrets"), the
   owner's GitHub included, each account's recovery email, and a registrar once there
-  is one, and keep the recovery codes offline. Phase 8 audits the accounts that exist
-  then; Phase 9 checks again before its deploy, the registrar included.
+  is one, and keep the recovery codes offline. Phase 8 audits every account that
+  exists then; Phase 9 checks again before its deploy.
 - **Give Production its variables only after checking that the Vercel project's
   Ignored Build Step is still set** to cancel a Production build from any branch but
   `main`. It runs when a build starts, so promoting an existing preview to Production
@@ -907,7 +908,7 @@ says.
 | Phase 5 #19; PR #167 round 5 (`max_rows`) | A hosted project is checked for `sv-SE-x-icu`, both extensions in `extensions` and the Data API's Max rows before the app uses it (the preview project's passed, 2026-11-02; production's is Phase 9's) | Part 1 "Database"; `CLAUDE.md` "Hard Rules" ("db layer", Max rows) |
 | Phase 5 #9, #11, #13 | Built in Phase 7: the checklist reuses `findLocationsOverlapping` with its own day windows; truck writes came with the truck screen; the Gothenburg box is checked by the location validator, never a database CHECK | Part 1 "Database" (the db layer, coordinates) |
 | Phase 6 #1 (IS #176) | CI/CD (the four gates in GitHub Actions), SAST (SonarQube Cloud preferred), a pre-commit and CI secret scan, Dependabot security updates once CI runs, and branch protection are one piece of Phase 8's work, built before Phase 9's production deploy (the split into Phases 8 and 9: IS #265) | Part 2 "Pre-deploy automation (planned)"; `CLAUDE.md` "Testing" |
-| Phase 6 #2 (IS #176) | The "deploy" in the 2026-09-06 decision "Gates stay manual until deploy" is the official production deploy, not a preview deploy. Since IS #265 the gates are automated earlier, in Phase 8, which still meets it | `CLAUDE.md` "Testing" |
+| Phase 6 #2 (IS #176) | The "deploy" in the 2026-09-06 decision "Gates stay manual until deploy" is the official production deploy, not a preview deploy | `CLAUDE.md` "Testing" |
 | Phase 6 #3 (IS #176) | Two-factor authentication on every account that can reach the project, by passkey, hardware key or authenticator app, not SMS; set up as each account is created, checked again before the production deploy | `CLAUDE.md` Hard Rules ("Secrets", the rule); Part 2 "Pre-deploy automation (planned)" (which accounts meet it, and the pre-deploy check) |
 | Phase 6 #4 (IS #176) | Every credential that existed before the production deploy is rotated, or replaced by a new project's, before it | Part 2 "Pre-deploy automation (planned)" (the pre-deploy rotation). `CLAUDE.md`'s rotation rule ("Secrets") is another one, for a secret that reached a commit |
 | Phase 6 #5 (IS #176) | Hosted secrets for deploys and CI live in Vercel environment variables, GitHub Actions and Dependabot secrets; developers' own copies stay on their machine; none in a tracked or shared file | `CLAUDE.md` Hard Rules ("Secrets") |
@@ -941,4 +942,4 @@ says.
 | Phase 7 #37 | "Poster" and "Foodtrucks" in every admin header but the login's; a question before "Sätt inaktiv" | Part 2 "Admin and auth" |
 | Phase 7 #25, #26; open decision 10 | History retention and the app's final name are the launch's, now Phase 9's; until then the admin screens say WhereIsFood and the public title stays | Part 2 "Phase map" (Phase 9 row) and "Open decisions" |
 | Phase 7 open decisions 1–5 | The login is a magic link (a 6-digit code is IS #241); a session lasts until logout; a phone gets past Deployment Protection by logging in to Vercel; the preview's Redirect URLs are `dev`'s alias alone, no wildcard; the admin user is made by hand | `README.md` "Hosted preview database" (the Redirect URLs) and "5. Create the admin user"; Part 2 "Admin and auth" (the link, the session); this row (a phone's Vercel login) |
-| **between phases**, 2026-11-11, IS #265 | Phase 8 is CI/CD and security automation (what "Pre-deploy automation (planned)" lists to build, and the 2FA audit); the production launch moves to Phase 9 and runs through working CI. The owner's call, to keep each milestone smaller. Phase 6 #1 and #2 still hold: CI/CD is built before the production deploy, now a phase earlier | Part 2's Phase map and the Roadmap; `CLAUDE.md` "Testing" |
+| **between phases**, 2026-11-11, IS #265 | Phase 8 is CI/CD and security automation (what "Pre-deploy automation (planned)" lists to build, and the 2FA audit); the production launch moves to Phase 9 and runs through working CI. The owner's call, to keep each milestone smaller. Phase 6 #1 still holds: CI/CD is built before the production deploy | Part 2's Phase map and the Roadmap; `CLAUDE.md` "Testing" |
