@@ -9,13 +9,14 @@ import type { Location, Truck } from "@/lib/types";
 // The admin screen's list: entries from today for 14 days and every truck, read through
 // the uncached admin routes, so the admin sees their own change on the next read (plan
 // #15, #24). The entries are read on opening, after a cancel or "Stämmer fortfarande", after
-// a save or a checklist ✓ that may have changed them (`reload`, which `useAdminScreen` calls;
-// for a ✓, `listMayHaveChanged`), on "Försök igen", and at a minute's tick on a new day.
+// a save or a checklist ✓ whose answer may have changed them (`reload`, through
+// `useAdminScreen`; `useLocationForm` and `useChecklist` decide by `mayHaveChanged`), on
+// "Försök igen", and at a minute's tick on a new day.
 //
 // A limit: an open edit holds the entry as it was when "Ändra" was pressed. If another tab
 // moves one of its times, an edit here that changes the other time writes back the one it
 // read (`editRequest` sends both). And an edit of an entry cancelled elsewhere stays open,
-// its save answering "Posten finns inte" and the list read again (`onGone`), until
+// its save answering "Posten finns inte" and the list read again (`onStale`), until
 // "Avbryt": closing it on a reload could happen mid-save, and would erase that error. Also,
 // the trucks are read when the screen opens and after a failed read only, so a truck set
 // inactive in another tab stays offered, its save refused with 400, until the screen opens
@@ -49,8 +50,9 @@ export function useAdminLocations(): {
   // by `startEdit`, `stopEdit` and a cancel's answer, and `useLocationForm` saves from it.
   actingIds: readonly string[];
   editing: AdminEntry | null;
-  // After a save, or a checklist ✓ that may have changed them (`listMayHaveChanged`): the
-  // entries again (and the trucks, while their read has failed).
+  // After a save or a checklist ✓ whose answer may have changed them (as
+  // `useLocationForm` and `useChecklist` decide): the entries again (and the trucks, while
+  // their read has failed).
   reload: () => Promise<void>;
   // When a save starts: a list action's error from before it goes.
   clearActionError: () => void;

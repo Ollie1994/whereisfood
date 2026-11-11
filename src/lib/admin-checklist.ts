@@ -72,15 +72,6 @@ export function checklistRefusal(error: string, status: number | undefined): str
   return error.slice(0, -CHANGE_THIS_ENTRY.length) + USE_THE_FORM;
 }
 
-// Whether the entry list is read again after a ✓'s answer (IS #272): after a success; a 409,
-// for an entry this screen may not have read; an answer with no status, lost after the
-// insert may have committed (`adminFetch`); and a 5xx. Not after another 4xx, which created
-// nothing and names no entry: a 401's list read would only show the session's error twice.
-export function listMayHaveChanged(result: { ok: true } | { ok: false; status?: number }): boolean {
-  if (result.ok || result.status === undefined) return true;
-  return result.status === 409 || result.status >= 500;
-}
-
 // ✗ hides a suggestion on this device for the checklist's day (plan #20): its `from_id`, under
 // one key holding that day alone, so a new day starts empty and old days don't pile up.
 export const DISMISSED_KEY = "wif-checklist-dismissed";

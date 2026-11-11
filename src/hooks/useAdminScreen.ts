@@ -7,11 +7,12 @@ import type { AdminEntry } from "@/lib/services/locations";
 
 // The admin screen's hooks, joined: a save closes its edit and reloads the list, a save
 // starting (the form's or a checklist ✓) clears the list's and the checklist's older action
-// errors, a save answered 404 or 409 reloads the list and the checklist (`onGone`), and a
-// list button or a ✓ clears the form's "Sparat."; "Stämmer fortfarande" and a confirmed
-// "Ställ in" clear the checklist's error too. A ✓ also reloads the list, unless refused with
-// a 4xx other than 409 (`listMayHaveChanged`), and a save or cancel reloads the checklist.
-// Here, not in a component (`CLAUDE.md`, "UI Rules": components only render).
+// errors, a save answered with anything but a readable success that may have left them
+// behind reloads the list and the checklist (`onStale`, `mayHaveChanged`), and a list
+// button or a ✓ clears the form's "Sparat."; "Stämmer fortfarande" and a confirmed "Ställ
+// in" clear the checklist's error too. A ✓ also reloads the list when its answer may have
+// changed it (`mayHaveChanged`), and a save or cancel reloads the checklist. Here, not in a
+// component (`CLAUDE.md`, "UI Rules": components only render).
 export function useAdminScreen() {
   const list = useAdminLocations();
   const { editing, stopEdit, reload, clearActionError } = list;
@@ -26,9 +27,10 @@ export function useAdminScreen() {
       if (closeEdit) stopEdit();
       await reload();
     },
-    // The 404 or 409 is about an entry the screen didn't know of, which the checklist may
-    // overlap too. Called on a save, after this render has defined `checklist`.
-    onGone: async () => {
+    // The list and the checklist both, as an entry this screen didn't know of may overlap a
+    // suggestion (when: `mayHaveChanged`). Called on a save, after this render has defined
+    // `checklist`.
+    onStale: async () => {
       checklist.reload();
       await reload();
     },

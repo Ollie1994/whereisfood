@@ -7,7 +7,6 @@ import {
   confirmBody,
   fromText,
   isBehind,
-  listMayHaveChanged,
   readDismissed,
   stillHidden,
   writeDismissed,
@@ -177,22 +176,6 @@ describe("readDismissed / writeDismissed", () => {
     expect(readDismissed(throwing, "2026-08-26")).toEqual([]);
     expect(() => writeDismissed(blocked, "2026-08-26", ["a"])).not.toThrow();
     expect(() => writeDismissed(throwing, "2026-08-26", ["a"])).not.toThrow();
-  });
-});
-
-describe("listMayHaveChanged", () => {
-  it("is true after a success, a 409, a lost answer and a 5xx", () => {
-    expect(listMayHaveChanged({ ok: true })).toBe(true);
-    expect(listMayHaveChanged({ ok: false, status: 409 })).toBe(true);
-    expect(listMayHaveChanged({ ok: false })).toBe(true);
-    expect(listMayHaveChanged({ ok: false, status: 500 })).toBe(true);
-    expect(listMayHaveChanged({ ok: false, status: 503 })).toBe(true);
-  });
-
-  it("is false after any other 4xx", () => {
-    for (const status of [400, 401, 403, 404, 408, 499]) {
-      expect(listMayHaveChanged({ ok: false, status })).toBe(false);
-    }
   });
 });
 
