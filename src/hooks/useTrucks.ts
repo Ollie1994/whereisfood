@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { type ApiResult, adminFetch, fetchTrucks } from "@/lib/admin-api";
+import { type Busy, answered, stillBusy } from "@/lib/admin-busy";
 import {
   TRUCK_TEXTS,
   type TruckFormValues,
@@ -36,7 +37,8 @@ export type TrucksState = {
   // "Sparat." until a field or another truck changes.
   saved: string | null;
   submit: () => Promise<void>;
-  // Every truck with a list request in flight, so one finishing doesn't free another's.
+  // Every truck with a list request in flight, or answered and waiting for the read after it
+  // (`admin-busy.ts`), so one finishing doesn't free another's.
   busyIds: readonly string[];
   actionError: string | null;
   // Asks first when setting inactive: the truck leaves the map.
@@ -52,13 +54,14 @@ export function useTrucks(): TrucksState {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
-  const [busyIds, setBusyIds] = useState<readonly string[]>([]);
+  const [busy, setBusy] = useState<readonly Busy[]>([]);
   const [actionError, setActionError] = useState<string | null>(null);
   // The newest read sent: reads can answer out of order, and only the newest is applied.
   const latestRead = useRef(0);
 
   const apply = useCallback((id: number, read: ApiResult<Truck[]>) => {
     if (id !== latestRead.current) return;
+    setBusy((rows) => stillBusy(rows, id));
     if (!read.ok) return setListError(read.error);
     setListError(null);
     setTrucks(read.data);
@@ -126,12 +129,16 @@ export function useTrucks(): TrucksState {
     if (!active && !window.confirm(TRUCK_TEXTS.deactivateQuestion)) return;
     setActionError(null);
     setSaved(null);
-    setBusyIds((ids) => [...ids, truck.id]);
+    setBusy((rows) => [...rows, { id: truck.id, after: null }]);
     const result = await adminFetch<{ truck?: Truck }>(`/api/admin/trucks/${truck.id}`, {
       method: "PATCH",
       body: { is_active: active },
     });
-    setBusyIds((ids) => ids.filter((id) => id !== truck.id));
+    // Read now, not in the updater: read there, in the browser check of IS #250, it was read
+    // after `reload` below had sent its read, so the row waited for a read after that one and
+    // stayed busy.
+    const sent = latestRead.current;
+    setBusy((rows) => answered(rows, truck.id, sent));
     if (!result.ok) setActionError(result.error);
     // Reloaded on a refusal too: a 404 means the truck is gone, and the list should say so.
     await reload();
@@ -154,7 +161,7 @@ export function useTrucks(): TrucksState {
     formError,
     saved,
     submit,
-    busyIds,
+    busyIds: busy.map(({ id }) => id),
     actionError,
     setActive,
   };

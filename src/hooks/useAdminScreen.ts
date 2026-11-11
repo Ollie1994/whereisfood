@@ -75,6 +75,6 @@ export function useAdminScreen() {
         checklist.clearActionError();
       }),
     // A cancel or confirm of the entry being edited runs first: a cancel closes the edit.
-    waiting: editing !== null && list.busyIds.includes(editing.id),
+    waiting: editing !== null && list.actingIds.includes(editing.id),
   };
 }
