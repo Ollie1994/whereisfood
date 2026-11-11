@@ -1,4 +1,4 @@
-// A row's buttons (an entry's, a truck's, a checklist suggestion's) stay off from the tap
+// A row's buttons (an entry's, a truck's; a checklist suggestion's ✓) stay off from the tap
 // until a read sent after its request answered applies, or fails (IS #250, #269). Until that
 // read, the row shows as it was before the action, and with its buttons on, a second "Ställ
 // in" answers "Posten finns inte" for an entry just cancelled, and a second ✓ on a
