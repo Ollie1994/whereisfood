@@ -251,10 +251,11 @@ said otherwise: Phase 4 plan decision #14.
 **Time**
 - Always store UTC, display as `Europe/Stockholm`. Stockholm wall time is read and
   converted through `src/lib/stockholm.ts` (`Intl.DateTimeFormat` with an explicit
-  `timeZone`), not `date-fns-tz`'s zone functions: on a host in another zone, 3.2.0's
+  `timeZone`), not `date-fns-tz`'s zone functions: on a host in another zone,
   `formatInTimeZone` was an hour late for a wall time inside that host's own DST gap, and
-  `fromZonedTime` picked a repeated hour by the host's zone (probed, PR #238; the owner's
-  call). `live.ts`'s popup text reads it through `stockholmWallClock` too (IS #239)
+  `fromZonedTime` picked a repeated hour by the host's zone (date-fns-tz 3.2.0, probed in
+  PR #238; the owner's call). `live.ts`'s popup text reads it through `stockholmWallClock`
+  too (IS #239)
 - A look-back by days (the checklist's same weekday, a week back) counts whole Stockholm
   days with `stockholm.ts`'s day helpers, never `now - 7 × 24 h`, which reads the wrong
   weekday across a DST change (Phase 7 plan decision #31). A window measured in hours,

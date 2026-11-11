@@ -347,7 +347,7 @@ describe("text helpers", () => {
 
   it("reads a timestamp with parseISO, as todaysEntries does", () => {
     // Hour 24 is refused by the guard; given the string, date-fns-tz 3.2.0's
-    // `formatInTimeZone` read it a day earlier (PR #190 round 2).
+    // `formatInTimeZone` parsed it a day earlier (PR #190 round 2).
     expect(freshnessText("2026-10-30T24:00:00+00:00", at("2026-10-31T12:00:00+01:00"))).toBe("Uppdaterad 01:00");
   });
 
