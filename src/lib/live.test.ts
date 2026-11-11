@@ -346,7 +346,8 @@ describe("text helpers", () => {
   });
 
   it("reads a timestamp with parseISO, as todaysEntries does", () => {
-    // Hour 24 is refused by the guard; date-fns-tz's own parser reads it a day earlier.
+    // Hour 24 is refused by the guard; given the string, date-fns-tz 3.2.0's
+    // `formatInTimeZone` parsed it a day earlier (PR #190 round 2).
     expect(freshnessText("2026-10-30T24:00:00+00:00", at("2026-10-31T12:00:00+01:00"))).toBe("Uppdaterad 01:00");
   });
 
@@ -448,7 +449,7 @@ describe("text helpers", () => {
 });
 
 // The popup's times on a host in another zone (IS #239). Each case's instant reads, in
-// Stockholm, as a wall time in its host's own DST gap that day: date-fns-tz's
+// Stockholm, as a wall time in its host's own DST gap that day: date-fns-tz 3.2.0's
 // `formatInTimeZone` rebuilt that wall time in the host's zone and was an hour late there
 // (2026-03-08 01:30Z read "03:30" on a New York host, PR #238). Nuuk's is the case where an
 // hour late crosses Stockholm's midnight, so its date and weekday would change too: on that

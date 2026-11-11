@@ -78,9 +78,10 @@ export function isLiveResponse(body: unknown): body is LiveResponse {
 
 // --- Timestamps ------------------------------------------------------------------
 
-// Every timestamp string is read here, by `parseISO`, never by another parser: date-fns-tz's
-// own parser reads `…T24:00:00+00:00` as that day's 00:00 where `parseISO` reads the next
-// day's (probed, PR #190 round 2). The guard refuses hour 24 as well.
+// Every timestamp string is read here, by `parseISO`, never by another parser: given the
+// string, date-fns-tz 3.2.0's `formatInTimeZone` parsed `…T24:00:00+00:00` as that day's
+// 00:00 UTC where `parseISO` reads the next day's (probed, PR #190 round 2). The guard refuses
+// hour 24 as well.
 function instant(timestamp: string): Date {
   return parseISO(timestamp);
 }
@@ -157,7 +158,7 @@ export function diffMarkers(
 
 // --- Popup text ------------------------------------------------------------------------
 
-// Stockholm wall time through `stockholm.ts`'s `Intl` reading, not date-fns-tz's
+// Stockholm wall time through `stockholm.ts`'s `Intl` reading, not date-fns-tz 3.2.0's
 // `formatInTimeZone`, which was an hour late for a Stockholm wall time inside the host's own
 // DST gap: 2026-03-08 01:30Z read "03:30" on a New York host (IS #239; `live.test.ts`'s
 // host-zone cases).

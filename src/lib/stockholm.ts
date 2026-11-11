@@ -8,11 +8,11 @@ const DAY_MS = 86_400_000;
 const MINUTE_MS = 60_000;
 const SECOND_MS = 1_000;
 
-// Stockholm's wall time through `Intl`, not date-fns-tz's `formatInTimeZone`, which
-// rebuilds it with `setHours` in the host's own zone and is an hour late for a wall time
-// inside the host's own gap: 2026-03-08 01:30Z read "03:30" on a New York host and "02:30"
-// here, and wall times in Sydney's, Santiago's and Havana's gaps were an hour late too
-// (`process.env.TZ` set in-process, PR #238).
+// Stockholm's wall time through `Intl`, not date-fns-tz 3.2.0's `formatInTimeZone`, which
+// rebuilt it with `setHours` in the host's own zone and was an hour late for a wall time
+// inside the host's own gap: 2026-03-08 01:30Z read "03:30" on a New York host (right:
+// "02:30", as on a Stockholm one), and wall times in Sydney's, Santiago's and Havana's gaps
+// were an hour late too (`process.env.TZ` set in-process, PR #238).
 const STOCKHOLM = new Intl.DateTimeFormat("en-CA", {
   timeZone: TZ,
   era: "short",
@@ -119,8 +119,8 @@ export function isWallClock(time: string): boolean {
 // Null for a malformed time, and for one the day doesn't have (02:30 on 2026-03-29). On
 // 2026-10-25 a time between 02:00 and 02:59 occurs twice, and this gives the second, CET.
 //
-// Through `wallInstants`, so no host zone is involved. Not `fromZonedTime`: it reads
-// 02:30 on 2026-03-29 as 01:30 CET, and which 02:30 on 2026-10-25 it gives depends on the
+// Through `wallInstants`, so no host zone is involved. Not `fromZonedTime`: it read
+// 02:30 on 2026-03-29 as 01:30 CET, and which 02:30 on 2026-10-25 it gave depended on the
 // host's own zone, the first on a New York or Los Angeles host (date-fns-tz 3.2.0, PR #238).
 export function wallClockToUtc(day: number, time: string): Date | null {
   if (!WALL_CLOCK.test(time)) return null;
