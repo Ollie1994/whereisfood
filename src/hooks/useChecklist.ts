@@ -65,8 +65,9 @@ export function useChecklist({
   revision: number;
   // The screen's clock, set each minute and on each list read (`useAdminLocations`).
   now: Date;
-  // Reads the entry list again: after a ✓ that created an entry, and after one refused with
-  // 409, whose error names an entry to edit that this screen may not have read (IS #272).
+  // Reads the entry list again, after every ✓: one that created an entry; one refused with
+  // 409, for an entry this screen may not have read (IS #272); and one whose answer was lost,
+  // whose entry may exist all the same.
   reloadList: () => Promise<void>;
 }): ChecklistState {
   const [checklist, setChecklist] = useState<Checklist | null>(null);
@@ -137,7 +138,7 @@ export function useChecklist({
     // Read again either way, before the list's reload rather than after it: a created entry,
     // or a 409's, now overlaps the suggestion.
     setReads((count) => count + 1);
-    if (result.ok || result.status === 409) await reloadList();
+    await reloadList();
   }
 
   const hidden = [
