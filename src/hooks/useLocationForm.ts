@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { adminFetch } from "@/lib/admin-api";
+import { adminFetch, mayHaveChanged } from "@/lib/admin-api";
 import {
   type FormValues,
   SAVED,
@@ -45,16 +45,17 @@ export function useLocationForm({
   editing,
   onSaving,
   onSaved,
-  onGone,
+  onStale,
 }: {
   editing: AdminEntry | null;
   // When a save starts.
   onSaving: () => void;
   // After a save: reload the list, and close the edit when `closeEdit`.
   onSaved: (closeEdit: boolean) => Promise<void>;
-  // After a 404 or 409, about an entry the list may not show (gone, or the one it overlaps):
-  // the list is read again, so it says so.
-  onGone: () => Promise<void>;
+  // After a refusal that may have left the list behind (`mayHaveChanged`, IS #275): a 404 or
+  // 409, about an entry it may not show (gone, or the one it overlaps), or an answer lost
+  // after the write may have committed, or a 5xx. The list is read again, so it says so.
+  onStale: () => Promise<void>;
 }): LocationFormState {
   const [values, setValues] = useState(() => (editing ? formFromEntry(editing) : emptyForm(new Date())));
   // The entry the values were filled from, so a new `editing` refills them during render
@@ -104,7 +105,7 @@ export function useLocationForm({
     setSaving(false);
     if (!result.ok) {
       setError(result.error);
-      if (result.status === 404 || result.status === 409) await onGone();
+      if (mayHaveChanged(result)) await onStale();
       return;
     }
 

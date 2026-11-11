@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { API_ERRORS, adminFetch } from "@/lib/admin-api";
+import { API_ERRORS, adminFetch, mayHaveChanged } from "@/lib/admin-api";
 
 // `adminFetch` against a stubbed `fetch`: what each kind of answer becomes.
 afterEach(() => vi.unstubAllGlobals());
@@ -33,5 +33,22 @@ describe("adminFetch", () => {
   it("gives a failed request as the network error", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => Promise.reject(new TypeError("Failed to fetch"))));
     expect(await adminFetch("/api/admin/locations")).toEqual({ ok: false, error: API_ERRORS.network });
+  });
+});
+
+describe("mayHaveChanged", () => {
+  it("is true after a success, a 404, a 409, a lost answer and a 5xx", () => {
+    expect(mayHaveChanged({ ok: true })).toBe(true);
+    expect(mayHaveChanged({ ok: false, status: 404 })).toBe(true);
+    expect(mayHaveChanged({ ok: false, status: 409 })).toBe(true);
+    expect(mayHaveChanged({ ok: false })).toBe(true);
+    expect(mayHaveChanged({ ok: false, status: 500 })).toBe(true);
+    expect(mayHaveChanged({ ok: false, status: 503 })).toBe(true);
+  });
+
+  it("is false after any other 4xx", () => {
+    for (const status of [400, 401, 403, 408, 422, 499]) {
+      expect(mayHaveChanged({ ok: false, status })).toBe(false);
+    }
   });
 });

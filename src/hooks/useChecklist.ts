@@ -5,12 +5,11 @@ import {
   checklistRefusal,
   confirmBody,
   isBehind,
-  listMayHaveChanged,
   readDismissed,
   stillHidden,
   writeDismissed,
 } from "@/lib/admin-checklist";
-import { API_ERRORS, adminFetch } from "@/lib/admin-api";
+import { API_ERRORS, adminFetch, mayHaveChanged } from "@/lib/admin-api";
 import { type Busy, answered, stillBusy } from "@/lib/admin-busy";
 import type { Checklist, Suggestion } from "@/lib/services/checklist";
 import { stockholmDay } from "@/lib/stockholm";
@@ -70,7 +69,7 @@ export function useChecklist({
   // The screen's clock, set each minute and on each list read (`useAdminLocations`).
   now: Date;
   // Reads the entry list again after a ✓, when its answer may have changed what the list
-  // should show (`listMayHaveChanged`, IS #272). Limits: after an answer with no status (a
+  // should show (`mayHaveChanged`, IS #272). Limits: after an answer with no status (a
   // failed request, or a 2xx `adminFetch` couldn't read) whose insert committed, the place
   // picker's recent places aren't read again (`creates`). And `withAdmin`'s own 503 (Auth
   // unreachable, before any insert) reads the list too, which shows that error twice.
@@ -145,7 +144,7 @@ export function useChecklist({
     // Read again either way, before the list's reload rather than after it: a created entry,
     // a 409's, or one an answer lost may have created, now overlaps the suggestion.
     setReads((count) => count + 1);
-    if (listMayHaveChanged(result)) await reloadList();
+    if (mayHaveChanged(result)) await reloadList();
   }
 
   const hidden = [
