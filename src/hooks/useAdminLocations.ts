@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { type ApiResult, adminFetch, adminList, fetchTrucks } from "@/lib/admin-api";
 import { type Busy, answered, stillBusy } from "@/lib/admin-busy";
+import { listBehind } from "@/lib/admin-list";
+import { stockholmDay } from "@/lib/stockholm";
 import type { AdminEntry } from "@/lib/services/locations";
 import type { Location, Truck } from "@/lib/types";
 
 // The admin screen's list: entries from today for 14 days and every truck, read through
 // the uncached admin routes, so the admin sees their own change on the next read (plan
-// #15, #24). Cancel and "Stämmer fortfarande" reload the entries; an edit is the form's.
+// #15, #24). The entries are read on opening, after a cancel or "Stämmer fortfarande", after
+// a save or a checklist ✓ (`reload`, which `useAdminScreen` calls), on "Försök igen", and at
+// a minute's tick on a new day.
 //
 // A limit: an open edit holds the entry as it was when "Ändra" was pressed. If another tab
 // moves one of its times, an edit here that changes the other time writes back the one it
@@ -20,6 +24,13 @@ import type { Location, Truck } from "@/lib/types";
 export const CANCEL_QUESTION = "Ställa in den här posten? Den försvinner från kartan.";
 
 const MINUTE_MS = 60_000;
+
+// The Stockholm day an entries read sent now counts for (`listedDay`): the day a minute ago,
+// so a read sent in the first minute of a day is followed by another at the next tick. The
+// server picks the window by its own clock, and a device clock ahead of it gets the old
+// day's window at midnight. The minute is the tick's period: a shorter margin covers less
+// of that skew, and a longer one has several ticks each read again.
+const sentDay = () => stockholmDay(new Date(Date.now() - MINUTE_MS));
 
 const fetchEntries = () => adminList<AdminEntry>("/api/admin/locations", "entries");
 
@@ -38,7 +49,8 @@ export function useAdminLocations(): {
   // by `startEdit`, `stopEdit` and a cancel's answer, and `useLocationForm` saves from it.
   actingIds: readonly string[];
   editing: AdminEntry | null;
-  // After a save: the entries again (and the trucks, while their read has failed).
+  // After a save or a checklist ✓: the entries again (and the trucks, while their read has
+  // failed).
   reload: () => Promise<void>;
   // When a save starts: a list action's error from before it goes.
   clearActionError: () => void;
@@ -72,13 +84,20 @@ export function useAdminLocations(): {
   // Whether the trucks' read failed, read when a reload runs rather than from the render
   // the reload was made in: a read failing during an action is then still retried.
   const trucksFailed = useRef(false);
+  // The Stockholm day the list was last read for (`listBehind`), as `sentDay` counts it: the
+  // newest entries read that succeeded, or the screen's opening until one has.
+  const listedDay = useRef<number | null>(null);
+  // Whether a read the tick sent hasn't answered, so the next tick doesn't send another and
+  // make it stale (`latestRead`).
+  const tickReading = useRef(false);
 
-  // Applies an entries read if it is still the newest one sent.
-  const applyEntries = useCallback((id: number, read: ApiResult<AdminEntry[]>) => {
+  // Applies an entries read, sent on Stockholm day `day`, if it is still the newest one sent.
+  const applyEntries = useCallback((id: number, day: number, read: ApiResult<AdminEntry[]>) => {
     if (id !== latestRead.current) return;
     setNow(new Date());
     setBusy((rows) => stillBusy(rows, id));
     if (!read.ok) return setEntriesError(read.error);
+    listedDay.current = day;
     setEntriesError(null);
     setEntries(read.data);
   }, []);
@@ -95,12 +114,13 @@ export function useAdminLocations(): {
   const readAgain = useCallback(
     async (withTrucks: boolean) => {
       const id = ++latestRead.current;
+      const day = sentDay();
       const trucksId = withTrucks ? ++latestTrucksRead.current : 0;
       const [entriesRead, trucksRead] = await Promise.all([
         fetchEntries(),
         withTrucks ? fetchTrucks() : undefined,
       ]);
-      applyEntries(id, entriesRead);
+      applyEntries(id, day, entriesRead);
       if (trucksRead) applyTrucks(trucksId, trucksRead);
     },
     [applyEntries, applyTrucks],
@@ -121,21 +141,40 @@ export function useAdminLocations(): {
   // The first reads, started here and applied in their callbacks (`adminList`'s comment);
   // then the list's clock, set again at each minute's turn so "Har slutat" isn't up to a
   // minute late. Each tick aims at the next turn afresh, so a late one doesn't carry over.
+  //
+  // A tick on a Stockholm day after the list's (`listBehind`) reads the entries again (IS
+  // #251), so a screen open past midnight, or asleep through it, asks for the new day's 14
+  // days, and a day-turn read that fails is sent again at a later tick. Checked with the
+  // browser's clock alone moved to 23:59 (#251's comment, PR #270): entries reads at 00:00
+  // and 00:01 (`sentDay`), and with the network offline at the turn, one more once back
+  // online. Limits: a device clock more than a minute ahead of the server's gets the old
+  // day's window until the next read. A read refused for the session (401, 403) is sent
+  // again each minute, under its error, until the screen is opened again. And a tick's read
+  // that never settles holds back the tick's next reads until it does (`tickReading`).
   useEffect(() => {
     const id = ++latestRead.current;
+    const day = sentDay();
+    listedDay.current = day;
     const trucksId = ++latestTrucksRead.current;
-    void fetchEntries().then((read) => applyEntries(id, read));
+    void fetchEntries().then((read) => applyEntries(id, day, read));
     void fetchTrucks().then((read) => applyTrucks(trucksId, read));
     let tick: ReturnType<typeof setTimeout>;
     const arm = () => {
       tick = setTimeout(() => {
-        setNow(new Date());
+        const at = new Date();
+        setNow(at);
+        if (!tickReading.current && listBehind(listedDay.current, at)) {
+          tickReading.current = true;
+          void readAgain(trucksFailed.current).finally(() => {
+            tickReading.current = false;
+          });
+        }
         arm();
       }, MINUTE_MS - (Date.now() % MINUTE_MS));
     };
     arm();
     return () => clearTimeout(tick);
-  }, [applyEntries, applyTrucks]);
+  }, [applyEntries, applyTrucks, readAgain]);
 
   async function act(entry: AdminEntry, action: "confirm" | "cancel") {
     setActionError(null);
