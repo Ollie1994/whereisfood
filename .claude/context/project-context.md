@@ -658,9 +658,10 @@ as "Phase 7 #n", and its answered open decisions. The rules are `CLAUDE.md`'s
 ## Pre-deploy automation (planned)
 
 Planned by the owner on 2026-10-24 (IS #176) as **one piece of work, designed together,
-before the first production deploy**: Phase 8 builds what's under "To build", and Phase
-9 runs "Before the production deploy" (IS #265). Until Phase 8, every gate is manual
-(`CLAUDE.md`, "Testing"). Nothing below exists yet unless marked **on**.
+before the first production deploy**. Since IS #265, Phase 8 builds what's under "To
+build" and does the first 2FA audit, and Phase 9 runs the rest of "Before the production
+deploy". Until Phase 8 builds it, every gate is manual (`CLAUDE.md`, "Testing"). Nothing
+below exists yet unless marked **on**.
 
 **Already on** (repository and account settings, the owner, 2026-10-24):
 - **GitHub Secret Protection and push protection** on the repository, and push
@@ -704,8 +705,8 @@ secret-scanning, Dependabot-alerts and vulnerability-alerts APIs, and no
   admits: below it, npm stops with `EBADDEVENGINES` and no PR comes (not probed: nothing
   runs it yet).
 - **Branch protection** on `dev` and `main`: PR required, the checks required, no
-  force-push. `main` exists, and its next push is Phase 9's (README, "Preview deploys");
-  whether Phase 8 protects it then is that plan's call.
+  force-push. `main` exists, and its next push is Phase 9's (README, "Preview deploys"):
+  the Phase 8 plan decides whether `main` is protected in Phase 8 or before that push.
 - **Secrets in CI runs:** a workflow that Dependabot triggers reads the Dependabot
   secrets store, not Actions secrets, and a PR from a fork reads neither. Required
   checks are set per branch, so a check that needs a token (SonarQube Cloud's, say)
@@ -942,4 +943,4 @@ says.
 | Phase 7 #37 | "Poster" and "Foodtrucks" in every admin header but the login's; a question before "Sätt inaktiv" | Part 2 "Admin and auth" |
 | Phase 7 #25, #26; open decision 10 | History retention and the app's final name are the launch's, now Phase 9's; until then the admin screens say WhereIsFood and the public title stays | Part 2 "Phase map" (Phase 9 row) and "Open decisions" |
 | Phase 7 open decisions 1–5 | The login is a magic link (a 6-digit code is IS #241); a session lasts until logout; a phone gets past Deployment Protection by logging in to Vercel; the preview's Redirect URLs are `dev`'s alias alone, no wildcard; the admin user is made by hand | `README.md` "Hosted preview database" (the Redirect URLs) and "5. Create the admin user"; Part 2 "Admin and auth" (the link, the session); this row (a phone's Vercel login) |
-| **between phases**, 2026-11-11, IS #265 | Phase 8 is CI/CD and security automation (what "Pre-deploy automation (planned)" lists to build, and the 2FA audit); the production launch moves to Phase 9 and runs through working CI. The owner's call, to keep each milestone smaller. Phase 6 #1 still holds: CI/CD is built before the production deploy | Part 2's Phase map and the Roadmap; `CLAUDE.md` "Testing" |
+| **between phases**, 2026-11-11, IS #265 | Phase 8 is CI/CD and security automation (what "Pre-deploy automation (planned)" lists to build, and the 2FA audit); the production launch moves to Phase 9 and runs through working CI. The owner's call, to keep each milestone smaller. Phase 6 #1 still holds: CI/CD is built before the production deploy | Part 2's Phase map and the Roadmap; Part 2 "Pre-deploy automation (planned)" (its intro); `CLAUDE.md` "Testing" |

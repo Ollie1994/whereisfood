@@ -139,7 +139,7 @@ branch and tag.
 
 ### What does not exist yet
 
-- CI: every gate is run by hand until Phase 8.
+- CI: every gate is run by hand until Phase 8 builds it
 - A production deploy (Phase 9). Pushes to branches other than `main` build previews,
   with one exception so far (see "Preview deploys")
 
@@ -499,7 +499,7 @@ instead of serving on `whereisfood-theta.vercel.app` only because Production has
 variables and `src/lib/supabase.ts` throws at import without them. The Ignored Build
 Step above is set to cancel such a build by its branch, though no cancel has been
 seen yet. Phase 9 adds Production's variables after checking that it is still set,
-and doesn't promote a branch preview to Production (plan step 10 carries this to
+and doesn't promote a branch preview to Production (Phase 6 plan step 10 carries this to
 `project-context.md`).
 
 **Checking the CDN cache.** With protection on, a request without a login gets
