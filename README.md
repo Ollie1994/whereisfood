@@ -411,11 +411,12 @@ as the seed does.
 
 Phase 7's walkthrough changed rows by hand once more, on 2026-11-11: IS #254's insert gave
 Taco Loco a lunch and a dinner on 2026-11-04 (Phase 7 plan, #38). Its first run wrote
-nothing. The insert takes an active truck with no non-cancelled entry on the day it runs
-or the day it writes to: Burgarbilen had step 8's entries on 2026-11-11, and Taco Loco had
-one from 2026-11-04 13:22:59.114694 to 11-05 02:22:59.114694, Stockholm time, whose window
-(an hour before to 12 hours after one moment) is the shape "Today's entry" below writes.
-The owner cancelled that Taco Loco entry, and the second run wrote the pair (IS #257).
+nothing. The insert passes over a truck with a non-cancelled entry on the day it runs or
+the day it writes to (#38 has its full rule): Burgarbilen had step 8's entries on
+2026-11-11, and Taco Loco had one from 2026-11-04 13:22:59.114694 to 11-05 02:22:59.114694,
+Stockholm time, whose window (an hour before to 12 hours after one moment) is the shape
+"Today's entry" below writes. The owner cancelled that Taco Loco entry, and the second run
+wrote the pair (IS #257).
 
 **Today's entry.** Before checking a preview's markers, run this in the project's SQL
 Editor. It gives Taco Loco (the seed's fixed id) an entry at the place of its latest
@@ -437,11 +438,11 @@ with no error. If it fails with `conflicting key value violates exclusion constr
 window: an earlier run of this snippet, or any other entry. Look before changing
 anything.
 
-Its row stays in the preview's history. While it runs, the checklist leaves out Taco Loco's
-suggestions that overlap it. Later, its times have seconds, which the checklist can't move to
-another day (`entryWallTimes`), so on the same weekday it can keep Taco Loco's suggestions
-off. Cancel it with "Ställ in" on `/admin` when the check is done: the list shows it until
-the day it ends is over (`listAdminEntries`).
+Its row stays in the preview's history, and the checklist can leave out Taco Loco's
+suggestions because of it, that day and in later weeks (`getChecklist`; its times have
+seconds, which `entryWallTimes` can't move to another day). Cancel it with "Ställ in" on
+`/admin` when the check is done: the list shows it until the day it ends is over
+(`listAdminEntries`). After that, only SQL in the SQL Editor, by the row's id, can.
 
 ---
 
