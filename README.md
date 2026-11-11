@@ -407,9 +407,11 @@ entry, and none is added later. So the longer after the push a check runs, the o
 the seed history it finds on the preview, and a check that reads a recent window of
 past entries can find none: that is the seed's age, not a read-path bug.
 
-Phase 7's walkthrough adds rows by hand once more: IS #254's insert, which the owner runs
-on the walkthrough's day, gives one truck a lunch and a dinner 7 days earlier, with
-`created_by` null like the seed's rows (Phase 7 plan, #38).
+Phase 7's walkthrough changed rows by hand once more, on 2026-11-11: IS #254's insert gave
+Taco Loco a lunch and a dinner on 2026-11-04, with `created_by` null like the seed's rows
+(Phase 7 plan, #38). For it to run, the owner first cancelled Taco Loco's 2026-11-04
+13:22:59.114694 → 11-05 02:22:59.114694 entry, whose window covered the dinner: an hour
+before to 12 hours after one moment, the shape "Today's entry" below writes (IS #257).
 
 **Today's entry.** Before checking a preview's markers, run this in the project's SQL
 Editor. It gives Taco Loco (the seed's fixed id) an entry at the place of its latest
