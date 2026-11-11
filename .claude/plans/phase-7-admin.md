@@ -314,7 +314,9 @@ failure is understood.
     well) and "Hooks" (map init is `map-setup.ts`'s, and the admin hooks are new, PR #245); and
     the README's status parts. It replaces each **between phases** marker in
     "Decisions carried forward" with the decision here that took it up (#1–#9), and carries
-    forward this plan's decisions that outlive the phase.
+    forward this plan's decisions that outlive the phase. #39 changes two of them: #3's row is
+    removed, as it didn't outlive the phase, and the ceiling's row cites #39 with #4. The
+    reconciliation also judges #7 against row 432 (#39).
 
 ---
 
@@ -624,6 +626,18 @@ write them: an entry that has ended can't be saved (#33). Lost: the walkthrough 
 has to see an entry made through the app come back as a suggestion, and no test does, since
 `api-admin-checklist.test.ts` writes its history with `seedLocation`, not through the create
 route. Rejected: waiting until 2026-11-18.
+
+### #39 — The Phase 7 retrospective's calls (IS #233)
+
+The owner's calls (2026-11-11), on the counts in `.claude/process-log.md`'s Phase 7
+retrospective. Rules #1, #2, #5, #6, #8 and #9 stay as they are; #3, the re-run, is done
+and doesn't outlive the phase; #7 stays, and #234, the first reconciliation since it,
+judges it against row 432. #4's ceiling becomes full, scoped, full, then stop, with one
+scoped round on the fixes when the last full round finds a defect in what runs; IS #260
+edits `CLAUDE.md`, and #4's two measures watch the change, against this range's 2 of 20
+PRs past the ceiling and 3 `merged` rows in 441–542: neither should rise. Neither sees a
+defect the dropped round would have found and the full round didn't. The Phase 6
+retrospective's actions stay unchanged, and there is no new action.
 
 ---
 

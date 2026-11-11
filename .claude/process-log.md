@@ -821,6 +821,10 @@ Old rows that point at them are now pointing there: "see note" (rows 14, 15, 17,
 | 540 | 2026-11-11 | PR #258 / IS #257 | `README` | `/code-review` round 3 on #258, scoped to round 2's fixes, found 9; 9 applied. **Round 2's exact account of the snippet row's later effects opened 7 more edge cases:** "no suggestion" (other entries that day still show), "that weekday" (a row starting before midnight), "4 weeks" copied, no same-day effect, only the insert's skip, "Ställ in" with no listing limit. Also: only Taco Loco named as the first run's cause; "That entry" ambiguous; `created_by` null claimed of a row nobody read. | `code-review` r3 on PR #258, scoped to `0d48a98..9142f50` and the issue text round 2 changed | `pre-merge` | `imprecise-claim` | Cut, not reworded: the snippet paragraph says its row stays, can keep Taco Loco's suggestions off and make the insert pass it over, and how to cancel it. The walkthrough paragraph and #257 name both trucks; `created_by` null from the two SQL texts. |
 | 541 | 2026-11-11 | PR #258 / IS #257 | `README` | `/code-review` round 4 on #258, full, the last under the ceiling, found 8; 6 applied, 1 to an issue, 1 declined. **Round 3's cancel advice gave `cancelled_at = now()` as a bare fragment** in a section of paste-and-run SQL: completed as written, it cancels every live row. Also: "So" made the seconds the cause of all three effects; the PR summary said #232's comment names the day check; `is_active` left out; the plan's "one row it needed"; the how-to warned about a one-off insert. To #259: retire the snippet. Declined: finding older snippet rows. | `code-review` r4 on PR #258, full, with the issue and PR text it changed | `pre-merge` | `imprecise-claim` | The fragment is gone: "Ställ in" on `/admin`, listed until the day the row ends is over. Each effect with its cause; "an active truck"; "one Taco Loco row that blocked it"; summary corrected; #259 opened. |
 | 542 | 2026-11-11 | PR #258 / IS #257 | `README` | `/code-review` round 5 on #258, scoped to round 4's fixes, the last, found 8; 7 applied, 1 declined. **Round 4's rewrite brought back "on the same weekday"**, which round 3 had cut: a snippet run before 01:00 starts the day before. Also: removing the SQL left no cancel once `/admin` stops listing the row; no time limit on the later effect; the insert's rule half-restated; #259 said only "Ny post" is cancellable and missed that its entries are suggested later; a long line. Declined: a milestone on #259. | `code-review` r5 on PR #258, scoped to `e105685..de0cae4` and #259's body | `pre-merge` | `overcorrection` | "that day and in later weeks", no weekday or limit; "only SQL … by the row's id" once unlisted; the insert's rule points to #38; #259 corrected, with the checklist note; rewrapped. The rounds stop here. |
+| 543 | 2026-11-11 | PR #261 / IS #233 | `process-log` | `/code-review` round 1 on #261, full, found 10; all applied. **The decision table didn't use its rules' own measures:** #4 compared another metric (on #203's, three scoped rounds in a row, 0 of 20) and left out that `merged` rows rose against "no rise"; #5 used a share, not 54 of 498. Also: #7's baseline (PR #204) was in range; #204 called a #203 child; the ceiling's reason overstated; mixed denominators; row 470 merged, not reviewed; "most on auth" unbacked; a second decline; decisions in the log, not the plan. | `code-review` r1 on PR #261, full, with #233's research comment and #260 | `pre-merge` | `imprecise-claim` | Each rule by its own measure; plan #39 holds the calls; #7's baseline named; #204 as Phase 6's reconciliation; the ceiling's reason by the latent counts; 1 of 17; 470 merged; 12 of 24 rows listed; the second decline; #260 points to #39. |
+| 544 | 2026-11-11 | PR #261 / IS #233 | `process-log` | `/code-review` round 2 on #261, scoped to round 1's fixes, found 9; all applied. **Round 1's fixes overstated again:** the `merged` rise was laid on the ceiling though none of 453, 470, 537 is a round's miss; "the largest part" (41%) held only by merging types; "150 defects no fix wrote" was the `latent` type alone. Also: #4's measure swapped for one that couldn't fail; #5's missed clause unstated; the second decline hedged, not settled; #3 had no row; action 2 kept with no reason; 441 in both ranges. | `code-review` r2 on PR #261, scoped to `aa0677c..b5b3c0e` and #260 | `pre-merge` | `overcorrection` | #4 by its words (2 of 20) and #203's beside it; the merged rows read one by one; 41% without "largest"; "150 `latent`"; #5's two misses named; the second decline settled from the row's times; #3's row; action 2's reason; 442–542. |
+| 545 | 2026-11-11 | PR #261 / IS #233 | `process-log` | `/code-review` round 3 on #261, scoped to round 2's fixes, found 10; all applied. **Round 2's reading of the `merged` rows contradicted the section:** "none one a round could have caught" against action 1 (review found nine sweep misses) and the harm side (537 from a decline), and 453 and 537 had different causes in neighbouring cells. Also: the ceiling's cost hedged as "some"; #39 dropped a measure; action 2's reasons credited to the owner; the research copy unnarrowed; ranges unaligned; `latent` defined thrice; #3's row. | `code-review` r3 on PR #261, scoped to `b5b3c0e..503b92a` and the issue text round 2 changed | `pre-merge` | `overcorrection` | The merged rows stated as facts, with no reading. The cost counted: round 3's 14 scoped rounds found 10 `latent`. #39 names both measures; action 2 keeps only the call; the research copy narrowed; 441–542 throughout; one definition; #3 in order. |
+| 546 | 2026-11-11 | PR #261 / IS #233 | `process-log` | `/code-review` round 4 on #261, full, the last, found 9; all applied. No defect in what runs. **The ceiling's cost was undercounted:** "those 10 are what the change risks" named only the `latent` findings, not the 43 fix-made ones the dropped rounds found. Also: #7's judging at #234 had no home there; step 15 didn't name #39's changes; two sweep-miss rows left out; actions 3 and 5 cited no rows; #1's cell unscoped; #39's measures had no baseline; 351–440; one-round PRs in the per-PR counts. | `code-review` r4 on PR #261, full, with #233's research comment and #260 | `pre-merge` | `imprecise-claim` | The cost in full (102: 10 latent, 19 fix-added, 24 new imprecision); #234 judges #7; step 15 names #39's changes; twelve sweep-miss rows; rows for actions 3 and 5; scopes and baselines stated. The rounds stop here. |
 
 ---
 
@@ -1680,3 +1684,157 @@ the repo; the numbers are dated.
 - **The owner's view:** building needs little process; maintaining and developing further
   needs it. The project is for learning agentic development, and for making something of
   actual value and potential.
+
+## Phase 7 retrospective (2026-11-11, #233)
+
+**Rows counted: 420–542 (123 rows).** These run from the Phase 6 retrospective's own rows
+(420–424 and 430, PR #201) to the last row written before this retrospective started (542,
+PR #258, 2026-11-11). Rows 420–456 came before the Phase 7 plan: the Phase 6 retrospective
+and its follow-up #200 (PR #202, rows 425–429), the Phase 6 reconciliation (#189, PR #204,
+rows 431–433), #203 and its child PRs (#206, #208, #210, #212: rows 434–449), and the
+between-phases issues #213, #199 and #193 (rows 450–456). Rows 457–542 are Phase 7 itself:
+the plan (PR #220), steps 1–11 and #239 (PRs #235–#252), and the walkthrough's history and
+records (#254 and #257, PRs #255 and #258). Row 543 onward belong to the next range, this
+retrospective's own rows included.
+
+```bash
+bash scripts/process-log.sh tally 9 420 542    # Cause
+bash scripts/process-log.sh tally 7 420 542    # Caught by
+bash scripts/process-log.sh tally 8 420 542    # Escaped
+```
+
+### By `Cause`
+
+| Cause | Rows | Share | Phase 6 (351–419) |
+|---|---|---|---|
+| `overcorrection` | 44 | 36% | 24 (35%) |
+| `unverified-assumption` | 27 | 22% | 10 (14%) |
+| `incomplete-guard` | 24 | 20% | 8 (12%) |
+| `imprecise-claim` | 17 | 14% | 18 (26%) |
+| `gate-skipped` | 7 | 6% | 4 (6%) |
+| `missing-gate` | 2 | 2% | 1 (1%) |
+| `manual-drift` | 2 | 2% | 4 (6%) |
+| `stale-doc` | 0 | 0% | 0 (0%) |
+
+### By `Caught by`
+
+`tally 7` grouped all 123 rows: `code-review` 95, `self` 21, `user` 7 (Phase 6: 56, 13,
+0). **`Escaped`:** 112 `pre-merge`, 5 `pre-commit`, 4 `merged` (430, 453, 470, 537), 2
+`n/a`.
+
+### Review rounds
+
+94 rounds on 24 PRs, 779 findings, by the Phase 6 retrospective's round script with
+`first=420 last=542` and rows without a "found N" left out (row 513, a process miss on
+#245, is a `code-review` row but not a round):
+
+| Round | Rounds | Findings | Per round | Headline `overcorrection` |
+|---|---|---|---|---|
+| r1 | 24 | 200 | 8.3 | 0 |
+| r2 | 22 | 182 | 8.3 | 20 |
+| r3 | 17 | 141 | 8.3 | 10 |
+| r4 | 17 | 139 | 8.2 | 3 |
+| r5 | 12 | 101 | 8.4 | 7 |
+| r6 | 2 | 16 | 8.0 | 2 |
+
+- **A round's fixes are still the next round's main finding:** 42 of the 70 rounds after
+  round 1 have `overcorrection` as their headline (Phase 6: 23 of 42): 41 of the 53 scoped
+  rounds, 1 of the 17 later full rounds.
+- **No PR's rounds ran down.** Of the 22 PRs with more than one round, each one's last
+  round found 5 to 10. 32 of the 94 rounds found exactly 10.
+
+### #203's classification, re-run (plan #3)
+
+The findings in rows 441–542, the rows written after PR #206 merged, typed by #203's
+criterion: 78 rounds on 20 PRs, 560 named findings of 626. The counts, the rows behind
+them, the harm side and every finding as typed are on #233 (its research comment); the
+reading's limits are there too. After round 1, against #203's rows 351–433:
+
+| | #203 | Rows 441–542 | Rows 450–542 |
+|---|---:|---:|---:|
+| Findings after round 1 | 367 | 413 | 393 |
+| New code a fix added | 69 (18.8%) | 83 (20.1%) | 71 (18.1%) |
+| New imprecision | 81 (22.1%) | 53 (12.8%) | 53 (13.5%) |
+| Records | 52 (14.2%) | 1 (0.2%) | 1 (0.3%) |
+| Restated copy | 36 (9.8%) | 26 (6.3%) | 25 (6.4%) |
+
+**By kind of round:** scoped rounds' 316 findings were 41% fix-made (fix-added code or new
+imprecision) and 12% `latent` (a defect in code or design no fix wrote); later full rounds'
+97 were 5% fix-made and 47% `latent`; round 1's 147 were 46% `latent`.
+
+**The harm side.** 3.9 rounds per PR; 6.0 to 10.0 findings per round after round 1, for
+each of the 18 PRs with a round after round 1. About 40 findings stated as limits, 6 moved to issues and 82 declined. Read against
+the later rows of 441–542, no stated limit caused a problem in use; 8 limits' own texts
+were found wrong, all by review (472, 473, 479, 501, 515, 518, 521, 542). One decline
+did: README's "Today's entry" snippet, declined in row 535, left the row that made #254's
+insert return no rows (537). Not a second: row 536 declined "the day check is stricter
+than the checklist", but the 11-04 row started that day (13:22) and covered the dinner
+(17–19), so a check like the checklist's, or one on the two slots, would also have refused
+Taco Loco.
+
+### The rules #1–#9 name
+
+Each against its decision's measure. The decisions are the owner's, of 2026-11-11, and
+plan #39 holds them.
+
+| Rule | Measure and result | Decision |
+|---|---|---|
+| #1 What a fix may add | Fix-added code after round 1: 18.8% → 20.1%; no drop. Its limits caused no problem in use, read against rows 441–542 | Keep |
+| #2 Cut first, reword last | New imprecision: 22.1% → 12.8% | Keep |
+| #3 Re-run #203's classification | Its own measure is the re-run: done, above and in #233's research comment | Done |
+| #4 The round ceiling | PRs past it: 2 of 20 (#238, #249, a sixth round each at the owner's request: 490, 525). #203's "7 of 17" counted three or more scoped rounds in a row, which the ceiling rules out: 0 of 20. `merged` rows, against its "no rise": 2 in 351–441 (plan #4's count; row 441 isn't `merged`), 3 in 441–542 (453, 470, 537) | Adjust: full, scoped, full (#260) |
+| #5 Records skipped, final check | Records findings, of all named: 54 of 498 → 2 of 560. The final check found errors in at least 8 of the 20 PRs (#208, #212, #218, #220, #245, #252, #255, #258, by their bodies) and none in #210, #214 and #215. Its "no record errors found after merge" missed twice: 453 (row 450, PR #214) and 537 (PR #255) | Keep |
+| #6 Approved wording back to the owner | One row (513), from two (438, 439) | Keep |
+| #7 README status parts at reconciliation | No reconciliation since the rule (PR #210); PR #204, the Phase 6 one (rows 431–433), holds its baseline, row 432. #234 is the first after it | Keep; judged at #234 |
+| #8 Stale hits wait for the plan | Phase 7 (from the plan, `06f9dd9`, 2026-11-05): no commit edited `project-context.md`, and none edited the README's status parts; the README's stack row (`75fd746`) isn't one. Stale hits went into step 15 | Keep |
+| #9 Point to where a rule lives | Restated copies after round 1, rows 450 onward: 9.8% → 6.4% | Keep |
+
+**Why the ceiling changes (#260).** Fix-made findings were 41% of scoped rounds' and 5% of
+later full rounds'. Of the 150 `latent` findings, round 1 found 67, scoped rounds 37 and
+later full rounds 46. The second scoped rounds, round 3 on 14 PRs (459, 465, 473, 479,
+484, 494, 500, 506, 512, 518, 522, 528, 535, 540), found 102 named findings: 10 `latent`,
+19 fix-added code, 24 new imprecision. The change leaves all of those to the full round
+that now follows round 2, which in this range found 5% fix-made findings. #4's two
+measures, PRs past the ceiling and `merged` rows, watch it; neither sees a defect the
+dropped round would have found and the full round didn't.
+
+### The Phase 6 retrospective's actions
+
+**1. The fix sweep and `scripts/sweep.sh` (#200). Keep, unchanged.** Rows the Phase 6
+retrospective's copy grep matches: 36 of 123 (29%), from 28 of 69 (41%): 422, 423, 425,
+427, 428, 429, 432, 433, 437, 444, 447, 448, 455, 462, 465, 471, 478, 480, 481, 496, 499,
+502, 504, 507, 510, 512, 516, 517, 518, 519, 520, 534, 535, 536, 540, 542. Sweep misses
+continue: rows 426, 427, 440, 466, 470, 480, 481, 499, 510, 512, 518 and 527 name a copy,
+a term or a sibling read a sweep missed. Review found eleven; 470 merged and was found by
+`self` in a later PR's sweep. Two say why: 470 (a missing table row holds no changed term)
+and 481 (the grep read the code, not the plan's prose).
+
+**2. Negative controls and the "Failure modes" field (#170). Keep, unchanged.**
+`incomplete-guard` rose from 8 of 69 (12%) to 24 of 123 (20%); 12 of the 24 are on the
+admin PRs #236–#249 (471, 479–481, 500, 502, 507, 509, 514, 519, 520, 523). Phase 7
+changed no schema: `git log --since=2026-11-03 -- supabase/migrations tests/controls
+scripts/controls.mjs` lists nothing. Checks that couldn't fail: the Phase 6 grep matches
+420, 442, 482, 484 and 526; #233's research types 23 findings so (4.1%; #203: 16, 3.2%).
+Kept unchanged, the owner's call (plan #39), although its target rose and the schema
+controls had nothing to run.
+
+**3. `scripts/process-log.sh check`. Keep, unchanged.** The log passes it as this section
+is written (exit 0), and no row in 420–542 records a miss of `add` or `check` (an awk over
+the Miss cells for `process-log.sh`, ``add`` or "log check" finds none).
+
+**4. The claims check, with the probe words (#200). Keep, unchanged.** `imprecise-claim`
+fell from 18 of 69 (26%) to 17 of 123 (14%). It found a defect in what runs: row 488, its
+probe of every day of years 0001 and 9999 found 9999-12-31 threw.
+
+**5. `Caught by` groups. Keep, unchanged.** `tally 7` grouped all 123 rows, 420–542, each
+starting with a listed group. The level and limit rule stayed retired.
+
+### New actions
+
+**None** (part 4 allows zero; plan #39). Of the four shares the rules aimed at, the one
+that didn't move is fix-added code (20.1% after round 1), and no mechanism was found with
+evidence that it would move it.
+
+### Follow-ups
+
+- #260: the review round ceiling, full, scoped, full. In #234's `Blocked by`.
