@@ -13,8 +13,7 @@ export function hasEnded(entry: Pick<Location, "ends_at">, now: Date): boolean {
 }
 
 // Whether the admin's list is from a Stockholm day before `now`'s (IS #251). `listedDay` is
-// the day, by the device's clock when it was sent, of the newest read that came back; null
-// before one has.
+// the day the list was last read for (`useAdminLocations` sets it), or null for none.
 export function listBehind(listedDay: number | null, now: Date): boolean {
   return listedDay !== null && listedDay < stockholmDay(now);
 }

@@ -8,7 +8,7 @@ describe("listBehind", () => {
   const midnight = new Date("2026-11-11T23:00:00Z");
   const listed = stockholmDay(lastSecond);
 
-  it("is false before any read has come back", () => {
+  it("is false with no listed day", () => {
     expect(listBehind(null, midnight)).toBe(false);
   });
 

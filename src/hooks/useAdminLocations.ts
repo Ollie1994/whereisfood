@@ -77,9 +77,13 @@ export function useAdminLocations(): {
   // Whether the trucks' read failed, read when a reload runs rather than from the render
   // the reload was made in: a read failing during an action is then still retried.
   const trucksFailed = useRef(false);
-  // The Stockholm day, by this device's clock when it was sent, of the newest entries read
-  // that came back (`listBehind`).
+  // The Stockholm day the list was last read for (`listBehind`), by this device's clock when
+  // the read was sent: the newest entries read that succeeded, or the day the screen opened
+  // on until one has.
   const listedDay = useRef<number | null>(null);
+  // Whether a read the tick sent hasn't answered, so the next tick doesn't send another and
+  // make it stale (`latestRead`).
+  const tickReading = useRef(false);
 
   // Applies an entries read, sent on Stockholm day `day`, if it is still the newest one sent.
   const applyEntries = useCallback((id: number, day: number, read: ApiResult<AdminEntry[]>) => {
@@ -134,13 +138,16 @@ export function useAdminLocations(): {
   //
   // A tick on a Stockholm day after the list's (`listBehind`) reads the entries again (IS
   // #251), so a screen left open past midnight, or asleep through it, lists the new day's 14
-  // days, and a read that fails is tried again at the next tick. Checked with the browser's
-  // clock moved to 23:59 (#251's comment). A limit: the server picks the window by its own
-  // clock, so a device clock ahead of it by more than the request takes gets the old day's
-  // window, counted as the new day's, until the next read.
+  // days, and a day-turn read that fails is tried again at a later tick. Checked with the
+  // browser's clock moved to 23:59, and with the network offline at the turn (#251's comment,
+  // PR #270). Limits: the server picks the window by its own clock, so a device clock ahead
+  // of it by more than the request takes gets the old day's window, counted as the new
+  // day's, until the next read. And a read refused for the session (401, 403) is sent again
+  // each minute, under its error, until the screen is opened again.
   useEffect(() => {
     const id = ++latestRead.current;
     const day = stockholmDay(new Date());
+    listedDay.current = day;
     const trucksId = ++latestTrucksRead.current;
     void fetchEntries().then((read) => applyEntries(id, day, read));
     void fetchTrucks().then((read) => applyTrucks(trucksId, read));
@@ -149,7 +156,12 @@ export function useAdminLocations(): {
       tick = setTimeout(() => {
         const at = new Date();
         setNow(at);
-        if (listBehind(listedDay.current, at)) void readAgain(trucksFailed.current);
+        if (!tickReading.current && listBehind(listedDay.current, at)) {
+          tickReading.current = true;
+          void readAgain(trucksFailed.current).finally(() => {
+            tickReading.current = false;
+          });
+        }
         arm();
       }, MINUTE_MS - (Date.now() % MINUTE_MS));
     };
