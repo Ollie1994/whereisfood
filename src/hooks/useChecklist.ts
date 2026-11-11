@@ -40,6 +40,9 @@ export type ChecklistState = {
   shown: Suggestion[];
   errors: { read: string | null; action: string | null };
   busyIds: readonly string[];
+  // The suggestions whose ✓ hasn't answered: "Sparar…" is for these only, not for one
+  // refused and waiting for the read after it.
+  savingIds: readonly string[];
   // Counts ✓s that created an entry: the place picker's recent places can change.
   creates: number;
   // When a save starts elsewhere on the screen: a ✓'s error from before it goes.
@@ -67,8 +70,8 @@ export function useChecklist({
   // new day.
   const [actionError, setActionError] = useState<{ id: string; text: string } | null>(null);
   // By `from_id`, every suggestion with a ✓ in flight, or answered and waiting for the read
-  // after it (`admin-busy.ts`, IS #269): until that read, a refused ✓'s suggestion shows as
-  // it was, and a second ✓ would be refused again.
+  // after it (`admin-busy.ts`, IS #269): until that read, a ✓ refused for an overlap leaves
+  // its suggestion showing, and a second ✓ would be refused again.
   const [busy, setBusy] = useState<readonly Busy[]>([]);
   // The ids hidden on `day`: kept here too, so a ✗ holds for this screen when storage fails.
   const [dismissed, setDismissed] = useState<{ day: string; ids: readonly string[] }>({ day: "", ids: [] });
@@ -115,7 +118,8 @@ export function useChecklist({
     setActionError(null);
     setBusy((rows) => [...rows, { id: suggestion.from_id, after: null }]);
     const result = await adminFetch("/api/admin/locations", { method: "POST", body: confirmBody(suggestion) });
-    // Read now, not in an updater (`useTrucks`' `setActive` says why).
+    // The newest read sent when the ✓ answered, for `confirmed` and the busy row both: this
+    // ✓'s read is sent by the effect after `setReads` below, so it has a higher id.
     const sent = latestRead.current;
     if (result.ok) {
       setConfirmed((list) => [...list, { id: suggestion.from_id, after: sent }]);
@@ -155,6 +159,7 @@ export function useChecklist({
     shown,
     errors: { read: readError, action: actionError?.text ?? null },
     busyIds: busy.map(({ id }) => id),
+    savingIds: busy.filter(({ after }) => after === null).map(({ id }) => id),
     creates,
     clearActionError: () => setActionError(null),
     reload: () => setReads((count) => count + 1),

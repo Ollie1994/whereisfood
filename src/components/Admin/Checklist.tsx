@@ -6,7 +6,7 @@ import { UNKNOWN_PLACE, entryTimeText } from "@/lib/admin-form";
 // The morning checklist (Phase 7 plan, step 11): each suggestion with ✓, which enters it as an
 // ordinary entry, and ✗, which hides it on this device today. `now` is the list's clock.
 export default function Checklist({ checklist, now }: { checklist: ChecklistState; now: Date }) {
-  const { checklist: read, shown, errors, busyIds, reload, confirm, dismiss } = checklist;
+  const { checklist: read, shown, errors, busyIds, savingIds, reload, confirm, dismiss } = checklist;
 
   return (
     <section className="flex flex-col gap-3">
@@ -34,6 +34,7 @@ export default function Checklist({ checklist, now }: { checklist: ChecklistStat
         <ul className="flex flex-col gap-3">
           {shown.map((suggestion) => {
             const busy = busyIds.includes(suggestion.from_id);
+            const saving = savingIds.includes(suggestion.from_id);
             return (
               <li key={suggestion.from_id} className="flex flex-col gap-2 rounded-md border border-foreground/20 p-3">
                 <div className="flex flex-col">
@@ -45,7 +46,7 @@ export default function Checklist({ checklist, now }: { checklist: ChecklistStat
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button type="button" onClick={() => void confirm(suggestion)} disabled={busy} className={SMALL_BUTTON}>
-                    {busy ? "Sparar…" : "✓ Stämmer"}
+                    {saving ? "Sparar…" : "✓ Stämmer"}
                   </button>
                   <button type="button" onClick={() => dismiss(suggestion)} disabled={busy} className={SMALL_BUTTON}>
                     ✗ Inte idag
