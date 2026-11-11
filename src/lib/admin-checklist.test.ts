@@ -196,8 +196,9 @@ describe("listMayHaveChanged", () => {
 });
 
 describe("checklistRefusal", () => {
-  // The texts the service sends (`OVERLAP_ADVICE`), so a rewording that stops ending in
-  // `CHANGE_THIS_ENTRY` fails here.
+  // Built from the texts the service sends (`OVERLAP_ADVICE`), so a rewording of them that
+  // stops ending in `CHANGE_THIS_ENTRY` fails here; the ended case also pins the swapped text
+  // as a literal (the owner's wording, IS #274).
   const ended = `Överlappar med 2026-11-11 08:00–10:00${OVERLAP_ADVICE.ended}`;
   const running = `Överlappar med 2026-11-11 11:30–13:00${OVERLAP_ADVICE.running}`;
 
@@ -220,6 +221,6 @@ describe("checklistRefusal", () => {
       expect(checklistRefusal(error, 409)).toBe(error);
     }
     expect(checklistRefusal(running, 400)).toBe(running);
-    expect(checklistRefusal(running)).toBe(running);
+    expect(checklistRefusal(running, undefined)).toBe(running);
   });
 });

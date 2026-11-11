@@ -1,9 +1,10 @@
 import { stockholmDay } from "@/lib/stockholm";
 import type { Location } from "@/lib/types";
 
-// How far ahead the admin's list reads, from the start of today (Phase 7 plan, #24). Its own
-// module, so the service (`listAdminEntries`) and the browser's form (`savedText`) both read
-// it without either depending on the other.
+// What the service and the admin screen share, in a module the browser can import (the
+// service can't be, `supabase.ts`): how far ahead the admin's list reads, from the start of
+// today (Phase 7 plan, #24; `listAdminEntries`, the form's `savedText`), the 409's advice,
+// when an entry has ended, and whether the list is from an earlier day.
 export const LIST_DAYS = 14;
 
 // The 409's advice, when #33 would refuse editing the other entry, to change this entry's

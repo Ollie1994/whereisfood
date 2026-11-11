@@ -67,7 +67,7 @@ export const USE_THE_FORM = " Lägg in en annan tid med formuläret.";
 // A ✓'s refusal as the checklist shows it: a ✓ has no time to change, so a 409's advice to
 // change this entry's time (`OVERLAP_ADVICE`'s `ended` and `running`) becomes advice to use
 // the form. Any other error, and any other status, is shown as it came.
-export function checklistRefusal(error: string, status?: number): string {
+export function checklistRefusal(error: string, status: number | undefined): string {
   if (status !== 409 || !error.endsWith(CHANGE_THIS_ENTRY)) return error;
   return error.slice(0, -CHANGE_THIS_ENTRY.length) + USE_THE_FORM;
 }

@@ -19,8 +19,8 @@ import { stockholmDay } from "@/lib/stockholm";
 // opening, on each `revision` (a save or cancel elsewhere on the screen changes what the
 // trucks have today), when the Stockholm day of the screen's clock `now` turns, after each
 // ✓, and on `reload`. ✓ posts the ordinary create, so an overlap answers 409 like the
-// form's, shown with advice a ✓ can follow (`checklistRefusal`); ✗ hides the suggestion on
-// this device for the checklist's day.
+// form's, its advice to change this entry's time swapped for one a ✓ can follow
+// (`checklistRefusal`); ✗ hides the suggestion on this device for the checklist's day.
 //
 // The checklist's day is the server's. While it is behind the screen's (the read crossed
 // midnight, or one clock is off), nothing is shown, so no ✓ or ✗ acts on yesterday's
