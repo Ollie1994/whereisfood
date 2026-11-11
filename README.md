@@ -442,7 +442,7 @@ Its row stays in the preview's history, and the checklist can leave out Taco Loc
 suggestions because of it, that day and in later weeks (`getChecklist`; its times have
 seconds, which `entryWallTimes` can't move to another day). Cancel it with "Ställ in" on
 `/admin` when the check is done: the list shows it until the day it ends is over
-(`listAdminEntries`). After that, only SQL in the SQL Editor, by the row's id, can.
+(`listAdminEntries`). After that, cancel it by its id in the SQL Editor.
 
 ---
 
