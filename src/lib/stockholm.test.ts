@@ -160,8 +160,9 @@ describe("wallClockToUtc", () => {
   });
 
   // date-fns-tz 3.2.0's `fromZonedTime` gave the first of 2026-10-25's two 02:30s on a New
-  // York or Los Angeles host (lines 188–189 check the second, CET, on every host), and its `formatInTimeZone` was an hour late for a wall time in the host's own gap
-  // (PR #238). The first five cases' date and time fall in their host's gap. Tokyo and UTC
+  // York or Los Angeles host, and its `formatInTimeZone` was an hour late for a wall time in
+  // the host's own gap (PR #238). Every case checks 2026-10-25's 02:30 and 02:00 give the
+  // second, CET. The first five cases' date and time fall in their host's gap. Tokyo and UTC
   // have one offset all of 2026, and Stockholm's gaps are its own, which no wall time falls
   // in, so theirs is an ordinary time.
   //
