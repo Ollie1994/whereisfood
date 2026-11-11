@@ -53,7 +53,8 @@ open.
 | 5 | Schema reset | done |
 | 6 | Live read path (first preview deploy) | done |
 | 7 | Admin | done |
-| 8 | Launch (first production deploy) | next; no plan yet |
+| 8 | CI/CD and security automation | next; no plan yet |
+| 9 | Launch (first production deploy) | not started |
 | later | Owners; optional automation | — |
 
 Phase contents are under "Target design → Phase map".
@@ -84,7 +85,7 @@ save-triggered cache purges, grey markers) without a concrete problem that needs
   describes it, server and client: the markers, the popup, polling and failure.
 - **A preview deploy** runs on Vercel against a hosted Supabase preview project, with
   the tiles on R2. `README.md`'s "Preview deploys" and "Hosted preview database" are
-  the one description of that setup. There is no production deploy (Phase 8).
+  the one description of that setup. There is no production deploy (Phase 9).
 - **The admin screens** (Phase 7), Swedish and phone-first: `/admin/login` (an emailed
   magic link), `/admin` ("Poster": the morning checklist, the entry form with its place
   picker, and the list of entries from today for 14 days, each with "Stämmer fortfarande"
@@ -107,8 +108,8 @@ extract` from a recent Protomaps daily build, with the bounding box from
 `NEXT_PUBLIC_PMTILES_URL=/gothenburg.pmtiles`.
 
 **Deploys read the same file from Cloudflare R2** (Phase 6 plan decision #7: pulled
-forward from Phase 8, so a preview tests the launch tile path). The bucket is served
-from its `r2.dev` URL for previews (open decision 1); Phase 8 moves it to a custom
+forward from the launch, so a preview tests the launch tile path). The bucket is served
+from its `r2.dev` URL for previews (open decision 1); Phase 9 moves it to a custom
 domain. Its CORS rule admits `http://localhost:3000` and a pattern for this project's
 Vercel preview URLs (open decision 10). What that rule admits and doesn't, and how to
 check the bucket, is `README.md`'s "Get the map tiles", the one description.
@@ -226,7 +227,7 @@ included, applied (#5); the API roles' table grants in `public` are the migratio
 (`README.md`, "Hosted preview database", gives the query and the result), and `anon`
 gets `42501` on all three tables; the Data API's **Max rows** is 1000, equal to
 `MAX_ROWS` (`complete.ts` holds the value read). Max rows is set in the dashboard, not
-from `config.toml`, so a new hosted project (production's, Phase 8) is read there
+from `config.toml`, so a new hosted project (production's, Phase 9) is read there
 before the app uses it: below `MAX_ROWS`, a `listRecentLocationsForTruck` call whose
 `limit` is above the hosted cap would return a cut result with no error (PR #167 round
 5). The rule is `CLAUDE.md`'s ("db layer").
@@ -407,7 +408,8 @@ queries it by hand, as a dev-only authoring tool for `SPOTS`).
 | 5 · Schema reset (done) | Squashed baseline: `trucks`, `locations`, `users`; `btree_gist` + exclusion constraint + `CHECK (ends_at > starts_at)` + `updated_at` trigger; RLS + explicit GRANTs (no anon SELECT on `trucks`/`locations`); regenerate types; rewrite `seed.sql`, `db/trucks.ts`, `db/locations.ts` (with the history queries) and the integration tests (constraint, cancelled rows don't block, CHECK, RLS) |
 | 6 · Live read path (done) | `GET /api/live` and its service; `useLocations` (polling, timer, marker diffing); the popup with freshness text and Instagram link; `fake-data.ts` and `map-types.ts` deleted; the `is_active` filter in the service; the tiles on R2; a hosted Supabase project for previews, with the hosted checks; the **first preview deploy**, with the CDN cache checked (MISS → HIT → STALE) and requests per visit counted; Node and npm in `package.json` (#139) |
 | 7 · Admin (done) | Magic-link login, admin only (sign-ups off, locally and on the preview); the session and `is_admin` checks in `proxy.ts` and `withAdmin` on every admin route, with `no-store` and the `Origin` check; trucks added, edited and set inactive (no delete); phone-first location entry by known spot, recent place, map tap or GPS; edit; cancel; "Stämmer fortfarande"; overlap → 409; the morning checklist; three phone checkpoints on the preview (#224, #228, #232) |
-| 8 · Launch | The history retention period, for the privacy note below (Phase 7 plan #25); the app's final name, until then **WhereIsFood** in the admin screens and "Var är maten? \| Göteborg" as the public title (#26, open decision 10); Supabase Pro (backups); a production Supabase project, new keys (Phase 6 plan #18); the tiles' custom domain on R2, and the CORS rule naming it (the bucket is Phase 6's, #7); production env, added only after checking the Ignored Build Step ("Pre-deploy automation (planned)"); security headers; Swedish privacy note; takedown procedure (one transaction: delete the truck's locations, clear or delete each `users` row pointing at it, then delete the truck; Phase 5 plan #7); tell trucks they're listed; acquisition plan; runbook (Vercel Attack Mode, usage emails); Vercel Pro + Spend Management before the first marketing push; **before the deploy**, "Pre-deploy automation (planned)": CI/CD, SAST, secret scanning, branch protection, 2FA on every account, and rotating every credential |
+| 8 · CI/CD and security automation | What "Pre-deploy automation (planned)" lists to build: the four gates in GitHub Actions, with a local Supabase in the job; a pre-commit and CI secret scan; SAST and a dependency check; Dependabot security updates once the gates run; branch protection; CI secrets for Dependabot and fork PRs. Then the 2FA audit of every account and its recovery email. Built before Phase 9's production deploy (Phase 6 plan #1) |
+| 9 · Launch | The history retention period, for the privacy note below (Phase 7 plan #25); the app's final name, until then **WhereIsFood** in the admin screens and "Var är maten? \| Göteborg" as the public title (#26, open decision 10); Supabase Pro (backups); a production Supabase project, new keys (Phase 6 plan #18); the tiles' custom domain on R2, and the CORS rule naming it (the bucket is Phase 6's, #7); production env, added only after checking the Ignored Build Step ("Pre-deploy automation (planned)"); security headers; Swedish privacy note; takedown procedure (one transaction: delete the truck's locations, clear or delete each `users` row pointing at it, then delete the truck; Phase 5 plan #7); tell trucks they're listed; acquisition plan; runbook (Vercel Attack Mode, usage emails); Vercel Pro + Spend Management before the first marketing push; **before the deploy**, the checks under "Pre-deploy automation (planned)", "Before the production deploy": 2FA confirmed on every account, the Ignored Build Step, Dependabot branches and the preview secrets, rotating every credential |
 | later | Owners (claim flow, owner dashboard, override rules, custom SMTP); optional automation (Meta Business Discovery captions in the admin screen, a scheduler) |
 
 ## Data model (built in Phase 5)
@@ -656,7 +658,8 @@ as "Phase 7 #n", and its answered open decisions. The rules are `CLAUDE.md`'s
 ## Pre-deploy automation (planned)
 
 Planned by the owner on 2026-10-24 (IS #176) as **one piece of work, designed together,
-before the first production deploy (Phase 8)**. Until then every gate is manual
+before the first production deploy**: Phase 8 builds it, before Phase 9's deploy. Until
+then every gate is manual
 (`CLAUDE.md`, "Testing"). Nothing below exists yet unless marked **on**.
 
 **Already on** (repository and account settings, the owner, 2026-10-24):
@@ -763,7 +766,8 @@ where secrets live meanwhile are `CLAUDE.md`'s ("Secrets").
 ## Open decisions
 
 For the plans to settle (`transition.md` §12). Phase 7 settled the checklist look-back
-(Phase 7 plan #22) and the pre-filled times (#23), and moved these two to Phase 8:
+(Phase 7 plan #22) and the pre-filled times (#23), and moved these two to the launch, now
+Phase 9:
 1. **Retention period** for detailed location history (GDPR; #25).
 2. **App name** for UI text (#26; until then the admin screens say WhereIsFood).
 
@@ -896,20 +900,20 @@ says.
 | Phase 5 #24 (PR #175) | Where a decision settled between phases goes, and how the next plan and reconciliation take it up | `CLAUDE.md` "Process Log" (the one copy) |
 | IS #171 (PR #173) | The sweep also lists each code pattern a fix guards; a claim is backed by a command that could show it false, and a behaviour a probe can settle is probed, not hedged | `CLAUDE.md` "Review rounds" |
 | Phase 5 #4, #14 | The CHECK is part of the overlap guard (an empty range overlaps nothing), so it is never relaxed; indexes are the constraint's plus one per read, and another needs a measured query | Part 1 "Database" |
-| Phase 5 #6, #7 | Revoke, then grant per table; foreign keys to `trucks` stay `NO ACTION`. **The takedown (Phase 8) is one transaction:** delete the truck's locations, clear or delete each `users` row whose `truck_id` points at it, then delete the truck | `CLAUDE.md` "Hard Rules" ("Supabase", "Locations"); Part 2's Phase map (Phase 8 row) |
+| Phase 5 #6, #7 | Revoke, then grant per table; foreign keys to `trucks` stay `NO ACTION`. **The takedown (Phase 9) is one transaction:** delete the truck's locations, clear or delete each `users` row whose `truck_id` points at it, then delete the truck | `CLAUDE.md` "Hard Rules" ("Supabase", "Locations"); Part 2's Phase map (Phase 9 row) |
 | Phase 5 #12; Phase 6 #13 | `label` is nullable; a missing one leaves the popup's place line out | Part 2 "Read path" (client) |
-| Phase 5 #19; PR #167 round 5 (`max_rows`) | A hosted project is checked for `sv-SE-x-icu`, both extensions in `extensions` and the Data API's Max rows before the app uses it (the preview project's passed, 2026-11-02; production's is Phase 8's) | Part 1 "Database"; `CLAUDE.md` "Hard Rules" ("db layer", Max rows) |
+| Phase 5 #19; PR #167 round 5 (`max_rows`) | A hosted project is checked for `sv-SE-x-icu`, both extensions in `extensions` and the Data API's Max rows before the app uses it (the preview project's passed, 2026-11-02; production's is Phase 9's) | Part 1 "Database"; `CLAUDE.md` "Hard Rules" ("db layer", Max rows) |
 | Phase 5 #9, #11, #13 | Built in Phase 7: the checklist reuses `findLocationsOverlapping` with its own day windows; truck writes came with the truck screen; the Gothenburg box is checked by the location validator, never a database CHECK | Part 1 "Database" (the db layer, coordinates) |
-| Phase 6 #1 (IS #176) | CI/CD (the four gates in GitHub Actions), SAST (SonarQube Cloud preferred), a pre-commit and CI secret scan, Dependabot security updates once CI runs, and branch protection are one piece of Phase 8's work, built before its production deploy | Part 2 "Pre-deploy automation (planned)"; `CLAUDE.md` "Testing" |
+| Phase 6 #1 (IS #176) | CI/CD (the four gates in GitHub Actions), SAST (SonarQube Cloud preferred), a pre-commit and CI secret scan, Dependabot security updates once CI runs, and branch protection are one piece of Phase 8's work, built before Phase 9's production deploy | Part 2 "Pre-deploy automation (planned)"; `CLAUDE.md` "Testing" |
 | Phase 6 #2 (IS #176) | The "deploy" in the 2026-09-06 decision "Gates stay manual until deploy" is the official production deploy, not a preview deploy | `CLAUDE.md` "Testing" |
 | Phase 6 #3 (IS #176) | Two-factor authentication on every account that can reach the project, by passkey, hardware key or authenticator app, not SMS; set up as each account is created, checked again before the production deploy | `CLAUDE.md` Hard Rules ("Secrets", the rule); Part 2 "Pre-deploy automation (planned)" (which accounts meet it, and the pre-deploy check) |
 | Phase 6 #4 (IS #176) | Every credential that existed before the production deploy is rotated, or replaced by a new project's, before it | Part 2 "Pre-deploy automation (planned)" (the pre-deploy rotation). `CLAUDE.md`'s rotation rule ("Secrets") is another one, for a secret that reached a commit |
 | Phase 6 #5 (IS #176) | Hosted secrets for deploys and CI live in Vercel environment variables, GitHub Actions and Dependabot secrets; developers' own copies stay on their machine; none in a tracked or shared file | `CLAUDE.md` Hard Rules ("Secrets") |
 | Phase 6 #6 (IS #178) | `next.config.ts` sets `experimental.agentUpgrade: false`, so an agent-run build or dev server doesn't fail, or query the advisory source, when an advisory covers the installed Next; advisories come through Dependabot alerts and `npm audit` | `CLAUDE.md` "Dependencies"; the comment in `next.config.ts` |
-| Phase 6 #7 | The tiles are on Cloudflare R2 for every deploy, pulled forward from Phase 8; development keeps the local file; Phase 8 moves the bucket to a custom domain | Part 1 "Map tiles"; Part 2's Phase map (Phase 8 row) and "Pricing" |
+| Phase 6 #7 | The tiles are on Cloudflare R2 for every deploy, pulled forward from the launch; development keeps the local file; Phase 9 moves the bucket to a custom domain | Part 1 "Map tiles"; Part 2's Phase map (Phase 9 row) and "Pricing" |
 | Phase 6 #9, #10, #11, #17, #20 | The read path's server: the `is_active` filter in the service, the first service, entries built field by field, no segment config on the route, a row failing `isLiveEntry` dropped | Part 2 "Read path" (server); `CLAUDE.md` "`/api/live`" (no segment config, the column list) |
 | Phase 6 #12, #14, #15, #16, #21; open decisions 5–8 | The map's behaviour: one marker per truck, a pure marker diff, the clock only in hooks, a failed poll keeping the last good markers with a notice, the popup's hours and freshness text, the empty state, two marker states | `CLAUDE.md` "UI Rules" (#12, #16, open decision 5); Part 2 "Read path" (client) |
-| Phase 6 #18 | The preview database is a separate, disposable free project, with preview keys only; production gets a new project in Phase 8 | Part 2's Phase map (Phase 8 row); "Pricing" ("Supabase Free") |
+| Phase 6 #18 | The preview database is a separate, disposable free project, with preview keys only; production gets a new project in Phase 9 | Part 2's Phase map (Phase 9 row); "Pricing" ("Supabase Free") |
 | Phase 6 #22 | The read path's scaling limits are known and written down, with their fixes and the first trigger; nothing is built for them yet | Part 2 "Read path" ("Scaling limits") |
 | Phase 6 #23 (PR #201) | The Phase 6 retrospective's calls: `scripts/sweep.sh` (IS #200); the review-row level and limit rule retired (from row 422 a review row records neither, and a count may have been cut by the default limit); no action on row 325's repeats | `CLAUDE.md` "Review rounds"; the log's "Columns" ("What one row is") |
 | Phase 6 #24 | Dependabot alert #7 (`minimatch` before 11.0.1, dev only) dismissed; revisit if `npm audit --omit=dev` lists it or a lint run takes glob patterns from outside the repo | Part 1 "Versions" |
@@ -933,5 +937,6 @@ says.
 | Phase 7 #31 | Stockholm days come from `stockholm.ts`'s whole-day arithmetic, never `now - 7 × 24 h` | `CLAUDE.md` "Time" (added by IS #234) |
 | Phase 7 #36 | An issue's browser checks run locally at phone width; the phone on `dev`'s preview is for checkpoints | `CLAUDE.md` "Testing" |
 | Phase 7 #37 | "Poster" and "Foodtrucks" in every admin header but the login's; a question before "Sätt inaktiv" | Part 2 "Admin and auth" |
-| Phase 7 #25, #26; open decision 10 | History retention and the app's final name are Phase 8's; until then the admin screens say WhereIsFood and the public title stays | Part 2 "Phase map" (Phase 8 row) and "Open decisions" |
+| Phase 7 #25, #26; open decision 10 | History retention and the app's final name are the launch's, now Phase 9's; until then the admin screens say WhereIsFood and the public title stays | Part 2 "Phase map" (Phase 9 row) and "Open decisions" |
 | Phase 7 open decisions 1–5 | The login is a magic link (a 6-digit code is IS #241); a session lasts until logout; a phone gets past Deployment Protection by logging in to Vercel; the preview's Redirect URLs are `dev`'s alias alone, no wildcard; the admin user is made by hand | `README.md` "Hosted preview database" (the Redirect URLs) and "5. Create the admin user"; Part 2 "Admin and auth" (the link, the session); this row (a phone's Vercel login) |
+| **between phases**, 2026-11-11, IS #265 | Phase 8 is CI/CD and security automation (what "Pre-deploy automation (planned)" lists to build, and the 2FA audit); the production launch moves to Phase 9 and runs through working CI. The owner's call, to keep each milestone smaller. Phase 6 #1 still holds: CI/CD is built before the production deploy | Part 2's Phase map and the Roadmap; `CLAUDE.md` "Testing" |
