@@ -9,9 +9,9 @@ import type { AdminEntry } from "@/lib/services/locations";
 // starting (the form's or a checklist ✓) clears the list's and the checklist's older action
 // errors, a save answered 404 or 409 reloads the list and the checklist (`onGone`), and a
 // list button or a ✓ clears the form's "Sparat."; "Stämmer fortfarande" and a confirmed
-// "Ställ in" clear the checklist's error too. A ✓ also reloads the list, and a save or
-// cancel reloads the checklist. Here, not in a component (`CLAUDE.md`, "UI Rules":
-// components only render).
+// "Ställ in" clear the checklist's error too. A ✓ also reloads the list, unless refused with
+// a 4xx other than 409 (`listMayHaveChanged`), and a save or cancel reloads the checklist.
+// Here, not in a component (`CLAUDE.md`, "UI Rules": components only render).
 export function useAdminScreen() {
   const list = useAdminLocations();
   const { editing, stopEdit, reload, clearActionError } = list;
@@ -39,7 +39,7 @@ export function useAdminScreen() {
   const checklist = useChecklist({
     revision: form.saves + list.cancels,
     now: list.now,
-    onCreated: reload,
+    reloadList: reload,
   });
   // The place picker fills the form's place, and reads the form's truck's places.
   const picker = usePlacePicker({

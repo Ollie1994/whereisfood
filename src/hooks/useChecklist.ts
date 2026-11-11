@@ -4,6 +4,7 @@ import {
   checklistOf,
   confirmBody,
   isBehind,
+  listMayHaveChanged,
   readDismissed,
   stillHidden,
   writeDismissed,
@@ -47,7 +48,8 @@ export type ChecklistState = {
   // that error for a suggestion no longer listed. After the answer ✗ is on: it sends no
   // request.
   savingIds: readonly string[];
-  // Counts ✓s that created an entry: the place picker's recent places can change.
+  // Counts ✓s known to have created an entry (answered 2xx and read): the place picker's
+  // recent places can change.
   creates: number;
   // When a save starts elsewhere on the screen: a ✓'s error from before it goes.
   clearActionError: () => void;
@@ -60,12 +62,17 @@ export type ChecklistState = {
 export function useChecklist({
   revision,
   now,
-  onCreated,
+  reloadList,
 }: {
   revision: number;
   // The screen's clock, set each minute and on each list read (`useAdminLocations`).
   now: Date;
-  onCreated: () => Promise<void>;
+  // Reads the entry list again after a ✓, when its answer may have changed what the list
+  // should show (`listMayHaveChanged`, IS #272). Limits: after an answer with no status (a
+  // failed request, or a 2xx `adminFetch` couldn't read) whose insert committed, the place
+  // picker's recent places aren't read again (`creates`). And `withAdmin`'s own 503 (Auth
+  // unreachable, before any insert) reads the list too, which shows that error twice.
+  reloadList: () => Promise<void>;
 }): ChecklistState {
   const [checklist, setChecklist] = useState<Checklist | null>(null);
   const [readError, setReadError] = useState<string | null>(null);
@@ -133,9 +140,9 @@ export function useChecklist({
     }
     setBusy((rows) => answered(rows, suggestion.from_id, sent));
     // Read again either way, before the list's reload rather than after it: a created entry,
-    // or a 409's, now overlaps the suggestion.
+    // a 409's, or one an answer lost may have created, now overlaps the suggestion.
     setReads((count) => count + 1);
-    if (result.ok) await onCreated();
+    if (listMayHaveChanged(result)) await reloadList();
   }
 
   const hidden = [
