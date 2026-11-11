@@ -37,18 +37,16 @@ describe("adminFetch", () => {
 });
 
 describe("mayHaveChanged", () => {
-  it("is true after a success, a 404, a 409, a lost answer and a 5xx", () => {
+  it("is true after a success, an answer with no status, and any refusal but the session's", () => {
     expect(mayHaveChanged({ ok: true })).toBe(true);
-    expect(mayHaveChanged({ ok: false, status: 404 })).toBe(true);
-    expect(mayHaveChanged({ ok: false, status: 409 })).toBe(true);
     expect(mayHaveChanged({ ok: false })).toBe(true);
-    expect(mayHaveChanged({ ok: false, status: 500 })).toBe(true);
-    expect(mayHaveChanged({ ok: false, status: 503 })).toBe(true);
+    for (const status of [400, 404, 408, 409, 422, 500, 503]) {
+      expect(mayHaveChanged({ ok: false, status })).toBe(true);
+    }
   });
 
-  it("is false after any other 4xx", () => {
-    for (const status of [400, 401, 403, 408, 422]) {
-      expect(mayHaveChanged({ ok: false, status })).toBe(false);
-    }
+  it("is false after a session refusal, 401 or 403", () => {
+    expect(mayHaveChanged({ ok: false, status: 401 })).toBe(false);
+    expect(mayHaveChanged({ ok: false, status: 403 })).toBe(false);
   });
 });

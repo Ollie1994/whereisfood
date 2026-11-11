@@ -116,8 +116,8 @@ export function useTrucks(): TrucksState {
       // error, as the entry form's does; "Avbryt" closes it. Limits: after a create that
       // committed but whose answer was lost, or a 5xx after it, the form keeps its values, and
       // a second "Spara" makes a second truck unless its handle is taken (a name isn't unique,
-      // and there is no delete). And `withAdmin`'s own 503, before any write, reads the list
-      // too, which shows that error twice.
+      // and there is no delete). And a failure that breaks the read too (Auth or the database
+      // unreachable, the network down) shows its error under the form and the list.
       if (mayHaveChanged(result)) await reload();
       return;
     }

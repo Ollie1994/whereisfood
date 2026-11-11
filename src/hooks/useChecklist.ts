@@ -70,10 +70,11 @@ export function useChecklist({
   // The screen's clock, set each minute and on each list read (`useAdminLocations`).
   now: Date;
   // Reads the entry list again after a ✓, when its answer may have changed what the list
-  // should show (`mayHaveChanged`, IS #272). Limits: after an answer with no status (a
-  // failed request, or a 2xx `adminFetch` couldn't read) whose insert committed, the place
-  // picker's recent places aren't read again (`creates`). And `withAdmin`'s own 503 (Auth
-  // unreachable, before any insert) reads the list too, which shows that error twice.
+  // should show (`mayHaveChanged`, IS #272). Limits: after an insert that committed but whose
+  // answer had no status (a failed request, or a 2xx `adminFetch` couldn't read), or a 5xx
+  // after it, the place picker's recent places aren't read again (`creates`). And a failure
+  // that breaks the reads too (Auth or the database unreachable, the network down) shows its
+  // error under the ✓, the checklist and the list.
   reloadList: () => Promise<void>;
 }): ChecklistState {
   const [checklist, setChecklist] = useState<Checklist | null>(null);

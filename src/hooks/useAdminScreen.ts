@@ -7,12 +7,12 @@ import type { AdminEntry } from "@/lib/services/locations";
 
 // The admin screen's hooks, joined: a save closes its edit and reloads the list, a save
 // starting (the form's or a checklist ✓) clears the list's and the checklist's older action
-// errors, a refused save that may have left them behind reloads the list and the checklist
-// (`onStale`, `mayHaveChanged`), and a list button or a ✓ clears the form's "Sparat.";
-// "Stämmer fortfarande" and a confirmed "Ställ in" clear the checklist's error too. A ✓ also
-// reloads the list when its answer may have changed it (`mayHaveChanged`), and a save or
-// cancel reloads the checklist.
-// Here, not in a component (`CLAUDE.md`, "UI Rules": components only render).
+// errors, a save answered with anything but a readable success that may have left them
+// behind reloads the list and the checklist (`onStale`, `mayHaveChanged`), and a list
+// button or a ✓ clears the form's "Sparat."; "Stämmer fortfarande" and a confirmed "Ställ
+// in" clear the checklist's error too. A ✓ also reloads the list when its answer may have
+// changed it (`mayHaveChanged`), and a save or cancel reloads the checklist. Here, not in a
+// component (`CLAUDE.md`, "UI Rules": components only render).
 export function useAdminScreen() {
   const list = useAdminLocations();
   const { editing, stopEdit, reload, clearActionError } = list;

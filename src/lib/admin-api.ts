@@ -14,15 +14,14 @@ export const API_ERRORS = {
 } as const;
 
 // Whether a write's answer may have left the screen's list behind, so it is read again (IS
-// #272, #275): after a success; a 404, an entry gone; a 409, for an entry the screen may not
-// have read; an answer with no status (a failed request, or a 2xx this couldn't read), whose
-// write may have committed; and a 5xx. Not after another 4xx: the app's own (400, 401, 403)
-// refuse before writing and name no entry, and a 401's read would only show the session's
-// error twice. The entries form, the trucks form and a checklist ✓ read by it. A limit: a
-// proxy's 4xx sent after it passed the write on (a 408) counts as nothing written.
+// #272, #275): after any answer but a session refusal (401, 403), whose reads would be
+// refused the same way. A 404 or 409 is about a row the screen may not show; a 400 can come
+// from a row another tab changed (an edit's times out of order, an entry ended, a truck set
+// inactive); an answer with no status (a failed request, or a 2xx this couldn't read) or a
+// 5xx may follow a write that committed. The entries form, the trucks form and a checklist ✓
+// read by it.
 export function mayHaveChanged(result: { ok: true } | { ok: false; status?: number }): boolean {
-  if (result.ok || result.status === undefined) return true;
-  return result.status === 404 || result.status === 409 || result.status >= 500;
+  return result.ok || (result.status !== 401 && result.status !== 403);
 }
 
 export async function adminFetch<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<ApiResult<T>> {

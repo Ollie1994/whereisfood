@@ -56,9 +56,9 @@ export function useLocationForm({
   // (`mayHaveChanged` says which, IS #275): the list is read again, so it says so. Limits:
   // after a write that committed but whose answer was lost, or a 5xx after it, the form keeps
   // its values and `saves` doesn't move, so the place picker isn't read again, and for a new
-  // entry a second "Spara" is refused with 409 against the first. And `withAdmin`'s own 503
-  // (Auth unreachable, before any write) reads the list and the checklist too, which shows
-  // that error three times.
+  // entry a second "Spara" is refused with 409 against the first. And a failure that breaks
+  // the reads too (Auth or the database unreachable, the network down) shows its error under
+  // the form, the list and the checklist.
   onStale: () => Promise<void>;
 }): LocationFormState {
   const [values, setValues] = useState(() => (editing ? formFromEntry(editing) : emptyForm(new Date())));
