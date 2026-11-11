@@ -39,9 +39,11 @@ export type ChecklistState = {
   // The suggestions not hidden by ✗, nor by a ✓ that created them.
   shown: Suggestion[];
   errors: { read: string | null; action: string | null };
+  // The suggestions whose ✓ is in flight, or answered and waiting for the read after it:
+  // their ✓ is off.
   busyIds: readonly string[];
-  // The suggestions whose ✓ hasn't answered: "Sparar…" is for these only, not for one
-  // refused and waiting for the read after it.
+  // The suggestions whose ✓ hasn't answered: "Sparar…", and ✗ off, for these only. ✗ sends
+  // no request, so a refused ✓ waiting for its read leaves it on.
   savingIds: readonly string[];
   // Counts ✓s that created an entry: the place picker's recent places can change.
   creates: number;
@@ -118,8 +120,9 @@ export function useChecklist({
     setActionError(null);
     setBusy((rows) => [...rows, { id: suggestion.from_id, after: null }]);
     const result = await adminFetch("/api/admin/locations", { method: "POST", body: confirmBody(suggestion) });
-    // The newest read sent when the ✓ answered, for `confirmed` and the busy row both: this
-    // ✓'s read is sent by the effect after `setReads` below, so it has a higher id.
+    // The newest read sent when the ✓ answered, for `confirmed` and the busy row both; this
+    // ✓'s own read, sent by the effect after `setReads` below, has a higher id. PR #271's
+    // browser check: a refused ✓ sent one 409, its ✓ stayed off until that read applied.
     const sent = latestRead.current;
     if (result.ok) {
       setConfirmed((list) => [...list, { id: suggestion.from_id, after: sent }]);

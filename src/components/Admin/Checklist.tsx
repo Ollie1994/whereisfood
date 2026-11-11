@@ -48,7 +48,7 @@ export default function Checklist({ checklist, now }: { checklist: ChecklistStat
                   <button type="button" onClick={() => void confirm(suggestion)} disabled={busy} className={SMALL_BUTTON}>
                     {saving ? "Sparar…" : "✓ Stämmer"}
                   </button>
-                  <button type="button" onClick={() => dismiss(suggestion)} disabled={busy} className={SMALL_BUTTON}>
+                  <button type="button" onClick={() => dismiss(suggestion)} disabled={saving} className={SMALL_BUTTON}>
                     ✗ Inte idag
                   </button>
                 </div>
