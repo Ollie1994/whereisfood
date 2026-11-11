@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   DISMISSED_KEY,
+  USE_THE_FORM,
   checklistOf,
+  checklistRefusal,
   confirmBody,
   fromText,
   isBehind,
@@ -10,6 +12,8 @@ import {
   stillHidden,
   writeDismissed,
 } from "@/lib/admin-checklist";
+import { OVERLAP_ADVICE } from "@/lib/admin-list";
+import { API_ERRORS } from "@/lib/admin-api";
 import type { Suggestion } from "@/lib/services/checklist";
 
 const SUGGESTION: Suggestion = {
@@ -189,5 +193,35 @@ describe("listMayHaveChanged", () => {
     for (const status of [400, 401, 403, 404, 408, 499]) {
       expect(listMayHaveChanged({ ok: false, status })).toBe(false);
     }
+  });
+});
+
+describe("checklistRefusal", () => {
+  // Built from the texts the service sends (`OVERLAP_ADVICE`), so a rewording of them that
+  // stops ending in `CHANGE_THIS_ENTRY` fails here; the ended case also pins the swapped text
+  // as a literal (the owner's wording, IS #274).
+  const ended = `Överlappar med 2026-11-11 08:00–10:00${OVERLAP_ADVICE.ended}`;
+  const running = `Överlappar med 2026-11-11 11:30–13:00${OVERLAP_ADVICE.running}`;
+
+  it("swaps a 409's advice to change this entry's time for the form's, ended or running", () => {
+    expect(checklistRefusal(ended, 409)).toBe(
+      "Överlappar med 2026-11-11 08:00–10:00, som redan har slutat. Lägg in en annan tid med formuläret.",
+    );
+    expect(checklistRefusal(running, 409)).toBe(
+      `Överlappar med 2026-11-11 11:30–13:00, som pågår nu.${USE_THE_FORM}`,
+    );
+  });
+
+  it("leaves any other error, and that text under any other status, as it came", () => {
+    for (const error of [
+      `Överlappar med 2026-11-11 18:30–19:30${OVERLAP_ADVICE.edit}`,
+      "Överlappar med en annan post för samma foodtruck",
+      "Tiden har redan passerat",
+      API_ERRORS.network,
+    ]) {
+      expect(checklistRefusal(error, 409)).toBe(error);
+    }
+    expect(checklistRefusal(running, 400)).toBe(running);
+    expect(checklistRefusal(running, undefined)).toBe(running);
   });
 });

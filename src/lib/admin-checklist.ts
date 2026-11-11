@@ -1,3 +1,4 @@
+import { CHANGE_THIS_ENTRY } from "@/lib/admin-list";
 import type { Checklist, Suggestion } from "@/lib/services/checklist";
 import { dayOf, stockholmDay } from "@/lib/stockholm";
 import { isTimestamp } from "@/lib/timestamp";
@@ -58,6 +59,17 @@ export type Confirmed = { id: string; after: number };
 // server leaves them out by then (they overlap the entry the ✓ made).
 export function stillHidden(confirmed: readonly Confirmed[], readId: number): Confirmed[] {
   return confirmed.filter(({ after }) => after >= readId);
+}
+
+// What a ✓'s refusal says in place of `CHANGE_THIS_ENTRY` (IS #274, the owner's wording).
+export const USE_THE_FORM = " Lägg in en annan tid med formuläret.";
+
+// A ✓'s refusal as the checklist shows it: a ✓ has no time to change, so a 409's advice to
+// change this entry's time (`OVERLAP_ADVICE`'s `ended` and `running`) becomes advice to use
+// the form. Any other error, and any other status, is shown as it came.
+export function checklistRefusal(error: string, status: number | undefined): string {
+  if (status !== 409 || !error.endsWith(CHANGE_THIS_ENTRY)) return error;
+  return error.slice(0, -CHANGE_THIS_ENTRY.length) + USE_THE_FORM;
 }
 
 // Whether the entry list is read again after a ✓'s answer (IS #272): after a success; a 409,

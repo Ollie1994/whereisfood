@@ -8,7 +8,7 @@ import {
   listRecentLocationsForTruck,
   updateLocation,
 } from "@/lib/db/locations";
-import { LIST_DAYS, hasEnded } from "@/lib/admin-list";
+import { LIST_DAYS, OVERLAP_ADVICE, hasEnded } from "@/lib/admin-list";
 import { getActiveTruckById, listAllTrucks } from "@/lib/db/trucks";
 import { hasCode, namesConstraint } from "@/lib/services/postgres";
 import { stockholmDay, stockholmMidnight, stockholmWallClock } from "@/lib/stockholm";
@@ -43,14 +43,6 @@ export const ENTRY_ERRORS = {
   endedEdit: "Posten har redan slutat och kan inte ändras",
   notFound: "Posten finns inte",
   overlap: "Överlappar med en annan post för samma foodtruck",
-} as const;
-
-// What the 409 tells the admin after "Överlappar med <the other entry's times>": edit that
-// entry, or, when #33 would refuse that edit, change this one (the owner's wording).
-export const OVERLAP_ADVICE = {
-  edit: " — redigera den istället",
-  ended: ", som redan har slutat. Ändra tiden på den här posten.",
-  running: ", som pågår nu. Ändra tiden på den här posten.",
 } as const;
 
 const refuse = (reason: Refusal["reason"], error: string): Refusal => ({ ok: false, reason, error });

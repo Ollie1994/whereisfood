@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   type Confirmed,
   checklistOf,
+  checklistRefusal,
   confirmBody,
   isBehind,
   listMayHaveChanged,
@@ -18,7 +19,8 @@ import { stockholmDay } from "@/lib/stockholm";
 // opening, on each `revision` (a save or cancel elsewhere on the screen changes what the
 // trucks have today), when the Stockholm day of the screen's clock `now` turns, after each
 // ✓, and on `reload`. ✓ posts the ordinary create, so an overlap answers 409 like the
-// form's; ✗ hides the suggestion on this device for the checklist's day.
+// form's, its advice to change this entry's time swapped for one a ✓ can follow
+// (`checklistRefusal`); ✗ hides the suggestion on this device for the checklist's day.
 //
 // The checklist's day is the server's. While it is behind the screen's (the read crossed
 // midnight, or one clock is off), nothing is shown, so no ✓ or ✗ acts on yesterday's
@@ -136,7 +138,8 @@ export function useChecklist({
       setConfirmed((list) => [...list, { id: suggestion.from_id, after: sent }]);
       setCreates((count) => count + 1);
     } else {
-      setActionError({ id: suggestion.from_id, text: `${suggestion.truck_name}: ${result.error}` });
+      const text = checklistRefusal(result.error, result.status);
+      setActionError({ id: suggestion.from_id, text: `${suggestion.truck_name}: ${text}` });
     }
     setBusy((rows) => answered(rows, suggestion.from_id, sent));
     // Read again either way, before the list's reload rather than after it: a created entry,
