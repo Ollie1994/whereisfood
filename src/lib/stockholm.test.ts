@@ -148,7 +148,7 @@ describe("wallClockToUtc", () => {
     expect(iso(wallClockToUtc(day("2026-03-29"), "03:00"))).toBe("2026-03-29T01:00:00.000Z");
   });
 
-  // Not 01:30 CET, which date-fns-tz 3.2.0's `fromZonedTime` gives for 02:30 (PR #238).
+  // Not 01:30 CET, which date-fns-tz 3.2.0's `fromZonedTime` gave for 02:30 (PR #238).
   it.each(["02:00", "02:30", "02:59"])("on 2026-03-29, gives null for %s, which the day doesn't have", (time) => {
     expect(wallClockToUtc(day("2026-03-29"), time)).toBeNull();
   });
@@ -159,11 +159,11 @@ describe("wallClockToUtc", () => {
     expect(iso(wallClockToUtc(day("2026-10-25"), "03:00"))).toBe("2026-10-25T02:00:00.000Z");
   });
 
-  // `fromZonedTime` gives the first occurrence on a New York or Los Angeles host, and
-  // `formatInTimeZone` is an hour late for a wall time in the host's own gap (PR #238). The
-  // first five cases' date and time fall in their host's gap. Tokyo and UTC have one offset
-  // all of 2026, and Stockholm's gaps are its own, which no wall time falls in, so theirs is
-  // an ordinary time.
+  // date-fns-tz 3.2.0's `fromZonedTime` gave the first occurrence on a New York or Los Angeles
+  // host, and its `formatInTimeZone` was an hour late for a wall time in the host's own gap
+  // (PR #238). The first five cases' date and time fall in their host's gap. Tokyo and UTC
+  // have one offset all of 2026, and Stockholm's gaps are its own, which no wall time falls
+  // in, so theirs is an ordinary time.
   //
   // Node reads `process.env.TZ` again when it is assigned, but deleting it leaves the last
   // zone in place (probed, PR #238): the zone is assigned back first, then the variable is

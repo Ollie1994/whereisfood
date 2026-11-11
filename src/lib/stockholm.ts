@@ -119,8 +119,8 @@ export function isWallClock(time: string): boolean {
 // Null for a malformed time, and for one the day doesn't have (02:30 on 2026-03-29). On
 // 2026-10-25 a time between 02:00 and 02:59 occurs twice, and this gives the second, CET.
 //
-// Through `wallInstants`, so no host zone is involved. Not `fromZonedTime`: it reads
-// 02:30 on 2026-03-29 as 01:30 CET, and which 02:30 on 2026-10-25 it gives depends on the
+// Through `wallInstants`, so no host zone is involved. Not `fromZonedTime`: it read
+// 02:30 on 2026-03-29 as 01:30 CET, and which 02:30 on 2026-10-25 it gave depended on the
 // host's own zone, the first on a New York or Los Angeles host (date-fns-tz 3.2.0, PR #238).
 export function wallClockToUtc(day: number, time: string): Date | null {
   if (!WALL_CLOCK.test(time)) return null;
