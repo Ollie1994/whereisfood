@@ -111,8 +111,9 @@ export function useAdminLocations(): {
   const reload = useCallback(() => readAgain(trucksFailed.current), [readAgain]);
 
   // The entries again when the Stockholm day of the list's clock turns (IS #251): read only
-  // on opening and after actions, a screen left open past midnight kept the old day's 14
-  // days (reproduced with the browser's clock shifted, #251's comment). A limit: the server
+  // on opening, after an action or a save and on "Försök igen", a screen left open past
+  // midnight kept the old day's 14 days (reproduced with the browser's clock shifted, #251's
+  // comment). A limit: the server
   // picks the window by its own clock, so a device clock ahead of it by more than the
   // request takes gets the old day again, until the next read.
   const today = stockholmDay(now);
