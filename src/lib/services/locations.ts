@@ -8,7 +8,7 @@ import {
   listRecentLocationsForTruck,
   updateLocation,
 } from "@/lib/db/locations";
-import { LIST_DAYS, hasEnded } from "@/lib/admin-list";
+import { CHANGE_THIS_ENTRY, LIST_DAYS, hasEnded } from "@/lib/admin-list";
 import { getActiveTruckById, listAllTrucks } from "@/lib/db/trucks";
 import { hasCode, namesConstraint } from "@/lib/services/postgres";
 import { stockholmDay, stockholmMidnight, stockholmWallClock } from "@/lib/stockholm";
@@ -49,8 +49,8 @@ export const ENTRY_ERRORS = {
 // entry, or, when #33 would refuse that edit, change this one (the owner's wording).
 export const OVERLAP_ADVICE = {
   edit: " — redigera den istället",
-  ended: ", som redan har slutat. Ändra tiden på den här posten.",
-  running: ", som pågår nu. Ändra tiden på den här posten.",
+  ended: `, som redan har slutat.${CHANGE_THIS_ENTRY}`,
+  running: `, som pågår nu.${CHANGE_THIS_ENTRY}`,
 } as const;
 
 const refuse = (reason: Refusal["reason"], error: string): Refusal => ({ ok: false, reason, error });

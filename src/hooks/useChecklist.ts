@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   type Confirmed,
   checklistOf,
+  checklistRefusal,
   confirmBody,
   isBehind,
   listMayHaveChanged,
@@ -136,7 +137,7 @@ export function useChecklist({
       setConfirmed((list) => [...list, { id: suggestion.from_id, after: sent }]);
       setCreates((count) => count + 1);
     } else {
-      setActionError({ id: suggestion.from_id, text: `${suggestion.truck_name}: ${result.error}` });
+      setActionError({ id: suggestion.from_id, text: `${suggestion.truck_name}: ${checklistRefusal(result.error)}` });
     }
     setBusy((rows) => answered(rows, suggestion.from_id, sent));
     // Read again either way, before the list's reload rather than after it: a created entry,

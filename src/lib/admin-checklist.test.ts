@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   DISMISSED_KEY,
+  USE_THE_FORM,
   checklistOf,
+  checklistRefusal,
   confirmBody,
   fromText,
   isBehind,
@@ -10,6 +12,7 @@ import {
   stillHidden,
   writeDismissed,
 } from "@/lib/admin-checklist";
+import { CHANGE_THIS_ENTRY } from "@/lib/admin-list";
 import type { Suggestion } from "@/lib/services/checklist";
 
 const SUGGESTION: Suggestion = {
@@ -188,6 +191,29 @@ describe("listMayHaveChanged", () => {
   it("is false after any other 4xx", () => {
     for (const status of [400, 401, 403, 404, 408, 499]) {
       expect(listMayHaveChanged({ ok: false, status })).toBe(false);
+    }
+  });
+});
+
+describe("checklistRefusal", () => {
+  const ended = "Överlappar med 2026-11-11 08:00–10:00, som redan har slutat";
+  const running = "Överlappar med 2026-11-11 11:30–13:00, som pågår nu";
+
+  it("swaps the advice to change this entry's time for the form's, ended or running", () => {
+    expect(checklistRefusal(`${ended}.${CHANGE_THIS_ENTRY}`)).toBe(
+      "Överlappar med 2026-11-11 08:00–10:00, som redan har slutat. Lägg in en annan tid med formuläret.",
+    );
+    expect(checklistRefusal(`${running}.${CHANGE_THIS_ENTRY}`)).toBe(`${running}.${USE_THE_FORM}`);
+  });
+
+  it("leaves any other error as it came", () => {
+    for (const error of [
+      "Överlappar med 2026-11-11 18:30–19:30 — redigera den istället",
+      "Överlappar med en annan post för samma foodtruck",
+      "Tiden har redan passerat",
+      "Det gick inte att nå servern. Försök igen.",
+    ]) {
+      expect(checklistRefusal(error)).toBe(error);
     }
   });
 });
