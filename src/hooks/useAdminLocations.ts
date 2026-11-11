@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { type ApiResult, adminFetch, adminList, fetchTrucks } from "@/lib/admin-api";
+import { type Busy, answered, stillBusy } from "@/lib/admin-busy";
 import type { AdminEntry } from "@/lib/services/locations";
 import type { Location, Truck } from "@/lib/types";
 
@@ -54,8 +55,9 @@ export function useAdminLocations(): {
   const [entriesError, setEntriesError] = useState<string | null>(null);
   const [trucksError, setTrucksError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  // Every entry with a request in flight, so one finishing doesn't free another's buttons.
-  const [busyIds, setBusyIds] = useState<readonly string[]>([]);
+  // Every entry with a request in flight, or answered and waiting for the read after it
+  // (`admin-busy.ts`), so one finishing doesn't free another's buttons.
+  const [busy, setBusy] = useState<readonly Busy[]>([]);
   const [editing, setEditing] = useState<AdminEntry | null>(null);
   const [retrying, setRetrying] = useState(false);
   const [cancels, setCancels] = useState(0);
@@ -71,6 +73,7 @@ export function useAdminLocations(): {
   const applyEntries = useCallback((id: number, read: ApiResult<AdminEntry[]>) => {
     if (id !== latestRead.current) return;
     setNow(new Date());
+    setBusy((rows) => stillBusy(rows, id));
     if (!read.ok) return setEntriesError(read.error);
     setEntriesError(null);
     setEntries(read.data);
@@ -132,11 +135,15 @@ export function useAdminLocations(): {
 
   async function act(entry: AdminEntry, action: "confirm" | "cancel") {
     setActionError(null);
-    setBusyIds((ids) => [...ids, entry.id]);
+    setBusy((rows) => [...rows, { id: entry.id, after: null }]);
     const result = await adminFetch<{ entry: Location }>(`/api/admin/locations/${entry.id}/${action}`, {
       method: "POST",
     });
-    setBusyIds((ids) => ids.filter((id) => id !== entry.id));
+    // Read now, not in the updater: React runs it at the next render, after `readAgain`
+    // below has sent its read, and the row then waited for a read after that one, so it
+    // stayed busy (the browser check of IS #250, on `useTrucks`' copy).
+    const sent = latestRead.current;
+    setBusy((rows) => answered(rows, entry.id, sent));
     if (!result.ok) setActionError(result.error);
     // A cancelled entry can't be edited any more; a confirm moves only `updated_at`, so an
     // edit of it stays open. Against the edit open now, not the one when the button was
@@ -154,7 +161,7 @@ export function useAdminLocations(): {
     trucks,
     now,
     errors: { entries: entriesError, trucks: trucksError, action: actionError },
-    busyIds,
+    busyIds: busy.map(({ id }) => id),
     editing,
     reload,
     clearActionError: () => setActionError(null),
