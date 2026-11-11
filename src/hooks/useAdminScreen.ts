@@ -39,7 +39,7 @@ export function useAdminScreen() {
   const checklist = useChecklist({
     revision: form.saves + list.cancels,
     now: list.now,
-    onCreated: reload,
+    reloadList: reload,
   });
   // The place picker fills the form's place, and reads the form's truck's places.
   const picker = usePlacePicker({
