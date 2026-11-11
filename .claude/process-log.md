@@ -1759,9 +1759,9 @@ imprecision) and 12% defects no fix wrote (`latent`); later full rounds' 97 were
 fix-made and 47% `latent`; round 1's 147 were 46% `latent`.
 
 **The harm side.** 3.9 rounds per PR; 6.0 to 10.0 findings per round after round 1, per
-PR. About 40 findings stated as limits, 6 moved to issues and 82 declined. No stated
-limit caused a problem in use; 8 limits' own texts were found wrong, all by review (472,
-473, 479, 501, 515, 518, 521, 542). One decline did: README's "Today's entry" snippet,
+PR. About 40 findings stated as limits, 6 moved to issues and 82 declined. Read against
+the later rows of 441–542, no stated limit caused a problem in use; 8 limits' own texts
+were found wrong, all by review (472, 473, 479, 501, 515, 518, 521, 542). One decline did: README's "Today's entry" snippet,
 declined in row 535, left the row that made #254's insert return no rows (537).
 
 ### The rules #1–#9 name
@@ -1813,9 +1813,9 @@ limit rule stayed retired.
 
 ### New actions
 
-**None.** The largest number no rule moved is fix-added code (20.1% after round 1), and
-its findings come from a fix's effects elsewhere, which a check on the fix itself
-wouldn't see. Zero is a valid answer (part 4); the owner agreed (2026-11-11).
+**None.** Of the four shares the rules aimed at, the one that didn't move is fix-added
+code (20.1% after round 1), and its findings come from a fix's effects elsewhere, which a
+check on the fix itself wouldn't see. Zero is a valid answer (part 4); the owner agreed (2026-11-11).
 
 ### Follow-ups
 
