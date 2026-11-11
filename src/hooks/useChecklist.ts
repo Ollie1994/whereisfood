@@ -70,8 +70,8 @@ export function useChecklist({
   // new day.
   const [actionError, setActionError] = useState<{ id: string; text: string } | null>(null);
   // By `from_id`, every suggestion with a ✓ in flight, or answered and waiting for the read
-  // after it (`admin-busy.ts`, IS #269): until that read, a ✓ refused for an overlap leaves
-  // its suggestion showing, and a second ✓ would be refused again.
+  // after it (`admin-busy.ts`, IS #269): until that read, a ✓ refused for an overlap or a
+  // time already passed leaves its suggestion showing, and a second ✓ would be refused again.
   const [busy, setBusy] = useState<readonly Busy[]>([]);
   // The ids hidden on `day`: kept here too, so a ✗ holds for this screen when storage fails.
   const [dismissed, setDismissed] = useState<{ day: string; ids: readonly string[] }>({ day: "", ids: [] });
