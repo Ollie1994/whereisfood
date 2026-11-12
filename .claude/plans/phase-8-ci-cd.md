@@ -174,7 +174,8 @@ No function in `src/`. The scripts, each tested in the `unit` project:
 Strict order where stated. Each step is one issue and one PR into `dev`, with these
 exceptions: step 1 is settings, recorded on its issue with no PR; step 11 is one issue
 per blocking finding and may be none; probe PRs (step 7's `secret-scan` probe, #13, and
-step 13's) are closed unmerged, and their step's issue records them. **Steps 3–10 depend only on steps 1 and 2** and may run in any order or in
+step 13's) are closed unmerged, and their step's issue records them. **Steps 3–10 depend
+only on steps 1 and 2** and may run in any order or in
 parallel (#10); the order below is cheapest first. **Until step 12, every Phase 8 PR still
 runs the four gates by hand** (`CLAUDE.md`, "Testing"), whatever CI shows.
 
@@ -323,8 +324,8 @@ jobs; CodeQL's result check isn't, and is broken by a change that adds an alert,
 breaking its analyze job (#14). On `main`, one probe PR, to show the block holds for an admin
 (`gh pr merge --admin` refused), from a branch off `dev`, the shape of a real PR into `main`
 (a branch off `main` holds no `ci.yml`, so nothing would run), at the cost of the full
-controls run (~45 s a control, 64 took 48 minutes, 2026-10-23). Phase 8 has no UI, so step 13 is the phase's checkpoint and there is no other.
-The owner's call, 2026-11-12.
+controls run (~45 s a control, 64 took 48 minutes, 2026-10-23). Phase 8 has no UI, so step
+13 is the phase's checkpoint and there is no other. The owner's call, 2026-11-12.
 
 ### #7 — `core.hooksPath` is set by hand
 
@@ -383,7 +384,9 @@ exits 1 whenever it lists anything at or above its level (a plain `npm audit` ex
 2026-11-12), so the step ignores its own exit code and, when the JSON report counts any
 vulnerability, emits a `::warning::` annotation, which shows in the PR's checks summary, not
 only a log. When the report has no count (an audit error, such as the registry unreachable),
-it fails, as runs 1 and 2 do on an error, so "couldn't tell" never passes. Runs 2 and 3 run
+it fails, as runs 1 and 2 do on an error, so "couldn't tell" never passes (2026-11-12:
+`npm audit --omit=dev --audit-level=high --registry=http://127.0.0.1:9/` exited 1, and with
+`--json` printed a `message` and an `error`, with no vulnerability count). Runs 2 and 3 run
 when the install step succeeded, even after an earlier run failed (`!cancelled()` and the
 install step's outcome; not `always()`, which also runs after a cancel). This
 covers Phase 6 #24's revisit trigger (`minimatch` under `--omit=dev`), which Q35's two runs
