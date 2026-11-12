@@ -7,8 +7,8 @@ a decision that is a rule today into `CLAUDE.md` in the same PR; read on 2026-11
 here is yet: Q10 holds once CI exists, Q36 once production does); until then
 `project-context.md` is current. Written 2026-11-12 between phases, reviewed in #278's PR.
 Q19 and Q23 also amend a carried-forward decision, "Phase 7 open decisions 1–5"
-(`project-context.md:946`: "The login is a magic link … a session lasts until logout"),
-which #279 rewrites (round 7 on PR #280, the owner's call). **IS #279 wrote these decisions
+(`project-context.md`, "Decisions carried forward": "The login is a magic link … a
+session lasts until logout"), which #279 rewrites (round 7 on PR #280, the owner's call). **IS #279 wrote these decisions
 into `project-context.md`** (its four IS #278 rows in "Decisions carried forward", and the
 Phase map), so they are in effect; this draft stays their detail, which those rows point to.
 
@@ -211,13 +211,13 @@ needs CI green before review and merge. The `/map` browser check stays manual. `
 - **#241's 6-digit email code** rides along (Q23): one rework of the screen, the email code
   then the TOTP code. (#241: the link failed twice in the Gmail app, which had no PKCE
   verifier cookie.) It amends Phase 7 open decision 1, "The login is a magic link"
-  (`project-context.md:946`).
+  (`project-context.md`, "Decisions carried forward").
 - **Session timeouts** (Q19): `[auth.sessions]` is commented out (`config.toml:279-283`) and
   Supabase's docs say a session lasts indefinitely by default, so a stolen session skips
   MFA. `timebox` and/or `inactivity_timeout`: in Phase 9 if the Free plan has them, else
   Phase 10 with Pro (one community post says Pro-only, not confirmed). Values in the plan.
   It amends Phase 7 open decision 2, "a session lasts until logout"
-  (`project-context.md:946`).
+  (`project-context.md`, "Decisions carried forward").
 - **Login abuse, probed first** (Q31): the form takes any address and asks Auth for a link;
   at `email_sent = 2` an hour (local), someone who knows the admin's address could use up
   the sends; and with sign-ups off, an unknown address may get a different answer, revealing
