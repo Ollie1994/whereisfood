@@ -18,7 +18,7 @@ repeated below.
 |---|---|
 | D1 | The work after Phase 7 is three phases: **8 · CI/CD → 9 · Security → 10 · Launch** (the first production deploy). CI/CD first, so the security PRs, MFA the largest, run through the gates, SAST and the secret scan, and #264 unblocks sooner. Amends IS #265's split (8 CI/CD and security, 9 Launch); Phase 6 #1 (CI/CD before the production deploy) still holds. Cost accepted: a third plan, retrospective and reconciliation |
 | D2 | **TOTP MFA for the admin login** (Q13), with any standard authenticator app (Google Authenticator, Proton Authenticator, Aegis). On Supabase's Free plan, by the pricing page as a web search quoted it (Appendix B; the live page not read). Phase 9 |
-| D3 | **A lost phone** is covered by the owner's authenticator backups, made by hand after each new login is added. Without the phone, the app's own `mfa.unenroll` works only from an `aal2` session, so the first route is one still open on another device (sessions never expire today, Q19). Failing that, the last resort is deleting the factor through the service-role admin API (`auth.admin.mfa.deleteFactor`, in Supabase's JavaScript reference; it ends every session when the deleted factor was verified). The installed `auth-js` flags that admin API `@expermental` (sic, `lib/types.d.ts:1442-1499`). Deleting the row from `auth.mfa_factors` in the dashboard's SQL editor may also work (not checked); no other dashboard route was found in Supabase's docs (2026-11-12). The runbook picks (Q34). Appendix B |
+| D3 | **A lost phone** is covered by the owner's authenticator backups, made by hand after each new login is added. Beyond the backups, the routes are for the Phase 9 plan to settle (the owner, round 3 on PR #280), which probes them and decides whether the login rework needs an unenroll screen. The candidates and their limits: the app's own `mfa.unenroll` from an `aal2` session still open on another device, which needs such a session (Q19's timeouts can end it, verifying a factor logs out the others, and nothing in the app calls `unenroll` today); the service-role admin API (`auth.admin.mfa.deleteFactor`, in Supabase's JavaScript reference; it ends every session when the deleted factor was verified), flagged `@expermental` (sic) in the installed `auth-js` (`lib/types.d.ts:1426-1499`); deleting the row from `auth.mfa_factors` in the dashboard's SQL editor, which the plan probes on the local stack. No other dashboard route was found in Supabase's docs (2026-11-12). Appendix B |
 
 **The line between the phases:** 8 touches the **pipeline** (does it check code before it
 merges?); 9 the **running app and its accounts** (does it change how the live app or an
@@ -37,8 +37,11 @@ review's additions.
 **Workflows** (GitHub Actions for checks, Vercel keeps deploying, Q27):
 - Grouped by trigger and permissions (Q28), since branch protection requires checks by
   **job** name: `ci.yml` with jobs `typecheck-lint`, `unit`, `integration`, `build`,
-  `secret-scan`, `audit`, on a read-only token; `codeql.yml` apart (needs
-  `security-events: write`); `sonarqube.yml` apart (needs its token).
+  `secret-scan`, `audit`, `controls` and `process-log`, on a read-only token;
+  `codeql.yml` apart (needs `security-events: write`); `sonarqube.yml` apart (needs its
+  token). A required check gets no workflow-level `paths:` filter: a check that never runs
+  never reports, and the PR waits on it. So `controls` always runs `--check` and decides
+  inside the job, from the PR's changed paths, whether to run the full set.
 - One set for PRs into both `dev` and `main` (`on: pull_request: branches: [dev, main]`),
   not two copies that drift (Q29). `codeql.yml` and `sonarqube.yml` also run on push to
   `dev` and `main`: both compare a PR against an analysis of its base branch, and without
@@ -87,6 +90,9 @@ review's additions.
   `insertAdjacentHTML`, MapLibre's `Popup.setHTML`) and string-built supabase-js filters
   (`.or()`, `.filter()`, `.rpc()` in `src/lib/db/`), through `no-restricted-syntax` and
   `no-restricted-properties` (Q26). Today's code has none (Appendix C); the rules keep it so.
+  A limit: a rule on syntax can't tell supabase-js's `.filter()` from an array's, so a
+  plain `.filter` ban in `src/lib/db/` would also refuse a row post-filter; the plan picks a
+  selector that matches the query builder's chain, or bans `.or()` and `.rpc()` only.
 - **Schema controls:** `node scripts/controls.mjs --check` on every PR; the full run (~45 s
   a control, 64 took 48 min on 2026-10-23) when `supabase/migrations/` or
   `tests/controls/` change, and on `main` (Q7).
@@ -106,9 +112,9 @@ review's additions.
 
 **Repository:**
 - Branch protection on `dev` and `main`, both in Phase 8 (Q2): PR required, checks
-  required, no force-push; on `main` the rules apply to admins too (Q30). No required
-  approvals: GitHub doesn't let a PR's author approve it. So if CI itself breaks, merging
-  to `main` waits until the rule is lifted by hand; the plan records that.
+  required, no force-push; on `main` the rules apply to admins too (Q30), so if CI itself
+  breaks, merging to `main` waits until that rule is lifted by hand; the plan records
+  that. No required approvals: GitHub doesn't let a PR's author approve it.
 - A production deploy waits on nothing else: `main`'s required checks are the gate (Q6).
 - `SECURITY.md` and GitHub's private vulnerability reporting (Q32).
 
@@ -149,15 +155,17 @@ and the nonce set in the proxy (Next's guide,
 keeps the proxy off `/map` (`src/proxy.test.ts` pins its matcher). So:
 - a static CSP for every page but `/admin` in `next.config.ts` (the guide's "Without
   Nonces"): `frame-ancestors 'none'`, `object-src 'none'`, `base-uri`, `form-action`,
-  sources for the tiles and Supabase, `'unsafe-inline'` scripts; Referrer-Policy,
-  Permissions-Policy;
+  sources for the tiles, `'unsafe-inline'` scripts; Referrer-Policy, Permissions-Policy.
+  No Supabase source: only `/admin/login` calls Supabase from the browser (`useLogin`, the
+  one user of `supabaseClient`), so the public pages' CSP doesn't name it;
 - a strict nonce CSP on `/admin`, set by the proxy, which already runs there and where the
   readable session cookie matters (Appendix A, finding 1). The config's rule skips
   `/admin`, so each response there carries the proxy's CSP only (round 1 on PR #280, the
   owner's call). The proxy sets it on **every** answer under `/admin`: today it returns
   `NextResponse.next()` for `/admin/login` before anything else (`src/proxy.ts:61`), and
-  the login page is the one that runs the browser `supabaseClient`; its 503
-  `unavailablePage` and its redirects need it too;
+  the login page is the one that runs the browser `supabaseClient`, so `/admin`'s CSP
+  names the Supabase URL; its 503 `unavailablePage` needs it too (a redirect renders no
+  document, so it needs none);
 - a test that they're present, and that `/admin`, `/admin/login` and the proxy's 503 each
   carry exactly one CSP, run by Phase 8's CI.
 - It must let through MapLibre's worker (`public/maplibre/<version>/`), the tiles' range
@@ -193,7 +201,8 @@ Supabase's Auth logs are the record of logins. No log drain.
 
 ## Phase 10 · Launch
 
-**From today's Phase 9 row** (minus the headers, now Phase 9's): the history retention
+**From today's Phase 9 row** (minus the security headers and the runbook's usage emails,
+both now Phase 9's, the second as Monitoring's alerts): the history retention
 period for the privacy note (Phase 7 plan #25); the app's final name (#26); Supabase Pro
 (backups); a production Supabase project with new keys (Phase 6 plan #18); the tiles' custom
 domain on R2 and its CORS rule; production env; the Swedish privacy note; the takedown
@@ -213,7 +222,8 @@ Advisor clean before the deploy (Q21).
 in the runbook (a compromised session, phone, mailbox or key: end every session with
 `signOut({ scope: 'global' })` (a dashboard route not checked); for a lost or compromised
 factor, delete it by D3's routes (the admin API's deletion ends every session when the
-factor was verified; what the app's own unenroll does to other sessions isn't read), then enroll
+factor was verified; `unenroll`'s reference, `lib/types.d.ts:1252-1254`, says nothing
+about other sessions, so the Phase 9 plan's probe answers that), then enroll
 a new one from the app with `mfa.enroll`; rotate a leaked key; a takedown request); a backup restore tried once on Pro; the privacy note naming Vercel's and
 Supabase's logs, which hold IP addresses.
 
@@ -284,7 +294,7 @@ hence the CSP, strict on `/admin`.
   to `aal2` and logs out the others (line 1018); unenrolling a verified factor needs `aal2`
   (line 1254); enrolling returns `qr_code`, `secret` and the `otpauth://` `uri` (lines
   1605–1612). The admin side, `auth.admin.mfa.listFactors` and `deleteFactor`, is flagged
-  `@expermental` (sic, lines 1442–1499), so by the bar the WebAuthn bullet sets it is a
+  `@expermental` (sic, lines 1426–1499, `deleteFactor`'s own types first), so by the bar the WebAuthn bullet sets it is a
   less settled route than the user-side calls; `deleteFactor` "will log the user out of
   all active sessions if the deleted factor was verified" (line 1494's comment).
 - **Apps**: TOTP is RFC 6238, so any app that scans a standard setup QR code works. Not
@@ -302,7 +312,7 @@ The owner's list of what must not be forgotten, each item → where it's covered
 | OWASP Top 10 | Yes | Appendix A |
 | 2FA for the admin login | Decided | D2, Phase 9 |
 | Supabase security | Mostly; gaps placed | RLS and per-table grants, no anon access to `trucks`/`locations` (`0001_baseline.sql`), guarded by the schema controls; no SQL function but the `moddatetime` trigger, no `SECURITY DEFINER`, extensions in the `extensions` schema; the local advisor clean but for 2 INFO by design. Open: the advisor in CI (Q25), hosted settings (Q21), session timeouts (Q19), MFA (D2) |
-| Prepared statements | Yes, by design | The app writes no SQL: supabase-js → PostgREST, which builds the SQL and sends values as parameters (its documented design, not probed). The db layer's filters are only `.eq`, `.is`, `.lt`, `.gt`, `.order`, `.limit`, and it has no `.or()`, `.filter()`, `.rpc()` or `.textSearch()` (`grep` of `src/lib/db/`; the 16 `.filter(` elsewhere in `src/` are JavaScript's array method). Kept so by Q26 |
+| Prepared statements | Yes, by design | The app writes no SQL: supabase-js → PostgREST, which builds the SQL and sends values as parameters (its documented design, not probed). The db layer's filters are only `.eq`, `.is`, `.lt`, `.gt`, `.order`, `.limit`, and it has no `.or()`, `.filter()`, `.rpc()` or `.textSearch()` (`grep` of `src/lib/db/`; the 20 `.filter(` elsewhere in `src/`, 16 outside the co-located tests, are JavaScript's array method). Kept so by Q26 |
 | SQL injection | Yes | As above; the migration has no dynamic SQL (its one `execute` is a trigger's `execute procedure`) and no function taking input. Hand-written SQL is never in `src/`: it is in the migration, `seed.sql`, the 65 files in `tests/controls/`, README's 2 `sql` snippets run by hand, and the future takedown (`git ls-files '*.sql'`) |
 | Input validation | Yes, one gap | Bodies through `readJson` and pure parsers (`parseNewTruck`, `parseTruckPatch`, `parseNewLocation`, `parseLocationPatch`) that keep only known keys; path ids through `pathId` → `isUuid`; `places`'s `truckId` through `isUuid`; coordinates bounded to Gothenburg. `checklist`, `cancel`, `confirm`, `live` and `logout` take no body. Gap: length limits (Q22) |
 | Input sanitization | Not needed, by design | No HTML is accepted; text is validated, stored plain, and escaped by React on output, the right layer. A sanitizer (e.g. DOMPurify) only if HTML input is ever accepted |
