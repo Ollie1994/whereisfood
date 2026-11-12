@@ -557,7 +557,8 @@ behaviour, not probed (no CI exists yet); steps 8, 9 and 13 show it. Round 1 on 
    and no new bugs (security and reliability rating A) and every new security hotspot
    reviewed. Not "Sonar way": its coverage condition fails a PR with no coverage report, and
    its other new-code conditions (no new issues, duplication) fail one on a single code
-   smell, which would make every non-blocking finding blocking (#4). Code smells and
+   smell, which would make every non-blocking finding blocking (#4) ("Sonar way" as Sonar
+   documents it, not read on this account; step 9 reads it). Code smells and
    duplication are reported, not blocking; uploading coverage would be an issue of its own.
    If the free tier doesn't hold, CodeQL alone is the fallback, and that's the owner's call
    then.
