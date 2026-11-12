@@ -513,6 +513,7 @@ describe("noticeText", () => {
   // A map the browser can't draw wins over every fetch notice, and over none (IS #246).
   it.each([
     ["loading", 0],
+    ["loading", 2],
     ["ok", 0],
     ["ok", 2],
     ["failing", 0],
