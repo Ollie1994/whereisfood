@@ -212,7 +212,8 @@ Advisor clean before the deploy (Q21).
 **Open, for the Phase 10 plan** (Q34, the owner's call to explore then): an incident section
 in the runbook (a compromised session, phone, mailbox or key: end every session with
 `signOut({ scope: 'global' })` (a dashboard route not checked); for a lost or compromised
-factor, delete it by D3's routes, which end every session when it was verified, then enroll
+factor, delete it by D3's routes (the admin API's deletion ends every session when the
+factor was verified; what the app's own unenroll does to other sessions isn't read), then enroll
 a new one from the app with `mfa.enroll`; rotate a leaked key; a takedown request); a backup restore tried once on Pro; the privacy note naming Vercel's and
 Supabase's logs, which hold IP addresses.
 
