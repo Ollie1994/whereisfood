@@ -317,12 +317,11 @@ and Vercel Hobby's (Appendix A, A09). No log drain.
 the runbook's usage emails, both now Phase 9's, the second as Monitoring's alerts: the
 history retention period for the privacy note (Phase 7 plan #25); the app's final name
 (#26); Supabase Pro (backups); a production Supabase project with new keys (Phase 6 plan
-#18); the tiles' custom
-domain on R2 and its CORS rule; production env; the Swedish privacy note; the takedown
-procedure (one transaction: delete the truck's locations, clear or delete each `users` row
-pointing at it, then delete the truck; Phase 5 plan #7); telling trucks they're listed;
-the acquisition plan; the runbook (Vercel Attack Mode); Vercel Pro + Spend Management
-before the first marketing push.
+#18); the tiles' custom domain on R2 and its CORS rule; production env; the Swedish
+privacy note; the takedown procedure (one transaction: delete the truck's locations, clear
+or delete each `users` row pointing at it, then delete the truck; Phase 5 plan #7);
+telling trucks they're listed; the acquisition plan; the runbook (Vercel Attack Mode);
+Vercel Pro + Spend Management before the first marketing push.
 
 **Before the deploy:** 2FA re-checked on every account, the registrar included; the Ignored
 Build Step checked before Production gets variables, no branch preview promoted; every
@@ -331,7 +330,8 @@ credential rotated.
 **From the split:** the tiles' domain in the CSP, and HSTS; session timeouts if Pro-only
 (Q19); the usage and spend alerts if Phase 9 finds Hobby and Free can't send them (Q14), so
 the old runbook's usage emails stay in a phase; the hosted-settings checklist applied to
-the production project, its Security Advisor clean before the deploy (Q21).
+the production project, its Security Advisor showing no WARN or ERROR before the deploy,
+the threshold Phase 8's CI uses (Q21).
 
 **Carried forward, which had fallen out of the old launch row:** the hosted check of
 Phase 5 #19 / PR #167 round 5 (`project-context.md`'s "Decisions carried forward":

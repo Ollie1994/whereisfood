@@ -75,7 +75,8 @@ line changes>
 These numbered decisions are where settled decisions live (CLAUDE.md, "Process Log"):
 one settled mid-phase is appended with the next number. The first ones take up
 the rows marked "between phases" in project-context.md's "Decisions carried forward"
-table, as CLAUDE.md's "Process Log" says.>
+table, as CLAUDE.md's "Process Log" says: those whose marker names no phase, or names
+this one ("for Phase <N>"); a row for a later phase waits for that phase's plan.>
 
 ## Acceptance Criteria
 <one bullet per item — specific and unambiguous>

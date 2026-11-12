@@ -565,8 +565,9 @@ this paragraph is the procedure's one copy, and the other files point here):
 - The next plan gives each marked row a decision of its own, one per row, citing the
   row's IS # (`/create-milestone` adds them to the plan's Rationale). A row whose marker
   names a later phase (`**between phases**, <date>, IS #<n>, for Phase <N>`) is that
-  phase's plan's instead: earlier plans and their reconciliations leave it as it is
-  (the owner's call, IS #279).
+  phase's plan's instead: earlier plans don't take it, and their reconciliations don't
+  replace its marker, though a stale fact in it is fixed like any other hit (the
+  owner's calls, IS #279). Such a row waits through the phases before its own.
 - That plan's reconciliation replaces each marker with the plan decision, and the rule
   text here cites it. When the decision didn't outlive the phase, the reconciliation
   removes the row and the rule text with it.
