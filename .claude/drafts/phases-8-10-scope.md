@@ -7,7 +7,8 @@ when the reconciliation issue that follows IS #278 writes them into `project-con
 
 Every question (Q1–Q36) was put to the owner on 2026-11-12 and decided then, except Q34
 (left open for Phase 10). Where Claude recommended an option, the owner chose it, except Q24,
-where the owner's own proposal replaced it. Q16, Q18 and Q30 had no recommendation. Every
+where the owner's own proposal replaced it. Q13 (MFA) was the owner's own call; Q16, Q18,
+Q30 and Q34 had no recommendation. Every
 phase also carries its retrospective and its reconciliation of `project-context.md`, not
 repeated below.
 
@@ -121,12 +122,12 @@ needs CI green before review and merge. The `/map` browser check stays manual. `
   Supabase's docs say a session lasts indefinitely by default, so a stolen session skips
   MFA. `timebox` and/or `inactivity_timeout`: in Phase 9 if the Free plan has them, else
   Phase 10 with Pro (one community post says Pro-only, not confirmed). Values in the plan.
-- **Login abuse, probed first** (Q31): the form sends a link to any address typed in; at
-  `email_sent = 2` an hour (local), someone who knows the admin's address could use up the
-  sends; and with sign-ups off, an unknown address may get a different answer, revealing
+- **Login abuse, probed first** (Q31): the form takes any address and asks Auth for a link;
+  at `email_sent = 2` an hour (local), someone who knows the admin's address could use up
+  the sends; and with sign-ups off, an unknown address may get a different answer, revealing
   the admin's. Neither probed. After probing locally and reading the hosted limit, the plan
-  picks a CAPTCHA (Supabase supports Turnstile and hCaptcha), one message for every
-  address, or accepting it.
+  picks a CAPTCHA (`config.toml`'s `[auth.captcha]` lists `hcaptcha` and `turnstile`), one
+  message for every address, or accepting it.
 
 **Security headers, split design** (Q11). A nonce CSP needs every page dynamically rendered
 and the nonce set in the proxy (Next's guide,
@@ -275,8 +276,8 @@ The owner's list of what must not be forgotten, each item → where it's covered
 | OWASP Top 10 | Yes | Appendix A |
 | 2FA for the admin login | Decided | D2, Phase 9 |
 | Supabase security | Mostly; gaps placed | RLS and per-table grants, no anon access to `trucks`/`locations` (`0001_baseline.sql`), guarded by the schema controls; no SQL function but the `moddatetime` trigger, no `SECURITY DEFINER`, extensions in the `extensions` schema; the local advisor clean but for 2 INFO by design. Open: the advisor in CI (Q25), hosted settings (Q21), session timeouts (Q19), MFA (D2) |
-| Prepared statements | Yes, by design | The app writes no SQL: supabase-js → PostgREST, which builds the SQL and sends values as parameters (its documented design, not probed). The db layer uses only `.eq`, `.is`, `.lt`, `.gt`, `.order`, `.limit` (`grep`); `src/` has no `.or()`, `.filter()`, `.rpc()` or `.textSearch()`. Kept so by Q26 |
-| SQL injection | Yes | As above; the migration has no dynamic SQL (`EXECUTE`) or function taking input. Hand-written SQL only in migrations, `seed.sql`, tests and the future takedown |
+| Prepared statements | Yes, by design | The app writes no SQL: supabase-js → PostgREST, which builds the SQL and sends values as parameters (its documented design, not probed). The db layer's filters are only `.eq`, `.is`, `.lt`, `.gt`, `.order`, `.limit`, and it has no `.or()`, `.filter()`, `.rpc()` or `.textSearch()` (`grep` of `src/lib/db/`; the 16 `.filter(` elsewhere in `src/` are JavaScript's array method). Kept so by Q26 |
+| SQL injection | Yes | As above; the migration has no dynamic SQL (its one `execute` is a trigger's `execute procedure`) and no function taking input. Hand-written SQL is never in `src/`: it is in the migration, `seed.sql`, the 65 files in `tests/controls/`, README's 2 `sql` snippets run by hand, and the future takedown (`git ls-files '*.sql'`) |
 | Input validation | Yes, one gap | Bodies through `readJson` and pure parsers (`parseNewTruck`, `parseTruckPatch`, `parseNewLocation`, `parseLocationPatch`) that keep only known keys; path ids through `pathId` → `isUuid`; `places`'s `truckId` through `isUuid`; coordinates bounded to Gothenburg. `checklist`, `cancel`, `confirm`, `live` and `logout` take no body. Gap: length limits (Q22) |
 | Input sanitization | Not needed, by design | No HTML is accepted; text is validated, stored plain, and escaped by React on output, the right layer. A sanitizer (e.g. DOMPurify) only if HTML input is ever accepted |
 | XSS | Yes; hardening placed | No `innerHTML`, `outerHTML`, `insertAdjacentHTML`, `setHTML` or `dangerouslySetInnerHTML` in `src/` (`grep`); markers are `document.createElement` elements, the popup a React root (`useMapLibre.tsx`); its one user-derived `href` is the validated handle. Open: CSP (Q11), lint rules (Q26) |
