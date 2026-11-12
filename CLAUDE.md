@@ -560,17 +560,18 @@ says where).
 this paragraph is the procedure's one copy, and the other files point here):
 - A settled decision goes into `project-context.md`'s "Decisions carried forward" table
   as a row whose first cell starts `**between phases**, <date>, IS #<n>`, through an
-  issue and PR like any doc change. A rule also goes into this file in that PR, so it
-  holds at once.
+  issue and PR like any doc change. Several rows from one issue each carry a short label
+  after its number (`IS #278 (D1)`), so a citation names one row. A rule also goes into
+  this file in that PR, so it holds at once.
 - The next plan gives each marked row a decision of its own, one per row, citing the
   row's IS # (`/create-milestone` adds them to the plan's Rationale). A row whose marker
   names a later phase (`**between phases**, <date>, IS #<n>, for Phase <N>`) is that
   phase's plan's instead: earlier plans don't take it, and their reconciliations don't
   replace its marker, though a stale fact in it is fixed like any other hit (the
-  owner's calls, IS #279). Such a row waits through the phases before its own. A row
-  that a later between-phases row amends ("Amends the IS #<n> row") is taken together
-  with it, as one decision citing both IS numbers, and the reconciliation replaces both
-  markers; the amended row itself stays as written until then (IS #279).
+  owner's calls, IS #279). Such a row waits through the phases before its own. A
+  between-phases row that a later one replaces is removed in the PR that adds the new
+  row, which keeps what still holds and cites the old row's IS #; the old text stays in
+  its PR (IS #279).
 - That plan's reconciliation replaces each marker with the plan decision, and the rule
   text here cites it. When the decision didn't outlive the phase, the reconciliation
   removes the row and the rule text with it.
