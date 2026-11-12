@@ -17,8 +17,8 @@ repeated below.
 | # | Decision |
 |---|---|
 | D1 | The work after Phase 7 is three phases: **8 · CI/CD → 9 · Security → 10 · Launch** (the first production deploy). CI/CD first, so the security PRs, MFA the largest, run through the gates, SAST and the secret scan, and #264 unblocks sooner. Amends IS #265's split (8 CI/CD and security, 9 Launch); Phase 6 #1 (CI/CD before the production deploy) still holds. Cost accepted: a third plan, retrospective and reconciliation |
-| D2 | **TOTP MFA for the admin login** (Q13), with any standard authenticator app (Google Authenticator, Proton Authenticator, Aegis). On Supabase's Free plan (Appendix B). Phase 9 |
-| D3 | **A lost phone** is covered by the owner's authenticator backups, made by hand after each new login is added; unenrolling the factor by hand is the last resort |
+| D2 | **TOTP MFA for the admin login** (Q13), with any standard authenticator app (Google Authenticator, Proton Authenticator, Aegis). On Supabase's Free plan, by the pricing page as a web search quoted it (Appendix B; the live page not read). Phase 9 |
+| D3 | **A lost phone** is covered by the owner's authenticator backups, made by hand after each new login is added. The last resort is deleting the factor from the Supabase dashboard, or through the service-role admin API (`auth.admin.mfa.deleteFactor`), not from the app: a user can unenroll a verified factor only from an `aal2` session, which needs the lost phone (Appendix B) |
 
 **The line between the phases:** 8 touches the **pipeline** (does it check code before it
 merges?); 9 the **running app and its accounts** (does it change how the live app or an
@@ -40,13 +40,20 @@ review's additions.
   `secret-scan`, `audit`, on a read-only token; `codeql.yml` apart (needs
   `security-events: write`); `sonarqube.yml` apart (needs its token).
 - One set for PRs into both `dev` and `main` (`on: pull_request: branches: [dev, main]`),
-  not two copies that drift (Q29).
+  not two copies that drift (Q29). `codeql.yml` and `sonarqube.yml` also run on push to
+  `dev`, the default branch: both compare a PR against an analysis of its base branch, and
+  without one CodeQL can't tell a PR's new alerts from old ones and SonarQube Cloud's
+  new-code comparison has nothing to compare with (round 1 on PR #280, the owner's call).
+  `ci.yml` stays PR-only.
 - `main` runs the same checks plus the full schema controls (through
   `if: github.base_ref == 'main'`) (Q30).
 - The gates: `tsc`, lint, `test:all` (a local Supabase in the job, a Node `devEngines`
   admits), build. `npm run build` needs env values: `src/lib/supabase.ts:15-16` throws at
-  import without `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`; in CI the local
-  stack's, which aren't secrets.
+  import without `NEXT_PUBLIC_SUPABASE_URL` or `SUPABASE_SERVICE_ROLE_KEY`, and
+  `src/lib/supabase-browser.ts:20-21` without the URL or `NEXT_PUBLIC_SUPABASE_ANON_KEY`;
+  so the job sets `.env.example`'s variables, the Supabase ones from the local stack, which
+  aren't secrets. Which of them a build reads isn't probed: the plan runs the build without
+  each to find out.
 - **Hardening, all of it** (Q5): actions pinned by commit SHA; minimal `permissions:`, with
   the repository's default token set to read-only; no `pull_request_target` with a
   checkout of the PR's code; approval before first-time contributors' runs; a job holding a
@@ -61,16 +68,20 @@ review's additions.
   (GitHub's scan found nothing on 2026-10-24, another tool's rules differ). Flags probed in
   the plan.
 - **SAST: SonarQube Cloud and CodeQL** (Q3). SonarQube's token isn't given to Dependabot or
-  fork runs, so it skips there (a skip reports as passing); CodeQL needs no token and covers
-  every PR. Confirm SonarQube Cloud's free tier for public repositories.
-- **`npm audit`** fails on high and critical in production dependencies (`--omit=dev`),
-  prints the rest (Q35); a dev-only rule is needed because Phase 6 #24 dismissed the
-  `minimatch` alert "to revisit if `npm audit --omit=dev` lists it".
+  fork runs, so its job needs an `if:` that skips it there; without one it runs with no
+  token, fails, and blocks those PRs (`project-context.md`, "Secrets in CI runs"). A skip
+  reports as passing, so CodeQL, which needs no token, is what scans those PRs. Confirm
+  SonarQube Cloud's free tier for public repositories.
+- **`npm audit`** (Q35): one run, `--omit=dev` at level high, fails the PR on high and
+  critical in production dependencies; a second, full run that never fails prints the
+  rest, since `--omit=dev` leaves dev dependencies out. That keeps Phase 6 #24's
+  dismissed dev-only `minimatch` alert visible, to "revisit if `npm audit --omit=dev`
+  lists it".
 - **Supabase's security advisor**, `npx supabase db advisors --local --type security
   --fail-on warn`, in the integration job (Q25). Run locally 2026-11-12 (CLI 2.109.1): two
   INFO results, `rls_enabled_no_policy` on `public.locations` and `public.trucks`, the
   design (RLS on, no policy, no grant); no WARN or ERROR.
-- **Lint rules** against raw HTML sinks (`react/no-danger`; `innerHTML`, `outerHTML`,
+- **Lint rules** against DOM HTML sinks (`react/no-danger`; `innerHTML`, `outerHTML`,
   `insertAdjacentHTML`, MapLibre's `Popup.setHTML`) and string-built supabase-js filters
   (`.or()`, `.filter()`, `.rpc()` in `src/lib/db/`), through `no-restricted-syntax` and
   `no-restricted-properties` (Q26). Today's code has none (Appendix C); the rules keep it so.
@@ -134,12 +145,17 @@ needs CI green before review and merge. The `/map` browser check stays manual. `
 and the nonce set in the proxy (Next's guide,
 `node_modules/next/dist/docs/01-app/02-guides/content-security-policy.md`), and `CLAUDE.md`
 keeps the proxy off `/map` (`src/proxy.test.ts` pins its matcher). So:
-- a static CSP for every page in `next.config.ts` (the guide's "Without Nonces"):
-  `frame-ancestors 'none'`, `object-src 'none'`, `base-uri`, `form-action`, sources for the
-  tiles and Supabase, `'unsafe-inline'` scripts; Referrer-Policy, Permissions-Policy;
-- a strict nonce CSP on `/admin`, where the proxy already runs and the readable session
-  cookie matters (Appendix A, finding 1);
-- a test that they're present, run by Phase 8's CI.
+- a static CSP for every page but `/admin` in `next.config.ts` (the guide's "Without
+  Nonces"): `frame-ancestors 'none'`, `object-src 'none'`, `base-uri`, `form-action`,
+  sources for the tiles and Supabase, `'unsafe-inline'` scripts; Referrer-Policy,
+  Permissions-Policy;
+- a strict nonce CSP on `/admin`, set by the proxy, which already runs there and where the
+  readable session cookie matters (Appendix A, finding 1). The config's rule skips
+  `/admin`, so a response carries one CSP; with both, the static one would either be
+  enforced beside the strict one or replace it, depending on how Next merges the two
+  (not probed) (round 1 on PR #280, the owner's call);
+- a test that they're present, and that `/admin` carries exactly one CSP, run by Phase 8's
+  CI.
 - It must let through MapLibre's worker (`public/maplibre/<version>/`), the tiles' range
   requests, `blob:`/`data:` images and the Supabase URL the login calls, so a `/map` and a
   login browser check after it. `/api/live` keeps its CDN caching (no `Cache-Control`,
@@ -177,8 +193,8 @@ Supabase's Auth logs are the record of logins. No log drain.
 period for the privacy note (Phase 7 plan #25); the app's final name (#26); Supabase Pro
 (backups); a production Supabase project with new keys (Phase 6 plan #18); the tiles' custom
 domain on R2 and its CORS rule; production env; the Swedish privacy note; the takedown
-procedure (one transaction: the truck's locations, then each `users` row pointing at it,
-then the truck; Phase 5 plan #7); telling trucks they're listed; the acquisition plan; the
+procedure (one transaction: delete the truck's locations, clear or delete each `users` row
+pointing at it, then delete the truck; Phase 5 plan #7); telling trucks they're listed; the acquisition plan; the
 runbook (Vercel Attack Mode); Vercel Pro + Spend Management before the first marketing push.
 
 **Before the deploy:** 2FA re-checked on every account, the registrar included; the Ignored
@@ -227,7 +243,7 @@ owasp.org). An awareness list; OWASP ASVS is the verification standard if one is
 | A02 | Security Misconfiguration | Partial | Sign-ups and anonymous sign-ins off; previews behind Vercel Authentication; Git Fork Protection; no stack traces. Gaps: no security headers; hosted settings unchecked | 9 (Q11, Q21); 10 |
 | A03 | Software Supply Chain Failures | Phase 8 | Dependabot and malware alerts, exact pins, lockfile; Phase 8 adds updates, `npm audit`, the alerts review, hardening | 8 |
 | A04 | Cryptographic Failures | Handed off | TLS from Vercel; tokens, PKCE, sessions from Supabase Auth; rotation before the deploy. Session cookies readable by scripts (finding 1) | 9; 10 |
-| A05 | Injection | Strong | No raw HTML sink, no string-built query (Appendix C); the handle must match `^[a-z0-9._]{1,30}$`, so the popup's `href` can't be `javascript:`. Gap: no length limits | 8 (Q26); 9 (Q22) |
+| A05 | Injection | Strong | No DOM HTML sink and no string-built query (Appendix C). Two places build HTML from constants: `map-setup.ts:51`'s attribution, which MapLibre renders as HTML, and `proxy.ts`'s `unavailablePage` template; Q26's lint rules see neither. The popup's `href` can't be `javascript:` because it starts with the fixed `https://instagram.com/` (`TruckPopup.tsx:49`), whatever the handle. Gap: no length limits | 8 (Q26); 9 (Q22) |
 | A06 | Insecure Design | Good | No anon access to history, no delete, overlap refused by the database, `/api/live` never caches `[]`, abuse cases weighed | Owners (threat model) |
 | A07 | Authentication Failures | MFA decided | Magic link with PKCE, sign-ups off, `email_sent = 2`/h, `otp_expiry = 3600`, refresh-token rotation. Gaps: single factor (D2), sessions never expire (Q19), login abuse (Q31) | 9; 10 |
 | A08 | Software or Data Integrity Failures | Phase 8 | Branch protection, required checks, Dependabot kept off Vercel builds (Q1); `updated_at` by trigger | 8 |
@@ -247,10 +263,10 @@ hence the CSP, strict on `/admin`.
 
 ## Appendix B · MFA on Supabase Free (researched 2026-11-12)
 
-- **TOTP is on the Free plan**: the pricing page lists "Basic Multi-Factor Auth: included in
-  free" (as quoted by web search; read the live page before relying on it).
-  `config.toml`'s "available to Supabase Pro plan" above `[auth.mfa]` is the CLI template's
-  comment, wrong for TOTP.
+- **TOTP is on the Free plan, as a web search quoted the pricing page**: "Basic Multi-Factor
+  Auth: included in free". The live page wasn't read; the Phase 9 plan reads it before
+  building. `config.toml`'s "available to Supabase Pro plan" above `[auth.mfa]` is the CLI
+  template's comment, and the quoted page contradicts it for TOTP.
 - **Phone (SMS) MFA is a paid add-on** outside the spend cap (the usage docs' example: $75 a
   month for the first project, not confirmed on the pricing page); `CLAUDE.md`'s 2FA rule
   excludes SMS anyway.
@@ -281,7 +297,7 @@ The owner's list of what must not be forgotten, each item → where it's covered
 | SQL injection | Yes | As above; the migration has no dynamic SQL (its one `execute` is a trigger's `execute procedure`) and no function taking input. Hand-written SQL is never in `src/`: it is in the migration, `seed.sql`, the 65 files in `tests/controls/`, README's 2 `sql` snippets run by hand, and the future takedown (`git ls-files '*.sql'`) |
 | Input validation | Yes, one gap | Bodies through `readJson` and pure parsers (`parseNewTruck`, `parseTruckPatch`, `parseNewLocation`, `parseLocationPatch`) that keep only known keys; path ids through `pathId` → `isUuid`; `places`'s `truckId` through `isUuid`; coordinates bounded to Gothenburg. `checklist`, `cancel`, `confirm`, `live` and `logout` take no body. Gap: length limits (Q22) |
 | Input sanitization | Not needed, by design | No HTML is accepted; text is validated, stored plain, and escaped by React on output, the right layer. A sanitizer (e.g. DOMPurify) only if HTML input is ever accepted |
-| XSS | Yes; hardening placed | No `innerHTML`, `outerHTML`, `insertAdjacentHTML`, `setHTML` or `dangerouslySetInnerHTML` in `src/` (`grep`); markers are `document.createElement` elements, the popup a React root (`useMapLibre.tsx`); its one user-derived `href` is the validated handle. Open: CSP (Q11), lint rules (Q26) |
+| XSS | Yes; hardening placed | No `innerHTML`, `outerHTML`, `insertAdjacentHTML`, `setHTML` or `dangerouslySetInnerHTML` in `src/` (`grep`); markers are `document.createElement` elements, the popup a React root (`useMapLibre.tsx`); its one user-derived `href` starts with the fixed `https://instagram.com/`. HTML built from constants, which Q26's rules don't see: MapLibre's attribution (`map-setup.ts:51`) and the proxy's `unavailablePage`; neither takes input today. Open: CSP (Q11), lint rules (Q26) |
 | Workflow, CI/CD checks, branch protection, SAST (SonarQube free tier) | Phase 8 | Phase 8's Workflows, Checks, Repository |
 | CI/CD in GitHub or Vercel; one workflow or many; `dev` vs `main` | Decided | Q27, Q28, Q29, Q30 |
 
