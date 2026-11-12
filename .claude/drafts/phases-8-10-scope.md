@@ -1,17 +1,18 @@
 # Phases 8–10 scope: CI/CD, Security, Launch
 
-**Status: input for the Phase 8, 9 and 10 plans, not a rule.** Its decisions take effect
-when the reconciliation issue that follows IS #278 writes them into `project-context.md`
-(as `**between phases**` rows, `CLAUDE.md`'s "Between phases" procedure, which also puts
-a decision that is a rule today into `CLAUDE.md` in the same PR; read on 2026-11-12, none
-here is yet: Q10 holds once CI exists, Q36 once production does); until then
-`project-context.md` is current. Written 2026-11-12 between phases, reviewed in #278's PR.
-Q19 and Q23 also amend a carried-forward decision, "Phase 7 open decisions 1–5"
-(`project-context.md`, "Decisions carried forward": "The login is a magic link … a
-session lasts until logout"), which #279 rewrites (round 7 on PR #280, the owner's call).
-**IS #279 wrote these decisions into `project-context.md`** (its four IS #278 rows in
-"Decisions carried forward", and the Phase map), so they are in effect; this draft stays
-their detail, which those rows point to.
+**Status: input for the Phase 8, 9 and 10 plans; its decisions hold through
+`project-context.md`'s rows, not as rules of this file.** Written 2026-11-12 between
+phases and reviewed in #278's PR, it took effect when IS #279 wrote its decisions into
+`project-context.md`: the four IS #278 `**between phases**` rows in "Decisions carried
+forward", and the Phase map (`CLAUDE.md`'s "Between phases" procedure, which also puts a
+decision that is a rule today into `CLAUDE.md`; read on 2026-11-12, none here is yet: Q10
+holds once CI exists, Q36 once production does). Q19 and Q23 also amend a carried-forward
+decision, "Phase 7 open decisions 1–5" (`project-context.md`, "Decisions carried forward":
+"The login is a magic link … a session lasts until logout"), which #279 rewrote (round 7
+on PR #280, the owner's call). This draft stays the detail those rows point to.
+`project-context.md` is current (`CLAUDE.md`'s header), and where a row or the Phase map
+summarises this draft, a difference between the two is a stale hit to fix by the sweep,
+not a choice between them.
 
 Every question (Q1–Q36) was put to the owner on 2026-11-12 and decided then, except Q34
 (left open for Phase 10). Where Claude recommended an option, the owner chose it, except Q24,
@@ -330,8 +331,9 @@ credential rotated.
 **From the split:** the tiles' domain in the CSP, and HSTS; session timeouts if Pro-only
 (Q19); the usage and spend alerts if Phase 9 finds Hobby and Free can't send them (Q14), so
 the old runbook's usage emails stay in a phase; the hosted-settings checklist applied to
-the production project, its Security Advisor showing no WARN or ERROR before the deploy,
-the threshold Phase 8's CI uses (Q21).
+the production project, its Security Advisor settled before the deploy: no ERROR, and
+every WARN fixed or recorded as accepted with a reason (Q21; the threshold is the owner's
+call, round 3 on PR #281, after the first "clean" proved unmeetable).
 
 **Carried forward, which had fallen out of the old launch row:** the hosted check of
 Phase 5 #19 / PR #167 round 5 (`project-context.md`'s "Decisions carried forward":

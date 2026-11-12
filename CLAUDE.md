@@ -567,7 +567,10 @@ this paragraph is the procedure's one copy, and the other files point here):
   names a later phase (`**between phases**, <date>, IS #<n>, for Phase <N>`) is that
   phase's plan's instead: earlier plans don't take it, and their reconciliations don't
   replace its marker, though a stale fact in it is fixed like any other hit (the
-  owner's calls, IS #279). Such a row waits through the phases before its own.
+  owner's calls, IS #279). Such a row waits through the phases before its own. A row
+  that a later between-phases row amends ("Amends the IS #<n> row") is taken together
+  with it, as one decision citing both IS numbers, and the reconciliation replaces both
+  markers; the amended row itself stays as written until then (IS #279).
 - That plan's reconciliation replaces each marker with the plan decision, and the rule
   text here cites it. When the decision didn't outlive the phase, the reconciliation
   removes the row and the rule text with it.
