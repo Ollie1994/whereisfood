@@ -207,7 +207,8 @@ Advisor clean before the deploy (Q21).
 
 **Open, for the Phase 10 plan** (Q34, the owner's call to explore then): an incident section
 in the runbook (a compromised session, phone, mailbox or key: end every session with
-`signOut({ scope: 'global' })` or the dashboard, re-enroll the factor, rotate the key; a
+`signOut({ scope: 'global' })` (a dashboard route not checked), re-enroll the factor
+through the admin API (D3), rotate the key; a
 takedown request); a backup restore tried once on Pro; the privacy note naming Vercel's and
 Supabase's logs, which hold IP addresses.
 
