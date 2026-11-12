@@ -18,7 +18,7 @@ repeated below.
 |---|---|
 | D1 | The work after Phase 7 is three phases: **8 · CI/CD → 9 · Security → 10 · Launch** (the first production deploy). CI/CD first, so the security PRs, MFA the largest, run through the gates, SAST and the secret scan, and #264 unblocks sooner. Amends IS #265's split (8 CI/CD and security, 9 Launch); Phase 6 #1 (CI/CD before the production deploy) still holds. Cost accepted: a third plan, retrospective and reconciliation |
 | D2 | **TOTP MFA for the admin login** (Q13), with any standard authenticator app (Google Authenticator, Proton Authenticator, Aegis). On Supabase's Free plan, by the pricing page as a web search quoted it (Appendix B; the live page not read). Phase 9 |
-| D3 | **A lost phone** is covered by the owner's authenticator backups, made by hand after each new login is added. Beyond the backups, the routes are for the Phase 9 plan to settle (the owner, round 3 on PR #280), which probes them and decides whether the login rework needs an unenroll screen. The candidates and their limits: the app's own `mfa.unenroll` from an `aal2` session still open on another device, which needs such a session (Q19's timeouts can end it; verifying a newly enrolled factor logs out the others, `enroll`'s doc at `types.d.ts:1018`, and what a login's verify does is the probe's (round 5 on PR #280, the owner's call); and nothing in the app calls `unenroll` today); the service-role admin API (`auth.admin.mfa.deleteFactor`, in Supabase's JavaScript reference; it ends every session when the deleted factor was verified), flagged `@expermental` (sic) in the installed `auth-js` (`lib/types.d.ts:1426-1499`), and needing production's service-role key wherever it runs, while `CLAUDE.md`'s "Where secrets live" lists a developer's own copies (the preview project's keys, the Vercel bypass secret, a CLI login token) and no production key among them, so the plan settles where it may run; deleting the row from `auth.mfa_factors` in the dashboard's SQL editor, which the plan probes on the preview project as well as the local stack, since a hosted project's grants on `auth` may differ (round 4 on PR #280, the owner's call). No other dashboard route was found in Supabase's docs (2026-11-12). Phase 9's "The lost-phone routes"; Appendix B |
+| D3 | **A lost phone** is covered by the owner's authenticator backups, made by hand after each new login is added. Beyond the backups, the routes are for the Phase 9 plan to settle (the owner, round 3 on PR #280), which probes them and decides whether the login rework needs an unenroll screen. The candidates and their limits: the app's own `mfa.unenroll` from an `aal2` session still open on another device, which needs such a session. Q19's timeouts can end it. Verifying a factor logs out the other sessions, by a sentence in `enroll`'s doc (`lib/types.d.ts:1018`) that doesn't say whether that holds for a login's verify too; Phase 9's lost-phone probe settles it (rounds 5 and 6 on PR #280, the owner's calls). And nothing in the app calls `unenroll` today; the service-role admin API (`auth.admin.mfa.deleteFactor`, in Supabase's JavaScript reference; it ends every session when the deleted factor was verified), flagged `@expermental` (sic) in the installed `auth-js` (`lib/types.d.ts:1426-1499`), and needing production's service-role key wherever it runs, while `CLAUDE.md`'s "Where secrets live" lists a developer's own copies (the preview project's keys, the Vercel bypass secret, a CLI login token) and no production key among them, so the plan settles where it may run; deleting the row from `auth.mfa_factors` in the dashboard's SQL editor, which the plan probes on the preview project as well as the local stack, since a hosted project's grants on `auth` may differ (round 4 on PR #280, the owner's call). No other dashboard route was found in Supabase's docs (2026-11-12). Phase 9's "The lost-phone routes"; Appendix B |
 
 **The line between the phases:** 8 touches the **pipeline** (does it check code before it
 merges?); 9 the **running app and its accounts** (does it change how the live app or an
@@ -102,8 +102,11 @@ review's additions.
   a control, 64 took 48 min on 2026-10-23) when one of these changes: `supabase/migrations/`
   or a test a control's header names (`CLAUDE.md`'s "Schema controls" names these two);
   `tests/controls/` and `scripts/controls.mjs` (the owner, round 4 on PR #280); and the
-  files the controls' runs depend on, `tests/integration/helpers.ts`, `setup.ts`,
-  `supabase/seed.sql` and `supabase/config.toml` (the owner, round 5). And on `main` (Q7).
+  files the controls' runs depend on, `tests/integration/helpers.ts`,
+  `tests/integration/setup.ts`, `supabase/seed.sql` and `supabase/config.toml` (the owner,
+  round 5), `vitest.config.ts`, `src/lib/db/` and `src/lib/supabase.ts` (the owner, round
+  6). That list isn't complete: the plan completes it from what each control's named tests
+  import. And on `main` (Q7).
 - **`bash scripts/process-log.sh check`** on every PR (Q8).
 
 **Dependabot:**
@@ -141,23 +144,27 @@ needs CI green before review and merge. The `/map` browser check stays manual. `
   and RLS never sees the session; the integration tests' admin login reaches `aal2`;
   `[auth.mfa.totp]` enroll and verify on, locally and on the preview. `requireAdmin`'s
   input today, `GetUser` (`admin-auth.ts:24`), carries the user and no assurance level, so
-  the check reads the session's own level (its `aal` claim), never "the user has a
-  verified factor", which an `aal1` session of an enrolled user would also pass. The plan
-  settles which route admits an `aal1` session for the enroll and code steps (today
-  `/auth/callback` sends every successful login to `/admin` (`callback/route.ts:20`), and the proxy exempts only
-  `/admin/login`), which answer an `aal1` session gets elsewhere (`CLAUDE.md`'s "Admin
-  routes": 401 no valid session, 403 non-admin), and keeps "a session cookie is checked
-  before any network or DB call". The QR code is shown as an image from a `data:` URL
-  (auth-js: prepend `data:image/svg+xml;utf-8,`, `types.d.ts:1601-1603`), so `/admin`'s
-  CSP allows `img-src data:`; inlining the SVG would need the HTML sink Q26 bans. Details:
-  Appendix B.
+  the check reads the session's own level, the `aal` claim of a token Auth has verified
+  (`getClaims()`, or `getUser`'s answer), never a decoded cookie: auth-js's own notice says
+  a session read from cookies "must not be trusted" (`GoTrueClient.js:2174`), and
+  `getAuthenticatorAssuranceLevel` decodes the JWT it's given (`:4511`). Never "the user has
+  a verified factor" either, which an `aal1` session of an enrolled user would also pass.
+  The plan settles which route admits an `aal1` session for the enroll and code steps
+  (today `/auth/callback` sends every successful login to `/admin`, `callback/route.ts:20`,
+  and the proxy exempts only `/admin/login`), which answer an `aal1` session gets
+  elsewhere (`CLAUDE.md`'s "Admin routes": 401 no valid session, 403 non-admin), and keeps
+  "a session cookie is checked before any network or DB call". The QR code is shown as an
+  image from a `data:` URL (auth-js: prepend `data:image/svg+xml;utf-8,`,
+  `lib/types.d.ts:1601-1603`), so `/admin`'s CSP allows `img-src data:`; inlining the SVG
+  would need the HTML sink Q26 bans. Details: Appendix B.
 - **The lost-phone routes** (D3): the plan probes them, the SQL-editor route on the preview
   project as well as the local stack; looks for a factor-removal action on the dashboard's
   user page (none in Supabase's docs; round 5's reviewer recalled one, not confirmed);
   finds what the app's `unenroll`, and a login's verify, do to another device's `aal1` and
-  `aal2` sessions; settles where a `deleteFactor` call may run without production's service-role
-  key on a developer's machine (`CLAUDE.md`, "Where secrets live"); and decides whether the
-  login rework needs an unenroll screen. Phase 10's runbook (Q34) uses the result.
+  `aal2` sessions; settles where a `deleteFactor` call may run without production's
+  service-role key on a developer's machine (`CLAUDE.md`, "Where secrets live"); and
+  decides whether the login rework needs an unenroll screen. Phase 10's runbook (Q34) uses
+  the result.
 - **#241's 6-digit email code** rides along (Q23): one rework of the screen, the email code
   then the TOTP code. (#241: the link failed twice in the Gmail app, which had no PKCE
   verifier cookie.)
@@ -181,11 +188,11 @@ keeps the proxy off `/map` (`src/proxy.test.ts` pins its matcher). So:
   sources for the tiles, `'unsafe-inline'` scripts; Referrer-Policy, Permissions-Policy.
   No Supabase source: only `/admin/login` calls Supabase from the browser (`useLogin`, the
   one user of `supabaseClient`), so the public pages' CSP doesn't name it;
-- a strict nonce CSP on `/admin`, set by the proxy, which already runs there. A nonce
-  reaches only a dynamically rendered page (the guide, "How nonces work in Next.js"), and
-  `/admin/trucks` is static today (its `page.tsx` reads no request data, where `/admin`'s
-  calls `cookies()`), so every `/admin` page renders dynamically, and the browser checks
-  cover `/admin/trucks` too. The config's rule skips
+- a strict nonce CSP on `/admin`, set by the proxy, which already runs there. By the
+  dynamic-rendering rule above, the plan makes every `/admin` page render dynamically:
+  `/admin/trucks` is prerendered today (its `page.tsx` reads no request data, and the build
+  lists it in `.next/prerender-manifest.json`, where `/admin`'s page calls `cookies()`), and
+  the browser checks cover `/admin/trucks` too. The config's rule skips
   `/admin`, so each response there carries the proxy's CSP only (round 1 on PR #280, the
   owner's call). The proxy sets it on every answer under `/admin` that renders a page: today
   it returns `NextResponse.next()` for `/admin/login` before anything else
@@ -197,17 +204,18 @@ keeps the proxy off `/map` (`src/proxy.test.ts` pins its matcher). So:
 - It must let through MapLibre's worker (`public/maplibre/<version>/`), the tiles' range
   requests, the basemap's glyphs and sprite from `protomaps.github.io`
   (`map-setup.ts:43-44`, `basemap.ts:18`), `blob:`/`data:` images and the Supabase URL the
-  login calls, so a `/map` and a login browser check after it.
-- **A limit, for the plan** (Q11, round 5 on PR #280, the owner's call): the session cookie
-  has `path: "/"` and is readable by scripts (Appendix A, finding 1), so a script injected
-  on a public page, under the static CSP's `'unsafe-inline'`, could read it while the
-  admin has that page open; the strict CSP on `/admin` doesn't cover that. The Phase 9 plan
-  chooses: httpOnly session cookies (MFA's enroll and verify then move to server routes,
-  since the browser client could no longer read the session), a strict CSP on `/map` too
-  (reopening the proxy-off-`/map` rule), or accepting it (no public page puts input into
-  HTML today, Appendix C). `/api/live` keeps its CDN caching (no `Cache-Control`,
-  `Vary: Cookie` or `Set-Cookie` from a header rule), checked by re-running MISS → HIT →
-  STALE on the preview.
+  login calls, so a `/map` and a login browser check after it. `/api/live` keeps its CDN
+  caching (no `Cache-Control`, `Vary: Cookie` or `Set-Cookie` from a header rule), checked
+  by re-running MISS → HIT → STALE on the preview.
+- **A limit, for the plan** (Q11, rounds 5 and 6 on PR #280, the owner's calls): the
+  session cookie has `path: "/"` and is readable by scripts (Appendix A, finding 1), so a
+  script injected on any page outside `/admin`, under the static CSP's `'unsafe-inline'`,
+  could read it while the admin has that page open; the strict CSP on `/admin` doesn't
+  cover that. The Phase 9 plan chooses: httpOnly session cookies (MFA's enroll and verify
+  and #241's email-code step then move to server routes, since the browser client could
+  neither read nor write the session), a strict CSP on every page outside `/admin` too, the
+  not-found page and any later public page included (reopening the proxy-off-`/map` rule),
+  or accepting it (no public page puts input into HTML today, Appendix C).
 - Then **one ZAP baseline scan by hand**, locally against `next start` or on the preview
   (which needs the Vercel bypass secret), result recorded (Q33).
 
@@ -242,8 +250,9 @@ period for the privacy note (Phase 7 plan #25); the app's final name (#26); Supa
 (backups); a production Supabase project with new keys (Phase 6 plan #18); the tiles' custom
 domain on R2 and its CORS rule; production env; the Swedish privacy note; the takedown
 procedure (one transaction: delete the truck's locations, clear or delete each `users` row
-pointing at it, then delete the truck; Phase 5 plan #7); telling trucks they're listed; the acquisition plan; the
-runbook (Vercel Attack Mode); Vercel Pro + Spend Management before the first marketing push.
+pointing at it, then delete the truck; Phase 5 plan #7); telling trucks they're listed;
+the acquisition plan; the runbook (Vercel Attack Mode); Vercel Pro + Spend Management
+before the first marketing push.
 
 **Before the deploy:** 2FA re-checked on every account, the registrar included; the Ignored
 Build Step checked before Production gets variables, no branch preview promoted; every
@@ -251,17 +260,18 @@ credential rotated.
 
 **From the split:** the tiles' domain in the CSP, and HSTS; session timeouts if Pro-only
 (Q19); the usage and spend alerts if Phase 9 finds Hobby and Free can't send them (Q14), so
-the old runbook's usage emails stay in a phase; the hosted-settings checklist applied to the production project, its Security
-Advisor clean before the deploy (Q21).
+the old runbook's usage emails stay in a phase; the hosted-settings checklist applied to
+the production project, its Security Advisor clean before the deploy (Q21).
 
 **Open, for the Phase 10 plan** (Q34, the owner's call to explore then): an incident section
 in the runbook (a compromised session, phone, mailbox or key: end every session with
 `signOut({ scope: 'global' })` (a dashboard route not checked); for a lost or compromised
 factor, delete it by D3's routes (the admin API's deletion ends every session when the
 factor was verified; `unenroll`'s reference, `lib/types.d.ts:1252-1254`, says nothing
-about other sessions, so the Phase 9 plan's probe answers that), then enroll
-a new one from the app with `mfa.enroll`; rotate a leaked key; a takedown request); a backup restore tried once on Pro; the privacy note naming Vercel's and
-Supabase's logs, which hold IP addresses.
+about other sessions, so the Phase 9 plan's probe answers that), then enroll a new one
+from the app with `mfa.enroll`; rotate a leaked key; a takedown request); a backup restore
+tried once on Pro; the privacy note naming Vercel's and Supabase's logs, which hold IP
+addresses.
 
 **Decided** (Q36, Claude's suggestion, the owner's yes, 2026-11-12): once production exists,
 an unfixed vulnerability found in-house is tracked in a GitHub private security advisory,
@@ -328,13 +338,15 @@ headers section states the limit and the options.
   factor types with `@experimental` flags; passkey sign-in is a beta (changelog,
   2026-05-28).
 - **The installed API** (`auth-js` 2.106.2, `lib/types.d.ts`): `mfa.enroll`, `challenge`,
-  `verify`, `getAuthenticatorAssuranceLevel` (`aal1`/`aal2`); `enroll`'s doc says verifying
-  the new factor promotes the session to `aal2` and logs out the others (line 1018), which
-  describes enrollment, not each login's verify (the Phase 9 probe); unenrolling a verified factor needs `aal2`
-  (line 1254); enrolling returns `qr_code`, `secret` and the `otpauth://` `uri` (lines
-  1605–1612). The admin side, `auth.admin.mfa.listFactors` and `deleteFactor`, is flagged
-  `@expermental` (sic, lines 1426–1499, `deleteFactor`'s own types first), so by the bar the WebAuthn bullet sets it is a
-  less settled route than the user-side calls; `deleteFactor` "will log the user out of
+  `verify`, `getAuthenticatorAssuranceLevel` (`aal1`/`aal2`). Line 1018, in `enroll`'s
+  doc, says "Upon verifying a factor, all other sessions are logged out and the current
+  session's authenticator level is promoted to `aal2`"; it doesn't say whether a login's
+  verify does the same, which Phase 9's lost-phone probe settles. Unenrolling a verified
+  factor needs `aal2` (line 1254); enrolling returns `qr_code`, `secret` and the
+  `otpauth://` `uri` (lines 1605–1612). The admin side, `auth.admin.mfa.listFactors` and
+  `deleteFactor`, is flagged `@expermental` (sic, lines 1426–1499, `deleteFactor`'s own
+  types first), so by the bar the WebAuthn bullet sets it is a less settled route than the
+  user-side calls; `deleteFactor` "will log the user out of
   all active sessions if the deleted factor was verified" (line 1494's comment).
 - **Apps**: TOTP is RFC 6238, so any app that scans a standard setup QR code works. Not
   checked: that Supabase uses 6 digits and 30 s (`otp_length = 6` is phone MFA's); a local
