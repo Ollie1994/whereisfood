@@ -51,7 +51,8 @@ review's additions.
   the repository's default token set to read-only; no `pull_request_target` with a
   checkout of the PR's code; approval before first-time contributors' runs; a job holding a
   token (SonarQube's) installs nothing it doesn't need, or with `--ignore-scripts`, since
-  `npm ci` runs every dependency's install scripts.
+  `npm ci` runs dependencies' install scripts (the lockfile marks `fsevents` and
+  `unrs-resolver` with `hasInstallScript`, besides the project's own `postinstall`).
 
 **Checks:**
 - **Secret scan: Gitleaks** (Q4), as a pre-commit hook from a tracked folder through
