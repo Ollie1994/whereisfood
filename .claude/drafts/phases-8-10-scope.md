@@ -18,7 +18,7 @@ repeated below.
 |---|---|
 | D1 | The work after Phase 7 is three phases: **8 · CI/CD → 9 · Security → 10 · Launch** (the first production deploy). CI/CD first, so the security PRs, MFA the largest, run through the gates, SAST and the secret scan, and #264 unblocks sooner. Amends IS #265's split (8 CI/CD and security, 9 Launch); Phase 6 #1 (CI/CD before the production deploy) still holds. Cost accepted: a third plan, retrospective and reconciliation |
 | D2 | **TOTP MFA for the admin login** (Q13), with any standard authenticator app (Google Authenticator, Proton Authenticator, Aegis). On Supabase's Free plan, by the pricing page as a web search quoted it (Appendix B; the live page not read). Phase 9 |
-| D3 | **A lost phone** is covered by the owner's authenticator backups, made by hand after each new login is added. Beyond the backups, the routes are for the Phase 9 plan to settle (the owner, round 3 on PR #280), which probes them and decides whether the login rework needs an unenroll screen. The candidates and their limits: the app's own `mfa.unenroll` from an `aal2` session still open on another device, which needs such a session (Q19's timeouts can end it, verifying a factor logs out the others, and nothing in the app calls `unenroll` today); the service-role admin API (`auth.admin.mfa.deleteFactor`, in Supabase's JavaScript reference; it ends every session when the deleted factor was verified), flagged `@expermental` (sic) in the installed `auth-js` (`lib/types.d.ts:1426-1499`); deleting the row from `auth.mfa_factors` in the dashboard's SQL editor, which the plan probes on the local stack. No other dashboard route was found in Supabase's docs (2026-11-12). Appendix B |
+| D3 | **A lost phone** is covered by the owner's authenticator backups, made by hand after each new login is added. Beyond the backups, the routes are for the Phase 9 plan to settle (the owner, round 3 on PR #280), which probes them and decides whether the login rework needs an unenroll screen. The candidates and their limits: the app's own `mfa.unenroll` from an `aal2` session still open on another device, which needs such a session (Q19's timeouts can end it, verifying a factor logs out the others, and nothing in the app calls `unenroll` today); the service-role admin API (`auth.admin.mfa.deleteFactor`, in Supabase's JavaScript reference; it ends every session when the deleted factor was verified), flagged `@expermental` (sic) in the installed `auth-js` (`lib/types.d.ts:1426-1499`), and needing production's service-role key wherever it runs, which `CLAUDE.md`'s "Where secrets live" keeps off a developer's machine, so the plan settles where it may run; deleting the row from `auth.mfa_factors` in the dashboard's SQL editor, which the plan probes on the preview project as well as the local stack, since a hosted project's grants on `auth` may differ (round 4 on PR #280, the owner's call). No other dashboard route was found in Supabase's docs (2026-11-12). Phase 9's "The lost-phone routes"; Appendix B |
 
 **The line between the phases:** 8 touches the **pipeline** (does it check code before it
 merges?); 9 the **running app and its accounts** (does it change how the live app or an
@@ -40,9 +40,12 @@ review's additions.
   `secret-scan`, `audit`, `controls` and `process-log`, on a read-only token;
   `codeql.yml` apart (needs `security-events: write`); `sonarqube.yml` apart (needs its
   token). A required check gets no workflow-level `paths:` filter: a check that never runs
-  never reports, and the PR waits on it (GitHub's documented behaviour for a required check
-  a path filter skips; no CI exists here to probe it). So `controls` always runs `--check` and decides
-  inside the job, from the PR's changed paths, whether to run the full set.
+  never reports, and the PR waits on it (GitHub's docs, "Troubleshooting required status
+  checks" → "Handling skipped but required checks"; no CI exists here to probe it). So
+  `controls` always runs `--check` and decides inside the job, from the PR's changed paths,
+  whether to run the full set. A default `actions/checkout` fetches depth 1, without the
+  PR's base, so the job fetches the base (or reads the PR's files from the API) before it
+  compares; an empty list must not read as "nothing changed".
 - One set for PRs into both `dev` and `main` (`on: pull_request: branches: [dev, main]`),
   not two copies that drift (Q29). `codeql.yml` and `sonarqube.yml` also run on push to
   `dev` and `main`: both compare a PR against an analysis of its base branch, and without
@@ -91,12 +94,14 @@ review's additions.
   `insertAdjacentHTML`, MapLibre's `Popup.setHTML`) and string-built supabase-js filters
   (`.or()`, `.filter()`, `.rpc()` in `src/lib/db/`), through `no-restricted-syntax` and
   `no-restricted-properties` (Q26). Today's code has none (Appendix C); the rules keep it so.
-  A limit: a rule on syntax can't tell supabase-js's `.filter()` from an array's, so a
-  plain `.filter` ban in `src/lib/db/` would also refuse a row post-filter; the plan picks a
-  selector that matches the query builder's chain, or bans `.or()` and `.rpc()` only.
+  A rule on syntax can't tell supabase-js's `.filter()` from an array's, and a selector on
+  the builder's chain misses a builder held in a variable, so the rule bans `.filter` in
+  `src/lib/db/` outright: the db layer has none of either today (`grep`). A row
+  post-filter there then takes another form, or a disable that names this rule.
 - **Schema controls:** `node scripts/controls.mjs --check` on every PR; the full run (~45 s
-  a control, 64 took 48 min on 2026-10-23) when `supabase/migrations/` or
-  `tests/controls/` change, and on `main` (Q7).
+  a control, 64 took 48 min on 2026-10-23) when `supabase/migrations/`, `tests/controls/`,
+  `scripts/controls.mjs` or a test a control's header names changes, as `CLAUDE.md`'s
+  "Schema controls" has it, and on `main` (Q7, widened by the owner in round 4 on PR #280).
 - **`bash scripts/process-log.sh check`** on every PR (Q8).
 
 **Dependabot:**
@@ -136,6 +141,11 @@ needs CI green before review and merge. The `/map` browser check stays manual. `
   logs out the user's other sessions. The plan settles which answer an `aal1` session gets
   (`CLAUDE.md`'s "Admin routes": 401 no valid session, 403 non-admin) and keeps "a session
   cookie is checked before any network or DB call". Details: Appendix B.
+- **The lost-phone routes** (D3): the plan probes them, the SQL-editor route on the preview
+  project as well as the local stack; finds what the app's `unenroll` does to other
+  sessions; settles where a `deleteFactor` call may run without production's service-role
+  key on a developer's machine (`CLAUDE.md`, "Where secrets live"); and decides whether the
+  login rework needs an unenroll screen. Phase 10's runbook (Q34) uses the result.
 - **#241's 6-digit email code** rides along (Q23): one rework of the screen, the email code
   then the TOTP code. (#241: the link failed twice in the Gmail app, which had no PKCE
   verifier cookie.)
@@ -162,13 +172,13 @@ keeps the proxy off `/map` (`src/proxy.test.ts` pins its matcher). So:
 - a strict nonce CSP on `/admin`, set by the proxy, which already runs there and where the
   readable session cookie matters (Appendix A, finding 1). The config's rule skips
   `/admin`, so each response there carries the proxy's CSP only (round 1 on PR #280, the
-  owner's call). The proxy sets it on **every** answer under `/admin`: today it returns
-  `NextResponse.next()` for `/admin/login` before anything else (`src/proxy.ts:61`), and
-  the login page is the one that runs the browser `supabaseClient`, so `/admin`'s CSP
-  names the Supabase URL; its 503 `unavailablePage` needs it too (a redirect renders no
-  document, so it needs none);
-- a test that they're present, and that `/admin`, `/admin/login` and the proxy's 503 each
-  carry exactly one CSP, run by Phase 8's CI.
+  owner's call). The proxy sets it on every answer under `/admin` that renders a page: today
+  it returns `NextResponse.next()` for `/admin/login` before anything else
+  (`src/proxy.ts:61`), and the login page is the one that runs the browser
+  `supabaseClient`, so `/admin`'s CSP names the Supabase URL; its 503 `unavailablePage`
+  needs it too. Its redirects render no document and carry none;
+- a test that they're present, and that `/admin` with a session, `/admin/login` and the
+  proxy's 503 each carry exactly one CSP, run by Phase 8's CI.
 - It must let through MapLibre's worker (`public/maplibre/<version>/`), the tiles' range
   requests, `blob:`/`data:` images and the Supabase URL the login calls, so a `/map` and a
   login browser check after it. `/api/live` keeps its CDN caching (no `Cache-Control`,
@@ -216,7 +226,8 @@ Build Step checked before Production gets variables, no branch preview promoted;
 credential rotated.
 
 **From the split:** the tiles' domain in the CSP, and HSTS; session timeouts if Pro-only
-(Q19); the hosted-settings checklist applied to the production project, its Security
+(Q19); the usage and spend alerts if Phase 9 finds Hobby and Free can't send them (Q14), so
+the old runbook's usage emails stay in a phase; the hosted-settings checklist applied to the production project, its Security
 Advisor clean before the deploy (Q21).
 
 **Open, for the Phase 10 plan** (Q34, the owner's call to explore then): an incident section
@@ -330,3 +341,5 @@ The owner's list of what must not be forgotten, each item → where it's covered
   reference, "Delete a factor for a user" (`auth.admin.mfa.deleteFactor`); changelog
   46458, "Passkeys for Supabase Auth (Beta)".
 - Next.js: `node_modules/next/dist/docs/01-app/02-guides/content-security-policy.md`.
+- GitHub: docs, "Troubleshooting required status checks" → "Handling skipped but required
+  checks"; community discussion #44490.
