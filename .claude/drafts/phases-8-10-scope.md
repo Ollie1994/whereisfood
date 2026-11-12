@@ -8,9 +8,10 @@ here is yet: Q10 holds once CI exists, Q36 once production does); until then
 `project-context.md` is current. Written 2026-11-12 between phases, reviewed in #278's PR.
 Q19 and Q23 also amend a carried-forward decision, "Phase 7 open decisions 1–5"
 (`project-context.md`, "Decisions carried forward": "The login is a magic link … a
-session lasts until logout"), which #279 rewrites (round 7 on PR #280, the owner's call). **IS #279 wrote these decisions
-into `project-context.md`** (its four IS #278 rows in "Decisions carried forward", and the
-Phase map), so they are in effect; this draft stays their detail, which those rows point to.
+session lasts until logout"), which #279 rewrites (round 7 on PR #280, the owner's call).
+**IS #279 wrote these decisions into `project-context.md`** (its four IS #278 rows in
+"Decisions carried forward", and the Phase map), so they are in effect; this draft stays
+their detail, which those rows point to.
 
 Every question (Q1–Q36) was put to the owner on 2026-11-12 and decided then, except Q34
 (left open for Phase 10). Where Claude recommended an option, the owner chose it, except Q24,
