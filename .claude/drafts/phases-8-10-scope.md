@@ -18,7 +18,7 @@ repeated below.
 |---|---|
 | D1 | The work after Phase 7 is three phases: **8 · CI/CD → 9 · Security → 10 · Launch** (the first production deploy). CI/CD first, so the security PRs, MFA the largest, run through the gates, SAST and the secret scan, and #264 unblocks sooner. Amends IS #265's split (8 CI/CD and security, 9 Launch); Phase 6 #1 (CI/CD before the production deploy) still holds. Cost accepted: a third plan, retrospective and reconciliation |
 | D2 | **TOTP MFA for the admin login** (Q13), with any standard authenticator app (Google Authenticator, Proton Authenticator, Aegis). On Supabase's Free plan, by the pricing page as a web search quoted it (Appendix B; the live page not read). Phase 9 |
-| D3 | **A lost phone** is covered by the owner's authenticator backups, made by hand after each new login is added. The last resort is deleting the factor through the service-role admin API (`auth.admin.mfa.deleteFactor`, documented in Supabase's JavaScript reference; it also logs the user out of every session), not from the app: a user can unenroll a verified factor only from an `aal2` session, which needs the lost phone (Appendix B). A dashboard route for it wasn't found in Supabase's docs (2026-11-12) |
+| D3 | **A lost phone** is covered by the owner's authenticator backups, made by hand after each new login is added. Without the phone, the app's own `mfa.unenroll` works only from an `aal2` session, so the first route is one still open on another device (sessions never expire today, Q19). Failing that, the last resort is deleting the factor through the service-role admin API (`auth.admin.mfa.deleteFactor`, in Supabase's JavaScript reference; it ends every session when the deleted factor was verified). The installed `auth-js` flags that admin API `@expermental` (sic, `lib/types.d.ts:1442-1499`). Deleting the row from `auth.mfa_factors` in the dashboard's SQL editor may also work (not checked); no other dashboard route was found in Supabase's docs (2026-11-12). The runbook picks (Q34). Appendix B |
 
 **The line between the phases:** 8 touches the **pipeline** (does it check code before it
 merges?); 9 the **running app and its accounts** (does it change how the live app or an
@@ -41,9 +41,9 @@ review's additions.
   `security-events: write`); `sonarqube.yml` apart (needs its token).
 - One set for PRs into both `dev` and `main` (`on: pull_request: branches: [dev, main]`),
   not two copies that drift (Q29). `codeql.yml` and `sonarqube.yml` also run on push to
-  `dev`, the default branch: both compare a PR against an analysis of its base branch, and
-  without one CodeQL can't tell a PR's new alerts from old ones and SonarQube Cloud's
-  new-code comparison has nothing to compare with (round 1 on PR #280, the owner's call).
+  `dev` and `main`: both compare a PR against an analysis of its base branch, and without
+  one CodeQL can't tell a PR's new alerts from old ones and SonarQube Cloud's new-code
+  comparison has nothing to compare with (rounds 1 and 2 on PR #280, the owner's calls).
   `ci.yml` stays PR-only.
 - `main` runs the same checks plus the full schema controls (through
   `if: github.base_ref == 'main'`) (Q30).
@@ -52,8 +52,7 @@ review's additions.
   import without `NEXT_PUBLIC_SUPABASE_URL` or `SUPABASE_SERVICE_ROLE_KEY`, and
   `src/lib/supabase-browser.ts:20-21` without the URL or `NEXT_PUBLIC_SUPABASE_ANON_KEY`;
   so the job sets `.env.example`'s variables, the Supabase ones from the local stack, which
-  aren't secrets. Which of them a build reads isn't probed: the plan runs the build without
-  each to find out.
+  aren't secrets.
 - **Hardening, all of it** (Q5): actions pinned by commit SHA; minimal `permissions:`, with
   the repository's default token set to read-only; no `pull_request_target` with a
   checkout of the PR's code; approval before first-time contributors' runs; a job holding a
@@ -70,13 +69,16 @@ review's additions.
 - **SAST: SonarQube Cloud and CodeQL** (Q3). SonarQube's token isn't given to Dependabot or
   fork runs, so its job needs an `if:` that skips it there; without one it runs with no
   token, fails, and blocks those PRs (`project-context.md`, "Secrets in CI runs"). A skip
-  reports as passing, so CodeQL, which needs no token, is what scans those PRs. Confirm
-  SonarQube Cloud's free tier for public repositories.
+  reports as passing, so CodeQL, which needs no token, is what scans those PRs: Q3's
+  choice, over the other way that section names, a Dependabot copy of SonarQube's token
+  (which would still leave fork PRs to CodeQL). Confirm SonarQube Cloud's free tier for
+  public repositories.
 - **`npm audit`** (Q35): one run, `--omit=dev` at level high, fails the PR on high and
   critical in production dependencies; a second, full run that never fails prints the
-  rest, since `--omit=dev` leaves dev dependencies out. That keeps Phase 6 #24's
-  dismissed dev-only `minimatch` alert visible, to "revisit if `npm audit --omit=dev`
-  lists it".
+  rest, since `--omit=dev` leaves dev dependencies out. A limit: Phase 6 #24's revisit
+  trigger, the moderate `minimatch` advisory appearing under `--omit=dev`
+  (`project-context.md`'s "Versions"), fails neither run, so it shows only in a passing
+  job's log. The plan decides whether that is enough.
 - **Supabase's security advisor**, `npx supabase db advisors --local --type security
   --fail-on warn`, in the integration job (Q25). Run locally 2026-11-12 (CLI 2.109.1): two
   INFO results, `rls_enabled_no_policy` on `public.locations` and `public.trucks`, the
@@ -151,11 +153,13 @@ keeps the proxy off `/map` (`src/proxy.test.ts` pins its matcher). So:
   Permissions-Policy;
 - a strict nonce CSP on `/admin`, set by the proxy, which already runs there and where the
   readable session cookie matters (Appendix A, finding 1). The config's rule skips
-  `/admin`, so a response carries one CSP; with both, the static one would either be
-  enforced beside the strict one or replace it, depending on how Next merges the two
-  (not probed) (round 1 on PR #280, the owner's call);
-- a test that they're present, and that `/admin` carries exactly one CSP, run by Phase 8's
-  CI.
+  `/admin`, so each response there carries the proxy's CSP only (round 1 on PR #280, the
+  owner's call). The proxy sets it on **every** answer under `/admin`: today it returns
+  `NextResponse.next()` for `/admin/login` before anything else (`src/proxy.ts:61`), and
+  the login page is the one that runs the browser `supabaseClient`; its 503
+  `unavailablePage` and its redirects need it too;
+- a test that they're present, and that `/admin`, `/admin/login` and the proxy's 503 each
+  carry exactly one CSP, run by Phase 8's CI.
 - It must let through MapLibre's worker (`public/maplibre/<version>/`), the tiles' range
   requests, `blob:`/`data:` images and the Supabase URL the login calls, so a `/map` and a
   login browser check after it. `/api/live` keeps its CDN caching (no `Cache-Control`,
@@ -207,9 +211,9 @@ Advisor clean before the deploy (Q21).
 
 **Open, for the Phase 10 plan** (Q34, the owner's call to explore then): an incident section
 in the runbook (a compromised session, phone, mailbox or key: end every session with
-`signOut({ scope: 'global' })` (a dashboard route not checked), re-enroll the factor
-through the admin API (D3), rotate the key; a
-takedown request); a backup restore tried once on Pro; the privacy note naming Vercel's and
+`signOut({ scope: 'global' })` (a dashboard route not checked); for a lost or compromised
+factor, delete it by D3's routes, which end every session when it was verified, then enroll
+a new one from the app with `mfa.enroll`; rotate a leaked key; a takedown request); a backup restore tried once on Pro; the privacy note naming Vercel's and
 Supabase's logs, which hold IP addresses.
 
 **Decided** (Q36, Claude's suggestion, the owner's yes, 2026-11-12): once production exists,
@@ -278,7 +282,10 @@ hence the CSP, strict on `/admin`.
   `verify`, `getAuthenticatorAssuranceLevel` (`aal1`/`aal2`); verifying promotes the session
   to `aal2` and logs out the others (line 1018); unenrolling a verified factor needs `aal2`
   (line 1254); enrolling returns `qr_code`, `secret` and the `otpauth://` `uri` (lines
-  1605–1612).
+  1605–1612). The admin side, `auth.admin.mfa.listFactors` and `deleteFactor`, is flagged
+  `@expermental` (sic, lines 1442–1499), so by the bar the WebAuthn bullet sets it is a
+  less settled route than the user-side calls; `deleteFactor` "will log the user out of
+  all active sessions if the deleted factor was verified" (line 1494's comment).
 - **Apps**: TOTP is RFC 6238, so any app that scans a standard setup QR code works. Not
   checked: that Supabase uses 6 digits and 30 s (`otp_length = 6` is phone MFA's); a local
   enroll settles it.
@@ -307,6 +314,7 @@ The owner's list of what must not be forgotten, each item → where it's covered
 - OWASP Top 10:2025: owasp.org/Top10/2025/0x00_2025-Introduction/; The Register, 2025-11-11;
   Invicti; Qualys, 2026-06-15.
 - Supabase: supabase.com/pricing; docs, "Manage Advanced MFA Phone usage", "Multi-Factor
-  Authentication (Phone)", "User sessions"; changelog 46458, "Passkeys for Supabase Auth
-  (Beta)".
+  Authentication (Phone)", "Multi-Factor Authentication", "User sessions"; JavaScript
+  reference, "Delete a factor for a user" (`auth.admin.mfa.deleteFactor`); changelog
+  46458, "Passkeys for Supabase Auth (Beta)".
 - Next.js: `node_modules/next/dist/docs/01-app/02-guides/content-security-policy.md`.
