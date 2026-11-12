@@ -40,7 +40,8 @@ review's additions.
   `secret-scan`, `audit`, `controls` and `process-log`, on a read-only token;
   `codeql.yml` apart (needs `security-events: write`); `sonarqube.yml` apart (needs its
   token). A required check gets no workflow-level `paths:` filter: a check that never runs
-  never reports, and the PR waits on it. So `controls` always runs `--check` and decides
+  never reports, and the PR waits on it (GitHub's documented behaviour for a required check
+  a path filter skips; no CI exists here to probe it). So `controls` always runs `--check` and decides
   inside the job, from the PR's changed paths, whether to run the full set.
 - One set for PRs into both `dev` and `main` (`on: pull_request: branches: [dev, main]`),
   not two copies that drift (Q29). `codeql.yml` and `sonarqube.yml` also run on push to
