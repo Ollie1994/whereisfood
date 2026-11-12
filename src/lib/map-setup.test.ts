@@ -21,9 +21,9 @@ vi.mock("maplibre-gl", () => {
 });
 
 // `PMTILES_URL` is read when the module loads, so each test loads it afresh.
-async function load() {
+async function load(tilesUrl = "https://tiles.example/gothenburg.pmtiles") {
   vi.resetModules();
-  vi.stubEnv("NEXT_PUBLIC_PMTILES_URL", "https://tiles.example/gothenburg.pmtiles");
+  vi.stubEnv("NEXT_PUBLIC_PMTILES_URL", tilesUrl);
   const maplibregl = await import("maplibre-gl");
   const setup = await import("@/lib/map-setup");
   return { maplibregl, ...setup };
@@ -55,9 +55,7 @@ describe("createBaseMap", () => {
   });
 
   it("returns null with no tiles URL, building no map", async () => {
-    vi.resetModules();
-    vi.stubEnv("NEXT_PUBLIC_PMTILES_URL", "");
-    const { createBaseMap } = await import("@/lib/map-setup");
+    const { createBaseMap } = await load("");
     state.mapError = new TypeError("not reached");
     expect(createBaseMap({} as HTMLElement)).toBeNull();
   });

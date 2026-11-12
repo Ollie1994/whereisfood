@@ -9,6 +9,8 @@ import { noticeText } from "@/lib/live";
 export default function MapClient() {
   const containerRef = useRef<HTMLDivElement>(null);
   const { markers, now, fetchState } = useLocations();
+  // A limit: when the map can't be drawn, `useLocations` still polls `/api/live` every
+  // `POLL_MS` for markers that can't show; stopping it would be a change to `useLocations`.
   const mapFailed = useMapLibre(containerRef, markers, now);
   const notice = noticeText(fetchState, markers.size, mapFailed);
 

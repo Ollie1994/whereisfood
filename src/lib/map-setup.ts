@@ -23,12 +23,14 @@ let mapLibreInitialised = false;
 // What `createBaseMap` returns when the browser gives MapLibre no WebGL2 context.
 export const NO_WEBGL2 = "no-webgl2";
 
+type View = { center: [number, number]; zoom: number };
+
 // The basemap on `container`, opening on `view` (Gothenburg at zoom 13 by default); null
 // with no tiles URL; `NO_WEBGL2` when the browser can't draw it. Call it from an effect:
 // the registration above is client-only.
 export function createBaseMap(
   container: HTMLElement,
-  view: { center: [number, number]; zoom: number } = { center: GOTHENBURG, zoom: 13 },
+  view: View = { center: GOTHENBURG, zoom: 13 },
 ): maplibregl.Map | typeof NO_WEBGL2 | null {
   if (!PMTILES_URL) return null;
 
@@ -38,41 +40,32 @@ export function createBaseMap(
     mapLibreInitialised = true;
   }
 
+  // MapLibre's constructor throws `GPUInitializationError` when the browser gives it no
+  // WebGL2 context (`_setupPainter`, maplibre-gl-dev.mjs 6.11.2), after cleaning up its
+  // container. Any other error is a defect, not the browser's, and is thrown on.
   try {
-    return buildMap(container, view);
+    return new maplibregl.Map({
+      container,
+      center: view.center,
+      zoom: view.zoom,
+      style: {
+        version: 8,
+        glyphs:
+          "https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf",
+        sprite: SPRITE_URL,
+        sources: {
+          [BASEMAP_SOURCE]: {
+            type: "vector",
+            url: `pmtiles://${PMTILES_URL}`,
+            attribution:
+              '<a href="https://protomaps.com">Protomaps</a> © <a href="https://openstreetmap.org">OpenStreetMap</a>',
+          },
+        },
+        layers: basemapLayers(),
+      },
+    });
   } catch (error) {
-    // MapLibre's constructor throws `GPUInitializationError` when the browser gives it no
-    // WebGL2 context (`_setupPainter`, maplibre-gl-dev.mjs 6.11.2), after cleaning up its
-    // container. Uncaught, it gave `/map` Next's error page (`src/app` has no `error.tsx`;
-    // IS #246, from PR #245's round 5). Any other error is a defect, not the browser's, and
-    // is thrown on.
     if (error instanceof maplibregl.GPUInitializationError) return NO_WEBGL2;
     throw error;
   }
-}
-
-function buildMap(
-  container: HTMLElement,
-  view: { center: [number, number]; zoom: number },
-): maplibregl.Map {
-  return new maplibregl.Map({
-    container,
-    center: view.center,
-    zoom: view.zoom,
-    style: {
-      version: 8,
-      glyphs:
-        "https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf",
-      sprite: SPRITE_URL,
-      sources: {
-        [BASEMAP_SOURCE]: {
-          type: "vector",
-          url: `pmtiles://${PMTILES_URL}`,
-          attribution:
-            '<a href="https://protomaps.com">Protomaps</a> © <a href="https://openstreetmap.org">OpenStreetMap</a>',
-        },
-      },
-      layers: basemapLayers(),
-    },
-  });
 }
