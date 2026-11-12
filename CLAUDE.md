@@ -3,7 +3,7 @@
 Full project reference: `.claude/context/project-context.md`
 Read it at the start of any non-trivial task.
 
-**Current phase plan: none (the last one: `.claude/plans/phase-7-admin.md`).**
+**Current phase plan: `.claude/plans/phase-8-ci-cd.md`.**
 
 While that line names no plan (between phases, after a reconciliation and before the
 next plan's step 0), the reconciled `project-context.md` is current and wins over the
