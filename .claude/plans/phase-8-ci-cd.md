@@ -34,7 +34,7 @@ has run the checks with no Vercel build (#5).
 - Node and npm in the ranges `package.json`'s `devEngines` admits (`CLAUDE.md`,
   "Dependencies").
 - Docker running, for local Supabase, `npm run test:all` and the schema controls.
-- The CLI token's reach (memory: a fine-grained token for this repo). It got `403` from
+- The CLI token's reach. It got `403` from
   the secret-scanning, Dependabot-alerts and vulnerability-alerts APIs
   (`project-context.md`, "Pre-deploy automation (planned)", probed 2026-10-24), so a
   setting it can't read is read in the GitHub UI by the owner and recorded in the PR or
@@ -238,7 +238,8 @@ keeps deploying (Q27). Workflows are grouped by trigger and permissions (Q28): `
 read-only token, `codeql.yml` and `sonarqube.yml` apart, those two also on push so a PR has
 a base analysis to compare with. One set for PRs into both branches (Q29); `main` adds the
 full controls (Q30). No required check gets a workflow-level `paths:` filter: a check that
-never runs never reports, and the PR waits on it. All the hardening (Q5). Gitleaks pre-commit
+never runs never reports, and the PR waits on it (GitHub's docs, as the scope draft cites
+them; not probed, no CI exists yet). All the hardening (Q5). Gitleaks pre-commit
 and in CI (Q4). SonarQube Cloud and CodeQL (Q3), SonarQube skipped by `if:` on Dependabot
 and fork PRs, with no token copy, so CodeQL is what scans those PRs. `npm audit`'s
 thresholds (Q35, with #12). The advisor (Q25), the lint rules (Q26), the controls' trigger
@@ -266,8 +267,8 @@ Phase 8, 9, 10 or outside. **A blocking finding** (one that would keep its check
 `dev`) is settled in Phase 8, fixed or dismissed or allowlisted with a reason, before the
 check becomes required (step 11), because a red required check blocks every PR. Which checks
 that can happen to: `npm audit`, the advisor and the lint rules read the whole tree; CodeQL
-and SonarQube Cloud judge a PR on new alerts and new code, so their old findings needn't
-block; Gitleaks in CI scans the PR's commits, and the full-history scan is a one-off. A
+and SonarQube Cloud are documented to judge a PR on new alerts and new code, so their old
+findings needn't block (steps 8 and 9 check it on their first runs); Gitleaks in CI scans the PR's commits, and the full-history scan is a one-off. A
 secret found in history is rotated at once (`CLAUDE.md`, "Secrets"). The owner's call,
 2026-11-12.
 
@@ -289,8 +290,9 @@ The owner's call, 2026-11-12.
 
 ### #7 — `core.hooksPath` is set by hand
 
-A README line, not a `prepare` script: `prepare` runs on every `npm install` and `npm ci`,
-CI's and Dependabot's updater's included, and CI runs the scan itself. A clone that never
+A README line, not a `prepare` script: `prepare` runs on `npm ci` and on a local `npm
+install` without package arguments (npm 11.21.0's `docs/content/using-npm/scripts.md`), so
+CI's install would run it too, and CI runs the scan itself. A clone that never
 sets it is what the CI scan covers (Q4). The owner's call, 2026-11-12.
 
 ### #8 — The controls' trigger list is guarded by a test
@@ -303,7 +305,9 @@ fails on a file the list doesn't cover. The owner's call, 2026-11-12.
 ### #9 — Each lint rule has a fixture test
 
 A mistyped `no-restricted-syntax` selector matches nothing and lints clean, so a rule that
-never fires passes every gate. A fixture per rule, linted through ESLint's API, shows each
+never fires passes every gate: `echo 'foo();' | npx eslint --no-config-lookup --stdin
+--rule '{"no-restricted-syntax":["error","CallExpresion"]}'` exited 0, and with
+`CallExpression` 1 (2026-11-12). A fixture per rule, linted through ESLint's API, shows each
 fires and keeps showing it after edits; the probe PR shows it only on the day it ran. The
 owner's call, 2026-11-12.
 
@@ -329,8 +333,9 @@ emits a `::warning::` annotation, so it shows in the PR's checks summary, not on
 covers Phase 6 #24's revisit trigger (`minimatch` under `--omit=dev`), which Q35's two runs
 leave in a passing job's log. **A PR whose audit run shows the warning gets an issue for that
 advisory before it merges**, recording the call: fix, wait for upstream, or accept with a
-reason. Rejected: failing that run, since `npm audit` has no allowlist and one low advisory
-with no fix would block every PR; relying on Dependabot alerts alone, since whether a
+reason. Rejected: failing that run, since `npm audit` has no allowlist (npm 11.21.0's
+`docs/content/commands/npm-audit.md` lists no option to ignore an advisory) and one low
+advisory with no fix would block every PR; relying on Dependabot alerts alone, since whether a
 dismissed alert reopens when its scope changes isn't probed. From step 15, Dependabot security
 updates open PRs for advisories that have a fix. Run on 2026-11-12: `--omit=dev` found 0
 vulnerabilities; the full run, 7 moderate (`minimatch`, dev tooling), exit 0 at critical. The
@@ -410,8 +415,8 @@ owner's call, 2026-11-12.
 
 ## Open Decisions
 
-1. **Gitleaks in CI (step 7).** `gitleaks/gitleaks-action`, SHA-pinned (free for a personal
-   account's repository), or the release binary downloaded with its checksum checked. Also
+1. **Gitleaks in CI (step 7).** `gitleaks/gitleaks-action`, SHA-pinned (whether it needs a
+   license key for this repository is read then), or the release binary downloaded with its checksum checked. Also
    the hook's and the CI scan's exact flags, and how the owner installs it on Windows
    (winget, scoop or the binary).
 2. **Node in CI (step 2).** Whether `actions/setup-node` reads the version from
