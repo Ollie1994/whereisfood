@@ -256,7 +256,7 @@ keeps the proxy off `/map` (`src/proxy.test.ts` pins its matcher). So:
 
 **Monitoring** (Q14, OWASP A09, which no phase owned): usage and spend alerts on Vercel and
 Supabase, and an alert when 5xx errors spike, if Hobby and Free allow it (the plan checks);
-Supabase's Auth logs are the record of logins, for as long as the plan keeps them: the plan
+Supabase's Auth logs are the record of logins, for as long as Supabase keeps them: the plan
 reads the Free plan's log retention (round 7's reviewer recalled about a day, not checked),
 and Vercel Hobby's (Appendix A, A09). No log drain.
 
