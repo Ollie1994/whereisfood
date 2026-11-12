@@ -294,8 +294,8 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
     IS #278 (Phase 9) and (Phase 10) rows' markers as they are, carries forward this plan's
     decisions that outlive the phase (#4, #7, #8, #9, #11, #12, #13, #14, #15 at least),
     hands Phase 10 #11's limit (how its first PR into `main` treats findings with no base
-    analysis of `main`, and adding the SAST checks to `main`'s ruleset once one exists), and sets `CLAUDE.md`'s bold line to none, naming this plan as the
-    last one.
+    analysis of `main`, and adding the SAST checks to `main`'s ruleset once one exists),
+    and sets `CLAUDE.md`'s bold line to none, naming this plan as the last one.
 
 ---
 
@@ -503,8 +503,8 @@ probe, the first such branch; every probe branch is named `probe/…`. The comma
 inline in Vercel's settings: a script in the repo would run from each branch's own copy,
 which that branch could rewrite. It is checked before any probe exists, locally on its four
 cases and then by a pushed `probe/` and `dependabot/` branch each showing "Canceled", since
-only exit 0 cancels and a command that errors fails open (Vercel's docs, as `README.md`
-cites them). Moved from step 14, which put it after step 7's and step 13's probes (the
+only exit 0 cancels and exit 1 continues (`README.md:477`, citing Vercel's docs), so a
+command that errors with exit 1 lets the build run (other exit codes not read). Moved from step 14, which put it after step 7's and step 13's probes (the
 owner's call, the narrow read-through on PR #283).
 
 ---
