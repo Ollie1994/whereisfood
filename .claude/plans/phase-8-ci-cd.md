@@ -152,7 +152,10 @@ No function in `src/`. The scripts, each tested in the `unit` project:
   with `ESLint#lintText` and a virtual `filePath` inside the rule's scope (under
   `src/lib/db/` for the filter rules), and expects that rule's message. A fixture file on
   disk would need an ignore entry to keep `npm run lint` clean, which the API honours too,
-  and a path outside `src/lib/db/` never meets the db-scoped rules.
+  and a path outside `src/lib/db/` never meets the db-scoped rules. Probed 2026-11-12:
+  `lintText` with `filePath: "node_modules/probe.js"` returned only "File ignored by
+  default…", and with `filePath: "src/lib/db/probe.ts"` the project's rules ran
+  (`@typescript-eslint/no-unused-vars` fired).
 
 ---
 
@@ -477,8 +480,8 @@ behaviour, not probed (no CI exists yet); steps 8, 9 and 13 show it. Round 1 on 
 
 1. **Gitleaks in CI (step 7).** `gitleaks/gitleaks-action`, SHA-pinned (whether it needs a
    license key for this repository is read then), or the release binary downloaded with its
-   checksum checked. Also the hook's and the CI scan's exact flags, #13's fake value, and how the owner installs it on Windows
-   (winget, scoop or the binary).
+   checksum checked. Also the hook's and the CI scan's exact flags, #13's fake value, and
+   how the owner installs it on Windows (winget, scoop or the binary).
 2. **Node in CI (step 2).** Whether `actions/setup-node` reads the version from
    `package.json`, or the workflow names `26.x`; the job log shows which.
 3. **The local Supabase in CI (step 2).** Which services `supabase start` can leave out while
