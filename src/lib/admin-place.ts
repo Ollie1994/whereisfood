@@ -1,4 +1,5 @@
 import { isInGothenburg } from "@/lib/geo";
+import { MAP_UNSUPPORTED } from "@/lib/map-texts";
 import type { Place, RecentPlace } from "@/lib/services/locations";
 import { SPOTS } from "@/lib/spots";
 import { isTimestamp } from "@/lib/timestamp";
@@ -43,7 +44,7 @@ export const PICKER_TEXTS = {
   recentFailed: "Senaste platserna kunde inte hämtas.",
   recentTimesKept: "Tiderna fylldes inte i: den senaste posten där går inte att visa här. Kontrollera tiderna.",
   mapFailed: "Kartan kunde inte laddas. Ladda om sidan och försök igen.",
-  mapUnsupported: "Kartan kan inte visas i den här webbläsaren. Välj plats på något av de andra sätten.",
+  mapUnsupported: `${MAP_UNSUPPORTED} Välj plats på något av de andra sätten.`,
 } as const;
 
 // `navigator.geolocation`'s refusals (`GeolocationPositionError`'s codes), in Swedish.

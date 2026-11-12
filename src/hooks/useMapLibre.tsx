@@ -5,7 +5,7 @@ import { flushSync } from "react-dom";
 import * as maplibregl from "maplibre-gl";
 import TruckPopup from "@/components/Map/TruckPopup";
 import { diffMarkers, statusText, type MarkerEntry, type TruckId } from "@/lib/live";
-import { createBaseMap } from "@/lib/map-setup";
+import { NO_WEBGL2, createBaseMap } from "@/lib/map-setup";
 
 // Open is filled, later is outlined (plan, open decision 8). The colour and size are
 // placeholders until the owner has looked at them on the map.
@@ -126,21 +126,26 @@ function addMarker(map: maplibregl.Map, layer: MarkerLayer, entry: MarkerEntry) 
 
 // Initialises MapLibre + PMTiles on the given container and keeps one marker per entry
 // of `markers` on it, changing only the markers `diffMarkers` names (CLAUDE.md, UI Rules).
+// True when the browser can't draw the map, for `MapClient` to say so.
 export function useMapLibre(
   containerRef: RefObject<HTMLDivElement | null>,
   markers: ReadonlyMap<TruckId, MarkerEntry>,
   now: Date,
-) {
+): boolean {
   // Counts maps built, so the marker effect re-runs after a build whatever order the
   // effects run in. The map itself is only in the ref.
   const [builds, setBuilds] = useState(0);
+  const [failed, setFailed] = useState(false);
   const layerRef = useRef<MarkerLayer>({ map: null, live: new Map(), shown: new Map(), open: null, now });
 
   useEffect(() => {
     const layer = layerRef.current;
     if (!containerRef.current) return;
     const created = createBaseMap(containerRef.current);
-    if (!created) return;
+    // Each run's own outcome: a dev re-run (StrictMode, Fast Refresh) that builds a map
+    // clears an earlier failure.
+    setFailed(created === NO_WEBGL2);
+    if (!created || created === NO_WEBGL2) return;
     layer.map = created;
     setBuilds((count) => count + 1);
 
@@ -205,4 +210,6 @@ export function useMapLibre(
       renderOpenPopup(layer);
     }
   }, [builds, markers, now]);
+
+  return failed;
 }
