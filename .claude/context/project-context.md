@@ -737,8 +737,10 @@ secret-scanning, Dependabot-alerts and vulnerability-alerts APIs, and no
 - **Run the production project's hosted Security Advisor** (`db advisors --linked --type
   security`, or the dashboard) before the deploy: no ERROR, and every WARN fixed or
   recorded as accepted with a reason; INFO read (the owner's call, round 3 on PR #281).
-  The hosted advisor has never been run; it also checks Auth settings the local one
-  can't see, so the Phase 9 checklist's run on the preview shows what it reports first.
+  No hosted advisor run is recorded here, and a hosted project may report lints the
+  local stack can't, on Auth settings among them (round 3's reviewer named
+  leaked-password protection; not checked), so the Phase 9 checklist's run on the
+  preview shows what it reports first.
   With the hosted-settings checklist Phase 9 writes (the draft's Q21, IS #278).
 - **Give Production its variables only after checking that the Vercel project's
   Ignored Build Step is still set** to cancel a Production build from any branch but
