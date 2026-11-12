@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GEO_ERRORS, geoError, pinFrom, pinText, placeText, recentPlaceList, spotAt } from "@/lib/admin-place";
+import { GEO_ERRORS, PICKER_TEXTS, geoError, pinFrom, pinText, placeText, recentPlaceList, spotAt } from "@/lib/admin-place";
 import { GOTHENBURG_BBOX } from "@/lib/geo";
 import { SPOTS } from "@/lib/spots";
 import { LOCATION_ERRORS } from "@/lib/validators/location";
@@ -51,6 +51,16 @@ describe("geoError", () => {
     expect(geoError(1)).toBe(GEO_ERRORS.denied);
     expect(geoError(2)).toBe(GEO_ERRORS.failed);
     expect(geoError(3)).toBe(GEO_ERRORS.failed);
+  });
+});
+
+describe("PICKER_TEXTS", () => {
+  // Built from `map-texts.ts`'s `MAP_UNSUPPORTED`; the whole sentence pinned, so a change
+  // there that breaks this one fails here.
+  it("says the map can't be shown here, and to choose another way", () => {
+    expect(PICKER_TEXTS.mapUnsupported).toBe(
+      "Kartan kan inte visas i den här webbläsaren. Välj plats på något av de andra sätten.",
+    );
   });
 });
 

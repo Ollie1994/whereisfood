@@ -239,6 +239,7 @@ export function freshnessText(updatedAt: string, now: Date): string {
 // Plan, open decisions 6 and 7. Nothing before the first response: an empty map then
 // isn't "no trucks". While polls fail the markers stay (plan #16), so with none showing
 // the notice says nothing could be fetched, and with some it says they may be old.
+// `mapFailed` comes first, over every fetch state (`live.test.ts`, the "map failed" cases).
 export function noticeText(fetchState: FetchState, markerCount: number, mapFailed = false): string | null {
   if (mapFailed) return MAP_UNSUPPORTED;
   if (fetchState === "failing") {

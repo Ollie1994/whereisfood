@@ -38,12 +38,12 @@ export function usePickerMap(
       containerRef.current,
       start ? { center: [start.longitude, start.latitude], zoom: PIN_ZOOM } : undefined,
     );
-    // Each run's own outcome, so a later run that builds a map clears an earlier failure;
-    // `PickerMap` says so while it holds. Set from a callback, not the effect's body
-    // (`react-hooks/set-state-in-effect`).
-    const unsupported = created === NO_WEBGL2;
-    queueMicrotask(() => setFailed(unsupported));
-    if (created === NO_WEBGL2) return;
+    // Set once: `PickerMap` then shows its message in place of the container, so a later run
+    // returns at the `containerRef` check above and builds nothing here.
+    if (created === NO_WEBGL2) {
+      setFailed(true);
+      return;
+    }
     // A limit: with no tiles URL the box stays empty, with no message, as `/map` does.
     if (!created) return;
     // Latitude first, the app's order (`geo.ts`); MapLibre's `[lng, lat]` stays here.

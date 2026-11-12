@@ -142,11 +142,10 @@ export function useMapLibre(
     const layer = layerRef.current;
     if (!containerRef.current) return;
     const created = createBaseMap(containerRef.current);
-    // Each run's own outcome, so a later run that builds a map clears an earlier failure.
-    // Set from a callback, not the effect's body (`react-hooks/set-state-in-effect`).
-    const unsupported = created === NO_WEBGL2;
-    queueMicrotask(() => setFailed(unsupported));
-    if (created === NO_WEBGL2 || !created) return;
+    // Each run's own outcome: a dev re-run (StrictMode, Fast Refresh) that builds a map
+    // clears an earlier failure.
+    setFailed(created === NO_WEBGL2);
+    if (!created || created === NO_WEBGL2) return;
     layer.map = created;
     setBuilds((count) => count + 1);
 
