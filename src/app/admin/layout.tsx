@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import AdminNav from "@/components/Admin/AdminNav";
 import LogoutButton from "@/components/Admin/LogoutButton";
 
-// WhereIsFood is the temporary name until Phase 9, the launch, picks one (Phase 7 plan, #26).
+// WhereIsFood is the temporary name until Phase 10, the launch, picks one (Phase 7 plan, #26).
 export const metadata: Metadata = {
   title: "WhereIsFood – admin",
 };

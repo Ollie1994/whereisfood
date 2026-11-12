@@ -1,14 +1,18 @@
 # Phases 8–10 scope: CI/CD, Security, Launch
 
-**Status: input for the Phase 8, 9 and 10 plans, not a rule.** Its decisions take effect
-when the reconciliation issue that follows IS #278 writes them into `project-context.md`
-(as `**between phases**` rows, `CLAUDE.md`'s "Between phases" procedure, which also puts
-a decision that is a rule today into `CLAUDE.md` in the same PR; read on 2026-11-12, none
-here is yet: Q10 holds once CI exists, Q36 once production does); until then
-`project-context.md` is current. Written 2026-11-12 between phases, reviewed in #278's PR.
-Q19 and Q23 also amend a carried-forward decision, "Phase 7 open decisions 1–5"
-(`project-context.md:946`: "The login is a magic link … a session lasts until logout"),
-which #279 rewrites (round 7 on PR #280, the owner's call).
+**Status: input for the Phase 8, 9 and 10 plans; its decisions hold through
+`project-context.md`'s rows, not as rules of this file.** Written 2026-11-12 between
+phases and reviewed in #278's PR, it took effect when IS #279 wrote its decisions into
+`project-context.md`: the four IS #278 `**between phases**` rows in "Decisions carried
+forward", and the Phase map (`CLAUDE.md`'s "Between phases" procedure, which also puts a
+decision that is a rule today into `CLAUDE.md`; read on 2026-11-12, none here is yet: Q10
+holds once CI exists, Q36 once production does). Q19 and Q23 also amend a carried-forward
+decision, "Phase 7 open decisions 1–5" (`project-context.md`, "Decisions carried forward":
+"The login is a magic link … a session lasts until logout"), which #279 rewrote (round 7
+on PR #280, the owner's call). This draft stays the detail those rows point to.
+`project-context.md` is current (`CLAUDE.md`'s header), and where a row or the Phase map
+summarises this draft, a difference between the two is a stale hit to fix by the sweep,
+not a choice between them.
 
 Every question (Q1–Q36) was put to the owner on 2026-11-12 and decided then, except Q34
 (left open for Phase 10). Where Claude recommended an option, the owner chose it, except Q24,
@@ -21,7 +25,7 @@ repeated below.
 
 | # | Decision |
 |---|---|
-| D1 | The work after Phase 7 is three phases: **8 · CI/CD → 9 · Security → 10 · Launch** (the first production deploy). CI/CD first, so the security PRs, MFA the largest, run through the gates, SAST and the secret scan, and #264 unblocks sooner. Amends IS #265's split (8 CI/CD and security, 9 Launch), including its "Phase 8 audits every account that exists then" (`project-context.md`'s "Pre-deploy automation (planned)"): by the line below, the first 2FA audit is Phase 9's; an account Phase 8 creates still gets two-factor at creation, by `CLAUDE.md`'s "Secrets" rule. Phase 6 #1 (CI/CD before the production deploy) still holds. Cost accepted: a third plan, retrospective and reconciliation |
+| D1 | The work after Phase 7 is three phases: **8 · CI/CD → 9 · Security → 10 · Launch** (the first production deploy). CI/CD first, so the security PRs, MFA the largest, run through the gates, SAST and the secret scan, and #264 unblocks sooner. Amends IS #265's split (8 CI/CD and security, 9 Launch), including its placing the first 2FA audit in Phase 8: by the line below, the first 2FA audit is Phase 9's; an account Phase 8 creates still gets two-factor at creation, by `CLAUDE.md`'s "Secrets" rule. Phase 6 #1 (CI/CD before the production deploy) still holds. Cost accepted: a third plan, retrospective and reconciliation |
 | D2 | **TOTP MFA for the admin login** (Q13), with any standard authenticator app (Google Authenticator, Proton Authenticator, Aegis). On Supabase's Free plan, by the pricing page as a web search quoted it (Appendix B; the live page not read). Phase 9 |
 | D3 | **A lost phone** is covered by the owner's authenticator backups, made by hand after each new login is added. Beyond the backups, the routes are the Phase 9 plan's to probe and settle, and it decides whether the login rework needs an unenroll screen (the owner, rounds 3–7 on PR #280). The candidates, their limits and evidence: Phase 9's "The lost-phone routes" and Appendix B |
 
@@ -120,7 +124,8 @@ review's additions.
 
 **Dependabot:** switched on last in Phase 8, after the Ignored Build Step cancels
 `dependabot/*`, the gates run as required checks and branch protection is on
-(`project-context.md`: "only once the gates run on PRs", "Before turning them on, decide").
+(`project-context.md`, "Pre-deploy automation (planned)", its Dependabot item, which IS
+#279 wrote from this list).
 - Security updates for npm; version updates for GitHub Actions, to keep the SHA pins
   current (Q9). No auto-merge: the exact pins (`next`, `eslint-config-next`,
   `maplibre-gl`) keep their browser check of `/map`.
@@ -209,13 +214,13 @@ needs CI green before review and merge. The `/map` browser check stays manual. `
 - **#241's 6-digit email code** rides along (Q23): one rework of the screen, the email code
   then the TOTP code. (#241: the link failed twice in the Gmail app, which had no PKCE
   verifier cookie.) It amends Phase 7 open decision 1, "The login is a magic link"
-  (`project-context.md:946`).
+  (`project-context.md`, "Decisions carried forward").
 - **Session timeouts** (Q19): `[auth.sessions]` is commented out (`config.toml:279-283`) and
   Supabase's docs say a session lasts indefinitely by default, so a stolen session skips
   MFA. `timebox` and/or `inactivity_timeout`: in Phase 9 if the Free plan has them, else
   Phase 10 with Pro (one community post says Pro-only, not confirmed). Values in the plan.
   It amends Phase 7 open decision 2, "a session lasts until logout"
-  (`project-context.md:946`).
+  (`project-context.md`, "Decisions carried forward").
 - **Login abuse, probed first** (Q31): the form takes any address and asks Auth for a link;
   at `email_sent = 2` an hour (local), someone who knows the admin's address could use up
   the sends; and with sign-ups off, an unknown address may get a different answer, revealing
@@ -309,15 +314,15 @@ and Vercel Hobby's (Appendix A, A09). No log drain.
 
 ## Phase 10 · Launch
 
-**From today's Phase 9 row** (minus the security headers and the runbook's usage emails,
-both now Phase 9's, the second as Monitoring's alerts): the history retention
-period for the privacy note (Phase 7 plan #25); the app's final name (#26); Supabase Pro
-(backups); a production Supabase project with new keys (Phase 6 plan #18); the tiles' custom
-domain on R2 and its CORS rule; production env; the Swedish privacy note; the takedown
-procedure (one transaction: delete the truck's locations, clear or delete each `users` row
-pointing at it, then delete the truck; Phase 5 plan #7); telling trucks they're listed;
-the acquisition plan; the runbook (Vercel Attack Mode); Vercel Pro + Spend Management
-before the first marketing push.
+**From the old launch row** (Phase 9's before IS #278), minus the security headers and
+the runbook's usage emails, both now Phase 9's, the second as Monitoring's alerts: the
+history retention period for the privacy note (Phase 7 plan #25); the app's final name
+(#26); Supabase Pro (backups); a production Supabase project with new keys (Phase 6 plan
+#18); the tiles' custom domain on R2 and its CORS rule; production env; the Swedish
+privacy note; the takedown procedure (one transaction: delete the truck's locations, clear
+or delete each `users` row pointing at it, then delete the truck; Phase 5 plan #7);
+telling trucks they're listed; the acquisition plan; the runbook (Vercel Attack Mode);
+Vercel Pro + Spend Management before the first marketing push.
 
 **Before the deploy:** 2FA re-checked on every account, the registrar included; the Ignored
 Build Step checked before Production gets variables, no branch preview promoted; every
@@ -326,13 +331,16 @@ credential rotated.
 **From the split:** the tiles' domain in the CSP, and HSTS; session timeouts if Pro-only
 (Q19); the usage and spend alerts if Phase 9 finds Hobby and Free can't send them (Q14), so
 the old runbook's usage emails stay in a phase; the hosted-settings checklist applied to
-the production project, its Security Advisor clean before the deploy (Q21).
+the production project, its Security Advisor settled before the deploy: no ERROR, and
+every WARN fixed or recorded as accepted with a reason (Q21; the threshold is the owner's
+call, round 3 on PR #281, after the first "clean" proved unmeetable).
 
-**Carried forward, not in the Phase map row:** the hosted check of Phase 5 #19 / PR #167
-round 5 (`project-context.md`'s "Decisions carried forward": `sv-SE-x-icu`, both
-extensions in `extensions`, the Data API's Max rows at least `MAX_ROWS`), run on the
-production project before the app uses it, as on the preview (passed 2026-11-02). The row
-says "production's is Phase 9's", the old numbering; it is Phase 10's.
+**Carried forward, which had fallen out of the old launch row:** the hosted check of
+Phase 5 #19 / PR #167 round 5 (`project-context.md`'s "Decisions carried forward":
+`sv-SE-x-icu`, both extensions in `extensions`, the Data API's Max rows at least
+`MAX_ROWS`), run on the production project before the app uses it, as on the preview
+(passed 2026-11-02). The row said "production's is Phase 9's", the old numbering; IS #279
+made it Phase 10's and put the check in the Phase 10 row.
 
 **Open, for the Phase 10 plan** (Q34, the owner's call to explore then): an incident section
 in the runbook (a compromised session, phone, mailbox or key: end every session with

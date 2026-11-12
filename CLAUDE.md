@@ -171,7 +171,7 @@ said otherwise: Phase 4 plan decision #14.
 - It finds and mutates; it decides nothing. Postgres errors propagate unchanged (for
   `23P01`, see Locations below), no function reads the clock (the caller
   passes `cancelledAt`, a window, a `before`), and no function deletes (Phase 5 plan
-  decision #10). The one delete, a takedown, is a manual SQL procedure Phase 9 writes
+  decision #10). The one delete, a takedown, is a manual SQL procedure Phase 10 writes
   (Phase 5 plan decision #7), not app code
 - Return the selected row **uncast, never `as Location` or `as Truck`**: uncast, `tsc`
   checks that the select has every key of the row type; a cast also compiles when the
@@ -302,8 +302,9 @@ Toolchain: the Node and npm ranges under Dependencies.
 | `npm run test:all` | **every project in `RUNS`** of `scripts/test-all.mjs` (today `unit` + `integration`), checked against the projects `vitest.config.ts` declares; takes no arguments | yes |
 
 **There is no CI — every gate is manual, until Phase 8 builds it.** CI/CD is Phase 8's
-work, one piece designed together and built before Phase 9's production deploy (Phase 6
-plan decision #1; the split into Phases 8 and 9 is IS #265, between phases).
+work, one piece designed together and built before Phase 10's production deploy (Phase 6
+plan decision #1; the split into Phases 8, 9 and 10 is IS #265 and IS #278, between
+phases).
 What it holds (the four gates in GitHub Actions, SAST, branch protection, a pre-commit
 and CI secret scan, and more) is `project-context.md`'s "Pre-deploy automation
 (planned)". Don't re-propose it for an earlier phase. Sources: the owner's decision
@@ -559,10 +560,18 @@ says where).
 this paragraph is the procedure's one copy, and the other files point here):
 - A settled decision goes into `project-context.md`'s "Decisions carried forward" table
   as a row whose first cell starts `**between phases**, <date>, IS #<n>`, through an
-  issue and PR like any doc change. A rule also goes into this file in that PR, so it
-  holds at once.
+  issue and PR like any doc change. Several rows from one issue each carry a short label
+  after its number (`IS #278 (D1)`), so a citation names one row. A rule also goes into
+  this file in that PR, so it holds at once.
 - The next plan gives each marked row a decision of its own, one per row, citing the
-  row's IS # (`/create-milestone` adds them to the plan's Rationale).
+  row's IS # (`/create-milestone` adds them to the plan's Rationale). A row whose marker
+  names a later phase (`**between phases**, <date>, IS #<n>, for Phase <N>`) is that
+  phase's plan's instead: earlier plans don't take it, and their reconciliations don't
+  replace its marker, though a stale fact in it is fixed like any other hit (the
+  owner's calls, IS #279). Such a row waits through the phases before its own. A
+  between-phases row that a later one replaces is removed in the PR that adds the new
+  row, which keeps what still holds and cites the old row's IS #; the old text stays in
+  its PR (IS #279).
 - That plan's reconciliation replaces each marker with the plan decision, and the rule
   text here cites it. When the decision didn't outlive the phase, the reconciliation
   removes the row and the rule text with it.
