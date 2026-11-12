@@ -144,7 +144,7 @@ needs CI green before review and merge. The `/map` browser check stays manual. `
   the check reads the session's own level (its `aal` claim), never "the user has a
   verified factor", which an `aal1` session of an enrolled user would also pass. The plan
   settles which route admits an `aal1` session for the enroll and code steps (today
-  `/auth/callback` sends every login to `/admin`, and the proxy exempts only
+  `/auth/callback` sends every successful login to `/admin` (`callback/route.ts:20`), and the proxy exempts only
   `/admin/login`), which answer an `aal1` session gets elsewhere (`CLAUDE.md`'s "Admin
   routes": 401 no valid session, 403 non-admin), and keeps "a session cookie is checked
   before any network or DB call". The QR code is shown as an image from a `data:` URL
