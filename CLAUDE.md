@@ -349,13 +349,20 @@ the stale one. So:
   left (`Get-CimInstance Win32_Process -Filter "Name = 'node.exe'"`), and stop any
   that are (process-log row 279, PR #135).
 
-⚠ **`npm run dev` can reload a page in a loop** (#304; Next 16.4's Turbopack dev cache,
-upstream [vercel/next.js#100267](https://github.com/vercel/next.js/issues/100267)): the
-page reloads non-stop, and the server prints `✓ Compiled in 1ms` before each request.
-Stop the server (and its leftover `node` processes, above), delete `.next/dev/cache`, and
-start it again; for a browser check, `npm run build` + `npm start` has no dev cache.
-Upgrading `next` to a release with the fix
-([#100291](https://github.com/vercel/next.js/pull/100291)) ends it.
+⚠ **`npm run dev` can reload a page in a loop** (IS #304). The page reloads non-stop; the
+server prints `✓ Compiled in` a few ms before each request, and the browser console shows
+`[HMR] connected` and `[Fast Refresh] rebuilding` on each load. Its symptoms match upstream
+[vercel/next.js#100267](https://github.com/vercel/next.js/issues/100267) (Next 16.4's
+Turbopack dev cache, after a restart); #304 didn't reproduce it. **To get out:** stop the
+server (and its leftover `node` processes, above), delete `.next/dev/cache`, and start it
+again. That's untested here; if the loop stays, delete `.next`, or set
+`experimental.turbopackFileSystemCacheForDev: false` locally without committing it. **To
+avoid it:** close tabs on the dev server before restarting it, and open the page before
+requesting a route such as `/api/live`. For a browser check, `npm run build` + `npm start`
+has no hot reload, so it can't loop. An upstream fix is proposed
+([vercel/next.js#100291](https://github.com/vercel/next.js/pull/100291), not merged).
+Whether a `next` release ends the loop is checked when one carries it, upgraded as
+"Dependencies" says (exact pin, `/map` check).
 
 ⚠ **Green gates don't show the map renders.** After a change to the map code, its
 dependencies or the tile file, look at `/map` in a real browser: basemap, markers and
