@@ -2,6 +2,7 @@
 
 import { useRef } from "react";
 import MapView from "@/components/Map/MapView";
+import { MAP_NOTICE } from "@/components/Map/styles";
 import { useLocations } from "@/hooks/useLocations";
 import { useMapLibre } from "@/hooks/useMapLibre";
 import { noticeText } from "@/lib/live";
@@ -28,7 +29,7 @@ export default function MapClient() {
       <MapView ref={containerRef} />
       <div role="status" className="pointer-events-none absolute inset-x-4 top-4 z-10 flex justify-center">
         {notice && (
-          <p className="rounded-md bg-white px-3 py-2 text-center text-sm text-gray-900 shadow">
+          <p className={MAP_NOTICE}>
             {notice}
           </p>
         )}
