@@ -21,7 +21,7 @@ repeated below.
 
 | # | Decision |
 |---|---|
-| D1 | The work after Phase 7 is three phases: **8 · CI/CD → 9 · Security → 10 · Launch** (the first production deploy). CI/CD first, so the security PRs, MFA the largest, run through the gates, SAST and the secret scan, and #264 unblocks sooner. Amends IS #265's split (8 CI/CD and security, 9 Launch); Phase 6 #1 (CI/CD before the production deploy) still holds. Cost accepted: a third plan, retrospective and reconciliation |
+| D1 | The work after Phase 7 is three phases: **8 · CI/CD → 9 · Security → 10 · Launch** (the first production deploy). CI/CD first, so the security PRs, MFA the largest, run through the gates, SAST and the secret scan, and #264 unblocks sooner. Amends IS #265's split (8 CI/CD and security, 9 Launch), including its "Phase 8 audits every account that exists then" (`project-context.md`'s "Pre-deploy automation (planned)"): by the line below, the first 2FA audit is Phase 9's; an account Phase 8 creates still gets two-factor at creation, by `CLAUDE.md`'s "Secrets" rule. Phase 6 #1 (CI/CD before the production deploy) still holds. Cost accepted: a third plan, retrospective and reconciliation |
 | D2 | **TOTP MFA for the admin login** (Q13), with any standard authenticator app (Google Authenticator, Proton Authenticator, Aegis). On Supabase's Free plan, by the pricing page as a web search quoted it (Appendix B; the live page not read). Phase 9 |
 | D3 | **A lost phone** is covered by the owner's authenticator backups, made by hand after each new login is added. Beyond the backups, the routes are the Phase 9 plan's to probe and settle, and it decides whether the login rework needs an unenroll screen (the owner, rounds 3–7 on PR #280). The candidates, their limits and evidence: Phase 9's "The lost-phone routes" and Appendix B |
 
@@ -64,7 +64,9 @@ review's additions.
   import without `NEXT_PUBLIC_SUPABASE_URL` or `SUPABASE_SERVICE_ROLE_KEY`, and
   `src/lib/supabase-browser.ts:20-21` without the URL or `NEXT_PUBLIC_SUPABASE_ANON_KEY`;
   so the job sets `.env.example`'s variables, the Supabase ones from the local stack, which
-  aren't secrets.
+  aren't secrets. The `build` job also starts `next start` on what it built and requests
+  the main pages (a smoke check now); Phase 9 adds its header assertions to that step, so
+  the pipeline step is Phase 8's and the assertions Phase 9's.
 - **Hardening, all of it** (Q5): actions pinned by commit SHA; minimal `permissions:`, with
   the repository's default token set to read-only; no `pull_request_target` with a
   checkout of the PR's code; approval before first-time contributors' runs; a job holding a
@@ -86,8 +88,10 @@ review's additions.
   (which would still leave fork PRs to CodeQL). Confirm SonarQube Cloud's free tier for
   public repositories.
 - **`npm audit`** (Q35): one run, `--omit=dev` at level high, fails the PR on high and
-  critical in production dependencies; a second, full run that never fails prints the
-  rest, since `--omit=dev` leaves dev dependencies out. A limit: Phase 6 #24's revisit
+  critical in production dependencies; a second, full run fails on critical (dev tools run
+  in CI, in the job holding SonarQube's token, and on the owner's machine) and prints the
+  rest, since `--omit=dev` leaves dev dependencies out (widened by the owner in the narrow
+  read-through on PR #280). A limit: Phase 6 #24's revisit
   trigger, the moderate `minimatch` advisory appearing under `--omit=dev`
   (`project-context.md`'s "Versions"), fails neither run, so it shows only in a passing
   job's log. The plan decides whether that is enough.
@@ -114,7 +118,9 @@ review's additions.
   import. And on `main` (Q7).
 - **`bash scripts/process-log.sh check`** on every PR (Q8).
 
-**Dependabot:**
+**Dependabot:** switched on last in Phase 8, after the Ignored Build Step cancels
+`dependabot/*`, the gates run as required checks and branch protection is on
+(`project-context.md`: "only once the gates run on PRs", "Before turning them on, decide").
 - Security updates for npm; version updates for GitHub Actions, to keep the SHA pins
   current (Q9). No auto-merge: the exact pins (`next`, `eslint-config-next`,
   `maplibre-gl`) keep their browser check of `/map`.
@@ -133,6 +139,9 @@ review's additions.
   that. No required approvals: GitHub doesn't let a PR's author approve it.
 - A production deploy waits on nothing else: `main`'s required checks are the gate (Q6).
 - `SECURITY.md` and GitHub's private vulnerability reporting (Q32).
+- A new account Phase 8 makes (SonarQube Cloud, and the GitHub app it installs) gets
+  two-factor at creation (`CLAUDE.md`, "Secrets"); the audit of all accounts is Phase 9's
+  (D1).
 
 **Process:** CI is the gate (Q10): locally the fast loop (`tsc`, `test:run`, lint), and a PR
 needs CI green before review and merge. The `/map` browser check stays manual. `CLAUDE.md`'s
@@ -145,8 +154,12 @@ needs CI green before review and merge. The `/map` browser check stays manual. `
 **The login rework:**
 - **TOTP MFA** (D2): an enroll step (QR code) and a code step after the email, through the
   browser `supabaseClient`, which `CLAUDE.md` allows for Auth; `requireAdmin` (proxy and
-  `withAdmin`) refuses a session below `aal2`, since all data goes through `supabaseAdmin`
-  and RLS never sees the session; the integration tests' admin login reaches `aal2`;
+  `withAdmin`) refuses a session below `aal2`, since the app's data goes through
+  `supabaseAdmin`, where RLS doesn't see the session. One table is the exception:
+  `authenticated` may read its own `users` row through the Data API
+  (`0001_baseline.sql:136-139`, `users_select_own`), so an `aal1` token reads it too; the
+  plan decides between an `aal2` condition on that policy and accepting it. The
+  integration tests' admin login reaches `aal2`;
   `[auth.mfa.totp]` enroll and verify on, locally and on the preview. `requireAdmin`'s
   input today, `GetUser` (`admin-auth.ts:24`), carries the user and no assurance level, so
   the check reads the session's own level, the `aal` claim of a token Auth has verified:
@@ -165,6 +178,12 @@ needs CI green before review and merge. The `/map` browser check stays manual. `
   image from a `data:` URL (auth-js: prepend `data:image/svg+xml;utf-8,`,
   `lib/types.d.ts:1601-1603`), so `/admin`'s CSP allows `img-src data:`; inlining the SVG
   would need the HTML sink Q26 bans. Details: Appendix B.
+- **The enrol window** (the owner, the narrow read-through on PR #280). An `aal1` session
+  is let in to enrol, so while the admin has no verified factor, whoever holds the mailbox
+  can enrol their own authenticator and reach `aal2`. Constraints for the plan to build and
+  probe: an `aal1` session may enrol only while the user has no verified factor; the owner
+  enrols right after the admin user is made, on production too; and the lost-phone runbook
+  secures the mailbox and ends every session before a factor is deleted.
 - **The lost-phone routes** (D3; this bullet is their one home). Beyond the backups, the
   candidates and their limits:
   - the app's own `mfa.unenroll` from an `aal2` session still open on another device. It
@@ -200,9 +219,12 @@ needs CI green before review and merge. The `/map` browser check stays manual. `
 - **Login abuse, probed first** (Q31): the form takes any address and asks Auth for a link;
   at `email_sent = 2` an hour (local), someone who knows the admin's address could use up
   the sends; and with sign-ups off, an unknown address may get a different answer, revealing
-  the admin's. Neither probed. After probing locally and reading the hosted limit, the plan
-  picks a CAPTCHA (`config.toml`'s `[auth.captcha]` lists `hcaptcha` and `turnstile`), one
-  message for every address, or accepting it.
+  the admin's. Neither probed. And with #241's 6-digit email code and the TOTP code, how
+  fast a code can be guessed: `token_verifications = 30` per 5 minutes is per IP, not per
+  account, and an email code lives `otp_expiry = 3600` s (`config.toml`); MFA verify's limit
+  isn't read. After probing these locally and reading the hosted limits, the plan picks a
+  CAPTCHA (`config.toml`'s `[auth.captcha]` lists `hcaptcha` and `turnstile`), one message
+  for every address, a shorter code life or a lockout, or accepting it.
 
 **Security headers, split design** (Q11). A nonce CSP needs every page dynamically rendered
 and the nonce set in the proxy (Next's guide,
@@ -228,11 +250,15 @@ keeps the proxy off `/map` (`src/proxy.test.ts` pins its matcher). So:
   names the Supabase URL; its 503 `unavailablePage` needs it too. Its redirects render no
   document and carry none. `/admin` also runs a MapLibre map, the place picker
   (`PickerMap` → `usePickerMap` → `createBaseMap`, `usePickerMap.ts:5`), so its CSP lets
-  through everything the next bullet lists for `/map`, and a picker browser check follows;
-- a test that they're present, and that `/admin` with a session, `/admin/login` and the
-  proxy's 503 each carry exactly one CSP, run by Phase 8's CI against a running app: the
-  `build` job starts `next start` on what it built and requests those pages, since neither
-  the config's headers nor the proxy's answers show without a server.
+  through everything the next bullet lists for `/map`, and a picker browser check follows.
+  The proxy's CSP on `/admin` carries `frame-ancestors 'none'`, `object-src`, `base-uri` and
+  `form-action` too, and `/admin` keeps Referrer-Policy and Permissions-Policy: the config
+  skips `/admin` only for its CSP, not its other headers, so the admin screens can't be
+  framed;
+- a test that they're present, that `/admin` with a session, `/admin/login` and the
+  proxy's 503 each carry exactly one CSP with `frame-ancestors 'none'`, and that `/admin`
+  has the other headers, added to the `build` job's served-app step that Phase 8 builds;
+  neither the config's headers nor the proxy's answers show without a server.
 - It must let through MapLibre's worker (`public/maplibre/<version>/`), the tiles' range
   requests, the basemap's glyphs and sprite from `protomaps.github.io`
   (`map-setup.ts:43-44`, `basemap.ts:18`), `blob:`/`data:` images and the Supabase URL the
@@ -301,6 +327,12 @@ credential rotated.
 (Q19); the usage and spend alerts if Phase 9 finds Hobby and Free can't send them (Q14), so
 the old runbook's usage emails stay in a phase; the hosted-settings checklist applied to
 the production project, its Security Advisor clean before the deploy (Q21).
+
+**Carried forward, not in the Phase map row:** the hosted check of Phase 5 #19 / PR #167
+round 5 (`project-context.md`'s "Decisions carried forward": `sv-SE-x-icu`, both
+extensions in `extensions`, the Data API's Max rows at least `MAX_ROWS`), run on the
+production project before the app uses it, as on the preview (passed 2026-11-02). The row
+says "production's is Phase 9's", the old numbering; it is Phase 10's.
 
 **Open, for the Phase 10 plan** (Q34, the owner's call to explore then): an incident section
 in the runbook (a compromised session, phone, mailbox or key: end every session with
