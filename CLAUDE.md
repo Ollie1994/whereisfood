@@ -349,6 +349,15 @@ the stale one. So:
   left (`Get-CimInstance Win32_Process -Filter "Name = 'node.exe'"`), and stop any
   that are (process-log row 279, PR #135).
 
+⚠ **`npm run dev` can reload a page in a loop** (IS #304): the page reloads non-stop, and
+the dev server logs a `✓ Compiled in …` line before every request with no file edited. Its
+symptoms match upstream [vercel/next.js#100267](https://github.com/vercel/next.js/issues/100267),
+a Turbopack dev-cache bug reported on 16.4 and a 16.5 canary; #304 couldn't reproduce it.
+Stop the server and its leftover `node` processes (above), and start it again; if it still
+loops, delete `.next/dev/cache`, or all of `.next`, first. Neither step was tested here. For
+a browser check, use `npm run build` + `npm start` instead, reading its `Local:` line
+(above): #304's probe saw no reload loop under `npm start`.
+
 ⚠ **Green gates don't show the map renders.** After a change to the map code, its
 dependencies or the tile file, look at `/map` in a real browser: basemap, markers and
 a popup. MapLibre's worker 404'd with all four gates green (process-log row 282).

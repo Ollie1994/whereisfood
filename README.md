@@ -324,6 +324,8 @@ npm run dev
 Open the URL from the `Local:` line Next prints, usually
 [http://localhost:3000](http://localhost:3000). It redirects to `/map`.
 
+If a page reloads itself in a loop under `npm run dev`: `CLAUDE.md`, "Testing" (IS #304).
+
 ### 5. Create the admin user
 
 Sign-ups are off (`[auth] enable_signup = false` in `supabase/config.toml`), so the
