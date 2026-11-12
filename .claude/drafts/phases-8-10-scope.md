@@ -123,8 +123,8 @@ review's additions.
 
 **Dependabot:** switched on last in Phase 8, after the Ignored Build Step cancels
 `dependabot/*`, the gates run as required checks and branch protection is on
-(`project-context.md`, "Pre-deploy automation (planned)": "only once the gates run on
-PRs", and its Dependabot item since IS #279).
+(`project-context.md`, "Pre-deploy automation (planned)", its Dependabot item, which IS
+#279 wrote from this list).
 - Security updates for npm; version updates for GitHub Actions, to keep the SHA pins
   current (Q9). No auto-merge: the exact pins (`next`, `eslint-config-next`,
   `maplibre-gl`) keep their browser check of `/map`.
