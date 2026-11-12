@@ -200,7 +200,8 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
    Supabase in the job), `build` with `scripts/smoke.mjs`. Every action pinned by commit
    SHA, minimal `permissions:`, no `pull_request_target` (Q5); a Node `devEngines` admits;
    `.env.example`'s variables from the local stack, which aren't secrets. A job that starts
-   the stack writes them to `.env.local` from `npx supabase status -o env`:
+   the stack writes them to `.env.local` from `npx supabase status -o env`, mapped as
+   README's "3. Environment" table does (`API_URL` → `NEXT_PUBLIC_SUPABASE_URL`, …):
    `tests/integration/setup.ts` reads that file only and throws without it (its
    `loadEnvLocal`), whatever the job's `env:` holds. *Every later step's PR runs through
    it*, and the gates catch a broken workflow edit first.
