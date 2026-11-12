@@ -54,7 +54,7 @@ has run the checks with no Vercel build (#5).
 | The 2FA audit of every account. An account Phase 8 creates (SonarQube Cloud) gets two-factor at creation (`CLAUDE.md`, "Secrets") | Phase 9 |
 | Writing the hosted-settings checklist | Phase 9 (applied in Phase 10) |
 | The production project and deploy, the custom domain, HSTS, rotating credentials, the production Security Advisor, the Production variables | Phase 10 |
-| Deploying from Actions. Vercel keeps deploying (Q27); Phase 8 only extends the Ignored Build Step to cancel `dependabot/*` | not planned |
+| Deploying from Actions. Vercel keeps deploying (Q27); Phase 8 only extends the Ignored Build Step to cancel `dependabot/*` and `probe/*` (#15) | not planned |
 | Dependabot auto-merge, and npm version updates (npm gets security updates only, Actions version updates) | not planned (Q9) |
 | Automating the `/map` browser check | stays manual (Q10) |
 | Required PR approvals: GitHub doesn't let a PR's author approve it | not planned |
@@ -76,7 +76,7 @@ has run the checks with no Vercel build (#5).
 | `.github/workflows/ci.yml` | PR-only (`pull_request` into `dev` and `main`), read-only token. Jobs `typecheck-lint`, `unit`, `integration` (local Supabase, and the security advisor), `build` (`.env.example`'s variables from the local stack, then `next start` and `smoke.mjs`), `secret-scan`, `audit` (three runs, #12), `controls` (`--check` always; the full set when `needsFullControls` says so) and `process-log` |
 | `.github/workflows/codeql.yml` | CodeQL, `javascript-typescript` and `actions`, on PRs and on push to `dev` and `main`, with `security-events: write`; its code-scanning result check, not the analyze job, is the required one (#14) |
 | `.github/workflows/sonarqube.yml` | SonarQube Cloud, on PRs and on push to `dev` and `main`; skipped by `if:` on Dependabot and fork PRs; installs with `--ignore-scripts`; runs with `sonar.qualitygate.wait=true`, so a failed gate fails the job (#14) |
-| `.github/dependabot.yml` | Version updates for `github-actions`, keeping the SHA pins current. npm gets security updates only (repository setting) |
+| `.github/dependabot.yml` | Version updates for `github-actions`, keeping the SHA pins current, with the default `/` branch-name separator (step 15). npm gets security updates only (repository setting) |
 | `.githooks/pre-commit` | Gitleaks on the staged changes; the folder is set by hand through `core.hooksPath` (#7). Committed executable with `git update-index --chmod=+x`: `core.filemode` is `false` on the owner's machine (read 2026-11-12), so a plain add stores `100644` and git elsewhere ignores the hook |
 | `.gitleaks.toml` (and `.gitleaksignore` if needed) | Gitleaks' config. Each allowlist entry names why it isn't a secret: the local stack's keys and test fixtures (`CLAUDE.md`, "Secrets") |
 | `sonar-project.properties` | SonarQube Cloud's project key, sources and exclusions |
@@ -95,7 +95,7 @@ has run the checks with no Vercel build (#5).
 | `scripts/controls.mjs` | Its header's "Not a gate (CLAUDE.md, "Testing")" (line 43), which a required `controls` check makes false (step 12); anything else only if CI needs it (open decision 4) |
 | `package.json` | Only a script the trigger or smoke step needs; no `prepare` hook (#7) |
 | `CLAUDE.md` | The bold plan line (step 0); #12's audit rule (step 6); the Gitleaks hook under "Secrets" (step 7); "Testing" rewritten for CI as the gate, its "Schema controls … not a gate" included (step 12) |
-| `README.md` | "Getting started": installing Gitleaks and setting `core.hooksPath` (step 7); "Preview deploys": the Ignored Build Step's new command (step 14). The status parts wait for step 17 (Phase 7 #8) |
+| `README.md` | "Getting started": installing Gitleaks and setting `core.hooksPath` (step 7); "Preview deploys": the Ignored Build Step's new command (step 1, #15). The status parts wait for step 17 (Phase 7 #8) |
 | `.claude/process-log.md` | Rows as they happen; the retrospective (step 16) |
 | `.claude/context/project-context.md` | Step 17 only |
 
@@ -114,7 +114,7 @@ has run the checks with no Vercel build (#5).
 - **SonarQube Cloud:** the account (two-factor at creation), organization and project;
   automatic analysis off, since it can't run beside a CI analysis; `SONAR_TOKEN` as an
   Actions secret, never a Dependabot secret (Q3).
-- **Vercel:** the Ignored Build Step also cancels `dependabot/*` (Q1).
+- **Vercel:** the Ignored Build Step also cancels `dependabot/*` (Q1) and `probe/*` (#15), from step 1.
 - **The owner's machine:** Gitleaks installed for Git Bash; `core.hooksPath` set.
 - **Dependabot:** the alerts its auto-triage dismissed, reviewed.
 
@@ -177,11 +177,12 @@ No function in `src/`. The scripts, each tested in the `unit` project:
 ## Steps
 
 Strict order where stated. Each step is one issue and one PR into `dev`, with these
-exceptions: step 1 is settings, recorded on its issue with no PR; step 11 is one issue
-per blocking finding and may be none; probe PRs (step 7's `secret-scan` probe, #13, and
-step 13's) are closed unmerged, and their step's issue records them. **Steps 3–10 depend
-only on steps 1 and 2** and may run in any order or in
-parallel (#10); the order below is cheapest first. **Until step 12, every Phase 8 PR still
+exceptions: step 1 is settings, recorded on its issue, with a PR only for README's
+"Preview deploys"; step 11 is one issue per blocking finding and may be none; probe PRs
+(step 7's `secret-scan` probe, #13, and step 13's) are closed unmerged, and their step's
+issue records them. Every probe branch is named `probe/…`, which Vercel cancels from step 1
+(#15). **Steps 3–10 depend only on steps 1 and 2** and may run in any order or in parallel
+(#10); the order below is cheapest first. **Until step 12, every Phase 8 PR still
 runs the four gates by hand** (`CLAUDE.md`, "Testing"), whatever CI shows.
 
 Each step that adds a check runs it reporting, not required, and opens an issue for each
@@ -192,10 +193,19 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
 0. **This plan.** The plan file, and `CLAUDE.md`'s bold "Current phase plan" line naming
    it, where between phases it read `none (the last one: .claude/plans/phase-7-admin.md)`.
    Only that line of the header changes.
-1. **Repository settings.** The default workflow token read-only, and unable to approve
-   PRs; approval for first-time contributors' runs; CodeQL default setup off. *First
-   because* every workflow written after it starts under them, so none ever runs with a
-   write token by default (Q5).
+1. **Repository and Vercel settings.** The default workflow token read-only, and unable
+   to approve PRs; approval for first-time contributors' runs; CodeQL default setup off.
+   *First because* every workflow written after it starts under them, so none ever runs
+   with a write token by default (Q5). And Vercel's Ignored Build Step also cancels
+   `dependabot/*` (Q1) and `probe/*` (#15), inline in Vercel's settings, never a script in
+   the repo (a branch could rewrite its own copy); before it's saved, the command is run
+   locally on its four cases (Production on `main` continues, Production off `main`
+   cancels, a `dependabot/` or `probe/` preview cancels, any other preview continues), and
+   after, a pushed `probe/ignore-check` and `dependabot/ignore-check` branch each show
+   Vercel's "Canceled"; README's "Preview deploys" updated. *First because* step 7's probe
+   is the first branch to carry a deliberate break, and a branch that builds on Vercel
+   gets the Preview variables, the secret key among them (`README.md`, "Preview
+   deploys").
 2. **`ci.yml` with the four gates:** `typecheck-lint`, `unit`, `integration` (a local
    Supabase in the job), `build` with `scripts/smoke.mjs`. Every action pinned by commit
    SHA, minimal `permissions:`, no `pull_request_target` (Q5); a Node `devEngines` admits;
@@ -233,11 +243,20 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
 11. **Blocking findings settled.** Each blocking finding from steps 3–9 fixed, or
     dismissed or allowlisted with a reason, in its own issue. *Before step 12 because* a
     required check that's red on `dev` blocks every PR, its own fix's included (#4).
-12. **Branch protection** on `dev` and `main`: PR required, every check from steps 2–9
-    required by name, no force-push, no deletion; on `main`, admins bound (Q2, Q30, #11).
-    For SAST the required check is what fails on a finding (#14): CodeQL's code-scanning
-    result check, not its analyze job, and SonarQube Cloud's workflow job run with
-    `sonar.qualitygate.wait=true`, not SonarQube Cloud's own app check.
+12. **Branch protection** by rulesets (open decision 7) on `dev` and `main`: PR required,
+    no force-push, no deletion; on `main`, admins bound, an empty bypass list (Q2, Q30,
+    #11). On `dev`, every check from steps 2–9 required by name; on `main`, `ci.yml`'s
+    checks, with SAST added in Phase 10 once `main` has a base analysis (#11). For SAST the
+    required check is what fails on a finding (#14): CodeQL's code-scanning result check,
+    not its analyze job, and SonarQube Cloud's workflow job run with
+    `sonar.qualitygate.wait=true`, not SonarQube Cloud's own app check. *Before it*, a
+    fresh no-op PR into `dev` shows every check green under the exact name to be required
+    (`gh pr checks`): `ci.yml` is PR-only, so `dev`'s head shows only the push runs. *After
+    it*, `gh pr checks --required` on that PR lists the same names, and `gh api
+    repos/{owner}/{repo}/rulesets` reads the rules back (the CLI token can read rulesets but
+    not classic protection: `branches/*/protection` → `403`, probed 2026-11-12). Whether
+    rulesets' "require workflows" rule is open to this personal account is read here (#2's
+    limit).
     With it, `CLAUDE.md`'s "Testing" drops "There is no CI" and the manual gate list for
     Q10's split: CI is the gate; locally `tsc`, `test:run` and lint are the fast loop; the
     `/map` browser check stays manual. Its "Schema controls: `node scripts/controls.mjs`,
@@ -247,18 +266,20 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
     required check, split only where a break would cascade, its `secret-scan` break made as
     #13 says; on `main`, one probe PR from a branch off `dev` (a branch off `main` has no
     `ci.yml`), carrying a deliberate break (a type error, so `typecheck-lint` is red), which
-    proves the block and the admin rule, not SAST on `main` (#11). `gh pr merge --admin` is
-    tried only while a required check is red: a probe whose checks all passed would merge
-    `dev` into `main`, and `main` builds Production. Each is closed unmerged and its branch
-    deleted. A probe that merges, or a check that stays
-    green, stops step 14 until it is understood.
-14. **Vercel's Ignored Build Step** also cancels `dependabot/*` (Q1), README's "Preview
-    deploys" updated; and the review of the alerts Dependabot's auto-triage dismissed. *Before
-    step 15*, so no Dependabot branch ever builds with the Preview variables.
-15. **Dependabot on** (Q9, last): `.github/dependabot.yml` for `github-actions`, npm security
-    updates on; first, read that its updater runs a Node `devEngines` admits (open decision
-    9). The proof: one Dependabot PR, from an Actions version update or, if none has come,
-    one triggered with "Check for updates" (#5).
+    proves the block and the admin rule, not SAST on `main` (#11). **No merge is attempted
+    on either probe** (#6): a wrong rule would merge `dev` into `main`, which builds
+    Production. Each is closed unmerged and its branch deleted. A check that stays green,
+    or a probe that shows a merge or bypass option, stops step 14 until it is understood.
+14. **The review of the alerts Dependabot's auto-triage dismissed**, each reopened or kept
+    with a reason. *Before step 15*, so the security updates start from a reviewed list.
+15. **Dependabot on** (Q9, last): `.github/dependabot.yml` for `github-actions`, with the
+    default `/` branch-name separator, so its branches match step 1's `dependabot/*`; npm
+    security updates on. *Before switching on*, the Node its npm updater runs is read from
+    dependabot-core's npm updater image definition and checked against `devEngines` (open
+    decision 9); *after*, the Dependabot tab shows the npm job with no error. The proof: one
+    Dependabot PR, from an Actions version update or, if none has come, one triggered with
+    "Check for updates" (#5). An npm security PR can't be forced, so the proof may be an
+    Actions one, which runs no npm: a stated limit.
 16. **The Phase 8 retrospective** (`.claude/process-log.md`, "How to use it"): its range
     starts at the row after the Phase 7 retrospective's range. Blocked by every other
     planned issue; its follow-ups block step 17.
@@ -271,9 +292,9 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
     the gates are manual that step 12 didn't reach; and the README's status parts. It
     replaces the three **between phases** markers this plan took up with #1–#3, leaves the
     IS #278 (Phase 9) and (Phase 10) rows' markers as they are, carries forward this plan's
-    decisions that outlive the phase (#4, #7, #8, #9, #11, #12, #13, #14 at least), hands
-    Phase 10 #11's limit (how its first PR into `main` treats findings with no base
-    analysis of `main`), and sets `CLAUDE.md`'s bold line to none, naming this plan as the
+    decisions that outlive the phase (#4, #7, #8, #9, #11, #12, #13, #14, #15 at least),
+    hands Phase 10 #11's limit (how its first PR into `main` treats findings with no base
+    analysis of `main`, and adding the SAST checks to `main`'s ruleset once one exists), and sets `CLAUDE.md`'s bold line to none, naming this plan as the
     last one.
 
 ---
@@ -306,6 +327,13 @@ thresholds (Q35, with #12). The advisor (Q25), the lint rules (Q26), the control
 protection on both branches (Q2), `main`'s required checks the production deploy's only gate
 (Q6). `SECURITY.md` (Q32). CI as the gate once it exists (Q10). The owner's calls,
 2026-11-12.
+
+**A limit:** a `pull_request` run uses the PR's own workflow files, so a PR that edits
+`.github/workflows/` can turn a required check into one that passes whatever the code does,
+under the same name. With no required approvals, the guard is the owner reading every
+`.github/` diff, Dependabot's Actions SHA bumps included; whether rulesets' "require
+workflows" rule is open to this personal account is read in step 12, and using it is the
+owner's call then (the narrow read-through on PR #283).
 
 ### #3 — The between-phases procedure (IS #279)
 
@@ -343,11 +371,19 @@ that can't go red is no gate: before #99, `test:all` exited 0 with 917 tests unc
 On `dev`, one probe PR with one deliberate break per required check, split only where a
 break would cascade (a type error that also breaks the build). Most checks are independent
 jobs; CodeQL's result check isn't, and is broken by a change that adds an alert, not by
-breaking its analyze job (#14). On `main`, one probe PR, to show the block holds for an admin
-(`gh pr merge --admin` refused), from a branch off `dev`, the shape of a real PR into `main`
-(a branch off `main` holds no `ci.yml`, so nothing would run), at the cost of the full
-controls run (~45 s a control, 64 took 48 minutes, 2026-10-23). Phase 8 has no UI, so step
-13 is the phase's checkpoint and there is no other. The owner's call, 2026-11-12.
+breaking its analyze job (#14). On `main`, one probe PR, to show the block holds for an admin,
+from a branch off `dev`, the shape of a real PR into `main` (a branch off `main` holds no
+`ci.yml`, so nothing would run), at the cost of the full controls run (~45 s a control, 64
+took 48 minutes, 2026-10-23). Phase 8 has no UI, so step 13 is the phase's checkpoint and
+there is no other. The owner's call, 2026-11-12.
+
+**No merge is attempted on a probe.** The admin rule is shown by the ruleset read back with
+`gh api` (an empty bypass list on `main`), `gh pr view --json mergeStateStatus` reading
+`BLOCKED`, and the owner's look at the `main` probe in the UI, signed in as admin: no bypass
+or "merge without waiting" option offered. An attempted `gh pr merge --admin` was the first
+plan: if a rule were wrong it would merge `dev` into `main`, which builds Production, and a
+refusal wouldn't show the rule, since the CLI token lacks administration rights and may be
+refused for that alone (the owner's call, the narrow read-through on PR #283).
 
 ### #7 — `core.hooksPath` is set by hand
 
@@ -378,7 +414,8 @@ owner's call, 2026-11-12.
 
 They depend only on the repository settings and the four gates' job (its local Supabase, its
 Node). The strict parts are 11 → 12 → 13 (a check is required only once green, and proved
-only once required) and 14 → 15 (Dependabot's branches are off Vercel before it opens one).
+only once required) and 14 → 15 (the dismissed alerts are reviewed before security updates
+start). Step 1 keeps probe and Dependabot branches off Vercel before either exists (#15).
 Until step 12, Phase 8's own PRs run the four gates by hand.
 
 ### #11 — `main` binds admins, and a broken CI waits for a hand-lifted rule
@@ -395,7 +432,11 @@ A base analysis without a push is possible: a run elsewhere that checks out `mai
 uploads for it, through codeql-action's `ref` and `sha` inputs and SonarQube Cloud's
 `sonar.branch.name` (documented, not probed). Whether Phase 10 does that before its first PR
 into `main` is the Phase 10 plan's, which step 17 hands it (the owner's call, round 2 on PR
-#283).
+#283). So `main`'s ruleset requires `ci.yml`'s checks in Phase 8, and the SAST checks join
+it in Phase 10, once a base analysis exists: required before then, they could turn Phase
+10's first PR into `main` red on old findings and force lifting `main`'s rule at the
+production deploy. No PR goes into `main` before Phase 10, so Phase 8 loses nothing by it
+(the owner's call, the narrow read-through on PR #283).
 
 ### #12 — `npm audit`: block the dangerous, show the rest, record each sighting
 
@@ -451,6 +492,21 @@ they are would gate nothing on a finding. Not SonarQube Cloud's own app check: a
 by `if:` (#2) never posts it, so it would block every Dependabot and fork PR. Documented
 behaviour, not probed (no CI exists yet); steps 8, 9 and 13 show it. Round 1 on PR #283.
 
+### #15 — Vercel cancels probe and Dependabot branches from step 1
+
+A branch pushed to this repo builds on Vercel with the Preview variables, the secret key
+among them (`README.md`, "Preview deploys": Git Fork Protection covers forks only). The probe
+branches carry deliberate breaks, a vulnerable dependency whose install scripts Vercel's
+install would run among them, so they must never build there, any more than Dependabot's.
+Step 1 extends the Ignored Build Step to cancel `dependabot/*` and `probe/*`, before step 7's
+probe, the first such branch; every probe branch is named `probe/…`. The command stays
+inline in Vercel's settings: a script in the repo would run from each branch's own copy,
+which that branch could rewrite. It is checked before any probe exists, locally on its four
+cases and then by a pushed `probe/` and `dependabot/` branch each showing "Canceled", since
+only exit 0 cancels and a command that errors fails open (Vercel's docs, as `README.md`
+cites them). Moved from step 14, which put it after step 7's and step 13's probes (the
+owner's call, the narrow read-through on PR #283).
+
 ---
 
 ## Acceptance Criteria
@@ -460,6 +516,10 @@ behaviour, not probed (no CI exists yet); steps 8, 9 and 13 show it. Round 1 on 
   (`gh api repos/{owner}/{repo}/actions/permissions/workflow`, or the UI if the token gets
   `403`), recorded on the issue; first-time contributors' runs need approval; CodeQL default
   setup is off.
+- [ ] Vercel's Ignored Build Step, inline in its settings, also cancels `dependabot/*` and
+  `probe/*`: run locally on its four cases with the expected exits, and a pushed
+  `probe/ignore-check` and `dependabot/ignore-check` branch each show "Canceled" in Vercel
+  before any probe branch exists; README's "Preview deploys" says so.
 
 **The four gates (step 2)**
 - [ ] `ci.yml` runs on PRs into `dev` and `main` with exactly the job names "Files" lists.
@@ -507,26 +567,31 @@ behaviour, not probed (no CI exists yet); steps 8, 9 and 13 show it. Round 1 on 
 - [ ] `SECURITY.md` points to private reporting, and private reporting is on (UI).
 
 **Settled and required (steps 11–12)**
-- [ ] Every check is green on `dev`'s head; each blocking finding's issue is closed, fixed or
-  dismissed with a reason; each non-blocking finding has an issue in its phase.
-- [ ] On both branches: PR required, the exact check list required (for SAST, the checks #14
-  names), no force-push, no deletion; on `main`, no bypass for admins; read back with
-  `gh api` and recorded.
+- [ ] A fresh no-op PR into `dev` shows every check green under its exact name; each
+  blocking finding's issue is closed, fixed or dismissed with a reason; each non-blocking
+  finding has an issue in its phase.
+- [ ] Rulesets on both branches: PR required, no force-push, no deletion; on `dev` every
+  check from steps 2–9 required (for SAST, the checks #14 names), on `main` `ci.yml`'s;
+  `main`'s bypass list empty; read back with `gh api repos/{owner}/{repo}/rulesets` and
+  recorded; `gh pr checks --required` on the no-op PR lists the same names; whether
+  "require workflows" is open to this account is recorded.
 - [ ] `CLAUDE.md`'s "Testing" no longer says "There is no CI", and states Q10's split;
   neither it nor `scripts/controls.mjs`'s header calls the controls "not a gate".
 
 **The proof (steps 13–15)**
 - [ ] On the `dev` probe, every required check is red and `gh pr view --json
-  mergeStateStatus` reads `BLOCKED`; on the `main` probe, from a branch off `dev` with a
-  deliberate break, `gh pr merge --admin` is refused while that break's check is red; both
-  are closed unmerged, their branches deleted, and `origin/main` is unchanged.
-- [ ] The Ignored Build Step's command also cancels `dependabot/*`, and README's "Preview
-  deploys" says so; each alert auto-triage dismissed is reviewed, reopened or kept with a
-  reason.
-- [ ] `dependabot.yml` covers `github-actions`; npm security updates are on; the updater's
-  log shows a Node `devEngines` admits.
-- [ ] On one Dependabot PR: the checks ran, SonarQube's job was skipped and didn't block the
-  merge, CodeQL ran, and Vercel shows the build cancelled by the Ignored Build Step.
+  mergeStateStatus` reads `BLOCKED`; on the `main` probe, from a `probe/` branch off `dev`
+  with a deliberate break, `mergeStateStatus` reads `BLOCKED` and the owner, signed in as
+  admin, sees no bypass or "merge without waiting" option (#6); no merge is attempted on
+  either; both are closed unmerged, their branches deleted, and `origin/main` is unchanged.
+- [ ] Each alert auto-triage dismissed is reviewed, reopened or kept with a reason.
+- [ ] Before Dependabot is on, the Node of its npm updater, read from dependabot-core's npm
+  updater image definition, is one `devEngines` admits; after, `dependabot.yml` covers
+  `github-actions` with the default separator, npm security updates are on, and the
+  Dependabot tab shows the npm job with no error.
+- [ ] On one Dependabot PR, on a branch starting `dependabot/`: the checks ran, SonarQube's
+  job was skipped and didn't block the merge, CodeQL ran, and Vercel shows the build
+  cancelled by the Ignored Build Step.
 
 **Always**
 - [ ] Each PR before step 12 ran the four gates by hand, exit codes read unpiped.
@@ -564,9 +629,13 @@ behaviour, not probed (no CI exists yet); steps 8, 9 and 13 show it. Round 1 on 
    then.
 6. **The required-check names for CodeQL and SonarQube Cloud (step 12)**: the exact names
    the checks #14 picks report under, which branch protection lists exactly.
-7. **Classic branch protection or rulesets (step 12).** Either binds admins on `main`.
+7. **Classic branch protection or rulesets (step 12).** **Settled: rulesets** (the owner's
+   call, the narrow read-through on PR #283). Either binds admins on `main`, but the CLI
+   token can read rulesets and not classic protection (`gh api …/rulesets` answered;
+   `branches/dev/protection` and `branches/main/protection` → `403`, probed 2026-11-12), so
+   only rulesets can be read back by command.
 8. **How the `dev` probe splits (step 13)** where breaks would cascade.
-9. **If Dependabot's updater runs a Node below `devEngines` (step 15).** Probed first; if it
-   does, its npm PRs would stop with `EBADDEVENGINES`, and the options are written up for the
-   owner then.
+9. **If Dependabot's updater runs a Node below `devEngines` (step 15).** Read before it is
+   switched on, from dependabot-core's npm updater image definition; if it does, its npm PRs
+   would stop with `EBADDEVENGINES`, and the options are written up for the owner then.
 10. **The wording of #12's rule in `CLAUDE.md` (step 6)**, the owner's to approve.
