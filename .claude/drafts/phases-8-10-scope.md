@@ -147,7 +147,9 @@ needs CI green before review and merge. The `/map` browser check stays manual. `
   the check reads the session's own level, the `aal` claim of a token Auth has verified
   (`getClaims()`, or `getUser`'s answer), never a decoded cookie: auth-js's own notice says
   a session read from cookies "must not be trusted" (`GoTrueClient.js:2174`), and
-  `getAuthenticatorAssuranceLevel` decodes the JWT it's given (`:4511`). Never "the user has
+  `getAuthenticatorAssuranceLevel()` with no argument decodes the stored session's token
+  without checking it (`:4539`, `:4549`); given a token, it decodes it and also asks Auth
+  through `getUser(jwt)` (`:4515`, `:4521`). Never "the user has
   a verified factor" either, which an `aal1` session of an enrolled user would also pass.
   The plan settles which route admits an `aal1` session for the enroll and code steps
   (today `/auth/callback` sends every successful login to `/admin`, `callback/route.ts:20`,
