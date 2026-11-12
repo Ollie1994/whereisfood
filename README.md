@@ -420,8 +420,8 @@ entry, and none is added later. So the longer after the push a check runs, the o
 the seed history it finds on the preview, and a check that reads a recent window of
 past entries can find no seed rows: that is the seed's age, not a read-path bug. IS #254's
 insert (next paragraph) and the "Today's entry" snippet this section carried until IS #259
-(its SQL: `git show f62bf9a:README.md`) also wrote rows with `created_by` null, as the seed
-does.
+(its SQL: under "**Today's entry.**" in `git show f62bf9a:README.md`) also wrote rows with
+`created_by` null, as the seed does.
 
 Phase 7's walkthrough changed rows by hand once more, on 2026-11-11: IS #254's insert gave
 Taco Loco a lunch and a dinner on 2026-11-04 (Phase 7 plan, #38). Its first run wrote
@@ -435,15 +435,26 @@ pair (IS #257).
 **An entry for a marker check.** Before checking a preview's markers, add one on `/admin`,
 logged in from `dev`'s alias: fill in the "Ny post" form with an active truck that has no
 entry today, a known spot and times that cover now, and press "Spara". It goes through the
-API like any admin entry, so an overlap is refused with the form's message. While it lasts,
-it also blocks that truck's real entries and leaves out its checklist suggestions for the
-same hours. The map shows it within about 3 minutes, and drops it within about 3 after a
-cancel (`/api/live`'s cache, `project-context.md`, "Read path"). Cancel it with "Ställ in"
-the same day: `/admin`'s list shows a live entry only until the day it ends is over
-(`listAdminEntries`), and after that it's cancelled by its id in the SQL Editor. Once it's
-cancelled, the checklist doesn't suggest it in later weeks (cancelled rows aren't read,
-`getChecklist`). Left live, it can be suggested on that weekday for up to 4 weeks. Its row
-stays in the preview's history, cancelled, with `created_by` set.
+API like any admin entry, so an overlap is refused with the form's message. The map shows
+it within about 3 minutes, and drops it within about 3 after a cancel (`/api/live`'s cache,
+`project-context.md`, "Read path"). Cancel it with "Ställ in" as soon as the check is done.
+Until it's cancelled, even after it ends, it refuses the truck's overlapping entries, drops
+any of the truck's checklist suggestions that overlap it, and makes a by-hand insert like
+IS #254's pass over the truck (#38's rule, above). For up to 4 weeks, it can also take the
+place of the truck's real suggestions on that weekday (`getChecklist`). Once it's
+cancelled, it does none of these: cancelled rows aren't read. `/admin`'s list drops an entry
+at the first Stockholm midnight at or after its end (`listAdminEntries`). After that, cancel
+it in the SQL Editor: find its id with
+
+```sql
+select id, starts_at, ends_at from locations
+where truck_id = '<truck id>' and cancelled_at is null
+order by starts_at desc limit 5;
+```
+
+then run
+`update locations set cancelled_at = now() where id = '<id>' and cancelled_at is null;`.
+Its row stays in the preview's history.
 
 ---
 
