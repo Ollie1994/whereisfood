@@ -20,8 +20,9 @@ production deploy go through it (#1).
 
 ## Goal
 
-Every PR into `dev` or `main` must pass the four gates and the secret scan, SonarQube
-Cloud and CodeQL, `npm audit`, the security advisor, the lint rules, the schema controls
+Every PR into `dev` or `main` must pass the four gates and the secret scan, CodeQL,
+SonarQube Cloud (skipped on Dependabot and fork PRs, where CodeQL covers them, #2), `npm
+audit`, the security advisor, the lint rules, the schema controls
 and the log check, run by hardened GitHub Actions workflows as required checks under
 branch protection, with Dependabot switched on last; done once each required check has
 been seen to fail on a probe PR that branch protection then blocked, and a Dependabot PR
@@ -82,7 +83,7 @@ has run the checks with no Vercel build (#5).
 | `scripts/controls-trigger.mjs` (+ test), or a mode of `controls.mjs` (open decision 4) | `changedPaths` and `needsFullControls` |
 | `scripts/controls-trigger-coverage.test.mjs` (name open) | The guard test on the trigger list (#8) |
 | `scripts/smoke.mjs` (+ test of its expectations if it has pure parts) | The served-app check the `build` job runs |
-| A lint fixture folder and its test (path open, outside what `npm run lint` lints) | One fixture per new rule, linted through ESLint's API (#9) |
+| The lint rules' fixture test (path open) | One fixture per new rule, inline in the test, linted through ESLint's API (#9) |
 
 ### Modify
 
@@ -122,9 +123,12 @@ has run the checks with no Vercel build (#5).
 
 No function in `src/`. The scripts, each tested in the `unit` project:
 
-- **`changedPaths(base, head)`** lists the PR's changed files, after fetching the base
-  (a default `actions/checkout` fetches depth 1, without it). It **throws** on a failed
-  or empty listing, so "couldn't tell" never reads as "nothing changed".
+- **`changedPaths(base, head)`** lists the PR's changed files. A default
+  `actions/checkout` fetches depth 1, without the base, and a three-dot diff on a shallow
+  clone finds no merge base, so it diffs the PR's merge commit against its first parent
+  (`HEAD^1`, with `fetch-depth: 2`) or reads the PR's files through the API (open decision
+  4). It **throws** on a failed or empty listing, so "couldn't tell" never reads as
+  "nothing changed".
 - **`needsFullControls(paths, baseRef)`**, pure: true when `baseRef` is `main` (Q30), or
   when a path matches the trigger list: `supabase/migrations/`, `tests/controls/`,
   `scripts/controls.mjs`, the tests the controls' headers name,
@@ -132,16 +136,23 @@ No function in `src/`. The scripts, each tested in the `unit` project:
   `supabase/config.toml`, `vitest.config.ts`, `src/lib/db/`, `src/lib/supabase.ts`, and
   every file those tests import (the scope draft's list, completed by the guard below).
 - **The trigger list's guard test (#8)** reads each control's header, follows the named
-  tests' relative imports transitively, and fails when a file they reach isn't covered
-  by the list.
+  tests' imports transitively, relative ones and `@/` ones resolved as `tsconfig.json`'s
+  `paths` does, and fails when a file they reach isn't covered by the list. The named tests
+  reach `src/` through `@/` (`db-trucks.test.ts` imports `@/lib/db/trucks`, `rls.test.ts`
+  and `schema.test.ts` `@/lib/database.types`, read 2026-11-12), so a walk of relative
+  imports alone stops at `./helpers`.
 - **`smoke.mjs`** requests the app `next start` serves: `/map` → 200, `/api/live` → 200
-  with a JSON array, `/admin/login` → 200, `/admin` → a redirect to `/admin/login`,
+  with an object whose `entries` is an array (`getLiveMap` returns `{ entries }`,
+  `src/lib/services/live.ts`), `/admin/login` → 200, `/admin` → a redirect to `/admin/login`,
   `/api/admin/trucks` → 401 with `{ "error" }`. Any other answer fails the job. Phase 9
   adds its header assertions here.
 - **`.githooks/pre-commit`** runs Gitleaks on the staged changes and exits non-zero on a
   find; it runs in the owner's Git Bash on Windows.
-- **The lint rules' fixture test (#9)** lints one fixture per rule through ESLint's API
-  and expects that rule's message.
+- **The lint rules' fixture test (#9)** lints one fixture per rule, a string in the test,
+  with `ESLint#lintText` and a virtual `filePath` inside the rule's scope (under
+  `src/lib/db/` for the filter rules), and expects that rule's message. A fixture file on
+  disk would need an ignore entry to keep `npm run lint` clean, which the API honours too,
+  and a path outside `src/lib/db/` never meets the db-scoped rules.
 
 ---
 
@@ -176,10 +187,12 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
 4. **Lint rules** in `eslint.config.mjs`, with the fixture test (#9) (Q26).
 5. **The security advisor** in the `integration` job: `npx supabase db advisors --local
    --type security --fail-on warn` (Q25).
-6. **The `audit` job's three runs** (Q35, #12), and #12's rule in `CLAUDE.md`, whose
-   wording goes to the owner (Phase 7 #6).
+6. **The `audit` job's three runs** (Q35, #12), each `if: always()` so it reports after an
+   earlier one fails, the third ignoring its own exit code; and #12's rule in `CLAUDE.md`,
+   whose wording goes to the owner (Phase 7 #6).
 7. **Gitleaks:** `.githooks/pre-commit`, `.gitleaks.toml`, the `secret-scan` job, the
    one-off full-history scan, README's setup lines and `CLAUDE.md`'s "Secrets" line (Q4).
+   The CI half is shown red with a fake secret committed without a local hook (#13).
 8. **`codeql.yml`** (Q3).
 9. **SonarQube Cloud:** the account (two-factor at creation), project and token,
    `sonar-project.properties`, `sonarqube.yml` with the `if:` skip and `--ignore-scripts`
@@ -188,13 +201,18 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
 11. **Blocking findings settled.** Each blocking finding from steps 3–9 fixed, or
     dismissed or allowlisted with a reason, in its own issue. *Before step 12 because* a
     required check that's red on `dev` blocks every PR, its own fix's included (#4).
-12. **Branch protection** on `dev` and `main`: PR required, every job from steps 2–9
+12. **Branch protection** on `dev` and `main`: PR required, every check from steps 2–9
     required by name, no force-push, no deletion; on `main`, admins bound (Q2, Q30, #11).
+    For SAST the required check is what fails on a finding (#14): CodeQL's code-scanning
+    result check, not its analyze job, and SonarQube Cloud's workflow job run with
+    `sonar.qualitygate.wait=true`, not SonarQube Cloud's own app check.
     With it, `CLAUDE.md`'s "Testing" drops "There is no CI" and the manual gate list for
     Q10's split: CI is the gate; locally `tsc`, `test:run` and lint are the fast loop; the
     `/map` browser check stays manual. *Only now*, because every check exists and is green.
 13. **The proof (the phase's checkpoint, #6).** On `dev`, one probe PR with one break per
-    required job, split only where a break would cascade; on `main`, one probe PR. Each is
+    required check, split only where a break would cascade, its `secret-scan` break made as
+    #13 says; on `main`, one probe PR from a branch off `dev` (a branch off `main` has no
+    `ci.yml`), which proves the block and the admin rule, not SAST on `main` (#11). Each is
     closed unmerged and its branch deleted. A probe that merges, or a check that stays
     green, stops step 14 until it is understood.
 14. **Vercel's Ignored Build Step** also cancels `dependabot/*` (Q1), README's "Preview
@@ -212,10 +230,13 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
     and the Roadmap row; Part 2's "Pre-deploy automation (planned)", whose "To build" and
     "Nothing below exists yet" become a description of what was built, with what stays for
     Phases 9 and 10; the "Phase map" (the Phase 8 row); any `CLAUDE.md` text still saying
-    the gates are manual that step 12 didn't reach; and the README's status parts. It replaces the three **between phases** markers this plan took up with #1–#3,
-    leaves the IS #278 (Phase 9) and (Phase 10) rows' markers as they are, carries forward
-    this plan's decisions that outlive the phase (#4, #7, #8, #9, #12 at least), and sets
-    `CLAUDE.md`'s bold line to none.
+    the gates are manual that step 12 didn't reach; and the README's status parts. It
+    replaces the three **between phases** markers this plan took up with #1–#3, leaves the
+    IS #278 (Phase 9) and (Phase 10) rows' markers as they are, carries forward this plan's
+    decisions that outlive the phase (#4, #7, #8, #9, #11, #12, #13, #14 at least), hands
+    Phase 10 #11's limit (how its first PR into `main` treats findings with no base
+    analysis of `main`), and sets `CLAUDE.md`'s bold line to none, naming this plan as the
+    last one.
 
 ---
 
@@ -268,8 +289,8 @@ Phase 8, 9, 10 or outside. **A blocking finding** (one that would keep its check
 check becomes required (step 11), because a red required check blocks every PR. Which checks
 that can happen to: `npm audit`, the advisor and the lint rules read the whole tree; CodeQL
 and SonarQube Cloud are documented to judge a PR on new alerts and new code, so their old
-findings needn't block (steps 8 and 9 check it on their first runs); Gitleaks in CI scans the PR's commits, and the full-history scan is a one-off. A
-secret found in history is rotated at once (`CLAUDE.md`, "Secrets"). The owner's call,
+findings needn't block (steps 8 and 9 check it on their first runs); Gitleaks in CI scans
+the PR's commits, and the full-history scan is a one-off. A secret found in history is rotated at once (`CLAUDE.md`, "Secrets"). The owner's call,
 2026-11-12.
 
 ### #5 — Done needs proof that each check can fail
@@ -281,10 +302,11 @@ that can't go red is no gate: before #99, `test:all` exited 0 with 917 tests unc
 
 ### #6 — Probe PRs: one per branch, one break per job
 
-On `dev`, one probe PR with one deliberate break per required job, the jobs being
+On `dev`, one probe PR with one deliberate break per required check, the jobs being
 independent, split only where a break would cascade (a type error that also breaks the
 build). On `main`, one probe PR, to show the block holds for an admin (`gh pr merge --admin`
-refused), at the cost of the full controls run (~45 s a control, 64 took 48 minutes,
+refused), from a branch off `dev`, the shape of a real PR into `main` (a branch off `main`
+holds no `ci.yml`, so nothing would run), at the cost of the full controls run (~45 s a control, 64 took 48 minutes,
 2026-10-23). Phase 8 has no UI, so step 13 is the phase's checkpoint and there is no other.
 The owner's call, 2026-11-12.
 
@@ -324,12 +346,21 @@ On `main` the rules apply to admins too (Q30), so if CI itself breaks, merging t
 waits until that rule is lifted by hand. Accepted: `main`'s next push is Phase 10's (README,
 "Preview deploys"), and its required checks are the production deploy's only gate (Q6).
 
+**A limit that follows:** with no push to `main` before Phase 10, CodeQL and SonarQube Cloud
+have no analysis of `main` to compare a PR into it with (`origin/main` is PR #195's merge,
+read 2026-11-12), so on a PR into `main` they may count old findings as new. Step 13's `main`
+probe therefore proves the block and the admin rule, not SAST on `main`; how Phase 10's first
+PR into `main` treats those findings is the Phase 10 plan's, which step 17 hands it.
+
 ### #12 — `npm audit`: block the dangerous, show the rest, record each sighting
 
 Three runs. `npm audit --omit=dev --audit-level=high` fails on high and critical in
 production dependencies; a full `npm audit --audit-level=critical` fails on critical anywhere
-(Q35). A third, `npm audit --omit=dev` at any level, never fails: when it lists anything it
-emits a `::warning::` annotation, so it shows in the PR's checks summary, not only a log. This
+(Q35). A third, `npm audit --omit=dev` at any level, is made never to fail: `npm audit`
+exits 1 whenever it lists anything at or above its level (a plain `npm audit` exited 1 on
+2026-11-12), so the step ignores its own exit code and, when the JSON report counts any
+vulnerability, emits a `::warning::` annotation, which shows in the PR's checks summary, not
+only a log. All three run with `if: always()`, so each reports after an earlier one fails. This
 covers Phase 6 #24's revisit trigger (`minimatch` under `--omit=dev`), which Q35's two runs
 leave in a passing job's log. **A PR whose audit run shows the warning gets an issue for that
 advisory before it merges**, recording the call: fix, wait for upstream, or accept with a
@@ -340,6 +371,32 @@ dismissed alert reopens when its scope changes isn't probed. From step 15, Depen
 updates open PRs for advisories that have a fix. Run on 2026-11-12: `--omit=dev` found 0
 vulnerabilities; the full run, 7 moderate (`minimatch`, dev tooling), exit 0 at critical. The
 owner's call, 2026-11-12.
+
+### #13 — `secret-scan` is shown red with a fake secret committed without a local hook
+
+Seeing the CI scan red takes a commit holding a flagged value past the pre-commit hook and
+GitHub's push protection, the two layers before it. The value is made up: one Gitleaks'
+rules flag (its generic API-key rule, a keyword and a random-looking string), never a real
+provider's format (`ghp_`, `AKIA`, `sk_live_`), which push protection would block and which
+would look like a leak; `gitleaks` is run on it locally first, so the probe can fail only in
+CI. The commit is made with no local hook (GitHub's web editor, or `gh api` writing the file
+to the probe branch), which is the case the CI scan exists for, a clone that never set
+`core.hooksPath`, with no `--no-verify`. If push protection blocks it, the value changes; the
+block is never bypassed (`CLAUDE.md`, "Secrets"). It's done in step 7, when the check is added,
+and again in step 13, the only place that shows it stops a merge. The closed PR keeps the
+commit (`refs/pull/<n>/head`), readable in a public repo; it is no secret, so nothing is
+rotated, and a normal clone doesn't fetch `refs/pull/*`, so later scans don't meet it. The
+owner's call (round 1 on PR #283).
+
+### #14 — The required SAST check is the one that fails on a finding
+
+CodeQL's analyze job finishes green when it finds something: its verdict on a PR is a
+separate code-scanning result check. SonarQube Cloud's scan job fails on a failed quality
+gate only with `sonar.qualitygate.wait=true`. So step 12 requires CodeQL's result check and
+SonarQube Cloud's workflow job run with `sonar.qualitygate.wait=true`; requiring the jobs as
+they are would gate nothing on a finding. Not SonarQube Cloud's own app check: a run skipped
+by `if:` (#2) never posts it, so it would block every Dependabot and fork PR. Documented
+behaviour, not probed (no CI exists yet); steps 8, 9 and 13 show it. Round 1 on PR #283.
 
 ---
 
@@ -372,40 +429,43 @@ owner's call, 2026-11-12.
   rule's selector turns its fixture test red.
 - [ ] The advisor runs with `--fail-on warn` in `integration`; today's two INFO results pass.
 - [ ] `audit`'s first two runs fail at their levels; the third only warns, with the job
-  green; `CLAUDE.md` holds #12's rule in wording the owner approved.
+  green, and still runs when an earlier run has failed; `CLAUDE.md` holds #12's rule in wording the owner approved.
 
 **Secret scan (step 7)**
 - [ ] In the owner's Git Bash, the hook refuses a commit holding a fake key; `secret-scan`
-  goes red on a probe.
+  goes red on a probe whose fake key was committed with no local hook, as #13 says, and
+  push protection wasn't bypassed.
 - [ ] The full-history scan's result is recorded (its count, and how each find was settled);
   each allowlist entry names why it isn't a secret; README has the setup lines.
 
 **SAST and reporting (steps 8–10)**
 - [ ] CodeQL (`javascript-typescript`, `actions`) has an analysis of `dev`, and runs on PRs and
-  pushes.
+  pushes; its code-scanning result check goes red on a probe that adds an alert (#14).
 - [ ] SonarQube Cloud: two-factor on at account creation (the owner's confirmation);
   automatic analysis off; an analysis of `dev` exists; `SONAR_TOKEN` is an Actions secret
-  only; the job installs with `--ignore-scripts`.
+  only; the job installs with `--ignore-scripts` and runs with `sonar.qualitygate.wait=true`,
+  and goes red on a probe that fails the quality gate (#14).
 - [ ] `SECURITY.md` points to private reporting, and private reporting is on (UI).
 
 **Settled and required (steps 11–12)**
 - [ ] Every check is green on `dev`'s head; each blocking finding's issue is closed, fixed or
   dismissed with a reason; each non-blocking finding has an issue in its phase.
-- [ ] On both branches: PR required, the exact job list required, no force-push, no deletion;
+- [ ] On both branches: PR required, the exact check list required (for SAST, the checks #14
+  names), no force-push, no deletion;
   on `main`, no bypass for admins; read back with `gh api` and recorded.
 - [ ] `CLAUDE.md`'s "Testing" no longer says "There is no CI", and states Q10's split.
 
 **The proof (steps 13–15)**
 - [ ] On the `dev` probe, every required check is red and `gh pr view --json
-  mergeStateStatus` reads `BLOCKED`; on the `main` probe, `gh pr merge --admin` is refused;
-  both are closed unmerged, their branches deleted.
+  mergeStateStatus` reads `BLOCKED`; on the `main` probe, from a branch off `dev`, `gh pr
+  merge --admin` is refused; both are closed unmerged, their branches deleted.
 - [ ] The Ignored Build Step's command also cancels `dependabot/*`, and README's "Preview
   deploys" says so; each alert auto-triage dismissed is reviewed, reopened or kept with a
   reason.
 - [ ] `dependabot.yml` covers `github-actions`; npm security updates are on; the updater's
   log shows a Node `devEngines` admits.
-- [ ] On one Dependabot PR: the checks ran, SonarQube was skipped, CodeQL ran, and Vercel
-  shows the build cancelled by the Ignored Build Step.
+- [ ] On one Dependabot PR: the checks ran, SonarQube's job was skipped and didn't block the
+  merge, CodeQL ran, and Vercel shows the build cancelled by the Ignored Build Step.
 
 **Always**
 - [ ] Each PR before step 12 ran the four gates by hand, exit codes read unpiped.
@@ -416,8 +476,8 @@ owner's call, 2026-11-12.
 ## Open Decisions
 
 1. **Gitleaks in CI (step 7).** `gitleaks/gitleaks-action`, SHA-pinned (whether it needs a
-   license key for this repository is read then), or the release binary downloaded with its checksum checked. Also
-   the hook's and the CI scan's exact flags, and how the owner installs it on Windows
+   license key for this repository is read then), or the release binary downloaded with its
+   checksum checked. Also the hook's and the CI scan's exact flags, #13's fake value, and how the owner installs it on Windows
    (winget, scoop or the binary).
 2. **Node in CI (step 2).** Whether `actions/setup-node` reads the version from
    `package.json`, or the workflow names `26.x`; the job log shows which.
@@ -425,14 +485,14 @@ owner's call, 2026-11-12.
    Auth stays up for the admin tests; whether `build` starts its own stack for `smoke.mjs`
    (`/api/live` reads the database) or the smoke step runs in `integration`; npm and Docker
    image caching, job timeouts, `concurrency`.
-4. **How `changedPaths` lists the files (step 3).** Fetch the base and `git diff`, or read
-   the PR's files through the API; and whether it is a script of its own or a mode of
+4. **How `changedPaths` lists the files (step 3).** The merge commit against its first
+   parent (`fetch-depth: 2`), or the PR's files through the API; and whether it is a script of its own or a mode of
    `controls.mjs`.
 5. **SonarQube Cloud (step 9).** Its free tier for public repositories, confirmed; the
    quality gate ("Sonar way" or a custom one) and the exclusions. If the free tier doesn't
    hold, CodeQL alone is the fallback, and that's the owner's call then.
-6. **The required-check names for CodeQL and SonarQube Cloud (step 12)**, as they report
-   them, which branch protection lists exactly.
+6. **The required-check names for CodeQL and SonarQube Cloud (step 12)**: the exact names
+   the checks #14 picks report under, which branch protection lists exactly.
 7. **Classic branch protection or rulesets (step 12).** Either binds admins on `main`.
 8. **How the `dev` probe splits (step 13)** where breaks would cascade.
 9. **If Dependabot's updater runs a Node below `devEngines` (step 15).** Probed first; if it
