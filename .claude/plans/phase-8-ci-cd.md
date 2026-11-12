@@ -77,7 +77,7 @@ has run the checks with no Vercel build (#5).
 | `.github/workflows/codeql.yml` | CodeQL, `javascript-typescript` and `actions`, on PRs and on push to `dev` and `main`, with `security-events: write`; its code-scanning result check, not the analyze job, is the required one (#14) |
 | `.github/workflows/sonarqube.yml` | SonarQube Cloud, on PRs and on push to `dev` and `main`; skipped by `if:` on Dependabot and fork PRs; installs with `--ignore-scripts`; runs with `sonar.qualitygate.wait=true`, so a failed gate fails the job (#14) |
 | `.github/dependabot.yml` | Version updates for `github-actions`, keeping the SHA pins current. npm gets security updates only (repository setting) |
-| `.githooks/pre-commit` | Gitleaks on the staged changes; the folder is set by hand through `core.hooksPath` (#7) |
+| `.githooks/pre-commit` | Gitleaks on the staged changes; the folder is set by hand through `core.hooksPath` (#7). Committed executable with `git update-index --chmod=+x`: `core.filemode` is `false` on the owner's machine (read 2026-11-12), so a plain add stores `100644` and git elsewhere ignores the hook |
 | `.gitleaks.toml` (and `.gitleaksignore` if needed) | Gitleaks' config. Each allowlist entry names why it isn't a secret: the local stack's keys and test fixtures (`CLAUDE.md`, "Secrets") |
 | `sonar-project.properties` | SonarQube Cloud's project key, sources and exclusions |
 | `SECURITY.md` | How to report a vulnerability: GitHub's private reporting |
@@ -90,11 +90,11 @@ has run the checks with no Vercel build (#5).
 
 | File | Change |
 |---|---|
-| `eslint.config.mjs` | The rules against DOM HTML sinks and string-built supabase-js filters (Q26), with `.filter` banned outright in `src/lib/db/` |
+| `eslint.config.mjs` | The rules against DOM HTML sinks and string-built supabase-js filters (Q26), with `.filter` banned outright in `src/lib/db/`. The `src/lib/db/` entry repeats the sink selectors: in flat config a later object's options for a rule replace an earlier one's, they don't merge |
 | `vitest.config.ts` | Only if the new script tests sit where the `unit` project doesn't collect them |
-| `scripts/controls.mjs` | Only if CI needs it (open decision 4) |
+| `scripts/controls.mjs` | Its header's "Not a gate (CLAUDE.md, "Testing")" (line 43), which a required `controls` check makes false (step 12); anything else only if CI needs it (open decision 4) |
 | `package.json` | Only a script the trigger or smoke step needs; no `prepare` hook (#7) |
-| `CLAUDE.md` | The bold plan line (step 0); #12's audit rule (step 6); the Gitleaks hook under "Secrets" (step 7); "Testing" rewritten for CI as the gate (step 12) |
+| `CLAUDE.md` | The bold plan line (step 0); #12's audit rule (step 6); the Gitleaks hook under "Secrets" (step 7); "Testing" rewritten for CI as the gate, its "Schema controls … not a gate" included (step 12) |
 | `README.md` | "Getting started": installing Gitleaks and setting `core.hooksPath` (step 7); "Preview deploys": the Ignored Build Step's new command (step 14). The status parts wait for step 17 (Phase 7 #8) |
 | `.claude/process-log.md` | Rows as they happen; the retrospective (step 16) |
 | `.claude/context/project-context.md` | Step 17 only |
@@ -138,12 +138,16 @@ No function in `src/`. The scripts, each tested in the `unit` project:
   `scripts/controls.mjs`, the tests the controls' headers name,
   `tests/integration/helpers.ts`, `tests/integration/setup.ts`, `supabase/seed.sql`,
   `supabase/config.toml`, `vitest.config.ts`, `src/lib/db/`, `src/lib/supabase.ts`,
-  `package.json` and `package-lock.json`, and every file those tests import (the scope
-  draft's list, completed by the guard below). The two package files stand for the bare
-  package imports the guard doesn't follow: a bump of `@supabase/supabase-js`, which the
-  named tests import, or of the `supabase` CLI, which sets the local stack, changes what the
-  controls exercise. Accepted cost: every dependency PR runs the full controls (~45 s a
-  control) (the owner's call, round 2 on PR #283).
+  `package.json` and `package-lock.json`, `.github/workflows/ci.yml` and the trigger script
+  itself, and every file those tests import (the scope draft's list, completed by the guard
+  below). The two package files stand for the bare package imports the guard doesn't
+  follow: a bump of `@supabase/supabase-js`, which the named tests import, or of the
+  `supabase` CLI, which sets the local stack, changes what the controls exercise. Accepted
+  cost: every dependency PR runs the full controls (~45 s a control) (the owner's call,
+  round 2 on PR #283). `ci.yml` and the trigger script are there so a PR that changes how
+  the full set is run also runs it; accepted cost: an edit to `ci.yml` runs the full
+  controls, most Phase 8 PRs included, which aren't required before step 12 (the owner's
+  call, round 3 on PR #283).
 - **The trigger list's guard test (#8)** reads each control's `-- run:` line, a vitest
   filter, not a file (`scripts/controls.mjs`'s header), resolves it to files as vitest does
   (`npx vitest list --project integration <filter> --filesOnly`), follows those files'
@@ -161,7 +165,8 @@ No function in `src/`. The scripts, each tested in the `unit` project:
   find; it runs in the owner's Git Bash on Windows.
 - **The lint rules' fixture test (#9)** lints one fixture per rule, a string in the test,
   with `ESLint#lintText` and a virtual `filePath` inside the rule's scope (under
-  `src/lib/db/` for the filter rules), and expects that rule's message. A fixture file
+  `src/lib/db/` for the filter rules), and expects that rule's message; a sink fixture with
+  a `src/lib/db/` path shows that entry kept the sink selectors. A fixture file
   would have to sit in `src/lib/db/` to meet the db-scoped rules, where `npm run lint`
   lints it and fails; a string with a virtual `filePath` meets the rules and isn't on disk.
   Probed 2026-11-12: `lintText` with `filePath: "src/lib/db/probe.ts"` ran the project's
@@ -194,25 +199,35 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
 2. **`ci.yml` with the four gates:** `typecheck-lint`, `unit`, `integration` (a local
    Supabase in the job), `build` with `scripts/smoke.mjs`. Every action pinned by commit
    SHA, minimal `permissions:`, no `pull_request_target` (Q5); a Node `devEngines` admits;
-   `.env.example`'s variables from the local stack, which aren't secrets. *Every later
-   step's PR runs through it*, and the gates catch a broken workflow edit first.
+   `.env.example`'s variables from the local stack, which aren't secrets. A job that starts
+   the stack writes them to `.env.local` from `npx supabase status -o env`:
+   `tests/integration/setup.ts` reads that file only and throws without it (its
+   `loadEnvLocal`), whatever the job's `env:` holds. *Every later step's PR runs through
+   it*, and the gates catch a broken workflow edit first.
 3. **`controls` and `process-log` jobs:** `changedPaths`, `needsFullControls` and their
-   tests, the guard test (#8); `bash scripts/process-log.sh check` (Q7, Q8).
+   tests, the guard test (#8); `bash scripts/process-log.sh check` (Q7, Q8). The full set
+   needs a running stack and its `.env.local` (`scripts/controls.mjs` stops when the
+   database container isn't running), so when `needsFullControls` is true the job starts
+   one, or the full set runs inside `integration` (open decision 3).
 4. **Lint rules** in `eslint.config.mjs`, with the fixture test (#9) (Q26).
 5. **The security advisor** in the `integration` job: `npx supabase db advisors --local
-   --type security --fail-on warn` (Q25).
-6. **The `audit` job's three runs** (Q35, #12), each reporting after an earlier one fails,
-   the third failing only when its report has no count; and #12's rule in `CLAUDE.md`, whose
-   wording goes to the owner (Phase 7 #6).
-7. **Gitleaks:** `.githooks/pre-commit`, `.gitleaks.toml`, the `secret-scan` job, the
-   one-off full-history scan, README's setup lines and `CLAUDE.md`'s "Secrets" line (Q4).
+   --type security --fail-on warn` (Q25), shown red on its own by a probe table with RLS
+   off.
+6. **The `audit` job's three runs** (Q35, #12), from the checkout's lockfile with no
+   install (`npm audit` needs no `node_modules`: with only `package.json` and
+   `package-lock.json` in a folder, both runs gave today's results, 2026-11-12), so the job
+   runs no install script; each reports after an earlier one fails, the third failing only
+   when its report has no count; and #12's rule in `CLAUDE.md`, whose wording goes to the
+   owner (Phase 7 #6).
+7. **Gitleaks:** `.githooks/pre-commit` (committed executable), `.gitleaks.toml`, the
+   `secret-scan` job, the one-off full-history scan, README's setup lines and `CLAUDE.md`'s "Secrets" line (Q4).
    The CI half is shown red on a throwaway probe PR, closed unmerged, with a fake secret
    committed without a local hook (#13); never on step 7's own PR.
 8. **`codeql.yml`** (Q3), whose code-scanning result check is the one step 12 requires (#14).
 9. **SonarQube Cloud:** the account (two-factor at creation), project and token,
    `sonar-project.properties`, `sonarqube.yml` with the `if:` skip, `--ignore-scripts` and
-   `sonar.qualitygate.wait=true` (Q3, Q5, #14), and a quality gate an ordinary PR can pass
-   (open decision 5). Confirm the free tier for public repositories first.
+   `sonar.qualitygate.wait=true` (Q3, Q5, #14), and the custom quality gate open decision 5
+   settles. Confirm the free tier for public repositories first.
 10. **`SECURITY.md`** and private vulnerability reporting (Q32).
 11. **Blocking findings settled.** Each blocking finding from steps 3–9 fixed, or
     dismissed or allowlisted with a reason, in its own issue. *Before step 12 because* a
@@ -224,12 +239,17 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
     `sonar.qualitygate.wait=true`, not SonarQube Cloud's own app check.
     With it, `CLAUDE.md`'s "Testing" drops "There is no CI" and the manual gate list for
     Q10's split: CI is the gate; locally `tsc`, `test:run` and lint are the fast loop; the
-    `/map` browser check stays manual. *Only now*, because every check exists and is green.
+    `/map` browser check stays manual. Its "Schema controls: `node scripts/controls.mjs`,
+    not a gate" and `scripts/controls.mjs`'s header "Not a gate" change with it: the
+    `controls` check is required. *Only now*, because every check exists and is green.
 13. **The proof (the phase's checkpoint, #6).** On `dev`, one probe PR with one break per
     required check, split only where a break would cascade, its `secret-scan` break made as
     #13 says; on `main`, one probe PR from a branch off `dev` (a branch off `main` has no
-    `ci.yml`), which proves the block and the admin rule, not SAST on `main` (#11). Each is
-    closed unmerged and its branch deleted. A probe that merges, or a check that stays
+    `ci.yml`), carrying a deliberate break (a type error, so `typecheck-lint` is red), which
+    proves the block and the admin rule, not SAST on `main` (#11). `gh pr merge --admin` is
+    tried only while a required check is red: a probe whose checks all passed would merge
+    `dev` into `main`, and `main` builds Production. Each is closed unmerged and its branch
+    deleted. A probe that merges, or a check that stays
     green, stops step 14 until it is understood.
 14. **Vercel's Ignored Build Step** also cancels `dependabot/*` (Q1), README's "Preview
     deploys" updated; and the review of the alerts Dependabot's auto-triage dismissed. *Before
@@ -242,8 +262,9 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
     starts at the row after the Phase 7 retrospective's range. Blocked by every other
     planned issue; its follow-ups block step 17.
 17. **The reconciliation of `project-context.md`**, blocked by step 16 and its follow-ups.
-    It rewrites Part 1's "Tests and gates", "Folder structure" (`.github/`, `.githooks/`)
-    and the Roadmap row; Part 2's "Pre-deploy automation (planned)", whose "To build" and
+    It rewrites Part 1's "Tests and gates" (its "not a gate" for the controls included),
+    "Modules kept on purpose" (the controls' row, "not a gate"), "Folder structure"
+    (`.github/`, `.githooks/`) and the Roadmap row; Part 2's "Pre-deploy automation (planned)", whose "To build" and
     "Nothing below exists yet" become a description of what was built, with what stays for
     Phases 9 and 10; the "Phase map" (the Phase 8 row); any `CLAUDE.md` text still saying
     the gates are manual that step 12 didn't reach; and the README's status parts. It
@@ -386,9 +407,10 @@ vulnerability, emits a `::warning::` annotation, which shows in the PR's checks 
 only a log. When the report has no count (an audit error, such as the registry unreachable),
 it fails, as runs 1 and 2 do on an error, so "couldn't tell" never passes (2026-11-12:
 `npm audit --omit=dev --audit-level=high --registry=http://127.0.0.1:9/` exited 1, and with
-`--json` printed a `message` and an `error`, with no vulnerability count). Runs 2 and 3 run
-when the install step succeeded, even after an earlier run failed (`!cancelled()` and the
-install step's outcome; not `always()`, which also runs after a cancel). This
+`--json` printed a `message` and an `error`, with no vulnerability count). The job installs
+nothing: `npm audit` reads the lockfile (step 6's probe). Runs 2 and 3 run when the checkout
+succeeded, even after an earlier run failed (`!cancelled()` and the checkout step's outcome;
+not `always()`, which also runs after a cancel). This
 covers Phase 6 #24's revisit trigger (`minimatch` under `--omit=dev`), which Q35's two runs
 leave in a passing job's log. **A PR whose audit run shows the warning gets an issue for that
 advisory before it merges**, recording the call: fix, wait for upstream, or accept with a
@@ -456,14 +478,17 @@ behaviour, not probed (no CI exists yet); steps 8, 9 and 13 show it. Round 1 on 
 - [ ] `process-log` runs `bash scripts/process-log.sh check` and goes red on a broken row.
 
 **Lint, advisor, audit (steps 4–6)**
-- [ ] Each new rule fires on its fixture (unit test); today's code lints clean; deleting a
-  rule's selector turns its fixture test red.
-- [ ] The advisor runs with `--fail-on warn` in `integration`; today's two INFO results pass.
-- [ ] `audit`'s first two runs fail at their levels; the third only warns, with the job
-  green, fails when its report has no count, and still runs when an earlier run has failed;
-  `CLAUDE.md` holds #12's rule in wording the owner approved.
+- [ ] Each new rule fires on its fixture (unit test), a sink rule under a `src/lib/db/` path
+  too; today's code lints clean; deleting a rule's selector turns its fixture test red.
+- [ ] The advisor runs with `--fail-on warn` in `integration`; today's two INFO results pass;
+  a probe table with RLS off turns the advisor's step red by itself (a mutation, shown in the
+  PR).
+- [ ] `audit` runs no install; its first two runs fail at their levels; the third only
+  warns, with the job green, fails when its report has no count, and still runs when an
+  earlier run has failed; `CLAUDE.md` holds #12's rule in wording the owner approved.
 
 **Secret scan (step 7)**
+- [ ] `git ls-files -s .githooks/pre-commit` shows mode `100755`.
 - [ ] In the owner's Git Bash, the hook refuses a commit holding a fake key; `secret-scan`
   goes red on a throwaway probe PR, closed unmerged, whose fake key was committed with no
   local hook, as #13 says, and push protection wasn't bypassed.
@@ -476,8 +501,8 @@ behaviour, not probed (no CI exists yet); steps 8, 9 and 13 show it. Round 1 on 
 - [ ] SonarQube Cloud: two-factor on at account creation (the owner's confirmation);
   automatic analysis off; an analysis of `dev` exists; `SONAR_TOKEN` is an Actions secret
   only; the job installs with `--ignore-scripts` and runs with `sonar.qualitygate.wait=true`,
-  and goes red on a probe that fails the quality gate (#14); an ordinary PR with no coverage
-  report passes the gate (open decision 5).
+  and goes red on a probe that fails the quality gate (#14); the gate is open decision 5's,
+  and a PR adding only a code smell, with no coverage report, passes it.
 - [ ] `SECURITY.md` points to private reporting, and private reporting is on (UI).
 
 **Settled and required (steps 11–12)**
@@ -486,12 +511,14 @@ behaviour, not probed (no CI exists yet); steps 8, 9 and 13 show it. Round 1 on 
 - [ ] On both branches: PR required, the exact check list required (for SAST, the checks #14
   names), no force-push, no deletion; on `main`, no bypass for admins; read back with
   `gh api` and recorded.
-- [ ] `CLAUDE.md`'s "Testing" no longer says "There is no CI", and states Q10's split.
+- [ ] `CLAUDE.md`'s "Testing" no longer says "There is no CI", and states Q10's split;
+  neither it nor `scripts/controls.mjs`'s header calls the controls "not a gate".
 
 **The proof (steps 13–15)**
 - [ ] On the `dev` probe, every required check is red and `gh pr view --json
-  mergeStateStatus` reads `BLOCKED`; on the `main` probe, from a branch off `dev`, `gh pr
-  merge --admin` is refused; both are closed unmerged, their branches deleted.
+  mergeStateStatus` reads `BLOCKED`; on the `main` probe, from a branch off `dev` with a
+  deliberate break, `gh pr merge --admin` is refused while that break's check is red; both
+  are closed unmerged, their branches deleted, and `origin/main` is unchanged.
 - [ ] The Ignored Build Step's command also cancels `dependabot/*`, and README's "Preview
   deploys" says so; each alert auto-triage dismissed is reviewed, reopened or kept with a
   reason.
@@ -516,17 +543,23 @@ behaviour, not probed (no CI exists yet); steps 8, 9 and 13 show it. Round 1 on 
    `package.json`, or the workflow names `26.x`; the job log shows which.
 3. **The local Supabase in CI (step 2).** Which services `supabase start` can leave out while
    Auth stays up for the admin tests; whether `build` starts its own stack for `smoke.mjs`
-   (`/api/live` reads the database) or the smoke step runs in `integration`; npm and Docker
-   image caching, job timeouts, `concurrency`.
+   (`/api/live` reads the database) or the smoke step runs in `integration`; whether the
+   `controls` job starts its own stack for the full set or that set runs in `integration`
+   (step 3); how each such job writes `.env.local` (step 2); npm and Docker image caching,
+   job timeouts, `concurrency`.
 4. **How `changedPaths` lists the files (step 3).** The merge commit against its first
    parent (`fetch-depth: 2`), or the PR's files through the API; and whether it is a script
    of its own or a mode of `controls.mjs`.
 5. **SonarQube Cloud (step 9).** Its free tier for public repositories, confirmed; the
-   quality gate and the exclusions. The gate must pass on an ordinary PR: "Sonar way"'s
-   coverage on new code fails one with no coverage report uploaded, so the gate is a custom
-   one without that condition unless the owner chooses to upload coverage, which is an issue
-   of its own (the owner's call, round 2 on PR #283). If the free tier doesn't
-   hold, CodeQL alone is the fallback, and that's the owner's call then.
+   exclusions; the custom gate's exact condition names. **The gate is settled** (the owner's
+   calls, rounds 2 and 3 on PR #283): a custom gate on new code with no new vulnerabilities
+   and no new bugs (security and reliability rating A) and every new security hotspot
+   reviewed. Not "Sonar way": its coverage condition fails a PR with no coverage report, and
+   its other new-code conditions (no new issues, duplication) fail one on a single code
+   smell, which would make every non-blocking finding blocking (#4). Code smells and
+   duplication are reported, not blocking; uploading coverage would be an issue of its own.
+   If the free tier doesn't hold, CodeQL alone is the fallback, and that's the owner's call
+   then.
 6. **The required-check names for CodeQL and SonarQube Cloud (step 12)**: the exact names
    the checks #14 picks report under, which branch protection lists exactly.
 7. **Classic branch protection or rulesets (step 12).** Either binds admins on `main`.
