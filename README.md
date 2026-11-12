@@ -420,7 +420,8 @@ entry, and none is added later. So the longer after the push a check runs, the o
 the seed history it finds on the preview, and a check that reads a recent window of
 past entries can find no seed rows: that is the seed's age, not a read-path bug. IS #254's
 insert (next paragraph) and the "Today's entry" snippet this section carried until IS #259
-also wrote rows with `created_by` null, as the seed does.
+(its SQL: `git show f62bf9a:README.md`) also wrote rows with `created_by` null, as the seed
+does.
 
 Phase 7's walkthrough changed rows by hand once more, on 2026-11-11: IS #254's insert gave
 Taco Loco a lunch and a dinner on 2026-11-04 (Phase 7 plan, #38). Its first run wrote
@@ -431,12 +432,18 @@ Stockholm time, whose window (an hour before to 12 hours after one moment) is th
 that snippet wrote. The owner cancelled that Taco Loco entry, and the second run wrote the
 pair (IS #257).
 
-**An entry for a marker check.** Before checking a preview's markers, make an entry with
-"Ny post" on `/admin`, logged in from `dev`'s alias: any truck, a known spot, and times
-that cover now. It goes through the API like any admin entry, so an overlap is refused with
-the form's message. When the check is done, cancel it with "Ställ in". The list shows it
-until the day it ends is over (`listAdminEntries`), and once it's cancelled the checklist
-doesn't suggest it in later weeks (cancelled rows aren't read, `getChecklist`).
+**An entry for a marker check.** Before checking a preview's markers, add one on `/admin`,
+logged in from `dev`'s alias: fill in the "Ny post" form with an active truck that has no
+entry today, a known spot and times that cover now, and press "Spara". It goes through the
+API like any admin entry, so an overlap is refused with the form's message. While it lasts,
+it also blocks that truck's real entries and leaves out its checklist suggestions for the
+same hours. The map shows it within about 3 minutes, and drops it within about 3 after a
+cancel (`/api/live`'s cache, `project-context.md`, "Read path"). Cancel it with "Ställ in"
+the same day: `/admin`'s list shows a live entry only until the day it ends is over
+(`listAdminEntries`), and after that it's cancelled by its id in the SQL Editor. Once it's
+cancelled, the checklist doesn't suggest it in later weeks (cancelled rows aren't read,
+`getChecklist`). Left live, it can be suggested on that weekday for up to 4 weeks. Its row
+stays in the preview's history, cancelled, with `created_by` set.
 
 ---
 
