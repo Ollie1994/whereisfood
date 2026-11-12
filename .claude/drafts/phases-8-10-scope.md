@@ -24,7 +24,7 @@ repeated below.
 
 | # | Decision |
 |---|---|
-| D1 | The work after Phase 7 is three phases: **8 · CI/CD → 9 · Security → 10 · Launch** (the first production deploy). CI/CD first, so the security PRs, MFA the largest, run through the gates, SAST and the secret scan, and #264 unblocks sooner. Amends IS #265's split (8 CI/CD and security, 9 Launch), including its "Phase 8 audits every account that exists then" (`project-context.md`'s "Pre-deploy automation (planned)"): by the line below, the first 2FA audit is Phase 9's; an account Phase 8 creates still gets two-factor at creation, by `CLAUDE.md`'s "Secrets" rule. Phase 6 #1 (CI/CD before the production deploy) still holds. Cost accepted: a third plan, retrospective and reconciliation |
+| D1 | The work after Phase 7 is three phases: **8 · CI/CD → 9 · Security → 10 · Launch** (the first production deploy). CI/CD first, so the security PRs, MFA the largest, run through the gates, SAST and the secret scan, and #264 unblocks sooner. Amends IS #265's split (8 CI/CD and security, 9 Launch), including its placing the first 2FA audit in Phase 8: by the line below, the first 2FA audit is Phase 9's; an account Phase 8 creates still gets two-factor at creation, by `CLAUDE.md`'s "Secrets" rule. Phase 6 #1 (CI/CD before the production deploy) still holds. Cost accepted: a third plan, retrospective and reconciliation |
 | D2 | **TOTP MFA for the admin login** (Q13), with any standard authenticator app (Google Authenticator, Proton Authenticator, Aegis). On Supabase's Free plan, by the pricing page as a web search quoted it (Appendix B; the live page not read). Phase 9 |
 | D3 | **A lost phone** is covered by the owner's authenticator backups, made by hand after each new login is added. Beyond the backups, the routes are the Phase 9 plan's to probe and settle, and it decides whether the login rework needs an unenroll screen (the owner, rounds 3–7 on PR #280). The candidates, their limits and evidence: Phase 9's "The lost-phone routes" and Appendix B |
 
@@ -123,7 +123,8 @@ review's additions.
 
 **Dependabot:** switched on last in Phase 8, after the Ignored Build Step cancels
 `dependabot/*`, the gates run as required checks and branch protection is on
-(`project-context.md`: "only once the gates run on PRs", "Before turning them on, decide").
+(`project-context.md`, "Pre-deploy automation (planned)": "only once the gates run on
+PRs", and its Dependabot item since IS #279).
 - Security updates for npm; version updates for GitHub Actions, to keep the SHA pins
   current (Q9). No auto-merge: the exact pins (`next`, `eslint-config-next`,
   `maplibre-gl`) keep their browser check of `/map`.
@@ -312,10 +313,11 @@ and Vercel Hobby's (Appendix A, A09). No log drain.
 
 ## Phase 10 · Launch
 
-**From today's Phase 9 row** (minus the security headers and the runbook's usage emails,
-both now Phase 9's, the second as Monitoring's alerts): the history retention
-period for the privacy note (Phase 7 plan #25); the app's final name (#26); Supabase Pro
-(backups); a production Supabase project with new keys (Phase 6 plan #18); the tiles' custom
+**From the old launch row** (Phase 9's before IS #278), minus the security headers and
+the runbook's usage emails, both now Phase 9's, the second as Monitoring's alerts: the
+history retention period for the privacy note (Phase 7 plan #25); the app's final name
+(#26); Supabase Pro (backups); a production Supabase project with new keys (Phase 6 plan
+#18); the tiles' custom
 domain on R2 and its CORS rule; production env; the Swedish privacy note; the takedown
 procedure (one transaction: delete the truck's locations, clear or delete each `users` row
 pointing at it, then delete the truck; Phase 5 plan #7); telling trucks they're listed;
@@ -331,11 +333,12 @@ credential rotated.
 the old runbook's usage emails stay in a phase; the hosted-settings checklist applied to
 the production project, its Security Advisor clean before the deploy (Q21).
 
-**Carried forward, not in the Phase map row:** the hosted check of Phase 5 #19 / PR #167
-round 5 (`project-context.md`'s "Decisions carried forward": `sv-SE-x-icu`, both
-extensions in `extensions`, the Data API's Max rows at least `MAX_ROWS`), run on the
-production project before the app uses it, as on the preview (passed 2026-11-02). The row
-says "production's is Phase 9's", the old numbering; it is Phase 10's.
+**Carried forward, which had fallen out of the old launch row:** the hosted check of
+Phase 5 #19 / PR #167 round 5 (`project-context.md`'s "Decisions carried forward":
+`sv-SE-x-icu`, both extensions in `extensions`, the Data API's Max rows at least
+`MAX_ROWS`), run on the production project before the app uses it, as on the preview
+(passed 2026-11-02). The row said "production's is Phase 9's", the old numbering; IS #279
+made it Phase 10's and put the check in the Phase 10 row.
 
 **Open, for the Phase 10 plan** (Q34, the owner's call to explore then): an incident section
 in the runbook (a compromised session, phone, mailbox or key: end every session with

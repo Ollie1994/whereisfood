@@ -563,7 +563,10 @@ this paragraph is the procedure's one copy, and the other files point here):
   issue and PR like any doc change. A rule also goes into this file in that PR, so it
   holds at once.
 - The next plan gives each marked row a decision of its own, one per row, citing the
-  row's IS # (`/create-milestone` adds them to the plan's Rationale).
+  row's IS # (`/create-milestone` adds them to the plan's Rationale). A row whose marker
+  names a later phase (`**between phases**, <date>, IS #<n>, for Phase <N>`) is that
+  phase's plan's instead: earlier plans and their reconciliations leave it as it is
+  (the owner's call, IS #279).
 - That plan's reconciliation replaces each marker with the plan decision, and the rule
   text here cites it. When the decision didn't outlive the phase, the reconciliation
   removes the row and the rule text with it.
