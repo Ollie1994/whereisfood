@@ -419,8 +419,9 @@ runs from an hour before the push to 12 hours after it. No seed row ends after t
 entry, and none is added later. So the longer after the push a check runs, the older
 the seed history it finds on the preview, and a check that reads a recent window of
 past entries can find no seed rows: that is the seed's age, not a read-path bug. IS #254's
-insert (next paragraph) and "Today's entry" (below) also write rows with `created_by` null,
-as the seed does.
+insert (next paragraph) and the "Today's entry" snippet this section carried until IS #259
+(its SQL: under "**Today's entry.**" in `git show f62bf9a:README.md`) also wrote rows with
+`created_by` null, as the seed does.
 
 Phase 7's walkthrough changed rows by hand once more, on 2026-11-11: IS #254's insert gave
 Taco Loco a lunch and a dinner on 2026-11-04 (Phase 7 plan, #38). Its first run wrote
@@ -428,34 +429,32 @@ nothing. The insert passes over a truck with a non-cancelled entry on the day it
 the day it writes to (#38 has its full rule): Burgarbilen had step 8's entries on
 2026-11-11, and Taco Loco had one from 2026-11-04 13:22:59.114694 to 11-05 02:22:59.114694,
 Stockholm time, whose window (an hour before to 12 hours after one moment) is the shape
-"Today's entry" below writes. The owner cancelled that Taco Loco entry, and the second run
-wrote the pair (IS #257).
+that snippet wrote. The owner cancelled that Taco Loco entry, and the second run wrote the
+pair (IS #257).
 
-**Today's entry.** Before checking a preview's markers, run this in the project's SQL
-Editor. It gives Taco Loco (the seed's fixed id) an entry at the place of its latest
-non-cancelled entry, from an hour ago to 12 hours from now:
+**An entry for a marker check.** Before checking a preview's markers, add one on `/admin`,
+logged in from `dev`'s alias: fill in the "Ny post" form with an active truck that has no
+entry today, a known spot and times that cover now, and press "Spara". It goes through the
+API like any admin entry, so an overlap is refused with the form's message. The map shows
+it within about 3 minutes, and drops it within about 3 after a cancel (`/api/live`'s cache,
+`project-context.md`, "Read path"). Cancel it with "Ställ in" as soon as the check is done.
+Until it's cancelled, even after it ends, it refuses the truck's overlapping entries, drops
+any of the truck's checklist suggestions that overlap it, and makes a by-hand insert like
+IS #254's pass over the truck (#38's rule, above). For up to 4 weeks, it can also take the
+place of the truck's real suggestions on that weekday (`getChecklist`). Once it's
+cancelled, it does none of these: cancelled rows aren't read. `/admin`'s list drops an entry
+at the first Stockholm midnight at or after its end (`listAdminEntries`). After that, cancel
+it in the SQL Editor: find its id with
 
 ```sql
-insert into locations (truck_id, latitude, longitude, label, starts_at, ends_at)
-select truck_id, latitude, longitude, label, now() - interval '1 hour', now() + interval '12 hours'
-from locations
-where truck_id = '22222222-2222-2222-2222-222222222222' and cancelled_at is null
-order by starts_at desc
-limit 1
-returning label, starts_at, ends_at;
+select id, starts_at, ends_at from locations
+where truck_id = '<truck id>' and cancelled_at is null
+order by starts_at desc limit 5;
 ```
 
-If it returns no row, Taco Loco has no non-cancelled entry to copy: it inserted nothing,
-with no error. If it fails with `conflicting key value violates exclusion constraint
-"locations_no_overlap"`, a non-cancelled Taco Loco entry already overlaps that
-window: an earlier run of this snippet, or any other entry. Look before changing
-anything.
-
-Its row stays in the preview's history, and the checklist can leave out Taco Loco's
-suggestions because of it, that day and in later weeks (`getChecklist`; its times have
-seconds, which `entryWallTimes` can't move to another day). Cancel it with "Ställ in" on
-`/admin` when the check is done: the list shows it until the day it ends is over
-(`listAdminEntries`). After that, cancel it by its id in the SQL Editor.
+then run
+`update locations set cancelled_at = now() where id = '<id>' and cancelled_at is null;`.
+Its row stays in the preview's history.
 
 ---
 
