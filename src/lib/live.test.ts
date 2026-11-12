@@ -509,4 +509,15 @@ describe("noticeText", () => {
   ] as const)("%s with %i markers → %s", (fetchState, markerCount, text) => {
     expect(noticeText(fetchState, markerCount)).toBe(text);
   });
+
+  // A map the browser can't draw wins over every fetch notice, and over none (IS #246).
+  it.each([
+    ["loading", 0],
+    ["ok", 0],
+    ["ok", 2],
+    ["failing", 0],
+    ["failing", 2],
+  ] as const)("map failed, %s with %i markers → the map's message", (fetchState, markerCount) => {
+    expect(noticeText(fetchState, markerCount, true)).toBe("Kartan kan inte visas i den här webbläsaren.");
+  });
 });

@@ -237,8 +237,11 @@ export function freshnessText(updatedAt: string, now: Date): string {
 
 // Plan, open decisions 6 and 7. Nothing before the first response: an empty map then
 // isn't "no trucks". While polls fail the markers stay (plan #16), so with none showing
-// the notice says nothing could be fetched, and with some it says they may be old.
-export function noticeText(fetchState: FetchState, markerCount: number): string | null {
+// the notice says nothing could be fetched, and with some it says they may be old. A map
+// the browser can't draw comes first: no marker can show on it, whatever the polls say
+// (IS #246).
+export function noticeText(fetchState: FetchState, markerCount: number, mapFailed = false): string | null {
+  if (mapFailed) return "Kartan kan inte visas i den här webbläsaren.";
   if (fetchState === "failing") {
     return markerCount === 0 ? "Kunde inte hämta foodtrucks. Försöker igen…" : "Kunde inte uppdatera";
   }

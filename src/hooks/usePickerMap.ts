@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type RefObject } from "react";
 // Namespace import, for the reason `map-setup.ts` gives.
 import * as maplibregl from "maplibre-gl";
 import type { Pin } from "@/lib/admin-place";
-import { createBaseMap } from "@/lib/map-setup";
+import { NO_WEBGL2, createBaseMap } from "@/lib/map-setup";
 
 // Close enough to see which side of a square the pin is on.
 const PIN_ZOOM = 16;
@@ -34,19 +34,13 @@ export function usePickerMap(
   useEffect(() => {
     if (!containerRef.current) return;
     const start = pinRef.current;
-    let created: maplibregl.Map | null;
-    try {
-      created = createBaseMap(
-        containerRef.current,
-        start ? { center: [start.longitude, start.latitude], zoom: PIN_ZOOM } : undefined,
-      );
-    } catch (error) {
-      // MapLibre's constructor throws `GPUInitializationError` when the browser gives it no
-      // WebGL2 context (`_setupPainter`, maplibre-gl-dev.mjs 6.11.2), after cleaning up its
-      // container. Uncaught here, the throw would replace the admin screen, and the form
-      // with it, by the error page. Any other error is a defect, not the browser's, and is
-      // thrown on. Set from a callback, not the effect's body (`react-hooks/set-state-in-effect`).
-      if (!(error instanceof maplibregl.GPUInitializationError)) throw error;
+    const created = createBaseMap(
+      containerRef.current,
+      start ? { center: [start.longitude, start.latitude], zoom: PIN_ZOOM } : undefined,
+    );
+    if (created === NO_WEBGL2) {
+      // `PickerMap` says so. Set from a callback, not the effect's body
+      // (`react-hooks/set-state-in-effect`).
       queueMicrotask(() => setFailed(true));
       return;
     }

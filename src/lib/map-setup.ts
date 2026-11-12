@@ -20,12 +20,16 @@ const PMTILES_URL = process.env.NEXT_PUBLIC_PMTILES_URL;
 // documented Turbopack form does NOT work here: `src/lib/maplibre-worker.mjs`.
 let mapLibreInitialised = false;
 
-// The basemap on `container`, opening on `view` (Gothenburg at zoom 13 by default), or null
-// with no tiles URL. Call it from an effect: the registration above is client-only.
+// What `createBaseMap` returns when the browser gives MapLibre no WebGL2 context.
+export const NO_WEBGL2 = "no-webgl2";
+
+// The basemap on `container`, opening on `view` (Gothenburg at zoom 13 by default); null
+// with no tiles URL; `NO_WEBGL2` when the browser can't draw it. Call it from an effect:
+// the registration above is client-only.
 export function createBaseMap(
   container: HTMLElement,
   view: { center: [number, number]; zoom: number } = { center: GOTHENBURG, zoom: 13 },
-): maplibregl.Map | null {
+): maplibregl.Map | typeof NO_WEBGL2 | null {
   if (!PMTILES_URL) return null;
 
   if (!mapLibreInitialised) {
@@ -34,6 +38,23 @@ export function createBaseMap(
     mapLibreInitialised = true;
   }
 
+  try {
+    return buildMap(container, view);
+  } catch (error) {
+    // MapLibre's constructor throws `GPUInitializationError` when the browser gives it no
+    // WebGL2 context (`_setupPainter`, maplibre-gl-dev.mjs 6.11.2), after cleaning up its
+    // container. Uncaught, it gave `/map` Next's error page (`src/app` has no `error.tsx`;
+    // IS #246, from PR #245's round 5). Any other error is a defect, not the browser's, and
+    // is thrown on.
+    if (error instanceof maplibregl.GPUInitializationError) return NO_WEBGL2;
+    throw error;
+  }
+}
+
+function buildMap(
+  container: HTMLElement,
+  view: { center: [number, number]; zoom: number },
+): maplibregl.Map {
   return new maplibregl.Map({
     container,
     center: view.center,

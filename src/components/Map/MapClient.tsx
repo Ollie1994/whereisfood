@@ -9,8 +9,8 @@ import { noticeText } from "@/lib/live";
 export default function MapClient() {
   const containerRef = useRef<HTMLDivElement>(null);
   const { markers, now, fetchState } = useLocations();
-  useMapLibre(containerRef, markers, now);
-  const notice = noticeText(fetchState, markers.size);
+  const mapFailed = useMapLibre(containerRef, markers, now);
+  const notice = noticeText(fetchState, markers.size, mapFailed);
 
   // The status region is in the first render and stays mounted; only its text changes.
   // MDN, "ARIA live regions": "Establish the live region before updating its content
