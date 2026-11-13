@@ -9,9 +9,11 @@
 // From those files and the integration project's `setupFiles` it follows imports
 // transitively: relative ones, and ones an `alias` key of the integration project in
 // `vitest.config.ts` rewrites (`@/` → `src/`). Imports are read with TypeScript's
-// `preProcessFile`, which skips comments and reads `import type`, `export … from` and
-// `import("literal")`. A bare package import, or an alias that lands in `node_modules`
-// (`server-only`), isn't followed: `package.json` and `package-lock.json` stand for it.
+// `preProcessFile`: on a probe source it returned `import type`, a side-effect import,
+// `export … from`, `export * from` and `import("literal")`, and not an import in a comment
+// or a string, or `import(name)` (TypeScript 5.9.3, IS #287's PR). A bare package
+// import, or an alias that lands in `node_modules` (`server-only`), isn't followed:
+// `package.json` and `package-lock.json` stand for it.
 // Every file reached must be covered by TRIGGERS.
 //
 // What it can't see: a computed import (`import(name)`); a file a test reads rather than
