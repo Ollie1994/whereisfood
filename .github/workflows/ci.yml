@@ -28,12 +28,12 @@ jobs:
         with:
           persist-credentials: false
       # Node from package.json's devEngines.runtime (setup-node v7.1.0's docs, "Node
-      # version file"). No npm cache: this workflow never runs on dev or main, so no
-      # cache a PR could restore is ever saved there (IS #285's PR).
+      # version file"). Its npm cache is on by default here (devEngines.packageManager is
+      # npm): a run saves it under its PR's ref, so the PR's later pushes restore it; npm ci
+      # still checks each package against the lockfile's hashes (IS #285's PR).
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: package.json
-          package-manager-cache: false
       - run: node --version && npm --version
       - run: npm ci
       - run: npx tsc --noEmit
@@ -49,7 +49,6 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: package.json
-          package-manager-cache: false
       - run: node --version && npm --version
       - run: npm ci
       - run: npm run test:run
@@ -64,7 +63,6 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: package.json
-          package-manager-cache: false
       - run: node --version && npm --version
       - run: npm ci
       # The services the integration tests use: db, auth, kong, rest, and inbucket for
@@ -76,7 +74,7 @@ jobs:
       # the CLI says so under them ("API keys and JWT secrets are shared defaults"), and
       # this run's keys hashed the same as a local stack's (IS #285's PR).
       - run: npx supabase start -x realtime,imgproxy,studio,edge-runtime,vector,logflare,postgres-meta,storage-api,supavisor
-      # tests/integration/setup.ts reads .env.local only, and throws without it. The
+      # tests/integration/setup.ts reads .env.local, and throws without it. The
       # values are the local stack's, not secrets (CLAUDE.md, "Secrets"); mapped as
       # README's "3. Environment" table does. A missing value fails the step.
       - name: Write .env.local from the local stack
