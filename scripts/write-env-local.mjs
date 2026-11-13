@@ -23,15 +23,19 @@ export const MAPPING = [
   { name: "NEXT_PUBLIC_PMTILES_URL", from: "example", key: "NEXT_PUBLIC_PMTILES_URL" },
 ];
 
-// `KEY=value` and `KEY="value"` lines into a map; anything else is skipped. The CLI's
-// `-o env` quoted all 18 of its values (CLI 2.109.1); `.env.example` quotes none. An
-// unquoted value stops at `#` and is trimmed, as Next's dotenv reads it and as
-// tests/integration/setup.ts's loadEnvLocal does, so `KEY= # note` is empty here too.
+// `KEY=value` lines into a map; anything else is skipped. The pattern and the unquoting are
+// tests/integration/setup.ts's loadEnvLocal's: spaces around `=`, a `"…"` or `'…'` value
+// kept whole, an unquoted value stopping at `#`, then trimmed, and a matching pair of
+// quotes removed. So `KEY= # note` is empty here too. The CLI's `-o env` quoted all 18 of
+// its values (CLI 2.109.1); `.env.example` quotes none.
 export function parseEnv(text) {
   const values = new Map();
   for (const line of text.split(/\r?\n/)) {
-    const match = /^([A-Z0-9_]+)=(?:"(.*)"|([^#]*))/.exec(line.trim());
-    if (match) values.set(match[1], match[2] ?? match[3].trim());
+    const match = /^\s*([A-Z0-9_]+)\s*=\s*("[^"]*"|'[^']*'|[^#]*)/.exec(line);
+    if (match === null) continue;
+    const value = match[2].trim();
+    const quoted = /^(["'])(.*)\1$/.exec(value);
+    values.set(match[1], quoted === null ? value : quoted[2]);
   }
   return values;
 }
@@ -51,12 +55,13 @@ export function envLocalText(statusText, exampleText) {
 }
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
-  // Run in a terminal with nothing piped in, reading stdin would wait for input. `isatty(0)`,
-  // not `process.stdin.isTTY`: with a `process.stdin.isTTY` check here, the
-  // `readFileSync(0)` below failed in CI on a piped stdin with "EAGAIN: resource
-  // temporarily unavailable" (run 43413485618), and without one it read it (run
-  // 43411649116). Reading `process.stdin` creates its stream; a pipe on Windows didn't
-  // show the failure (IS #286's PR).
+  // Where stdin is a terminal and nothing is piped in, reading it would wait for input, so
+  // this prints the usage instead (not probed: no terminal in the shells it was written
+  // in). Git Bash's mintty is documented to give programs a pipe, not a terminal, so there
+  // it still waits. `isatty(0)`, not `process.stdin.isTTY`: with a `process.stdin.isTTY`
+  // check here, the `readFileSync(0)` below failed in CI on a piped stdin with "EAGAIN:
+  // resource temporarily unavailable" (run 43413485618), and without one it read it (run
+  // 43411649116); a pipe on Windows didn't show the failure (IS #286's PR).
   if (isatty(0)) {
     console.error("usage: npx supabase status -o env | node scripts/write-env-local.mjs");
     process.exit(2);

@@ -649,7 +649,9 @@ on PR #311. `README.md`, "Preview deploys", has the probes.
    cancel-in-progress. **Settled for `build` (PR for IS #286):** its own job and its own
    stack, started with the same `SUPABASE_EXCLUDE` list (one workflow-level `env:`), and
    `.env.local` from `scripts/write-env-local.mjs`, which `integration` uses too; `next
-   start` on port 3000 for `smoke.mjs`. `controls`' stack stays open (#288).
+   start`, with `smoke.mjs` run against the URL from its own `Local:` line once it prints
+   `Ready in`, never a fixed port (round 1 on PR #315: a server already on the port
+   answered for one that couldn't bind). `controls`' stack stays open (#288).
 4. **How `changedPaths` lists the files (step 3).** The merge commit against its first
    parent (`fetch-depth: 2`), or the PR's files through the API; and whether it is a script
    of its own or a mode of `controls.mjs`.

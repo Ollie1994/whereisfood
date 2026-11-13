@@ -31,6 +31,13 @@ describe("parseEnv", () => {
     expect(values.get("B")).toBe("/x.pmtiles");
     expect(values.get("C")).toBe("a#b");
   });
+
+  it("reads lines as setup.ts's loadEnvLocal does: spaces, single quotes, quoted then a comment", () => {
+    const values = parseEnv(`D = /d.pmtiles\nE='/e.pmtiles'\nF="v" # set "per deploy"`);
+    expect(values.get("D")).toBe("/d.pmtiles");
+    expect(values.get("E")).toBe("/e.pmtiles");
+    expect(values.get("F")).toBe("v");
+  });
 });
 
 describe("envLocalText", () => {
@@ -48,14 +55,7 @@ describe("envLocalText", () => {
 
   it.each(["API_URL", "ANON_KEY", "SERVICE_ROLE_KEY"])("throws without the status's %s, naming only it", (key) => {
     const status = STATUS.split("\n").filter((line) => !line.startsWith(`${key}=`)).join("\n");
-    expect(() => envLocalText(status, EXAMPLE)).toThrow(`missing or empty: ${key} (from supabase status)`);
-    let message = "";
-    try {
-      envLocalText(status, EXAMPLE);
-    } catch (err) {
-      message = err.message;
-    }
-    expect(message.split(", ")).toHaveLength(1);
+    expect(() => envLocalText(status, EXAMPLE)).toThrow(new RegExp(`^missing or empty: ${key} \\(from supabase status\\)$`));
   });
 
   it("treats a tiles line with only a comment as empty", () => {

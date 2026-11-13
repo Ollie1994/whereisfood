@@ -69,9 +69,18 @@ export function checkResponse(expectation, response) {
   return problems;
 }
 
-// Each request's limit, so a request the server accepts and never answers fails its path
-// here, and CI's step goes on to print the server's log within the job's own limit.
+// A checked request's limit, so a request the server accepts and never answers fails its
+// path here, and CI's step goes on to print the server's log within the job's own limit.
 const REQUEST_TIMEOUT_MS = 30_000;
+// One readiness poll's limit, short so waitForServer ends near its deadline.
+const POLL_TIMEOUT_MS = 5_000;
+
+// undici's fetch rejects with "fetch failed" and keeps the reason (ECONNREFUSED,
+// ECONNRESET, a timeout) in `cause`.
+function reason(err) {
+  const cause = err.cause;
+  return cause ? `${err.message} (${cause.code ?? cause.message ?? cause})` : err.message;
+}
 
 async function read(baseUrl, path) {
   const res = await fetch(new URL(path, baseUrl), {
@@ -98,10 +107,10 @@ async function waitForServer(baseUrl, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
     try {
-      await fetch(baseUrl, { redirect: "manual", signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+      await fetch(baseUrl, { redirect: "manual", signal: AbortSignal.timeout(POLL_TIMEOUT_MS) });
       return;
     } catch (err) {
-      if (Date.now() > deadline) throw new Error(`no answer from ${baseUrl} within ${timeoutMs / 1000} s: ${err.message}`);
+      if (Date.now() > deadline) throw new Error(`no answer from ${baseUrl} within ${timeoutMs / 1000} s: ${reason(err)}`);
       await new Promise((r) => setTimeout(r, 1000));
     }
   }
@@ -119,7 +128,7 @@ export async function main(baseUrl) {
     try {
       problems = checkResponse(expectation, await read(baseUrl, expectation.path));
     } catch (err) {
-      problems = [`no answer: ${err.message}`];
+      problems = [`no answer: ${reason(err)}`];
     }
     if (problems.length === 0) {
       console.log(`ok    ${expectation.path}`);
