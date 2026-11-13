@@ -302,7 +302,7 @@ Toolchain: the Node and npm ranges under Dependencies.
 | `npm run test:all` | **every project in `RUNS`** of `scripts/test-all.mjs` (today `unit` + `integration`), checked against the projects `vitest.config.ts` declares; takes no arguments | yes |
 
 **No CI check is required yet — every gate is manual, until Phase 8 builds it.**
-`.github/workflows/ci.yml` runs three of the four gates on each PR (#285), but no check is
+`.github/workflows/ci.yml` runs the four gates on each PR (#285, #286), but no check is
 required until #297, and its result doesn't replace the hand-run gates. CI/CD is Phase 8's
 work, one piece designed together and built before Phase 10's production deploy (Phase 6
 plan decision #1; the split into Phases 8, 9 and 10 is IS #265 and IS #278, between

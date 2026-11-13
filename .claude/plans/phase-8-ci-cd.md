@@ -87,6 +87,7 @@ has run the checks with no Vercel build (#5).
 | `scripts/controls-trigger.mjs` (+ test), or a mode of `controls.mjs` (open decision 4) | `changedPaths` and `needsFullControls` |
 | `scripts/controls-trigger-coverage.test.mjs` (name open) | The guard test on the trigger list (#8) |
 | `scripts/smoke.mjs` (+ test of its expectations if it has pure parts) | The served-app check the `build` job runs |
+| `scripts/write-env-local.mjs` (+ test) | `.env.local` from `npx supabase status -o env`, for every CI job that starts the local stack (IS #286; open decision 3) |
 | The lint rules' fixture test (path open) | One fixture per new rule, inline in the test, linted through ESLint's API (#9) |
 
 ### Modify
@@ -645,7 +646,13 @@ on PR #311. `README.md`, "Preview deploys", has the probes.
    env` through a step that fails on a missing value; setup-node's npm cache, on by default
    (saved under the PR's ref, restored by the PR's later pushes); no Docker image cache (the start
    took about 2 minutes in CI); timeouts 10, 10 and 20 minutes; `concurrency` per PR with
-   cancel-in-progress. `build`'s and `controls`' stacks stay open (#286, #288).
+   cancel-in-progress. **Settled for `build` (PR for IS #286):** its own job and its own
+   stack, started with the same `SUPABASE_EXCLUDE` list (one workflow-level `env:`), and
+   `.env.local` from `scripts/write-env-local.mjs`, which `integration` uses too; `next
+   start`, with `smoke.mjs` run against the URL from its own `Local:` line once it prints
+   `Ready in`, never a fixed port (round 1 on PR #315: a server already on the port
+   answered for one that couldn't bind); a 20-minute timeout, as `integration`'s.
+   `controls`' stack stays open (#288).
 4. **How `changedPaths` lists the files (step 3).** The merge commit against its first
    parent (`fetch-depth: 2`), or the PR's files through the API; and whether it is a script
    of its own or a mode of `controls.mjs`.
