@@ -465,8 +465,8 @@ Its row stays in the preview's history.
 For the owner: Vercel project `whereisfood` in the team whose slug is `where-is-food`
 (Hobby), imported from this repo. A push to a branch other than `main` builds a
 preview, except a `dependabot/` or `probe/` branch, which the Ignored Build Step
-cancels. Only `dev`'s build gets the secret key, so any other branch's build fails
-(both below). One push built as Production instead (the mislabelled first deployment,
+cancels. Only `dev`'s build gets the secret key; another branch's build, with today's
+code, fails without it (both below). One push built as Production instead (the mislabelled first deployment,
 below). Production builds from `main`, which was
 created at `dev`'s commit and built nothing; the next push to `main` is Phase 10's.
 
@@ -501,10 +501,10 @@ variables (the secret key was then scoped to every branch). So an `ignoreCommand
 `exit 1` on a branch, or on `dev`, which branches inherit, lets a `dependabot/` or `probe/`
 branch build. The repo has no `vercel.json`. **What keeps the secret key out of such a
 build** is its scope, not the command: since 2026-11-13 it is set for `dev` alone
-("Environment variables", below), a setting in Vercel that no branch's files change. A
-branch that escapes the cancel still runs its install scripts and build, with the three
-public variables only, and its build fails without the key (seen, "The Ignored Build Step's
-checks"). A Production build from another branch through an override: not tried (Phase 10,
+("Environment variables", below), in Vercel's project settings, not in the repo. A branch
+that escapes the cancel still runs its install scripts and build, with the three public
+variables only; with today's code its build fails without the key (seen, "The Ignored Build
+Step's checks"). A Production build from another branch through an override: not tried (Phase 10,
 below).
 
 **The Ignored Build Step's checks** (IS #284's PR has the runs):

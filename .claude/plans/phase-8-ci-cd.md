@@ -519,10 +519,10 @@ read-through on PR #283).
 **A limit, and what holds instead:** a branch's `vercel.json` `ignoreCommand` overrides the
 inline command (Vercel's docs; found by round 1 on PR #311 and probed there both ways), so one
 holding `exit 1`, on a branch or on `dev`, lets these branches build. So the secret key is
-scoped in Vercel to `dev`'s previews alone, a setting no branch's files change: a branch that
-escapes the cancel builds with the three public variables only, and its build fails without
-the key (probed on PR #311). The cancel still keeps a probe's or Dependabot's code from running
-on Vercel at all. Round 2 had added guards on `vercel.json` itself (a diff read, a `git grep`
+scoped to `dev`'s previews alone, in Vercel's project settings, not the repo: a branch that
+escapes the cancel builds with the three public variables only, and with today's code its
+build fails without the key (probed on PR #311). The cancel still keeps a probe's or
+Dependabot's code from running on Vercel, unless a `vercel.json` overrides it. Round 2 had added guards on `vercel.json` itself (a diff read, a `git grep`
 before probes, a check in #292's hook); round 3 found gaps in each (a stale local `dev`,
 commits made on GitHub, a `vercel.ts`), and the scope replaced them. The owner's call, round 3
 on PR #311. `README.md`, "Preview deploys", has the probes.
