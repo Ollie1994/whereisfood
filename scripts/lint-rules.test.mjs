@@ -90,12 +90,15 @@ describe("the supabase-js filters, in src/lib/db/", () => {
     ["a template inside .or()'s argument, in an array joined", 'q.or(["a", `b${id}`].join(","));', OR],
     ["a template inside .or()'s argument, as a computed member", "q.or(a[`k${id}`]);", OR],
     ["a chain of + into .or(), reported once", 'q.or("a" + id + "b");', OR],
+    ["a template in .or()'s options (referencedTable)", 'q.or("id.eq.1", { referencedTable: `t_${id}` });', OR],
     ["a template into .rpc()", "q.rpc(`fn_${id}`);", RPC],
     ["a + into .rpc()", 'q.rpc("fn_" + id);', RPC],
     ["a template inside .rpc()'s first argument", "q.rpc(`fn_${id}`.trim());", RPC],
     ["any .filter", "rows.filter(Boolean);", FILTER],
     ["a computed .filter", 'rows["filter"](Boolean);', FILTER],
     ["a destructured .filter", "const { filter } = rows; void filter;", FILTER],
+    ["a destructured .filter, renamed", "const { filter: f } = rows; void f;", FILTER],
+    ["an optional-chained .filter", "rows?.filter(Boolean);", FILTER],
   ])("%s draws its message", async (_name, code, expected) => {
     const messages = await lint(`${DB_DECLARE}${code}\n`, "src/lib/db/probe.ts");
     expect(messages).toHaveLength(1);
@@ -106,16 +109,18 @@ describe("the supabase-js filters, in src/lib/db/", () => {
     ["a literal .or()", 'q.or("id.eq.1");'],
     ["a template with no expression into .or()", "q.or(`id.eq.1`);"],
     ["a literal .or() on a callee built from a template", 'q.from(`t_${id}`).or("id.eq.1");'],
-    ["a literal .or() with a template in its options", 'q.or("id.eq.1", { referencedTable: `t_${id}` });'],
     ["a literal .rpc() with an argument object", 'q.rpc("fn", { id });'],
     ["a literal .rpc() whose argument object holds a template", 'q.rpc("fn", { name: `n_${id}` });'],
   ])("%s draws none", async (_name, code) => {
     expect(await lint(`${DB_DECLARE}${code}\n`, "src/lib/db/probe.ts")).toEqual([]);
   });
 
-  it("a computed member through a variable named filter draws none", async () => {
-    const code = `${DB_DECLARE}declare const filter: number; void rows[filter];\n`;
-    expect(await lint(code, "src/lib/db/probe.ts")).toEqual([]);
+  it.each([
+    ["a computed member through a variable named filter", "declare const filter: number; void rows[filter];"],
+    ["a computed destructure through a variable named filter", 'declare const filter: "length"; const { [filter]: n } = rows; void n;'],
+    ["a private #filter member", "export class C { #filter = 1; m() { return this.#filter; } }"],
+  ])("%s draws none", async (_name, code) => {
+    expect(await lint(`${DB_DECLARE}${code}\n`, "src/lib/db/probe.ts")).toEqual([]);
   });
 
   it("an array's .filter outside src/lib/db/ draws none", async () => {

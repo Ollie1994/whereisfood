@@ -22,44 +22,44 @@ const HTML_SINKS = [
   { property: "setHTML", message: "setHTML renders HTML: render a React root or DOM nodes instead (Q26)." },
 ];
 
-// supabase-js filters in the db layer (Q26). `.or()`'s filter string and `.rpc()`'s
-// function name, each its first argument, are strings PostgREST parses, so neither may
-// hold a string built in the call (a template with an expression, or a `+`), as the
-// argument or anywhere inside it (a template under `.trim()`, in a ternary, in an array
-// joined, in a computed member), one report per argument: esquery's `:has` matches the
-// argument itself as well as what's inside it (with the direct form dropped from
+// supabase-js filters in the db layer (Q26). `.or()`'s arguments (its filter string, and
+// its options, whose `referencedTable` postgrest-js 2.106.2 puts in the query key
+// `${referencedTable}.or`) and `.rpc()`'s function name are strings PostgREST parses, so
+// none may hold a string built in the call (a template with an expression, or a `+`), as
+// the argument or anywhere inside it (a template under `.trim()`, in a ternary, in an
+// array joined, in a computed member), one report per argument: esquery's `:has` matches
+// the argument itself as well as what's inside it (with the direct form dropped from
 // `:matches(<built>, :has(<built>))`, every fixture still passed; round 2 on PR #320).
-// `:first-child` is the first argument, never the callee (`.from(…)`). Later arguments
-// aren't checked: `.or()`'s options, though postgrest-js 2.106.2 puts `referencedTable` in
-// the query key (`${referencedTable}.or`); and `.rpc()`'s arguments, which its `rpc` POSTs
-// as the JSON body unless `{ get: true }`, or `{ head: true }` with no object argument,
+// `:first-child` and `:nth-child(2)` are arguments, never the callee (`.from(…)`).
+// `.rpc()`'s later arguments aren't checked: postgrest-js 2.106.2's `rpc` POSTs them as
+// the JSON body, unless `{ get: true }`, or `{ head: true }` with no object argument,
 // puts them in the URL's query string.
 // A rule on syntax can't tell supabase-js's `.filter()` from an array's, and misses a
 // builder held in a variable, so `.filter` is banned outright here, co-located tests
-// included: by name (not a computed `[filter]` variable), by a string-literal computed
-// name, or destructured by identifier. A row post-filter takes another form, or a disable
+// included: by name (optional chain included; not a computed `[filter]` variable, nor a
+// private `#filter`), by a string-literal computed name, or destructured by an identifier
+// key (not a computed `[filter]` one). A row post-filter takes another form, or a disable
 // naming this rule (CLAUDE.md, "db layer"). Not seen: a string built into a variable
 // first, or by a call or operator other than a template or `+` (`.join` of variables,
-// `.concat`, `+=`); a computed `.or`, `.rpc` or `.filter` name other than a string literal
-// of `filter` (`q["or"](…)`, a template, a string-keyed destructure); and other strings
-// PostgREST parses, which Q26 doesn't name: `.not()`'s value, a built `.select()` or
-// `.from()`. Probed with `ESLint#lintText`, rounds 1 to 3 on PR #320.
+// `.concat`, `+=`); a computed `.or`, `.rpc` or `.filter` name other than a string
+// literal of `filter` (`q["or"](…)`, a template, a string-keyed destructure); and other
+// strings PostgREST parses, which Q26 doesn't name: `.not()`'s value, a built `.select()`
+// or `.from()`. Probed with `ESLint#lintText`, rounds 1 to 4 on PR #320.
 const BUILT_STRING = ":matches(TemplateLiteral[expressions.length>0], BinaryExpression[operator='+'])";
 const OR_CALL = "CallExpression[callee.property.name='or']";
 const RPC_CALL = "CallExpression[callee.property.name='rpc']";
-const BUILT_IN = `:first-child:has(${BUILT_STRING})`;
 const DB_FILTERS = [
   {
-    selector: `${OR_CALL} > ${BUILT_IN}`,
+    selector: `${OR_CALL} > :matches(:first-child, :nth-child(2)):has(${BUILT_STRING})`,
     message: "A string built into .or() is parsed by PostgREST: use .eq/.in/.is, or a literal (Q26).",
   },
   {
-    selector: `${RPC_CALL} > ${BUILT_IN}`,
+    selector: `${RPC_CALL} > :first-child:has(${BUILT_STRING})`,
     message: "A string built into .rpc()'s function name is parsed by PostgREST: pass a literal (Q26).",
   },
   {
     selector:
-      "MemberExpression[computed=false][property.name='filter'], MemberExpression[computed=true][property.value='filter'], ObjectPattern > Property[key.name='filter']",
+      "MemberExpression[computed=false][property.type='Identifier'][property.name='filter'], MemberExpression[computed=true][property.value='filter'], ObjectPattern > Property[computed=false][key.name='filter']",
     message: "No .filter in src/lib/db/: supabase-js's and an array's look alike to lint (Q26).",
   },
 ];
