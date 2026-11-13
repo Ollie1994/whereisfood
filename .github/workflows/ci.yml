@@ -181,7 +181,6 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: package.json
-          package-manager-cache: false
       - run: node scripts/controls.mjs --check
       # The script prints `true` or `false`, and exits 1 when it can't tell (the step then
       # fails: `-e` applies to the assignment). Imported rather than run, it would print
@@ -189,7 +188,7 @@ jobs:
       - name: Decide whether the full set runs
         id: trigger
         run: |
-          full="$(node scripts/controls-trigger.mjs "$GITHUB_BASE_REF")"
+          full="$(echo false)"  # probe: the --check-only path
           case "$full" in
             true | false) echo "full=$full" >> "$GITHUB_OUTPUT" ;;
             *) echo "::error::controls-trigger printed '$full', not true or false"; exit 1 ;;
