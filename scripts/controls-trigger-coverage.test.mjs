@@ -63,10 +63,12 @@ function vitestList(filter) {
   return JSON.parse(result.stdout).map((entry) => resolve(entry.file));
 }
 
-const EXTENSIONS = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs", ".json"];
+// Vite's default `resolve.extensions`, in its order: `DEFAULT_EXTENSIONS` in Vite 8.3.5's
+// `dist/node/chunks/node.js`, not exported. `vitest.config.ts` sets no `extensions`.
+const EXTENSIONS = [".mjs", ".js", ".mts", ".ts", ".jsx", ".tsx", ".json"];
 
-// A specifier's file as Vite finds it: as written, with an extension added, as a folder's
-// index, or a `.js` specifier naming its `.ts` source.
+// A specifier's file as Vite finds it: as written, with an extension added (the first in
+// Vite's order wins), as a folder's index, or a `.js` specifier naming its `.ts` source.
 function resolveFile(base) {
   const candidates = [
     base,
@@ -82,7 +84,9 @@ function resolveFile(base) {
 function resolveImport(specifier, fromFile) {
   let base;
   const key = Object.keys(ALIAS).find((k) => specifier === k || specifier.startsWith(`${k}/`));
-  if (key !== undefined) base = ALIAS[key] + specifier.slice(key.length);
+  // `resolve`, so an alias's path has the same separators as a relative one's and a file
+  // reached both ways is one entry in `reach`'s `seen`.
+  if (key !== undefined) base = resolve(ALIAS[key] + specifier.slice(key.length));
   else if (specifier.startsWith("./") || specifier.startsWith("../")) base = resolve(dirname(fromFile), specifier);
   else return { file: null, kind: "package" };
   const file = resolveFile(base);

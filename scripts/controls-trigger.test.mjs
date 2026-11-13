@@ -82,32 +82,42 @@ describe("changedPaths", () => {
   // repository they name. With `GIT_DIR` and `GIT_WORK_TREE` set to a throwaway clone,
   // 5 of these cases failed and the clone's branch gained commit "A"; with
   // `GIT_INDEX_FILE` set to another folder, `git add` wrote its index there (IS #287's PR).
+  //
+  // Then git's global and system config are replaced by an empty file, for the scratch
+  // repositories' commits and for `changedPaths` alike: with `diff.renames = false` in a
+  // `HOME`'s `.gitconfig` and `--no-renames` removed, the rename case still passed while
+  // `changedPaths` read the user's config (round 3 on PR #316).
   const saved = {};
+  let configDir;
   beforeAll(() => {
     for (const key of Object.keys(process.env).filter((k) => k.startsWith("GIT_"))) {
       saved[key] = process.env[key];
       delete process.env[key];
     }
+    configDir = mkdtempSync(join(tmpdir(), "controls-trigger-config-"));
+    writeFileSync(join(configDir, "gitconfig"), "");
+    process.env.GIT_CONFIG_NOSYSTEM = "1";
+    process.env.GIT_CONFIG_GLOBAL = join(configDir, "gitconfig");
   });
   afterEach(() => {
     for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
     delete process.env.GIT_CEILING_DIRECTORIES;
   });
-  afterAll(() => Object.assign(process.env, saved));
+  afterAll(() => {
+    delete process.env.GIT_CONFIG_NOSYSTEM;
+    delete process.env.GIT_CONFIG_GLOBAL;
+    rmSync(configDir, { recursive: true, force: true });
+    Object.assign(process.env, saved);
+  });
 
-  // A scratch repository, kept from the user's and the system's git config (an empty
-  // global file), with a fixed identity.
+  // A scratch repository with a fixed identity, under the empty config above.
   function repo() {
     const dir = mkdtempSync(join(tmpdir(), "controls-trigger-"));
     dirs.push(dir);
-    const globalConfig = join(dir, ".gitconfig-empty");
-    writeFileSync(globalConfig, "");
     mkdirSync(join(dir, "r"));
     const cwd = join(dir, "r");
     const env = {
       ...process.env,
-      GIT_CONFIG_NOSYSTEM: "1",
-      GIT_CONFIG_GLOBAL: globalConfig,
       GIT_AUTHOR_NAME: "t",
       GIT_AUTHOR_EMAIL: "t@example.invalid",
       GIT_COMMITTER_NAME: "t",

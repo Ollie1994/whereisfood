@@ -96,7 +96,7 @@ has run the checks with no Vercel build (#5).
 |---|---|
 | `eslint.config.mjs` | The rules against DOM HTML sinks and string-built supabase-js filters (Q26), with `.filter` banned outright in `src/lib/db/`. The `src/lib/db/` entry repeats the sink selectors: in flat config a later object's options for a rule replace an earlier one's, they don't merge |
 | `vitest.config.ts` | Only if the new script tests sit where the `unit` project doesn't collect them |
-| `scripts/controls.mjs` | Its header's "Not a gate (CLAUDE.md, "Testing")" (line 43), which a required `controls` check makes false (step 12); anything else only if CI needs it (open decision 4) |
+| `scripts/controls.mjs` | Its header's "Not a gate (CLAUDE.md, "Testing")" (line 43), which a required `controls` check makes false (step 12); anything else only if CI needs it, and no trigger mode (open decision 4, settled: its own script) |
 | `package.json` | Only a script the trigger or smoke step needs; no `prepare` hook (#7) |
 | `CLAUDE.md` | The bold plan line (step 0); #12's audit rule (step 6); the Gitleaks hook under "Secrets" (step 7); "Testing" rewritten for CI as the gate, its "Schema controls … not a gate" included (step 12) |
 | `README.md` | "Getting started": installing Gitleaks and setting `core.hooksPath` (step 7); "Preview deploys": the Ignored Build Step's new command (step 1, #15). The status parts wait for step 17 (Phase 7 #8) |
@@ -144,11 +144,11 @@ No function in `src/`. The scripts, each tested in the `unit` project:
   `supabase/config.toml`, `vitest.config.ts`, `src/lib/db/`, `src/lib/supabase.ts`,
   `package.json` and `package-lock.json`, `.github/workflows/ci.yml`, the trigger script
   itself, `scripts/write-env-local.mjs`, and every file the named tests import (the scope
-  draft's list, completed by the guard below; the guard follows the named tests' imports
-  only, not those three files'). The two package files stand for the bare package imports
-  the guard doesn't follow: a bump of `@supabase/supabase-js`, which the named tests
-  import, or of the `supabase` CLI, which sets the local stack, changes what the controls
-  exercise. Accepted
+  draft's list, completed by the guard below, which follows the imports of the named tests
+  and of the integration project's setup file, and of no other entry). The two package
+  files stand for the bare package imports the guard doesn't follow: a bump of
+  `@supabase/supabase-js`, which the named tests import, or of the `supabase` CLI, which
+  sets the local stack, changes what the controls exercise. Accepted
   cost: every dependency PR runs the full controls (~45 s a control) (the owner's call,
   round 2 on PR #283). `ci.yml` and the trigger script are there so a PR that changes how
   the full set is run also runs it; accepted cost: an edit to `ci.yml` runs the full
@@ -561,9 +561,9 @@ on PR #311. `README.md`, "Preview deploys", has the probes.
 **Controls and the log (step 3)**
 - [ ] `controls --check` runs on every PR; the full set runs when a trigger path changes and
   on every PR into `main`.
-- [ ] `changedPaths` throws when `HEAD^1` is missing or `git` fails, and returns `[]` for a
-  successful empty diff (unit tests); the guard test fails when a named test gains an
-  import outside the list, `@/` ones included (a mutation, shown in the PR).
+- [ ] `changedPaths` throws when `HEAD^1` or `HEAD^2` is missing or `git` fails, and returns
+  `[]` for a successful empty diff (unit tests); the guard test fails when a named test
+  gains an import outside the list, `@/` ones included (a mutation, shown in the PR).
 - [ ] `process-log` runs `bash scripts/process-log.sh check` and goes red on a broken row.
 
 **Lint, advisor, audit (steps 4–6)**
