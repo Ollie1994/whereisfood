@@ -197,8 +197,8 @@ jobs:
             true | false) echo "full=$full" >> "$GITHUB_OUTPUT" ;;
             *) echo "::error::controls-trigger printed '$full', not true or false"; exit 1 ;;
           esac
-      # The full set's steps. Each carries this `if:`: a step added here without it runs on
-      # every PR, with no stack and no install.
+      # The full set's steps. Each carries this `if:`: a step added here without it also runs
+      # on a PR that doesn't take the full set, where there's no stack and no install.
       - if: steps.trigger.outputs.full == 'true'
         run: npm ci
       - if: steps.trigger.outputs.full == 'true'

@@ -594,9 +594,9 @@ npm run test:all          # every test project, each in its own run
 
 No CI check is required yet: `.github/workflows/ci.yml` runs the four gates, the process
 log's check and the schema controls' `--check` on each pull request, and the full controls
-when a trigger path changes or the pull request is into `main`; but until Phase 8 makes
-them required (`CLAUDE.md`, "Testing"), run all four gates before opening or merging a
-pull request and check each one exits 0:
+when a path `TRIGGERS` in `scripts/controls-trigger.mjs` covers changes or the pull
+request is into `main`; but until Phase 8 makes them required (`CLAUDE.md`, "Testing"),
+run all four gates before opening or merging a pull request and check each one exits 0:
 
 ```bash
 npx tsc --noEmit

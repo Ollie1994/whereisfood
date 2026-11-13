@@ -376,9 +376,9 @@ integration tests its header names, checks they went red (or, for a `green:` con
 stayed green), and restores the database with `npx supabase db reset`. Run it after a
 change to `supabase/migrations/` or to a test a control names (one file:
 `node scripts/controls.mjs tests/controls/<name>.sql`; `--check` parses the files and
-touches nothing). CI's `controls` job runs the full set on a PR that changes a path
-`TRIGGERS` in `scripts/controls-trigger.mjs` lists, and on every PR into `main` (#288); it
-isn't a required check until #297. A new schema guard adds its
+touches nothing). CI's `controls` job runs the full set on a PR that changes a path a
+`TRIGGERS` entry in `scripts/controls-trigger.mjs` covers, and on every PR into `main`
+(#288); whether it's required is "Testing" above. A new schema guard adds its
 controls by the rule in `.claude/commands/create-issues.md`'s Failure modes. About
 45 s a control, mostly the reset (64 took 48 minutes, 2026-10-23); the script's header
 says what it can't see.

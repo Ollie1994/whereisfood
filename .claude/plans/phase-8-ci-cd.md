@@ -662,7 +662,9 @@ on PR #311. `README.md`, "Preview deploys", has the probes.
    listed, and their six `db reset`s started no excluded service. A 90-minute timeout.
    setup-node's npm cache is off in that job: `npm ci` runs only for the full set, and with
    the cache on, a `--check`-only run saved an empty cache first under the key every job
-   shares, which the other jobs then couldn't replace (probe PR #319, round 1 on PR #317).
+   shares, which the other jobs then couldn't replace and `integration` restored; on a hit on
+   that key setup-node saves nothing (its `src/cache-save.ts`), so later runs on the PR would
+   keep it (probe PR #319, round 1 on PR #317).
 4. **How `changedPaths` lists the files (step 3).** The merge commit against its first
    parent (`fetch-depth: 2`), or the PR's files through the API; and whether it is a script
    of its own or a mode of `controls.mjs`. **Settled (PR for IS #287):** `git diff
