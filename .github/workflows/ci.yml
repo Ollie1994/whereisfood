@@ -189,7 +189,7 @@ jobs:
       - name: Decide whether the full set runs
         id: trigger
         run: |
-          full="$(node scripts/controls-trigger.mjs "$GITHUB_BASE_REF")"
+          full="$(true)"  # probe: prints nothing
           case "$full" in
             true | false) echo "full=$full" >> "$GITHUB_OUTPUT" ;;
             *) echo "::error::controls-trigger printed '$full', not true or false"; exit 1 ;;
