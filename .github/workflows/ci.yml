@@ -1,0 +1,118 @@
+# Three of the four gates, run by GitHub on every PR into dev or main (Phase 8 plan step 2,
+# IS #285); `npm run build` joins with #286. Not required checks until #297's rulesets;
+# until then each PR still runs the four gates by hand (CLAUDE.md, "Testing").
+#
+# Hardening (plan #2, Q5): the plain pull-request trigger only, never its target-branch
+# variant; a read-only token; every action pinned to a commit SHA; no path filter on the
+# workflow (a required check that never runs never reports, and the PR waits on it).
+#
+# The default activity types (opened, synchronize, reopened) don't include a change of the
+# PR's base, so a PR retargeted to dev or main gets no new run until its next push; the
+# results of its last run stay on its head commit, tested against the old base (whether
+# #297's rulesets count them for the new base: not probed; #298 probes it). `edited`
+# would start a run, and would also rerun every job on each edit of the PR's title or
+# body (GitHub's docs: `edited` fires on a change of the title, body or base branch).
+name: ci
+
+on:
+  pull_request:
+    branches: [dev, main]
+
+permissions:
+  contents: read
+
+# A new push to a PR cancels that PR's run of this workflow still in progress. The group
+# names the workflow: groups are shared across a repository's workflows, and the planned
+# codeql.yml and sonarqube.yml run on PRs too (plan steps 8 and 9).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck-lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Node from package.json's devEngines.runtime (setup-node v7.1.0's docs, "Node
+      # version file"); its "Environment details" log group prints the Node and npm
+      # versions. Its npm cache is on by default here (devEngines.packageManager is npm): a
+      # run saves it under its PR's ref, so the PR's later pushes restore it, and npm ci
+      # still checks each package against the lockfile's hashes. This workflow never runs
+      # on dev, so it saves no cache there for a new PR's first run (IS #285's PR).
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: package.json
+      - run: npm ci
+      # Next's generated types (.next/types, and next-env.d.ts, which also loads Next's
+      # ambient types) don't exist on a fresh checkout, and tsc checks route handlers
+      # against them only when they do: in a clean worktree a
+      # handler with non-Promise params passed `tsc --noEmit` (exit 0) and failed it after
+      # `next typegen` (exit 2, TS2344 in .next/types/validator.ts) (IS #285's PR).
+      - run: npx next typegen
+      - run: npx tsc --noEmit
+      - run: npm run lint
+
+  unit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: package.json
+      - run: npm ci
+      - run: npm run test:run
+
+  integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: package.json
+      - run: npm ci
+      # The services the integration tests use: db, auth, kong, rest, and inbucket for
+      # Mailpit (auth-routes.test.ts reads 127.0.0.1:54324). With the rest excluded, a
+      # local `npm run test:all` gave the full stack's counts (supabase CLI 2.109.1, IS
+      # #285's PR). That CLI refused `analytics,functions,meta,storage` as names to
+      # exclude, though its --help lists them, with a WARNING and exit 0, leaving those
+      # containers running; it took the names below. So a CLI bump that renames one only
+      # warns here.
+      # Its output prints the stack's keys. They're the CLI's shared defaults, not secrets:
+      # the CLI says so under them ("API keys and JWT secrets are shared defaults"), and
+      # this run's keys hashed the same as a local stack's (IS #285's PR).
+      - run: npx supabase start -x realtime,imgproxy,studio,edge-runtime,vector,logflare,postgres-meta,storage-api,supavisor
+      # tests/integration/setup.ts reads .env.local, and throws without it. The
+      # values are the local stack's, not secrets (CLAUDE.md, "Secrets"); mapped as
+      # README's "3. Environment" table does. A missing Supabase value fails the step
+      # with an ::error::; the tiles line is copied from .env.example as it is (the
+      # integration tests don't read it).
+      - name: Write .env.local from the local stack
+        run: |
+          status="$(npx supabase status -o env)"
+          get() {
+            value="$(printf '%s\n' "$status" | sed -n "s/^$1=\"\(.*\)\"\$/\1/p")"
+            if [ -z "$value" ]; then echo "::error::supabase status has no $1" >&2; return 1; fi
+            printf '%s' "$value"
+          }
+          # Assigned one by one: under bash -e a failed substitution stops the step in an
+          # assignment, not inside an echo's argument.
+          url="$(get API_URL)"
+          anon="$(get ANON_KEY)"
+          service="$(get SERVICE_ROLE_KEY)"
+          tiles="$(grep '^NEXT_PUBLIC_PMTILES_URL=' .env.example)"
+          printf '%s\n' "NEXT_PUBLIC_SUPABASE_URL=$url" "NEXT_PUBLIC_SUPABASE_ANON_KEY=$anon" \
+            "SUPABASE_SERVICE_ROLE_KEY=$service" "$tiles" > .env.local
+      # Both projects, keeping test:all's checks: a project that collects zero files
+      # fails, and RUNS must match the projects vitest.config.ts declares. So the unit
+      # project runs here as well as in `unit`, and a failing unit test turns both jobs
+      # red; the log's project label tells them apart.
+      - run: npm run test:all
