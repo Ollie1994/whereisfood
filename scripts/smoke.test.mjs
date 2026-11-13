@@ -33,10 +33,10 @@ const CASES = [
   },
   {
     path: "/admin",
-    right: { status: 303, location: "/admin/login" },
+    right: { status: 303, location: "/admin/login", origin: "http://127.0.0.1:3000" },
     // The admin page served with no session: the proxy not guarding it.
     wrongStatus: { status: 200, contentType: HTML },
-    wrongShape: { status: 303, location: "/map" },
+    wrongShape: { status: 303, location: "/map", origin: "http://127.0.0.1:3000" },
   },
   {
     path: "/api/admin/trucks",
@@ -80,7 +80,11 @@ describe("checkResponse details", () => {
     }
   });
   it("fails a redirect with no Location", () => {
-    expect(checkResponse(byPath("/admin"), { status: 303 })).toHaveLength(1);
+    expect(checkResponse(byPath("/admin"), { status: 303, origin: "http://127.0.0.1:3000" })).toHaveLength(1);
+  });
+  it("reports a Location that isn't a URL as a bad redirect, not a throw", () => {
+    const problems = checkResponse(byPath("/admin"), { status: 303, location: "http://[x", origin: "http://127.0.0.1:3000" });
+    expect(problems).toEqual(["Location http://[x, expected path /admin/login on http://127.0.0.1:3000"]);
   });
   it("fails a JSON object whose `entries` isn't an array", () => {
     for (const json of [{}, { entries: "x" }, { entries: null }]) {

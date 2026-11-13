@@ -41,21 +41,28 @@ describe("parseEnv", () => {
 });
 
 describe("envLocalText", () => {
-  it("maps the status and .env.example as README's table does", () => {
+  it("maps the status and .env.example as README's table does, each value quoted", () => {
     expect(envLocalText(STATUS, EXAMPLE)).toBe(
       [
-        "NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321",
-        "NEXT_PUBLIC_SUPABASE_ANON_KEY=anon-placeholder",
-        "SUPABASE_SERVICE_ROLE_KEY=service-placeholder",
-        "NEXT_PUBLIC_PMTILES_URL=/gothenburg.pmtiles",
+        'NEXT_PUBLIC_SUPABASE_URL="http://127.0.0.1:54321"',
+        'NEXT_PUBLIC_SUPABASE_ANON_KEY="anon-placeholder"',
+        'SUPABASE_SERVICE_ROLE_KEY="service-placeholder"',
+        'NEXT_PUBLIC_PMTILES_URL="/gothenburg.pmtiles"',
         "",
       ].join("\n"),
     );
   });
 
+  it("writes values holding #, spaces or an apostrophe so they read back whole", () => {
+    for (const value of ["http://x/#a", "a b", " pad ", "it's"]) {
+      const status = STATUS.replace('"http://127.0.0.1:54321"', JSON.stringify(value));
+      expect(parseEnv(envLocalText(status, EXAMPLE)).get("NEXT_PUBLIC_SUPABASE_URL")).toBe(value);
+    }
+  });
+
   it.each(["API_URL", "ANON_KEY", "SERVICE_ROLE_KEY"])("throws without the status's %s, naming only it", (key) => {
     const status = STATUS.split("\n").filter((line) => !line.startsWith(`${key}=`)).join("\n");
-    expect(() => envLocalText(status, EXAMPLE)).toThrow(new RegExp(`^missing or empty: ${key} \\(from supabase status\\)$`));
+    expect(() => envLocalText(status, EXAMPLE)).toThrow(new RegExp(`^${key} \\(from supabase status\\) is missing or empty$`));
   });
 
   it("treats a tiles line with only a comment as empty", () => {
@@ -71,16 +78,17 @@ describe("envLocalText", () => {
     expect(() => envLocalText(STATUS, "# nothing")).toThrow("NEXT_PUBLIC_PMTILES_URL");
   });
 
-  it.each([
-    ["#", 'API_URL="http://x/#a"'],
-    ["a quote", `API_URL="it's"`],
-    ["whitespace", 'API_URL="a b"'],
-  ])("refuses a value holding %s, which it can't write unquoted", (_what, line) => {
-    const status = STATUS.replace('API_URL="http://127.0.0.1:54321"', line);
-    expect(() => envLocalText(status, EXAMPLE)).toThrow(/^holds #, a quote or whitespace: API_URL \(from supabase status\)$/);
+  it("refuses a value holding a double quote, which it can't quote", () => {
+    const status = STATUS.replace('API_URL="http://127.0.0.1:54321"', 'API_URL=a"b');
+    expect(() => envLocalText(status, EXAMPLE)).toThrow(/^API_URL \(from supabase status\) holds a " or a line break$/);
   });
 
   it("names every missing value at once", () => {
     expect(() => envLocalText("", "")).toThrow(/API_URL.*ANON_KEY.*SERVICE_ROLE_KEY.*NEXT_PUBLIC_PMTILES_URL/);
+  });
+
+  it("names a missing value and an unquotable one in one error", () => {
+    const status = STATUS.replace('"anon-placeholder"', '""').replace('API_URL="http://127.0.0.1:54321"', 'API_URL=a"b');
+    expect(() => envLocalText(status, EXAMPLE)).toThrow(/API_URL .* holds .*; ANON_KEY .* is missing or empty/);
   });
 });

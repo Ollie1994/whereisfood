@@ -3,10 +3,11 @@
 //
 // The mapping is README's "3. Environment" table: the CLI's `API_URL`, `ANON_KEY` and
 // `SERVICE_ROLE_KEY`, and `NEXT_PUBLIC_PMTILES_URL` from `.env.example`. The values are
-// the local stack's, which aren't secrets (CLAUDE.md, "Secrets"). A missing or empty
-// value, or one holding `#`, a quote or whitespace, fails with exit 1 and names every such
-// value, writing nothing. The tiles URL is required too: `.env.example` marks it
-// "Required: the map draws nothing without it".
+// the local stack's, which aren't secrets (CLAUDE.md, "Secrets"). Each is written in double
+// quotes. A missing or empty value, or one holding `"` or a line break (which can't be
+// quoted), fails with exit 1, and the message names every such value; nothing is written.
+// The tiles URL is required too: `.env.example` marks it "Required: the map draws nothing
+// without it".
 //
 // Overwrites `.env.local`. In CI the checkout has none; locally, this replaces yours.
 
@@ -42,27 +43,35 @@ export function parseEnv(text) {
   return values;
 }
 
-// Pure. Returns `.env.local`'s text, or throws naming every missing or empty value.
+// Pure. Returns `.env.local`'s text, each value in double quotes, or throws one error
+// naming every value that's missing or empty and every one that can't be quoted.
+//
+// Quoted, a value reads back whole: Node v26.13.0's process.loadEnvFile and setup.ts's
+// pattern both read `A="a#b"`, `B="a b"`, `C=" pad "` and `D="it's"` back exactly, where
+// unquoted `X=a#b` read as "a" (IS #286's PR). A `"` or a line break would end the quoted
+// value early, so those are refused.
 export function envLocalText(statusText, exampleText) {
   const sources = { status: parseEnv(statusText), example: parseEnv(exampleText) };
   const lines = [];
-  const missing = [];
-  const unwritable = [];
+  const problems = [];
   for (const { name, from, key } of MAPPING) {
     const value = sources[from].get(key);
     const source = from === "status" ? "supabase status" : ".env.example";
-    if (!value) missing.push(`${key} (from ${source})`);
-    // Written unquoted, a value with `#`, a quote or whitespace would be read back changed
-    // (Node v26.13.0's process.loadEnvFile read `X=a#b` as "a", and `Y="a#b"` as "a#b";
-    // IS #286's PR), so such a value is refused rather than written.
-    else if (/[#"'\s]/.test(value)) unwritable.push(`${key} (from ${source})`);
-    else lines.push(`${name}=${value}`);
+    if (!value) problems.push(`${key} (from ${source}) is missing or empty`);
+    else if (/["\r\n]/.test(value)) problems.push(`${key} (from ${source}) holds a " or a line break`);
+    else lines.push(`${name}="${value}"`);
   }
-  if (missing.length > 0) throw new Error(`missing or empty: ${missing.join(", ")}`);
-  if (unwritable.length > 0) throw new Error(`holds #, a quote or whitespace: ${unwritable.join(", ")}`);
+  if (problems.length > 0) throw new Error(problems.join("; "));
   return `${lines.join("\n")}\n`;
 }
 
+// `import.meta.main` is undefined on a Node without it, where this would otherwise do
+// nothing and exit 0; package.json's devEngines asks for 26.x, which has it (true when run,
+// false when imported: Node v26.13.0, IS #286's PR).
+if (import.meta.main === undefined) {
+  console.error("write-env-local: this Node has no import.meta.main; use the Node devEngines names (26.x)");
+  process.exit(2);
+}
 if (import.meta.main) {
   // Where stdin is a terminal and nothing is piped in, reading it would wait for input, so
   // this prints the usage instead. `isatty(0)`, not `process.stdin.isTTY`: with a

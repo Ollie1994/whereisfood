@@ -56,10 +56,14 @@ export function checkResponse(expectation, response) {
       // A Location may be relative; resolved against the server's origin, it must stay on
       // that origin and reach the expected path. A redirect to another host is what
       // src/proxy.ts builds its login redirect to avoid.
-      const origin = response.origin ?? "http://smoke.invalid";
-      const target = response.location ? new URL(response.location, origin) : null;
-      if (target === null || target.origin !== new URL(origin).origin || target.pathname !== expectation.location) {
-        problems.push(`Location ${response.location ?? "(none)"}, expected path ${expectation.location} on ${origin}`);
+      let target = null;
+      try {
+        target = response.location ? new URL(response.location, response.origin) : null;
+      } catch {
+        // A Location that isn't a URL: a bad redirect, reported below like any other.
+      }
+      if (target === null || target.origin !== response.origin || target.pathname !== expectation.location) {
+        problems.push(`Location ${response.location ?? "(none)"}, expected path ${expectation.location} on ${response.origin}`);
       }
       break;
     }
@@ -143,6 +147,13 @@ export async function main(baseUrl) {
 }
 
 // Run only when executed, not when the test imports it.
+// `import.meta.main` is undefined on a Node without it, where this would otherwise check
+// nothing and exit 0; package.json's devEngines asks for 26.x, which has it (true when run,
+// false when imported: Node v26.13.0, IS #286's PR).
+if (import.meta.main === undefined) {
+  console.error("smoke: this Node has no import.meta.main; use the Node devEngines names (26.x)");
+  process.exit(2);
+}
 if (import.meta.main) {
   main(process.argv[2]).then(
     (code) => process.exit(code),
