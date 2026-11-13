@@ -88,13 +88,13 @@ has run the checks with no Vercel build (#5).
 | `scripts/controls-trigger-coverage.test.mjs` | The guard test on the trigger list (#8) |
 | `scripts/smoke.mjs` (+ test of its expectations if it has pure parts) | The served-app check the `build` job runs |
 | `scripts/write-env-local.mjs` (+ test) | `.env.local` from `npx supabase status -o env`, for every CI job that starts the local stack (IS #286; open decision 3) |
-| The lint rules' fixture test (path open) | One fixture per new rule, inline in the test, linted through ESLint's API (#9) |
+| `scripts/lint-rules.test.mjs` | One fixture per rule and per term, inline in the test, linted through ESLint's API (#9) |
 
 ### Modify
 
 | File | Change |
 |---|---|
-| `eslint.config.mjs` | The rules against DOM HTML sinks and string-built supabase-js filters (Q26), with `.filter` banned outright in `src/lib/db/`. The `src/lib/db/` entry repeats the sink selectors: in flat config a later object's options for a rule replace an earlier one's, they don't merge |
+| `eslint.config.mjs` | The rules against DOM HTML sinks and string-built supabase-js filters (Q26), with `.filter` banned outright in `src/lib/db/`. In flat config a later object's options for a rule replace an earlier one's, they don't merge, so the sinks (`react/no-danger`, `no-restricted-properties`) and the db filters (`no-restricted-syntax`) use different rules and the `src/lib/db/` entry repeats nothing (IS #289's PR) |
 | `vitest.config.ts` | Only if the new script tests sit where the `unit` project doesn't collect them |
 | `scripts/controls.mjs` | Its header's "Not a gate (CLAUDE.md, "Testing")" (line 43), which a required `controls` check makes false (step 12); anything else only if CI needs it, and no trigger mode (open decision 4, settled: its own script) |
 | `package.json` | Only a script the trigger or smoke step needs; no `prepare` hook (#7) |
