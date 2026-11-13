@@ -291,7 +291,9 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
     Phases 9 and 10; the "Phase map" (the Phase 8 row); any `CLAUDE.md` text still saying
     the gates are manual that step 12 didn't reach; and the README's status parts (their
     "What does not exist yet" says previews have "one exception so far", which step 1's
-    `dependabot/` and `probe/` cancels made stale, IS #284). It
+    `dependabot/` and `probe/` cancels made stale, IS #284); Part 2's items that rely on the
+    Ignored Build Step (Dependabot's branches, and Phase 10's "check it is still set") gain
+    the `vercel.json` `ignoreCommand` override (`README.md`, "Preview deploys", PR #311). It
     replaces the three **between phases** markers this plan took up with #1–#3, leaves the
     IS #278 (Phase 9) and (Phase 10) rows' markers as they are, carries forward this plan's
     decisions that outlive the phase (#4, #7, #8, #9, #11, #12, #13, #14, #15 at least),
@@ -503,9 +505,13 @@ install would run among them, so they must never build there, any more than Depe
 Step 1 extends the Ignored Build Step to cancel `dependabot/*` and `probe/*`, before step 7's
 probe, the first such branch; every probe branch is named `probe/…`. The command stays
 inline in Vercel's settings: a script in the repo would run from each branch's own copy,
-which that branch could rewrite. It is checked before any probe exists, locally on its four
-cases and then by a pushed `probe/` and `dependabot/` branch each showing "Canceled", since
-only exit 0 cancels and exit 1 continues (`README.md:477`, citing Vercel's docs), so a
+which that branch could rewrite. A branch can still replace it with a `vercel.json`
+`ignoreCommand`, which Vercel's docs say overrides the project setting (not probed; found by
+round 1 on PR #311), so a diff adding `vercel.json` is read before it's pushed (`README.md`,
+"Preview deploys"). It is checked before any probe exists, locally on its four
+cases and then by a pushed `probe/` and `dependabot/` branch each showing "Canceled", read in
+the commit's statuses (step 1 found it there, PR #311), since
+only exit 0 cancels and exit 1 continues (`README.md`, "Preview deploys", citing Vercel's docs), so a
 command that errors with exit 1 lets the build run (other exit codes not read). Moved from step 14, which put it after step 7's and step 13's probes (the
 owner's call, the narrow read-through on PR #283).
 
@@ -520,7 +526,7 @@ owner's call, the narrow read-through on PR #283).
   setup is off.
 - [ ] Vercel's Ignored Build Step, inline in its settings, also cancels `dependabot/*` and
   `probe/*`: run locally on its four cases with the expected exits, and a pushed
-  `probe/ignore-check` and `dependabot/ignore-check` branch each show "Canceled" in Vercel
+  `probe/ignore-check` and `dependabot/ignore-check` branch, each at a new commit, show "Canceled" in Vercel (the commit's statuses, `README.md` "Preview deploys")
   before any probe branch exists; README's "Preview deploys" says so.
 
 **The four gates (step 2)**
@@ -593,7 +599,7 @@ owner's call, the narrow read-through on PR #283).
   Dependabot tab shows the npm job with no error.
 - [ ] On one Dependabot PR, on a branch starting `dependabot/`: the checks ran, SonarQube's
   job was skipped and didn't block the merge, CodeQL ran, and Vercel shows the build
-  cancelled by the Ignored Build Step.
+  cancelled by the Ignored Build Step (the commit's statuses, `README.md` "Preview deploys").
 
 **Always**
 - [ ] Each PR before step 12 ran the four gates by hand, exit codes read unpiped.
