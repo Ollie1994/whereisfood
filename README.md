@@ -464,7 +464,10 @@ Its row stays in the preview's history.
 
 For the owner: Vercel project `whereisfood` in the team whose slug is `where-is-food`
 (Hobby), imported from this repo. A push to a branch other than `main` builds a
-preview, with one exception so far (below). Production builds from `main`, which was
+preview, except a `dependabot/` or `probe/` branch, which the Ignored Build Step
+cancels. Only `dev`'s build gets the secret key; another branch's build, with today's
+code, fails without it (both below). One push built as Production instead (the mislabelled first deployment,
+below). Production builds from `main`, which was
 created at `dev`'s commit and built nothing; the next push to `main` is Phase 10's.
 
 **Project settings** (set in #187, 2026-11-02):
@@ -474,19 +477,70 @@ created at `dev`'s commit and built nothing; the next push to `main` is Phase 10
 | Production branch (Settings → Environments → Production) | `main`. Vercel accepts only a branch that exists, so `main` was created at `dev`'s commit. The repo's default branch stays `dev` |
 | Function region (Settings → Functions) | Stockholm, `arn1`, beside the database. Hobby allows one region |
 | Deployment Protection | Vercel Authentication on, "Standard Protection": without a Vercel login, `/map` and `/api/live` answer `302` to `vercel.com/sso-api` (#187's PR). A Protection Bypass for Automation secret lets a script through (below) |
-| Git Fork Protection (Settings → Security) | Enabled (read 2026-11-02): a pull request from a fork deploys only after a team member authorizes it. Keep it on: the repo is public, and a build runs a branch's code (its `package.json` scripts, `next.config.ts`, route modules, dependencies) with the Preview variables, the secret key among them. It covers forks only: a branch pushed to this repo builds with them without approval. Dependabot's branches would too once Phase 8 turns it on, so Phase 8 first sets the Ignored Build Step to cancel `dependabot/*` (planned, IS #278); every other branch still builds with them |
-| Ignored Build Step (Settings → Build and Deployment) | Custom: `if [ "$VERCEL_ENV" = "production" ] && [ "$VERCEL_GIT_COMMIT_REF" != "main" ]; then exit 0; else exit 1; fi`. Exit 0 cancels the build, exit 1 continues (Vercel's docs, "Project settings"), so it is meant to cancel a Production build from any branch but `main`. Added after the mislabelled first deployment below. A preview still builds with it, and Vercel logs the command before the build (#187's PR); its cancel case hasn't been seen. It runs when a build starts, so promoting an existing preview to Production doesn't pass through it; a CLI deploy wasn't tried |
+| Git Fork Protection (Settings → Security) | Enabled (read 2026-11-02): a pull request from a fork deploys only after a team member authorizes it. Keep it on: the repo is public, and a build runs a branch's code (its `package.json` scripts, `next.config.ts`, route modules, dependencies) with the Preview variables, the secret key among them. It covers forks only: a branch pushed to this repo builds without approval, but only `dev`'s build gets the secret key ("Environment variables", below), and a `dependabot/` or `probe/` branch is cancelled (next row) |
+| Ignored Build Step (Settings → Build and Deployment) | Custom, the command below the table, saved inline in Vercel's settings, never as a script in the repo, which a branch could rewrite (Phase 8 plan #15). A branch's `vercel.json` can still override it ("A branch's `vercel.json`", below). Exit 0 cancels the build, exit 1 continues (Vercel's docs, "Project settings"). It cancels any build of a branch named `dependabot/…` or `probe/…` (Phase 8 plan #15: Dependabot's branches, and the probe PRs' deliberate breaks), and a Production build from any branch but `main` (added after the mislabelled first deployment below). See "The Ignored Build Step's checks" below for what has been seen. It runs when a build starts, so promoting an existing preview to Production doesn't pass through it; a CLI deploy wasn't tried |
 | Build command, install command | Next.js's defaults, no override |
 
-**Environment variables**, all four of `.env.example`'s, scoped to **Preview** only
-(none in Production or Development):
+The Ignored Build Step's command (set 2026-11-13, IS #284; before it, only the
+Production term, set in #187):
 
-| Variable | Vercel type | Value |
-|---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Config | the hosted preview project's URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Config | its publishable key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Secret | its secret key |
-| `NEXT_PUBLIC_PMTILES_URL` | Config | the R2 file's URL |
+```sh
+case "$VERCEL_GIT_COMMIT_REF" in dependabot/*|probe/*) exit 0;; esac; if [ "$VERCEL_ENV" = "production" ] && [ "$VERCEL_GIT_COMMIT_REF" != "main" ]; then exit 0; fi; exit 1
+```
+
+**A branch's `vercel.json`.** An `ignoreCommand` in it "overrides the Ignored Build Step in
+Project Settings" (Vercel's docs, `vercel.json` reference). Probed in PR #311: a throwaway
+branch, one commit off `dev` adding only `vercel.json` with `"ignoreCommand": "exit 0"`, got
+"Canceled by Ignored Build Step", though the inline command lets that branch build. It wasn't
+named `probe/…`, since the inline command would cancel a `probe/` branch whether or not the
+override worked; it carried no break, so had the override failed it would have built `dev`'s
+code as any preview did then. The other way, `probe/ignorecommand-exit1`, adding only
+`vercel.json` with `"ignoreCommand": "exit 1"`, built ("Deployment has completed"), though the
+inline command cancels every `probe/` branch: `dev`'s code, no break, with the Preview
+variables (the secret key was then scoped to every branch). So an `ignoreCommand` of
+`exit 1` on a branch, or on `dev`, which branches inherit, lets a `dependabot/` or `probe/`
+branch build. The repo has no `vercel.json`. **What keeps the secret key out of such a
+build** is its scope, not the command: since 2026-11-13 it is set for `dev` alone
+("Environment variables", below), in Vercel's project settings, not in the repo. A branch
+that escapes the cancel still runs its install scripts and build, with the three public
+variables only; with today's code its build fails without the key (seen, "The Ignored Build
+Step's checks"). A Production build from another branch through an override: not tried (Phase 10,
+below).
+
+**The Ignored Build Step's checks** (IS #284's PR has the runs):
+- Run locally under Git Bash's `sh` (bash 5.2 in POSIX mode, not the shell Vercel runs):
+  Production on `main` → 1, Production on `dev` → 0, a Preview of `dependabot/x` → 0, of
+  `probe/x` → 0, of `phase-8/x` → 1; Production on `dependabot/x` and on `probe/x` → 0.
+  With each cancel term removed in turn, its case gave 1.
+- Seen on Vercel: `probe/ignore-check` and `dependabot/ignore-check`, each one empty
+  commit off `dev`, got the commit status "Canceled by Ignored Build Step" (2026-11-13).
+  The owner didn't find either in the Deployments list (filters not checked); the
+  commit's statuses list it (`gh api --paginate repos/{owner}/{repo}/commits/<sha>/statuses`,
+  each status with its time, newest first; the combined `/status` shows only the latest per context, so it
+  can show another branch's build of the same commit). Pushed first at `dev`'s own commit,
+  the same branches got no new status (that commit's `/statuses` holds only `dev`'s own
+  pair, from 2026-11-12), so the check used new commits. Why the first push got none
+  wasn't tested: the commit already built, or a push with no new commit.
+- A preview of any other branch passes the command: IS #284's PR's own preview built, before
+  the secret key was scoped to `dev`, and Vercel logs the command before the build (#187's
+  PR).
+- The secret key's `dev` scope: `phase-8/secret-scope-check`, one empty commit off `dev`,
+  passed the command, then failed in `next build` with `Missing env:
+  SUPABASE_SERVICE_ROLE_KEY` at `src/lib/supabase.ts:16` (2026-11-13, its build log); its
+  install scripts had run. A Redeploy of `dev`'s preview (no build cache) was "Ready" after
+  it, and its screenshot showed `/map`'s "Inga foodtrucks idag", which needs `/api/live` to
+  have answered (the owner, 2026-11-13).
+- Not seen: the cancel of a Production build from a branch other than `main`.
+
+**Environment variables**, all four of `.env.example`'s, scoped to **Preview** only
+(none in Production or Development), the secret key to `dev`'s previews alone:
+
+| Variable | Vercel type | Scope | Value |
+|---|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Config | Preview | the hosted preview project's URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Config | Preview | its publishable key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Secret | Preview, branch `dev` (set 2026-11-13, PR #311: a branch's `vercel.json` can override the Ignored Build Step, above) | its secret key |
+| `NEXT_PUBLIC_PMTILES_URL` | Config | Preview | the R2 file's URL |
 
 A variable change applies to the next deployment, not to built ones. The project's
 first deployment, from `phase-6/preview-deploy`, was labelled Production although
@@ -499,9 +553,10 @@ API, `prod_deployment_urls_and_all_previews` (its docs, "Vercel Authentication")
 production domain isn't in it and stays public. That mislabelled branch build failed
 instead of serving on `whereisfood-theta.vercel.app` only because Production has no
 variables and `src/lib/supabase.ts` throws at import without them. The Ignored Build
-Step above is set to cancel such a build by its branch, though no cancel has been
-seen yet. Phase 10 adds Production's variables after checking that it is still set,
-and doesn't promote a branch preview to Production (Phase 6 plan step 10 carries this to
+Step above is set to cancel such a build by its branch (what has been seen of it: "The
+Ignored Build Step's checks"). Phase 10 adds Production's variables after checking that it
+is still set and that no `vercel.json` overrides it ("A branch's `vercel.json`", above), and
+doesn't promote a branch preview to Production (Phase 6 plan step 10 carries this to
 `project-context.md`).
 
 **Checking the CDN cache.** With protection on, a request without a login gets
