@@ -68,8 +68,16 @@ describe.each(CASES)("checkResponse for $path", ({ path, right, wrongStatus, wro
 });
 
 describe("checkResponse details", () => {
-  it("reads a relative or absolute Location by its path", () => {
-    expect(checkResponse(byPath("/admin"), { status: 303, location: "http://127.0.0.1:3000/admin/login" })).toEqual([]);
+  it("takes a relative Location, or an absolute one on the server's origin", () => {
+    const origin = "http://127.0.0.1:3000";
+    expect(checkResponse(byPath("/admin"), { status: 303, location: "/admin/login", origin })).toEqual([]);
+    expect(checkResponse(byPath("/admin"), { status: 303, location: "http://127.0.0.1:3000/admin/login", origin })).toEqual([]);
+  });
+  it("fails a Location on another host, even with the right path", () => {
+    const origin = "http://127.0.0.1:3000";
+    for (const location of ["http://evil.example/admin/login", "//evil.example/admin/login", "http://127.0.0.1:4000/admin/login"]) {
+      expect(checkResponse(byPath("/admin"), { status: 303, location, origin })).toHaveLength(1);
+    }
   });
   it("fails a redirect with no Location", () => {
     expect(checkResponse(byPath("/admin"), { status: 303 })).toHaveLength(1);

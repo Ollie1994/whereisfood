@@ -9,9 +9,6 @@
 // "Green gates don't show the map renders"), headers (Phase 9 adds them here), paths not
 // listed, and anything behind a session.
 
-import { pathToFileURL } from "node:url";
-import { resolve } from "node:path";
-
 // Each path, and what it must answer with no session cookie.
 // - `/api/live` answers `{ entries }` (`getLiveMap`, src/lib/services/live.ts), never a
 //   bare array (CLAUDE.md, "`/api/live`").
@@ -30,9 +27,9 @@ function isObject(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-// Pure. `response` is what main() read: { status, contentType, location, json }, where
-// `json` is the parsed body, or undefined when it wasn't JSON. Returns the mismatches as
-// strings; empty when the answer matches.
+// Pure. `response` is what main() read: { status, contentType, location, json, origin },
+// where `json` is the parsed body, or undefined when it wasn't JSON, and `origin` is the
+// server's own. Returns the mismatches as strings; empty when the answer matches.
 export function checkResponse(expectation, response) {
   const problems = [];
   if (response.status !== expectation.status) {
@@ -56,10 +53,13 @@ export function checkResponse(expectation, response) {
       }
       break;
     case "redirect": {
-      // A Location may be relative; resolve it against any base to read its path.
-      const path = response.location ? new URL(response.location, "http://smoke.invalid").pathname : null;
-      if (path !== expectation.location) {
-        problems.push(`Location ${response.location ?? "(none)"}, expected path ${expectation.location}`);
+      // A Location may be relative; resolved against the server's origin, it must stay on
+      // that origin and reach the expected path. A redirect to another host is what
+      // src/proxy.ts builds its login redirect to avoid.
+      const origin = response.origin ?? "http://smoke.invalid";
+      const target = response.location ? new URL(response.location, origin) : null;
+      if (target === null || target.origin !== new URL(origin).origin || target.pathname !== expectation.location) {
+        problems.push(`Location ${response.location ?? "(none)"}, expected path ${expectation.location} on ${origin}`);
       }
       break;
     }
@@ -99,6 +99,7 @@ async function read(baseUrl, path) {
     contentType: res.headers.get("content-type"),
     location: res.headers.get("location"),
     json,
+    origin: new URL(baseUrl).origin,
   };
 }
 
@@ -142,7 +143,7 @@ export async function main(baseUrl) {
 }
 
 // Run only when executed, not when the test imports it.
-if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
+if (import.meta.main) {
   main(process.argv[2]).then(
     (code) => process.exit(code),
     (err) => {

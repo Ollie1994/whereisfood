@@ -651,7 +651,8 @@ on PR #311. `README.md`, "Preview deploys", has the probes.
    `.env.local` from `scripts/write-env-local.mjs`, which `integration` uses too; `next
    start`, with `smoke.mjs` run against the URL from its own `Local:` line once it prints
    `Ready in`, never a fixed port (round 1 on PR #315: a server already on the port
-   answered for one that couldn't bind). `controls`' stack stays open (#288).
+   answered for one that couldn't bind); a 20-minute timeout, as `integration`'s.
+   `controls`' stack stays open (#288).
 4. **How `changedPaths` lists the files (step 3).** The merge commit against its first
    parent (`fetch-depth: 2`), or the PR's files through the API; and whether it is a script
    of its own or a mode of `controls.mjs`.

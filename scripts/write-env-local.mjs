@@ -4,13 +4,15 @@
 // The mapping is README's "3. Environment" table: the CLI's `API_URL`, `ANON_KEY` and
 // `SERVICE_ROLE_KEY`, and `NEXT_PUBLIC_PMTILES_URL` from `.env.example`. The values are
 // the local stack's, which aren't secrets (CLAUDE.md, "Secrets"). A missing or empty
-// value fails with exit 1 and names every one missing, writing nothing.
+// value, or one holding `#`, a quote or whitespace, fails with exit 1 and names every such
+// value, writing nothing. The tiles URL is required too: `.env.example` marks it
+// "Required: the map draws nothing without it".
 //
 // Overwrites `.env.local`. In CI the checkout has none; locally, this replaces yours.
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { isatty } from "node:tty";
-import { pathToFileURL, fileURLToPath } from "node:url";
+import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -45,23 +47,28 @@ export function envLocalText(statusText, exampleText) {
   const sources = { status: parseEnv(statusText), example: parseEnv(exampleText) };
   const lines = [];
   const missing = [];
+  const unwritable = [];
   for (const { name, from, key } of MAPPING) {
     const value = sources[from].get(key);
-    if (!value) missing.push(`${key} (from ${from === "status" ? "supabase status" : ".env.example"})`);
+    const source = from === "status" ? "supabase status" : ".env.example";
+    if (!value) missing.push(`${key} (from ${source})`);
+    // Written unquoted, a value with `#`, a quote or whitespace would be read back changed
+    // (Node v26.13.0's process.loadEnvFile read `X=a#b` as "a", and `Y="a#b"` as "a#b";
+    // IS #286's PR), so such a value is refused rather than written.
+    else if (/[#"'\s]/.test(value)) unwritable.push(`${key} (from ${source})`);
     else lines.push(`${name}=${value}`);
   }
   if (missing.length > 0) throw new Error(`missing or empty: ${missing.join(", ")}`);
+  if (unwritable.length > 0) throw new Error(`holds #, a quote or whitespace: ${unwritable.join(", ")}`);
   return `${lines.join("\n")}\n`;
 }
 
-if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
+if (import.meta.main) {
   // Where stdin is a terminal and nothing is piped in, reading it would wait for input, so
-  // this prints the usage instead (not probed: no terminal in the shells it was written
-  // in). In Git Bash's mintty, stdin may be a pipe rather than a terminal, so there it may
-  // still wait (round 2 on PR #315; not probed). `isatty(0)`, not `process.stdin.isTTY`: with a `process.stdin.isTTY`
-  // check here, the `readFileSync(0)` below failed in CI on a piped stdin with "EAGAIN:
-  // resource temporarily unavailable" (run 43413485618), and without one it read it (run
-  // 43411649116); a pipe on Windows didn't show the failure (IS #286's PR).
+  // this prints the usage instead. `isatty(0)`, not `process.stdin.isTTY`: with a
+  // `process.stdin.isTTY` check here, the `readFileSync(0)` below failed in CI on a piped
+  // stdin with "EAGAIN: resource temporarily unavailable" (run 43413485618), and without
+  // one it read it (run 43411649116); a pipe on Windows didn't show the failure.
   if (isatty(0)) {
     console.error("usage: npx supabase status -o env | node scripts/write-env-local.mjs");
     process.exit(2);

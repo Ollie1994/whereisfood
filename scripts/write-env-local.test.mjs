@@ -71,6 +71,15 @@ describe("envLocalText", () => {
     expect(() => envLocalText(STATUS, "# nothing")).toThrow("NEXT_PUBLIC_PMTILES_URL");
   });
 
+  it.each([
+    ["#", 'API_URL="http://x/#a"'],
+    ["a quote", `API_URL="it's"`],
+    ["whitespace", 'API_URL="a b"'],
+  ])("refuses a value holding %s, which it can't write unquoted", (_what, line) => {
+    const status = STATUS.replace('API_URL="http://127.0.0.1:54321"', line);
+    expect(() => envLocalText(status, EXAMPLE)).toThrow(/^holds #, a quote or whitespace: API_URL \(from supabase status\)$/);
+  });
+
   it("names every missing value at once", () => {
     expect(() => envLocalText("", "")).toThrow(/API_URL.*ANON_KEY.*SERVICE_ROLE_KEY.*NEXT_PUBLIC_PMTILES_URL/);
   });

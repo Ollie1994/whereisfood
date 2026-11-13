@@ -134,8 +134,12 @@ jobs:
       - name: Serve the build and smoke-check it
         run: |
           npm start > next-start.log 2>&1 &
+          server=$!
+          # `kill -0` only ends the wait early when `npm start` is gone; it doesn't decide
+          # the result (in a probe it still passed for a `next start` that had exited).
           for _ in $(seq 1 60); do
             grep -q -e "Ready in" -e "Failed to start server" next-start.log && break
+            kill -0 "$server" 2>/dev/null || break
             sleep 1
           done
           url="$(sed -n 's/^- Local: *\(http[^ ]*\).*/\1/p;T;q' next-start.log)"
