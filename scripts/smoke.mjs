@@ -21,7 +21,7 @@ export const EXPECTATIONS = [
   { path: "/map", status: 200, shape: "html" },
   { path: "/api/live", status: 200, shape: "entries" },
   { path: "/admin/login", status: 200, shape: "html" },
-  { path: "/admin", status: 303, shape: "redirect", location: "/admin/login" },
+  { path: "/admin", status: 302, shape: "redirect", location: "/admin/login" },
   { path: "/api/admin/trucks", status: 401, shape: "error" },
 ];
 
