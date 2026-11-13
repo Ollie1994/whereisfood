@@ -493,8 +493,8 @@ case "$VERCEL_GIT_COMMIT_REF" in dependabot/*|probe/*) exit 0;; esac; if [ "$VER
   With each cancel term removed in turn, its case gave 1.
 - Seen on Vercel: `probe/ignore-check` and `dependabot/ignore-check`, each one empty
   commit off `dev`, got the commit status "Canceled by Ignored Build Step" (2026-11-13).
-  A cancelled build isn't in the Deployments list; read it in the commit's statuses
-  (`gh api repos/{owner}/{repo}/commits/<sha>/status`). Pushed first at `dev`'s own
+  The owner didn't find either in the Deployments list (filters not checked); the
+  commit's statuses show it (`gh api repos/{owner}/{repo}/commits/<sha>/status`). Pushed first at `dev`'s own
   commit, which Vercel had already built, the same branches got no deployment
   (`gh api "repos/{owner}/{repo}/deployments?ref=<branch>"` returned none), so the check
   used new commits.
