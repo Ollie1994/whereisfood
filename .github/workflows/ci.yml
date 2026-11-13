@@ -72,6 +72,9 @@ jobs:
       # local `npm run test:all` gave the full stack's counts (supabase CLI 2.109.1, IS
       # #285's PR). That CLI refused `analytics,functions,meta,storage` as names to
       # exclude, though its --help lists them; it took the names below.
+      # Its output prints the stack's keys. They're the CLI's shared defaults, not secrets:
+      # the CLI says so under them ("API keys and JWT secrets are shared defaults"), and
+      # this run's keys hashed the same as a local stack's (IS #285's PR).
       - run: npx supabase start -x realtime,imgproxy,studio,edge-runtime,vector,logflare,postgres-meta,storage-api,supavisor
       # tests/integration/setup.ts reads .env.local only, and throws without it. The
       # values are the local stack's, not secrets (CLAUDE.md, "Secrets"); mapped as
