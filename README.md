@@ -527,7 +527,9 @@ below).
 - The secret key's `dev` scope: `phase-8/secret-scope-check`, one empty commit off `dev`,
   passed the command, then failed in `next build` with `Missing env:
   SUPABASE_SERVICE_ROLE_KEY` at `src/lib/supabase.ts:16` (2026-11-13, its build log); its
-  install scripts had run. DEV_REDEPLOY_PENDING
+  install scripts had run. A Redeploy of `dev`'s preview (no build cache) was "Ready" after
+  it, and its screenshot showed `/map`'s "Inga foodtrucks idag", which needs `/api/live` to
+  have answered (the owner, 2026-11-13).
 - Not seen: the cancel of a Production build from a branch other than `main`.
 
 **Environment variables**, all four of `.env.example`'s, scoped to **Preview** only
