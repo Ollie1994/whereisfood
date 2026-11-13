@@ -19,3 +19,7 @@ export async function PATCH(request: NextRequest, context: IdContext) {
     return truckAnswer(await editTruck(id.id, parsed.value));
   });
 }
+
+// Probe for IS #285: params not a Promise, which only Next's generated route types reject. Never merged.
+
+export async function GET(_request: NextRequest, _context: { params: { id: string } }) { return new Response(null); }
