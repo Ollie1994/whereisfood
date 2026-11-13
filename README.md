@@ -464,7 +464,8 @@ Its row stays in the preview's history.
 
 For the owner: Vercel project `whereisfood` in the team whose slug is `where-is-food`
 (Hobby), imported from this repo. A push to a branch other than `main` builds a
-preview, with one exception so far (below). Production builds from `main`, which was
+preview, except a `dependabot/` or `probe/` branch, which the Ignored Build Step
+cancels, and one other exception so far (both below). Production builds from `main`, which was
 created at `dev`'s commit and built nothing; the next push to `main` is Phase 10's.
 
 **Project settings** (set in #187, 2026-11-02):
@@ -474,9 +475,31 @@ created at `dev`'s commit and built nothing; the next push to `main` is Phase 10
 | Production branch (Settings → Environments → Production) | `main`. Vercel accepts only a branch that exists, so `main` was created at `dev`'s commit. The repo's default branch stays `dev` |
 | Function region (Settings → Functions) | Stockholm, `arn1`, beside the database. Hobby allows one region |
 | Deployment Protection | Vercel Authentication on, "Standard Protection": without a Vercel login, `/map` and `/api/live` answer `302` to `vercel.com/sso-api` (#187's PR). A Protection Bypass for Automation secret lets a script through (below) |
-| Git Fork Protection (Settings → Security) | Enabled (read 2026-11-02): a pull request from a fork deploys only after a team member authorizes it. Keep it on: the repo is public, and a build runs a branch's code (its `package.json` scripts, `next.config.ts`, route modules, dependencies) with the Preview variables, the secret key among them. It covers forks only: a branch pushed to this repo builds with them without approval. Dependabot's branches would too once Phase 8 turns it on, so Phase 8 first sets the Ignored Build Step to cancel `dependabot/*` (planned, IS #278); every other branch still builds with them |
-| Ignored Build Step (Settings → Build and Deployment) | Custom: `if [ "$VERCEL_ENV" = "production" ] && [ "$VERCEL_GIT_COMMIT_REF" != "main" ]; then exit 0; else exit 1; fi`. Exit 0 cancels the build, exit 1 continues (Vercel's docs, "Project settings"), so it is meant to cancel a Production build from any branch but `main`. Added after the mislabelled first deployment below. A preview still builds with it, and Vercel logs the command before the build (#187's PR); its cancel case hasn't been seen. It runs when a build starts, so promoting an existing preview to Production doesn't pass through it; a CLI deploy wasn't tried |
+| Git Fork Protection (Settings → Security) | Enabled (read 2026-11-02): a pull request from a fork deploys only after a team member authorizes it. Keep it on: the repo is public, and a build runs a branch's code (its `package.json` scripts, `next.config.ts`, route modules, dependencies) with the Preview variables, the secret key among them. It covers forks only: a branch pushed to this repo builds with them without approval, except a `dependabot/` or `probe/` branch, which the Ignored Build Step cancels (next row) |
+| Ignored Build Step (Settings → Build and Deployment) | Custom, the command below the table, saved inline in Vercel's settings and never as a script in the repo, which a branch could rewrite (Phase 8 plan #15). Exit 0 cancels the build, exit 1 continues (Vercel's docs, "Project settings"). It cancels any build of a branch named `dependabot/…` or `probe/…` (Phase 8 plan #15: Dependabot's branches, and the probe PRs' deliberate breaks), and a Production build from any branch but `main` (added after the mislabelled first deployment below). See "The Ignored Build Step's checks" below for what has been seen. It runs when a build starts, so promoting an existing preview to Production doesn't pass through it; a CLI deploy wasn't tried |
 | Build command, install command | Next.js's defaults, no override |
+
+The Ignored Build Step's command (set 2026-11-13, IS #284; before it, only the
+Production term, set in #187):
+
+```sh
+case "$VERCEL_GIT_COMMIT_REF" in dependabot/*|probe/*) exit 0;; esac; if [ "$VERCEL_ENV" = "production" ] && [ "$VERCEL_GIT_COMMIT_REF" != "main" ]; then exit 0; fi; exit 1
+```
+
+**The Ignored Build Step's checks** (IS #284's PR has the runs):
+- Run locally under Git Bash's `sh` (bash 5.2 in POSIX mode, not the shell Vercel runs):
+  Production on `main` → 1, Production on `dev` → 0, a Preview of `dependabot/x` → 0, of
+  `probe/x` → 0, of `phase-8/x` → 1. With each cancel term removed in turn, its case
+  gave 1.
+- Seen on Vercel: `probe/ignore-check` and `dependabot/ignore-check`, each one empty
+  commit off `dev`, got the commit status "Canceled by Ignored Build Step" (2026-11-13).
+  A cancelled build isn't in the Deployments list; read it in the commit's statuses
+  (`gh api repos/{owner}/{repo}/commits/<sha>/status`). Pushed at `dev`'s own commit,
+  which Vercel had already built, the same branches got no deployment and no status at
+  all, so a check of the command needs a commit Vercel hasn't built.
+- A preview of any other branch still builds with it: IS #284's PR's own preview, and
+  Vercel logs the command before the build (#187's PR).
+- Not seen: the cancel of a Production build from a branch other than `main`.
 
 **Environment variables**, all four of `.env.example`'s, scoped to **Preview** only
 (none in Production or Development):
@@ -499,8 +522,8 @@ API, `prod_deployment_urls_and_all_previews` (its docs, "Vercel Authentication")
 production domain isn't in it and stays public. That mislabelled branch build failed
 instead of serving on `whereisfood-theta.vercel.app` only because Production has no
 variables and `src/lib/supabase.ts` throws at import without them. The Ignored Build
-Step above is set to cancel such a build by its branch, though no cancel has been
-seen yet. Phase 10 adds Production's variables after checking that it is still set,
+Step above is set to cancel such a build by its branch, though that cancel hasn't been
+seen yet (its `dependabot/` and `probe/` cancels have). Phase 10 adds Production's variables after checking that it is still set,
 and doesn't promote a branch preview to Production (Phase 6 plan step 10 carries this to
 `project-context.md`).
 

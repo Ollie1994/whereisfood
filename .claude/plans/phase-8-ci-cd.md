@@ -289,7 +289,9 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
     (`.github/`, `.githooks/`) and the Roadmap row; Part 2's "Pre-deploy automation (planned)", whose "To build" and
     "Nothing below exists yet" become a description of what was built, with what stays for
     Phases 9 and 10; the "Phase map" (the Phase 8 row); any `CLAUDE.md` text still saying
-    the gates are manual that step 12 didn't reach; and the README's status parts. It
+    the gates are manual that step 12 didn't reach; and the README's status parts (their
+    "What does not exist yet" says previews have "one exception so far", which step 1's
+    `dependabot/` and `probe/` cancels made stale, IS #284). It
     replaces the three **between phases** markers this plan took up with #1–#3, leaves the
     IS #278 (Phase 9) and (Phase 10) rows' markers as they are, carries forward this plan's
     decisions that outlive the phase (#4, #7, #8, #9, #11, #12, #13, #14, #15 at least),
