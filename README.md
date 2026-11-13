@@ -489,14 +489,15 @@ case "$VERCEL_GIT_COMMIT_REF" in dependabot/*|probe/*) exit 0;; esac; if [ "$VER
 **The Ignored Build Step's checks** (IS #284's PR has the runs):
 - Run locally under Git Bash's `sh` (bash 5.2 in POSIX mode, not the shell Vercel runs):
   Production on `main` → 1, Production on `dev` → 0, a Preview of `dependabot/x` → 0, of
-  `probe/x` → 0, of `phase-8/x` → 1. With each cancel term removed in turn, its case
-  gave 1.
+  `probe/x` → 0, of `phase-8/x` → 1; Production on `dependabot/x` and on `probe/x` → 0.
+  With each cancel term removed in turn, its case gave 1.
 - Seen on Vercel: `probe/ignore-check` and `dependabot/ignore-check`, each one empty
   commit off `dev`, got the commit status "Canceled by Ignored Build Step" (2026-11-13).
   A cancelled build isn't in the Deployments list; read it in the commit's statuses
-  (`gh api repos/{owner}/{repo}/commits/<sha>/status`). Pushed at `dev`'s own commit,
-  which Vercel had already built, the same branches got no deployment and no status at
-  all, so a check of the command needs a commit Vercel hasn't built.
+  (`gh api repos/{owner}/{repo}/commits/<sha>/status`). Pushed first at `dev`'s own
+  commit, which Vercel had already built, the same branches got no deployment
+  (`gh api "repos/{owner}/{repo}/deployments?ref=<branch>"` returned none), so the check
+  used new commits.
 - A preview of any other branch still builds with it: IS #284's PR's own preview, and
   Vercel logs the command before the build (#187's PR).
 - Not seen: the cancel of a Production build from a branch other than `main`.
