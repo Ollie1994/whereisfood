@@ -9,6 +9,7 @@
 // Overwrites `.env.local`. In CI the checkout has none; locally, this replaces yours.
 
 import { readFileSync, writeFileSync } from "node:fs";
+import { isatty } from "node:tty";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 
@@ -50,8 +51,13 @@ export function envLocalText(statusText, exampleText) {
 }
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
-  // Run in a terminal with nothing piped in, reading stdin would wait for input.
-  if (process.stdin.isTTY) {
+  // Run in a terminal with nothing piped in, reading stdin would wait for input. `isatty(0)`,
+  // not `process.stdin.isTTY`: with a `process.stdin.isTTY` check here, the
+  // `readFileSync(0)` below failed in CI on a piped stdin with "EAGAIN: resource
+  // temporarily unavailable" (run 43413485618), and without one it read it (run
+  // 43411649116). Reading `process.stdin` creates its stream; a pipe on Windows didn't
+  // show the failure (IS #286's PR).
+  if (isatty(0)) {
     console.error("usage: npx supabase status -o env | node scripts/write-env-local.mjs");
     process.exit(2);
   }
