@@ -94,7 +94,7 @@ has run the checks with no Vercel build (#5).
 
 | File | Change |
 |---|---|
-| `eslint.config.mjs` | The rules against DOM HTML sinks and string-built supabase-js filters (Q26), with `.filter` banned outright in `src/lib/db/`. In flat config a later object's options for a rule replace an earlier one's, they don't merge, so the sinks (`react/no-danger`, `no-restricted-properties`) and the db filters (`no-restricted-syntax`) use different rules and the `src/lib/db/` entry repeats nothing (IS #289's PR) |
+| `eslint.config.mjs` | The rules against DOM HTML sinks and string-built supabase-js filters (Q26), with `.filter` banned outright in `src/lib/db/`. In flat config a later object's options for a rule replace an earlier one's, they don't merge, so the sinks (`react/no-danger`, `react/forbid-component-props`, `no-restricted-properties`) and the db filters (`no-restricted-syntax`) use different rules and the `src/lib/db/` entry repeats nothing (IS #289's PR) |
 | `vitest.config.ts` | Only if the new script tests sit where the `unit` project doesn't collect them |
 | `scripts/controls.mjs` | Its header's "Not a gate (CLAUDE.md, "Testing")" (line 43), which a required `controls` check makes false (step 12); anything else only if CI needs it, and no trigger mode (open decision 4, settled: its own script) |
 | `package.json` | Only a script the trigger or smoke step needs; no `prepare` hook (#7) |

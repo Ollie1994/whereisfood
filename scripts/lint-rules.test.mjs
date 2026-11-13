@@ -1,9 +1,9 @@
 // The lint rules' fixtures (Phase 8 plan #9, IS #289): a mistyped `no-restricted-syntax`
 // selector or `no-restricted-properties` name matches nothing and lints clean, so each term
-// in eslint.config.mjs's HTML_SINKS and DB_FILTERS, and `react/no-danger`, has a fixture here
-// that must draw its own message. Each is a string linted through ESLint's API with a virtual
-// `filePath` inside the rule's scope, so no fixture file sits in `src/` for `npm run lint` to
-// fail on.
+// in eslint.config.mjs's HTML_SINKS and DB_FILTERS, `react/no-danger` and
+// `react/forbid-component-props`, has a fixture here that must draw its own message. Each is
+// a string linted through ESLint's API with a virtual `filePath` inside the rule's scope, so
+// no fixture file sits in `src/` for `npm run lint` to fail on.
 
 import { fileURLToPath } from "node:url";
 import { ESLint } from "eslint";
@@ -21,7 +21,7 @@ beforeAll(async () => {
   await eslint.lintText("", { filePath: "src/lib/db/probe.ts" });
 }, 60_000);
 
-// The messages of the three rules for `code` at `filePath`. A parse error fails the test
+// The messages of RULES' rules for `code` at `filePath`. A parse error fails the test
 // instead of reading as "no message".
 async function lint(code, filePath) {
   const [result] = await eslint.lintText(code, { filePath });
@@ -111,6 +111,11 @@ describe("the supabase-js filters, in src/lib/db/", () => {
     ["a literal .rpc() whose argument object holds a template", 'q.rpc("fn", { name: `n_${id}` });'],
   ])("%s draws none", async (_name, code) => {
     expect(await lint(`${DB_DECLARE}${code}\n`, "src/lib/db/probe.ts")).toEqual([]);
+  });
+
+  it("a computed member through a variable named filter draws none", async () => {
+    const code = `${DB_DECLARE}declare const filter: number; void rows[filter];\n`;
+    expect(await lint(code, "src/lib/db/probe.ts")).toEqual([]);
   });
 
   it("an array's .filter outside src/lib/db/ draws none", async () => {
