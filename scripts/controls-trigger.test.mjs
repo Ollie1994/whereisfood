@@ -80,7 +80,8 @@ describe("changedPaths", () => {
   // `GIT_DIR`, `GIT_WORK_TREE` and `GIT_INDEX_FILE` over `cwd`, so with them inherited
   // (as a git hook's child gets them) the scratch repositories' commits land in the
   // repository they name. With `GIT_DIR` and `GIT_WORK_TREE` set to a throwaway clone,
-  // 5 of these cases failed and the clone's branch gained commit "A" (IS #287's PR).
+  // 5 of these cases failed and the clone's branch gained commit "A"; with
+  // `GIT_INDEX_FILE` set to another folder, `git add` wrote its index there (IS #287's PR).
   const saved = {};
   beforeAll(() => {
     for (const key of Object.keys(process.env).filter((k) => k.startsWith("GIT_"))) {
