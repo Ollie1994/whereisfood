@@ -2,7 +2,7 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
-// DOM HTML sinks, banned everywhere (Phase 8 plan step 4, Q26; IS #289). With no `object`,
+// DOM HTML sinks, banned in every JS and TS file (Phase 8 plan step 4, Q26; IS #289). With no `object`,
 // `no-restricted-properties` bans the property on any object. Each entry has a fixture in
 // scripts/lint-rules.test.mjs (plan #9): a mistyped name or selector lints clean.
 const HTML_SINKS = [
