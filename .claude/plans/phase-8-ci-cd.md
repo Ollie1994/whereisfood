@@ -143,23 +143,24 @@ No function in `src/`. The scripts, each tested in the `unit` project:
   `tests/integration/helpers.ts`, `tests/integration/setup.ts`, `supabase/seed.sql`,
   `supabase/config.toml`, `vitest.config.ts`, `src/lib/db/`, `src/lib/supabase.ts`,
   `package.json` and `package-lock.json`, `.github/workflows/ci.yml`, the trigger script
-  itself, `scripts/write-env-local.mjs`, and every file the named tests import (the scope
-  draft's list, completed by the guard below, which follows the imports of the named tests
-  and of the integration project's setup file, and of no other entry). The two package
-  files stand for the bare package imports the guard doesn't follow: a bump of
-  `@supabase/supabase-js`, which the named tests import, or of the `supabase` CLI, which
-  sets the local stack, changes what the controls exercise. Accepted
-  cost: every dependency PR runs the full controls (~45 s a control) (the owner's call,
-  round 2 on PR #283). `ci.yml` and the trigger script are there so a PR that changes how
-  the full set is run also runs it; accepted cost: an edit to `ci.yml` runs the full
-  controls, most Phase 8 PRs included, which aren't required before step 12 (the owner's
-  call, round 3 on PR #283). `write-env-local.mjs` is there for the same reason: it writes
-  the `.env.local` the named tests read (the owner's call, round 1 on PR #316).
+  itself, `scripts/write-env-local.mjs`, and every file the named tests or the setup file
+  import (the scope draft's list, completed by the guard below, which follows the imports
+  of the named tests and of the integration project's setup file, and of no other entry).
+  The two package files stand for the bare package imports the guard doesn't follow: a
+  bump of `@supabase/supabase-js`, which the named tests import, or of the `supabase` CLI,
+  which sets the local stack, changes what the controls exercise. Accepted cost: every
+  dependency PR runs the full controls (~45 s a control) (the owner's call, round 2 on PR
+  #283). `ci.yml` and the trigger script are there so a PR that changes how the full set
+  is run also runs it; accepted cost: an edit to `ci.yml` runs the full controls, most
+  Phase 8 PRs included, which aren't required before step 12 (the owner's call, round 3 on
+  PR #283). `write-env-local.mjs` is there for the same reason: it writes the `.env.local`
+  the named tests read (the owner's call, round 1 on PR #316).
 - **The trigger list's guard test (#8)** reads each control's `-- run:` line, a vitest
   filter, not a file (`scripts/controls.mjs`'s header), resolves it to files as vitest does
-  (`npx vitest list --project integration <filter> --filesOnly`), follows those files'
-  imports transitively, relative ones and `@/` ones resolved through `vitest.config.ts`'s
-  `alias`, and fails when a file they reach isn't covered by the list. The named tests reach
+  (`npx vitest list --project integration <filter> --filesOnly`), follows the imports of
+  those files and of the integration project's setup file transitively, relative ones and
+  ones an `alias` key in `vitest.config.ts` rewrites (`@/`; `server-only` lands in
+  `node_modules`, a package), and fails when a file they reach isn't covered by the list. The named tests reach
   `src/` through `@/` (`db-trucks.test.ts` imports `@/lib/db/trucks`, `rls.test.ts` and
   `schema.test.ts` `@/lib/database.types`, read 2026-11-12), so a walk of relative imports
   alone stops at `./helpers`.

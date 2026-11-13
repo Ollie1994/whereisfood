@@ -103,11 +103,13 @@ describe("changedPaths", () => {
     for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
     delete process.env.GIT_CEILING_DIRECTORIES;
   });
+  // The environment first, so a failing removal (or a `beforeAll` that threw before
+  // `configDir` was set) can't leave the `GIT_*` variables removed.
   afterAll(() => {
     delete process.env.GIT_CONFIG_NOSYSTEM;
     delete process.env.GIT_CONFIG_GLOBAL;
-    rmSync(configDir, { recursive: true, force: true });
     Object.assign(process.env, saved);
+    if (configDir !== undefined) rmSync(configDir, { recursive: true, force: true });
   });
 
   // A scratch repository with a fixed identity, under the empty config above.

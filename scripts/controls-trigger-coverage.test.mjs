@@ -67,14 +67,19 @@ function vitestList(filter) {
 // `dist/node/chunks/node.js`, not exported. `vitest.config.ts` sets no `extensions`.
 const EXTENSIONS = [".mjs", ".js", ".mts", ".ts", ".jsx", ".tsx", ".json"];
 
-// A specifier's file as Vite finds it: as written, with an extension added (the first in
-// Vite's order wins), as a folder's index, or a `.js` specifier naming its `.ts` source.
+// A specifier's file in the order Vite 8.3.5's `tryCleanFsResolve` tries them: the file as
+// written; for a `.js`, `.mjs`, `.cjs` or `.jsx` specifier, its TypeScript source (`js` →
+// `ts` in the extension, and `.js` → `.tsx` too); each extension added; then a folder's
+// `index` with each extension. Not followed: a folder's `package.json` entry, and
+// `tryPrefix`. A Vite upgrade that changes these rules isn't seen here.
 function resolveFile(base) {
+  const ext = /\.(?:js|mjs|cjs|jsx)$/.exec(base)?.[0];
+  const stem = ext === undefined ? base : base.slice(0, -ext.length);
   const candidates = [
     base,
-    ...EXTENSIONS.map((ext) => base + ext),
-    ...EXTENSIONS.map((ext) => join(base, `index${ext}`)),
-    ...(/\.[cm]?js$/.test(base) ? [base.replace(/js$/, "ts")] : []),
+    ...(ext === undefined ? [] : [stem + ext.replace("js", "ts"), ...(ext === ".js" ? [`${stem}.tsx`] : [])]),
+    ...EXTENSIONS.map((e) => base + e),
+    ...EXTENSIONS.map((e) => join(base, `index${e}`)),
   ];
   return candidates.find((path) => existsSync(path) && statSync(path).isFile());
 }
@@ -84,8 +89,7 @@ function resolveFile(base) {
 function resolveImport(specifier, fromFile) {
   let base;
   const key = Object.keys(ALIAS).find((k) => specifier === k || specifier.startsWith(`${k}/`));
-  // `resolve`, so an alias's path has the same separators as a relative one's and a file
-  // reached both ways is one entry in `reach`'s `seen`.
+  // `resolve`, so an alias's path has the same separators as a relative one's.
   if (key !== undefined) base = resolve(ALIAS[key] + specifier.slice(key.length));
   else if (specifier.startsWith("./") || specifier.startsWith("../")) base = resolve(dirname(fromFile), specifier);
   else return { file: null, kind: "package" };
@@ -102,15 +106,18 @@ function resolveImport(specifier, fromFile) {
 }
 
 // Every repository file reached from `roots`, repo-relative with `/`, and how many
-// imports of each kind were followed.
+// imports of each kind were followed. Keyed by the repo-relative path: `resolve` keeps a
+// drive letter's case (`c:/x/y/z` and `C:/x/y/z` resolved unequal), and `relative` gave
+// `src\z.ts` for both (round 4 on PR #316).
 function reach(roots) {
-  const seen = new Set();
+  const seen = new Map();
   const followed = { relative: 0, alias: 0, package: 0 };
   const queue = [...roots];
   while (queue.length > 0) {
     const file = queue.pop();
-    if (seen.has(file)) continue;
-    seen.add(file);
+    const key = relative(ROOT, file).split(sep).join("/");
+    if (seen.has(key)) continue;
+    seen.set(key, file);
     const { importedFiles } = ts.preProcessFile(readFileSync(file, "utf8"), true, true);
     for (const { fileName } of importedFiles) {
       const target = resolveImport(fileName, file);
@@ -118,7 +125,7 @@ function reach(roots) {
       if (target.file !== null) queue.push(target.file);
     }
   }
-  return { files: [...seen].map((file) => relative(ROOT, file).split(sep).join("/")).sort(), followed };
+  return { files: [...seen.keys()].sort(), followed };
 }
 
 describe("the controls' trigger list", () => {
