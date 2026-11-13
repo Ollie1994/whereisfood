@@ -20,30 +20,37 @@ const HTML_SINKS = [
   { property: "setHTML", message: "setHTML renders HTML: render a React root or DOM nodes instead (Q26)." },
 ];
 
-// supabase-js filters in the db layer (Q26). `.or()`'s argument and `.rpc()`'s function
-// name are strings PostgREST parses, so neither may hold a string built in the call (a
-// template with an expression, or a `+`), as the argument or anywhere inside it (`.trim()`,
-// a ternary, an array's `.join`). `.rpc()` POSTs its second argument as the JSON body by
-// default (postgrest-js 2.106.2's `rpc`: `method = "POST"; body = args`), so only its first
-// is checked; with `{ get: true }` or `{ head: true }` the arguments go in the URL's query
-// string instead, which isn't checked. `.or()`'s callee chain (`.from(…)`) isn't checked
-// (`:not(…)`).
-// A rule on syntax can't tell supabase-js's `.filter()` from an array's, and misses a builder
-// held in a variable, so `.filter` is banned outright here, by name, computed name or
-// destructuring: a row post-filter takes another form, or a disable naming this rule
-// (CLAUDE.md, "db layer"). Not seen: a string built into a variable first; supabase-js's
-// `.not(column, operator, value)`, whose value PostgREST also parses (Q26 names `.or`,
-// `.filter` and `.rpc`). Probed with `ESLint#lintText`, round 1 on PR #320.
+// supabase-js filters in the db layer (Q26). `.or()`'s filter string and `.rpc()`'s
+// function name, each its first argument, are strings PostgREST parses, so neither may
+// hold a string built in the call (a template with an expression, or a `+`), as the
+// argument or anywhere inside it (`.trim()`, a ternary, an array's `.join`, a computed
+// member), one report per argument: esquery's `:has` matches the argument itself as well
+// as what's inside it (with the direct form dropped from `:matches(<built>,
+// :has(<built>))`, every fixture still passed; round 2 on PR #320). `:first-child` is the
+// first argument, never the callee (`.from(…)`). Later arguments aren't checked:
+// `.or()`'s options, and `.rpc()`'s arguments, which postgrest-js 2.106.2's `rpc` POSTs
+// as the JSON body unless `{ get: true }`, or `{ head: true }` with no object argument,
+// puts them in the URL's query string.
+// A rule on syntax can't tell supabase-js's `.filter()` from an array's, and misses a
+// builder held in a variable, so `.filter` is banned outright here: by name, by a
+// string-literal computed name, or destructured by identifier. A row post-filter takes
+// another form, or a disable naming this rule (CLAUDE.md, "db layer"). Not seen: a string
+// built into a variable first; a computed `.or`, `.rpc` or `.filter` name other than a
+// string literal of `filter` (`q["or"](…)`, a template, a string-keyed destructure);
+// supabase-js's `.not(column, operator, value)`, whose value PostgREST also parses (Q26
+// names `.or`, `.filter` and `.rpc`). Probed with `ESLint#lintText`, rounds 1 and 2 on PR
+// #320.
 const BUILT_STRING = ":matches(TemplateLiteral[expressions.length>0], BinaryExpression[operator='+'])";
 const OR_CALL = "CallExpression[callee.property.name='or']";
 const RPC_CALL = "CallExpression[callee.property.name='rpc']";
+const BUILT_IN = `:first-child:has(${BUILT_STRING})`;
 const DB_FILTERS = [
   {
-    selector: `${OR_CALL} > ${BUILT_STRING}, ${OR_CALL} > :not(MemberExpression) ${BUILT_STRING}`,
+    selector: `${OR_CALL} > ${BUILT_IN}`,
     message: "A string built into .or() is parsed by PostgREST: use .eq/.in/.is, or a literal (Q26).",
   },
   {
-    selector: `${RPC_CALL} > ${BUILT_STRING}:first-child, ${RPC_CALL} > :first-child ${BUILT_STRING}`,
+    selector: `${RPC_CALL} > ${BUILT_IN}`,
     message: "A string built into .rpc()'s function name is parsed by PostgREST: pass a literal (Q26).",
   },
   {
@@ -56,13 +63,17 @@ const DB_FILTERS = [
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
-  // `react/no-danger` on the files eslint-config-next registers the react plugin for, and on
-  // components too (`customComponentNames`): plain "error" checks only lowercase DOM elements,
-  // so `<Foo dangerouslySetInnerHTML={…} />` linted clean (round 1 on PR #320).
+  // On the files eslint-config-next registers the react plugin for. `react/no-danger` checks
+  // DOM elements only, so `<Foo dangerouslySetInnerHTML={…} />` linted clean (round 1 on PR
+  // #320), and `forbid-component-props` covers components. Not `no-danger`'s
+  // `customComponentNames: ["*"]`: with it, `<foo:bar x="1" />` crashed the lint ("f.split is
+  // not a function", round 2). Neither rule was set on `dev` (`--print-config`), and this
+  // `forbid` list replaces the rule's default (`className`, `style`), so neither is forbidden.
   {
     files: ["**/*.{js,jsx,mjs,ts,tsx,mts,cts}"],
     rules: {
-      "react/no-danger": ["error", { customComponentNames: ["*"] }],
+      "react/no-danger": "error",
+      "react/forbid-component-props": ["error", { forbid: ["dangerouslySetInnerHTML"] }],
     },
   },
   // A core rule, so `.cjs` too.

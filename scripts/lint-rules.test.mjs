@@ -10,7 +10,7 @@ import { ESLint } from "eslint";
 import { beforeAll, describe, expect, it } from "vitest";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
-const RULES = new Set(["react/no-danger", "no-restricted-properties", "no-restricted-syntax"]);
+const RULES = new Set(["react/no-danger", "react/forbid-component-props", "no-restricted-properties", "no-restricted-syntax"]);
 
 // The config (eslint-config-next, its parsers and plugins) loads on the first lint, which
 // took about 2.3 s on its own here (round 1 on PR #320), so it loads in this hook, under
@@ -32,7 +32,7 @@ async function lint(code, filePath) {
 
 const DECLARE = "declare const el: HTMLElement; declare const s: string; declare const popup: { setHTML(h: string): void };\n";
 const DB_DECLARE =
-  "declare const q: { or(f: string): unknown; rpc(n: string, a?: object): unknown; from(t: string): { or(f: string): unknown } }; declare const id: number; declare const rows: number[];\n";
+  "declare const q: { or(f: string, o?: object): unknown; rpc(n: string, a?: object): unknown; from(t: string): { or(f: string): unknown } }; declare const id: number; declare const rows: number[]; declare const a: Record<string, string>;\n";
 
 describe("the HTML sinks, anywhere", () => {
   it.each([
@@ -54,13 +54,20 @@ describe("the HTML sinks, anywhere", () => {
   });
 
   it.each([
-    ["on a DOM element", "<div dangerouslySetInnerHTML={{ __html: s }} />"],
-    ["on a component", "<Foo dangerouslySetInnerHTML={{ __html: s }} />"],
-  ])("dangerouslySetInnerHTML %s draws react/no-danger", async (_name, jsx) => {
+    ["on a DOM element", "<div dangerouslySetInnerHTML={{ __html: s }} />", "react/no-danger"],
+    ["on a component", "<Foo dangerouslySetInnerHTML={{ __html: s }} />", "react/forbid-component-props"],
+  ])("dangerouslySetInnerHTML %s draws %s", async (_name, jsx, rule) => {
     const code = `${DECLARE}declare const Foo: (p: object) => null;\nexport function P() { return ${jsx}; }\n`;
     const messages = await lint(code, "src/components/Probe.tsx");
     expect(messages).toHaveLength(1);
-    expect(messages[0]).toMatch(/^react\/no-danger: /);
+    expect(messages[0].startsWith(`${rule}: `)).toBe(true);
+  });
+
+  // With react/no-danger's customComponentNames: ["*"], the namespaced element crashed the
+  // lint (round 2 on PR #320); `forbid` replaces forbid-component-props's default list.
+  it("a namespaced element, and a component's className and style, draw none", async () => {
+    const code = `declare const Foo: (p: object) => null;\nexport function P() { return <><foo:bar x="1" /><Foo className="c" style={{}} /></>; }\n`;
+    expect(await lint(code, "src/components/Probe.tsx")).toEqual([]);
   });
 
   // The db entry sets its own rule, and the sinks stay on theirs there too.
@@ -81,6 +88,8 @@ describe("the supabase-js filters, in src/lib/db/", () => {
     ["a template inside .or()'s argument, under .trim()", "q.or(`id.eq.${id}`.trim());", OR],
     ["a template inside .or()'s argument, in a ternary", 'q.or(id ? `id.eq.${id}` : "x");', OR],
     ["a template inside .or()'s argument, in an array joined", 'q.or(["a", `b${id}`].join(","));', OR],
+    ["a template inside .or()'s argument, as a computed member", "q.or(a[`k${id}`]);", OR],
+    ["a chain of + into .or(), reported once", 'q.or("a" + id + "b");', OR],
     ["a template into .rpc()", "q.rpc(`fn_${id}`);", RPC],
     ["a + into .rpc()", 'q.rpc("fn_" + id);', RPC],
     ["a template inside .rpc()'s first argument", "q.rpc(`fn_${id}`.trim());", RPC],
@@ -97,6 +106,7 @@ describe("the supabase-js filters, in src/lib/db/", () => {
     ["a literal .or()", 'q.or("id.eq.1");'],
     ["a template with no expression into .or()", "q.or(`id.eq.1`);"],
     ["a literal .or() on a callee built from a template", 'q.from(`t_${id}`).or("id.eq.1");'],
+    ["a literal .or() with a template in its options", 'q.or("id.eq.1", { referencedTable: `t_${id}` });'],
     ["a literal .rpc() with an argument object", 'q.rpc("fn", { id });'],
     ["a literal .rpc() whose argument object holds a template", 'q.rpc("fn", { name: `n_${id}` });'],
   ])("%s draws none", async (_name, code) => {
