@@ -378,7 +378,9 @@ change to `supabase/migrations/` or to a test a control names (one file:
 `node scripts/controls.mjs tests/controls/<name>.sql`; `--check` parses the files and
 touches nothing). CI's `controls` job runs the full set on a PR that changes a path a
 `TRIGGERS` entry in `scripts/controls-trigger.mjs` covers, and on every PR into `main`
-(#288); whether it's required is "Testing" above. A new schema guard adds its
+(#288); whether it's required is "Testing" above. A `controls` job that ran the full set
+and passed (its log ends "N of N as listed") stands in for the hand run; one that ran only
+`--check` doesn't (Phase 8 plan decision #16). A new schema guard adds its
 controls by the rule in `.claude/commands/create-issues.md`'s Failure modes. About
 45 s a control, mostly the reset (64 took 48 minutes, 2026-10-23); the script's header
 says what it can't see.

@@ -535,6 +535,17 @@ before probes, a check in #292's hook); round 3 found gaps in each (a stale loca
 commits made on GitHub, a `vercel.ts`), and the scope replaced them. The owner's call, round 3
 on PR #311. `README.md`, "Preview deploys", has the probes.
 
+### #16 — A green full-set `controls` run stands in for the hand run
+
+`CLAUDE.md`'s "Schema controls" asks for `node scripts/controls.mjs` after a change to
+`supabase/migrations/` or to a test a control names, about 45 s a control. From #288, CI's
+`controls` job runs the same script on the same exclude-list stack for those PRs, and its log
+is a record in the PR. So a `controls` job that ran the full set and passed (its log ends
+"N of N as listed") stands in for the hand run, before #297 makes the check required; the
+controls aren't one of the four gates, whose hand runs stay. A PR whose run took only
+`--check` still gets the hand run if its change needs one. The owner's call, round 3 on PR
+#317.
+
 ---
 
 ## Acceptance Criteria

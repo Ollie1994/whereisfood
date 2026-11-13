@@ -1,8 +1,8 @@
 # The four gates, run by GitHub on every PR into dev or main (Phase 8 plan step 2, IS #285
 # and #286), with a smoke check of the served build; and the process log's check and the
 # schema controls' `--check`, with the full controls on a trigger path or a PR into main
-# (step 3, IS #288). Not required checks until #297's rulesets; until
-# then each PR still runs the four gates by hand (CLAUDE.md, "Testing").
+# (step 3, IS #288). Not required checks until #297's rulesets; until then each PR still
+# runs the four gates by hand (CLAUDE.md, "Testing").
 #
 # Hardening (plan #2, Q5): the plain pull-request trigger only, never its target-branch
 # variant; a read-only token; every action pinned to a commit SHA; no path filter on the
@@ -11,7 +11,9 @@
 # The default activity types (opened, synchronize, reopened) don't include a change of the
 # PR's base, so a PR retargeted to dev or main gets no new run until its next push; the
 # results of its last run stay on its head commit, tested against the old base (whether
-# #297's rulesets count them for the new base: not probed; #298 probes it). `edited`
+# #297's rulesets count them for the new base: not probed; #298 probes it). So a PR
+# retargeted from dev to main keeps the `controls` result its dev run left, which may be
+# `--check` only, though every PR into main is meant to run the full set. `edited`
 # would start a run, and would also rerun every job on each edit of the PR's title or
 # body (GitHub's docs: `edited` fires on a change of the title, body or base branch).
 name: ci
@@ -209,7 +211,10 @@ jobs:
         run: node scripts/controls.mjs
 
   # The process log's own check (CLAUDE.md, "Process Log"): prints nothing and exits 0 on a
-  # good log. Plain bash; no install.
+  # good log. Plain bash; no install. Two PRs that each add the next row number both pass
+  # here, but the second to merge conflicts in the log (`process-log.sh add` inserts after
+  # the last row; probed in a clone, IS #288's PR), and the update that resolves it reruns
+  # this job.
   process-log:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
