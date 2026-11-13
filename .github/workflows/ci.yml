@@ -125,12 +125,28 @@ jobs:
       - run: npx supabase start -x "$SUPABASE_EXCLUDE"
       - run: npx supabase status -o env | node scripts/write-env-local.mjs
       - run: npm run build
-      # `next start` serves the build on port 3000; smoke.mjs waits for it, checks five
-      # paths, and on a failure the server's log is printed.
+      # `next start` serves the build; smoke.mjs checks five paths at the URL from the
+      # server's own `Local:` line, once it has printed `Ready in` (CLAUDE.md, "Browser
+      # checks: confirm which server answered"). A `next start` that can't bind prints
+      # neither: with port 3000 already taken it printed `EADDRINUSE` and exited, and a
+      # check of its PID with `kill -0` still passed, so the answers had come from the
+      # other server (IS #286's PR). On a failure the server's log is printed.
       - name: Serve the build and smoke-check it
         run: |
           npm start > next-start.log 2>&1 &
-          if ! node scripts/smoke.mjs http://127.0.0.1:3000; then
+          for _ in $(seq 1 60); do
+            grep -q -e "Ready in" -e "Failed to start server" next-start.log && break
+            sleep 1
+          done
+          url="$(sed -n 's/^- Local: *\(http[^ ]*\).*/\1/p' next-start.log | head -1)"
+          ok=true
+          if grep -q "Ready in" next-start.log && [ -n "$url" ]; then
+            node scripts/smoke.mjs "$url" || ok=false
+          else
+            echo "::error::next start printed no 'Ready in' and 'Local:' URL"
+            ok=false
+          fi
+          if [ "$ok" != true ]; then
             echo "::group::next start's log"; cat next-start.log; echo "::endgroup::"
             exit 1
           fi

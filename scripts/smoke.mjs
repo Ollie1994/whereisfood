@@ -69,8 +69,16 @@ export function checkResponse(expectation, response) {
   return problems;
 }
 
+// Each request's limit. Without one, a request the server accepts and never answers would
+// wait for undici's own timeouts, and the CI job's limit could end the step before it
+// prints the server's log.
+const REQUEST_TIMEOUT_MS = 30_000;
+
 async function read(baseUrl, path) {
-  const res = await fetch(new URL(path, baseUrl), { redirect: "manual" });
+  const res = await fetch(new URL(path, baseUrl), {
+    redirect: "manual",
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
   const text = await res.text();
   let json;
   try {
@@ -91,7 +99,7 @@ async function waitForServer(baseUrl, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
     try {
-      await fetch(baseUrl, { redirect: "manual" });
+      await fetch(baseUrl, { redirect: "manual", signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
       return;
     } catch (err) {
       if (Date.now() > deadline) throw new Error(`no answer from ${baseUrl} within ${timeoutMs / 1000} s: ${err.message}`);
@@ -108,7 +116,12 @@ export async function main(baseUrl) {
   await waitForServer(baseUrl, 60_000);
   let failed = 0;
   for (const expectation of EXPECTATIONS) {
-    const problems = checkResponse(expectation, await read(baseUrl, expectation.path));
+    let problems;
+    try {
+      problems = checkResponse(expectation, await read(baseUrl, expectation.path));
+    } catch (err) {
+      problems = [`no answer: ${err.message}`];
+    }
     if (problems.length === 0) {
       console.log(`ok    ${expectation.path}`);
     } else {

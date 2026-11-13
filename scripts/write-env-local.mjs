@@ -1,6 +1,5 @@
 // `npx supabase status -o env | node scripts/write-env-local.mjs` — writes `.env.local`
-// from the local Supabase stack (IS #286; it replaced `ci.yml`'s inline step, which #285
-// wrote, so every CI job that starts the stack shares one definition).
+// from the local Supabase stack. Every CI job that starts the stack runs it (IS #286).
 //
 // The mapping is README's "3. Environment" table: the CLI's `API_URL`, `ANON_KEY` and
 // `SERVICE_ROLE_KEY`, and `NEXT_PUBLIC_PMTILES_URL` from `.env.example`. The values are
@@ -24,13 +23,14 @@ export const MAPPING = [
 ];
 
 // `KEY=value` and `KEY="value"` lines into a map; anything else is skipped. The CLI's
-// `-o env` quotes every value (`API_URL="http://127.0.0.1:54321"`, CLI 2.109.1);
-// `.env.example` doesn't.
+// `-o env` quoted all 18 of its values (CLI 2.109.1); `.env.example` quotes none. An
+// unquoted value stops at `#` and is trimmed, as Next's dotenv reads it and as
+// tests/integration/setup.ts's loadEnvLocal does, so `KEY= # note` is empty here too.
 export function parseEnv(text) {
   const values = new Map();
   for (const line of text.split(/\r?\n/)) {
-    const match = /^([A-Z0-9_]+)=(?:"(.*)"|(.*))$/.exec(line.trim());
-    if (match) values.set(match[1], match[2] ?? match[3]);
+    const match = /^([A-Z0-9_]+)=(?:"(.*)"|([^#]*))/.exec(line.trim());
+    if (match) values.set(match[1], match[2] ?? match[3].trim());
   }
   return values;
 }
@@ -50,6 +50,11 @@ export function envLocalText(statusText, exampleText) {
 }
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
+  // Run in a terminal with nothing piped in, reading stdin would wait for input.
+  if (process.stdin.isTTY) {
+    console.error("usage: npx supabase status -o env | node scripts/write-env-local.mjs");
+    process.exit(2);
+  }
   try {
     const statusText = readFileSync(0, "utf8");
     const exampleText = readFileSync(resolve(ROOT, ".env.example"), "utf8");

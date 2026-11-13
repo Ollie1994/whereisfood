@@ -24,6 +24,13 @@ describe("parseEnv", () => {
     expect(values.get("NEXT_PUBLIC_SUPABASE_URL")).toBe("");
     expect(values.has("not a line")).toBe(false);
   });
+
+  it("stops an unquoted value at # and trims it, and keeps # inside quotes", () => {
+    const values = parseEnv('A= # note\nB=/x.pmtiles  # note\nC="a#b"');
+    expect(values.get("A")).toBe("");
+    expect(values.get("B")).toBe("/x.pmtiles");
+    expect(values.get("C")).toBe("a#b");
+  });
 });
 
 describe("envLocalText", () => {
@@ -39,9 +46,20 @@ describe("envLocalText", () => {
     );
   });
 
-  it.each(["API_URL", "ANON_KEY", "SERVICE_ROLE_KEY"])("throws without the status's %s", (key) => {
+  it.each(["API_URL", "ANON_KEY", "SERVICE_ROLE_KEY"])("throws without the status's %s, naming only it", (key) => {
     const status = STATUS.split("\n").filter((line) => !line.startsWith(`${key}=`)).join("\n");
-    expect(() => envLocalText(status, EXAMPLE)).toThrow(key);
+    expect(() => envLocalText(status, EXAMPLE)).toThrow(`missing or empty: ${key} (from supabase status)`);
+    let message = "";
+    try {
+      envLocalText(status, EXAMPLE);
+    } catch (err) {
+      message = err.message;
+    }
+    expect(message.split(", ")).toHaveLength(1);
+  });
+
+  it("treats a tiles line with only a comment as empty", () => {
+    expect(() => envLocalText(STATUS, "NEXT_PUBLIC_PMTILES_URL= # set per deploy")).toThrow("NEXT_PUBLIC_PMTILES_URL");
   });
 
   it("throws on an empty status value", () => {

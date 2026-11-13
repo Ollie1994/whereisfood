@@ -87,6 +87,7 @@ has run the checks with no Vercel build (#5).
 | `scripts/controls-trigger.mjs` (+ test), or a mode of `controls.mjs` (open decision 4) | `changedPaths` and `needsFullControls` |
 | `scripts/controls-trigger-coverage.test.mjs` (name open) | The guard test on the trigger list (#8) |
 | `scripts/smoke.mjs` (+ test of its expectations if it has pure parts) | The served-app check the `build` job runs |
+| `scripts/write-env-local.mjs` (+ test) | `.env.local` from `npx supabase status -o env`, for every CI job that starts the local stack (IS #286; open decision 3) |
 | The lint rules' fixture test (path open) | One fixture per new rule, inline in the test, linted through ESLint's API (#9) |
 
 ### Modify
