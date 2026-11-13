@@ -1,6 +1,6 @@
-# Three of the four gates, run by GitHub on every PR into dev or main (Phase 8 plan step 2,
-# IS #285); `npm run build` joins with #286. Not required checks until #297's rulesets;
-# until then each PR still runs the four gates by hand (CLAUDE.md, "Testing").
+# The four gates, run by GitHub on every PR into dev or main (Phase 8 plan step 2, IS #285
+# and #286), with a smoke check of the served build. Not required checks until #297's
+# rulesets; until then each PR still runs the four gates by hand (CLAUDE.md, "Testing").
 #
 # Hardening (plan #2, Q5): the plain pull-request trigger only, never its target-branch
 # variant; a read-only token; every action pinned to a commit SHA; no path filter on the
@@ -27,6 +27,22 @@ permissions:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
   cancel-in-progress: true
+
+# `shell: bash` runs each step as `bash --noprofile --norc -eo pipefail {0}` (GitHub's docs,
+# "jobs.<job_id>.steps[*].shell"), so a failed command on the left of a pipe fails the
+# step; the default without it is `bash -e {0}`.
+defaults:
+  run:
+    shell: bash
+
+# The local Supabase services a job starts without: every one but db, auth, kong, rest and
+# inbucket (Mailpit, which auth-routes.test.ts reads at 127.0.0.1:54324). With these
+# excluded, a local `npm run test:all` gave the full stack's counts (supabase CLI 2.109.1,
+# IS #285's PR). That CLI refused `analytics,functions,meta,storage` as names to exclude,
+# though its --help lists them, with a WARNING and exit 0, leaving those containers
+# running; it took the names below. So a CLI bump that renames one only warns.
+env:
+  SUPABASE_EXCLUDE: realtime,imgproxy,studio,edge-runtime,vector,logflare,postgres-meta,storage-api,supavisor
 
 jobs:
   typecheck-lint:
@@ -79,40 +95,42 @@ jobs:
         with:
           node-version-file: package.json
       - run: npm ci
-      # The services the integration tests use: db, auth, kong, rest, and inbucket for
-      # Mailpit (auth-routes.test.ts reads 127.0.0.1:54324). With the rest excluded, a
-      # local `npm run test:all` gave the full stack's counts (supabase CLI 2.109.1, IS
-      # #285's PR). That CLI refused `analytics,functions,meta,storage` as names to
-      # exclude, though its --help lists them, with a WARNING and exit 0, leaving those
-      # containers running; it took the names below. So a CLI bump that renames one only
-      # warns here.
       # Its output prints the stack's keys. They're the CLI's shared defaults, not secrets:
       # the CLI says so under them ("API keys and JWT secrets are shared defaults"), and
       # this run's keys hashed the same as a local stack's (IS #285's PR).
-      - run: npx supabase start -x realtime,imgproxy,studio,edge-runtime,vector,logflare,postgres-meta,storage-api,supavisor
-      # tests/integration/setup.ts reads .env.local, and throws without it. The
-      # values are the local stack's, not secrets (CLAUDE.md, "Secrets"); mapped as
-      # README's "3. Environment" table does. A missing Supabase value fails the step
-      # with an ::error::; the tiles line is copied from .env.example as it is (the
-      # integration tests don't read it).
-      - name: Write .env.local from the local stack
-        run: |
-          status="$(npx supabase status -o env)"
-          get() {
-            value="$(printf '%s\n' "$status" | sed -n "s/^$1=\"\(.*\)\"\$/\1/p")"
-            if [ -z "$value" ]; then echo "::error::supabase status has no $1" >&2; return 1; fi
-            printf '%s' "$value"
-          }
-          # Assigned one by one: under bash -e a failed substitution stops the step in an
-          # assignment, not inside an echo's argument.
-          url="$(get API_URL)"
-          anon="$(get ANON_KEY)"
-          service="$(get SERVICE_ROLE_KEY)"
-          tiles="$(grep '^NEXT_PUBLIC_PMTILES_URL=' .env.example)"
-          printf '%s\n' "NEXT_PUBLIC_SUPABASE_URL=$url" "NEXT_PUBLIC_SUPABASE_ANON_KEY=$anon" \
-            "SUPABASE_SERVICE_ROLE_KEY=$service" "$tiles" > .env.local
+      - run: npx supabase start -x "$SUPABASE_EXCLUDE"
+      # tests/integration/setup.ts reads .env.local, and throws without it. The script
+      # maps README's "3. Environment" table and fails on a missing or empty value.
+      - run: npx supabase status -o env | node scripts/write-env-local.mjs
       # Both projects, keeping test:all's checks: a project that collects zero files
       # fails, and RUNS must match the projects vitest.config.ts declares. So the unit
       # project runs here as well as in `unit`, and a failing unit test turns both jobs
       # red; the log's project label tells them apart.
       - run: npm run test:all
+
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: package.json
+      - run: npm ci
+      # Its own stack (IS #286, open decision 3): `next build` needs .env.local, since
+      # src/lib/supabase.ts throws at import without its variables, and the smoke check's
+      # /api/live reads the database.
+      - run: npx supabase start -x "$SUPABASE_EXCLUDE"
+      - run: npx supabase status -o env | node scripts/write-env-local.mjs
+      - run: npm run build
+      # `next start` serves the build on port 3000; smoke.mjs waits for it, checks five
+      # paths, and on a failure the server's log is printed.
+      - name: Serve the build and smoke-check it
+        run: |
+          npm start > next-start.log 2>&1 &
+          if ! node scripts/smoke.mjs http://127.0.0.1:3000; then
+            echo "::group::next start's log"; cat next-start.log; echo "::endgroup::"
+            exit 1
+          fi
