@@ -23,8 +23,11 @@ const HTML_SINKS = [
 // supabase-js filters in the db layer (Q26). `.or()`'s argument and `.rpc()`'s function
 // name are strings PostgREST parses, so neither may hold a string built in the call (a
 // template with an expression, or a `+`), as the argument or anywhere inside it (`.trim()`,
-// a ternary, an array's `.join`). `.rpc()`'s second argument is sent as JSON values, so only
-// its first is checked; `.or()`'s callee chain (`.from(…)`) isn't checked (`:not(…)`).
+// a ternary, an array's `.join`). `.rpc()` POSTs its second argument as the JSON body by
+// default (postgrest-js 2.106.2's `rpc`: `method = "POST"; body = args`), so only its first
+// is checked; with `{ get: true }` or `{ head: true }` the arguments go in the URL's query
+// string instead, which isn't checked. `.or()`'s callee chain (`.from(…)`) isn't checked
+// (`:not(…)`).
 // A rule on syntax can't tell supabase-js's `.filter()` from an array's, and misses a builder
 // held in a variable, so `.filter` is banned outright here, by name, computed name or
 // destructuring: a row post-filter takes another form, or a disable naming this rule
