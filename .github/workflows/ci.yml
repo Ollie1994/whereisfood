@@ -101,7 +101,7 @@ jobs:
       - run: npx supabase start -x "$SUPABASE_EXCLUDE"
       # tests/integration/setup.ts reads .env.local, and throws without it. The script
       # maps README's "3. Environment" table, writes each value quoted, and fails on a
-      # missing or empty value or one it can't quote.
+      # missing or empty value or one a reader would change (its comments say which).
       - run: npx supabase status -o env | node scripts/write-env-local.mjs
       # Both projects, keeping test:all's checks: a project that collects zero files
       # fails, and RUNS must match the projects vitest.config.ts declares. So the unit
