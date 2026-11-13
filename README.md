@@ -592,9 +592,10 @@ npm run test:integration  # integration tests (needs local Supabase)
 npm run test:all          # every test project, each in its own run
 ```
 
-No CI check is required yet: `.github/workflows/ci.yml` runs the four gates on
-each pull request, but until Phase 8 makes them required (`CLAUDE.md`, "Testing"), run all
-four gates before opening or merging a pull request and check each one exits 0:
+No CI check is required yet: `.github/workflows/ci.yml` runs the four gates, the schema
+controls and the process log's check on each pull request, but until Phase 8 makes them
+required (`CLAUDE.md`, "Testing"), run all four gates before opening or merging a pull
+request and check each one exits 0:
 
 ```bash
 npx tsc --noEmit
