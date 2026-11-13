@@ -1,0 +1,97 @@
+# The gates, run by GitHub on every PR into dev or main (Phase 8 plan step 2, IS #285).
+# Not required checks until #297's rulesets; until then each PR still runs the four gates
+# by hand (CLAUDE.md, "Testing").
+#
+# Hardening (plan #2, Q5): the plain pull-request trigger only, never its target-branch
+# variant; a read-only token; every action pinned to a commit SHA; no path filter on the
+# workflow (a required check that never runs never reports, and the PR waits on it).
+name: ci
+
+on:
+  pull_request:
+    branches: [dev, main]
+
+permissions:
+  contents: read
+
+# A new push to a PR cancels that PR's run still in progress.
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck-lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Node from package.json's devEngines.runtime (setup-node v7.1.0's docs, "Node
+      # version file"). No npm cache: this workflow never runs on dev or main, so no
+      # cache a PR could restore is ever saved there (IS #285's PR).
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: package.json
+          package-manager-cache: false
+      - run: node --version && npm --version
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run lint
+
+  unit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: package.json
+          package-manager-cache: false
+      - run: node --version && npm --version
+      - run: npm ci
+      - run: npm run test:run
+
+  integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: package.json
+          package-manager-cache: false
+      - run: node --version && npm --version
+      - run: npm ci
+      # The services the integration tests use: db, auth, kong, rest, and inbucket for
+      # Mailpit (auth-routes.test.ts reads 127.0.0.1:54324). With the rest excluded, a
+      # local `npm run test:all` gave the full stack's counts (supabase CLI 2.109.1, IS
+      # #285's PR). That CLI refused `analytics,functions,meta,storage` as names to
+      # exclude, though its --help lists them; it took the names below.
+      - run: npx supabase start -x realtime,imgproxy,studio,edge-runtime,vector,logflare,postgres-meta,storage-api,supavisor
+      # tests/integration/setup.ts reads .env.local only, and throws without it. The
+      # values are the local stack's, not secrets (CLAUDE.md, "Secrets"); mapped as
+      # README's "3. Environment" table does. A missing value fails the step.
+      - name: Write .env.local from the local stack
+        run: |
+          status="$(npx supabase status -o env)"
+          get() {
+            value="$(printf '%s\n' "$status" | sed -n "s/^$1=\"\(.*\)\"\$/\1/p")"
+            if [ -z "$value" ]; then echo "::error::supabase status has no $1" >&2; return 1; fi
+            printf '%s' "$value"
+          }
+          # Assigned one by one: under bash -e a failed substitution stops the step in an
+          # assignment, not inside an echo's argument.
+          url="$(get API_URL)"
+          anon="$(get ANON_KEY)"
+          service="$(get SERVICE_ROLE_KEY)"
+          tiles="$(grep '^NEXT_PUBLIC_PMTILES_URL=' .env.example)"
+          printf '%s\n' "NEXT_PUBLIC_SUPABASE_URL=$url" "NEXT_PUBLIC_SUPABASE_ANON_KEY=$anon" \
+            "SUPABASE_SERVICE_ROLE_KEY=$service" "$tiles" > .env.local
+      # Both projects, keeping test:all's checks: a project that collects zero files
+      # fails, and RUNS must match the projects vitest.config.ts declares.
+      - run: npm run test:all
