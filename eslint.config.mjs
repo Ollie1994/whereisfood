@@ -2,9 +2,12 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
-// DOM HTML sinks, banned in every JS and TS file (Phase 8 plan step 4, Q26; IS #289). With no `object`,
-// `no-restricted-properties` bans the property on any object. Each entry has a fixture in
-// scripts/lint-rules.test.mjs (plan #9): a mistyped name or selector lints clean.
+// DOM HTML sinks, banned in every JS and TS file (Phase 8 plan step 4, Q26; IS #289). With
+// no `object`, `no-restricted-properties` bans the property on any object. Each entry has a
+// fixture in scripts/lint-rules.test.mjs (plan #9): a mistyped name or selector lints clean.
+// Not seen: a computed name (`el["inner" + "HTML"]`) or an alias; a sink inside a
+// dependency; HTML built from constants that a library renders (MapLibre's attribution in
+// `map-setup.ts`, the proxy's `unavailablePage`).
 const HTML_SINKS = [
   { property: "innerHTML", message: "innerHTML parses HTML: build elements with document.createElement (Q26)." },
   { property: "outerHTML", message: "outerHTML parses HTML: build elements with document.createElement (Q26)." },
