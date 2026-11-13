@@ -261,8 +261,8 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
     not classic protection: `branches/*/protection` → `403`, probed 2026-11-12). Whether
     rulesets' "require workflows" rule is open to this personal account is read here (#2's
     limit).
-    With it, `CLAUDE.md`'s "Testing" drops "No CI check is required yet" (until PR #312 "There is no CI") and the manual gate list for
-    Q10's split: CI is the gate; locally `tsc`, `test:run` and lint are the fast loop; the
+    With it, `CLAUDE.md`'s "Testing" drops "No CI check is required yet" (until PR #312
+    "There is no CI") and the manual gate list for Q10's split: CI is the gate; locally `tsc`, `test:run` and lint are the fast loop; the
     `/map` browser check stays manual. Its "Schema controls: `node scripts/controls.mjs`,
     not a gate" and `scripts/controls.mjs`'s header "Not a gate" change with it: the
     `controls` check is required. *Only now*, because every check exists and is green.
@@ -599,8 +599,8 @@ on PR #311. `README.md`, "Preview deploys", has the probes.
   `main`'s bypass list empty; read back with `gh api repos/{owner}/{repo}/rulesets` and
   recorded; `gh pr checks --required` on the no-op PR lists the same names; whether
   "require workflows" is open to this account is recorded.
-- [ ] `CLAUDE.md`'s "Testing" no longer says "No CI check is required yet" (until PR #312 "There is no CI"), and states Q10's split;
-  neither it nor `scripts/controls.mjs`'s header calls the controls "not a gate".
+- [ ] `CLAUDE.md`'s "Testing" no longer says "No CI check is required yet" (until PR #312
+  "There is no CI"), and states Q10's split; neither it nor `scripts/controls.mjs`'s header calls the controls "not a gate".
 
 **The proof (steps 13–15)**
 - [ ] On the `dev` probe, every required check is red and `gh pr view --json
