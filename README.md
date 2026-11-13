@@ -491,10 +491,13 @@ Project Settings" (Vercel's docs, `vercel.json` reference). Probed in PR #311: a
 branch, one commit off `dev` adding only `vercel.json` with `"ignoreCommand": "exit 0"`, got
 "Canceled by Ignored Build Step", though the inline command lets that branch build. It wasn't
 named `probe/…`, which the inline command cancels whatever `vercel.json` says; it carried no
-break, so had the override failed it would have built `dev`'s code as any preview does. So
-an `ignoreCommand` of `exit 1` on any branch, or on `dev`, which branches inherit, would let
-a `dependabot/` or `probe/` branch build with the Preview variables, and a Production build
-from another branch through. The repo has no `vercel.json`. The guards:
+break, so had the override failed it would have built `dev`'s code as any preview does. The
+other way, `probe/ignorecommand-exit1`, adding only `vercel.json` with `"ignoreCommand":
+"exit 1"`, built ("Deployment has completed"), though the inline command cancels every
+`probe/` branch: `dev`'s code, no break, with the Preview variables. So an `ignoreCommand` of
+`exit 1` on any branch, or on `dev`, which branches inherit, lets a `dependabot/` or `probe/`
+branch build with the Preview variables (a Production build from another branch: not
+tried). The repo has no `vercel.json`. The guards:
 - a diff that adds or changes `vercel.json` is read for an `ignoreCommand` before it's
   pushed;
 - before a `probe/` branch is pushed and before Dependabot is switched on,

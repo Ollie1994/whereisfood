@@ -517,8 +517,8 @@ step 14, which put it after step 7's and step 13's probes (the owner's call, the
 read-through on PR #283).
 
 **A limit, and its guards:** a branch's `vercel.json` `ignoreCommand` overrides the inline
-command (Vercel's docs; found by round 1 on PR #311 and probed there), so one holding `exit
-1`, on a branch or on `dev`, would let these branches build. Guards: a diff that adds or
+command (Vercel's docs; found by round 1 on PR #311 and probed there both ways), so one
+holding `exit 1`, on a branch or on `dev`, lets these branches build. Guards: a diff that adds or
 changes `vercel.json` is read for one; `git grep -n ignoreCommand <branch> -- vercel.json`
 prints nothing before a probe is pushed and before Dependabot is switched on (#298, #300);
 and step 7's pre-commit hook refuses one (#292). The owner's call, round 2 on PR #311.
