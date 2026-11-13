@@ -302,9 +302,10 @@ Toolchain: the Node and npm ranges under Dependencies.
 | `npm run test:all` | **every project in `RUNS`** of `scripts/test-all.mjs` (today `unit` + `integration`), checked against the projects `vitest.config.ts` declares; takes no arguments | yes |
 
 **No CI check is required yet — every gate is manual, until Phase 8 builds it.**
-`.github/workflows/ci.yml` runs the four gates on each PR (#285, #286), and the schema
-controls and the process log's check (#288), but no check is required until #297, and its
-result doesn't replace the hand-run gates. CI/CD is Phase 8's work, one piece designed
+`.github/workflows/ci.yml` runs the four gates on each PR (#285, #286), and the process
+log's check and the schema controls' `--check` (#288), with the full controls only on the
+PRs "Schema controls" below names. No check is required until #297, and the result
+doesn't replace the hand-run gates. CI/CD is Phase 8's work, one piece designed
 together and built before Phase 10's production deploy (Phase 6
 plan decision #1; the split into Phases 8, 9 and 10 is IS #265 and IS #278, between
 phases).
@@ -375,7 +376,9 @@ integration tests its header names, checks they went red (or, for a `green:` con
 stayed green), and restores the database with `npx supabase db reset`. Run it after a
 change to `supabase/migrations/` or to a test a control names (one file:
 `node scripts/controls.mjs tests/controls/<name>.sql`; `--check` parses the files and
-touches nothing). A new schema guard adds its
+touches nothing). CI's `controls` job runs the full set on a PR that changes a path
+`TRIGGERS` in `scripts/controls-trigger.mjs` lists, and on every PR into `main` (#288); it
+isn't a required check until #297. A new schema guard adds its
 controls by the rule in `.claude/commands/create-issues.md`'s Failure modes. About
 45 s a control, mostly the reset (64 took 48 minutes, 2026-10-23); the script's header
 says what it can't see.

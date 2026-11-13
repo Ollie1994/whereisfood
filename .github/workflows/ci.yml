@@ -175,9 +175,11 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 2
-      # No npm cache here: `npm ci` runs only for the full set, and setup-node's post step
-      # hands the cache's paths to `saveCache` whether or not anything was installed (its
-      # src/cache-save.ts at this SHA). The full set's install goes uncached.
+      # No npm cache here: `npm ci` runs only for the full set, and with the cache on, a
+      # `--check`-only run saved an empty cache (670 B) under the key every job shares. It
+      # finished first, so `unit`, `typecheck-lint` and `build` failed to save theirs
+      # ("another job may be creating this cache") and `integration` restored the empty one
+      # (probe PR #319, run 43443375088). The full set's install goes uncached.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: package.json
@@ -194,6 +196,8 @@ jobs:
             true | false) echo "full=$full" >> "$GITHUB_OUTPUT" ;;
             *) echo "::error::controls-trigger printed '$full', not true or false"; exit 1 ;;
           esac
+      # The full set's steps. Each carries this `if:`: a step added here without it runs on
+      # every PR, with no stack and no install.
       - if: steps.trigger.outputs.full == 'true'
         run: npm ci
       - if: steps.trigger.outputs.full == 'true'
