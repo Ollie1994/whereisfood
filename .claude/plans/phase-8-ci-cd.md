@@ -506,8 +506,8 @@ Step 1 extends the Ignored Build Step to cancel `dependabot/*` and `probe/*`, be
 probe, the first such branch; every probe branch is named `probe/…`. The command stays
 inline in Vercel's settings: a script in the repo would run from each branch's own copy,
 which that branch could rewrite. A branch can still replace it with a `vercel.json`
-`ignoreCommand`, which Vercel's docs say overrides the project setting (not probed; found by
-round 1 on PR #311), so a diff adding `vercel.json` is read before it's pushed (`README.md`,
+`ignoreCommand`, which overrides the project setting (Vercel's docs; found by round 1 on PR
+#311 and probed there), so a diff adding `vercel.json` is read before it's pushed (`README.md`,
 "Preview deploys"). It is checked before any probe exists, locally on its four
 cases and then by a pushed `probe/` and `dependabot/` branch each showing "Canceled", read in
 the commit's statuses (step 1 found it there, PR #311), since
