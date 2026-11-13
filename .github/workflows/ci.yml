@@ -9,9 +9,9 @@
 # The default activity types (opened, synchronize, reopened) don't include a change of the
 # PR's base, so a PR retargeted to dev or main gets no new run until its next push; the
 # results of its last run stay on its head commit, tested against the old base (whether
-# #297's rulesets count them for the new base: not probed). `edited` would start a run,
-# and would also rerun every job on each edit of the PR's title or body
-# (GitHub's docs: `edited` fires on a change of the title, body or base branch).
+# #297's rulesets count them for the new base: not probed; #298 probes it). `edited`
+# would start a run, and would also rerun every job on each edit of the PR's title or
+# body (GitHub's docs: `edited` fires on a change of the title, body or base branch).
 name: ci
 
 on:
@@ -92,7 +92,9 @@ jobs:
       - run: npx supabase start -x realtime,imgproxy,studio,edge-runtime,vector,logflare,postgres-meta,storage-api,supavisor
       # tests/integration/setup.ts reads .env.local, and throws without it. The
       # values are the local stack's, not secrets (CLAUDE.md, "Secrets"); mapped as
-      # README's "3. Environment" table does. A missing value fails the step.
+      # README's "3. Environment" table does. A missing Supabase value fails the step
+      # with an ::error::; the tiles line is copied from .env.example as it is (the
+      # integration tests don't read it).
       - name: Write .env.local from the local stack
         run: |
           status="$(npx supabase status -o env)"
