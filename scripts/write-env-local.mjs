@@ -4,8 +4,9 @@
 // The mapping is README's "3. Environment" table: the CLI's `API_URL`, `ANON_KEY` and
 // `SERVICE_ROLE_KEY`, and `NEXT_PUBLIC_PMTILES_URL` from `.env.example`. The values are
 // the local stack's, which aren't secrets (CLAUDE.md, "Secrets"). Each is written in double
-// quotes. A missing or empty value, or one holding `"` or a line break (which can't be
-// quoted), fails with exit 1, and the message names every such value; nothing is written.
+// quotes. A missing or empty value, or one holding `"`, `$`, a backslash or a line break
+// (which a reader would change, below), fails with exit 1, and the message names every
+// such value; nothing is written.
 // The tiles URL is required too: `.env.example` marks it "Required: the map draws nothing
 // without it".
 //
@@ -13,7 +14,7 @@
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { isatty } from "node:tty";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { resolve } from "node:path";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -44,12 +45,14 @@ export function parseEnv(text) {
 }
 
 // Pure. Returns `.env.local`'s text, each value in double quotes, or throws one error
-// naming every value that's missing or empty and every one that can't be quoted.
+// naming every value that's missing or empty and every one it refuses.
 //
-// Quoted, a value reads back whole: Node v26.13.0's process.loadEnvFile and setup.ts's
-// pattern both read `A="a#b"`, `B="a b"`, `C=" pad "` and `D="it's"` back exactly, where
-// unquoted `X=a#b` read as "a" (IS #286's PR). A `"` or a line break would end the quoted
-// value early, so those are refused.
+// Quoted, `#`, spaces and an apostrophe read back whole: Next 16.4.5's loadEnvConfig,
+// Node v26.13.0's process.loadEnvFile and setup.ts's pattern all read `"a#b"`, `"a b"`,
+// `" pad "` and `"it's"` back exactly, where unquoted `X=a#b` read as "a". Refused, since a
+// reader changes or splits them: `$` (Next read `"a$HOME"` as the home directory),
+// a backslash (Next and Node read `"x\ny"` with a real newline), `"` (it ends the quoted
+// value), and a line break (setup.ts reads line by line). IS #286's PR.
 export function envLocalText(statusText, exampleText) {
   const sources = { status: parseEnv(statusText), example: parseEnv(exampleText) };
   const lines = [];
@@ -58,21 +61,19 @@ export function envLocalText(statusText, exampleText) {
     const value = sources[from].get(key);
     const source = from === "status" ? "supabase status" : ".env.example";
     if (!value) problems.push(`${key} (from ${source}) is missing or empty`);
-    else if (/["\r\n]/.test(value)) problems.push(`${key} (from ${source}) holds a " or a line break`);
+    else if (/["$\\\r\n]/.test(value)) problems.push(`${key} (from ${source}) holds ", $, \\ or a line break`);
     else lines.push(`${name}="${value}"`);
   }
   if (problems.length > 0) throw new Error(problems.join("; "));
   return `${lines.join("\n")}\n`;
 }
 
-// `import.meta.main` is undefined on a Node without it, where this would otherwise do
-// nothing and exit 0; package.json's devEngines asks for 26.x, which has it (true when run,
-// false when imported: Node v26.13.0, IS #286's PR).
-if (import.meta.main === undefined) {
-  console.error("write-env-local: this Node has no import.meta.main; use the Node devEngines names (26.x)");
-  process.exit(2);
-}
-if (import.meta.main) {
+// Run only when executed, not when a test imports it: `import.meta.main` (Node v26.13.0:
+// true when run, false when imported, IS #286's PR), and on a Node without it the entry
+// script's path compared with this file's.
+const isMain =
+  import.meta.main ?? (process.argv[1] !== undefined && pathToFileURL(resolve(process.argv[1])).href === import.meta.url);
+if (isMain) {
   // Where stdin is a terminal and nothing is piped in, reading it would wait for input, so
   // this prints the usage instead. `isatty(0)`, not `process.stdin.isTTY`: with a
   // `process.stdin.isTTY` check here, the `readFileSync(0)` below failed in CI on a piped

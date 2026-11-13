@@ -35,7 +35,7 @@ const CASES = [
     path: "/admin",
     right: { status: 303, location: "/admin/login", origin: "http://127.0.0.1:3000" },
     // The admin page served with no session: the proxy not guarding it.
-    wrongStatus: { status: 200, contentType: HTML },
+    wrongStatus: { status: 200, contentType: HTML, origin: "http://127.0.0.1:3000" },
     wrongShape: { status: 303, location: "/map", origin: "http://127.0.0.1:3000" },
   },
   {
@@ -78,6 +78,12 @@ describe("checkResponse details", () => {
     for (const location of ["http://evil.example/admin/login", "//evil.example/admin/login", "http://127.0.0.1:4000/admin/login"]) {
       expect(checkResponse(byPath("/admin"), { status: 303, location, origin })).toHaveLength(1);
     }
+  });
+  it("takes an origin given with a trailing slash", () => {
+    expect(checkResponse(byPath("/admin"), { status: 303, location: "/admin/login", origin: "http://127.0.0.1:3000/" })).toEqual([]);
+  });
+  it("throws without the server's origin, a bug in the caller, not a bad redirect", () => {
+    expect(() => checkResponse(byPath("/admin"), { status: 303, location: "/admin/login" })).toThrow();
   });
   it("fails a redirect with no Location", () => {
     expect(checkResponse(byPath("/admin"), { status: 303, origin: "http://127.0.0.1:3000" })).toHaveLength(1);

@@ -136,10 +136,11 @@ jobs:
         run: |
           npm start > next-start.log 2>&1 &
           server=$!
-          # `kill -0` only ends the wait early; it doesn't decide the result. In Git Bash it
-          # ended the wait after 1 s when `npm start` failed at once (a missing script), and
-          # still passed for an `npm start` whose `next start` had exited with
-          # `EADDRINUSE`, so the `Ready in` and `Local:` lines decide (IS #286's PR).
+          # `kill -0` only ends the wait early; it doesn't decide the result. In Git Bash on
+          # Windows it ended the wait after 1 s when `npm start` failed at once (a missing
+          # script), and still passed for an `npm start` whose `next start` had exited with
+          # `EADDRINUSE`; on this Ubuntu runner neither was probed. So the `Ready in` and
+          # `Local:` lines decide (IS #286's PR).
           for _ in $(seq 1 60); do
             grep -q -e "Ready in" -e "Failed to start server" next-start.log && break
             kill -0 "$server" 2>/dev/null || break

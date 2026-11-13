@@ -9,6 +9,9 @@
 // "Green gates don't show the map renders"), headers (Phase 9 adds them here), paths not
 // listed, and anything behind a session.
 
+import { pathToFileURL } from "node:url";
+import { resolve } from "node:path";
+
 // Each path, and what it must answer with no session cookie.
 // - `/api/live` answers `{ entries }` (`getLiveMap`, src/lib/services/live.ts), never a
 //   bare array (CLAUDE.md, "`/api/live`").
@@ -56,13 +59,16 @@ export function checkResponse(expectation, response) {
       // A Location may be relative; resolved against the server's origin, it must stay on
       // that origin and reach the expected path. A redirect to another host is what
       // src/proxy.ts builds its login redirect to avoid.
+      // The server's origin is the caller's to give; without it this is a bug here, not a
+      // bad redirect, so it throws.
+      const origin = new URL(response.origin).origin;
       let target = null;
       try {
-        target = response.location ? new URL(response.location, response.origin) : null;
+        target = response.location ? new URL(response.location, origin) : null;
       } catch {
         // A Location that isn't a URL: a bad redirect, reported below like any other.
       }
-      if (target === null || target.origin !== response.origin || target.pathname !== expectation.location) {
+      if (target === null || target.origin !== origin || target.pathname !== expectation.location) {
         problems.push(`Location ${response.location ?? "(none)"}, expected path ${expectation.location} on ${response.origin}`);
       }
       break;
@@ -147,14 +153,12 @@ export async function main(baseUrl) {
 }
 
 // Run only when executed, not when the test imports it.
-// `import.meta.main` is undefined on a Node without it, where this would otherwise check
-// nothing and exit 0; package.json's devEngines asks for 26.x, which has it (true when run,
-// false when imported: Node v26.13.0, IS #286's PR).
-if (import.meta.main === undefined) {
-  console.error("smoke: this Node has no import.meta.main; use the Node devEngines names (26.x)");
-  process.exit(2);
-}
-if (import.meta.main) {
+// Run only when executed, not when a test imports it: `import.meta.main` (Node v26.13.0:
+// true when run, false when imported, IS #286's PR), and on a Node without it the entry
+// script's path compared with this file's.
+const isMain =
+  import.meta.main ?? (process.argv[1] !== undefined && pathToFileURL(resolve(process.argv[1])).href === import.meta.url);
+if (isMain) {
   main(process.argv[2]).then(
     (code) => process.exit(code),
     (err) => {

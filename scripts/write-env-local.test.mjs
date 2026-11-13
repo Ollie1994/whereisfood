@@ -53,7 +53,9 @@ describe("envLocalText", () => {
     );
   });
 
-  it("writes values holding #, spaces or an apostrophe so they read back whole", () => {
+  // parseEnv reads them back here; Next's and Node's loaders were probed by hand (the comment
+  // above envLocalText).
+  it("writes values holding #, spaces or an apostrophe so parseEnv reads them back whole", () => {
     for (const value of ["http://x/#a", "a b", " pad ", "it's"]) {
       const status = STATUS.replace('"http://127.0.0.1:54321"', JSON.stringify(value));
       expect(parseEnv(envLocalText(status, EXAMPLE)).get("NEXT_PUBLIC_SUPABASE_URL")).toBe(value);
@@ -78,9 +80,14 @@ describe("envLocalText", () => {
     expect(() => envLocalText(STATUS, "# nothing")).toThrow("NEXT_PUBLIC_PMTILES_URL");
   });
 
-  it("refuses a value holding a double quote, which it can't quote", () => {
-    const status = STATUS.replace('API_URL="http://127.0.0.1:54321"', 'API_URL=a"b');
-    expect(() => envLocalText(status, EXAMPLE)).toThrow(/^API_URL \(from supabase status\) holds a " or a line break$/);
+  it.each([
+    ["a double quote", 'API_URL=a"b'],
+    ["a dollar sign", "API_URL=a$HOME"],
+    ["a backslash", "API_URL=x\\ny"],
+    ["a lone carriage return", "API_URL=a\rb"],
+  ])("refuses a value holding %s, which a reader would change", (_what, line) => {
+    const status = STATUS.replace('API_URL="http://127.0.0.1:54321"', line);
+    expect(() => envLocalText(status, EXAMPLE)).toThrow(/^API_URL \(from supabase status\) holds ", \$, \\ or a line break$/);
   });
 
   it("names every missing value at once", () => {
