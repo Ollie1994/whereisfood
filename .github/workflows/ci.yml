@@ -8,7 +8,8 @@
 #
 # The default activity types (opened, synchronize, reopened) don't include a change of the
 # PR's base, so a PR retargeted to dev or main gets no run until its next push. `edited`
-# would cover it, and would also rerun every job on each edit of the PR's title or body.
+# would cover it, and would also rerun every job on each edit of the PR's title or body
+# (GitHub's docs: `edited` fires on a change of the title, body or base branch).
 name: ci
 
 on:
@@ -38,7 +39,7 @@ jobs:
       # versions. Its npm cache is on by default here (devEngines.packageManager is npm): a
       # run saves it under its PR's ref, so the PR's later pushes restore it, and npm ci
       # still checks each package against the lockfile's hashes. This workflow never runs
-      # on dev, so a new PR's first run starts with no cache (IS #285's PR).
+      # on dev, so it saves no cache there for a new PR's first run (IS #285's PR).
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: package.json
