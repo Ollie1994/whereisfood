@@ -642,8 +642,8 @@ on PR #311. `README.md`, "Preview deploys", has the probes.
    job timeouts, `concurrency`. **Settled for `integration` (PR #312):** the stack starts
    with db, auth, kong, rest and inbucket (Mailpit) only, the rest excluded, which gave the
    full stack's test counts, locally and in CI; `.env.local` from `npx supabase status -o
-   env` through a step that fails on a missing value; no npm cache (`ci.yml` runs only on
-   PRs, so it never saves one on `dev` for a later PR to restore); no Docker image cache (the start
+   env` through a step that fails on a missing value; setup-node's npm cache, on by default
+   (saved under the PR's ref, restored by the PR's later pushes); no Docker image cache (the start
    took about 2 minutes in CI); timeouts 10, 10 and 20 minutes; `concurrency` per PR with
    cancel-in-progress. `build`'s and `controls`' stacks stay open (#286, #288).
 4. **How `changedPaths` lists the files (step 3).** The merge commit against its first
