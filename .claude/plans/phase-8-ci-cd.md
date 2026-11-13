@@ -84,8 +84,8 @@ has run the checks with no Vercel build (#5).
 | `.gitleaks.toml` (and `.gitleaksignore` if needed) | Gitleaks' config. Each allowlist entry names why it isn't a secret: the local stack's keys and test fixtures (`CLAUDE.md`, "Secrets") |
 | `sonar-project.properties` | SonarQube Cloud's project key, sources and exclusions |
 | `SECURITY.md` | How to report a vulnerability: GitHub's private reporting |
-| `scripts/controls-trigger.mjs` (+ test), or a mode of `controls.mjs` (open decision 4) | `changedPaths` and `needsFullControls` |
-| `scripts/controls-trigger-coverage.test.mjs` (name open) | The guard test on the trigger list (#8) |
+| `scripts/controls-trigger.mjs` (+ test) | `TRIGGERS`, `changedPaths` and `needsFullControls`, its own script (open decision 4) |
+| `scripts/controls-trigger-coverage.test.mjs` | The guard test on the trigger list (#8) |
 | `scripts/smoke.mjs` (+ test of its expectations if it has pure parts) | The served-app check the `build` job runs |
 | `scripts/write-env-local.mjs` (+ test) | `.env.local` from `npx supabase status -o env`, for every CI job that starts the local stack (IS #286; open decision 3) |
 | The lint rules' fixture test (path open) | One fixture per new rule, inline in the test, linted through ESLint's API (#9) |
@@ -96,7 +96,7 @@ has run the checks with no Vercel build (#5).
 |---|---|
 | `eslint.config.mjs` | The rules against DOM HTML sinks and string-built supabase-js filters (Q26), with `.filter` banned outright in `src/lib/db/`. The `src/lib/db/` entry repeats the sink selectors: in flat config a later object's options for a rule replace an earlier one's, they don't merge |
 | `vitest.config.ts` | Only if the new script tests sit where the `unit` project doesn't collect them |
-| `scripts/controls.mjs` | Its header's "Not a gate (CLAUDE.md, "Testing")" (line 43), which a required `controls` check makes false (step 12); anything else only if CI needs it (open decision 4) |
+| `scripts/controls.mjs` | Its header's "Not a gate (CLAUDE.md, "Testing")" (line 43), which a required `controls` check makes false (step 12); anything else only if CI needs it, and no trigger mode (open decision 4, settled: its own script) |
 | `package.json` | Only a script the trigger or smoke step needs; no `prepare` hook (#7) |
 | `CLAUDE.md` | The bold plan line (step 0); #12's audit rule (step 6); the Gitleaks hook under "Secrets" (step 7); "Testing" rewritten for CI as the gate, its "Schema controls … not a gate" included (step 12) |
 | `README.md` | "Getting started": installing Gitleaks and setting `core.hooksPath` (step 7); "Preview deploys": the Ignored Build Step's new command (step 1, #15). The status parts wait for step 17 (Phase 7 #8) |
@@ -131,8 +131,8 @@ No function in `src/`. The scripts, each tested in the `unit` project:
 - **`changedPaths()`** lists the PR's changed files from the checkout. A default
   `actions/checkout` fetches depth 1, without the base, and a three-dot diff on a shallow
   clone finds no merge base, so it diffs the PR's merge commit against its first parent
-  (`HEAD^1`, with `fetch-depth: 2`) or reads the PR's files through the API (open decision
-  4). It **throws** when it can't tell: `HEAD^1` missing, or `git` (or the API) failing.
+  (`HEAD^1`, with `fetch-depth: 2`; open decision 4). It **throws** when it can't tell:
+  `HEAD^1` or `HEAD^2` missing (no merge commit), or `git` failing.
   An empty list from a diff that succeeded is a PR with no net change (a revert of a
   revert) and means nothing changed. This narrows the scope draft's "an empty list must
   not read as 'nothing changed'", written against a missing base, which the `HEAD^1` check
@@ -142,21 +142,25 @@ No function in `src/`. The scripts, each tested in the `unit` project:
   `scripts/controls.mjs`, the tests the controls' headers name,
   `tests/integration/helpers.ts`, `tests/integration/setup.ts`, `supabase/seed.sql`,
   `supabase/config.toml`, `vitest.config.ts`, `src/lib/db/`, `src/lib/supabase.ts`,
-  `package.json` and `package-lock.json`, `.github/workflows/ci.yml` and the trigger script
-  itself, and every file those tests import (the scope draft's list, completed by the guard
-  below). The two package files stand for the bare package imports the guard doesn't
-  follow: a bump of `@supabase/supabase-js`, which the named tests import, or of the
-  `supabase` CLI, which sets the local stack, changes what the controls exercise. Accepted
-  cost: every dependency PR runs the full controls (~45 s a control) (the owner's call,
-  round 2 on PR #283). `ci.yml` and the trigger script are there so a PR that changes how
-  the full set is run also runs it; accepted cost: an edit to `ci.yml` runs the full
-  controls, most Phase 8 PRs included, which aren't required before step 12 (the owner's
-  call, round 3 on PR #283).
+  `package.json` and `package-lock.json`, `.github/workflows/ci.yml`, the trigger script
+  itself, `scripts/write-env-local.mjs`, and every file the named tests or the setup file
+  import (the scope draft's list, completed by the guard below, which follows the imports
+  of the named tests and of the integration project's setup file, and of no other entry).
+  The two package files stand for the bare package imports the guard doesn't follow: a
+  bump of `@supabase/supabase-js`, which the named tests import, or of the `supabase` CLI,
+  which sets the local stack, changes what the controls exercise. Accepted cost: every
+  dependency PR runs the full controls (~45 s a control) (the owner's call, round 2 on PR
+  #283). `ci.yml` and the trigger script are there so a PR that changes how the full set
+  is run also runs it; accepted cost: an edit to `ci.yml` runs the full controls, most
+  Phase 8 PRs included, which aren't required before step 12 (the owner's call, round 3 on
+  PR #283). `write-env-local.mjs` is there for the same reason: it writes the `.env.local`
+  the named tests read (the owner's call, round 1 on PR #316).
 - **The trigger list's guard test (#8)** reads each control's `-- run:` line, a vitest
   filter, not a file (`scripts/controls.mjs`'s header), resolves it to files as vitest does
-  (`npx vitest list --project integration <filter> --filesOnly`), follows those files'
-  imports transitively, relative ones and `@/` ones resolved through `vitest.config.ts`'s
-  `alias`, and fails when a file they reach isn't covered by the list. The named tests reach
+  (`npx vitest list --project integration <filter> --filesOnly`), follows the imports of
+  those files and of the integration project's setup file transitively, relative ones and
+  ones an `alias` key in `vitest.config.ts` rewrites (`@/`; `server-only` lands in
+  `node_modules`, a package), and fails when a file they reach isn't covered by the list. The named tests reach
   `src/` through `@/` (`db-trucks.test.ts` imports `@/lib/db/trucks`, `rls.test.ts` and
   `schema.test.ts` `@/lib/database.types`, read 2026-11-12), so a walk of relative imports
   alone stops at `./helpers`.
@@ -558,9 +562,9 @@ on PR #311. `README.md`, "Preview deploys", has the probes.
 **Controls and the log (step 3)**
 - [ ] `controls --check` runs on every PR; the full set runs when a trigger path changes and
   on every PR into `main`.
-- [ ] `changedPaths` throws when `HEAD^1` is missing or `git` fails, and returns `[]` for a
-  successful empty diff (unit tests); the guard test fails when a named test gains an
-  import outside the list, `@/` ones included (a mutation, shown in the PR).
+- [ ] `changedPaths` throws when `HEAD^1` or `HEAD^2` is missing or `git` fails, and returns
+  `[]` for a successful empty diff (unit tests); the guard test fails when a named test
+  gains an import outside the list, `@/` ones included (a mutation, shown in the PR).
 - [ ] `process-log` runs `bash scripts/process-log.sh check` and goes red on a broken row.
 
 **Lint, advisor, audit (steps 4–6)**
@@ -655,7 +659,14 @@ on PR #311. `README.md`, "Preview deploys", has the probes.
    `controls`' stack stays open (#288).
 4. **How `changedPaths` lists the files (step 3).** The merge commit against its first
    parent (`fetch-depth: 2`), or the PR's files through the API; and whether it is a script
-   of its own or a mode of `controls.mjs`.
+   of its own or a mode of `controls.mjs`. **Settled (PR for IS #287):** `git diff
+   --name-only --no-renames -z HEAD^1 HEAD` on the merge commit, which needs no token or
+   network; in local clones of `dev` at depth 1 the script exited 1 with `HEAD^1` missing,
+   and at depth 2 it listed PR #315's files. Its own script, `scripts/controls-trigger.mjs`:
+   `controls.mjs` parses its arguments and exits at import, so a test couldn't import a
+   mode of it. #288 calls `node scripts/controls-trigger.mjs "$GITHUB_BASE_REF"`, which
+   prints `true` or `false`, exits 1 when it can't tell and 2 with no base ref; the job
+   reads anything else on stdout as a failure.
 5. **SonarQube Cloud (step 9).** Its free tier for public repositories, confirmed; the
    exclusions; the custom gate's exact condition names. **The gate is settled** (the owner's
    calls, rounds 2 and 3 on PR #283): a custom gate on new code with no new vulnerabilities
