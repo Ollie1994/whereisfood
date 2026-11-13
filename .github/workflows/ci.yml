@@ -1,6 +1,7 @@
 # The four gates, run by GitHub on every PR into dev or main (Phase 8 plan step 2, IS #285
-# and #286), with a smoke check of the served build; and the schema controls and the
-# process log's check (step 3, IS #288). Not required checks until #297's rulesets; until
+# and #286), with a smoke check of the served build; and the process log's check and the
+# schema controls' `--check`, with the full controls on a trigger path or a PR into main
+# (step 3, IS #288). Not required checks until #297's rulesets; until
 # then each PR still runs the four gates by hand (CLAUDE.md, "Testing").
 #
 # Hardening (plan #2, Q5): the plain pull-request trigger only, never its target-branch
