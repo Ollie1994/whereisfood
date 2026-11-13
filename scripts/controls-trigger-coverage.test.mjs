@@ -16,13 +16,15 @@
 // `package.json` and `package-lock.json` stand for it.
 // Every file reached must be covered by TRIGGERS.
 //
-// What it can't see: a computed import (`import(name)`); a file a test reads rather than
-// imports (`readFileSync`), such as the migrations; and anything a control's SQL depends
-// on beyond the schema.
+// What it can't see: a computed import (`import(name)`); a module vitest loads through
+// `vi.mock("…")` or `vi.importActual("…")`, which `preProcessFile` doesn't return (no
+// integration file calls either today: grep, IS #287's PR); a file a test reads rather
+// than imports (`readFileSync`), such as the migrations; and anything a control's SQL
+// depends on beyond the schema.
 
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -32,16 +34,18 @@ import { triggerFor } from "./controls-trigger.mjs";
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const CONTROLS_DIR = join(ROOT, "tests", "controls");
 
-// Each control's `-- run:` value, from its header (the lines before the first blank one).
-// `controls.mjs --check` checks the header's form; here a file with no `run:` fails.
+// Each control's `-- run:` value, from its header (the lines before the first blank one,
+// or the whole file with none, as `controls.mjs` reads it). `controls.mjs --check` checks
+// the header's form; here a file with no `run:` fails the first test below.
 function runFilter(file) {
   const lines = readFileSync(join(CONTROLS_DIR, file), "utf8").split(/\r?\n/);
-  const header = lines.slice(0, lines.findIndex((line) => line.trim() === ""));
+  const blank = lines.findIndex((line) => line.trim() === "");
+  const header = blank === -1 ? lines : lines.slice(0, blank);
   return header.map((line) => /^--\s*run\s*:\s*(.*\S)\s*$/.exec(line)?.[1]).find((value) => value !== undefined);
 }
 
 const CONTROL_FILES = readdirSync(CONTROLS_DIR).filter((file) => file.endsWith(".sql")).sort();
-const FILTERS = [...new Set(CONTROL_FILES.map(runFilter))];
+const FILTERS = [...new Set(CONTROL_FILES.map(runFilter).filter((filter) => filter !== undefined))];
 
 const integration = config.test.projects.find((project) => project.test.name === "integration");
 const ALIAS = integration.resolve.alias;
@@ -82,7 +86,10 @@ function resolveImport(specifier, fromFile) {
   const file = resolveFile(base);
   if (file === undefined) throw new Error(`${relative(ROOT, fromFile)}: can't resolve "${specifier}"`);
   const rel = relative(ROOT, file);
-  if (rel.startsWith("..") || rel.split(sep).includes("node_modules")) return { file: null, kind: "package" };
+  // Outside the repository no TRIGGERS entry or package file stands for it. On Windows,
+  // `relative` across drives returns an absolute path, not one starting with `..`.
+  if (isAbsolute(rel) || rel.startsWith("..")) throw new Error(`${relative(ROOT, fromFile)}: "${specifier}" leads outside the repository (${file})`);
+  if (rel.split(sep).includes("node_modules")) return { file: null, kind: "package" };
   return { file, kind: key !== undefined ? "alias" : "relative" };
 }
 

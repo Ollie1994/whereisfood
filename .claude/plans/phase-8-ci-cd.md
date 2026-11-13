@@ -142,8 +142,8 @@ No function in `src/`. The scripts, each tested in the `unit` project:
   `scripts/controls.mjs`, the tests the controls' headers name,
   `tests/integration/helpers.ts`, `tests/integration/setup.ts`, `supabase/seed.sql`,
   `supabase/config.toml`, `vitest.config.ts`, `src/lib/db/`, `src/lib/supabase.ts`,
-  `package.json` and `package-lock.json`, `.github/workflows/ci.yml` and the trigger script
-  itself, and every file those tests import (the scope draft's list, completed by the guard
+  `package.json` and `package-lock.json`, `.github/workflows/ci.yml`, the trigger script
+  itself and `scripts/write-env-local.mjs`, and every file those tests import (the scope draft's list, completed by the guard
   below). The two package files stand for the bare package imports the guard doesn't
   follow: a bump of `@supabase/supabase-js`, which the named tests import, or of the
   `supabase` CLI, which sets the local stack, changes what the controls exercise. Accepted
@@ -151,7 +151,8 @@ No function in `src/`. The scripts, each tested in the `unit` project:
   round 2 on PR #283). `ci.yml` and the trigger script are there so a PR that changes how
   the full set is run also runs it; accepted cost: an edit to `ci.yml` runs the full
   controls, most Phase 8 PRs included, which aren't required before step 12 (the owner's
-  call, round 3 on PR #283).
+  call, round 3 on PR #283). `write-env-local.mjs` is there for the same reason: it writes
+  the `.env.local` the named tests read (the owner's call, round 1 on PR #316).
 - **The trigger list's guard test (#8)** reads each control's `-- run:` line, a vitest
   filter, not a file (`scripts/controls.mjs`'s header), resolves it to files as vitest does
   (`npx vitest list --project integration <filter> --filesOnly`), follows those files'
@@ -661,7 +662,8 @@ on PR #311. `README.md`, "Preview deploys", has the probes.
    and at depth 2 it listed PR #315's files. Its own script, `scripts/controls-trigger.mjs`:
    `controls.mjs` parses its arguments and exits at import, so a test couldn't import a
    mode of it. #288 calls `node scripts/controls-trigger.mjs "$GITHUB_BASE_REF"`, which
-   prints `true` or `false` and exits 1 when it can't tell.
+   prints `true` or `false`, exits 1 when it can't tell and 2 with no base ref; the job
+   reads anything else on stdout as a failure.
 5. **SonarQube Cloud (step 9).** Its free tier for public repositories, confirmed; the
    exclusions; the custom gate's exact condition names. **The gate is settled** (the owner's
    calls, rounds 2 and 3 on PR #283): a custom gate on new code with no new vulnerabilities

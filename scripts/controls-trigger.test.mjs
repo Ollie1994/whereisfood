@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, statSync, write
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { TRIGGERS, changedPaths, needsFullControls, triggerFor } from "./controls-trigger.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -17,6 +17,7 @@ const TRIGGER_CASES = [
   "tests/controls/check-dropped.sql",
   "scripts/controls.mjs",
   "scripts/controls-trigger.mjs",
+  "scripts/write-env-local.mjs",
   ".github/workflows/ci.yml",
   "tests/integration/setup.ts",
   "tests/integration/helpers.ts",
@@ -75,12 +76,23 @@ describe("TRIGGERS", () => {
 
 describe("changedPaths", () => {
   const dirs = [];
-  const ceiling = process.env.GIT_CEILING_DIRECTORIES;
+  // Every `GIT_*` variable is removed while these run, and restored after: git obeys
+  // `GIT_DIR`, `GIT_WORK_TREE` and `GIT_INDEX_FILE` over `cwd`, so with them inherited
+  // (as a git hook's child gets them) the scratch repositories' commits land in the
+  // repository they name. With `GIT_DIR` and `GIT_WORK_TREE` set to a throwaway clone,
+  // 5 of these cases failed and the clone's branch gained commit "A" (IS #287's PR).
+  const saved = {};
+  beforeAll(() => {
+    for (const key of Object.keys(process.env).filter((k) => k.startsWith("GIT_"))) {
+      saved[key] = process.env[key];
+      delete process.env[key];
+    }
+  });
   afterEach(() => {
     for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
-    if (ceiling === undefined) delete process.env.GIT_CEILING_DIRECTORIES;
-    else process.env.GIT_CEILING_DIRECTORIES = ceiling;
+    delete process.env.GIT_CEILING_DIRECTORIES;
   });
+  afterAll(() => Object.assign(process.env, saved));
 
   // A scratch repository, kept from the user's and the system's git config (an empty
   // global file), with a fixed identity.

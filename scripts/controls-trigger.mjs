@@ -5,7 +5,9 @@
 //
 // Prints `true` or `false` on stdout, and on stderr each changed path that matched a
 // trigger. Exit 0 either way; 1 when it can't tell which files the PR changed
-// (`changedPaths` throws); 2 for a missing base ref.
+// (`changedPaths` throws); 2 for a missing base ref. A caller reads anything but `true`
+// or `false` on stdout as a failure: if the run-only-when-executed check below were ever
+// false, the script would print nothing and exit 0.
 //
 // What it can't see: a change that alters what the controls test without touching a
 // trigger path (a tool the controls run that no file imports, other than the `supabase`
@@ -21,8 +23,10 @@ import { resolve } from "node:path";
 // `controls-trigger-coverage.test.mjs` fails when a test a control names reaches a file
 // this list doesn't cover; `controls-trigger.test.mjs` has one case per entry and checks
 // each exists.
-// - The controls and their runner, this script, and the workflow that runs them: a PR
-//   that changes how the full set runs also runs it.
+// - The controls and their runner, this script, the workflow that runs them, and
+//   `write-env-local.mjs`, which writes the `.env.local` their tests read: a PR that
+//   changes how the full set runs also runs it (the workflow and this script: the owner's
+//   call, round 3 on PR #283; `write-env-local.mjs`: round 1 on PR #316).
 // - The schema, the seed and the local stack's config.
 // - The tests the controls' `-- run:` lines name, their setup file, and every file those
 //   reach (the guard's list).
@@ -36,6 +40,7 @@ export const TRIGGERS = [
   "tests/controls/",
   "scripts/controls.mjs",
   "scripts/controls-trigger.mjs",
+  "scripts/write-env-local.mjs",
   ".github/workflows/ci.yml",
   "tests/integration/setup.ts",
   "tests/integration/helpers.ts",
@@ -65,7 +70,9 @@ export function needsFullControls(paths, baseRef) {
 
 function git(args, cwd) {
   const result = spawnSync("git", args, { cwd, encoding: "utf8" });
-  if (result.error) throw new Error(`git ${args[0]} couldn't start: ${result.error.message}`);
+  // `error` is set when git couldn't start, and also when its output passed `maxBuffer`
+  // (ENOBUFS), so the message names neither.
+  if (result.error) throw new Error(`git ${args[0]} didn't complete: ${result.error.message}`);
   return result;
 }
 
