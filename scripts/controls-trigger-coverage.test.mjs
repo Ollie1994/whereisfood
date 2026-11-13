@@ -76,7 +76,8 @@ function resolveFile(base) {
   return candidates.find((path) => existsSync(path) && statSync(path).isFile());
 }
 
-// Where an import leads: a file in the repository, or null for a package.
+// Where an import leads: a file in the repository, or null for a package. Throws for an
+// import it can't resolve and for a file outside the repository.
 function resolveImport(specifier, fromFile) {
   let base;
   const key = Object.keys(ALIAS).find((k) => specifier === k || specifier.startsWith(`${k}/`));
