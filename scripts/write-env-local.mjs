@@ -57,8 +57,8 @@ export function envLocalText(statusText, exampleText) {
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
   // Where stdin is a terminal and nothing is piped in, reading it would wait for input, so
   // this prints the usage instead (not probed: no terminal in the shells it was written
-  // in). Git Bash's mintty is documented to give programs a pipe, not a terminal, so there
-  // it still waits. `isatty(0)`, not `process.stdin.isTTY`: with a `process.stdin.isTTY`
+  // in). In Git Bash's mintty, stdin may be a pipe rather than a terminal, so there it may
+  // still wait (round 2 on PR #315; not probed). `isatty(0)`, not `process.stdin.isTTY`: with a `process.stdin.isTTY`
   // check here, the `readFileSync(0)` below failed in CI on a piped stdin with "EAGAIN:
   // resource temporarily unavailable" (run 43413485618), and without one it read it (run
   // 43411649116); a pipe on Windows didn't show the failure (IS #286's PR).
