@@ -7,8 +7,10 @@
 # workflow (a required check that never runs never reports, and the PR waits on it).
 #
 # The default activity types (opened, synchronize, reopened) don't include a change of the
-# PR's base, so a PR retargeted to dev or main gets no run until its next push. `edited`
-# would cover it, and would also rerun every job on each edit of the PR's title or body
+# PR's base, so a PR retargeted to dev or main gets no new run until its next push; the
+# results of its last run stay on its head commit, tested against the old base (whether
+# #297's rulesets count them for the new base: not probed). `edited` would start a run,
+# and would also rerun every job on each edit of the PR's title or body
 # (GitHub's docs: `edited` fires on a change of the title, body or base branch).
 name: ci
 
@@ -20,8 +22,8 @@ permissions:
   contents: read
 
 # A new push to a PR cancels that PR's run of this workflow still in progress. The group
-# names the workflow: groups are shared across a repository's workflows, and codeql.yml
-# and sonarqube.yml also run on PRs (plan #2).
+# names the workflow: groups are shared across a repository's workflows, and the planned
+# codeql.yml and sonarqube.yml run on PRs too (plan steps 8 and 9).
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
   cancel-in-progress: true
@@ -44,8 +46,9 @@ jobs:
         with:
           node-version-file: package.json
       - run: npm ci
-      # Next's route types (.next/types, next-env.d.ts) don't exist on a fresh checkout,
-      # and tsc checks route handlers against them only when they do: in a clean worktree a
+      # Next's generated types (.next/types, and next-env.d.ts, which also loads Next's
+      # ambient types) don't exist on a fresh checkout, and tsc checks route handlers
+      # against them only when they do: in a clean worktree a
       # handler with non-Promise params passed `tsc --noEmit` (exit 0) and failed it after
       # `next typegen` (exit 2, TS2344 in .next/types/validator.ts) (IS #285's PR).
       - run: npx next typegen
