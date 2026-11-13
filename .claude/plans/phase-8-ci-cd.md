@@ -535,6 +535,17 @@ before probes, a check in #292's hook); round 3 found gaps in each (a stale loca
 commits made on GitHub, a `vercel.ts`), and the scope replaced them. The owner's call, round 3
 on PR #311. `README.md`, "Preview deploys", has the probes.
 
+### #16 — A green full-set `controls` run stands in for the hand run
+
+`CLAUDE.md`'s "Schema controls" asks for `node scripts/controls.mjs` after a change to
+`supabase/migrations/` or to a test a control names, about 45 s a control. From #288, CI's
+`controls` job runs the same script on the same exclude-list stack for those PRs, and its log
+is a record in the PR. So a `controls` job that ran the full set and passed (its log ends
+"N of N as listed") stands in for the hand run, before #297 makes the check required; the
+controls aren't one of the four gates, whose hand runs stay. A PR whose run took only
+`--check` still gets the hand run if its change needs one. The owner's call, round 3 on PR
+#317.
+
 ---
 
 ## Acceptance Criteria
@@ -656,7 +667,15 @@ on PR #311. `README.md`, "Preview deploys", has the probes.
    start`, with `smoke.mjs` run against the URL from its own `Local:` line once it prints
    `Ready in`, never a fixed port (round 1 on PR #315: a server already on the port
    answered for one that couldn't bind); a 20-minute timeout, as `integration`'s.
-   `controls`' stack stays open (#288).
+   **Settled for `controls` (PR for IS #288):** its own job and its own stack, started
+   with the same `SUPABASE_EXCLUDE` list. Locally, on a stack started with it, five
+   controls (red, `setup-fails` and green, across `schema`, `rls` and `db-trucks`) ran as
+   listed, and their six `db reset`s started no excluded service. A 90-minute timeout.
+   setup-node's npm cache is off in that job: `npm ci` runs only for the full set, and with
+   the cache on, a `--check`-only run saved an empty cache first under the key every job
+   shares, which the other jobs then couldn't replace and `integration` restored; on a hit on
+   that key setup-node saves nothing (its `src/cache-save.ts`), so later runs on the PR would
+   keep it (probe PR #319, round 1 on PR #317).
 4. **How `changedPaths` lists the files (step 3).** The merge commit against its first
    parent (`fetch-depth: 2`), or the PR's files through the API; and whether it is a script
    of its own or a mode of `controls.mjs`. **Settled (PR for IS #287):** `git diff

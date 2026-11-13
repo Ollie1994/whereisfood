@@ -1,6 +1,8 @@
 # The four gates, run by GitHub on every PR into dev or main (Phase 8 plan step 2, IS #285
-# and #286), with a smoke check of the served build. Not required checks until #297's
-# rulesets; until then each PR still runs the four gates by hand (CLAUDE.md, "Testing").
+# and #286), with a smoke check of the served build; and the process log's check and the
+# schema controls' `--check`, with the full controls on a trigger path or a PR into main
+# (step 3, IS #288). Not required checks until #297's rulesets; until then each PR still
+# runs the four gates by hand (CLAUDE.md, "Testing").
 #
 # Hardening (plan #2, Q5): the plain pull-request trigger only, never its target-branch
 # variant; a read-only token; every action pinned to a commit SHA; no path filter on the
@@ -9,7 +11,9 @@
 # The default activity types (opened, synchronize, reopened) don't include a change of the
 # PR's base, so a PR retargeted to dev or main gets no new run until its next push; the
 # results of its last run stay on its head commit, tested against the old base (whether
-# #297's rulesets count them for the new base: not probed; #298 probes it). `edited`
+# #297's rulesets count them for the new base: not probed; #298 probes it). So a PR
+# retargeted from dev to main keeps the `controls` result its dev run left, which may be
+# `--check` only, though every PR into main is meant to run the full set. `edited`
 # would start a run, and would also rerun every job on each edit of the PR's title or
 # body (GitHub's docs: `edited` fires on a change of the title, body or base branch).
 name: ci
@@ -158,3 +162,64 @@ jobs:
             echo "::group::next start's log"; cat next-start.log; echo "::endgroup::"
             exit 1
           fi
+
+  # The schema controls (CLAUDE.md, "Schema controls"): every control file parsed on every
+  # PR, and the full set, about 45 s a control, when scripts/controls-trigger.mjs says so (a
+  # trigger path changed, or the PR is into main). Its own job and stack (open decision 3),
+  # so `integration` keeps its 20-minute limit. With the stack started on SUPABASE_EXCLUDE,
+  # five controls (red, setup-fails and green, across `schema`, `rls` and `db-trucks`) ran
+  # as listed, their six `db reset`s with no excluded service started (IS #288's PR).
+  controls:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      # Depth 2: the merge commit and both its parents, which changedPaths diffs.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      # No npm cache here: `npm ci` runs only for the full set, and with the cache on, a
+      # `--check`-only run saved an empty cache (670 B) under the key every job shares. It
+      # finished first, so `unit`, `typecheck-lint` and `build` failed to save theirs
+      # ("another job may be creating this cache") and `integration` restored the empty one
+      # (probe PR #319, run 43443375088). The full set's install goes uncached.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: package.json
+          package-manager-cache: false
+      - run: node scripts/controls.mjs --check
+      # The script prints `true` or `false`, and exits 1 when it can't tell (the step then
+      # fails: `-e` applies to the assignment). Imported rather than run, it would print
+      # nothing and exit 0, so any other output fails here (PR #316, rounds 1 and 2).
+      - name: Decide whether the full set runs
+        id: trigger
+        run: |
+          full="$(node scripts/controls-trigger.mjs "$GITHUB_BASE_REF")"
+          case "$full" in
+            true | false) echo "full=$full" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::controls-trigger printed '$full', not true or false"; exit 1 ;;
+          esac
+      # The full set's steps. Each carries this `if:`: a step added here without it also runs
+      # on a PR that doesn't take the full set, where there's no stack and no install.
+      - if: steps.trigger.outputs.full == 'true'
+        run: npm ci
+      - if: steps.trigger.outputs.full == 'true'
+        run: npx supabase start -x "$SUPABASE_EXCLUDE"
+      - if: steps.trigger.outputs.full == 'true'
+        run: npx supabase status -o env | node scripts/write-env-local.mjs
+      - if: steps.trigger.outputs.full == 'true'
+        run: node scripts/controls.mjs
+
+  # The process log's own check (CLAUDE.md, "Process Log"): prints nothing and exits 0 on a
+  # good log. Plain bash; no install. Two PRs that each add the next row number both pass
+  # here, but the second to merge conflicts in the log (`process-log.sh add` inserts after
+  # the last row; probed in a clone, IS #288's PR), and the update that resolves it reruns
+  # this job.
+  process-log:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: bash scripts/process-log.sh check
