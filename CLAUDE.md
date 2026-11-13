@@ -337,7 +337,9 @@ output) and re-run (process-log row 275, PR #133).
 **Where an issue's browser checks run** (Phase 7 plan decision #36): in a local browser at
 phone width at `127.0.0.1:3000`, against the local stack. The phone, on `dev`'s preview, is
 for a plan's checkpoint issues: the preview's Redirect URLs admit `dev`'s alias alone, so a
-branch's preview can't finish a login (`README.md`, "Hosted preview database").
+branch's preview can't finish a login (`README.md`, "Hosted preview database"), and no
+branch but `dev` gets the secret key, so its preview build fails (`README.md`, "Preview
+deploys").
 
 ⚠ **Browser checks: confirm which server answered, and that it is gone afterwards.**
 Stopping `npm start` or `npm run dev` from a background task on Windows ends `npm` but

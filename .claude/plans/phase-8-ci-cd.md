@@ -77,7 +77,7 @@ has run the checks with no Vercel build (#5).
 | `.github/workflows/codeql.yml` | CodeQL, `javascript-typescript` and `actions`, on PRs and on push to `dev` and `main`, with `security-events: write`; its code-scanning result check, not the analyze job, is the required one (#14) |
 | `.github/workflows/sonarqube.yml` | SonarQube Cloud, on PRs and on push to `dev` and `main`; skipped by `if:` on Dependabot and fork PRs; installs with `--ignore-scripts`; runs with `sonar.qualitygate.wait=true`, so a failed gate fails the job (#14) |
 | `.github/dependabot.yml` | Version updates for `github-actions`, keeping the SHA pins current, with the default `/` branch-name separator (step 15). npm gets security updates only (repository setting) |
-| `.githooks/pre-commit` | Gitleaks on the staged changes, and a refusal of a staged `vercel.json` holding an `ignoreCommand` (#15); the folder is set by hand through `core.hooksPath` (#7). Committed executable with `git update-index --chmod=+x`: `core.filemode` is `false` on the owner's machine (read 2026-11-12), so a plain add stores `100644` and git elsewhere ignores the hook |
+| `.githooks/pre-commit` | Gitleaks on the staged changes; the folder is set by hand through `core.hooksPath` (#7). Committed executable with `git update-index --chmod=+x`: `core.filemode` is `false` on the owner's machine (read 2026-11-12), so a plain add stores `100644` and git elsewhere ignores the hook |
 | `.gitleaks.toml` (and `.gitleaksignore` if needed) | Gitleaks' config. Each allowlist entry names why it isn't a secret: the local stack's keys and test fixtures (`CLAUDE.md`, "Secrets") |
 | `sonar-project.properties` | SonarQube Cloud's project key, sources and exclusions |
 | `SECURITY.md` | How to report a vulnerability: GitHub's private reporting |
@@ -162,8 +162,7 @@ No function in `src/`. The scripts, each tested in the `unit` project:
   `/api/admin/trucks` → 401 with `{ "error" }`. Any other answer fails the job. Phase 9
   adds its header assertions here.
 - **`.githooks/pre-commit`** runs Gitleaks on the staged changes and exits non-zero on a
-  find; it runs in the owner's Git Bash on Windows. It also exits non-zero when the staged
-  `vercel.json` holds an `ignoreCommand` (#15's limit; round 2 on PR #311).
+  find; it runs in the owner's Git Bash on Windows.
 - **The lint rules' fixture test (#9)** lints one fixture per rule, a string in the test,
   with `ESLint#lintText` and a virtual `filePath` inside the rule's scope (under
   `src/lib/db/` for the filter rules), and expects that rule's message; a sink fixture with
@@ -181,9 +180,8 @@ Strict order where stated. Each step is one issue and one PR into `dev`, with th
 exceptions: step 1 is settings, recorded on its issue, with a PR only for README's
 "Preview deploys"; step 11 is one issue per blocking finding and may be none; probe PRs
 (step 7's `secret-scan` probe, #13, and step 13's) are closed unmerged, and their step's
-issue records them. Every probe branch is named `probe/…`, which Vercel cancels from step 1
-unless a `vercel.json` overrides it, so before one is pushed `git grep -n ignoreCommand
-<branch> -- vercel.json` prints nothing (#15). **Steps 3–10 depend only on steps 1 and 2** and may run in any order or in parallel
+issue records them. Every probe branch is named `probe/…`, which Vercel cancels from step 1,
+and no branch but `dev` gets the secret key (#15). **Steps 3–10 depend only on steps 1 and 2** and may run in any order or in parallel
 (#10); the order below is cheapest first. **Until step 12, every Phase 8 PR still
 runs the four gates by hand** (`CLAUDE.md`, "Testing"), whatever CI shows.
 
@@ -205,7 +203,7 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
    cancels, a `dependabot/` or `probe/` preview cancels, any other preview continues), and
    after, a pushed `probe/ignore-check` and `dependabot/ignore-check` branch, each at a new
    commit, show Vercel's "Canceled" in the commit's statuses (at `dev`'s own commit they got
-   no status, PR #311); README's "Preview deploys" updated. *First because* step 7's probe
+   no new status, PR #311); README's "Preview deploys" updated. *First because* step 7's probe
    is the first branch to carry a deliberate break, and a branch that builds on Vercel
    gets the Preview variables, the secret key among them (`README.md`, "Preview
    deploys").
@@ -296,7 +294,8 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
     "What does not exist yet" says previews have "one exception so far", which step 1's
     `dependabot/` and `probe/` cancels made stale, IS #284); Part 2's items that rely on the
     Ignored Build Step (Dependabot's branches, and Phase 10's "check it is still set") gain
-    the `vercel.json` `ignoreCommand` override (`README.md`, "Preview deploys", PR #311). It
+    the `vercel.json` `ignoreCommand` override and the secret key's `dev` scope (`README.md`,
+    "Preview deploys", PR #311). It
     replaces the three **between phases** markers this plan took up with #1–#3, leaves the
     IS #278 (Phase 9) and (Phase 10) rows' markers as they are, carries forward this plan's
     decisions that outlive the phase (#4, #7, #8, #9, #11, #12, #13, #14, #15 at least),
@@ -502,7 +501,8 @@ behaviour, not probed (no CI exists yet); steps 8, 9 and 13 show it. Round 1 on 
 ### #15 — Vercel cancels probe and Dependabot branches from step 1
 
 A branch pushed to this repo builds on Vercel with the Preview variables, the secret key
-among them (`README.md`, "Preview deploys": Git Fork Protection covers forks only). The probe
+among them until PR #311 scoped it to `dev` (the limit below; `README.md`, "Preview
+deploys": Git Fork Protection covers forks only). The probe
 branches carry deliberate breaks, a vulnerable dependency whose install scripts Vercel's
 install would run among them, so they must never build there, any more than Dependabot's.
 Step 1 extends the Ignored Build Step to cancel `dependabot/*` and `probe/*`, before step 7's
@@ -516,13 +516,16 @@ The "Canceled" is read in the commit's statuses (step 1 found it there, PR #311)
 step 14, which put it after step 7's and step 13's probes (the owner's call, the narrow
 read-through on PR #283).
 
-**A limit, and its guards:** a branch's `vercel.json` `ignoreCommand` overrides the inline
-command (Vercel's docs; found by round 1 on PR #311 and probed there both ways), so one
-holding `exit 1`, on a branch or on `dev`, lets these branches build. Guards: a diff that adds or
-changes `vercel.json` is read for one; `git grep -n ignoreCommand <branch> -- vercel.json`
-prints nothing before a probe is pushed and before Dependabot is switched on (#298, #300);
-and step 7's pre-commit hook refuses one (#292). The owner's call, round 2 on PR #311.
-`README.md`, "Preview deploys", has the probe.
+**A limit, and what holds instead:** a branch's `vercel.json` `ignoreCommand` overrides the
+inline command (Vercel's docs; found by round 1 on PR #311 and probed there both ways), so one
+holding `exit 1`, on a branch or on `dev`, lets these branches build. So the secret key is
+scoped in Vercel to `dev`'s previews alone, a setting no branch's files change: a branch that
+escapes the cancel builds with the three public variables only, and its build fails without
+the key (probed on PR #311). The cancel still keeps a probe's or Dependabot's code from running
+on Vercel at all. Round 2 had added guards on `vercel.json` itself (a diff read, a `git grep`
+before probes, a check in #292's hook); round 3 found gaps in each (a stale local `dev`,
+commits made on GitHub, a `vercel.ts`), and the scope replaced them. The owner's call, round 3
+on PR #311. `README.md`, "Preview deploys", has the probes.
 
 ---
 
@@ -568,8 +571,7 @@ and step 7's pre-commit hook refuses one (#292). The owner's call, round 2 on PR
 
 **Secret scan (step 7)**
 - [ ] `git ls-files -s .githooks/pre-commit` shows mode `100755`.
-- [ ] In the owner's Git Bash, the hook refuses a commit holding a fake key, and one staging a
-  `vercel.json` with an `ignoreCommand`; `secret-scan`
+- [ ] In the owner's Git Bash, the hook refuses a commit holding a fake key; `secret-scan`
   goes red on a throwaway probe PR, closed unmerged, whose fake key was committed with no
   local hook, as #13 says, and push protection wasn't bypassed.
 - [ ] The full-history scan's result is recorded (its count, and how each find was settled);
