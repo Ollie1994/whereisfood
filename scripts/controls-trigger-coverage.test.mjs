@@ -17,8 +17,9 @@
 // Every file reached must be covered by TRIGGERS.
 //
 // What it can't see: a computed import (`import(name)`); a module vitest loads through
-// `vi.mock("…")` or `vi.importActual("…")`, which `preProcessFile` doesn't return (no
-// integration file calls either today: grep, IS #287's PR); a file a test reads rather
+// `vi.mock`, `vi.doMock`, `vi.importActual` or `vi.importMock`, whose specifiers
+// `preProcessFile` doesn't return (probed for `vi.mock` and `vi.importActual`; no
+// integration file calls any of the four today: grep, IS #287's PR); a file a test reads rather
 // than imports (`readFileSync`), such as the migrations; and anything a control's SQL
 // depends on beyond the schema.
 
@@ -89,7 +90,9 @@ function resolveImport(specifier, fromFile) {
   const rel = relative(ROOT, file);
   // Outside the repository no TRIGGERS entry or package file stands for it. On Windows,
   // `relative` across drives returns an absolute path, not one starting with `..`.
-  if (isAbsolute(rel) || rel.startsWith("..")) throw new Error(`${relative(ROOT, fromFile)}: "${specifier}" leads outside the repository (${file})`);
+  // `..` as a whole segment: a root-level `..probe.ts` is a file in the repository, and a
+  // `startsWith("..")` test threw "leads outside" for it (round 2 on PR #316).
+  if (isAbsolute(rel) || rel === ".." || rel.startsWith(`..${sep}`)) throw new Error(`${relative(ROOT, fromFile)}: "${specifier}" leads outside the repository (${file})`);
   if (rel.split(sep).includes("node_modules")) return { file: null, kind: "package" };
   return { file, kind: key !== undefined ? "alias" : "relative" };
 }

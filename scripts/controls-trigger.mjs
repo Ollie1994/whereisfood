@@ -26,7 +26,10 @@ import { resolve } from "node:path";
 // - The controls and their runner, this script, the workflow that runs them, and
 //   `write-env-local.mjs`, which writes the `.env.local` their tests read: a PR that
 //   changes how the full set runs also runs it (the workflow and this script: the owner's
-//   call, round 3 on PR #283; `write-env-local.mjs`: round 1 on PR #316).
+//   call, round 3 on PR #283; `write-env-local.mjs`: round 1 on PR #316). `.env.example`
+//   isn't one: that script reads only `NEXT_PUBLIC_PMTILES_URL` from it, which no file
+//   the named tests reach reads (grep, round 2 on PR #316), and a value it refuses fails
+//   `integration` and `build` on the same PR.
 // - The schema, the seed and the local stack's config.
 // - The tests the controls' `-- run:` lines name, their setup file, and every file those
 //   reach (the guard's list).
@@ -71,7 +74,8 @@ export function needsFullControls(paths, baseRef) {
 function git(args, cwd) {
   const result = spawnSync("git", args, { cwd, encoding: "utf8" });
   // `error` is set when git couldn't start, and also when its output passed `maxBuffer`
-  // (ENOBUFS), so the message names neither.
+  // (ENOBUFS), so the message names neither. A limit: `maxBuffer` is Node's default, 1 MiB,
+  // so a PR whose path list is longer fails closed here (exit 1) rather than answering.
   if (result.error) throw new Error(`git ${args[0]} didn't complete: ${result.error.message}`);
   return result;
 }

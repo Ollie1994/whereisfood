@@ -143,8 +143,9 @@ No function in `src/`. The scripts, each tested in the `unit` project:
   `tests/integration/helpers.ts`, `tests/integration/setup.ts`, `supabase/seed.sql`,
   `supabase/config.toml`, `vitest.config.ts`, `src/lib/db/`, `src/lib/supabase.ts`,
   `package.json` and `package-lock.json`, `.github/workflows/ci.yml`, the trigger script
-  itself and `scripts/write-env-local.mjs`, and every file those tests import (the scope draft's list, completed by the guard
-  below). The two package files stand for the bare package imports the guard doesn't
+  itself, `scripts/write-env-local.mjs`, and every file the named tests import (the scope
+  draft's list, completed by the guard below; the guard follows the named tests' imports
+  only, not those three files'). The two package files stand for the bare package imports the guard doesn't
   follow: a bump of `@supabase/supabase-js`, which the named tests import, or of the
   `supabase` CLI, which sets the local stack, changes what the controls exercise. Accepted
   cost: every dependency PR runs the full controls (~45 s a control) (the owner's call,
