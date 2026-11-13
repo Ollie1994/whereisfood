@@ -40,7 +40,10 @@ has run the checks with no Vercel build (#5).
   the secret-scanning, Dependabot-alerts and vulnerability-alerts APIs
   (`project-context.md`, "Pre-deploy automation (planned)", probed 2026-10-24), so a
   setting it can't read is read in the GitHub UI by the owner and recorded in the PR or
-  issue.
+  issue. Pushing a file under `.github/workflows/` needs the token's **Workflows**
+  permission: without it GitHub refused #285's first push ("refusing to allow a Personal
+  Access Token to create or update workflow … without `workflow` scope"); the owner gave
+  the token Workflows read and write on 2026-11-13.
 
 ---
 
@@ -627,13 +630,22 @@ on PR #311. `README.md`, "Preview deploys", has the probes.
    checksum checked. Also the hook's and the CI scan's exact flags, #13's fake value, and
    how the owner installs it on Windows (winget, scoop or the binary).
 2. **Node in CI (step 2).** Whether `actions/setup-node` reads the version from
-   `package.json`, or the workflow names `26.x`; the job log shows which.
+   `package.json`, or the workflow names `26.x`; the job log shows which. **Settled
+   (PR #312):** `node-version-file: package.json`, which setup-node v7.1.0 reads from
+   `devEngines.runtime` (its docs, "Node version file"), so `devEngines` stays the one
+   place; the log showed "Resolved package.json as 26.x", Node v26.13.1, npm 11.20.0.
 3. **The local Supabase in CI (step 2).** Which services `supabase start` can leave out while
    Auth stays up for the admin tests; whether `build` starts its own stack for `smoke.mjs`
    (`/api/live` reads the database) or the smoke step runs in `integration`; whether the
    `controls` job starts its own stack for the full set or that set runs in `integration`
    (step 3); how each such job writes `.env.local` (step 2); npm and Docker image caching,
-   job timeouts, `concurrency`.
+   job timeouts, `concurrency`. **Settled for `integration` (PR #312):** the stack starts
+   with db, auth, kong, rest and inbucket (Mailpit) only, the rest excluded, which gave the
+   full stack's counts locally and in CI; `.env.local` from `npx supabase status -o env`
+   through a step that fails on a missing value; no npm cache (`ci.yml` runs only on PRs, so
+   no cache is ever saved on `dev` for a PR to restore); no Docker image cache (the start
+   took about 2 minutes in CI); timeouts 10, 10 and 20 minutes; `concurrency` per PR with
+   cancel-in-progress. `build`'s and `controls`' stacks stay open (#286, #288).
 4. **How `changedPaths` lists the files (step 3).** The merge commit against its first
    parent (`fetch-depth: 2`), or the PR's files through the API; and whether it is a script
    of its own or a mode of `controls.mjs`.
