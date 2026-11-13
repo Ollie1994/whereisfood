@@ -84,8 +84,8 @@ has run the checks with no Vercel build (#5).
 | `.gitleaks.toml` (and `.gitleaksignore` if needed) | Gitleaks' config. Each allowlist entry names why it isn't a secret: the local stack's keys and test fixtures (`CLAUDE.md`, "Secrets") |
 | `sonar-project.properties` | SonarQube Cloud's project key, sources and exclusions |
 | `SECURITY.md` | How to report a vulnerability: GitHub's private reporting |
-| `scripts/controls-trigger.mjs` (+ test), or a mode of `controls.mjs` (open decision 4) | `changedPaths` and `needsFullControls` |
-| `scripts/controls-trigger-coverage.test.mjs` (name open) | The guard test on the trigger list (#8) |
+| `scripts/controls-trigger.mjs` (+ test) | `TRIGGERS`, `changedPaths` and `needsFullControls`, its own script (open decision 4) |
+| `scripts/controls-trigger-coverage.test.mjs` | The guard test on the trigger list (#8) |
 | `scripts/smoke.mjs` (+ test of its expectations if it has pure parts) | The served-app check the `build` job runs |
 | `scripts/write-env-local.mjs` (+ test) | `.env.local` from `npx supabase status -o env`, for every CI job that starts the local stack (IS #286; open decision 3) |
 | The lint rules' fixture test (path open) | One fixture per new rule, inline in the test, linted through ESLint's API (#9) |
@@ -131,8 +131,8 @@ No function in `src/`. The scripts, each tested in the `unit` project:
 - **`changedPaths()`** lists the PR's changed files from the checkout. A default
   `actions/checkout` fetches depth 1, without the base, and a three-dot diff on a shallow
   clone finds no merge base, so it diffs the PR's merge commit against its first parent
-  (`HEAD^1`, with `fetch-depth: 2`) or reads the PR's files through the API (open decision
-  4). It **throws** when it can't tell: `HEAD^1` missing, or `git` (or the API) failing.
+  (`HEAD^1`, with `fetch-depth: 2`; open decision 4). It **throws** when it can't tell:
+  `HEAD^1` or `HEAD^2` missing (no merge commit), or `git` failing.
   An empty list from a diff that succeeded is a PR with no net change (a revert of a
   revert) and means nothing changed. This narrows the scope draft's "an empty list must
   not read as 'nothing changed'", written against a missing base, which the `HEAD^1` check
@@ -655,7 +655,13 @@ on PR #311. `README.md`, "Preview deploys", has the probes.
    `controls`' stack stays open (#288).
 4. **How `changedPaths` lists the files (step 3).** The merge commit against its first
    parent (`fetch-depth: 2`), or the PR's files through the API; and whether it is a script
-   of its own or a mode of `controls.mjs`.
+   of its own or a mode of `controls.mjs`. **Settled (PR for IS #287):** `git diff
+   --name-only --no-renames -z HEAD^1 HEAD` on the merge commit, which needs no token or
+   network; in local clones of `dev` at depth 1 the script exited 1 with `HEAD^1` missing,
+   and at depth 2 it listed PR #315's files. Its own script, `scripts/controls-trigger.mjs`:
+   `controls.mjs` parses its arguments and exits at import, so a test couldn't import a
+   mode of it. #288 calls `node scripts/controls-trigger.mjs "$GITHUB_BASE_REF"`, which
+   prints `true` or `false` and exits 1 when it can't tell.
 5. **SonarQube Cloud (step 9).** Its free tier for public repositories, confirmed; the
    exclusions; the custom gate's exact condition names. **The gate is settled** (the owner's
    calls, rounds 2 and 3 on PR #283): a custom gate on new code with no new vulnerabilities
