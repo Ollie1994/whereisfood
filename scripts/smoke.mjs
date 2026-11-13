@@ -69,9 +69,8 @@ export function checkResponse(expectation, response) {
   return problems;
 }
 
-// Each request's limit. Without one, a request the server accepts and never answers would
-// wait for undici's own timeouts, and the CI job's limit could end the step before it
-// prints the server's log.
+// Each request's limit, so a request the server accepts and never answers fails its path
+// here, and CI's step goes on to print the server's log within the job's own limit.
 const REQUEST_TIMEOUT_MS = 30_000;
 
 async function read(baseUrl, path) {
