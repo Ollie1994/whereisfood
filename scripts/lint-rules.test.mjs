@@ -12,10 +12,14 @@ import { beforeAll, describe, expect, it } from "vitest";
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const RULES = new Set(["react/no-danger", "no-restricted-properties", "no-restricted-syntax"]);
 
+// The config (eslint-config-next, its parsers and plugins) loads on the first lint, which
+// took about 2.3 s on its own here (round 1 on PR #320), so it loads in this hook, under
+// its own limit, rather than inside the first test's 5 s.
 let eslint;
-beforeAll(() => {
+beforeAll(async () => {
   eslint = new ESLint({ cwd: ROOT });
-});
+  await eslint.lintText("", { filePath: "src/lib/db/probe.ts" });
+}, 60_000);
 
 // The messages of the three rules for `code` at `filePath`. A parse error fails the test
 // instead of reading as "no message".
@@ -28,7 +32,7 @@ async function lint(code, filePath) {
 
 const DECLARE = "declare const el: HTMLElement; declare const s: string; declare const popup: { setHTML(h: string): void };\n";
 const DB_DECLARE =
-  "declare const q: { or(f: string): unknown; rpc(n: string, a?: object): unknown }; declare const id: number; declare const rows: number[];\n";
+  "declare const q: { or(f: string): unknown; rpc(n: string, a?: object): unknown; from(t: string): { or(f: string): unknown } }; declare const id: number; declare const rows: number[];\n";
 
 describe("the HTML sinks, anywhere", () => {
   it.each([
@@ -43,8 +47,17 @@ describe("the HTML sinks, anywhere", () => {
     expect(messages[0]).toContain(expected);
   });
 
-  it("dangerouslySetInnerHTML draws react/no-danger", async () => {
-    const code = `${DECLARE}export function P() { return <div dangerouslySetInnerHTML={{ __html: s }} />; }\n`;
+  it("a sink in a .cjs file draws its message", async () => {
+    const messages = await lint("el.innerHTML = s;\n", "src/components/probe.cjs");
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toMatch(/^no-restricted-properties: .*innerHTML parses HTML/);
+  });
+
+  it.each([
+    ["on a DOM element", "<div dangerouslySetInnerHTML={{ __html: s }} />"],
+    ["on a component", "<Foo dangerouslySetInnerHTML={{ __html: s }} />"],
+  ])("dangerouslySetInnerHTML %s draws react/no-danger", async (_name, jsx) => {
+    const code = `${DECLARE}declare const Foo: (p: object) => null;\nexport function P() { return ${jsx}; }\n`;
     const messages = await lint(code, "src/components/Probe.tsx");
     expect(messages).toHaveLength(1);
     expect(messages[0]).toMatch(/^react\/no-danger: /);
@@ -59,12 +72,21 @@ describe("the HTML sinks, anywhere", () => {
 });
 
 describe("the supabase-js filters, in src/lib/db/", () => {
+  const OR = "A string built into .or()";
+  const RPC = "A string built into .rpc()";
+  const FILTER = "No .filter in src/lib/db/";
   it.each([
-    ["a template into .or()", "q.or(`id.eq.${id}`);", "A string built into .or()"],
-    ["a + into .or()", 'q.or("id.eq." + id);', "A string built into .or()"],
-    ["a template into .rpc()", "q.rpc(`fn_${id}`);", "A string built into .rpc()"],
-    ["a + into .rpc()", 'q.rpc("fn_" + id);', "A string built into .rpc()"],
-    ["any .filter", "rows.filter(Boolean);", "No .filter in src/lib/db/"],
+    ["a template into .or()", "q.or(`id.eq.${id}`);", OR],
+    ["a + into .or()", 'q.or("id.eq." + id);', OR],
+    ["a template inside .or()'s argument, under .trim()", "q.or(`id.eq.${id}`.trim());", OR],
+    ["a template inside .or()'s argument, in a ternary", 'q.or(id ? `id.eq.${id}` : "x");', OR],
+    ["a template inside .or()'s argument, in an array joined", 'q.or(["a", `b${id}`].join(","));', OR],
+    ["a template into .rpc()", "q.rpc(`fn_${id}`);", RPC],
+    ["a + into .rpc()", 'q.rpc("fn_" + id);', RPC],
+    ["a template inside .rpc()'s first argument", "q.rpc(`fn_${id}`.trim());", RPC],
+    ["any .filter", "rows.filter(Boolean);", FILTER],
+    ["a computed .filter", 'rows["filter"](Boolean);', FILTER],
+    ["a destructured .filter", "const { filter } = rows; void filter;", FILTER],
   ])("%s draws its message", async (_name, code, expected) => {
     const messages = await lint(`${DB_DECLARE}${code}\n`, "src/lib/db/probe.ts");
     expect(messages).toHaveLength(1);
@@ -73,7 +95,10 @@ describe("the supabase-js filters, in src/lib/db/", () => {
 
   it.each([
     ["a literal .or()", 'q.or("id.eq.1");'],
+    ["a template with no expression into .or()", "q.or(`id.eq.1`);"],
+    ["a literal .or() on a callee built from a template", 'q.from(`t_${id}`).or("id.eq.1");'],
     ["a literal .rpc() with an argument object", 'q.rpc("fn", { id });'],
+    ["a literal .rpc() whose argument object holds a template", 'q.rpc("fn", { name: `n_${id}` });'],
   ])("%s draws none", async (_name, code) => {
     expect(await lint(`${DB_DECLARE}${code}\n`, "src/lib/db/probe.ts")).toEqual([]);
   });

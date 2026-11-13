@@ -174,7 +174,7 @@ No function in `src/`. The scripts, each tested in the `unit` project:
 - **The lint rules' fixture test (#9)** lints one fixture per rule, a string in the test,
   with `ESLint#lintText` and a virtual `filePath` inside the rule's scope (under
   `src/lib/db/` for the filter rules), and expects that rule's message; a sink fixture with
-  a `src/lib/db/` path shows that entry kept the sink selectors. A fixture file
+  a `src/lib/db/` path shows the sinks still apply there. A fixture file
   would have to sit in `src/lib/db/` to meet the db-scoped rules, where `npm run lint`
   lints it and fails; a string with a virtual `filePath` meets the rules and isn't on disk.
   Probed 2026-11-12: `lintText` with `filePath: "src/lib/db/probe.ts"` ran the project's
