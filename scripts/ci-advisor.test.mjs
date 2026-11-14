@@ -11,15 +11,19 @@ import { describe, expect, it } from "vitest";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
-// One table of config.toml: from its header to the next table header of any kind
-// ([db.pooler] included), as complete.test.ts reads [api].
+// One table of config.toml: the lines after its `[name]` header, up to the next line that
+// starts a table of any kind ([db.pooler] included) or the end of the file. The header is
+// found by comparing names, with no RegExp built from one (CodeQL alert #4,
+// js/incomplete-sanitization, IS #328); it may be indented or carry a `#` comment.
+const HEADER = /^\s*\[([^\]]+)\]\s*(?:#.*)?$/;
+const TABLE_START = /^\s*\[/;
 function table(config, name) {
-  // ECMAScript's SyntaxCharacter set, ^$\.*+?()[]{}|, backslash included: the old class
-  // escaped only . [ ] (CodeQL alert #4, js/incomplete-sanitization, IS #328).
-  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = new RegExp(`^\\[${escaped}\\]\\s*$([\\s\\S]*?)(?=^\\[)`, "m").exec(config);
-  expect(match, `config.toml has no [${name}] table`).not.toBeNull();
-  return match[1];
+  const lines = config.split(/\r?\n/);
+  const start = lines.findIndex((line) => HEADER.exec(line)?.[1].trim() === name);
+  expect(start, `config.toml has no [${name}] table`).not.toBe(-1);
+  const rest = lines.slice(start + 1);
+  const end = rest.findIndex((line) => TABLE_START.test(line));
+  return (end === -1 ? rest : rest.slice(0, end)).join("\n");
 }
 
 // The step's `run` as YAML gives it to the shell (js-yaml, so a folded `>-` block is
@@ -58,6 +62,38 @@ function settings(options) {
   }
   return found;
 }
+
+describe("table()", () => {
+  const CONFIG = [
+    "[db]",
+    "port = 1",
+    "[db.pooler]",
+    "port = 2",
+    "  [api] # PostgREST",
+    "port = 3",
+    "[ spaced ]",
+    "port = 6",
+    "[a|b]",
+    "port = 4",
+    "[ab]",
+    "port = 5",
+  ].join("\n");
+
+  it("stops at the next table, a dotted one included", () => {
+    expect(table(CONFIG, "db")).toBe("port = 1");
+    expect(table(CONFIG, "db.pooler")).toBe("port = 2");
+  });
+
+  it("finds an indented header with a comment, and one with spaces inside its brackets", () => {
+    expect(table(CONFIG, "api")).toBe("port = 3");
+    expect(table(CONFIG, "spaced")).toBe("port = 6");
+  });
+
+  it("matches a name with RegExp syntax characters literally, to the end of the file", () => {
+    expect(table(CONFIG, "a|b")).toBe("port = 4");
+    expect(table(CONFIG, "ab")).toBe("port = 5");
+  });
+});
 
 describe("ci.yml's security advisor URL", () => {
   it("uses config.toml's [db] port", () => {
