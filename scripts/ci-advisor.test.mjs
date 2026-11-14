@@ -4,8 +4,9 @@
 // LegacyDbConnectError, exit 1 (round 2 on PR #322). A schema list that drifts doesn't:
 // the advisor's API-facing lints then skip the schema left out, and the step stays green.
 // This test turns either drift red. It checks that copy only, not the step's other flags
-// (`--fail-on warn`, `--type security`) or its `if:`.
+// (`--type security`, `--level info`, `--fail-on warn`) or its `if:`.
 import { readFileSync } from "node:fs";
+import yaml from "js-yaml";
 import { describe, expect, it } from "vitest";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -19,23 +20,41 @@ function table(config, name) {
   return match[1];
 }
 
-// The --db-url in the "Security advisor" step's own lines: from its `- name:` line to the
-// next line indented no deeper (the next step or job), comment lines skipped. So another
-// job's --db-url, a comment quoting the flag, or the step's `run:` on one line don't
-// change what's read.
+// The step's `run` as YAML gives it to the shell (js-yaml, so a folded `>-` block is
+// joined and a `#` line inside it is part of the command, as it is for the runner). The
+// URL must be its one double-quoted word, with no `#` outside it, which the shell would
+// read as a comment, and no other --db-url.
 function advisorUrl() {
-  const lines = read(".github/workflows/ci.yml").split(/\r?\n/);
-  const starts = lines.flatMap((line, i) => (/^\s*- name: Security advisor\s*$/.test(line) ? [i] : []));
-  expect(starts, 'ci.yml should hold exactly one "Security advisor" step').toHaveLength(1);
-  const indent = lines[starts[0]].search(/\S/);
-  const step = [];
-  for (const line of lines.slice(starts[0] + 1)) {
-    if (line.trim() !== "" && line.search(/\S/) <= indent) break;
-    if (!line.trim().startsWith("#")) step.push(line);
+  const workflow = yaml.load(read(".github/workflows/ci.yml"));
+  const steps = Object.values(workflow.jobs)
+    .flatMap((job) => job.steps ?? [])
+    .filter((step) => step.name === "Security advisor");
+  expect(steps, 'ci.yml should hold exactly one "Security advisor" step').toHaveLength(1);
+  const run = steps[0].run;
+  const match = /^([^"#]*)--db-url "([^"]*)"([^"#]*)$/.exec(run);
+  expect(match, `the step's run should pass one quoted --db-url, no #: ${run}`).not.toBeNull();
+  expect(match[1] + match[3]).not.toContain("--db-url");
+  return new URL(match[2]);
+}
+
+// The settings in libpq's `options`, split as the server splits them: on whitespace, each
+// `-c name=value`, `-cname=value` or `--name=value`, a dash in a name read as an
+// underscore; a setting given twice takes the last value; `\ ` keeps a space inside a
+// value, so `-c application_name=x\ -c\ pgrst.db_schemas=g` set no pgrst.db_schemas
+// (each probed with PGOPTIONS and `show` on the local database, round 4 on PR #322).
+// A backslash or any other word fails the test rather than being guessed at.
+function settings(options) {
+  expect(options, "options should hold no backslash").not.toMatch(/\\/);
+  const words = options.split(/\s+/).filter(Boolean);
+  const found = [];
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i];
+    const setting = word === "-c" ? words[++i] : word.startsWith("-c") ? word.slice(2) : word.startsWith("--") ? word.slice(2) : undefined;
+    const pair = /^([^=]+)=(.*)$/.exec(setting ?? "");
+    expect(pair, `options: can't read "${word}" as a setting`).not.toBeNull();
+    found.push([pair[1].replaceAll("-", "_"), pair[2]]);
   }
-  const urls = [...step.join("\n").matchAll(/--db-url "([^"]*)"/g)];
-  expect(urls, "the step should hold exactly one --db-url").toHaveLength(1);
-  return new URL(urls[0][1]);
+  return found;
 }
 
 describe("ci.yml's security advisor URL", () => {
@@ -51,10 +70,9 @@ describe("ci.yml's security advisor URL", () => {
     const schemas = [...line[1].matchAll(/"([^"]*)"/g)].map((m) => m[1]);
     expect(schemas.length).toBeGreaterThan(0);
 
-    const options = advisorUrl().searchParams.get("options");
-    // Other `-c` settings may sit beside it.
-    const setting = /(?:^|\s)-c pgrst\.db_schemas=(\S+)/.exec(options ?? "");
-    expect(setting, `options should set "-c pgrst.db_schemas=…", got ${options}`).not.toBeNull();
-    expect(setting[1].split(",")).toEqual(schemas);
+    // Other settings may sit beside it; it must be set exactly once.
+    const set = settings(advisorUrl().searchParams.get("options") ?? "").filter(([name]) => name === "pgrst.db_schemas");
+    expect(set, "options should set pgrst.db_schemas exactly once").toHaveLength(1);
+    expect(set[0][1].split(",")).toEqual(schemas);
   });
 });
