@@ -466,8 +466,8 @@ production deploy. No PR goes into `main` before Phase 10, so Phase 8 loses noth
 
 Three runs. `npm audit --omit=dev --audit-level=high` fails on high and critical in
 production dependencies; a full `npm audit --audit-level=critical` fails on critical anywhere
-(Q35). A third, `npm audit --omit=dev` at any level, is made never to fail: `npm audit`
-exits 1 whenever it lists anything at or above its level (a plain `npm audit` exited 1 on
+(Q35). A third, `npm audit --omit=dev` at any level, is made to fail only when it couldn't run:
+`npm audit` exits 1 whenever it lists anything at or above its level (a plain `npm audit` exited 1 on
 2026-11-12), so the step ignores its own exit code and, when the JSON report counts any
 vulnerability, emits a `::warning::` annotation, which shows in the PR's checks summary, not
 only a log. When the report has no count (an audit error, such as the registry unreachable),
