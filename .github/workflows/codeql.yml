@@ -1,10 +1,10 @@
 # CodeQL on every PR into dev or main and every push to them (Phase 8 plan step 8, IS #294).
 # Plan #2 counts on it to scan Dependabot and fork PRs too, which sonarqube.yml skips. No
-# such PR has run it yet; GitHub documents their tokens as read-only, so whether their
-# results upload and `CodeQL` posts is unseen (#300's Dependabot PR is the first chance). The push runs give a PR its base analysis to compare with; `main` has
-# none before Phase 10 (plan #11). The same pull-request trigger as ci.yml, so a PR
-# retargeted to dev or main gets no new run and keeps a result judged against its old base
-# (ci.yml's header).
+# such PR has run it yet, so whether their results upload and `CodeQL` posts is unseen
+# (#300's Dependabot PR is the first chance). The push runs give a PR its base analysis to
+# compare with; `main` has none before Phase 10 (plan #11). The same pull-request trigger as
+# ci.yml, so a PR retargeted to dev or main gets no new run until its next push (ci.yml's
+# header).
 #
 # The analyze jobs finish green when they find something: a PR's verdict is the separate
 # code-scanning result check GitHub posts from the uploaded results, named `CodeQL` (app
@@ -12,8 +12,8 @@
 # it went red on `eval` of query input (critical), and on a
 # `${{ github.event.pull_request.title }}` run line under `pull_request_target` only once
 # that job had `contents: write`: with `contents: read` the default queries passed it. It
-# first read success while only one analysis had uploaded, so which checks #297 requires,
-# `CodeQL` alone or with both analyze jobs, is #297's (plan #14's step 8 note).
+# first read success while only one analysis had uploaded, so whether #297 also requires
+# both analyze jobs is open (plan #14's step 8 note).
 #
 # Hardening as in ci.yml (plan #2, Q5): the plain pull-request trigger, never its
 # target-branch variant; every action pinned to a commit SHA; the workflow's token read-only,
@@ -32,11 +32,9 @@ on:
 permissions:
   contents: read
 
-# A new push to a PR cancels that PR's run still in progress. A push run's group is its
-# commit, so pushes of different commits never share one. The same commit pushed to both dev
-# and main (a fast-forward) does: with cancel-in-progress off there, the second run waits for
-# the first instead of cancelling it, so each branch keeps its analysis (not yet seen: no
-# push run before this file's merge).
+# A new push to a PR cancels that PR's run still in progress. A push run is never cancelled
+# in progress, and its group is its commit, so pushes of different commits don't queue
+# behind each other (no push run before this file's merge, so not yet seen).
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
