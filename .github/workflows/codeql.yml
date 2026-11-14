@@ -32,9 +32,9 @@ on:
 permissions:
   contents: read
 
-# A new push to a PR cancels that PR's run still in progress. A push run is never cancelled
-# in progress, and its group is its commit, so pushes of different commits don't queue
-# behind each other (no push run before this file's merge, so not yet seen).
+# A new push to a PR cancels that PR's run still in progress. For a push, cancel-in-progress
+# is off and the group is its commit, so pushes of different commits don't queue behind or
+# cancel each other (no push run before this file's merge, so not yet seen).
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
