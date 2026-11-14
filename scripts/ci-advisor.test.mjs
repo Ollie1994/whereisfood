@@ -12,14 +12,16 @@ import { describe, expect, it } from "vitest";
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
 // One table of config.toml: the lines after its `[name]` header, up to the next line that
-// starts a table of any kind ([db.pooler] included) or the end of the file. The header is
-// found by comparing names, with no RegExp built from one (CodeQL alert #4,
-// js/incomplete-sanitization, IS #328); it may be indented or carry a `#` comment.
-const HEADER = /^\s*\[([^\]]+)\]\s*(?:#.*)?$/;
-const TABLE_START = /^\s*\[/;
+// starts with `[` (a table of any kind, [db.pooler] and [[x]] included) or the end of the
+// file. The header is the form complete.test.ts reads [api] in: `[name]` in column 0 with
+// nothing after it but spaces; an indented, commented or quoted header isn't found, and
+// the test fails with "has no [name] table". It is found by comparing names, with no
+// RegExp built from one (CodeQL alert #4, js/incomplete-sanitization, IS #328).
+const HEADER = /^\[([^\]]+)\]\s*$/;
+const TABLE_START = /^\[/;
 function table(config, name) {
   const lines = config.split(/\r?\n/);
-  const start = lines.findIndex((line) => HEADER.exec(line)?.[1].trim() === name);
+  const start = lines.findIndex((line) => HEADER.exec(line)?.[1] === name);
   expect(start, `config.toml has no [${name}] table`).not.toBe(-1);
   const rest = lines.slice(start + 1);
   const end = rest.findIndex((line) => TABLE_START.test(line));
@@ -69,29 +71,38 @@ describe("table()", () => {
     "port = 1",
     "[db.pooler]",
     "port = 2",
-    "  [api] # PostgREST",
+    "[api]",
+    "nested = [",
+    '  ["x"],',
+    "]",
     "port = 3",
-    "[ spaced ]",
-    "port = 6",
-    "[a|b]",
+    "[aXb]",
     "port = 4",
-    "[ab]",
+    "[[arr]]",
     "port = 5",
+    "  [late]",
+    "[last]",
+    "port = 6",
   ].join("\n");
 
-  it("stops at the next table, a dotted one included", () => {
+  it("stops at the next table, a dotted or array one included", () => {
     expect(table(CONFIG, "db")).toBe("port = 1");
     expect(table(CONFIG, "db.pooler")).toBe("port = 2");
+    expect(table(CONFIG, "aXb")).toBe("port = 4");
   });
 
-  it("finds an indented header with a comment, and one with spaces inside its brackets", () => {
-    expect(table(CONFIG, "api")).toBe("port = 3");
-    expect(table(CONFIG, "spaced")).toBe("port = 6");
+  it("doesn't stop at an indented line that starts with [", () => {
+    expect(table(CONFIG, "api")).toBe('nested = [\n  ["x"],\n]\nport = 3');
   });
 
-  it("matches a name with RegExp syntax characters literally, to the end of the file", () => {
-    expect(table(CONFIG, "a|b")).toBe("port = 4");
-    expect(table(CONFIG, "ab")).toBe("port = 5");
+  it("reads the last table to the end of the file", () => {
+    expect(table(CONFIG, "last")).toBe("port = 6");
+  });
+
+  it("finds only an exact `[name]` header in column 0", () => {
+    for (const name of ["a.b", "db.pool", "pooler", "arr", "[arr", "late"]) {
+      expect(() => table(CONFIG, name), name).toThrow(`config.toml has no [${name}] table`);
+    }
   });
 });
 
