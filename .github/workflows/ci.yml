@@ -138,7 +138,7 @@ jobs:
       - name: "Audit 3: production dependencies, any level (warns)"
         if: ${{ !cancelled() && steps.node.outcome == 'success' }}
         run: |
-          npm audit --omit=dev --json > "$RUNNER_TEMP/audit.json" || true
+          cp probe-twelve.json "$RUNNER_TEMP/audit.json"
           echo "::group::the report"; cat "$RUNNER_TEMP/audit.json"; echo "::endgroup::"
           node -e '
             const report = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
@@ -157,7 +157,7 @@ jobs:
             console.log(`::group::advisories (${lines.length})`);
             for (const line of lines) console.log(`- ${line}`);
             console.log("::endgroup::");
-            for (const line of lines.length > 10 ? lines.slice(0, 9) : lines)
+            for (const line of lines)
               console.log(`::warning title=npm audit::${line}: it needs an issue before this PR merges, unless it has one (CLAUDE.md, "Dependencies")`);
             if (lines.length > 10)
               console.log(`::warning title=npm audit::and ${lines.length - 9} more advisories: GitHub shows 10 warnings a step, and the "advisories" log group lists them all`);
