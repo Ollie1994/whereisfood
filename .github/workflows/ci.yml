@@ -66,18 +66,21 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: package.json
-      - run: npm ci
+      - id: install
+        run: npm ci
       # Next's generated types (.next/types, and next-env.d.ts, which also loads Next's
       # ambient types) don't exist on a fresh checkout, and tsc checks route handlers
       # against them only when they do: in a clean worktree a
       # handler with non-Promise params passed `tsc --noEmit` (exit 0) and failed it after
       # `next typegen` (exit 2, TS2344 in .next/types/validator.ts) (IS #285's PR).
-      - id: typegen
-        run: npx next typegen
+      - run: npx next typegen
       - run: npx tsc --noEmit
-      # Lint also runs after a failed tsc, so a type error doesn't hide a lint error until
-      # the next push: it runs whenever `npm ci` and typegen succeeded, as before (IS #324).
-      - if: ${{ !cancelled() && steps.typegen.outcome == 'success' }}
+      # Lint runs after a failed typegen or tsc too, once `npm ci` succeeded, unless the run
+      # was cancelled: on probe PR #333, tsc and lint were both red in one run (IS #324).
+      # It needs no typegen output: with .next/ and next-env.d.ts moved aside, as on a fresh
+      # checkout, `npm run lint` exited 0 (PR #334's round 1). A step added to this job after tsc needs this `if:` too, or a red
+      # tsc skips it.
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run lint
 
   unit:
