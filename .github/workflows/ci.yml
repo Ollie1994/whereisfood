@@ -130,7 +130,9 @@ jobs:
       # schemas copy config.toml's [db] port and [api] schemas, which
       # scripts/ci-advisor.test.mjs checks. Not seen: a CLI bump that changes how the lints
       # read their schemas would leave this step green and blind again; only probe PRs #321
-      # and #323, on CLI 2.109.1, showed it can fail.
+      # and #323, on CLI 2.109.1, showed it can fail (a standing self-test: #325). No step
+      # timeout: it took 1 s on run 43563442098, and a hung connection waits for the
+      # job's 20 minutes.
       - name: Security advisor
         if: ${{ !cancelled() && steps.stack.outcome == 'success' }}
         run: >-

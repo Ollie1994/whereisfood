@@ -19,11 +19,22 @@ function table(config, name) {
   return match[1];
 }
 
-// The flag at the start of a YAML line, so a comment quoting it (`# … --db-url "…"`)
-// isn't counted.
+// The --db-url in the "Security advisor" step's own lines: from its `- name:` line to the
+// next line indented no deeper (the next step or job), comment lines skipped. So another
+// job's --db-url, a comment quoting the flag, or the step's `run:` on one line don't
+// change what's read.
 function advisorUrl() {
-  const urls = [...read(".github/workflows/ci.yml").matchAll(/^[ \t]*--db-url "([^"]*)"/gm)];
-  expect(urls, "ci.yml should hold exactly one --db-url").toHaveLength(1);
+  const lines = read(".github/workflows/ci.yml").split(/\r?\n/);
+  const starts = lines.flatMap((line, i) => (/^\s*- name: Security advisor\s*$/.test(line) ? [i] : []));
+  expect(starts, 'ci.yml should hold exactly one "Security advisor" step').toHaveLength(1);
+  const indent = lines[starts[0]].search(/\S/);
+  const step = [];
+  for (const line of lines.slice(starts[0] + 1)) {
+    if (line.trim() !== "" && line.search(/\S/) <= indent) break;
+    if (!line.trim().startsWith("#")) step.push(line);
+  }
+  const urls = [...step.join("\n").matchAll(/--db-url "([^"]*)"/g)];
+  expect(urls, "the step should hold exactly one --db-url").toHaveLength(1);
   return new URL(urls[0][1]);
 }
 
@@ -41,8 +52,9 @@ describe("ci.yml's security advisor URL", () => {
     expect(schemas.length).toBeGreaterThan(0);
 
     const options = advisorUrl().searchParams.get("options");
-    const setting = /^-c pgrst\.db_schemas=(\S+)$/.exec(options ?? "");
-    expect(setting, `options should be "-c pgrst.db_schemas=…", got ${options}`).not.toBeNull();
+    // Other `-c` settings may sit beside it.
+    const setting = /(?:^|\s)-c pgrst\.db_schemas=(\S+)/.exec(options ?? "");
+    expect(setting, `options should set "-c pgrst.db_schemas=…", got ${options}`).not.toBeNull();
     expect(setting[1].split(",")).toEqual(schemas);
   });
 });

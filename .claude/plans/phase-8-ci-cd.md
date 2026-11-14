@@ -232,7 +232,8 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
    one, or the full set runs inside `integration` (open decision 3).
 4. **Lint rules** in `eslint.config.mjs`, with the fixture test (#9) (Q26).
 5. **The security advisor** in the `integration` job: `npx supabase db advisors --type
-   security --fail-on warn` (Q25) on the local database, with `pgrst.db_schemas` set on its
+   security --level info --fail-on warn` (Q25; `--level info` prints the INFO results) on
+   the local database, with `pgrst.db_schemas` set on its
    session through `--db-url`, not `--local`: CLI 2.109.1's copy of `rls_disabled_in_public`
    matches no schema while that setting is unset, as it is locally, so with `--local` the
    probe table gave exit 0 (IS #290's PR). Shown red on its own by a probe table with RLS
