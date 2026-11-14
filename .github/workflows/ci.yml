@@ -139,21 +139,28 @@ jobs:
       # its lints read that setting), so with `--local` a public table with RLS off and an
       # anon SELECT grant gave exit 0; with the setting passed on the session, as here,
       # that table gave ERROR and exit 1 (IS #290's PR, probe PR #321). ADVISOR_DB_URL's
-      # port and schemas copy config.toml's [db] port and [api] schemas, and each advisor
-      # line in this job is the same command, both checked by scripts/ci-advisor.test.mjs.
-      # A CLI bump that changes how the lints read their schemas would leave this step green
-      # and blind: the self-test before it shows whether it can still fail (IS #325). No step
-      # timeout: it took 1 s on run 43563442098, and a hung connection waits for what is
-      # left of the job's `timeout-minutes: 20`, which counts from the job's start (npm ci,
-      # the stack and test:all ran first).
+      # port and schemas copy config.toml's [db] port and [api] schemas;
+      # scripts/ci-advisor.test.mjs checks both, and holds this step's line and the
+      # self-test's advisor line to the same command, exactly. No step timeout: it took 1 s on
+      # run 43563442098, and a hung connection waits for what is left of the job's
+      # `timeout-minutes: 20`, which counts from the job's start (npm ci, the stack and
+      # test:all ran first).
       #
-      # The self-test: a public table with RLS off and an anon SELECT grant, which the
-      # advisor's run must report as rls_disabled_in_public and exit 1 on; the table is
-      # dropped on the way out, whatever the result, before the real run.
+      # The self-test (IS #325): a public table with RLS off and an anon SELECT grant, which
+      # the advisor must report as rls_disabled_in_public and exit 1 on, or the step fails;
+      # then the table is dropped, and a failed drop fails the step too. It covers that one
+      # lint: a CLI bump that blinds one of the six others that read pgrst.db_schemas, and
+      # not this one, passes it. It matches the lint's cache key by value: the CLI printed it
+      # as "cacheKey" in one-line JSON on Windows and "cache_key" pretty-printed in CI (PR
+      # #336), the value the same.
       - name: Security advisor self-test
         if: ${{ !cancelled() && steps.stack.outcome == 'success' }}
         run: |
-          trap 'psql "$ADVISOR_DB_URL" -q -c "drop table if exists public.advisor_canary"' EXIT
+          drop() {
+            psql "$ADVISOR_DB_URL" -q -v ON_ERROR_STOP=1 -c "drop table if exists public.advisor_canary" ||
+              { echo "::error::couldn't drop public.advisor_canary"; exit 1; }
+          }
+          trap drop EXIT
           psql "$ADVISOR_DB_URL" -q -v ON_ERROR_STOP=1 \
             -c "create table public.advisor_canary (id int primary key)" \
             -c "grant select on table public.advisor_canary to anon"

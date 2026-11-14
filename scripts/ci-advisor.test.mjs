@@ -4,9 +4,10 @@
 // pgrst.db_schemas (IS #290's PR). A port with no database on it fails the step: port 54399
 // gave LegacyDbConnectError, exit 1 (round 2 on PR #322). A schema list that drifts
 // doesn't: the advisor's API-facing lints then skip the schema left out, and the step
-// stays green. This test turns either drift red, and checks that every advisor line in the
-// workflow is one command (ADVISOR), so the self-test tests what the run does. It doesn't
-// check the steps' `if:` or what the self-test does with the result.
+// stays green. This test turns either drift red. It also holds the workflow's two advisor
+// lines to exact text: the run's is ADVISOR, the self-test's `out="$(ADVISOR 2>&1)"`; and
+// no step sets its own ADVISOR_DB_URL. It doesn't check the steps' `if:`, or the rest of the
+// self-test's script (what it does with the result).
 import { readFileSync } from "node:fs";
 import yaml from "js-yaml";
 import { describe, expect, it } from "vitest";
@@ -33,21 +34,21 @@ function table(config, name) {
 const ADVISOR =
   'npx supabase db advisors --type security --level info --fail-on warn --db-url "$ADVISOR_DB_URL"';
 
-const workflow = () => yaml.load(read(".github/workflows/ci.yml"));
+const WORKFLOW = yaml.load(read(".github/workflows/ci.yml"));
+const STEPS = Object.values(WORKFLOW.jobs).flatMap((job) => job.steps ?? []);
 
 function advisorUrl() {
-  const url = workflow().jobs.integration.env?.ADVISOR_DB_URL;
+  const url = WORKFLOW.jobs.integration.env?.ADVISOR_DB_URL;
   expect(typeof url, "integration's env should set ADVISOR_DB_URL").toBe("string");
   return new URL(url);
 }
 
 // Every line of every step's `run` (as YAML gives it to the shell, so a folded block is one
-// line) that runs the advisor.
+// line) that runs the advisor, trimmed.
 const advisorLines = () =>
-  Object.values(workflow().jobs)
-    .flatMap((job) => job.steps ?? [])
-    .flatMap((step) => (step.run ?? "").split("\n"))
-    .filter((line) => line.includes("supabase db advisors"));
+  STEPS.flatMap((step) => (step.run ?? "").split("\n"))
+    .filter((line) => line.includes("supabase db advisors"))
+    .map((line) => line.trim());
 
 // The settings in libpq's `options`, split as the server splits them: on whitespace, each
 // `-c name=value`, `-cname=value` or `--name=value`, a dash in a name read as an
@@ -129,12 +130,11 @@ describe("ci.yml's security advisor URL", () => {
     expect(set[0][1].split(",")).toEqual(schemas);
   });
 
-  it("is one advisor command, in the self-test and the run, with no `#` before it", () => {
-    const lines = advisorLines();
-    expect(lines, "the self-test's line and the run's").toHaveLength(2);
-    for (const line of lines) {
-      expect(line).toContain(ADVISOR);
-      expect(line.slice(0, line.indexOf(ADVISOR)), line).not.toContain("#");
-    }
+  it("is one advisor command: the run's line and the self-test's, exactly", () => {
+    expect(advisorLines().sort()).toEqual([ADVISOR, `out="$(${ADVISOR} 2>&1)"`].sort());
+  });
+
+  it("isn't overridden by a step's own ADVISOR_DB_URL", () => {
+    expect(STEPS.filter((step) => step.env && "ADVISOR_DB_URL" in step.env)).toEqual([]);
   });
 });
