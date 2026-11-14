@@ -89,7 +89,7 @@ has run the checks with no Vercel build (#5).
 | `scripts/smoke.mjs` (+ test of its expectations if it has pure parts) | The served-app check the `build` job runs |
 | `scripts/write-env-local.mjs` (+ test) | `.env.local` from `npx supabase status -o env`, for every CI job that starts the local stack (IS #286; open decision 3) |
 | `scripts/lint-rules.test.mjs` | One fixture per rule and per term, inline in the test, linted through ESLint's API (#9) |
-| `scripts/ci-advisor.test.mjs` | The security advisor step's `--db-url` port and `pgrst.db_schemas` match `config.toml`'s `[db]` port and `[api]` schemas, read through `js-yaml` (rounds 1 and 4 on IS #290's PR) |
+| `scripts/ci-advisor.test.mjs` | `integration`'s `ADVISOR_DB_URL` port and `pgrst.db_schemas` match `config.toml`'s `[db]` port and `[api]` schemas, read through `js-yaml` (rounds 1 and 4 on IS #290's PR); the advisor's run and its self-test's line are one command exactly, both steps hold only `name`, `if` and `run`, and no step's `env` or `run` sets the URL (IS #325) |
 
 ### Modify
 
