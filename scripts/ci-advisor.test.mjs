@@ -1,10 +1,12 @@
-// ci.yml's "Security advisor" step copies two values from supabase/config.toml into its
-// --db-url: the [db] port and the [api] schemas, which it passes as pgrst.db_schemas
-// (IS #290's PR). A port with no database on it fails the step: port 54399 gave
-// LegacyDbConnectError, exit 1 (round 2 on PR #322). A schema list that drifts doesn't:
-// the advisor's API-facing lints then skip the schema left out, and the step stays green.
-// This test turns either drift red. It checks that copy only, not the step's other flags
-// (`--type security`, `--level info`, `--fail-on warn`) or its `if:`.
+// ci.yml's `integration` job holds the security advisor's database URL in ADVISOR_DB_URL,
+// for its self-test and its run (IS #325). The URL copies two values from
+// supabase/config.toml: the [db] port and the [api] schemas, which it passes as
+// pgrst.db_schemas (IS #290's PR). A port with no database on it fails the step: port 54399
+// gave LegacyDbConnectError, exit 1 (round 2 on PR #322). A schema list that drifts
+// doesn't: the advisor's API-facing lints then skip the schema left out, and the step
+// stays green. This test turns either drift red, and checks that every advisor line in the
+// workflow is one command (ADVISOR), so the self-test tests what the run does. It doesn't
+// check the steps' `if:` or what the self-test does with the result.
 import { readFileSync } from "node:fs";
 import yaml from "js-yaml";
 import { describe, expect, it } from "vitest";
@@ -28,22 +30,24 @@ function table(config, name) {
   return (end === -1 ? rest : rest.slice(0, end)).join("\n");
 }
 
-// The step's `run` as YAML gives it to the shell (js-yaml, so a folded `>-` block is
-// joined and a `#` line inside it is part of the command, as it is for the runner). The
-// URL must be its one double-quoted word, with no `#` outside it, which the shell would
-// read as a comment, and no other --db-url.
+const ADVISOR =
+  'npx supabase db advisors --type security --level info --fail-on warn --db-url "$ADVISOR_DB_URL"';
+
+const workflow = () => yaml.load(read(".github/workflows/ci.yml"));
+
 function advisorUrl() {
-  const workflow = yaml.load(read(".github/workflows/ci.yml"));
-  const steps = Object.values(workflow.jobs)
-    .flatMap((job) => job.steps ?? [])
-    .filter((step) => step.name === "Security advisor");
-  expect(steps, 'ci.yml should hold exactly one "Security advisor" step').toHaveLength(1);
-  const run = steps[0].run;
-  const match = /^([^"#]*)--db-url "([^"]*)"([^"#]*)$/.exec(run);
-  expect(match, `the step's run should pass one quoted --db-url, no #: ${run}`).not.toBeNull();
-  expect(match[1] + match[3]).not.toContain("--db-url");
-  return new URL(match[2]);
+  const url = workflow().jobs.integration.env?.ADVISOR_DB_URL;
+  expect(typeof url, "integration's env should set ADVISOR_DB_URL").toBe("string");
+  return new URL(url);
 }
+
+// Every line of every step's `run` (as YAML gives it to the shell, so a folded block is one
+// line) that runs the advisor.
+const advisorLines = () =>
+  Object.values(workflow().jobs)
+    .flatMap((job) => job.steps ?? [])
+    .flatMap((step) => (step.run ?? "").split("\n"))
+    .filter((line) => line.includes("supabase db advisors"));
 
 // The settings in libpq's `options`, split as the server splits them: on whitespace, each
 // `-c name=value`, `-cname=value` or `--name=value`, a dash in a name read as an
@@ -123,5 +127,14 @@ describe("ci.yml's security advisor URL", () => {
     const set = settings(advisorUrl().searchParams.get("options") ?? "").filter(([name]) => name === "pgrst.db_schemas");
     expect(set, "options should set pgrst.db_schemas exactly once").toHaveLength(1);
     expect(set[0][1].split(",")).toEqual(schemas);
+  });
+
+  it("is one advisor command, in the self-test and the run, with no `#` before it", () => {
+    const lines = advisorLines();
+    expect(lines, "the self-test's line and the run's").toHaveLength(2);
+    for (const line of lines) {
+      expect(line).toContain(ADVISOR);
+      expect(line.slice(0, line.indexOf(ADVISOR)), line).not.toContain("#");
+    }
   });
 });
