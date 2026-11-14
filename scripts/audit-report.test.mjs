@@ -1,7 +1,8 @@
 // audit-report.mjs, which reads npm audit's JSON report for ci.yml's `audit` job, run 3
-// (IS #291). The fixtures are the cases its inline form was run on by hand in PR #339's
-// rounds 1 to 3, plus round 3's: a count with no advisory, and a field whose `toString`
-// isn't a function.
+// (IS #291). Most fixtures are the cases the step's inline form was run on by hand in PR
+// #339's rounds 1 and 2. A field whose `toString` isn't a function is round 3's. An
+// advisory that names nothing, copies matched by source id, a null URL, a negative count,
+// severity order and a throw are round 4's.
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -25,8 +26,9 @@ describe("readAdvisories()", () => {
     expect(readAdvisories(json).error).toMatch(/no vulnerability count/);
   });
 
-  it("fails on a count that isn't an integer", () => {
+  it("fails on a count that isn't an integer, or is negative", () => {
     expect(readAdvisories(report("3", {})).error).toMatch(/no vulnerability count/);
+    expect(readAdvisories(report(-1, {})).error).toMatch(/no vulnerability count/);
   });
 
   it("reads a clean report as no advisories", () => {
@@ -42,9 +44,30 @@ describe("readAdvisories()", () => {
     expect(readAdvisories(json)).toEqual({ advisories: ["moderate in minimatch: ReDoS (https://github.com/advisories/GHSA-x)"] });
   });
 
-  it("lists an advisory once, the first copy, by URL", () => {
+  it("lists an advisory once, the first copy, by source id", () => {
     const json = report(2, { a: { via: [advisory(1, { title: "first" })] }, b: { via: [advisory(1, { title: "second" })] } });
     expect(readAdvisories(json).advisories).toEqual(["low in p1: first (https://example.invalid/1)"]);
+  });
+
+  it("matches copies by source id whether or not they hold the URL", () => {
+    const json = report(2, { a: { via: [advisory(5, { url: undefined })] }, b: { via: [advisory(5)] } });
+    expect(readAdvisories(json).advisories).toEqual(["low in p5: t5 (no URL)"]);
+  });
+
+  it("prints a null or empty URL as no URL", () => {
+    const json = report(2, { a: { via: [advisory(1, { url: null }), advisory(2, { url: "" })] } });
+    expect(readAdvisories(json).advisories).toEqual(["low in p1: t1 (no URL)", "low in p2: t2 (no URL)"]);
+  });
+
+  it("skips an advisory object that names nothing, and fails when that leaves none", () => {
+    expect(readAdvisories(report(1, { a: { via: [{}] } })).error).toMatch(/can't name an advisory/);
+    expect(readAdvisories(report(1, { a: { via: [{ source: 3, severity: "high", url: "" }] } })).error).toMatch(/can't name an advisory/);
+  });
+
+  it("lists the most severe first, keeping the order seen within a severity", () => {
+    const sev = (i, severity) => ({ via: [advisory(i, { severity })] });
+    const json = report(5, { a: sev(1, "low"), b: sev(2, "odd"), c: sev(3, "critical"), d: sev(4, "low"), e: sev(5, "moderate") });
+    expect(readAdvisories(json).advisories.map((a) => a.split(":")[0])).toEqual(["critical in p3", "moderate in p5", "low in p1", "low in p4", "odd in p2"]);
   });
 
   it("keeps apart advisories with no URL or source", () => {
@@ -90,6 +113,13 @@ describe("workflowLines()", () => {
     expect(lines.join("\n")).not.toMatch(/more advisories/);
   });
 
+  it("warns on a critical advisory seen last among more than the limit", () => {
+    const vulnerabilities = Object.fromEntries(Array.from({ length: WARNING_LIMIT }, (_, i) => [`p${i}`, { via: [advisory(i)] }]));
+    vulnerabilities.last = { via: [advisory(99, { name: "last", severity: "critical" })] };
+    const shown = warnings(workflowLines(readAdvisories(report(WARNING_LIMIT + 1, vulnerabilities)).advisories));
+    expect(shown[0]).toMatch(/^::warning title=npm audit::critical in last: /);
+  });
+
   for (const n of [WARNING_LIMIT + 1, WARNING_LIMIT + 2]) {
     it(`warns on ${WARNING_LIMIT - 1} of ${n} advisories and counts the rest, listing all in the log`, () => {
       const lines = workflowLines(readAdvisories(many(n)).advisories);
@@ -125,6 +155,17 @@ describe("node scripts/audit-report.mjs", () => {
       const result = run(json);
       expect(result.status, json).toBe(1);
       expect(result.stdout, json).toMatch(/^::error::/);
+    }
+  });
+
+  it("exits 1 with an ::error:: on a throw, such as a path that is a directory", () => {
+    const dir = mkdtempSync(join(tmpdir(), "audit-report-"));
+    try {
+      const result = spawnSync(process.execPath, [script, dir], { encoding: "utf8" });
+      expect(result.status).toBe(1);
+      expect(result.stdout).toMatch(/^::error::audit-report: /);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 

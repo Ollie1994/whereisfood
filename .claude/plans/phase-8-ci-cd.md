@@ -244,8 +244,9 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
    install (`npm audit` needs no `node_modules`: with only `package.json` and
    `package-lock.json` in a folder, both runs gave today's results, 2026-11-12), so the job
    runs no install script; each reports after an earlier one fails, the third failing only
-   when it can't tell which advisories there are (#12); and #12's rule in `CLAUDE.md`, whose wording goes to the
-   owner (Phase 7 #6).
+   when it can't tell which advisories there are (#12), through
+   `scripts/audit-report.mjs` and its unit tests; and #12's rule in `CLAUDE.md`, whose
+   wording goes to the owner (Phase 7 #6).
 7. **Gitleaks:** `.githooks/pre-commit` (committed executable), `.gitleaks.toml`, the
    `secret-scan` job, the one-off full-history scan, README's setup lines and `CLAUDE.md`'s "Secrets" line (Q4).
    The CI half is shown red on a throwaway probe PR, closed unmerged, with a fake secret
@@ -467,14 +468,16 @@ production deploy. No PR goes into `main` before Phase 10, so Phase 8 loses noth
 
 Three runs. `npm audit --omit=dev --audit-level=high` fails on high and critical in
 production dependencies; a full `npm audit --audit-level=critical` fails on critical anywhere
-(Q35). A third, `npm audit --omit=dev` at any level, is made to fail only when it can't tell which advisories there are:
-`npm audit` exits 1 whenever it lists anything at or above its level (a plain `npm audit` exited 1 on
-2026-11-12), so the step ignores its own exit code and, when the JSON report counts any
-vulnerability, emits a `::warning::` annotation per advisory, which shows in the PR's checks
-summary, not only a log (GitHub keeps 10 a step; past that the 10th gives the count left, IS
-#291's PR). When the report has no count (an audit error, such as the registry unreachable, or a
-report in a form the step can't read), or counts some but names no advisory (round 3 on IS
-#291's PR, the owner's call), it fails, as runs 1 and 2 do on an error, so "couldn't tell" never passes (2026-11-12:
+(Q35). A third, `npm audit --omit=dev` at any level, is made to fail only when it can't
+tell which advisories there are: `npm audit` exits 1 whenever it lists anything at or above
+its level (a plain `npm audit` exited 1 on 2026-11-12), so the step ignores its own exit
+code and, when the JSON report counts any vulnerability, emits a `::warning::` annotation
+per advisory, which shows in the PR's checks summary, not only a log (GitHub keeps 10 a
+step; past that, the 9 most severe and then the count left, IS #291's PR). When the report
+has no count (an audit error, such as the registry unreachable, or a report in a form the
+step can't read), or counts some but names no advisory (round 3 on IS #291's PR, the
+owner's call), it fails, as runs 1 and 2 do on an error, so "couldn't tell" never passes
+(2026-11-12:
 `npm audit --omit=dev --audit-level=high --registry=http://127.0.0.1:9/` exited 1, and with
 `--json` printed a `message` and an `error`, with no vulnerability count). The job installs
 nothing: `npm audit` reads the lockfile (step 6's probe). Runs 2 and 3 run when Node's setup
@@ -620,8 +623,10 @@ controls aren't one of the four gates, whose hand runs stay. A PR whose run took
   a probe table with RLS off and an anon SELECT grant turns the advisor's step red by itself
   (a mutation, shown in the PR).
 - [ ] `audit` runs no install; its first two runs fail at their levels; the third only
-  warns, with the job green, fails when it can't tell which advisories there are, and still runs when an
-  earlier run has failed; `CLAUDE.md` holds #12's rule in wording the owner approved.
+  warns, with the job green, fails when it can't tell which advisories there are, and still
+  runs when an earlier run has failed; `scripts/audit-report.test.mjs` covers the third's
+  report reading, and a mutation of the script turns it red; `CLAUDE.md` holds #12's rule
+  in wording the owner approved.
 
 **Secret scan (step 7)**
 - [ ] `git ls-files -s .githooks/pre-commit` shows mode `100755`.
