@@ -27,8 +27,8 @@ permissions:
   contents: read
 
 # A new push to a PR cancels that PR's run of this workflow still in progress. The group
-# names the workflow: groups are shared across a repository's workflows, and the planned
-# codeql.yml and sonarqube.yml run on PRs too (plan steps 8 and 9).
+# names the workflow: groups are shared across a repository's workflows, and codeql.yml (IS
+# #294) and the planned sonarqube.yml run on PRs too (plan steps 8 and 9).
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
   cancel-in-progress: true
