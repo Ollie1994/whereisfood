@@ -474,9 +474,11 @@ only a log. When the report has no count (an audit error, such as the registry u
 it fails, as runs 1 and 2 do on an error, so "couldn't tell" never passes (2026-11-12:
 `npm audit --omit=dev --audit-level=high --registry=http://127.0.0.1:9/` exited 1, and with
 `--json` printed a `message` and an `error`, with no vulnerability count). The job installs
-nothing: `npm audit` reads the lockfile (step 6's probe). Runs 2 and 3 run when the checkout
-succeeded, even after an earlier run failed (`!cancelled()` and the checkout step's outcome;
-not `always()`, which also runs after a cancel). This
+nothing: `npm audit` reads the lockfile (step 6's probe). Runs 2 and 3 run when Node's setup
+succeeded (it is skipped when the checkout fails), even after an earlier run failed
+(`!cancelled()` and the setup step's outcome; not `always()`, which also runs after a
+cancel). After a failed setup they would run on the runner image's own npm, unprobed (round
+1 on IS #291's PR, the owner's call). This
 covers Phase 6 #24's revisit trigger (`minimatch` under `--omit=dev`), which Q35's two runs
 leave in a passing job's log. **A PR whose audit run shows the warning gets an issue for that
 advisory before it merges**, recording the call: fix, wait for upstream, or accept with a
