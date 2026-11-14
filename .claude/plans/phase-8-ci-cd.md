@@ -230,9 +230,13 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
    database container isn't running), so when `needsFullControls` is true the job starts
    one, or the full set runs inside `integration` (open decision 3).
 4. **Lint rules** in `eslint.config.mjs`, with the fixture test (#9) (Q26).
-5. **The security advisor** in the `integration` job: `npx supabase db advisors --local
-   --type security --fail-on warn` (Q25), shown red on its own by a probe table with RLS
-   off.
+5. **The security advisor** in the `integration` job: `npx supabase db advisors --type
+   security --fail-on warn` (Q25) on the local database, with `pgrst.db_schemas` set on its
+   session through `--db-url`, not `--local`: CLI 2.109.1's copy of `rls_disabled_in_public`
+   matches no schema while that setting is unset, as it is locally, so with `--local` the
+   probe table gave exit 0 (IS #290's PR). Shown red on its own by a probe table with RLS
+   off and an anon SELECT grant: the lint skips a table neither `anon` nor `authenticated`
+   can read, and on this stack a new table gets no SELECT for either (IS #290's PR).
 6. **The `audit` job's three runs** (Q35, #12), from the checkout's lockfile with no
    install (`npm audit` needs no `node_modules`: with only `package.json` and
    `package-lock.json` in a folder, both runs gave today's results, 2026-11-12), so the job
@@ -582,8 +586,8 @@ controls aren't one of the four gates, whose hand runs stay. A PR whose run took
 - [ ] Each new rule fires on its fixture (unit test), a sink rule under a `src/lib/db/` path
   too; today's code lints clean; deleting a rule's selector turns its fixture test red.
 - [ ] The advisor runs with `--fail-on warn` in `integration`; today's two INFO results pass;
-  a probe table with RLS off turns the advisor's step red by itself (a mutation, shown in the
-  PR).
+  a probe table with RLS off and an anon SELECT grant turns the advisor's step red by itself
+  (a mutation, shown in the PR).
 - [ ] `audit` runs no install; its first two runs fail at their levels; the third only
   warns, with the job green, fails when its report has no count, and still runs when an
   earlier run has failed; `CLAUDE.md` holds #12's rule in wording the owner approved.
