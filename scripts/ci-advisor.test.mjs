@@ -14,7 +14,9 @@ const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf
 // One table of config.toml: from its header to the next table header of any kind
 // ([db.pooler] included), as complete.test.ts reads [api].
 function table(config, name) {
-  const escaped = name.replace(/[.[\]]/g, "\\$&");
+  // ECMAScript's SyntaxCharacter set, ^$\.*+?()[]{}|, backslash included: the old class
+  // escaped only . [ ] (CodeQL alert #4, js/incomplete-sanitization, IS #328).
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const match = new RegExp(`^\\[${escaped}\\]\\s*$([\\s\\S]*?)(?=^\\[)`, "m").exec(config);
   expect(match, `config.toml has no [${name}] table`).not.toBeNull();
   return match[1];
