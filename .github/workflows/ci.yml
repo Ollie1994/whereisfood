@@ -157,7 +157,7 @@ jobs:
             console.log(`::group::advisories (${lines.length})`);
             for (const line of lines) console.log(`- ${line}`);
             console.log("::endgroup::");
-            for (const line of lines)
+            for (const line of lines.length > 10 ? lines.slice(0, 9) : lines)
               console.log(`::warning title=npm audit::${line}: it needs an issue before this PR merges, unless it has one (CLAUDE.md, "Dependencies")`);
             if (lines.length > 10)
               console.log(`::warning title=npm audit::and ${lines.length - 9} more advisories: GitHub shows 10 warnings a step, and the "advisories" log group lists them all`);
