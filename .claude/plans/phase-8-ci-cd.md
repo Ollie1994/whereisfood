@@ -466,12 +466,13 @@ production deploy. No PR goes into `main` before Phase 10, so Phase 8 loses noth
 
 Three runs. `npm audit --omit=dev --audit-level=high` fails on high and critical in
 production dependencies; a full `npm audit --audit-level=critical` fails on critical anywhere
-(Q35). A third, `npm audit --omit=dev` at any level, is made to fail only when it couldn't run:
+(Q35). A third, `npm audit --omit=dev` at any level, is made to fail only when its report has no count:
 `npm audit` exits 1 whenever it lists anything at or above its level (a plain `npm audit` exited 1 on
 2026-11-12), so the step ignores its own exit code and, when the JSON report counts any
-vulnerability, emits a `::warning::` annotation, which shows in the PR's checks summary, not
-only a log. When the report has no count (an audit error, such as the registry unreachable),
-it fails, as runs 1 and 2 do on an error, so "couldn't tell" never passes (2026-11-12:
+vulnerability, emits a `::warning::` annotation per advisory, which shows in the PR's checks
+summary, not only a log (GitHub keeps 10 a step; past that the 10th gives the count left, IS
+#291's PR). When the report has no count (an audit error, such as the registry unreachable, or a
+report in a form the step can't read), it fails, as runs 1 and 2 do on an error, so "couldn't tell" never passes (2026-11-12:
 `npm audit --omit=dev --audit-level=high --registry=http://127.0.0.1:9/` exited 1, and with
 `--json` printed a `message` and an `error`, with no vulnerability count). The job installs
 nothing: `npm audit` reads the lockfile (step 6's probe). Runs 2 and 3 run when Node's setup
