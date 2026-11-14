@@ -11,13 +11,21 @@ import { describe, expect, it } from "vitest";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
-// One table of config.toml: from its header to the next table header of any kind
-// ([db.pooler] included), as complete.test.ts reads [api].
+// One table of config.toml: the lines after its `[name]` header, up to the next line that
+// starts with `[` (a table of any kind, [db.pooler] and [[x]] included) or the end of the
+// file. The header is the form complete.test.ts reads [api] in: `[name]` in column 0 with
+// nothing after it but spaces; an indented, commented or quoted header isn't found, and
+// the test fails with "has no [name] table". It is found by comparing names, with no
+// RegExp built from one (CodeQL alert #4, js/incomplete-sanitization, IS #328).
+const HEADER = /^\[([^\]]+)\]\s*$/;
+const TABLE_START = /^\[/;
 function table(config, name) {
-  const escaped = name.replace(/[.[\]]/g, "\\$&");
-  const match = new RegExp(`^\\[${escaped}\\]\\s*$([\\s\\S]*?)(?=^\\[)`, "m").exec(config);
-  expect(match, `config.toml has no [${name}] table`).not.toBeNull();
-  return match[1];
+  const lines = config.split(/\r?\n/);
+  const start = lines.findIndex((line) => HEADER.exec(line)?.[1] === name);
+  expect(start, `config.toml has no [${name}] table`).not.toBe(-1);
+  const rest = lines.slice(start + 1);
+  const end = rest.findIndex((line) => TABLE_START.test(line));
+  return (end === -1 ? rest : rest.slice(0, end)).join("\n");
 }
 
 // The step's `run` as YAML gives it to the shell (js-yaml, so a folded `>-` block is
@@ -56,6 +64,47 @@ function settings(options) {
   }
   return found;
 }
+
+describe("table()", () => {
+  const CONFIG = [
+    "[db]",
+    "port = 1",
+    "[db.pooler]",
+    "port = 2",
+    "[api]",
+    "nested = [",
+    '  ["x"],',
+    "]",
+    "port = 3",
+    "[aXb]",
+    "port = 4",
+    "[[arr]]",
+    "port = 5",
+    "  [late]",
+    "[last]",
+    "port = 6",
+  ].join("\n");
+
+  it("stops at the next table, a dotted or array one included", () => {
+    expect(table(CONFIG, "db")).toBe("port = 1");
+    expect(table(CONFIG, "db.pooler")).toBe("port = 2");
+    expect(table(CONFIG, "aXb")).toBe("port = 4");
+  });
+
+  it("doesn't stop at an indented line that starts with [", () => {
+    expect(table(CONFIG, "api")).toBe('nested = [\n  ["x"],\n]\nport = 3');
+  });
+
+  it("reads the last table to the end of the file", () => {
+    expect(table(CONFIG, "last")).toBe("port = 6");
+  });
+
+  it("finds only an exact `[name]` header in column 0", () => {
+    for (const name of ["a.b", "db.pool", "pooler", "arr", "[arr", "late"]) {
+      expect(() => table(CONFIG, name), name).toThrow(`config.toml has no [${name}] table`);
+    }
+  });
+});
 
 describe("ci.yml's security advisor URL", () => {
   it("uses config.toml's [db] port", () => {
