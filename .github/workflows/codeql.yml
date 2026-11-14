@@ -27,8 +27,9 @@ on:
 permissions:
   contents: read
 
-# A new push to a PR cancels that PR's run still in progress. A push to dev or main is never
-# cancelled, so each merge leaves its own base analysis.
+# A new push to a PR cancels that PR's run still in progress. A push run's group is its
+# commit, with cancel-in-progress off, so another push's run doesn't cancel it and each merge
+# can leave its own base analysis (not yet seen: no push run before this file's merge).
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
