@@ -620,7 +620,7 @@ controls aren't one of the four gates, whose hand runs stay. A PR whose run took
   a probe table with RLS off and an anon SELECT grant turns the advisor's step red by itself
   (a mutation, shown in the PR).
 - [ ] `audit` runs no install; its first two runs fail at their levels; the third only
-  warns, with the job green, fails when its report has no count, and still runs when an
+  warns, with the job green, fails when it can't tell which advisories there are, and still runs when an
   earlier run has failed; `CLAUDE.md` holds #12's rule in wording the owner approved.
 
 **Secret scan (step 7)**

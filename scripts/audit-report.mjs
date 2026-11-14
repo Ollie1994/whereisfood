@@ -1,7 +1,7 @@
 // `node scripts/audit-report.mjs <report.json>` — reads `npm audit --omit=dev --json`'s report
 // for run 3 of ci.yml's `audit` job (Phase 8 plan #12, IS #291) and prints GitHub Actions
-// workflow commands: one `::warning::` per advisory, and an `::error::` with exit 1 when it
-// can't tell which advisories there are. Plain Node with no imports beyond `node:`, so the
+// workflow commands: a `::warning::` per advisory, up to GitHub's limit (below), and an
+// `::error::` with exit 1 when it can't tell which advisories there are. Plain Node with no imports beyond `node:`, so the
 // job still installs nothing.
 //
 // The report's shape, read from npm 11.21.0 (2026-11-14): `metadata.vulnerabilities.total`
