@@ -16,8 +16,14 @@ const DIST = path.join(PACKAGE_DIR, "dist");
 // `from"x"`, `import"x"`, `import("x")` and `new URL("x", import.meta.url)`, with
 // any comments in between: the minifier keeps `/* @vite-ignore */` annotations, and
 // the installed worker already writes `import(\n/* @vite-ignore */\ne)`.
+// A comment's body is `(?:[^*]|\*(?!\/))*`, whose two branches can't match the same
+// character, so the comment part has one way to match: with `[\s\S]*?` there, `import(/*`
+// followed by n copies of `*//*` took 13 ms at n = 20 and 871 ms at n = 26, about
+// doubling per copy, and this form 0.0 ms; both found the same references in every
+// `.mjs` of maplibre-gl's dist (IS #329; CodeQL alert #3, js/redos, which CodeQL raises
+// again on a PR that brings the old form back).
 const SPECIFIER =
-  /(?:\bfrom\s*|\bimport\s*\(?\s*|\bnew URL\(\s*)(?:\/\*[\s\S]*?\*\/\s*)*(["'`])([^"'`]+)\1/g;
+  /(?:\bfrom\s*|\bimport\s*\(?\s*|\bnew URL\(\s*)(?:\/\*(?:[^*]|\*(?!\/))*\*\/\s*)*(["'`])([^"'`]+)\1/g;
 
 const referencesOf = (file) =>
   [...fs.readFileSync(path.join(DIST, file), "utf8").matchAll(SPECIFIER)].map(
@@ -50,9 +56,11 @@ describe("WORKER_FILES", () => {
   it("matches backtick-quoted and comment-annotated references, the minifier's forms", () => {
     const sample =
       "new URL(`./maplibre-gl-worker.mjs`,import.meta.url);import(`./chunk.mjs`);" +
-      "import(\n/* @vite-ignore */\n`./annotated.mjs`)";
+      "import(\n/* @vite-ignore */\n`./annotated.mjs`)" +
+      // Back-to-back comments and a `*` inside one: the comment body stops only at `*/`.
+      'import(/* a *//* b * c */"./two.mjs")';
     const found = [...sample.matchAll(SPECIFIER)].map((match) => match[2]);
-    expect(found).toEqual(["./maplibre-gl-worker.mjs", "./chunk.mjs", "./annotated.mjs"]);
+    expect(found).toEqual(["./maplibre-gl-worker.mjs", "./chunk.mjs", "./annotated.mjs", "./two.mjs"]);
   });
 });
 
