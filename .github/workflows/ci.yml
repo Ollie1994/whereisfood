@@ -158,7 +158,7 @@ jobs:
             -c "create table public.advisor_canary (id int primary key)" \
             -c "grant select on table public.advisor_canary to anon"
           set +e
-          out="$(npx supabase db advisors --type security --level info --fail-on warn --db-url "$ADVISOR_DB_URL" 2>&1)"
+          out="$(npx supabase db advisors --type security --level info --fail-on warn --local 2>&1)"
           code=$?
           set -e
           echo "::group::the advisor's output (exit $code)"; echo "$out"; echo "::endgroup::"
