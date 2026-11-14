@@ -511,6 +511,12 @@ SonarQube Cloud's workflow job run with `sonar.qualitygate.wait=true`; requiring
 they are would gate nothing on a finding. Not SonarQube Cloud's own app check: a run skipped
 by `if:` (#2) never posts it, so it would block every Dependabot and fork PR. Documented
 behaviour, not probed (no CI exists yet); steps 8, 9 and 13 show it. Round 1 on PR #283.
+**Step 8 showed a gap** (probe PR #327, IS #294's PR): the result check, named `CodeQL`,
+went red on a finding while both analyze jobs stayed green, as above; but it first
+concluded success while only `analyze (actions)` had uploaded, and turned red on the same
+check run once `analyze (javascript-typescript)` did. Required alone, it is green for that
+window. How step 12 closes it (requiring both analyze jobs too, so the merge waits for every
+upload) is #297's, recorded there.
 
 ### #15 — Vercel cancels probe and Dependabot branches from step 1
 
