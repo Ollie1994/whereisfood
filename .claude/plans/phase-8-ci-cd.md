@@ -519,16 +519,21 @@ below. Round 1 on PR #283.
 **Step 8 probed CodeQL's half, and showed a gap** (probe PR #327, IS #294's PR): the result
 check, named `CodeQL`, went red on a finding while both analyze jobs stayed green, as above;
 but it first concluded success while only `analyze (actions)` had uploaded, and turned red
-on the same check run once `analyze (javascript-typescript)` did. And with an analysis
-missing it doesn't go red at all: on PR #326, where a newer push cancelled the JavaScript job
-and `analyze (actions)` succeeded, `CodeQL` ended success (`45e3e52`, `785b075`); with both
-jobs cancelled it ended neutral (`cb25816`), which branch protection counts as passing
-(GitHub's docs), or wasn't posted (`79d69ff`). So required alone, `CodeQL` can pass with no JavaScript analysis.
-Requiring both analyze jobs too makes a cancelled or failed job block, and the merge waits
-until both finish: on the eight commits read where both succeeded (PR #326's `d8eb718`,
-`04c3cc5`, `1eebc17`, `9ae640a`, `caa1e34`; #327's three), `CodeQL`'s last update came 1 to
-8 seconds before the first job completed and 11 to 38 before the second; eight samples, not
-a guarantee. Step 12's choice is #297's, recorded there.
+on the same check run once `analyze (javascript-typescript)` did. With an analysis missing
+it doesn't go red at all: on PR #326, where a newer push cancelled the JavaScript job and
+`analyze (actions)` succeeded, `CodeQL` ended success, "No new alerts" (`45e3e52`,
+`785b075`). Those commits had been replaced, so they gated nothing; on a head commit a job
+misses its upload by failing, timing out or a hand cancel, none seen here. And `CodeQL` can
+end **neutral** on its own: on `cb25816` its title was "Error when processing the SARIF
+file", posted at 07:31:53, before either job was cancelled (07:31:59). GitHub's docs on
+required status checks count neutral as passing (whether a ruleset does too is step 12's to
+read). So required alone, `CodeQL` can pass with no JavaScript analysis, or none read.
+Requiring both analyze jobs too makes a failed or cancelled job block, and the merge waits
+until both finish; a SARIF error with both jobs green would still pass. Timing: on the eight
+commits read where both succeeded (PR #326's `d8eb718`, `04c3cc5`, `1eebc17`, `9ae640a`,
+`caa1e34`; #327's three), `CodeQL`'s last update came 1 to 8 seconds before the first job
+completed and 11 to 38 before the second; eight samples, not a guarantee. Step 12's choice
+is #297's, recorded there.
 
 ### #15 — Vercel cancels probe and Dependabot branches from step 1
 
