@@ -14,14 +14,15 @@ const DIST = path.join(PACKAGE_DIR, "dist");
 // Every module reference in a minified ES module, in any of the three quote styles
 // the minifier uses (it writes most string literals as backtick templates):
 // `from"x"`, `import"x"`, `import("x")` and `new URL("x", import.meta.url)`, with
-// any comments in between: the minifier keeps `/* @vite-ignore */` annotations, and
-// the installed worker already writes `import(\n/* @vite-ignore */\ne)`.
-// A comment's body is `(?:[^*]|\*(?!\/))*`, whose two branches can't match the same
-// character, so the comment part has one way to match: with `[\s\S]*?` there, `import(/*`
-// followed by n copies of `*//*` took 13 ms at n = 20 and 871 ms at n = 26, about
-// doubling per copy, and this form 0.0 ms; both found the same references in every
-// `.mjs` of maplibre-gl's dist (IS #329; CodeQL alert #3, js/redos). No test times it:
-// the old form blocks the thread synchronously, so vitest couldn't time it out.
+// `/* */` block comments in between (a `//` line comment there isn't read): the minifier
+// keeps `/* @vite-ignore */` annotations, and the installed worker already writes
+// `import(\n/* @vite-ignore */\ne)`.
+// The comment body is `(?:[^*]|\*(?!\/))*` (IS #329; CodeQL alert #3, js/redos). With
+// `[\s\S]*?` there, `import(/*` followed by n copies of `*//*` took 13 ms at n = 20,
+// 871 ms at n = 26 and 18 s at n = 28; this form took 0.1 ms or less, and both found the
+// same references in every `.mjs` of maplibre-gl's dist. The test below times n = 26.
+// Still polynomial: `import(/*` repeated 5000 times, never closed, took 255 ms (PR #331's
+// round 1); the input is maplibre-gl's own build.
 const SPECIFIER =
   /(?:\bfrom\s*|\bimport\s*\(?\s*|\bnew URL\(\s*)(?:\/\*(?:[^*]|\*(?!\/))*\*\/\s*)*(["'`])([^"'`]+)\1/g;
 
@@ -48,7 +49,9 @@ describe("WORKER_FILES", () => {
   });
 
   // Without these, a regex that silently matched nothing would make the test above
-  // pass vacuously.
+  // pass vacuously. Only the worker is covered: maplibre-gl-shared.mjs has no reference
+  // SPECIFIER finds (0 in 6.11.2, with the old form and this one), so its closure check
+  // above checks nothing.
   it("finds the worker's import of the shared chunk", () => {
     expect(referencesOf("maplibre-gl-worker.mjs")).toContain("./maplibre-gl-shared.mjs");
   });
@@ -57,10 +60,19 @@ describe("WORKER_FILES", () => {
     const sample =
       "new URL(`./maplibre-gl-worker.mjs`,import.meta.url);import(`./chunk.mjs`);" +
       "import(\n/* @vite-ignore */\n`./annotated.mjs`)" +
-      // Back-to-back comments and a `*` inside one: the comment body stops only at `*/`.
       'import(/* a *//* b * c */"./two.mjs")';
     const found = [...sample.matchAll(SPECIFIER)].map((match) => match[2]);
     expect(found).toEqual(["./maplibre-gl-worker.mjs", "./chunk.mjs", "./annotated.mjs", "./two.mjs"]);
+  });
+
+  // A comment ends at its first `*/`: the `[\s\S]*?` form ran on past it, across `foo`, to
+  // the next comment's end, and reported "y" here.
+  it("doesn't read a string after code that follows a comment", () => {
+    expect([...'import(/* a */ foo /* b */"y")'.matchAll(SPECIFIER)]).toEqual([]);
+  });
+
+  it("matches 26 copies of `*//*` after `import(/*` within 250 ms", { timeout: 250 }, () => {
+    expect([...`import(/*${"*//*".repeat(26)}`.matchAll(SPECIFIER)]).toEqual([]);
   });
 });
 
