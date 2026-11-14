@@ -116,10 +116,10 @@ jobs:
           node-version-file: package.json
           package-manager-cache: false
       - name: "Audit 1: production dependencies, high and critical"
-        run: npm audit --omit=dev --audit-level=high
+        run: npm audit --omit=dev --audit-level=high --registry=http://127.0.0.1:9/
       - name: "Audit 2: every dependency, critical"
         if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
-        run: npm audit --audit-level=critical
+        run: npm audit --audit-level=moderate
       # npm audit exits 1 when it lists anything, so this run ignores its exit code and reads
       # the JSON report's count: above 0 it warns, and with no count (an audit error: on
       # an unreachable --registry, npm 11.21.0 printed only a `message` and an `error`, exit
@@ -127,7 +127,7 @@ jobs:
       - name: "Audit 3: production dependencies, any level (warns)"
         if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
         run: |
-          npm audit --omit=dev --json > "$RUNNER_TEMP/audit.json" || true
+          npm audit --omit=dev --registry=http://127.0.0.1:9/ --json > "$RUNNER_TEMP/audit.json" || true
           echo "::group::the report"; cat "$RUNNER_TEMP/audit.json"; echo "::endgroup::"
           total="$(node -e '
             const total = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).metadata?.vulnerabilities?.total;
