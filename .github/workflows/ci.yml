@@ -72,9 +72,13 @@ jobs:
       # against them only when they do: in a clean worktree a
       # handler with non-Promise params passed `tsc --noEmit` (exit 0) and failed it after
       # `next typegen` (exit 2, TS2344 in .next/types/validator.ts) (IS #285's PR).
-      - run: npx next typegen
+      - id: typegen
+        run: npx next typegen
       - run: npx tsc --noEmit
-      - run: npm run lint
+      # Lint also runs after a failed tsc, so a type error doesn't hide a lint error until
+      # the next push: it runs whenever `npm ci` and typegen succeeded, as before (IS #324).
+      - if: ${{ !cancelled() && steps.typegen.outcome == 'success' }}
+        run: npm run lint
 
   unit:
     runs-on: ubuntu-24.04
