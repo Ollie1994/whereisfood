@@ -1,0 +1,55 @@
+# CodeQL on every PR into dev or main and every push to them (Phase 8 plan step 8, IS #294).
+# It also scans Dependabot and fork PRs, which sonarqube.yml skips (plan #2). The push runs
+# give a PR its base analysis to compare with; `main` has none before Phase 10 (plan #11).
+#
+# The analyze jobs finish green when they find something: a PR's verdict is the separate
+# code-scanning result check GitHub posts from the uploaded results, which is the one #297
+# requires (plan #14). Its findings get their own issues (plan #4).
+#
+# Hardening as in ci.yml (plan #2, Q5): the plain pull-request trigger, never its
+# target-branch variant; every action pinned to a commit SHA; the workflow's token read-only,
+# with only the analyze job given `security-events: write` to upload its results. No
+# `actions: read`: GitHub's starter CodeQL workflow marks it "only required for workflows in
+# private repositories", and this repository is public. CodeQL default setup is off (IS
+# #284), as the plan requires: it conflicts with a workflow (plan, "Outside the repo").
+name: codeql
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
+
+permissions:
+  contents: read
+
+# A new push to a PR cancels that PR's run still in progress. A push to dev or main is never
+# cancelled, so each merge leaves its own base analysis.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  analyze:
+    name: analyze (${{ matrix.language }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        # `actions` reads the workflows under .github/workflows/. Neither needs a build.
+        language: [javascript-typescript, actions]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          category: /language:${{ matrix.language }}
