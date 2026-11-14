@@ -1,0 +1,11 @@
+# Probe for IS #294, never merged: the PR title in a run line (actions/code-injection).
+# workflow_dispatch only, so it never runs.
+name: probe-codeql
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: echo "${{ github.event.pull_request.title }}"
