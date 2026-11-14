@@ -4,10 +4,13 @@
 // pgrst.db_schemas (IS #290's PR). A port with no database on it fails the step: port 54399
 // gave LegacyDbConnectError, exit 1 (round 2 on PR #322). A schema list that drifts
 // doesn't: the advisor's API-facing lints then skip the schema left out, and the step
-// stays green. This test turns either drift red. It also holds the workflow's two advisor
-// lines to exact text: the run's is ADVISOR, the self-test's `out="$(ADVISOR 2>&1)"`; and
-// no step sets its own ADVISOR_DB_URL. It doesn't check the steps' `if:`, or the rest of the
-// self-test's script (what it does with the result).
+// stays green. This test turns either drift red. It also holds the advisor to one command:
+// the "Security advisor" step's whole `run` is ADVISOR, and the self-test's line is
+// `out="$(ADVISOR 2>&1)"`; both steps hold only `name`, `if` and `run` (no `env`,
+// `continue-on-error`, `shell` or `working-directory`); and no step's `env` or `run` sets
+// ADVISOR_DB_URL. It reads text, not the shell: in the self-test's script, a line before the
+// advisor's that makes it an argument (a `\` continuation, a heredoc, `if false`) isn't
+// seen. It doesn't check the steps' `if:`, or what the self-test does with the result.
 import { readFileSync } from "node:fs";
 import yaml from "js-yaml";
 import { describe, expect, it } from "vitest";
@@ -34,11 +37,19 @@ function table(config, name) {
 const ADVISOR =
   'npx supabase db advisors --type security --level info --fail-on warn --db-url "$ADVISOR_DB_URL"';
 
-const WORKFLOW = yaml.load(read(".github/workflows/ci.yml"));
-const STEPS = Object.values(WORKFLOW.jobs).flatMap((job) => job.steps ?? []);
+// ci.yml parsed on first use, so a broken workflow fails the tests that read it, not the
+// whole file at import.
+let parsed;
+const workflow = () => (parsed ??= yaml.load(read(".github/workflows/ci.yml")));
+const steps = () => Object.values(workflow().jobs).flatMap((job) => job.steps ?? []);
+function step(name) {
+  const found = steps().filter((s) => s.name === name);
+  expect(found, `ci.yml should hold one "${name}" step`).toHaveLength(1);
+  return found[0];
+}
 
 function advisorUrl() {
-  const url = WORKFLOW.jobs.integration.env?.ADVISOR_DB_URL;
+  const url = workflow().jobs.integration.env?.ADVISOR_DB_URL;
   expect(typeof url, "integration's env should set ADVISOR_DB_URL").toBe("string");
   return new URL(url);
 }
@@ -46,7 +57,8 @@ function advisorUrl() {
 // Every line of every step's `run` (as YAML gives it to the shell, so a folded block is one
 // line) that runs the advisor, trimmed.
 const advisorLines = () =>
-  STEPS.flatMap((step) => (step.run ?? "").split("\n"))
+  steps()
+    .flatMap((s) => (s.run ?? "").split("\n"))
     .filter((line) => line.includes("supabase db advisors"))
     .map((line) => line.trim());
 
@@ -130,11 +142,21 @@ describe("ci.yml's security advisor URL", () => {
     expect(set[0][1].split(",")).toEqual(schemas);
   });
 
-  it("is one advisor command: the run's line and the self-test's, exactly", () => {
+  it("is one advisor command: the run's whole `run` and the self-test's line, exactly", () => {
     expect(advisorLines().sort()).toEqual([ADVISOR, `out="$(${ADVISOR} 2>&1)"`].sort());
+    expect(step("Security advisor").run.trim()).toBe(ADVISOR);
   });
 
-  it("isn't overridden by a step's own ADVISOR_DB_URL", () => {
-    expect(STEPS.filter((step) => step.env && "ADVISOR_DB_URL" in step.env)).toEqual([]);
+  it("holds both advisor steps to `name`, `if` and `run`", () => {
+    for (const name of ["Security advisor self-test", "Security advisor"]) {
+      expect(Object.keys(step(name)).sort(), name).toEqual(["if", "name", "run"]);
+    }
+  });
+
+  it("sets ADVISOR_DB_URL in no step's `env` or `run`", () => {
+    const setters = steps().filter(
+      (s) => JSON.stringify(s.env ?? {}).includes("ADVISOR_DB_URL") || (s.run ?? "").includes("ADVISOR_DB_URL="),
+    );
+    expect(setters.map((s) => s.name ?? s.run)).toEqual([]);
   });
 });
