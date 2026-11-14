@@ -11,9 +11,11 @@
 # github-advanced-security). Its findings get their own issues (plan #4). On probe PR #327
 # it went red on `eval` of query input (critical), and on a
 # `${{ github.event.pull_request.title }}` run line under `pull_request_target` only once
-# that job had `contents: write`: with `contents: read` the default queries passed it. It
-# first read success while only one analysis had uploaded, so whether #297 also requires
-# both analyze jobs is open (plan #14's step 8 note).
+# the probe workflow's token had `contents: write`: with `contents: read` (both set at
+# workflow level) the default queries passed it. It reads success while only one analysis
+# has uploaded, and stayed success on PR #326 when the JavaScript job was cancelled (neutral
+# with both cancelled), so whether #297 also requires both analyze jobs is open (plan #14's
+# step 8 note).
 #
 # Hardening as in ci.yml (plan #2, Q5): the plain pull-request trigger, never its
 # target-branch variant; every action pinned to a commit SHA; the workflow's token read-only,
@@ -32,11 +34,13 @@ on:
 permissions:
   contents: read
 
-# A new push to a PR cancels that PR's run still in progress. For a push, cancel-in-progress
-# is off and the group is its commit, so pushes of different commits don't queue behind or
-# cancel each other (no push run before this file's merge, so not yet seen).
+# A new push to a PR cancels that PR's run still in progress. For a push, the group is the
+# branch and cancel-in-progress is off, so one branch's runs go one at a time, in order, and
+# its analysis ends as its newest commit's: GitHub keeps only the newest pending run in a
+# group, cancelling older pending ones (its concurrency docs; no push run before this file's
+# merge, so not yet seen).
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:

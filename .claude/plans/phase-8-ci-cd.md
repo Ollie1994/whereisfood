@@ -377,7 +377,9 @@ Phase 8, 9, 10 or outside. **A blocking finding** (one that would keep its check
 check becomes required (step 11), because a red required check blocks every PR. Which checks
 that can happen to: `npm audit`, the advisor and the lint rules read the whole tree; CodeQL
 and SonarQube Cloud are documented to judge a PR on new alerts and new code, so their old
-findings needn't block (steps 8 and 9 check it on their first runs); Gitleaks in CI scans
+findings needn't block (steps 8 and 9 check it on their first runs; step 8's first run had no
+base analysis of `dev` and judged only the PR's changed code, so its read with a base comes
+after IS #294's merge); Gitleaks in CI scans
 the PR's commits, and the full-history scan is a one-off. A secret found in history is rotated at once (`CLAUDE.md`, "Secrets"). The owner's call,
 2026-11-12.
 
@@ -512,16 +514,21 @@ gate only with `sonar.qualitygate.wait=true`. So step 12 requires CodeQL's resul
 SonarQube Cloud's workflow job run with `sonar.qualitygate.wait=true`; requiring the jobs as
 they are would gate nothing on a finding. Not SonarQube Cloud's own app check: a run skipped
 by `if:` (#2) never posts it, so it would block every Dependabot and fork PR. Documented
-behaviour, not probed (no CI exists yet); steps 8, 9 and 13 show it. Round 1 on PR #283.
+behaviour, not probed when written (no CI existed); steps 8, 9 and 13 show it, step 8's half
+below. Round 1 on PR #283.
 **Step 8 probed CodeQL's half, and showed a gap** (probe PR #327, IS #294's PR): the result
 check, named `CodeQL`, went red on a finding while both analyze jobs stayed green, as above;
 but it first concluded success while only `analyze (actions)` had uploaded, and turned red
-on the same check run once `analyze (javascript-typescript)` did. Required alone, it is
-green for that window. Requiring both analyze jobs too makes the merge wait until both jobs
-finish. On each of the nine commits that ran CodeQL by IS #294's round 2 (PR #326's six with
-a finished run, #327's three), `CodeQL`'s last update came before both jobs completed: 1 to 8
-seconds before the first, 6 to 38 before the second; nine samples, not a guarantee. Step
-12's choice is #297's, recorded there.
+on the same check run once `analyze (javascript-typescript)` did. And with an analysis
+missing it doesn't go red at all: on PR #326, where a newer push cancelled the JavaScript job
+and `analyze (actions)` succeeded, `CodeQL` ended success (`45e3e52`, `785b075`); with both
+jobs cancelled it ended neutral (`cb25816`), which branch protection counts as passing
+(GitHub's docs), or wasn't posted (`79d69ff`). So required alone, `CodeQL` can pass with no JavaScript analysis.
+Requiring both analyze jobs too makes a cancelled or failed job block, and the merge waits
+until both finish: on the eight commits read where both succeeded (PR #326's `d8eb718`,
+`04c3cc5`, `1eebc17`, `9ae640a`, `caa1e34`; #327's three), `CodeQL`'s last update came 1 to
+8 seconds before the first job completed and 11 to 38 before the second; eight samples, not
+a guarantee. Step 12's choice is #297's, recorded there.
 
 ### #15 — Vercel cancels probe and Dependabot branches from step 1
 
@@ -717,7 +724,10 @@ controls aren't one of the four gates, whose hand runs stay. A PR whose run took
    If the free tier doesn't hold, CodeQL alone is the fallback, and that's the owner's call
    then.
 6. **The required-check names for CodeQL and SonarQube Cloud (step 12)**: the exact names
-   the checks #14 picks report under, which branch protection lists exactly.
+   the checks #14 picks report under, which branch protection lists exactly. **CodeQL's, read
+   (PR #326):** the result check `CodeQL` (app `github-advanced-security`), and the jobs
+   `analyze (javascript-typescript)` and `analyze (actions)`, whose place in step 12 is
+   #14's step 8 note. SonarQube Cloud's: step 9.
 7. **Classic branch protection or rulesets (step 12).** **Settled: rulesets** (the owner's
    call, the narrow read-through on PR #283). Either binds admins on `main`, but the CLI
    token can read rulesets and not classic protection (`gh api …/rulesets` answered;
