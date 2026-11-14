@@ -22,7 +22,7 @@ production deploy go through it (#1).
 ## Goal
 
 Every PR into `dev` or `main` must pass the four gates and the secret scan, CodeQL,
-SonarQube Cloud (skipped on Dependabot and fork PRs, where CodeQL covers them, #2), `npm
+SonarQube Cloud (skipped on Dependabot and fork PRs, which CodeQL is to cover, #2), `npm
 audit`, the security advisor, the lint rules, the schema controls
 and the log check, run by hardened GitHub Actions workflows as required checks under
 branch protection, with Dependabot switched on last; done once each required check has
