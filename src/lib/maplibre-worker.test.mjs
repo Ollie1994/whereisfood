@@ -23,7 +23,7 @@ const DIST = path.join(PACKAGE_DIR, "dist");
 // `.mjs` of maplibre-gl's dist (IS #329; CodeQL alert #3, js/redos, which CodeQL raises
 // again on a PR that brings the old form back).
 const SPECIFIER =
-  /(?:\bfrom\s*|\bimport\s*\(?\s*|\bnew URL\(\s*)(?:\/\*(?:[^*]|\*(?!\/))*\*\/\s*)*(["'`])([^"'`]+)\1/g;
+  /(?:\bfrom\s*|\bimport\s*\(?\s*|\bnew URL\(\s*)(?:\/\*[\s\S]*?\*\/\s*)*(["'`])([^"'`]+)\1/g;
 
 const referencesOf = (file) =>
   [...fs.readFileSync(path.join(DIST, file), "utf8").matchAll(SPECIFIER)].map(
