@@ -1,7 +1,7 @@
 # Probe for IS #294, never merged: the PR title in a run line (actions/code-injection).
-# workflow_dispatch only, so it never runs.
+# pull_request_target runs from the base branch's copy, which has no such file, so it never runs.
 name: probe-codeql
-on: workflow_dispatch
+on: pull_request_target
 permissions:
   contents: read
 jobs:
