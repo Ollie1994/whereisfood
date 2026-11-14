@@ -1,0 +1,71 @@
+# CodeQL on every PR into dev or main and every push to them (Phase 8 plan step 8, IS #294).
+# Plan #2 counts on it to scan Dependabot and fork PRs too, which sonarqube.yml skips. No
+# such PR has run it yet, so whether their results upload and `CodeQL` posts is unseen
+# (#300's Dependabot PR is the first chance). The push runs give a PR its base analysis to
+# compare with; `main` has none before Phase 10 (plan #11). The same pull-request trigger as
+# ci.yml, so a PR retargeted to dev or main gets no new run until its next push (ci.yml's
+# header).
+#
+# The analyze jobs finish green when they find something: a PR's verdict is the separate
+# code-scanning result check GitHub posts from the uploaded results, named `CodeQL` (app
+# github-advanced-security). Its findings get their own issues (plan #4). On probe PR #327
+# it went red on `eval` of query input (critical), and on a
+# `${{ github.event.pull_request.title }}` run line under `pull_request_target` only once
+# the probe workflow's token had `contents: write`: with `contents: read` (both set at
+# workflow level) the default queries passed it. It reads success while only one analysis
+# has uploaded, stayed success on PR #326 when the JavaScript job was cancelled, and once
+# ended neutral on "Error when processing the SARIF file", so whether #297 also requires
+# both analyze jobs is open (plan #14's step 8 note).
+#
+# Hardening as in ci.yml (plan #2, Q5): the plain pull-request trigger, never its
+# target-branch variant; every action pinned to a commit SHA; the workflow's token read-only,
+# with only the analyze job given `security-events: write` to upload its results. No
+# `actions: read`: GitHub's starter CodeQL workflow marks it "only required for workflows in
+# private repositories", and this repository is public. CodeQL default setup is off (IS
+# #284), as the plan requires: it conflicts with a workflow (plan, "Outside the repo").
+name: codeql
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
+
+permissions:
+  contents: read
+
+# A new push to a PR cancels that PR's run still in progress. For a push, the group is the
+# branch and cancel-in-progress is off: per GitHub's concurrency docs, one branch's runs then
+# go one at a time, and a newer pending run cancels an older pending one. So a commit whose
+# run is still waiting when a newer commit's run queues gets no analysis of its own, and the
+# branch's latest analysis is its newest finished run's, older if that run failed. No push
+# run before this file's merge, so none of this is seen yet.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  analyze:
+    name: analyze (${{ matrix.language }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        # `actions` analyses the repository's GitHub Actions files: today only
+        # .github/workflows/ (no action.yml or action.yaml is tracked). Neither needs a build.
+        language: [javascript-typescript, actions]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          category: /language:${{ matrix.language }}
