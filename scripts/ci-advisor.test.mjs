@@ -1,8 +1,10 @@
 // ci.yml's "Security advisor" step copies two values from supabase/config.toml into its
 // --db-url: the [db] port and the [api] schemas, which it passes as pgrst.db_schemas
-// (IS #290's PR). A port that drifts fails the step (no database answers); a schema list
-// that drifts doesn't: the advisor's API-facing lints then skip the schema left out, and
-// the step stays green. This test turns either drift red.
+// (IS #290's PR). A port with no database on it fails the step: port 54399 gave
+// LegacyDbConnectError, exit 1 (round 2 on PR #322). A schema list that drifts doesn't:
+// the advisor's API-facing lints then skip the schema left out, and the step stays green.
+// This test turns either drift red. It checks that copy only, not the step's other flags
+// (`--fail-on warn`, `--type security`) or its `if:`.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
@@ -17,8 +19,10 @@ function table(config, name) {
   return match[1];
 }
 
+// The flag at the start of a YAML line, so a comment quoting it (`# … --db-url "…"`)
+// isn't counted.
 function advisorUrl() {
-  const urls = [...read(".github/workflows/ci.yml").matchAll(/--db-url "([^"]*)"/g)];
+  const urls = [...read(".github/workflows/ci.yml").matchAll(/^[ \t]*--db-url "([^"]*)"/gm)];
   expect(urls, "ci.yml should hold exactly one --db-url").toHaveLength(1);
   return new URL(urls[0][1]);
 }

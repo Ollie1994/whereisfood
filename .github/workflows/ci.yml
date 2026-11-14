@@ -117,9 +117,11 @@ jobs:
       # Supabase's security advisor on the local schema (plan step 5, IS #290): red on a
       # WARN or ERROR lint; `--level info` prints the INFO ones too (on IS #290's PR, two:
       # rls_enabled_no_policy on locations and trucks, the design). It runs after the tests
-      # whenever the stack started, so a red test and a red lint both show in one run. The
-      # tests can't change what it reads: tests/integration/ reaches the database through
-      # supabase-js only, with no SQL, DDL or grant in it (grepped on IS #290's PR).
+      # whenever the stack started, so a red test and a red lint both show in one run.
+      # tests/integration/ holds no SQL, DDL or grant (grepped on IS #290's PR): it reaches
+      # the stack through supabase-js and, in auth-routes.test.ts, fetch() of Mailpit and of
+      # Auth's emailed link. After test:all, the advisor printed the same two INFO as before
+      # it (run 43562854682, PR #322).
       # Not `--local`: CLI 2.109.1's copy of rls_disabled_in_public matches only the schemas
       # in `current_setting('pgrst.db_schemas')`, unset on the local database (six more of
       # its lints read that setting), so with `--local` a public table with RLS off and an
