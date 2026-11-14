@@ -1,6 +1,7 @@
 # The four gates, run by GitHub on every PR into dev or main (Phase 8 plan step 2, IS #285
 # and #286), with a smoke check of the served build and, in `integration`, Supabase's
-# security advisor on the local schema (step 5, IS #290); and the process log's check and
+# security advisor on the local schema (step 5, IS #290); `npm audit` in `audit` (step 6, IS
+# #291); and the process log's check and
 # the schema controls' `--check`, with the full controls on a trigger path or a PR into
 # main (step 3, IS #288). Not required checks until #297's rulesets; until then each PR still
 # runs the four gates by hand (CLAUDE.md, "Testing").
@@ -95,6 +96,45 @@ jobs:
           node-version-file: package.json
       - run: npm ci
       - run: npm run test:run
+
+  # npm audit, three runs (plan #12, IS #291). It reads the lockfile and installs nothing:
+  # with only package.json and package-lock.json in a folder, it gave the tree's results
+  # (plan step 6's probe, 2026-11-12). Runs 2 and 3 run after an earlier run failed, unless
+  # the run was cancelled or Node's setup didn't succeed (it is skipped when the checkout
+  # fails). A PR whose run 3 warns gets an issue per
+  # advisory before it merges (CLAUDE.md, "Dependencies").
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # No npm cache: the job installs nothing, so it would restore one for no use. Runs 2
+      # and 3 wait on this step, not only the checkout: after a failed setup they would run on
+      # the runner image's own Node and npm, whose audit output wasn't probed (round 1 on PR
+      # #339, the owner's call).
+      - id: node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: package.json
+          package-manager-cache: false
+      - name: "Audit 1: production dependencies, high and critical"
+        run: npm audit --omit=dev --audit-level=high
+      - name: "Audit 2: every dependency, critical"
+        if: ${{ !cancelled() && steps.node.outcome == 'success' }}
+        run: npm audit --audit-level=critical
+      # npm audit exits 1 when it lists anything at or above its --audit-level, and this run
+      # sets none (a plain `npm audit` on the full tree, 7 moderate, exited 1, 2026-11-14), so
+      # it ignores its exit code and hands the JSON report to scripts/audit-report.mjs, which
+      # warns on each advisory and fails when it can't tell which advisories there are (its
+      # header has the report's shape, and GitHub's limit of 10 warnings a step).
+      - name: "Audit 3: production dependencies, any level (warns)"
+        if: ${{ !cancelled() && steps.node.outcome == 'success' }}
+        run: |
+          npm audit --omit=dev --json > "$RUNNER_TEMP/audit.json" || true
+          echo "::group::the report"; cat "$RUNNER_TEMP/audit.json"; echo "::endgroup::"
+          node scripts/audit-report.mjs "$RUNNER_TEMP/audit.json"
 
   integration:
     runs-on: ubuntu-24.04
