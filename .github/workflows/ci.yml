@@ -1,7 +1,8 @@
 # The four gates, run by GitHub on every PR into dev or main (Phase 8 plan step 2, IS #285
-# and #286), with a smoke check of the served build; and the process log's check and the
-# schema controls' `--check`, with the full controls on a trigger path or a PR into main
-# (step 3, IS #288). Not required checks until #297's rulesets; until then each PR still
+# and #286), with a smoke check of the served build and, in `integration`, Supabase's
+# security advisor on the local schema (step 5, IS #290); and the process log's check and
+# the schema controls' `--check`, with the full controls on a trigger path or a PR into
+# main (step 3, IS #288). Not required checks until #297's rulesets; until then each PR still
 # runs the four gates by hand (CLAUDE.md, "Testing").
 #
 # Hardening (plan #2, Q5): the plain pull-request trigger only, never its target-branch
@@ -102,7 +103,8 @@ jobs:
       # Its output prints the stack's keys. They're the CLI's shared defaults, not secrets:
       # the CLI says so under them ("API keys and JWT secrets are shared defaults"), and
       # this run's keys hashed the same as a local stack's (IS #285's PR).
-      - run: npx supabase start -x "$SUPABASE_EXCLUDE"
+      - id: stack
+        run: npx supabase start -x "$SUPABASE_EXCLUDE"
       # tests/integration/setup.ts reads .env.local, and throws without it. The script
       # maps README's "3. Environment" table, writes each value quoted, and fails on a
       # missing or empty value or one a reader would change (its comments say which).
@@ -112,6 +114,31 @@ jobs:
       # project runs here as well as in `unit`, and a failing unit test turns both jobs
       # red; the log's project label tells them apart.
       - run: npm run test:all
+      # Supabase's security advisor on the local schema (plan step 5, IS #290): red on a
+      # WARN or ERROR lint; `--level info` prints the INFO ones too (on IS #290's PR, two:
+      # rls_enabled_no_policy on locations and trucks, the design). It runs after the tests
+      # whenever the stack started, so a red test and a red lint both show in one run.
+      # tests/integration/ holds no SQL, DDL or grant (grepped on IS #290's PR): it reaches
+      # the stack through supabase-js and, in auth-routes.test.ts, fetch() of Mailpit and of
+      # Auth's emailed link. After test:all, the advisor printed the same two INFO as before
+      # it (run 43562854682, PR #322).
+      # Not `--local`: CLI 2.109.1's copy of rls_disabled_in_public matches only the schemas
+      # in `current_setting('pgrst.db_schemas')`, unset on the local database (six more of
+      # its lints read that setting), so with `--local` a public table with RLS off and an
+      # anon SELECT grant gave exit 0; with the setting passed on the session, as here,
+      # that table gave ERROR and exit 1 (IS #290's PR, probe PR #321). The URL's port and
+      # schemas copy config.toml's [db] port and [api] schemas, which
+      # scripts/ci-advisor.test.mjs checks. Not seen: a CLI bump that changes how the lints
+      # read their schemas would leave this step green and blind again; only probe PRs #321
+      # and #323, on CLI 2.109.1, showed it can fail (a standing self-test: #325). No step
+      # timeout: it took 1 s on run 43563442098, and a hung connection waits for what is
+      # left of the job's `timeout-minutes: 20`, which counts from the job's start (npm ci,
+      # the stack and test:all ran first).
+      - name: Security advisor
+        if: ${{ !cancelled() && steps.stack.outcome == 'success' }}
+        run: >-
+          npx supabase db advisors --type security --level info --fail-on warn
+          --db-url "postgresql://postgres:postgres@127.0.0.1:54322/postgres?options=-c%20pgrst.db_schemas%3Dpublic%2Cgraphql_public"
 
   build:
     runs-on: ubuntu-24.04

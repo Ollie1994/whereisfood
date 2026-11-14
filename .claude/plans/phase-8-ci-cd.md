@@ -89,6 +89,7 @@ has run the checks with no Vercel build (#5).
 | `scripts/smoke.mjs` (+ test of its expectations if it has pure parts) | The served-app check the `build` job runs |
 | `scripts/write-env-local.mjs` (+ test) | `.env.local` from `npx supabase status -o env`, for every CI job that starts the local stack (IS #286; open decision 3) |
 | `scripts/lint-rules.test.mjs` | One fixture per rule and per term, inline in the test, linted through ESLint's API (#9) |
+| `scripts/ci-advisor.test.mjs` | The security advisor step's `--db-url` port and `pgrst.db_schemas` match `config.toml`'s `[db]` port and `[api]` schemas, read through `js-yaml` (rounds 1 and 4 on IS #290's PR) |
 
 ### Modify
 
@@ -97,7 +98,7 @@ has run the checks with no Vercel build (#5).
 | `eslint.config.mjs` | The rules against DOM HTML sinks and string-built supabase-js filters (Q26), with `.filter` banned outright in `src/lib/db/`. In flat config a later object's options for a rule replace an earlier one's, they don't merge, so the sinks (`react/no-danger`, `react/forbid-component-props`, `no-restricted-properties`) and the db filters (`no-restricted-syntax`) use different rules and the `src/lib/db/` entry repeats nothing (IS #289's PR) |
 | `vitest.config.ts` | Only if the new script tests sit where the `unit` project doesn't collect them |
 | `scripts/controls.mjs` | Its header's "Not a gate (CLAUDE.md, "Testing")" (line 43), which a required `controls` check makes false (step 12); anything else only if CI needs it, and no trigger mode (open decision 4, settled: its own script) |
-| `package.json` | Only a script the trigger or smoke step needs; no `prepare` hook (#7) |
+| `package.json` | Only a script the trigger or smoke step needs, and `js-yaml` as a devDependency for `scripts/ci-advisor.test.mjs` (the owner's call, round 4 on IS #290's PR); no `prepare` hook (#7) |
 | `CLAUDE.md` | The bold plan line (step 0); #12's audit rule (step 6); the Gitleaks hook under "Secrets" (step 7); "Testing" rewritten for CI as the gate, its "Schema controls … not a gate" included (step 12) |
 | `README.md` | "Getting started": installing Gitleaks and setting `core.hooksPath` (step 7); "Preview deploys": the Ignored Build Step's new command (step 1, #15). The status parts wait for step 17 (Phase 7 #8) |
 | `.claude/process-log.md` | Rows as they happen; the retrospective (step 16) |
@@ -230,9 +231,14 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
    database container isn't running), so when `needsFullControls` is true the job starts
    one, or the full set runs inside `integration` (open decision 3).
 4. **Lint rules** in `eslint.config.mjs`, with the fixture test (#9) (Q26).
-5. **The security advisor** in the `integration` job: `npx supabase db advisors --local
-   --type security --fail-on warn` (Q25), shown red on its own by a probe table with RLS
-   off.
+5. **The security advisor** in the `integration` job: `npx supabase db advisors --type
+   security --level info --fail-on warn` (Q25; `--level info` prints the INFO results) on
+   the local database, with `pgrst.db_schemas` set on its
+   session through `--db-url`, not `--local`: CLI 2.109.1's copy of `rls_disabled_in_public`
+   matches no schema while that setting is unset, as it is locally, so with `--local` the
+   probe table gave exit 0 (IS #290's PR). Shown red on its own by a probe table with RLS
+   off and an anon SELECT grant: the lint skips a table neither `anon` nor `authenticated`
+   can read, and on this stack a new table gets no SELECT for either (IS #290's PR).
 6. **The `audit` job's three runs** (Q35, #12), from the checkout's lockfile with no
    install (`npm audit` needs no `node_modules`: with only `package.json` and
    `package-lock.json` in a folder, both runs gave today's results, 2026-11-12), so the job
@@ -581,9 +587,10 @@ controls aren't one of the four gates, whose hand runs stay. A PR whose run took
 **Lint, advisor, audit (steps 4–6)**
 - [ ] Each new rule fires on its fixture (unit test), a sink rule under a `src/lib/db/` path
   too; today's code lints clean; deleting a rule's selector turns its fixture test red.
-- [ ] The advisor runs with `--fail-on warn` in `integration`; today's two INFO results pass;
-  a probe table with RLS off turns the advisor's step red by itself (a mutation, shown in the
-  PR).
+- [ ] The advisor runs with `--level info --fail-on warn` in `integration`; today's two INFO
+  results print and pass;
+  a probe table with RLS off and an anon SELECT grant turns the advisor's step red by itself
+  (a mutation, shown in the PR).
 - [ ] `audit` runs no install; its first two runs fail at their levels; the third only
   warns, with the job green, fails when its report has no count, and still runs when an
   earlier run has failed; `CLAUDE.md` holds #12's rule in wording the owner approved.
