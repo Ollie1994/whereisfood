@@ -36,10 +36,10 @@ permissions:
 
 # A new push to a PR cancels that PR's run still in progress. For a push, the group is the
 # branch and cancel-in-progress is off: per GitHub's concurrency docs, one branch's runs then
-# go one at a time, and a newer pending run cancels an older pending one. So a commit merged
-# while its run waits behind another gets no analysis of its own, and the branch's latest
-# analysis is its newest finished run's, older if that run failed. No push run before this
-# file's merge, so none of this is seen yet.
+# go one at a time, and a newer pending run cancels an older pending one. So a commit whose
+# run is still waiting when a newer commit's run queues gets no analysis of its own, and the
+# branch's latest analysis is its newest finished run's, older if that run failed. No push
+# run before this file's merge, so none of this is seen yet.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
