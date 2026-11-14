@@ -147,7 +147,7 @@ jobs:
             const esc = (s) => String(s).replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
             const advisories = new Map();
             for (const pkg of Object.values(report.vulnerabilities ?? {})) {
-              for (const via of pkg.via ?? []) {
+              for (const via of Array.isArray(pkg?.via) ? pkg.via : []) {
                 if (!via || typeof via !== "object") continue;
                 const key = via.url ?? via.source ?? JSON.stringify(via);
                 if (!advisories.has(key)) advisories.set(key, via);
