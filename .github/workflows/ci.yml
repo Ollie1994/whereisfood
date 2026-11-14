@@ -126,44 +126,15 @@ jobs:
         run: npm audit --audit-level=critical
       # npm audit exits 1 when it lists anything at or above its --audit-level, and this run
       # sets none (a plain `npm audit` on the full tree, 7 moderate, exited 1, 2026-11-14), so
-      # it ignores its exit code and reads the JSON report. It warns once per advisory: an
-      # object in a package's `via`; a string there names a package, not an advisory. With
-      # --omit=dev today's report has none; without it, 7 packages and one advisory object,
-      # minimatch's, on which this script gave one warning (PR #339's round 1, run locally).
-      # GitHub keeps 10 warning annotations a step (probe PR #341: of 12 printed, the check run
-      # kept 10, the rest dropped with no notice): past 10, the 10th says how many more there are, and the "advisories" log group lists them all. A count above 0
-      # with no advisory read warns with the count. With no count it fails: an audit error (on
-      # an unreachable --registry, npm 11.21.0 printed only a `message` and an `error`, exit 1,
-      # 2026-11-14), or a report this script can't read.
+      # it ignores its exit code and hands the JSON report to scripts/audit-report.mjs, which
+      # warns on each advisory and fails when it can't tell which advisories there are (its
+      # header has the report's shape, and GitHub's limit of 10 warnings a step).
       - name: "Audit 3: production dependencies, any level (warns)"
         if: ${{ !cancelled() && steps.node.outcome == 'success' }}
         run: |
           npm audit --omit=dev --json > "$RUNNER_TEMP/audit.json" || true
           echo "::group::the report"; cat "$RUNNER_TEMP/audit.json"; echo "::endgroup::"
-          node -e '
-            const report = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
-            const total = report.metadata?.vulnerabilities?.total;
-            if (!Number.isInteger(total)) process.exit(1);
-            const esc = (s) => String(s).replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
-            const advisories = new Map();
-            for (const pkg of Object.values(report.vulnerabilities ?? {})) {
-              for (const via of Array.isArray(pkg?.via) ? pkg.via : []) {
-                if (!via || typeof via !== "object") continue;
-                const key = via.url ?? via.source ?? JSON.stringify(via);
-                if (!advisories.has(key)) advisories.set(key, via);
-              }
-            }
-            const lines = [...advisories.values()].map((a) => esc(`${a.severity} in ${a.name}: ${a.title} (${a.url ?? "no URL"})`));
-            console.log(`::group::advisories (${lines.length})`);
-            for (const line of lines) console.log(`- ${line}`);
-            console.log("::endgroup::");
-            for (const line of lines.length > 10 ? lines.slice(0, 9) : lines)
-              console.log(`::warning title=npm audit::${line}: it needs an issue before this PR merges, unless it has one (CLAUDE.md, "Dependencies")`);
-            if (lines.length > 10)
-              console.log(`::warning title=npm audit::and ${lines.length - 9} more advisories: GitHub shows 10 warnings a step, and the "advisories" log group lists them all`);
-            if (total > 0 && lines.length === 0)
-              console.log(`::warning title=npm audit::${total} vulnerabilities in production dependencies, and no advisory read from the report: see its log group`);
-          ' "$RUNNER_TEMP/audit.json" || { echo "::error::npm audit gave no vulnerability count: it couldn't run, or its report is in a form this step can't read"; exit 1; }
+          node scripts/audit-report.mjs "$RUNNER_TEMP/audit.json"
 
   integration:
     runs-on: ubuntu-24.04

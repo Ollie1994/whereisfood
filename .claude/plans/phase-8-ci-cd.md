@@ -88,6 +88,7 @@ has run the checks with no Vercel build (#5).
 | `scripts/controls-trigger-coverage.test.mjs` | The guard test on the trigger list (#8) |
 | `scripts/smoke.mjs` (+ test of its expectations if it has pure parts) | The served-app check the `build` job runs |
 | `scripts/write-env-local.mjs` (+ test) | `.env.local` from `npx supabase status -o env`, for every CI job that starts the local stack (IS #286; open decision 3) |
+| `scripts/audit-report.mjs` (+ test) | Reads run 3's `npm audit --json` report and prints its warnings, or fails when it can't tell which advisories there are (#12; moved out of `ci.yml` and tested, round 3 on IS #291's PR, the owner's call) |
 | `scripts/lint-rules.test.mjs` | One fixture per rule and per term, inline in the test, linted through ESLint's API (#9) |
 | `scripts/ci-advisor.test.mjs` | `integration`'s `ADVISOR_DB_URL` port and `pgrst.db_schemas` match `config.toml`'s `[db]` port and `[api]` schemas, read through `js-yaml` (rounds 1 and 4 on IS #290's PR); the advisor's run and its self-test's line are one command exactly, both steps hold only `name`, `if` and `run`, and no step's `env` or `run` sets the URL (IS #325) |
 
@@ -243,7 +244,7 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
    install (`npm audit` needs no `node_modules`: with only `package.json` and
    `package-lock.json` in a folder, both runs gave today's results, 2026-11-12), so the job
    runs no install script; each reports after an earlier one fails, the third failing only
-   when its report has no count; and #12's rule in `CLAUDE.md`, whose wording goes to the
+   when it can't tell which advisories there are (#12); and #12's rule in `CLAUDE.md`, whose wording goes to the
    owner (Phase 7 #6).
 7. **Gitleaks:** `.githooks/pre-commit` (committed executable), `.gitleaks.toml`, the
    `secret-scan` job, the one-off full-history scan, README's setup lines and `CLAUDE.md`'s "Secrets" line (Q4).
@@ -466,13 +467,14 @@ production deploy. No PR goes into `main` before Phase 10, so Phase 8 loses noth
 
 Three runs. `npm audit --omit=dev --audit-level=high` fails on high and critical in
 production dependencies; a full `npm audit --audit-level=critical` fails on critical anywhere
-(Q35). A third, `npm audit --omit=dev` at any level, is made to fail only when its report has no count:
+(Q35). A third, `npm audit --omit=dev` at any level, is made to fail only when it can't tell which advisories there are:
 `npm audit` exits 1 whenever it lists anything at or above its level (a plain `npm audit` exited 1 on
 2026-11-12), so the step ignores its own exit code and, when the JSON report counts any
 vulnerability, emits a `::warning::` annotation per advisory, which shows in the PR's checks
 summary, not only a log (GitHub keeps 10 a step; past that the 10th gives the count left, IS
 #291's PR). When the report has no count (an audit error, such as the registry unreachable, or a
-report in a form the step can't read), it fails, as runs 1 and 2 do on an error, so "couldn't tell" never passes (2026-11-12:
+report in a form the step can't read), or counts some but names no advisory (round 3 on IS
+#291's PR, the owner's call), it fails, as runs 1 and 2 do on an error, so "couldn't tell" never passes (2026-11-12:
 `npm audit --omit=dev --audit-level=high --registry=http://127.0.0.1:9/` exited 1, and with
 `--json` printed a `message` and an `error`, with no vulnerability count). The job installs
 nothing: `npm audit` reads the lockfile (step 6's probe). Runs 2 and 3 run when Node's setup

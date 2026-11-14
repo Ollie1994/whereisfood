@@ -81,9 +81,11 @@ describe a different one.
   retested on 16.4, where the copied worker loads, IS #178).
 - **`npm audit` in CI** (`ci.yml`'s `audit` job, Phase 8 plan decision #12) fails on a high
   or critical advisory in production dependencies, and on a critical one anywhere. Its third
-  run warns on an advisory of any level in production dependencies, one warning per
-  advisory, and fails only when its report has no vulnerability count (the audit couldn't
-  run, or the report is in a form the step can't read). **A PR whose `audit` job shows that
+  run warns on each advisory of any level in production dependencies, one warning apiece up
+  to GitHub's 10 a step (past that, 9 and a count of the rest; the step's log lists them
+  all). It fails when it can't tell which advisories there are: the report has no
+  vulnerability count (the audit couldn't run, or the report is in a form the step can't
+  read), or it counts some but names no advisory. **A PR whose `audit` job shows that
   warning gets an issue for each advisory it lists before the PR merges.** The issue records
   the call: fix it, wait for upstream, or accept it with a reason. An advisory that already
   has an issue needs no second one. The job neither warns nor fails on an advisory below
