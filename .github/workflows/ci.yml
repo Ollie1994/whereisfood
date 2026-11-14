@@ -100,43 +100,55 @@ jobs:
   # npm audit, three runs (plan #12, IS #291). It reads the lockfile and installs nothing:
   # with only package.json and package-lock.json in a folder, it gave the tree's results
   # (plan step 6's probe, 2026-11-12). Runs 2 and 3 run after an earlier run failed, unless
-  # the run was cancelled or the checkout failed. A PR whose run 3 warns gets an issue per
+  # the run was cancelled or Node's setup didn't succeed (it is skipped when the checkout
+  # fails). A PR whose run 3 warns gets an issue per
   # advisory before it merges (CLAUDE.md, "Dependencies").
   audit:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - id: checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # No npm cache: the job installs nothing, so it would restore one for no use.
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      # No npm cache: the job installs nothing, so it would restore one for no use. Runs 2
+      # and 3 wait on this step, not only the checkout: after a failed setup they would run on
+      # the runner image's own Node and npm, whose audit output wasn't probed (round 1 on PR
+      # #339, the owner's call).
+      - id: node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: package.json
           package-manager-cache: false
       - name: "Audit 1: production dependencies, high and critical"
-        run: npm audit --omit=dev --audit-level=high
+        run: npm audit --omit=dev --audit-level=high --registry=http://127.0.0.1:9/
       - name: "Audit 2: every dependency, critical"
-        if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.node.outcome == 'success' }}
         run: npm audit --audit-level=critical
-      # npm audit exits 1 when it lists anything, so this run ignores its exit code and reads
-      # the JSON report's count: above 0 it warns, and with no count (an audit error: on
-      # an unreachable --registry, npm 11.21.0 printed only a `message` and an `error`, exit
-      # 1, 2026-11-14) it fails.
+      # npm audit exits 1 when it lists anything at or above its --audit-level, and this run
+      # sets none (the full tree's 7 moderate gave exit 1, 2026-11-14), so it ignores its exit
+      # code and reads the JSON report. It warns once per advisory: an object in a package's
+      # `via`; a string there names a package, not an advisory (today's full tree: 7 packages,
+      # one advisory object, minimatch's). A count above 0 with no advisory read warns with
+      # the count. With no count (an audit error: on an unreachable --registry, npm 11.21.0
+      # printed only a `message` and an `error`, exit 1, 2026-11-14) it fails.
       - name: "Audit 3: production dependencies, any level (warns)"
-        if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.node.outcome == 'success' }}
         run: |
           npm audit --omit=dev --json > "$RUNNER_TEMP/audit.json" || true
           echo "::group::the report"; cat "$RUNNER_TEMP/audit.json"; echo "::endgroup::"
-          total="$(node -e '
-            const total = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).metadata?.vulnerabilities?.total;
+          node -e '
+            const report = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+            const total = report.metadata?.vulnerabilities?.total;
             if (!Number.isInteger(total)) process.exit(1);
-            console.log(total);
-          ' "$RUNNER_TEMP/audit.json")" || { echo "::error::npm audit gave no vulnerability count: it couldn't run"; exit 1; }
-          if [ "$total" -gt 0 ]; then
-            echo "::warning title=npm audit::$total vulnerabilities in production dependencies: each advisory gets an issue before this PR merges (CLAUDE.md, \"Dependencies\")"
-          fi
+            const esc = (s) => String(s).replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
+            const advisories = new Map();
+            for (const pkg of Object.values(report.vulnerabilities ?? {}))
+              for (const via of pkg.via ?? []) if (via && typeof via === "object" && !advisories.has(via.url ?? via.source)) advisories.set(via.url ?? via.source, via);
+            for (const a of advisories.values())
+              console.log(`::warning title=npm audit::${esc(`${a.severity} in ${a.name}: ${a.title} (${a.url}): it gets an issue before this PR merges (CLAUDE.md, "Dependencies")`)}`);
+            if (total > 0 && advisories.size === 0)
+              console.log(`::warning title=npm audit::${total} vulnerabilities in production dependencies, and no advisory read from the report: see its log group`);
+          ' "$RUNNER_TEMP/audit.json" || { echo "::error::npm audit gave no vulnerability count: it couldn't run"; exit 1; }
 
   integration:
     runs-on: ubuntu-24.04
