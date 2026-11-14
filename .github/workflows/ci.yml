@@ -127,8 +127,8 @@ jobs:
       # that table gave ERROR and exit 1 (IS #290's PR, probe PR #321). The URL's port and
       # schemas copy config.toml's [db] port and [api] schemas, which
       # scripts/ci-advisor.test.mjs checks. Not seen: a CLI bump that changes how the lints
-      # read their schemas would leave this step green and blind again; only that probe
-      # showed it can fail.
+      # read their schemas would leave this step green and blind again; only probe PRs #321
+      # and #323, on CLI 2.109.1, showed it can fail.
       - name: Security advisor
         if: ${{ !cancelled() && steps.stack.outcome == 'success' }}
         run: >-
