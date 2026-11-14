@@ -99,6 +99,11 @@ jobs:
   integration:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    # The security advisor's database URL, used by its self-test and its run below (IS
+    # #325): the local stack, with pgrst.db_schemas set on the session (the advisor step's
+    # comment says why).
+    env:
+      ADVISOR_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres?options=-c%20pgrst.db_schemas%3Dpublic%2Cgraphql_public
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -133,19 +138,45 @@ jobs:
       # in `current_setting('pgrst.db_schemas')`, unset on the local database (six more of
       # its lints read that setting), so with `--local` a public table with RLS off and an
       # anon SELECT grant gave exit 0; with the setting passed on the session, as here,
-      # that table gave ERROR and exit 1 (IS #290's PR, probe PR #321). The URL's port and
-      # schemas copy config.toml's [db] port and [api] schemas, which
-      # scripts/ci-advisor.test.mjs checks. Not seen: a CLI bump that changes how the lints
-      # read their schemas would leave this step green and blind again; only probe PRs #321
-      # and #323, on CLI 2.109.1, showed it can fail (a standing self-test: #325). No step
-      # timeout: it took 1 s on run 43563442098, and a hung connection waits for what is
-      # left of the job's `timeout-minutes: 20`, which counts from the job's start (npm ci,
-      # the stack and test:all ran first).
+      # that table gave ERROR and exit 1 (IS #290's PR, probe PR #321). ADVISOR_DB_URL's
+      # port and schemas copy config.toml's [db] port and [api] schemas;
+      # scripts/ci-advisor.test.mjs checks both, holds this step's `run` and the self-test's
+      # advisor line to the same command, exactly, and both steps to `name`, `if` and `run`
+      # (its header says what it can't see). No step timeout: it took 1 s on
+      # run 43563442098, and a hung connection waits for what is left of the job's
+      # `timeout-minutes: 20`, which counts from the job's start (npm ci, the stack and
+      # test:all ran first).
+      #
+      # The self-test (IS #325): a public table with RLS off and an anon SELECT grant, which
+      # the advisor must report as rls_disabled_in_public and exit 1 on, or the step fails;
+      # then the table is dropped, and a failed drop fails the step too. It covers that one
+      # lint: a CLI bump that blinds one of the six others that read pgrst.db_schemas, and
+      # not this one, passes it. It matches the lint's cache key by value: the CLI printed it
+      # as "cacheKey" in one-line JSON on Windows and "cache_key" pretty-printed in CI (PR
+      # #336), the value the same.
+      - name: Security advisor self-test
+        if: ${{ !cancelled() && steps.stack.outcome == 'success' }}
+        run: |
+          drop() {
+            psql "$ADVISOR_DB_URL" -q -v ON_ERROR_STOP=1 -c "drop table if exists public.advisor_canary" ||
+              { echo "::error::couldn't drop public.advisor_canary, or reach the database"; exit 1; }
+          }
+          trap drop EXIT
+          psql "$ADVISOR_DB_URL" -q -v ON_ERROR_STOP=1 \
+            -c "create table public.advisor_canary (id int primary key)" \
+            -c "grant select on table public.advisor_canary to anon"
+          set +e
+          out="$(npx supabase db advisors --type security --level info --fail-on warn --db-url "$ADVISOR_DB_URL" 2>&1)"
+          code=$?
+          set -e
+          echo "::group::the advisor's output (exit $code)"; echo "$out"; echo "::endgroup::"
+          if [ "$code" -ne 1 ] || ! grep -q '"rls_disabled_in_public_public_advisor_canary"' <<<"$out"; then
+            echo "::error::the advisor didn't report the canary table (exit $code): it may be blind"
+            exit 1
+          fi
       - name: Security advisor
         if: ${{ !cancelled() && steps.stack.outcome == 'success' }}
-        run: >-
-          npx supabase db advisors --type security --level info --fail-on warn
-          --db-url "postgresql://postgres:postgres@127.0.0.1:54322/postgres?options=-c%20pgrst.db_schemas%3Dpublic%2Cgraphql_public"
+        run: npx supabase db advisors --type security --level info --fail-on warn --db-url "$ADVISOR_DB_URL"
 
   build:
     runs-on: ubuntu-24.04
