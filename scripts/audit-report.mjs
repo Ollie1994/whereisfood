@@ -41,7 +41,8 @@ const named = (s) => typeof s === "string" && s !== "";
 // Pure. The report's advisories, each once, most severe first (in the order first seen
 // within a severity); or `{ error }` when the report can't say which there are. Copies are
 // matched by source id, else URL, else their JSON, so a copy with a source id and another
-// with only the URL would be listed twice (npm 11.21.0 set both on the one advisory seen, minimatch's).
+// with only the URL would be listed twice (npm 11.21.0 set both on the one advisory seen,
+// minimatch's).
 export function readAdvisories(json) {
   let report;
   try {
