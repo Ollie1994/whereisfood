@@ -20,8 +20,8 @@ const DIST = path.join(PACKAGE_DIR, "dist");
 // character, so the comment part has one way to match: with `[\s\S]*?` there, `import(/*`
 // followed by n copies of `*//*` took 13 ms at n = 20 and 871 ms at n = 26, about
 // doubling per copy, and this form 0.0 ms; both found the same references in every
-// `.mjs` of maplibre-gl's dist (IS #329; CodeQL alert #3, js/redos, which CodeQL raises
-// again on a PR that brings the old form back).
+// `.mjs` of maplibre-gl's dist (IS #329; CodeQL alert #3, js/redos). No test times it:
+// the old form blocks the thread synchronously, so vitest couldn't time it out.
 const SPECIFIER =
   /(?:\bfrom\s*|\bimport\s*\(?\s*|\bnew URL\(\s*)(?:\/\*(?:[^*]|\*(?!\/))*\*\/\s*)*(["'`])([^"'`]+)\1/g;
 
