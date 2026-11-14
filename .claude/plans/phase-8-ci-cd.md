@@ -518,9 +518,9 @@ check, named `CodeQL`, went red on a finding while both analyze jobs stayed gree
 but it first concluded success while only `analyze (actions)` had uploaded, and turned red
 on the same check run once `analyze (javascript-typescript)` did. Required alone, it is
 green for that window. Requiring both analyze jobs too makes the merge wait until both jobs
-finish. On each of the four commits read (`d8eb718`, `6d931aa`, `d173245`, `0012e08`),
-`CodeQL`'s last update came before both jobs completed: 1 to 8 seconds before the first, 11
-to 38 before the second; four samples, not a guarantee. Step 12's choice is #297's,
+finish. On each of the nine commits that ran CodeQL by IS #294's round 2 (PR #326's six with
+a finished run, #327's three), `CodeQL`'s last update came before both jobs completed: 1 to 8
+seconds before the first, 6 to 38 before the second; nine samples, not a guarantee. Step 12's choice is #297's,
 recorded there.
 
 ### #15 — Vercel cancels probe and Dependabot branches from step 1
