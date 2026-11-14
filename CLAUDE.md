@@ -79,6 +79,13 @@ describe a different one.
   `setWorkerUrl(new URL(…, import.meta.url))` form: on Next 16.3 the worker 404'd and
   the map drew only its background, with every gate green (Phase 4 decision #13; not
   retested on 16.4, where the copied worker loads, IS #178).
+- **`npm audit` in CI** (`ci.yml`'s `audit` job, Phase 8 plan decision #12) fails on a high
+  or critical advisory in production dependencies, and on a critical one anywhere. Its third
+  run doesn't fail: it warns on an advisory of any level in production dependencies. **A PR
+  whose `audit` job shows that warning gets an issue for each advisory it lists before the PR
+  merges.** The issue records the call: fix it, wait for upstream, or accept it with a
+  reason. An advisory that already has an issue needs no second one. The job doesn't show
+  moderate or low advisories in dev dependencies, by design (Q35).
 
 ---
 
@@ -303,7 +310,7 @@ Toolchain: the Node and npm ranges under Dependencies.
 
 **No CI check is required yet — every gate is manual, until Phase 8 builds it.**
 `.github/workflows/ci.yml` runs the four gates on each PR (#285, #286), Supabase's
-security advisor in `integration` (#290), and the process log's check and the schema
+security advisor in `integration` (#290), `npm audit` in `audit` (#291), and the process log's check and the schema
 controls' `--check` (#288), with the full controls only on the PRs "Schema controls"
 below names. No check is required until #297, and the result
 doesn't replace the hand-run gates. CI/CD is Phase 8's work, one piece designed
