@@ -708,8 +708,14 @@ controls aren't one of the four gates, whose hand runs stay. A PR whose run took
    (in a scratch repo it missed a flagged message that `gitleaks stdin` found), so
    `gitleaks stdin` on all 1033 commit messages ran too: 0. For new commits,
    `.githooks/commit-msg` scans the message. The hooks pin nothing: README names 8.30.1.
-   CI's part (the action or the binary, the scan's flags, and a pass over the PR's commit
-   messages, which `gitleaks git` alone doesn't read) is #293's.
+   **Settled for CI (PR for IS #293):** the release binary, not `gitleaks/gitleaks-action`,
+   which uses `GITHUB_TOKEN` to comment on PRs (its README) where `ci.yml`'s token is
+   read-only. The job downloads the v8.30.1 linux_x64 tarball and checks it against a
+   SHA-256 pinned in `ci.yml`, the release checksums file's entry; that file's windows_x64
+   entry matches winget's manifest hash. It sources `.githooks/gitleaks-common.sh`, so it
+   runs the hooks' flags and `.gitleaksignore` refusal, and scans
+   `base.sha..head.sha` twice: `gitleaks git --log-opts` for the patches, and `git log
+   --format='%H%n%B'` through `gitleaks stdin` for the messages.
 2. **Node in CI (step 2).** Whether `actions/setup-node` reads the version from
    `package.json`, or the workflow names `26.x`; the job log shows which. **Settled
    (PR #312):** `node-version-file: package.json`, which setup-node v7.1.0 reads from

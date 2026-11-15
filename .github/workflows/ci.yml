@@ -1,9 +1,10 @@
 # The four gates, run by GitHub on every PR into dev or main (Phase 8 plan step 2, IS #285
 # and #286), with a smoke check of the served build and, in `integration`, Supabase's
 # security advisor on the local schema (step 5, IS #290); `npm audit` in `audit` (step 6, IS
-# #291); and the process log's check and
+# #291); the process log's check and
 # the schema controls' `--check`, with the full controls on a trigger path or a PR into
-# main (step 3, IS #288). Not required checks until #297's rulesets; until then each PR still
+# main (step 3, IS #288); and Gitleaks on the PR's commits and messages in `secret-scan`
+# (step 7, IS #293). Not required checks until #297's rulesets; until then each PR still
 # runs the four gates by hand (CLAUDE.md, "Testing").
 #
 # Hardening (plan #2, Q5): the plain pull-request trigger only, never its target-branch
@@ -328,3 +329,54 @@ jobs:
         with:
           persist-credentials: false
       - run: bash scripts/process-log.sh check
+
+  # Gitleaks on the PR's commits and their messages (plan step 7, IS #293): what the local
+  # hooks can't see, `--no-verify`, `cherry-pick`, `rebase` and a clone without
+  # `core.hooksPath` (`.githooks/pre-commit`'s header). Same Gitleaks version as the hooks
+  # (README), and the same flags and checks: it sources `.githooks/gitleaks-common.sh`,
+  # so a committed `.gitleaksignore` fails it too.
+  #
+  # The release binary, not gitleaks/gitleaks-action: the action calls the API with
+  # GITHUB_TOKEN to comment on PRs (its README), and this workflow's token is read-only.
+  # The PR's own copies of this file, `.gitleaks.toml` and the shared script are what run
+  # (plan #2's limit), so a PR that weakens the scan shows it in its diff.
+  secret-scan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      # Full history, so the PR's base and head commits are both present for the range.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      # The SHA-256 is the linux_x64 entry of the release's gitleaks_8.30.1_checksums.txt;
+      # that file's windows_x64 entry matches the hash in winget's manifest for
+      # Gitleaks.Gitleaks 8.30.1, a copy kept outside the release (IS #293's PR).
+      - name: Install Gitleaks 8.30.1
+        env:
+          GITLEAKS_VERSION: 8.30.1
+          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+        run: |
+          dir="$RUNNER_TEMP/gitleaks"
+          mkdir -p "$dir"
+          curl -fsSL -o "$dir/gitleaks.tar.gz" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  $dir/gitleaks.tar.gz" | sha256sum --check --strict -
+          tar -xzf "$dir/gitleaks.tar.gz" -C "$dir" gitleaks
+          echo "$dir" >> "$GITHUB_PATH"
+          "$dir/gitleaks" version
+      # `base.sha..head.sha`: the commits on the PR's head that its base doesn't have, so a
+      # merge of dev into the branch adds none of dev's commits. With --log-opts, Gitleaks
+      # runs `git log -p -U0 <range>` in place of its default `--all` (its trace log).
+      # `gitleaks git` reads patches, not messages (PR #342's C11), so the messages get a
+      # pass of their own.
+      - name: Scan the PR's commits and their messages
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          . .githooks/gitleaks-common.sh
+          gitleaks_preflight secret-scan
+          echo "Range $BASE..$HEAD: $(git rev-list --count "$BASE..$HEAD") commits"
+          run_gitleaks git --log-opts="$BASE..$HEAD" .
+          git log --format='%H%n%B' "$BASE..$HEAD" | run_gitleaks stdin
