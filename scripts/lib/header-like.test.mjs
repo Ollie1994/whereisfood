@@ -48,11 +48,13 @@ describe("headerLike", () => {
     expect(headerLike("delete from locations;")).toBe(false);
   });
 
-  // A bound far above the scan's time and far below the regex's: the regex took about 80 ms
-  // for 8 000 dashes, and its time grows with the square of the length (IS #348's PR).
-  it("scans a line of a million dashes in well under a second", () => {
+  // A bound far above the scan's time and below a quadratic form's: the old regex took about
+  // 80 ms for 8 000 dashes, its time growing with the square of the length (IS #348's PR),
+  // so seconds for 100 000. Not a million: a quadratic form runs to the end before the
+  // assert can fail, which there took minutes (a synchronous call can't be cut off).
+  it("scans a line of a hundred thousand dashes in well under a second", () => {
     const start = performance.now();
-    expect(headerLike("-".repeat(1_000_000))).toBe(false);
+    expect(headerLike("-".repeat(100_000))).toBe(false);
     expect(performance.now() - start).toBeLessThan(1000);
   });
 });

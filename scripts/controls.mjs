@@ -157,8 +157,8 @@ function applySql(sql) {
 // The API through Kong, on `config.toml`'s [api] port (the table sliced as
 // `src/lib/db/complete.test.ts` slices it: up to the next table header). Keep `[ \t]*`
 // after the header: `\s*`, which crosses line breaks, made the lazy body backtrack, its
-// time growing with the square of the blank lines after `[api]` (IS #348's PR). CONFIG's
-// CRLF line endings are already `\n` (where it is read, above).
+// time growing with the square of the blank lines after `[api]` (IS #348's PR). A CRLF
+// file needs nothing more: under `m`, `$` also matches before a CR (probed in that PR).
 const API_TABLE = /^\[api\][ \t]*$([\s\S]*?)(?=^\[)/m.exec(CONFIG)?.[1] ?? "";
 const API_PORT = /^port\s*=\s*(\d+)/m.exec(API_TABLE)?.[1];
 if (!API_PORT) usage("no [api] port in supabase/config.toml");

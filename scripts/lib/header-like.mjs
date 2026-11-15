@@ -8,11 +8,11 @@
 // (IS #348's PR); `header-like.test.mjs` holds that regex as its oracle and compares the
 // two on every short line over two small alphabets.
 //
-// The lookahead and backreference make each word atomic. Openers are skipped while their
-// words would start inside the first word of an opener that just failed: they meet the
-// same words after it, so they fail too. One whose first word starts at that word's last
-// character or later doesn't (`---`'s second `--` starts a new word after a space), so
-// the search resumes there.
+// The lookahead and backreference make each word atomic. When an opener fails, the next
+// openers are skipped while their words would start inside its first word, up to and
+// including that word's last character: they meet a suffix of the word and the same words
+// after it, so they fail too. An opener whose words start right after the word can meet
+// different words, so the search resumes at the first such opener (`firstWordEnd - 2`).
 const WORDS = /\s*(?=([^\s:]+))\1(?:[ \t]+(?=([^\s:]+))\2){0,2}\s*:/y;
 const FIRST_WORD = /\s*[^\s:]*/y;
 const OPENER = /--|\/\*/g;
