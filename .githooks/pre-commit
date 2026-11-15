@@ -1,0 +1,17 @@
+#!/bin/sh
+# Refuses a commit whose staged changes hold a value Gitleaks' rules flag (IS #292).
+# Setup is by hand, never a `prepare` script (Phase 8 plan decision #7): README's
+# "Getting started". `git commit --no-verify` and a clone without `core.hooksPath` skip
+# this hook; the CI scan covers both (IS #293).
+#
+# --ignore-gitleaks-allow: an inline `gitleaks:allow` comment would otherwise silence a
+# find on its own line; with it, every exception is an entry in `.gitleaks.toml`.
+# --redact: the hook's output never prints the matched value.
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "pre-commit: gitleaks not found on PATH; install it (README, \"Getting started\")," >&2
+  echo "or open a new shell if you just did. Commit refused." >&2
+  exit 1
+fi
+
+exec gitleaks git --pre-commit --staged --redact --no-banner --verbose --ignore-gitleaks-allow
