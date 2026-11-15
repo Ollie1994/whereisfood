@@ -1,7 +1,7 @@
 #!/bin/sh
 # Refuses a commit whose staged changes hold a value Gitleaks' rules flag (IS #292).
 # Setup is by hand, never a `prepare` script (Phase 8 plan decision #7): README's
-# "Getting started". Flags and checks: `gitleaks-common.sh`.
+# "Getting started". The Gitleaks call and checks: `gitleaks-common.sh`.
 #
 # Not scanned here: `git commit --no-verify`; a clone without `core.hooksPath`; the
 # commit message (a flagged `api_key` in `-m` committed, exit 0), which `commit-msg`
@@ -11,8 +11,12 @@
 #
 # A `.gitleaks.toml` allowlist entry lets a value through (a temporary one did, exit 0).
 
-. "${0%/*}/gitleaks-common.sh"
+case $0 in */*) here=${0%/*} ;; *) here=. ;; esac
+if [ ! -r "$here/gitleaks-common.sh" ]; then
+  echo "pre-commit: can't read gitleaks-common.sh beside the hook. Commit refused." >&2
+  exit 1
+fi
+. "$here/gitleaks-common.sh"
 gitleaks_preflight pre-commit
 
-# GITLEAKS_FLAGS is split into words on purpose.
-exec gitleaks git --pre-commit --staged $GITLEAKS_FLAGS
+run_gitleaks git --pre-commit --staged

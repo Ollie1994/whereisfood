@@ -690,26 +690,26 @@ controls aren't one of the four gates, whose hand runs stay. A PR whose run took
    license key for this repository is read then), or the release binary downloaded with its
    checksum checked. Also the hook's and the CI scan's exact flags, #13's fake value, and
    how the owner installs it on Windows (winget, scoop or the binary). **Settled for the
-   hooks (PR #342):** Gitleaks 8.30.1, upstream's latest release, installed with
-   `winget install --id Gitleaks.Gitleaks -e` (winget verified the release zip's hash).
+   hooks (PR #342):** Gitleaks 8.30.1, upstream's latest release, installed with `winget
+   install --id Gitleaks.Gitleaks -e` (winget verified the release zip's hash).
    `pre-commit` runs `gitleaks git --pre-commit --staged`, and `commit-msg` `gitleaks
    stdin`, each with `--config .gitleaks.toml --redact --no-banner --verbose
    --ignore-gitleaks-allow` (`.githooks/gitleaks-common.sh`, which says why each is
    there); each refuses the commit while `gitleaks` isn't on the `PATH` or a
    `.gitleaksignore` exists. `--ignore-gitleaks-allow`: without it, an inline
-   `gitleaks:allow` comment let a staged flagged value through (exit 0); with it, the
-   hook refused it. `--config`: without it, `GITLEAKS_CONFIG_TOML` in the environment
-   replaced the repo's file. The one-off history scan
-   ran on a `git clone --mirror` of the GitHub repo, so every ref GitHub advertises,
-   `refs/pull/*` included (148 PR heads and 1 merge ref; 23 non-merge commits reachable
-   from no branch or tag). `gitleaks git` (its trace log: `git log -p -U0 --full-history
-   --all --diff-filter=tuxdb`) found 0 leaks in 897 commits, every non-merge commit with a diff,
-   and no merge carries hunks of its own (`git show --cc`), so the merges it skips add
-   nothing. It reads patches, not messages (in a scratch repo it missed a flagged message
-   that `gitleaks stdin` found), so `gitleaks stdin` on all 1033 commit messages ran too:
-   0. For new commits, `.githooks/commit-msg` scans the message. The hooks pin nothing: README names 8.30.1. CI's part (the action or the
-   binary, the scan's flags, and a pass over the PR's commit messages, which `gitleaks git`
-   alone doesn't read) is #293's.
+   `gitleaks:allow` comment let a staged flagged value through (exit 0); with it, the hook
+   refused it. `--config`: without it, `GITLEAKS_CONFIG_TOML` in the environment replaced
+   the repo's file. The one-off history scan ran on a `git clone --mirror` of the GitHub
+   repo, so every ref GitHub advertises, `refs/pull/*` included (148 PR heads and 1 merge
+   ref; 23 non-merge commits reachable from no branch or tag). `gitleaks git` (its trace
+   log: `git log -p -U0 --full-history --all --diff-filter=tuxdb`) found 0 leaks in 897
+   commits, every non-merge commit with a diff, and no merge carries hunks of its own
+   (`git show --cc`), so the merges it skips add nothing. It reads patches, not messages
+   (in a scratch repo it missed a flagged message that `gitleaks stdin` found), so
+   `gitleaks stdin` on all 1033 commit messages ran too: 0. For new commits,
+   `.githooks/commit-msg` scans the message. The hooks pin nothing: README names 8.30.1.
+   CI's part (the action or the binary, the scan's flags, and a pass over the PR's commit
+   messages, which `gitleaks git` alone doesn't read) is #293's.
 2. **Node in CI (step 2).** Whether `actions/setup-node` reads the version from
    `package.json`, or the workflow names `26.x`; the job log shows which. **Settled
    (PR #312):** `node-version-file: package.json`, which setup-node v7.1.0 reads from
