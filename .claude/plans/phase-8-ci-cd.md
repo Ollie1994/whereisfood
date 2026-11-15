@@ -283,7 +283,7 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
     (`gh pr checks`): `ci.yml` is PR-only, so `dev`'s head shows only the push runs. *After
     it*, `gh pr checks --required` on that PR lists the same names, and `gh api
     repos/{owner}/{repo}/rulesets` lists them and `…/rulesets/<id>` reads each one's rules
-    back (the list gives only names and ids, round 1 on PR #352; the CLI token can read rulesets but
+    back (the list has no rules, conditions or bypass list, round 1 on PR #352; the CLI token can read rulesets but
     not classic protection: `branches/*/protection` → `403`, probed 2026-11-12). Whether
     rulesets' "require workflows" rule is open to this personal account is read here (#2's
     limit).
@@ -293,10 +293,8 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
     not a gate" and `scripts/controls.mjs`'s header "Not a gate" change with it: the
     `controls` check is required. *Only now*, because every check exists and is green.
     **Settled in #297 (the owner's calls):** `dev`'s bypass list is empty too, so neither
-    ruleset has one, and #11's consequence holds on `dev` as well: a required check red for a
-    reason outside the PR (an advisory with no fixed release failing `audit`, an outage)
-    blocks every merge until the rule is lifted by hand; both require branches to be up to date before merging; on `dev`,
-    `CodeQL` and both analyze jobs are required (#14). "Require workflows" isn't open here:
+    ruleset has one, and #11's consequence holds on `dev` as well (#11 says how); both
+    require branches to be up to date before merging; on `dev`, `CodeQL` and both analyze jobs are required (#14). "Require workflows" isn't open here:
     GitHub's list of rules for repository rulesets has no such rule, and organization
     rulesets need GitHub Team or Enterprise (docs read in #297's PR), and the ruleset
     editor's list of rules on this repository has none (the owner's read, 2026-11-15); #2's
@@ -385,8 +383,8 @@ under the same name. With no required approvals, the guard is the owner reading 
 `.github/` diff, Dependabot's Actions SHA bumps included; whether rulesets' "require
 workflows" rule is open to this personal account is read in step 12, and using it is the
 owner's call then (the narrow read-through on PR #283). It isn't (#297). The same holds for
-the scripts and configs the jobs call (`package.json`'s scripts, `scripts/`, the test and
-lint configs), which a PR also carries: `CLAUDE.md`, "Testing" (round 1 on PR #352).
+the scripts and configs the jobs call, which a PR also carries; `CLAUDE.md`, "Testing", says
+which (round 1 on PR #352).
 
 ### #3 — The between-phases procedure (IS #279)
 
@@ -478,6 +476,11 @@ Until step 12, Phase 8's own PRs run the four gates by hand.
 On `main` the rules apply to admins too (Q30), so if CI itself breaks, merging to `main`
 waits until that rule is lifted by hand. Accepted: `main`'s next push is Phase 10's (README,
 "Preview deploys"), and its required checks are the production deploy's only gate (Q6).
+**On `dev` too, since #297** (the owner's call: `dev`'s bypass list is empty as well). There a
+required check red on every PR for a reason outside them (an advisory with no fixed release
+failing `audit`, an outage) blocks every merge until it passes again (a re-run after the
+outage; a PR that works around the advisory and passes its own checks) or the rule is lifted
+by hand; accepted so CI is the gate for every actor, the agent's token included.
 
 **A limit that follows:** with no push to `main` before Phase 10, the push triggers give
 CodeQL and SonarQube Cloud no analysis of `main` to compare a PR into it with (`origin/main`
@@ -563,12 +566,11 @@ it doesn't go red at all: on PR #326, where a newer push cancelled the JavaScrip
 misses its upload by failing, timing out or a hand cancel, none seen here. And `CodeQL` can
 end **neutral** on its own: on `cb25816` its title was "Error when processing the SARIF
 file", posted at 07:31:53, before either job was cancelled (07:31:59). GitHub's docs on
-required status checks count neutral as passing (a ruleset too: settled below, in #297). So required alone, `CodeQL` can pass with no JavaScript analysis, or none read.
+required status checks count neutral as passing ("Successful check statuses are `success`,
+`skipped`, and `neutral`"; the same page names "a branch ruleset" among what it covers: a
+docs read in #297's PR, not probed). So required alone, `CodeQL` can pass with no JavaScript analysis, or none read.
 Requiring both analyze jobs too makes a failed or cancelled job block, and the merge waits
-until both finish; a SARIF error with both jobs green would still pass: GitHub's docs on
-required checks count `neutral` as passing ("Successful check statuses are `success`,
-`skipped`, and `neutral`"; the same page names "a branch ruleset" among what it covers,
-IS #297's PR). Timing: on the eight
+until both finish; a SARIF error with both jobs green would still pass. Timing: on the eight
 commits read where both succeeded (PR #326's `d8eb718`, `04c3cc5`, `1eebc17`, `9ae640a`,
 `caa1e34`; #327's three), `CodeQL`'s last update came 1 to 8 seconds before the first job
 completed and 11 to 38 before the second; eight samples, not a guarantee. **Settled in #297 (the
