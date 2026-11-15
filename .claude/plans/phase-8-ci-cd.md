@@ -714,11 +714,15 @@ controls aren't one of the four gates, whose hand runs stay. A PR whose run took
    SHA-256 pinned in `ci.yml`, the release checksums file's entry; that file's windows_x64
    entry matches winget's manifest hash. It sources `.githooks/gitleaks-common.sh`, so it
    runs the hooks' flags and `.gitleaksignore` refusal. It counts `base.sha..head.sha`
-   (failing if git can't), runs git's own `log -p --diff-merges=remerge` on it (Gitleaks
-   exits 0 when git fails), then scans it twice: `gitleaks git
-   --log-opts="--diff-merges=remerge <range>"` for the patches, a merge's own additions
-   included; and one `gitleaks dir` over a folder of the commits' messages, one file per
-   commit (rounds 1 and 2 on the PR).
+   (failing if git can't), runs git's own `log -p --text --diff-merges=remerge` on it
+   (Gitleaks exits 0 when git fails), then scans it twice, reporting both before it
+   fails: `gitleaks git --log-opts="--text --diff-merges=remerge <range>"` for the
+   patches, binary files and a merge's own additions included; and one `gitleaks dir`
+   over a folder of the commits' messages, one file per commit (rounds 1 to 3 on the PR).
+   The pre-commit hook doesn't scan binary files (a value beside a NUL byte passed). So
+   the history scan above read none either: rerun with `--text` on a mirror clone
+   (2026-11-15, "920 commits scanned"), it found one leak, the made-up value of probe PR
+   #344 under `refs/pull/344/head` (plan #13), which the run without `--text` found too.
 2. **Node in CI (step 2).** Whether `actions/setup-node` reads the version from
    `package.json`, or the workflow names `26.x`; the job log shows which. **Settled
    (PR #312):** `node-version-file: package.json`, which setup-node v7.1.0 reads from

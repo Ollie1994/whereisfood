@@ -332,9 +332,10 @@ jobs:
 
   # Gitleaks on the PR's commits and their messages (plan step 7, IS #293): what the local
   # hooks can't see, `--no-verify`, `cherry-pick`, `rebase` and a clone without
-  # `core.hooksPath` (`.githooks/pre-commit`'s header). Same Gitleaks version as the hooks
-  # (README), and the same flags and checks: it sources `.githooks/gitleaks-common.sh`,
-  # so a committed `.gitleaksignore` fails it too.
+  # `core.hooksPath` (`.githooks/pre-commit`'s header), and files git treats as binary. It
+  # pins the Gitleaks version README gives for the hooks, which pin none themselves, and
+  # runs their flags and checks: it sources `.githooks/gitleaks-common.sh`, so a committed
+  # `.gitleaksignore` fails it too.
   #
   # The release binary, not gitleaks/gitleaks-action: the action calls the API with
   # GITHUB_TOKEN to comment on PRs (its README), and this workflow's token is read-only.
@@ -377,8 +378,14 @@ jobs:
       # branch holding a flagged value showed nothing to scan (`--cc` output went
       # unparsed: "no leaks found"). With a range or option git rejects, Gitleaks logged
       # git's error, "0 commits scanned", and exited 0 (IS #293's PR, round 1), so git runs
-      # the same log first and fails the step if it can't. On a conflicted merge Gitleaks
-      # names the file `b/<path>` (`.gitleaks.toml` says what that means for `paths`).
+      # the same log first and fails the step if it can't. A diff Gitleaks can't parse
+      # isn't caught by that (not probed). On a conflicted merge Gitleaks names the file
+      # `b/<path>` (`.gitleaks.toml` says what that means for `paths`). `--text`: without
+      # it, `git log -p` prints only "Binary files … differ" for a file git counts as binary
+      # (a NUL byte, or `-diff` in `.gitattributes`), and a value in one passed (exit 0);
+      # with it, caught (exit 1). The pre-commit hook has no such option.
+      #
+      # Both scans always run, so one run reports every find; the step fails after them.
       #
       # Messages: `gitleaks git` reads patches, not messages (PR #342's C11). Each commit's
       # stored message (`%B`, after git's cleanup; the commit-msg hook sees the file before
@@ -397,8 +404,10 @@ jobs:
             || { echo "::error::the range $BASE..$HEAD isn't in the clone"; exit 1; }
           echo "Range $BASE..$HEAD: $n commits"
 
-          git log -p -U0 --diff-merges=remerge "$BASE..$HEAD" > /dev/null
-          run_gitleaks git --log-opts="--diff-merges=remerge $BASE..$HEAD" .
+          git log -p -U0 --text --diff-merges=remerge "$BASE..$HEAD" > /dev/null
+          failed=0
+          run_gitleaks git --log-opts="--text --diff-merges=remerge $BASE..$HEAD" . \
+            || { echo "::error::the patch scan failed (a find, or a Gitleaks error above)"; failed=1; }
 
           msgs="$RUNNER_TEMP/messages"
           mkdir -p "$msgs"
@@ -408,4 +417,6 @@ jobs:
           files="$(find "$msgs" -type f | wc -l)"
           [ "$files" -eq "$n" ] \
             || { echo "::error::$files message files for $n commits"; exit 1; }
-          run_gitleaks dir "$msgs"
+          run_gitleaks dir "$msgs" \
+            || { echo "::error::the message scan failed (a find, or a Gitleaks error above)"; failed=1; }
+          exit "$failed"

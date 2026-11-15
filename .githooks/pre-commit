@@ -7,8 +7,9 @@
 # commit message (a flagged `api_key` in `-m` committed, exit 0), which `commit-msg`
 # scans; and the commits that a clean `git merge --no-ff`, `cherry-pick`, a plain `rebase`
 # and `am` make, which don't run pre-commit (in a scratch repo each committed a flagged
-# file, exit 0, where `git commit` refused it). `ci.yml`'s `secret-scan` scans a PR's
-# commits and messages.
+# file, exit 0, where `git commit` refused it); and a staged file git treats as binary (a
+# value beside a NUL byte passed this scan, exit 0). `ci.yml`'s `secret-scan` scans a
+# PR's commits, binary files included, and messages.
 #
 # A `.gitleaks.toml` allowlist entry lets a value through (a temporary one did, exit 0).
 
