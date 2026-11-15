@@ -181,9 +181,9 @@ git config core.hooksPath .githooks
 `npm run dev` and `npm run build` repeat the copy.
 
 `core.hooksPath` turns on `.githooks/pre-commit` and `.githooks/commit-msg`, which run
-Gitleaks on the staged changes and on the message, and refuse the commit on a find, or
-while `gitleaks` isn't on the `PATH`. It is
-set by hand in each clone, never by an npm script (`CLAUDE.md`, "Secrets").
+Gitleaks on the staged changes and on the message, and refuse the commit on a find,
+while `gitleaks` isn't on the `PATH`, or while a `.gitleaksignore` exists. It is set by
+hand in each clone, never by an npm script (`CLAUDE.md`, "Secrets").
 
 ### 2. Get the map tiles
 

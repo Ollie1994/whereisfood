@@ -1,18 +1,11 @@
-# Gitleaks config (IS #292), read by both hooks in `.githooks/`, and by #293's CI scan once
-# it exists. With no --config, `gitleaks git` reads `.gitleaks.toml` from the scanned
-# folder's root (`gitleaks git --help`, 8.30.1); `gitleaks stdin` (commit-msg) reads it
-# from the working directory, which for a hook is the work-tree root (a temporary regex
-# entry here let a flagged message through, exit 0).
-#
-# The default rules, unchanged. With them (8.30.1, 2026-11-15), on a `git clone --mirror`
-# of the GitHub repo (every ref it advertises, `refs/pull/*` included):
-# - `gitleaks git` found 0 leaks in 897 commits, every non-merge commit with a diff; no
-#   merge carried hunks of its own;
-# - `gitleaks stdin` on all 1033 commit messages found 0. `gitleaks git` reads patches, not
-#   messages: in a scratch repo it missed a flagged message that `gitleaks stdin` found.
+# Gitleaks config (IS #292). Both hooks in `.githooks/` pass `--config .gitleaks.toml`
+# (`gitleaks-common.sh` says why), and #293's CI scan is to read it too. The default rules,
+# unchanged. The history scan that found nothing to allow is open decision 1's, in the
+# Phase 8 plan.
 #
 # An allowlist entry added here names why its value isn't a secret. A `paths` entry
 # reaches only pre-commit: commit-msg scans text with no path, and a `paths = ['.*']`
-# entry still left it refusing a flagged message (exit 1). A `regexes` entry reaches both.
+# entry still left it refusing a flagged message (exit 1). A `regexes` entry reaches both
+# (a temporary one let a flagged message through, exit 0).
 [extend]
 useDefault = true

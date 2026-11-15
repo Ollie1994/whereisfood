@@ -2,27 +2,44 @@
 # Refuses a commit whose message holds a value Gitleaks' rules flag (IS #292). The
 # pre-commit hook scans only the staged changes, and `gitleaks git` reads patches, not
 # messages: in a scratch repo it missed a flagged message that `gitleaks stdin` found.
-# Same flags as pre-commit (its header says why).
+# Flags and checks: `gitleaks-common.sh`.
 #
 # Run: `git commit` (with `-m` or an editor), `--amend`, `git merge -m`, and `rebase -i`'s
 # reword each refused a flagged message here (exit 1). Not run: `cherry-pick` (`-e`
 # too), `am`, a plain `rebase` and `commit --no-verify` each committed one (exit 0).
 # All probed in scratch repos. A clone without `core.hooksPath` doesn't run it either.
 #
-# The message file under `git commit -v` also holds the staged diff after git's scissors
-# line, so a commit removing a flagged line was refused for the `-` line. Git drops that
-# part from the message, so the scan stops at the scissors line.
+# Under `git commit -v` the message file also holds the staged diff after git's scissors
+# line (`# ------------------------ >8 ------------------------`), so scanning it all
+# refused a commit that removes a flagged line, for its `-` line. Git drops that part
+# from the message under `-v`, but not under `-m`, where a value after such a line was
+# committed. So after an exact scissors line only the diff's lines are dropped (`diff
+# --git`, `index`, `---`, `+++`, `@@`, and lines starting with `+`, `-`, a space or `\`);
+# the rest is scanned. Not scanned, then: a message line after a scissors line that
+# starts with one of those.
 
-if ! command -v gitleaks >/dev/null 2>&1; then
-  echo "commit-msg: gitleaks not found on PATH; install it (README, \"Getting started\")," >&2
-  echo "or open a new shell if you just did. Commit refused." >&2
-  exit 1
-fi
+. "${0%/*}/gitleaks-common.sh"
+gitleaks_preflight commit-msg
 
 if [ ! -r "$1" ]; then
   echo "commit-msg: can't read the message file \"$1\". Commit refused." >&2
   exit 1
 fi
 
-sed '/-\{24\} >8 -\{24\}/,$d' "$1" |
-  gitleaks stdin --redact --no-banner --verbose --ignore-gitleaks-allow
+cut='^[^ ]\{1,\} -\{24\} >8 -\{24\}\r\{0,1\}$'
+if ! msg=$(sed -e "/$cut/,\$ {
+  /$cut/d
+  /^diff --git /d
+  /^index /d
+  /^--- /d
+  /^+++ /d
+  /^@@/d
+  /^[-+ ]/d
+  /^\\\\/d
+}" "$1"); then
+  echo "commit-msg: couldn't read the message. Commit refused." >&2
+  exit 1
+fi
+
+# GITLEAKS_FLAGS is split into words on purpose.
+printf '%s\n' "$msg" | gitleaks stdin $GITLEAKS_FLAGS
