@@ -365,8 +365,10 @@ jobs:
           tar -xzf "$dir/gitleaks.tar.gz" -C "$dir" gitleaks
           echo "$dir" >> "$GITHUB_PATH"
           "$dir/gitleaks" version
-      # `base.sha..head.sha`: the commits on the PR's head that its base doesn't have, so a
-      # merge of dev into the branch adds none of dev's commits. With --log-opts, Gitleaks
+      # `base.sha..head.sha`: the commits reachable from the PR's head and not from the base
+      # commit the event names, so dev's commits merged into the branch up to that commit
+      # aren't scanned again (later ones would be, which adds work, not a gap). The step
+      # prints the range and its count. With --log-opts, Gitleaks
       # runs `git log -p -U0 <range>` in place of its default `--all` (its trace log).
       # `gitleaks git` reads patches, not messages (PR #342's C11), so the messages get a
       # pass of their own.
