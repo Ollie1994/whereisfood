@@ -395,7 +395,7 @@ stayed green), and restores the database with `npx supabase db reset`. CI's requ
 the files, touches nothing) on the rest (#288). Run it by hand while writing a control or a
 migration (one file: `node scripts/controls.mjs tests/controls/<name>.sql`), and for a PR
 whose change the controls test though no `TRIGGERS` entry covers it (that script's header
-says which changes it can't see): there the check ran only `--check`. A new schema guard
+says which changes it can't see): into `dev`, the check ran only `--check` there. A new schema guard
 adds its controls by the rule in `.claude/commands/create-issues.md`'s Failure modes. About
 45 s a control, mostly the reset (64 took 48 minutes, 2026-10-23); the script's header
 says what it can't see.

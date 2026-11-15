@@ -560,7 +560,8 @@ read). So required alone, `CodeQL` can pass with no JavaScript analysis, or none
 Requiring both analyze jobs too makes a failed or cancelled job block, and the merge waits
 until both finish; a SARIF error with both jobs green would still pass: GitHub's docs on
 required checks count `neutral` as passing ("Successful check statuses are `success`,
-`skipped`, and `neutral`"), and a ruleset's required checks are the same kind (not probed). Timing: on the eight
+`skipped`, and `neutral`"; the same page names "a branch ruleset" among what it covers,
+IS #297's PR). Timing: on the eight
 commits read where both succeeded (PR #326's `d8eb718`, `04c3cc5`, `1eebc17`, `9ae640a`,
 `caa1e34`; #327's three), `CodeQL`'s last update came 1 to 8 seconds before the first job
 completed and 11 to 38 before the second; eight samples, not a guarantee. **Settled in #297 (the
