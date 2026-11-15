@@ -1,5 +1,6 @@
 # CodeQL on every PR into dev or main and every push to them (Phase 8 plan step 8, IS #294).
-# Plan #2 counts on it to scan Dependabot and fork PRs too, which sonarqube.yml skips. No
+# Plan #2 counts on it to scan Dependabot and fork PRs too; it is the only SAST check since
+# plan step 9 (SonarQube Cloud) was skipped (#295). No
 # such PR has run it yet, so whether their results upload and `CodeQL` posts is unseen
 # (#300's Dependabot PR is the first chance). The push runs give a PR its base analysis to
 # compare with; `main` has none before Phase 10 (plan #11). The same pull-request trigger as

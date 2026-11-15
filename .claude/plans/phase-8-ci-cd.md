@@ -13,7 +13,7 @@ reconciles the context.
 
 **Purpose of the phase:** until now every gate is a command someone remembers to run.
 This phase makes GitHub run them, and the security checks around them, on every PR
-(SonarQube Cloud skipped on Dependabot and fork PRs, #2), and makes a red check stop the
+(SonarQube Cloud skipped on Dependabot and fork PRs, #2; skipped altogether in Phase 8, step 9), and makes a red check stop the
 merge, before Phase 9's security work and Phase 10's
 production deploy go through it (#1).
 
@@ -22,8 +22,8 @@ production deploy go through it (#1).
 ## Goal
 
 Every PR into `dev` or `main` must pass the four gates and the secret scan, CodeQL,
-SonarQube Cloud (skipped on Dependabot and fork PRs, which CodeQL is to cover, #2), `npm
-audit`, the security advisor, the lint rules, the schema controls
+SonarQube Cloud (skipped on Dependabot and fork PRs, which CodeQL is to cover, #2; the
+whole of it skipped in Phase 8, step 9, #295), `npm audit`, the security advisor, the lint rules, the schema controls
 and the log check, run by hardened GitHub Actions workflows as required checks under
 branch protection, with Dependabot switched on last; done once each required check has
 been seen to fail on a probe PR that branch protection then blocked, and a Dependabot PR
@@ -78,13 +78,13 @@ has run the checks with no Vercel build (#5).
 |---|---|
 | `.github/workflows/ci.yml` | PR-only (`pull_request` into `dev` and `main`), read-only token. Jobs `typecheck-lint`, `unit`, `integration` (local Supabase, and the security advisor), `build` (`.env.example`'s variables from the local stack, then `next start` and `smoke.mjs`), `secret-scan`, `audit` (three runs, #12), `controls` (`--check` always; the full set when `needsFullControls` says so) and `process-log` |
 | `.github/workflows/codeql.yml` | CodeQL, `javascript-typescript` and `actions`, on PRs and on push to `dev` and `main`, with `security-events: write`; its code-scanning result check is the required one, since the analyze jobs stay green on a finding (#14); whether both analyze jobs are required beside it is #297's (#14's step 8 note) |
-| `.github/workflows/sonarqube.yml` | SonarQube Cloud, on PRs and on push to `dev` and `main`; skipped by `if:` on Dependabot and fork PRs; installs with `--ignore-scripts`; runs with `sonar.qualitygate.wait=true`, so a failed gate fails the job (#14) |
+| `.github/workflows/sonarqube.yml` (not created: step 9 skipped, #295) | SonarQube Cloud, on PRs and on push to `dev` and `main`; skipped by `if:` on Dependabot and fork PRs; installs with `--ignore-scripts`; runs with `sonar.qualitygate.wait=true`, so a failed gate fails the job (#14) |
 | `.github/dependabot.yml` | Version updates for `github-actions`, keeping the SHA pins current, with the default `/` branch-name separator (step 15). npm gets security updates only (repository setting) |
 | `.githooks/pre-commit` | Gitleaks on the staged changes; the folder is set by hand through `core.hooksPath` (#7). Committed executable with `git update-index --chmod=+x`: `core.filemode` is `false` on the owner's machine (read 2026-11-12), so a plain add stores `100644` and git elsewhere ignores the hook |
 | `.githooks/commit-msg` | Gitleaks (`gitleaks stdin`) on the commit message, which `pre-commit` and `gitleaks git` don't read; committed executable as `pre-commit` is (round 1 on PR #342, the owner's call) |
 | `.githooks/gitleaks-common.sh` | Sourced by both hooks and `ci.yml`'s `secret-scan`: their Gitleaks flags, and the checks that refuse while `gitleaks` is missing or a `.gitleaksignore` exists (round 3 on PR #342; `secret-scan` from IS #293) |
 | `.gitleaks.toml` (never a `.gitleaksignore`: it names no reason, round 1 on PR #342, the owner's call) | Gitleaks' config. Each allowlist entry names why it isn't a secret: the local stack's keys and test fixtures (`CLAUDE.md`, "Secrets") |
-| `sonar-project.properties` | SonarQube Cloud's project key, sources and exclusions |
+| `sonar-project.properties` (not created: step 9 skipped, #295) | SonarQube Cloud's project key, sources and exclusions |
 | `SECURITY.md` | How to report a vulnerability: GitHub's private reporting |
 | `scripts/controls-trigger.mjs` (+ test) | `TRIGGERS`, `changedPaths` and `needsFullControls`, its own script (open decision 4) |
 | `scripts/controls-trigger-coverage.test.mjs` | The guard test on the trigger list (#8) |
@@ -119,7 +119,7 @@ has run the checks with no Vercel build (#5).
   approval required for first-time contributors' runs; CodeQL default setup off (it
   conflicts with a workflow); private vulnerability reporting; branch protection on `dev`
   and `main`; Dependabot security updates on, last.
-- **SonarQube Cloud:** the account (two-factor at creation), organization and project;
+- **SonarQube Cloud** (dropped with step 9, #295; the trial account and app were removed by the owner, 2026-11-15): the account (two-factor at creation), organization and project;
   automatic analysis off, since it can't run beside a CI analysis; `SONAR_TOKEN` as an
   Actions secret, never a Dependabot secret (Q3).
 - **Vercel:** the Ignored Build Step also cancels `dependabot/*` (Q1) and `probe/*` (#15), from step 1.
@@ -259,7 +259,12 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
 9. **SonarQube Cloud:** the account (two-factor at creation), project and token,
    `sonar-project.properties`, `sonarqube.yml` with the `if:` skip, `--ignore-scripts` and
    `sonar.qualitygate.wait=true` (Q3, Q5, #14), and the custom quality gate open decision 5
-   settles. Confirm the free tier for public repositories first.
+   settles. Confirm the free tier for public repositories first. **Skipped (the owner's
+   call, 2026-11-15, #295):** the free tier didn't hold as planned (open decision 5), and a
+   trial on the Free plan found nothing in the app's own security among 67 findings, four
+   worth fixing anyway (#348). CodeQL is Phase 8's only SAST check; a SonarQube re-scan
+   before the production deploy, and the decision to keep it, is #349. Everywhere else in
+   this plan, SonarQube Cloud's files, job, check and criteria are dropped with this step.
 10. **`SECURITY.md`** and private vulnerability reporting (Q32).
 11. **Blocking findings settled.** Each blocking finding from steps 3–9 fixed, or
     dismissed or allowlisted with a reason, in its own issue. *Before step 12 because* a
@@ -271,7 +276,8 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
     required check is what fails on a finding (#14): CodeQL's code-scanning result check
     (its analyze jobs stay green on a finding; whether they are required beside it is
     settled here, #14's step 8 note), and SonarQube Cloud's workflow job run with
-    `sonar.qualitygate.wait=true`, not SonarQube Cloud's own app check. *Before it*, a
+    `sonar.qualitygate.wait=true`, not SonarQube Cloud's own app check (none since step 9
+    was skipped, #295: CodeQL's is the only SAST check). *Before it*, a
     fresh no-op PR into `dev` shows every check green under the exact name to be required
     (`gh pr checks`): `ci.yml` is PR-only, so `dev`'s head shows only the push runs. *After
     it*, `gh pr checks --required` on that PR lists the same names, and `gh api
@@ -644,7 +650,7 @@ controls aren't one of the four gates, whose hand runs stay. A PR whose run took
 - [ ] CodeQL (`javascript-typescript`, `actions`) has an analysis of `dev`, and runs on PRs and
   pushes; its code-scanning result check goes red on a probe that adds an alert (#14; the
   window #14's step 8 note records is #297's).
-- [ ] SonarQube Cloud: two-factor on at account creation (the owner's confirmation);
+- [ ] ~~SonarQube Cloud~~ (dropped with step 9, #295): two-factor on at account creation (the owner's confirmation);
   automatic analysis off; an analysis of `dev` exists; `SONAR_TOKEN` is an Actions secret
   only; the job installs with `--ignore-scripts` and runs with `sonar.qualitygate.wait=true`,
   and goes red on a probe that fails the quality gate (#14); the gate is open decision 5's,
@@ -674,8 +680,8 @@ controls aren't one of the four gates, whose hand runs stay. A PR whose run took
   updater image definition, is one `devEngines` admits; after, `dependabot.yml` covers
   `github-actions` with the default separator, npm security updates are on, and the
   Dependabot tab shows the npm job with no error.
-- [ ] On one Dependabot PR, on a branch starting `dependabot/`: the checks ran, SonarQube's
-  job was skipped and didn't block the merge, CodeQL ran, and Vercel shows the build
+- [ ] On one Dependabot PR, on a branch starting `dependabot/`: the checks ran (SonarQube's
+  job: none, step 9 skipped, #295), CodeQL ran, and Vercel shows the build
   cancelled by the Ignored Build Step (the commit's statuses, `README.md` "Preview deploys").
 
 **Always**
@@ -777,12 +783,22 @@ controls aren't one of the four gates, whose hand runs stay. A PR whose run took
    documents it, not read on this account; step 9 reads it). Code smells and
    duplication are reported, not blocking; uploading coverage would be an issue of its own.
    If the free tier doesn't hold, CodeQL alone is the fallback, and that's the owner's call
-   then.
+   then. **Settled: CodeQL alone (the owner's call, 2026-11-15, #295; step 9).** Read on
+   Sonar's subscription-plans page that day: the Free plan has no custom quality gate,
+   analyzes only the main branch and PRs into it; the OSS plan has both, for public
+   projects with an open-source licence, which this repo doesn't have (it was offered to
+   this personal account at organization creation). **"Sonar way" as read on this account**
+   (`api/qualitygates/show`): on new code, security, reliability and maintainability
+   rating worse than A, coverage below 80, duplicated lines above 3, hotspots reviewed
+   below 100. Maintainability is a rating, not a count of issues, so "fail one on a single
+   code smell" above doesn't hold as written; with no coverage imported the coverage
+   measure was empty, and whether the gate then skips it wasn't probed. The trial's
+   findings and how each was settled: #295.
 6. **The required-check names for CodeQL and SonarQube Cloud (step 12)**: the exact names
    the checks #14 picks report under, which branch protection lists exactly. **CodeQL's, read
    (PR #326):** the result check `CodeQL` (app `github-advanced-security`), and the jobs
    `analyze (javascript-typescript)` and `analyze (actions)`, whose place in step 12 is
-   #14's step 8 note. SonarQube Cloud's: step 9.
+   #14's step 8 note. SonarQube Cloud's: none, step 9 skipped (#295).
 7. **Classic branch protection or rulesets (step 12).** **Settled: rulesets** (the owner's
    call, the narrow read-through on PR #283). Either binds admins on `main`, but the CLI
    token can read rulesets and not classic protection (`gh api …/rulesets` answered;
