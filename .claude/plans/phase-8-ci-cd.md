@@ -77,7 +77,7 @@ has run the checks with no Vercel build (#5).
 | File | What it is |
 |---|---|
 | `.github/workflows/ci.yml` | PR-only (`pull_request` into `dev` and `main`), read-only token. Jobs `typecheck-lint`, `unit`, `integration` (local Supabase, and the security advisor), `build` (`.env.example`'s variables from the local stack, then `next start` and `smoke.mjs`), `secret-scan`, `audit` (three runs, #12), `controls` (`--check` always; the full set when `needsFullControls` says so) and `process-log` |
-| `.github/workflows/codeql.yml` | CodeQL, `javascript-typescript` and `actions`, on PRs and on push to `dev` and `main`, with `security-events: write`; its code-scanning result check is required, since the analyze jobs stay green on a finding, and on `dev` both analyze jobs beside it (#14, settled in #297) |
+| `.github/workflows/codeql.yml` | CodeQL, `javascript-typescript` and `actions`, on PRs and on push to `dev` and `main`, with `security-events: write`; on `dev` its code-scanning result check is required, since the analyze jobs stay green on a finding, and both analyze jobs beside it (#14, settled in #297); on `main` they join in Phase 10 (#11) |
 | `.github/workflows/sonarqube.yml` (not created: step 9 skipped, #295) | SonarQube Cloud, on PRs and on push to `dev` and `main`; skipped by `if:` on Dependabot and fork PRs; installs with `--ignore-scripts`; runs with `sonar.qualitygate.wait=true`, so a failed gate fails the job (#14) |
 | `.github/dependabot.yml` | Version updates for `github-actions`, keeping the SHA pins current, with the default `/` branch-name separator (step 15). npm gets security updates only (repository setting) |
 | `.githooks/pre-commit` | Gitleaks on the staged changes; the folder is set by hand through `core.hooksPath` (#7). Committed executable with `git update-index --chmod=+x`: `core.filemode` is `false` on the owner's machine (read 2026-11-12), so a plain add stores `100644` and git elsewhere ignores the hook |
@@ -196,7 +196,8 @@ exceptions: step 1 is settings, recorded on its issue, with a PR only for README
 issue records them. Every probe branch is named `probe/…`, which Vercel cancels from step 1,
 and no branch but `dev` gets the secret key (#15). **Steps 3–10 depend only on steps 1 and 2** and may run in any order or in parallel
 (#10); the order below is cheapest first. **Until step 12, every Phase 8 PR still
-runs the four gates by hand** (`CLAUDE.md`, "Testing"), whatever CI shows.
+ran the four gates by hand** (`CLAUDE.md`, "Testing", as it stood before step 12's PR, #352),
+whatever CI showed; from step 12 CI is the gate.
 
 Each step that adds a check runs it reporting, not required, and opens an issue for each
 of its findings (#4): a finding that would keep the check red on `dev` is **blocking** and
@@ -332,7 +333,9 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
     `dependabot/` and `probe/` cancels made stale, IS #284); Part 2's items that rely on the
     Ignored Build Step (Dependabot's branches, and Phase 10's "check it is still set") gain
     the `vercel.json` `ignoreCommand` override and the secret key's `dev` scope (`README.md`,
-    "Preview deploys", PR #311). It
+    "Preview deploys", PR #311); and "Decisions carried forward"'s Phase 6 #1 and #2 rows,
+    whose "Gates stay manual until deploy" and its reading point at `CLAUDE.md` "Testing",
+    which step 12 rewrote for CI as the gate (round 3 on PR #352). It
     replaces the three **between phases** markers this plan took up with #1–#3, leaves the
     IS #278 (Phase 9) and (Phase 10) rows' markers as they are, carries forward this plan's
     decisions that outlive the phase (#4, #7, #8, #9, #11, #12, #13, #14, #15 at least),

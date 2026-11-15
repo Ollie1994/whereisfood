@@ -17,8 +17,9 @@
 # workflow level) the default queries passed it. It reads success while only one analysis
 # has uploaded, stayed success on PR #326 when the JavaScript job was cancelled, and once
 # ended neutral on "Error when processing the SARIF file". So `dev`'s ruleset requires
-# `CodeQL` and both analyze jobs by name (plan #14, settled in #297): renaming the job, or
-# its `name:` pattern, leaves the ruleset waiting on the old names. A SARIF error with both
+# `CodeQL` and both analyze jobs by name (plan #14, settled in #297). The job's `name:`
+# pattern and the matrix's `language` values make those names: changing either leaves the
+# ruleset waiting on the old ones. A SARIF error with both
 # jobs green still passes: GitHub's docs count a neutral check as passing.
 #
 # Hardening as in ci.yml (plan #2, Q5): the plain pull-request trigger, never its

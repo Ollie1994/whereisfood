@@ -620,4 +620,6 @@ npm run lint
 npm run test:run
 ```
 
-`npm run test:all` and `npm run build` reproduce a red `integration` or `build` check.
+To reproduce a red check, run the failing step's command from `ci.yml`: `integration` is
+`npm run test:all` and the security advisor, `build` is `npm run build` and the smoke check
+of the served build.

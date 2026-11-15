@@ -326,10 +326,10 @@ Toolchain: the Node and npm ranges under Dependencies.
 `audit` (#291), the process log's check in `process-log` and the schema controls in
 `controls` (#288; the full set only on the PRs "Schema controls" below names), and Gitleaks
 on the PR's commits and messages in `secret-scan` (#293); `codeql.yml` runs CodeQL (#294).
-The rulesets on `dev` and `main` require a PR, those checks by name and the branch up to
-date with its base, and block force-pushes and deletion; on `dev` CodeQL's checks are
-required too (`CodeQL` and both `analyze` jobs, plan #14), on `main` they join in Phase 10
-(plan #11). Neither ruleset has a bypass list, so the rules bind admins: a required check
+The rulesets on `dev` and `main` require a PR, the branch up to date with its base and, by
+name, `ci.yml`'s checks; on `dev` CodeQL's too (`CodeQL` and both `analyze` jobs, plan #14),
+on `main` they join in Phase 10 (plan #11). They block force-pushes and deletion. Neither
+ruleset has a bypass list, so the rules bind admins: a required check
 red on every PR for a reason outside them (an advisory with no fixed release failing
 `audit`, an outage) blocks every merge into that branch until it passes again (a re-run
 after the outage; a PR that works around the advisory and passes its own checks) or the
@@ -338,13 +338,12 @@ rule is lifted by hand in the repository's settings (plan #11).
 back. A PR is reviewed and merged once its checks are green; nothing runs the gates by hand
 for it. What CI doesn't cover:
 - the `/map` browser check, which stays manual (below);
-- the files a PR's checks run: a PR runs its own copy of what its jobs read, the
-  `.github/workflows/` and the scripts and configs they call (among them `package.json` and
-  its lockfile, `scripts/`, `.gitleaks.toml` and `.githooks/`, `tsconfig.json`,
-  `vitest.config.ts`, the eslint config and `supabase/`), so an edit to one can turn a
-  required check into one that passes whatever the code does, under the same name (plan #2's
-  limit; rulesets' "require workflows" isn't open to a personal account's repository, #297).
-  Read those diffs as edits to the checks, Dependabot's included;
+- what a PR's checks run: a PR runs its own copy of everything its jobs read (workflows,
+  scripts, configs, tests, `package.json` and the lockfile, `.env.example`), so any edit can
+  turn a required check into one that passes whatever the code does, under the same name
+  (plan #2's limit; rulesets' "require workflows" isn't open to a personal account's
+  repository, #297). Read every diff, Dependabot's included, for what it changes in a check,
+  not only in the app;
 - on a PR into `dev`, a change the controls test that no `TRIGGERS` entry covers ("Schema
   controls" below);
 - a PR retargeted from `dev` to `main`: its last run, into `dev`, may have run the controls'
@@ -354,8 +353,9 @@ for it. What CI doesn't cover:
 Locally, `npx tsc --noEmit`, `npm run test:run` and `npm run lint` are the fast loop, with
 Docker down. `tsc` is a check in its own right: vitest strips types and never type-checks, so
 a green test run says nothing about types. `test:run` passing is not evidence the
-integration suite passes: it doesn't run it. To reproduce a red `integration` or `build`,
-run `npm run test:all` or `npm run build`.
+integration suite passes: it doesn't run it. To reproduce a red job, run the failing step's
+command from `ci.yml`: `integration` is `npm run test:all` and the security advisor, `build`
+is `npm run build` and the smoke check of the served build.
 
 ⚠ **Read an exit code unpiped.** `cmd | tail; echo $?` reports `tail`'s status, not the
 command's, and has already produced a confident wrong gate result here (process-log
