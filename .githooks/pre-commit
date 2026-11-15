@@ -4,9 +4,11 @@
 # "Getting started". `git commit --no-verify` and a clone without `core.hooksPath` skip
 # this hook; the CI scan covers both (IS #293).
 #
-# --ignore-gitleaks-allow: an inline `gitleaks:allow` comment would otherwise silence a
-# find on its own line; with it, every exception is an entry in `.gitleaks.toml`.
-# --redact: the hook's output never prints the matched value.
+# --ignore-gitleaks-allow: without it, an inline `gitleaks:allow` comment let a staged
+# flagged value through (exit 0); with it, the hook refused it. A `.gitleaksignore`
+# fingerprint in the repo root still lets a value through (exit 0, probed), as does an
+# allowlist entry in `.gitleaks.toml`.
+# --redact: on a refused commit, the output printed REDACTED and held no copy of the value.
 
 if ! command -v gitleaks >/dev/null 2>&1; then
   echo "pre-commit: gitleaks not found on PATH; install it (README, \"Getting started\")," >&2
