@@ -320,33 +320,29 @@ Toolchain: the Node and npm ranges under Dependencies.
 | `npm run test:integration` | integration only (fails if it collects zero files) | yes |
 | `npm run test:all` | **every project in `RUNS`** of `scripts/test-all.mjs` (today `unit` + `integration`), checked against the projects `vitest.config.ts` declares; takes no arguments | yes |
 
-**No CI check is required yet — every gate is manual, until Phase 8 builds it.**
-`.github/workflows/ci.yml` runs the four gates on each PR (#285, #286), Supabase's
-security advisor in `integration` (#290), `npm audit` in `audit` (#291), the process log's check and the schema
-controls' `--check` (#288), with the full controls only on the PRs "Schema controls"
-below names, and Gitleaks on the PR's commits and messages in `secret-scan` (#293). No check is required until #297, and the result
-doesn't replace the hand-run gates. CI/CD is Phase 8's work, one piece designed
-together and built before Phase 10's production deploy (Phase 6
-plan decision #1; the split into Phases 8, 9 and 10 is IS #265 and IS #278, between
-phases).
-What it holds (the four gates in GitHub Actions, SAST, branch protection, a pre-commit
-and CI secret scan, and more) is `project-context.md`'s "Pre-deploy automation
-(planned)". Don't re-propose it for an earlier phase. Sources: the owner's decision
-"DECISION — Gates stay manual until deploy" (2026-09-06, archived; the note above the
-process log's table says how to read it). That "deploy" means the production deploy is
-the owner's reading (Phase 6 plan decision #2, IS #176).
-Until then the gates are the only enforcement, and `tsc` is one of them in its own
-right: vitest strips types and never type-checks, so a green test run says nothing
-about types. The gate list is four commands, and
-`test:run` is *not* one of them once integration tests exist:
+**CI is the gate** (Q10; Phase 8 plan step 12, IS #297). On each PR into `dev` or `main`,
+`.github/workflows/ci.yml` runs the four gates (`typecheck-lint`, `unit`, `integration`,
+`build`; #285, #286), Supabase's security advisor in `integration` (#290), `npm audit` in
+`audit` (#291), the process log's check in `process-log` and the schema controls in
+`controls` (#288; the full set only on the PRs "Schema controls" below names), and Gitleaks
+on the PR's commits and messages in `secret-scan` (#293); `codeql.yml` runs CodeQL (#294).
+The rulesets on `dev` and `main` require a PR and those checks by name, and block
+force-pushes and deletion; on `dev` CodeQL's checks are required too (`CodeQL` and both
+`analyze` jobs, plan #14), on `main` they join in Phase 10 (plan #11). Neither ruleset has a
+bypass list, so the rules bind admins. `gh api repos/{owner}/{repo}/rulesets` reads them
+back. A PR is reviewed and merged once its checks are green; nothing runs the gates by hand
+for it. Two things CI doesn't cover:
+- the `/map` browser check, which stays manual (below);
+- a PR's own workflow files: a PR runs the `.github/workflows/` it carries, so an edit there
+  can turn a required check into one that passes whatever the code does, under the same name
+  (plan #2's limit; rulesets' "require workflows" isn't open to a personal account's
+  repository, #297). Read every `.github/` diff before merging, Dependabot's included.
 
-```
-npx tsc --noEmit      npm run lint      npm run test:all      npm run build
-```
-
-Use `test:run` for the fast inner loop with Docker down; use `test:all` before opening
-or merging a PR. `test:run` passing is not evidence the integration suite passes — it
-does not run it.
+Locally, `npx tsc --noEmit`, `npm run test:run` and `npm run lint` are the fast loop, with
+Docker down. `tsc` is a check in its own right: vitest strips types and never type-checks, so
+a green test run says nothing about types. `test:run` passing is not evidence the
+integration suite passes: it doesn't run it. To reproduce a red `integration` or `build`,
+run `npm run test:all` or `npm run build`.
 
 ⚠ **Read an exit code unpiped.** `cmd | tail; echo $?` reports `tail`'s status, not the
 command's, and has already produced a confident wrong gate result here (process-log
@@ -390,18 +386,17 @@ a popup. MapLibre's worker 404'd with all four gates green (process-log row 282)
 Headless Edge on this machine doesn't load the style at all, even on a working build,
 so it is no substitute (PR #138).
 
-**Schema controls: `node scripts/controls.mjs`, not a gate.** Each `tests/controls/*.sql`
+**Schema controls: `node scripts/controls.mjs`.** Each `tests/controls/*.sql`
 removes or narrows one term of a guard in the schema; the runner applies it, runs the
 integration tests its header names, checks they went red (or, for a `green:` control,
-stayed green), and restores the database with `npx supabase db reset`. Run it after a
-change to `supabase/migrations/` or to a test a control names (one file:
-`node scripts/controls.mjs tests/controls/<name>.sql`; `--check` parses the files and
-touches nothing). CI's `controls` job runs the full set on a PR that changes a path a
-`TRIGGERS` entry in `scripts/controls-trigger.mjs` covers, and on every PR into `main`
-(#288); whether it's required is "Testing" above. A `controls` job that ran the full set
-and passed (its log ends "N of N as listed") stands in for the hand run; one that ran only
-`--check` doesn't (Phase 8 plan decision #16). A new schema guard adds its
-controls by the rule in `.claude/commands/create-issues.md`'s Failure modes. About
+stayed green), and restores the database with `npx supabase db reset`. CI's required
+`controls` check runs the full set on a PR that changes a path a `TRIGGERS` entry in
+`scripts/controls-trigger.mjs` covers, and on every PR into `main`, and `--check` (parses
+the files, touches nothing) on the rest (#288). Run it by hand while writing a control or a
+migration (one file: `node scripts/controls.mjs tests/controls/<name>.sql`), and for a PR
+whose change the controls test though no `TRIGGERS` entry covers it (that script's header
+says which changes it can't see): there the check ran only `--check`. A new schema guard
+adds its controls by the rule in `.claude/commands/create-issues.md`'s Failure modes. About
 45 s a control, mostly the reset (64 took 48 minutes, 2026-10-23); the script's header
 says what it can't see.
 

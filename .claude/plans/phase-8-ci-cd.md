@@ -77,7 +77,7 @@ has run the checks with no Vercel build (#5).
 | File | What it is |
 |---|---|
 | `.github/workflows/ci.yml` | PR-only (`pull_request` into `dev` and `main`), read-only token. Jobs `typecheck-lint`, `unit`, `integration` (local Supabase, and the security advisor), `build` (`.env.example`'s variables from the local stack, then `next start` and `smoke.mjs`), `secret-scan`, `audit` (three runs, #12), `controls` (`--check` always; the full set when `needsFullControls` says so) and `process-log` |
-| `.github/workflows/codeql.yml` | CodeQL, `javascript-typescript` and `actions`, on PRs and on push to `dev` and `main`, with `security-events: write`; its code-scanning result check is the required one, since the analyze jobs stay green on a finding (#14); whether both analyze jobs are required beside it is #297's (#14's step 8 note) |
+| `.github/workflows/codeql.yml` | CodeQL, `javascript-typescript` and `actions`, on PRs and on push to `dev` and `main`, with `security-events: write`; its code-scanning result check is required, since the analyze jobs stay green on a finding, and on `dev` both analyze jobs beside it (#14, settled in #297) |
 | `.github/workflows/sonarqube.yml` (not created: step 9 skipped, #295) | SonarQube Cloud, on PRs and on push to `dev` and `main`; skipped by `if:` on Dependabot and fork PRs; installs with `--ignore-scripts`; runs with `sonar.qualitygate.wait=true`, so a failed gate fails the job (#14) |
 | `.github/dependabot.yml` | Version updates for `github-actions`, keeping the SHA pins current, with the default `/` branch-name separator (step 15). npm gets security updates only (repository setting) |
 | `.githooks/pre-commit` | Gitleaks on the staged changes; the folder is set by hand through `core.hooksPath` (#7). Committed executable with `git update-index --chmod=+x`: `core.filemode` is `false` on the owner's machine (read 2026-11-12), so a plain add stores `100644` and git elsewhere ignores the hook |
@@ -255,7 +255,7 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
    full-history scan, README's setup lines and `CLAUDE.md`'s "Secrets" line (Q4).
    The CI half is shown red on a throwaway probe PR, closed unmerged, with a fake secret
    committed without a local hook (#13); never on step 7's own PR.
-8. **`codeql.yml`** (Q3), whose code-scanning result check is the one step 12 requires (#14; with the analyze jobs too, if #297 settles so).
+8. **`codeql.yml`** (Q3), whose code-scanning result check is the one step 12 requires (#14; on `dev` with both analyze jobs too, settled in #297).
 9. **SonarQube Cloud:** the account (two-factor at creation), project and token,
    `sonar-project.properties`, `sonarqube.yml` with the `if:` skip, `--ignore-scripts` and
    `sonar.qualitygate.wait=true` (Q3, Q5, #14), and the custom quality gate open decision 5
@@ -274,8 +274,8 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
     #11). On `dev`, every check from steps 2–9 required by name; on `main`, `ci.yml`'s
     checks, with SAST added in Phase 10 once `main` has a base analysis (#11). For SAST the
     required check is what fails on a finding (#14): CodeQL's code-scanning result check
-    (its analyze jobs stay green on a finding; whether they are required beside it is
-    settled here, #14's step 8 note), and SonarQube Cloud's workflow job run with
+    (its analyze jobs stay green on a finding; on `dev` both are required beside it, #14's
+    step 8 note and its settlement in #297), and SonarQube Cloud's workflow job run with
     `sonar.qualitygate.wait=true`, not SonarQube Cloud's own app check. **Since step 9 was
     skipped (#295), there is no SonarQube job or check: CodeQL's are the only SAST checks
     to require.** *Before it*, a
@@ -291,6 +291,11 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
     `/map` browser check stays manual. Its "Schema controls: `node scripts/controls.mjs`,
     not a gate" and `scripts/controls.mjs`'s header "Not a gate" change with it: the
     `controls` check is required. *Only now*, because every check exists and is green.
+    **Settled in #297 (the owner's calls):** `dev`'s bypass list is empty too, so neither
+    ruleset has one; both require branches to be up to date before merging; on `dev`,
+    `CodeQL` and both analyze jobs are required (#14). "Require workflows" isn't open here:
+    GitHub's list of rules for repository rulesets has no such rule, and organization
+    rulesets need GitHub Team or Enterprise (docs read in #297's PR); #2's limit stands.
 13. **The proof (the phase's checkpoint, #6).** On `dev`, one probe PR with one break per
     required check, split only where a break would cascade, its `secret-scan` break made as
     #13 says; on `main`, one probe PR from a branch off `dev` (a branch off `main` has no
@@ -553,11 +558,14 @@ file", posted at 07:31:53, before either job was cancelled (07:31:59). GitHub's 
 required status checks count neutral as passing (whether a ruleset does too is step 12's to
 read). So required alone, `CodeQL` can pass with no JavaScript analysis, or none read.
 Requiring both analyze jobs too makes a failed or cancelled job block, and the merge waits
-until both finish; a SARIF error with both jobs green would still pass. Timing: on the eight
+until both finish; a SARIF error with both jobs green would still pass: GitHub's docs on
+required checks count `neutral` as passing ("Successful check statuses are `success`,
+`skipped`, and `neutral`"), and a ruleset's required checks are the same kind (not probed). Timing: on the eight
 commits read where both succeeded (PR #326's `d8eb718`, `04c3cc5`, `1eebc17`, `9ae640a`,
 `caa1e34`; #327's three), `CodeQL`'s last update came 1 to 8 seconds before the first job
-completed and 11 to 38 before the second; eight samples, not a guarantee. Step 12's choice
-is #297's, recorded there.
+completed and 11 to 38 before the second; eight samples, not a guarantee. **Settled in #297 (the
+owner's call):** on `dev`, step 12 requires `CodeQL` and both analyze jobs, by name; the
+SARIF-error case above is the limit left.
 
 ### #15 — Vercel cancels probe and Dependabot branches from step 1
 
@@ -655,7 +663,7 @@ controls aren't one of the four gates, whose hand runs stay. A PR whose run took
 **SAST and reporting (steps 8–10)**
 - [ ] CodeQL (`javascript-typescript`, `actions`) has an analysis of `dev`, and runs on PRs and
   pushes; its code-scanning result check goes red on a probe that adds an alert (#14; the
-  window #14's step 8 note records is #297's).
+  window #14's step 8 note records is closed on `dev` by requiring both analyze jobs, #297).
 - Dropped with step 9 (#295), no box to tick: ~~SonarQube Cloud: two-factor on at account
   creation (the owner's confirmation); automatic analysis off; an analysis of `dev` exists;
   `SONAR_TOKEN` is an Actions secret only; the job installs with `--ignore-scripts` and runs

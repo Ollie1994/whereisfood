@@ -4,8 +4,10 @@
 # #291); the process log's check and
 # the schema controls' `--check`, with the full controls on a trigger path or a PR into
 # main (step 3, IS #288); and Gitleaks on the PR's commits and messages in `secret-scan`
-# (step 7, IS #293). Not required checks until #297's rulesets; until then each PR still
-# runs the four gates by hand (CLAUDE.md, "Testing").
+# (step 7, IS #293). Each job is a check the rulesets on dev and main require by its job
+# id (step 12, IS #297; CLAUDE.md, "Testing"). Renaming a job, or giving it a `name:`,
+# renames its check, and the ruleset waits on the old name as on a check that never runs
+# (below).
 #
 # Hardening (plan #2, Q5): the plain pull-request trigger only, never its target-branch
 # variant; a read-only token; every action pinned to a commit SHA; no path filter on the
