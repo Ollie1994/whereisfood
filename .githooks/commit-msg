@@ -1,0 +1,16 @@
+#!/bin/sh
+# Refuses a commit whose message holds a value Gitleaks' rules flag (IS #292). The
+# pre-commit hook scans only the staged changes, and `gitleaks git` reads patches, not
+# messages: in a scratch repo it missed a flagged message that `gitleaks stdin` found.
+# Same flags as pre-commit (its header says why). In a scratch repo `git merge -m` and
+# `git commit --amend` with a flagged message were refused here (exit 1); `cherry-pick`,
+# `am` and `rebase` committed one (exit 0): they don't run this hook. Nor do
+# `--no-verify` or a clone without `core.hooksPath`.
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "commit-msg: gitleaks not found on PATH; install it (README, \"Getting started\")," >&2
+  echo "or open a new shell if you just did. Commit refused." >&2
+  exit 1
+fi
+
+exec gitleaks stdin --redact --no-banner --verbose --ignore-gitleaks-allow < "$1"

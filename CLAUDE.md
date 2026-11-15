@@ -177,12 +177,14 @@ said otherwise: Phase 4 plan decision #14.
 - A push that GitHub's push protection blocks is fixed by removing the value from the
   commits, not by bypassing the block (what is switched on: `project-context.md`,
   "Pre-deploy automation (planned)")
-- **The Gitleaks pre-commit hook** (`.githooks/pre-commit`, IS #292) scans the staged
-  changes. `core.hooksPath` is set by hand in each clone (README, "1. Install"), never by
-  a `prepare` script, which `npm ci` would run in CI too (Phase 8 plan decision #7). A
-  commit it refuses is fixed like a push-protection block: remove the value, or, for a
-  value that isn't a secret, add a `.gitleaks.toml` allowlist entry that names why. Never
-  `--no-verify`, and never an inline `gitleaks:allow`, which the hook ignores
+- **The Gitleaks hooks** (IS #292): `.githooks/pre-commit` scans the staged changes and
+  `.githooks/commit-msg` the message. `core.hooksPath` is set by hand in each clone
+  (README, "1. Install"), never by a `prepare` script, which `npm ci` would run in CI too
+  (Phase 8 plan decision #7). A commit they refuse is fixed like a push-protection block:
+  remove the value, or, for a value that isn't a secret, add a `.gitleaks.toml` allowlist
+  entry that names why. Never `--no-verify`, never an inline `gitleaks:allow`, which the
+  hooks ignore, and never a `.gitleaksignore` fingerprint, which they still read and which
+  names no reason
 
 **db layer (`src/lib/db/`)**
 - It finds and mutates; it decides nothing. Postgres errors propagate unchanged (for

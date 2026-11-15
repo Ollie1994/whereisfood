@@ -4,15 +4,15 @@
 # "Getting started".
 #
 # Not scanned here: `git commit --no-verify`; a clone without `core.hooksPath`; the
-# commit message (a flagged `api_key` in `-m` committed, exit 0); and the commits that
-# `git merge`, `cherry-pick`, `rebase` and `am` make, which don't run pre-commit (in a
-# scratch repo each committed a flagged file, exit 0, where `git commit` refused it).
-# #293's CI scan is to cover the PR's commits.
+# commit message (a flagged `api_key` in `-m` committed, exit 0), which `commit-msg`
+# scans; and the commits that `git merge`, `cherry-pick`, `rebase` and `am` make, which
+# don't run pre-commit (in a scratch repo each committed a flagged file, exit 0, where
+# `git commit` refused it). #293's CI scan is to cover the PR's commits.
 #
 # --ignore-gitleaks-allow: without it, an inline `gitleaks:allow` comment let a staged
 # flagged value through (exit 0); with it, the hook refused it. A `.gitleaksignore`
 # fingerprint in the repo root still lets a value through (exit 0, probed), as does an
-# allowlist entry in `.gitleaks.toml`.
+# allowlist entry in `.gitleaks.toml`; `CLAUDE.md` ("Secrets") allows only the latter.
 # --redact: on a refused commit, the output printed REDACTED and held no copy of the value.
 
 if ! command -v gitleaks >/dev/null 2>&1; then

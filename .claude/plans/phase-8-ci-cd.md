@@ -81,7 +81,8 @@ has run the checks with no Vercel build (#5).
 | `.github/workflows/sonarqube.yml` | SonarQube Cloud, on PRs and on push to `dev` and `main`; skipped by `if:` on Dependabot and fork PRs; installs with `--ignore-scripts`; runs with `sonar.qualitygate.wait=true`, so a failed gate fails the job (#14) |
 | `.github/dependabot.yml` | Version updates for `github-actions`, keeping the SHA pins current, with the default `/` branch-name separator (step 15). npm gets security updates only (repository setting) |
 | `.githooks/pre-commit` | Gitleaks on the staged changes; the folder is set by hand through `core.hooksPath` (#7). Committed executable with `git update-index --chmod=+x`: `core.filemode` is `false` on the owner's machine (read 2026-11-12), so a plain add stores `100644` and git elsewhere ignores the hook |
-| `.gitleaks.toml` (and `.gitleaksignore` if needed) | Gitleaks' config. Each allowlist entry names why it isn't a secret: the local stack's keys and test fixtures (`CLAUDE.md`, "Secrets") |
+| `.githooks/commit-msg` | Gitleaks (`gitleaks stdin`) on the commit message, which `pre-commit` and `gitleaks git` don't read; committed executable as `pre-commit` is (round 1 on PR #342, the owner's call) |
+| `.gitleaks.toml` (never a `.gitleaksignore`: it names no reason, round 1 on PR #342, the owner's call) | Gitleaks' config. Each allowlist entry names why it isn't a secret: the local stack's keys and test fixtures (`CLAUDE.md`, "Secrets") |
 | `sonar-project.properties` | SonarQube Cloud's project key, sources and exclusions |
 | `SECURITY.md` | How to report a vulnerability: GitHub's private reporting |
 | `scripts/controls-trigger.mjs` (+ test) | `TRIGGERS`, `changedPaths` and `needsFullControls`, its own script (open decision 4) |
@@ -172,7 +173,8 @@ No function in `src/`. The scripts, each tested in the `unit` project:
   `/api/admin/trucks` → 401 with `{ "error" }`. Any other answer fails the job. Phase 9
   adds its header assertions here.
 - **`.githooks/pre-commit`** runs Gitleaks on the staged changes and exits non-zero on a
-  find; it runs in the owner's Git Bash on Windows.
+  find; it runs in the owner's Git Bash on Windows. **`.githooks/commit-msg`** does the
+  same for the message, through `gitleaks stdin`.
 - **The lint rules' fixture test (#9)** lints one fixture per rule, a string in the test,
   with `ESLint#lintText` and a virtual `filePath` inside the rule's scope (under
   `src/lib/db/` for the filter rules), and expects that rule's message; a sink fixture with
@@ -629,7 +631,7 @@ controls aren't one of the four gates, whose hand runs stay. A PR whose run took
   in wording the owner approved.
 
 **Secret scan (step 7)**
-- [ ] `git ls-files -s .githooks/pre-commit` shows mode `100755`.
+- [ ] `git ls-files -s .githooks/` shows mode `100755` for `pre-commit` and `commit-msg`.
 - [ ] In the owner's Git Bash, the hook refuses a commit holding a fake key; `secret-scan`
   goes red on a throwaway probe PR, closed unmerged, whose fake key was committed with no
   local hook, as #13 says, and push protection wasn't bypassed.
@@ -699,8 +701,10 @@ controls aren't one of the four gates, whose hand runs stay. A PR whose run took
    and no merge carries hunks of its own (`git show --cc`), so the merges it skips add
    nothing. It reads patches, not messages (in a scratch repo it missed a flagged message
    that `gitleaks stdin` found), so `gitleaks stdin` on all 1033 commit messages ran too:
-   0. The hook pins nothing: README names 8.30.1. CI's part (the action or the binary, the
-   scan's flags, and whether it reads messages) is #293's.
+   0. For new commits, `.githooks/commit-msg` runs `gitleaks stdin` with the same flags on
+   the message. The hooks pin nothing: README names 8.30.1. CI's part (the action or the
+   binary, the scan's flags, and a pass over the PR's commit messages, which `gitleaks git`
+   alone doesn't read) is #293's.
 2. **Node in CI (step 2).** Whether `actions/setup-node` reads the version from
    `package.json`, or the workflow names `26.x`; the job log shows which. **Settled
    (PR #312):** `node-version-file: package.json`, which setup-node v7.1.0 reads from
