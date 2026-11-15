@@ -6,7 +6,7 @@
 // Keep it a scan. As one regex, `(?:--|\/\*)\s*[^\s:]+(?:[ \t]+[^\s:]+){0,2}\s*:`, it
 // backtracked on a line of dashes, its time growing with the square of the line's length
 // (IS #348's PR); `header-like.test.mjs` holds that regex as its oracle and compares the
-// two on every short line.
+// two on every short line over two small alphabets.
 //
 // The lookahead and backreference make each word atomic. Openers are skipped while their
 // words would start inside the first word of an opener that just failed: they meet the

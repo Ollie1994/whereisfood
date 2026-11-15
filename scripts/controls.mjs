@@ -158,7 +158,7 @@ function applySql(sql) {
 // `src/lib/db/complete.test.ts` slices it: up to the next table header). Keep `[ \t]*`
 // after the header: `\s*`, which crosses line breaks, made the lazy body backtrack, its
 // time growing with the square of the blank lines after `[api]` (IS #348's PR). CONFIG's
-// line endings are already `\n`.
+// CRLF line endings are already `\n` (where it is read, above).
 const API_TABLE = /^\[api\][ \t]*$([\s\S]*?)(?=^\[)/m.exec(CONFIG)?.[1] ?? "";
 const API_PORT = /^port\s*=\s*(\d+)/m.exec(API_TABLE)?.[1];
 if (!API_PORT) usage("no [api] port in supabase/config.toml");
