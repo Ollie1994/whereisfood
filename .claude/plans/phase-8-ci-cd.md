@@ -295,7 +295,9 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
     ruleset has one; both require branches to be up to date before merging; on `dev`,
     `CodeQL` and both analyze jobs are required (#14). "Require workflows" isn't open here:
     GitHub's list of rules for repository rulesets has no such rule, and organization
-    rulesets need GitHub Team or Enterprise (docs read in #297's PR); #2's limit stands.
+    rulesets need GitHub Team or Enterprise (docs read in #297's PR), and the ruleset
+    editor's list of rules on this repository has none (the owner's read, 2026-11-15); #2's
+    limit stands. Both rulesets read back as set (`dev` 27326965, `main` 27327048; PR #352).
 13. **The proof (the phase's checkpoint, #6).** On `dev`, one probe PR with one break per
     required check, split only where a break would cascade, its `secret-scan` break made as
     #13 says; on `main`, one probe PR from a branch off `dev` (a branch off `main` has no
