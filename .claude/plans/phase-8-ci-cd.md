@@ -54,7 +54,7 @@ has run the checks with no Vercel build (#5).
 | TOTP MFA, #241's 6-digit code, session timeouts, the login-abuse and code-guessing probes | Phase 9 |
 | Security headers and the CSP. Phase 8 builds the served-app step in `build` (`smoke.mjs`); Phase 9 adds the header assertions to it | Phase 9 |
 | Usage, spend and 5xx alerts; the ZAP scan; the `x-forwarded-host` probe; free-text length limits; the `users` policy under `aal1` | Phase 9 |
-| The 2FA audit of every account. An account Phase 8 creates (SonarQube Cloud) gets two-factor at creation (`CLAUDE.md`, "Secrets"); Phase 8 kept none: the trial account (GitHub sign-in, GitHub two-factor) was deleted, and #349 creates one again | Phase 9 |
+| The 2FA audit of every account. An account Phase 8 creates (SonarQube Cloud) gets two-factor at creation (`CLAUDE.md`, "Secrets"); Phase 8 kept none: the owner deleted the trial account and organization (GitHub sign-in, GitHub two-factor; the owner's word, 2026-11-15), and #349 creates one again | Phase 9 |
 | Writing the hosted-settings checklist | Phase 9 (applied in Phase 10) |
 | The production project and deploy, the custom domain, HSTS, rotating credentials, the production Security Advisor, the Production variables | Phase 10 |
 | Deploying from Actions. Vercel keeps deploying (Q27); Phase 8 only extends the Ignored Build Step to cancel `dependabot/*` and `probe/*` (#15) | not planned |
@@ -119,7 +119,7 @@ has run the checks with no Vercel build (#5).
   approval required for first-time contributors' runs; CodeQL default setup off (it
   conflicts with a workflow); private vulnerability reporting; branch protection on `dev`
   and `main`; Dependabot security updates on, last.
-- **SonarQube Cloud** (dropped with step 9, #295; the trial account and app were removed by the owner, 2026-11-15): the account (two-factor at creation), organization and project;
+- **SonarQube Cloud** (dropped with step 9, #295; the owner deleted the trial account and organization, uninstalled the app and revoked its sign-in, 2026-11-15): the account (two-factor at creation), organization and project;
   automatic analysis off, since it can't run beside a CI analysis; `SONAR_TOKEN` as an
   Actions secret, never a Dependabot secret (Q3).
 - **Vercel:** the Ignored Build Step also cancels `dependabot/*` (Q1) and `probe/*` (#15), from step 1.
@@ -330,8 +330,8 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
     hands Phase 10 #11's limit (how its first PR into `main` treats findings with no base
     analysis of `main`, and adding the SAST checks to `main`'s ruleset once one exists),
     and sets `CLAUDE.md`'s bold line to none, naming this plan as the last one. It also
-    drops SonarQube Cloud where the context still plans it for Phase 8 (the Phase 8
-    Roadmap row, Part 2's SAST bullet and per-branch token text, and the carried-forward
+    drops SonarQube Cloud where the context still plans it for Phase 8 (Part 2's Phase
+    map row for Phase 8, its SAST bullet and per-branch token text, and the carried-forward
     rows for Phase 6 #1 and IS #278 (Phase 8)), with step 9's skip (#295) and the re-scan
     before production (#349).
 
@@ -795,9 +795,10 @@ controls aren't one of the four gates, whose hand runs stay. A PR whose run took
    this personal account at organization creation). **"Sonar way" as read on this account**
    (`api/qualitygates/show`): on new code, security, reliability and maintainability
    rating worse than A, coverage below 80, duplicated lines above 3, hotspots reviewed
-   below 100. Maintainability is a rating (the technical debt on new code against its
-   development cost, A up to 5%), not a count of issues: one code smell can fail a small PR,
-   whose ratio it pushes past 5%, and not a large one (not probed on a PR). With no
+   below 100. Maintainability is a rating, not a count of issues. By Sonar's documentation (not read
+   on this account) the rating is the technical debt on new code against its development
+   cost, A up to 5%, so one code smell can fail a small PR and not a large one (not probed
+   on a PR). With no
    coverage imported the coverage measure was empty, and whether the gate then skips it
    wasn't probed. The trial's
    findings and how each was settled: #295.
