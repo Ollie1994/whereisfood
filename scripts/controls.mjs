@@ -40,8 +40,8 @@
 // says why it has no control). About 45 s a control: one
 // `db reset` (41 s, measured 2026-10-23) and one integration file.
 //
-// Not a gate (CLAUDE.md, "Testing"): run it after a change to `supabase/migrations/` or
-// to a test a control names.
+// CI's required `controls` check runs it (CLAUDE.md, "Schema controls" under "Testing",
+// which says when to run it by hand).
 
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
