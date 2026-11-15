@@ -1,0 +1,11 @@
+# Gitleaks config (IS #292). Both hooks in `.githooks/` pass `--config .gitleaks.toml`
+# (`gitleaks-common.sh` says why), and #293's CI scan is to read it too. The default rules,
+# unchanged. The history scan that found nothing to allow is open decision 1's, in the
+# Phase 8 plan.
+#
+# An allowlist entry added here names why its value isn't a secret. A `paths` entry
+# reaches only pre-commit: commit-msg scans text with no path, and a `paths = ['.*']`
+# entry still left it refusing a flagged message (exit 1). A `regexes` entry reaches both
+# (a temporary one let a flagged message through, exit 0).
+[extend]
+useDefault = true

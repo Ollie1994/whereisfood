@@ -81,7 +81,9 @@ has run the checks with no Vercel build (#5).
 | `.github/workflows/sonarqube.yml` | SonarQube Cloud, on PRs and on push to `dev` and `main`; skipped by `if:` on Dependabot and fork PRs; installs with `--ignore-scripts`; runs with `sonar.qualitygate.wait=true`, so a failed gate fails the job (#14) |
 | `.github/dependabot.yml` | Version updates for `github-actions`, keeping the SHA pins current, with the default `/` branch-name separator (step 15). npm gets security updates only (repository setting) |
 | `.githooks/pre-commit` | Gitleaks on the staged changes; the folder is set by hand through `core.hooksPath` (#7). Committed executable with `git update-index --chmod=+x`: `core.filemode` is `false` on the owner's machine (read 2026-11-12), so a plain add stores `100644` and git elsewhere ignores the hook |
-| `.gitleaks.toml` (and `.gitleaksignore` if needed) | Gitleaks' config. Each allowlist entry names why it isn't a secret: the local stack's keys and test fixtures (`CLAUDE.md`, "Secrets") |
+| `.githooks/commit-msg` | Gitleaks (`gitleaks stdin`) on the commit message, which `pre-commit` and `gitleaks git` don't read; committed executable as `pre-commit` is (round 1 on PR #342, the owner's call) |
+| `.githooks/gitleaks-common.sh` | Sourced by both hooks: their Gitleaks flags, and the checks that refuse a commit while `gitleaks` is missing or a `.gitleaksignore` exists (round 3 on PR #342) |
+| `.gitleaks.toml` (never a `.gitleaksignore`: it names no reason, round 1 on PR #342, the owner's call) | Gitleaks' config. Each allowlist entry names why it isn't a secret: the local stack's keys and test fixtures (`CLAUDE.md`, "Secrets") |
 | `sonar-project.properties` | SonarQube Cloud's project key, sources and exclusions |
 | `SECURITY.md` | How to report a vulnerability: GitHub's private reporting |
 | `scripts/controls-trigger.mjs` (+ test) | `TRIGGERS`, `changedPaths` and `needsFullControls`, its own script (open decision 4) |
@@ -172,7 +174,8 @@ No function in `src/`. The scripts, each tested in the `unit` project:
   `/api/admin/trucks` → 401 with `{ "error" }`. Any other answer fails the job. Phase 9
   adds its header assertions here.
 - **`.githooks/pre-commit`** runs Gitleaks on the staged changes and exits non-zero on a
-  find; it runs in the owner's Git Bash on Windows.
+  find; it runs in the owner's Git Bash on Windows. **`.githooks/commit-msg`** does the
+  same for the message, through `gitleaks stdin`.
 - **The lint rules' fixture test (#9)** lints one fixture per rule, a string in the test,
   with `ESLint#lintText` and a virtual `filePath` inside the rule's scope (under
   `src/lib/db/` for the filter rules), and expects that rule's message; a sink fixture with
@@ -247,8 +250,9 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
    when it can't tell which advisories there are (#12), through
    `scripts/audit-report.mjs` and its unit tests; and #12's rule in `CLAUDE.md`, whose
    wording goes to the owner (Phase 7 #6).
-7. **Gitleaks:** `.githooks/pre-commit` (committed executable), `.gitleaks.toml`, the
-   `secret-scan` job, the one-off full-history scan, README's setup lines and `CLAUDE.md`'s "Secrets" line (Q4).
+7. **Gitleaks:** `.githooks/pre-commit` and, from round 1 on PR #342, `.githooks/commit-msg`
+   (committed executable), `.gitleaks.toml`, the `secret-scan` job, the one-off
+   full-history scan, README's setup lines and `CLAUDE.md`'s "Secrets" line (Q4).
    The CI half is shown red on a throwaway probe PR, closed unmerged, with a fake secret
    committed without a local hook (#13); never on step 7's own PR.
 8. **`codeql.yml`** (Q3), whose code-scanning result check is the one step 12 requires (#14; with the analyze jobs too, if #297 settles so).
@@ -629,9 +633,9 @@ controls aren't one of the four gates, whose hand runs stay. A PR whose run took
   in wording the owner approved.
 
 **Secret scan (step 7)**
-- [ ] `git ls-files -s .githooks/pre-commit` shows mode `100755`.
-- [ ] In the owner's Git Bash, the hook refuses a commit holding a fake key; `secret-scan`
-  goes red on a throwaway probe PR, closed unmerged, whose fake key was committed with no
+- [ ] `git ls-files -s .githooks/` shows mode `100755` for `pre-commit` and `commit-msg`.
+- [ ] In the owner's Git Bash, `pre-commit` refuses a commit holding a fake key and
+  `commit-msg` one whose message holds one; `secret-scan` goes red on a throwaway probe PR, closed unmerged, whose fake key was committed with no
   local hook, as #13 says, and push protection wasn't bypassed.
 - [ ] The full-history scan's result is recorded (its count, and how each find was settled);
   each allowlist entry names why it isn't a secret; README has the setup lines.
@@ -685,7 +689,27 @@ controls aren't one of the four gates, whose hand runs stay. A PR whose run took
 1. **Gitleaks in CI (step 7).** `gitleaks/gitleaks-action`, SHA-pinned (whether it needs a
    license key for this repository is read then), or the release binary downloaded with its
    checksum checked. Also the hook's and the CI scan's exact flags, #13's fake value, and
-   how the owner installs it on Windows (winget, scoop or the binary).
+   how the owner installs it on Windows (winget, scoop or the binary). **Settled for the
+   hooks (PR #342):** Gitleaks 8.30.1, upstream's latest release, installed with `winget
+   install --id Gitleaks.Gitleaks -e` (winget verified the release zip's hash).
+   `pre-commit` runs `gitleaks git --pre-commit --staged`, and `commit-msg` `gitleaks
+   stdin`, each with `--config .gitleaks.toml --redact --no-banner --verbose
+   --ignore-gitleaks-allow` (`.githooks/gitleaks-common.sh`, which says why each is
+   there); each refuses the commit while `gitleaks` isn't on the `PATH` or a
+   `.gitleaksignore` exists. `--ignore-gitleaks-allow`: without it, an inline
+   `gitleaks:allow` comment let a staged flagged value through (exit 0); with it, the hook
+   refused it. `--config`: without it, `GITLEAKS_CONFIG_TOML` in the environment replaced
+   the repo's file. The one-off history scan ran on a `git clone --mirror` of the GitHub
+   repo, so every ref GitHub advertises, `refs/pull/*` included (148 PR heads and 1 merge
+   ref; 23 non-merge commits reachable from no branch or tag). `gitleaks git` (its trace
+   log: `git log -p -U0 --full-history --all --diff-filter=tuxdb`) found 0 leaks in 897
+   commits, every non-merge commit with a diff, and no merge carries hunks of its own
+   (`git show --cc`), so the merges it skips add nothing. It reads patches, not messages
+   (in a scratch repo it missed a flagged message that `gitleaks stdin` found), so
+   `gitleaks stdin` on all 1033 commit messages ran too: 0. For new commits,
+   `.githooks/commit-msg` scans the message. The hooks pin nothing: README names 8.30.1.
+   CI's part (the action or the binary, the scan's flags, and a pass over the PR's commit
+   messages, which `gitleaks git` alone doesn't read) is #293's.
 2. **Node in CI (step 2).** Whether `actions/setup-node` reads the version from
    `package.json`, or the workflow names `26.x`; the job log shows which. **Settled
    (PR #312):** `node-version-file: package.json`, which setup-node v7.1.0 reads from

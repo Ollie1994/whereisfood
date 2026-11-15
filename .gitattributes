@@ -1,3 +1,5 @@
 # Shell scripts must keep LF endings in every checkout: bash outside Git Bash (WSL,
 # Linux) fails on CRLF. core.autocrlf would otherwise convert them on Windows.
+# The git hooks are shell scripts with no `.sh` extension, so they need their own line.
 *.sh text eol=lf
+.githooks/* text eol=lf
