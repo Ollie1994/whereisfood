@@ -1,11 +1,18 @@
-# Gitleaks config (IS #292). Both hooks in `.githooks/` pass `--config .gitleaks.toml`
-# (`gitleaks-common.sh` says why), and #293's CI scan is to read it too. The default rules,
+# Gitleaks config (IS #292). Both hooks in `.githooks/` and `ci.yml`'s `secret-scan` (IS
+# #293) pass `--config .gitleaks.toml` (`gitleaks-common.sh` says why). The default rules,
 # unchanged. The history scan that found nothing to allow is open decision 1's, in the
 # Phase 8 plan.
 #
-# An allowlist entry added here names why its value isn't a secret. A `paths` entry
-# reaches only pre-commit: commit-msg scans text with no path, and a `paths = ['.*']`
-# entry still left it refusing a flagged message (exit 1). A `regexes` entry reaches both
-# (a temporary one let a flagged message through, exit 0).
+# An allowlist entry added here names why its value isn't a secret. Write a `paths`
+# entry as `^(b/)?<repo path>$`, the path's regex characters escaped (`\.`); `(b/)?` also
+# matches a real file at `b/<repo path>`, so check none exists:
+# - commit-msg scans text with no path, so no `paths` entry reaches it (`paths = ['.*']`
+#   still left it refusing a flagged message, exit 1);
+# - `secret-scan` scans each message as a file `$RUNNER_TEMP/messages/<sha>`, so an
+#   anchored entry misses it (`^f\.txt$`: exit 1) but `.*` exempted it (exit 0);
+# - on a conflicted merge `secret-scan` names the file `b/<path>`: `^f\.txt$` didn't
+#   match `b/f.txt` there, and `^(b/)?f\.txt$` matched both forms.
+# A `regexes` entry for the value let it through pre-commit, commit-msg, `secret-scan`'s
+# patch scan and its message folder (exit 0 each).
 [extend]
 useDefault = true

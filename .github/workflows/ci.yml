@@ -1,9 +1,10 @@
 # The four gates, run by GitHub on every PR into dev or main (Phase 8 plan step 2, IS #285
 # and #286), with a smoke check of the served build and, in `integration`, Supabase's
 # security advisor on the local schema (step 5, IS #290); `npm audit` in `audit` (step 6, IS
-# #291); and the process log's check and
+# #291); the process log's check and
 # the schema controls' `--check`, with the full controls on a trigger path or a PR into
-# main (step 3, IS #288). Not required checks until #297's rulesets; until then each PR still
+# main (step 3, IS #288); and Gitleaks on the PR's commits and messages in `secret-scan`
+# (step 7, IS #293). Not required checks until #297's rulesets; until then each PR still
 # runs the four gates by hand (CLAUDE.md, "Testing").
 #
 # Hardening (plan #2, Q5): the plain pull-request trigger only, never its target-branch
@@ -328,3 +329,99 @@ jobs:
         with:
           persist-credentials: false
       - run: bash scripts/process-log.sh check
+
+  # Gitleaks on the PR's commits and their messages (plan step 7, IS #293): what the local
+  # hooks can't see, `--no-verify`, `cherry-pick`, `rebase` and a clone without
+  # `core.hooksPath` (`.githooks/pre-commit`'s header), and most files git treats as
+  # binary (the scan step's comment says which). It
+  # pins the Gitleaks version README gives for the hooks, which pin none themselves, and
+  # runs their flags and checks: it sources `.githooks/gitleaks-common.sh`, so a committed
+  # `.gitleaksignore` fails it too.
+  #
+  # The release binary, not gitleaks/gitleaks-action: the action calls the API with
+  # GITHUB_TOKEN to comment on PRs (its README), and this workflow's token is read-only.
+  # The PR's own copies of this file, `.gitleaks.toml` and the shared script are what run
+  # (plan #2's limit), so a PR that weakens the scan shows it in its diff.
+  secret-scan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      # Full history, so the PR's base and head commits are both present for the range.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      # GITLEAKS_SHA256 is the linux_x64 entry of the release's checksums file for
+      # GITLEAKS_VERSION; for 8.30.1, that file's windows_x64 entry matches the hash in
+      # winget's manifest for Gitleaks.Gitleaks, a copy kept outside the release (IS #293's
+      # PR). A version bump changes both values, and README's version for the hooks.
+      - name: Install Gitleaks
+        env:
+          GITLEAKS_VERSION: 8.30.1
+          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+        run: |
+          dir="$RUNNER_TEMP/gitleaks"
+          mkdir -p "$dir"
+          curl -fsSL -o "$dir/gitleaks.tar.gz" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  $dir/gitleaks.tar.gz" | sha256sum --check --strict -
+          tar -xzf "$dir/gitleaks.tar.gz" -C "$dir" gitleaks
+          echo "$dir" >> "$GITHUB_PATH"
+          "$dir/gitleaks" version
+      # `base.sha..head.sha`: the commits reachable from the PR's head and not from the base
+      # commit the event names, so dev's commits merged into the branch up to that commit
+      # aren't scanned again (later ones would be, which adds work, not a gap).
+      #
+      # Patches: with --log-opts, Gitleaks runs `git log -p -U0 <opts>` in place of its
+      # default `--all` (its trace log). `git log -p` shows no diff for a merge, so a value
+      # added in a merge commit itself passed; `--diff-merges=remerge` shows what a merge
+      # adds over git's own merge of its parents, and caught it, while a clean merge of a
+      # branch holding a flagged value showed nothing to scan (`--cc` output went
+      # unparsed: "no leaks found"). With a range or option git rejects, Gitleaks logged
+      # git's error, "0 commits scanned", and exited 0 (IS #293's PR, round 1), so git runs
+      # the same log first and fails the step if it can't. A diff Gitleaks can't parse
+      # isn't caught by that (not probed). On a conflicted merge Gitleaks names the file
+      # `b/<path>` (`.gitleaks.toml` says what that means for `paths`). `--text`: without
+      # it, `git log -p` prints only "Binary files … differ" for a file git counts as binary
+      # (a NUL byte, or `-diff` in `.gitattributes`), and a value in one passed (exit 0);
+      # with it, caught (exit 1). The pre-commit hook has no such option. Gitleaks' default
+      # config still skips some extensions before any scan: with `--text`, a value beside a
+      # NUL byte in `.bin`, `.png` and `.pdf` files passed, and in `.dat`, `.ico`, `.zip`
+      # and `.pmtiles` files was caught. Git's own run costs one more log of the range (1.2
+      # s for the 596 commits of `main..dev`).
+      #
+      # Both scans run even when one fails, and the step fails after them.
+      #
+      # Messages: `gitleaks git` reads patches, not messages (PR #342's C11). Each commit's
+      # stored message (`%B`, after git's cleanup; the commit-msg hook sees the file before
+      # it) goes to a file named for its commit, and one `gitleaks dir` scans them: no hash
+      # or other message joins a message's text, and a find's `File:` names its commit.
+      # One `gitleaks stdin` per commit took about 0.36 s each, about 3.5 min for the 596
+      # commits of `main..dev` (2026-11-15, locally); the folder of 596 took 0.65 s.
+      - name: Scan the PR's commits and their messages
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          . .githooks/gitleaks-common.sh
+          gitleaks_preflight secret-scan
+          n="$(git rev-list --count "$BASE..$HEAD")" \
+            || { echo "::error::the range $BASE..$HEAD isn't in the clone"; exit 1; }
+          echo "Range $BASE..$HEAD: $n commits"
+
+          git log -p -U0 --text --diff-merges=remerge "$BASE..$HEAD" > /dev/null
+          failed=0
+          run_gitleaks git --log-opts="--text --diff-merges=remerge $BASE..$HEAD" . \
+            || { echo "::error::the patch scan failed (a find, or a Gitleaks error above)"; failed=1; }
+
+          msgs="$RUNNER_TEMP/messages"
+          mkdir -p "$msgs"
+          while IFS= read -r -d '' rec; do
+            printf '%s' "${rec#*$'\n'}" > "$msgs/${rec%%$'\n'*}"
+          done < <(git log -z --format='%H%n%B' "$BASE..$HEAD")
+          files="$(find "$msgs" -type f | wc -l)"
+          [ "$files" -eq "$n" ] \
+            || { echo "::error::$files message files for $n commits"; failed=1; }
+          run_gitleaks dir "$msgs" \
+            || { echo "::error::the message scan failed (a find, or a Gitleaks error above)"; failed=1; }
+          exit "$failed"
