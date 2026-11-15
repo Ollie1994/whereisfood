@@ -161,6 +161,10 @@ branch and tag.
   markers and the integration tests need it.
 - **The `pmtiles` CLI**, to cut the map tiles (next section). It's a single binary
   from [go-pmtiles releases](https://github.com/protomaps/go-pmtiles/releases).
+- **Gitleaks**, for the pre-commit secret scan. On Windows: `winget install --id
+  Gitleaks.Gitleaks -e`; elsewhere, a binary from [gitleaks
+  releases](https://github.com/gitleaks/gitleaks/releases). A shell or editor started
+  before the install doesn't see the new `PATH`: start a new one.
 
 ### 1. Install
 
@@ -168,10 +172,15 @@ branch and tag.
 git clone https://github.com/Ollie1994/whereisfood.git
 cd whereisfood
 npm install
+git config core.hooksPath .githooks
 ```
 
 `npm install` also copies MapLibre's web worker into `public/maplibre/` (gitignored);
 `npm run dev` and `npm run build` repeat the copy.
+
+`core.hooksPath` turns on `.githooks/pre-commit`, which runs Gitleaks on the staged
+changes and refuses the commit on a find, or while `gitleaks` isn't on the `PATH`. It is
+set by hand in each clone, never by an npm script (`CLAUDE.md`, "Secrets").
 
 ### 2. Get the map tiles
 

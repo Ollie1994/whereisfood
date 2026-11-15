@@ -685,7 +685,18 @@ controls aren't one of the four gates, whose hand runs stay. A PR whose run took
 1. **Gitleaks in CI (step 7).** `gitleaks/gitleaks-action`, SHA-pinned (whether it needs a
    license key for this repository is read then), or the release binary downloaded with its
    checksum checked. Also the hook's and the CI scan's exact flags, #13's fake value, and
-   how the owner installs it on Windows (winget, scoop or the binary).
+   how the owner installs it on Windows (winget, scoop or the binary). **Settled for the
+   hook (PR for IS #292):** Gitleaks 8.30.1, upstream's latest release, installed with
+   `winget install --id Gitleaks.Gitleaks -e` (winget verified the release zip's hash).
+   The hook runs `gitleaks git --pre-commit --staged --redact --no-banner --verbose
+   --ignore-gitleaks-allow`, and refuses the commit while `gitleaks` isn't on the `PATH`.
+   `--ignore-gitleaks-allow`: without it, an inline `gitleaks:allow` comment let a staged
+   flagged value through (exit 0); with it, the hook refused it. The one-off history scan
+   is `gitleaks git` with its default log options (its trace log: `git log -p -U0
+   --full-history --all --diff-filter=tuxdb`). It found 0 leaks in 887
+   commits, every non-merge commit with a diff (871 reachable from `HEAD`), and no merge
+   carries hunks of its own (`git show --cc`), so the merges it skips add nothing. CI's
+   part (the action or the binary, and the scan's flags) is #293's.
 2. **Node in CI (step 2).** Whether `actions/setup-node` reads the version from
    `package.json`, or the workflow names `26.x`; the job log shows which. **Settled
    (PR #312):** `node-version-file: package.json`, which setup-node v7.1.0 reads from
