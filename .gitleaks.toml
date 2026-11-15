@@ -3,12 +3,15 @@
 # unchanged. The history scan that found nothing to allow is open decision 1's, in the
 # Phase 8 plan.
 #
-# An allowlist entry added here names why its value isn't a secret. A `paths` entry
-# reaches the scans of files, pre-commit and `secret-scan`'s patch scan, and not the
-# scans of messages: commit-msg scans text with no path, and a `paths = ['.*']` entry
-# still left it refusing a flagged message (exit 1). On a conflicted merge `secret-scan`
-# names the file `b/<path>`: a `^f\.txt$` entry didn't match `b/f.txt` there, and
-# `^(b/)?f\.txt$` matched both forms. A `regexes` entry reaches every scan (a temporary
-# one let a flagged message through commit-msg, exit 0).
+# An allowlist entry added here names why its value isn't a secret. Anchor a `paths`
+# entry to its repo path (`^…$`):
+# - commit-msg scans text with no path, so no `paths` entry reaches it (`paths = ['.*']`
+#   still left it refusing a flagged message, exit 1);
+# - `secret-scan` scans each message as a file `$RUNNER_TEMP/messages/<sha>`, so an
+#   anchored entry misses it (`^f\.txt$`: exit 1) but `.*` exempted it (exit 0);
+# - on a conflicted merge `secret-scan` names the file `b/<path>`: `^f\.txt$` didn't
+#   match `b/f.txt` there, and `^(b/)?f\.txt$` matched both forms.
+# A `regexes` entry for the value let it through pre-commit, commit-msg and the message
+# folder (exit 0 each).
 [extend]
 useDefault = true
