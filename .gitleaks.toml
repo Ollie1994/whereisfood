@@ -1,4 +1,4 @@
-# Gitleaks config (IS #292), read by the pre-commit hook. With no --config, Gitleaks
+# Gitleaks config (IS #292), read by both hooks in `.githooks/`. With no --config, Gitleaks
 # reads `.gitleaks.toml` from the scanned folder's root (`gitleaks git --help`, 8.30.1).
 #
 # The default rules, unchanged. With them (8.30.1, 2026-11-15), on a `git clone --mirror`
