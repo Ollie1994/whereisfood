@@ -10,10 +10,12 @@
 # All probed in scratch repos. A clone without `core.hooksPath` doesn't run it either.
 #
 # It scans the whole message file, git's comment lines included. Under `git commit -v`
-# (or `commit.verbose`) that file also holds the staged diff, so a `-v` commit whose diff
-# shows a flagged line, even one it removes, is refused: commit without `-v`. Cutting the
-# diff out instead let flagged values through three ways in review (PR #342, rounds 3
-# and 4), so the hook fails closed here.
+# (or `commit.verbose`) that file also holds the staged diff, scanned as text with no
+# path, so a `-v` commit whose diff shows a flagged line is refused: one it removes, or a
+# context line a `paths` allowlist entry (or Gitleaks' default path allowlist, such as
+# lockfiles) lets through in pre-commit. Commit without `-v`. Cutting the diff out
+# instead let flagged values through: text after a scissors line under `-m`, and lines
+# after a look-alike of one (PR #342's probes). So the hook fails closed here.
 
 case $0 in */*) here=${0%/*} ;; *) here=. ;; esac
 if [ ! -r "$here/gitleaks-common.sh" ]; then
@@ -29,6 +31,6 @@ if [ ! -r "$1" ]; then
 fi
 
 run_gitleaks stdin < "$1" && exit 0
-echo "commit-msg: commit refused. Under \`git commit -v\` the find may be in the diff below" >&2
-echo "the message; if so, commit without -v." >&2
+echo "commit-msg: commit refused, by a find or a gitleaks error (above). Under" >&2
+echo "\`git commit -v\` a find may be in the diff below the message; if so, commit without -v." >&2
 exit 1

@@ -184,7 +184,7 @@ said otherwise: Phase 4 plan decision #14.
   remove the value, or, for a value that isn't a secret, add a `.gitleaks.toml` allowlist
   entry that names why. Never `--no-verify`, never an inline `gitleaks:allow`, which the
   hooks ignore, and never a `.gitleaksignore` fingerprint, which names no reason: the hooks
-  refuse every commit while one exists
+  refuse every commit they run on while one exists
 
 **db layer (`src/lib/db/`)**
 - It finds and mutates; it decides nothing. Postgres errors propagate unchanged (for
