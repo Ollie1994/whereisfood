@@ -6,7 +6,8 @@ describe("MAX_ROWS", () => {
   it("equals max_rows in supabase/config.toml's [api] table", () => {
     const config = readFileSync(new URL("../../../supabase/config.toml", import.meta.url), "utf8");
     // The [api] table only: from its header to the next table header of any kind.
-    const api = /^\[api\]\s*$([\s\S]*?)(?=^\[)/m.exec(config);
+    // `[ \t]*\r?$`, not `\s*$`, as `scripts/controls.mjs`'s API_TABLE says why.
+    const api = /^\[api\][ \t]*\r?$([\s\S]*?)(?=^\[)/m.exec(config);
     expect(api).not.toBeNull();
     const match = /^max_rows\s*=\s*(\d+)\s*$/m.exec(api![1]);
 
