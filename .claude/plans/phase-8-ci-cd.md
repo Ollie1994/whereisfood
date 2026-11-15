@@ -333,7 +333,8 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
     drops SonarQube Cloud where the context still plans it for Phase 8 (Part 2's Phase
     map row for Phase 8, its SAST bullet and per-branch token text, and the carried-forward
     rows for Phase 6 #1 and IS #278 (Phase 8)), with step 9's skip (#295) and the re-scan
-    before production (#349).
+    before production (#349); and the rows it writes for #2, #4, #11 and #14, whose text
+    names SonarQube Cloud, leave it out.
 
 ---
 
@@ -655,11 +656,12 @@ controls aren't one of the four gates, whose hand runs stay. A PR whose run took
 - [ ] CodeQL (`javascript-typescript`, `actions`) has an analysis of `dev`, and runs on PRs and
   pushes; its code-scanning result check goes red on a probe that adds an alert (#14; the
   window #14's step 8 note records is #297's).
-- [ ] ~~SonarQube Cloud~~ (dropped with step 9, #295): two-factor on at account creation (the owner's confirmation);
-  automatic analysis off; an analysis of `dev` exists; `SONAR_TOKEN` is an Actions secret
-  only; the job installs with `--ignore-scripts` and runs with `sonar.qualitygate.wait=true`,
-  and goes red on a probe that fails the quality gate (#14); the gate is open decision 5's,
-  and a PR adding only a code smell, with no coverage report, passes it.
+- Dropped with step 9 (#295), no box to tick: ~~SonarQube Cloud: two-factor on at account
+  creation (the owner's confirmation); automatic analysis off; an analysis of `dev` exists;
+  `SONAR_TOKEN` is an Actions secret only; the job installs with `--ignore-scripts` and runs
+  with `sonar.qualitygate.wait=true`, and goes red on a probe that fails the quality gate
+  (#14); the gate is open decision 5's, and a PR adding only a code smell, with no coverage
+  report, passes it.~~
 - [ ] `SECURITY.md` points to private reporting, and private reporting is on (UI).
 
 **Settled and required (steps 11–12)**
@@ -780,19 +782,21 @@ controls aren't one of the four gates, whose hand runs stay. A PR whose run took
    reads anything else on stdout as a failure.
 5. **SonarQube Cloud (step 9).** Its free tier for public repositories, confirmed; the
    exclusions; the custom gate's exact condition names. **The gate is settled** (the owner's
-   calls, rounds 2 and 3 on PR #283): a custom gate on new code with no new vulnerabilities
+   calls, rounds 2 and 3 on PR #283; superseded by "CodeQL alone" below): a custom gate on new code with no new vulnerabilities
    and no new bugs (security and reliability rating A) and every new security hotspot
    reviewed. Not "Sonar way": its coverage condition fails a PR with no coverage report, and
-   its other new-code conditions (no new issues, duplication) fail one on a single code
-   smell, which would make every non-blocking finding blocking (#4) ("Sonar way" as Sonar
+   ~~its other new-code conditions (no new issues, duplication) fail one on a single code
+   smell~~ (not this account's conditions, read below; row 677), which would make every
+   non-blocking finding blocking (#4) ("Sonar way" as Sonar
    documents it, not read on this account; step 9 reads it). Code smells and
    duplication are reported, not blocking; uploading coverage would be an issue of its own.
    If the free tier doesn't hold, CodeQL alone is the fallback, and that's the owner's call
    then. **Settled: CodeQL alone (the owner's call, 2026-11-15, #295; step 9).** Read on
    Sonar's subscription-plans page that day: the Free plan has no custom quality gate,
-   analyzes only the main branch and PRs into it; the OSS plan has both, for public
-   projects with an open-source licence, which this repo doesn't have (it was offered to
-   this personal account at organization creation). **"Sonar way" as read on this account**
+   analyzes only the main branch and PRs into it; the OSS plan has both, for "open source
+   organizations" (the page). A Sonar staff reply on its announcement (2026-03-09) says a
+   public project with an open-source licence qualifies; this repo has none. The OSS plan
+   was offered to this personal account at organization creation. **"Sonar way" as read on this account**
    (`api/qualitygates/show`): on new code, security, reliability and maintainability
    rating worse than A, coverage below 80, duplicated lines above 3, hotspots reviewed
    below 100. Maintainability is a rating, not a count of issues. By Sonar's documentation (not read
