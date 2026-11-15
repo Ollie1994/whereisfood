@@ -48,6 +48,7 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { headerLike } from "./lib/header-like.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const CONTROLS_DIR = join(ROOT, "tests", "controls");
@@ -77,9 +78,6 @@ function parseControl(path) {
   // not SQL: psql would run it as a comment, and the control would check one expectation
   // fewer with nothing saying so.
   const KEY = /^--\s*([A-Za-z-]+)\s*:\s*(.*\S)?\s*$/;
-  // Below the header: a comment (`--` or `/*`, anywhere on the line) whose first one to
-  // three words end in a colon, the shape of a header line, misspelt or not.
-  const HEADER_LIKE = /(?:--|\/\*)\s*[^\s:]+(?:[ \t]+[^\s:]+){0,2}\s*:/;
   let i = 0;
   for (; i < lines.length && lines[i].trim() !== ""; i += 1) {
     const match = KEY.exec(lines[i]);
@@ -89,7 +87,7 @@ function parseControl(path) {
     header[match[1]].push(match[2]);
   }
   for (let j = i; j < lines.length; j += 1) {
-    if (HEADER_LIKE.test(lines[j])) {
+    if (headerLike(lines[j])) {
       usage(`${name}:${j + 1}: a comment whose first words end in a colon, below the header (header lines go first; reword a prose comment)`);
     }
   }
@@ -157,8 +155,14 @@ function applySql(sql) {
 }
 
 // The API through Kong, on `config.toml`'s [api] port (the table sliced as
-// `src/lib/db/complete.test.ts` slices it: up to the next table header).
-const API_TABLE = /^\[api\]\s*$([\s\S]*?)(?=^\[)/m.exec(CONFIG)?.[1] ?? "";
+// `src/lib/db/complete.test.ts` slices it: up to the next table header). Keep `[ \t]*`
+// after the header: `\s*`, which crosses line breaks, made the lazy body backtrack when no
+// table header followed `[api]`, its time growing with the square of the blank lines after
+// it (IS #348's PR; with a header after them it stayed fast). It needs a table header after
+// `[api]` at all: with none, it matches nothing and the script stops on "no [api] port",
+// as the `\s*` form did. A CRLF
+// file needs nothing more: under `m`, `$` also matches before a CR (probed in that PR).
+const API_TABLE = /^\[api\][ \t]*$([\s\S]*?)(?=^\[)/m.exec(CONFIG)?.[1] ?? "";
 const API_PORT = /^port\s*=\s*(\d+)/m.exec(API_TABLE)?.[1];
 if (!API_PORT) usage("no [api] port in supabase/config.toml");
 const API = `http://127.0.0.1:${API_PORT}`;

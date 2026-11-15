@@ -12,7 +12,7 @@
 // What it can't see: a change that alters what the controls test without touching a
 // trigger path (a tool the controls run that no file imports, other than the `supabase`
 // CLI, which the package files stand for; an import the guard doesn't follow, its header
-// says which).
+// says which, the runner's own imports among them).
 
 import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
@@ -23,7 +23,8 @@ import { resolve } from "node:path";
 // `controls-trigger-coverage.test.mjs` fails when a test a control names reaches a file
 // this list doesn't cover; `controls-trigger.test.mjs` has one case per entry and checks
 // each exists.
-// - The controls and their runner, this script, the workflow that runs them, and
+// - The controls and their runner (with `lib/header-like.mjs`, which it imports to parse
+//   them; IS #348's PR), this script, the workflow that runs them, and
 //   `write-env-local.mjs`, which writes the `.env.local` their tests read: a PR that
 //   changes how the full set runs also runs it (the workflow and this script: the owner's
 //   call, round 3 on PR #283; `write-env-local.mjs`: round 1 on PR #316). `.env.example`
@@ -42,6 +43,7 @@ export const TRIGGERS = [
   "supabase/config.toml",
   "tests/controls/",
   "scripts/controls.mjs",
+  "scripts/lib/header-like.mjs",
   "scripts/controls-trigger.mjs",
   "scripts/write-env-local.mjs",
   ".github/workflows/ci.yml",

@@ -20,8 +20,10 @@
 // `vi.mock`, `vi.doMock`, `vi.importActual` or `vi.importMock`, whose specifiers
 // `preProcessFile` doesn't return (probed for `vi.mock` and `vi.importActual`; no
 // integration file calls any of the four today: grep, IS #287's PR); a file a test reads rather
-// than imports (`readFileSync`), such as the migrations; and anything a control's SQL
-// depends on beyond the schema.
+// than imports (`readFileSync`), such as the migrations; anything a control's SQL
+// depends on beyond the schema; and the runner's own imports: it starts from the
+// integration tests and setup files, not `scripts/controls.mjs`, so a module the runner
+// imports needs its own TRIGGERS entry (`scripts/lib/header-like.mjs` has one, IS #348).
 
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";

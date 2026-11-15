@@ -16,6 +16,7 @@ const TRIGGER_CASES = [
   "supabase/config.toml",
   "tests/controls/check-dropped.sql",
   "scripts/controls.mjs",
+  "scripts/lib/header-like.mjs",
   "scripts/controls-trigger.mjs",
   "scripts/write-env-local.mjs",
   ".github/workflows/ci.yml",
