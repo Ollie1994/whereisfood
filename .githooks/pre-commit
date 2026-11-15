@@ -5,9 +5,9 @@
 #
 # Not scanned here: `git commit --no-verify`; a clone without `core.hooksPath`; the
 # commit message (a flagged `api_key` in `-m` committed, exit 0), which `commit-msg`
-# scans; and the commits that `git merge`, `cherry-pick`, `rebase` and `am` make, which
-# don't run pre-commit (in a scratch repo each committed a flagged file, exit 0, where
-# `git commit` refused it). #293's CI scan is to cover the PR's commits.
+# scans; and the commits that a clean `git merge --no-ff`, `cherry-pick`, a plain `rebase`
+# and `am` make, which don't run pre-commit (in a scratch repo each committed a flagged
+# file, exit 0, where `git commit` refused it). #293's CI scan is to cover the PR's commits.
 #
 # --ignore-gitleaks-allow: without it, an inline `gitleaks:allow` comment let a staged
 # flagged value through (exit 0); with it, the hook refused it. A `.gitleaksignore`
