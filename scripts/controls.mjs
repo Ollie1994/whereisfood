@@ -48,6 +48,7 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { headerLike } from "./lib/header-like.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const CONTROLS_DIR = join(ROOT, "tests", "controls");
@@ -61,30 +62,6 @@ function usage(message) {
 }
 
 // --- the control files ---------------------------------------------------------------
-
-// Below a control's header: whether a line holds a comment (`--` or `/*`, anywhere on the
-// line) whose first one to three words end in a colon, the shape of a header line,
-// misspelt or not. A word is a run of anything but whitespace and colons; words are
-// separated by spaces or tabs.
-//
-// A scan, not the one regex it replaces, `/(?:--|\/\*)\s*[^\s:]+(?:[ \t]+[^\s:]+){0,2}\s*:/`,
-// which backtracked on a line of dashes: about 80 ms for 8000 against 0.04 ms now (IS
-// #348's PR, where 300 000 random lines gave the same answer from both). The lookahead
-// and backreference make each word atomic, and an opener whose words start inside the
-// first word of an opener that failed meets the same words after it, so it is skipped.
-function headerLike(line) {
-  const WORDS = /\s*(?=([^\s:]+))\1(?:[ \t]+(?=([^\s:]+))\2){0,2}\s*:/y;
-  const OPENER = /--|\/\*/g;
-  for (let m = OPENER.exec(line); m !== null; m = OPENER.exec(line)) {
-    WORDS.lastIndex = m.index + 2;
-    if (WORDS.test(line)) return true;
-    const first = /\s*[^\s:]*/y;
-    first.lastIndex = m.index + 2;
-    const wordEnd = m.index + 2 + first.exec(line)[0].length;
-    OPENER.lastIndex = Math.max(m.index + 1, wordEnd - 2);
-  }
-  return false;
-}
 
 function parseControl(path) {
   let text;
@@ -178,10 +155,11 @@ function applySql(sql) {
 }
 
 // The API through Kong, on `config.toml`'s [api] port (the table sliced as
-// `src/lib/db/complete.test.ts` slices it: up to the next table header). `[ \t]*\r?$`, not
-// `\s*$`: with `\s*`, which can cross line breaks, the lazy body backtracked, about 57 ms
-// for `[api]` and 8000 newlines with no next header against 0.03 ms now (IS #348's PR).
-const API_TABLE = /^\[api\][ \t]*\r?$([\s\S]*?)(?=^\[)/m.exec(CONFIG)?.[1] ?? "";
+// `src/lib/db/complete.test.ts` slices it: up to the next table header). Keep `[ \t]*`
+// after the header: `\s*`, which crosses line breaks, made the lazy body backtrack, its
+// time growing with the square of the blank lines after `[api]` (IS #348's PR). CONFIG's
+// line endings are already `\n`.
+const API_TABLE = /^\[api\][ \t]*$([\s\S]*?)(?=^\[)/m.exec(CONFIG)?.[1] ?? "";
 const API_PORT = /^port\s*=\s*(\d+)/m.exec(API_TABLE)?.[1];
 if (!API_PORT) usage("no [api] port in supabase/config.toml");
 const API = `http://127.0.0.1:${API_PORT}`;

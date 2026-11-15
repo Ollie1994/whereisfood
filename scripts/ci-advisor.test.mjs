@@ -19,8 +19,9 @@ const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf
 
 // One table of config.toml: the lines after its `[name]` header, up to the next line that
 // starts with `[` (a table of any kind, [db.pooler] and [[x]] included) or the end of the
-// file. The header is the form complete.test.ts reads [api] in: `[name]` in column 0 with
-// nothing after it but spaces; an indented, commented or quoted header isn't found, and
+// file. The header is `[name]` in column 0 with nothing after it but whitespace (any, where
+// complete.test.ts and controls.mjs accept only spaces and tabs, and a CR in
+// complete.test.ts); an indented, commented or quoted header isn't found, and
 // the test fails with "has no [name] table". It is found by comparing names, with no
 // RegExp built from one (CodeQL alert #4, js/incomplete-sanitization, IS #328).
 const HEADER = /^\[([^\]]+)\]\s*$/;
