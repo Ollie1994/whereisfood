@@ -368,21 +368,24 @@ jobs:
           "$dir/gitleaks" version
       # `base.sha..head.sha`: the commits reachable from the PR's head and not from the base
       # commit the event names, so dev's commits merged into the branch up to that commit
-      # aren't scanned again (later ones would be, which adds work, not a gap). Both ends
-      # are checked first: with a range git can't resolve, Gitleaks logged git's error,
-      # "0 commits scanned", and exited 0 (IS #293's PR, round 1).
+      # aren't scanned again (later ones would be, which adds work, not a gap).
       #
       # Patches: with --log-opts, Gitleaks runs `git log -p -U0 <opts>` in place of its
       # default `--all` (its trace log). `git log -p` shows no diff for a merge, so a value
       # added in a merge commit itself passed; `--diff-merges=remerge` shows what a merge
       # adds over git's own merge of its parents, and caught it, while a clean merge of a
       # branch holding a flagged value showed nothing to scan (`--cc` output went
-      # unparsed: "no leaks found"). Gitleaks exits 0 when git fails, so any `ERR` line it
-      # logs fails the step.
+      # unparsed: "no leaks found"). With a range or option git rejects, Gitleaks logged
+      # git's error, "0 commits scanned", and exited 0 (IS #293's PR, round 1), so git runs
+      # the same log first and fails the step if it can't. On a conflicted merge Gitleaks
+      # names the file `b/<path>` (`.gitleaks.toml` says what that means for `paths`).
       #
       # Messages: `gitleaks git` reads patches, not messages (PR #342's C11). Each commit's
-      # message is scanned on its own, as the commit-msg hook sees it, so no hash or other
-      # message joins its text, and a find names its commit.
+      # stored message (`%B`, after git's cleanup; the commit-msg hook sees the file before
+      # it) goes to a file named for its commit, and one `gitleaks dir` scans them: no hash
+      # or other message joins a message's text, and a find's `File:` names its commit.
+      # One `gitleaks stdin` per commit took about 0.36 s each, about 3.5 min for the 596
+      # commits of `main..dev` (2026-11-15, locally); the folder of 596 took 0.65 s.
       - name: Scan the PR's commits and their messages
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
@@ -390,26 +393,19 @@ jobs:
         run: |
           . .githooks/gitleaks-common.sh
           gitleaks_preflight secret-scan
-          git rev-parse --quiet --verify "$BASE^{commit}" > /dev/null \
-            || { echo "::error::base commit $BASE isn't in the clone"; exit 1; }
-          git rev-parse --quiet --verify "$HEAD^{commit}" > /dev/null \
-            || { echo "::error::head commit $HEAD isn't in the clone"; exit 1; }
-          commits="$(git rev-list "$BASE..$HEAD")"
-          echo "Range $BASE..$HEAD: $(printf '%s\n' "$commits" | grep -c .) commits"
+          n="$(git rev-list --count "$BASE..$HEAD")" \
+            || { echo "::error::the range $BASE..$HEAD isn't in the clone"; exit 1; }
+          echo "Range $BASE..$HEAD: $n commits"
 
-          log="$RUNNER_TEMP/gitleaks-git.log"
-          status=0
-          run_gitleaks git --log-opts="--diff-merges=remerge $BASE..$HEAD" . 2> "$log" || status=$?
-          cat "$log"
-          if grep -q 'ERR' "$log"; then
-            echo "::error::Gitleaks logged an error, so the patch scan can't be trusted"
-            exit 1
-          fi
-          [ "$status" -eq 0 ] || exit "$status"
+          git log -p -U0 --diff-merges=remerge "$BASE..$HEAD" > /dev/null
+          run_gitleaks git --log-opts="--diff-merges=remerge $BASE..$HEAD" .
 
-          failed=0
-          for c in $commits; do
-            git log -1 --format=%B "$c" | run_gitleaks stdin \
-              || { echo "::error::commit $c: its message"; failed=1; }
-          done
-          exit "$failed"
+          msgs="$RUNNER_TEMP/messages"
+          mkdir -p "$msgs"
+          while IFS= read -r -d '' rec; do
+            printf '%s' "${rec#*$'\n'}" > "$msgs/${rec%%$'\n'*}"
+          done < <(git log -z --format='%H%n%B' "$BASE..$HEAD")
+          files="$(find "$msgs" -type f | wc -l)"
+          [ "$files" -eq "$n" ] \
+            || { echo "::error::$files message files for $n commits"; exit 1; }
+          run_gitleaks dir "$msgs"

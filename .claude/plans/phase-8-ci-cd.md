@@ -82,7 +82,7 @@ has run the checks with no Vercel build (#5).
 | `.github/dependabot.yml` | Version updates for `github-actions`, keeping the SHA pins current, with the default `/` branch-name separator (step 15). npm gets security updates only (repository setting) |
 | `.githooks/pre-commit` | Gitleaks on the staged changes; the folder is set by hand through `core.hooksPath` (#7). Committed executable with `git update-index --chmod=+x`: `core.filemode` is `false` on the owner's machine (read 2026-11-12), so a plain add stores `100644` and git elsewhere ignores the hook |
 | `.githooks/commit-msg` | Gitleaks (`gitleaks stdin`) on the commit message, which `pre-commit` and `gitleaks git` don't read; committed executable as `pre-commit` is (round 1 on PR #342, the owner's call) |
-| `.githooks/gitleaks-common.sh` | Sourced by both hooks: their Gitleaks flags, and the checks that refuse a commit while `gitleaks` is missing or a `.gitleaksignore` exists (round 3 on PR #342) |
+| `.githooks/gitleaks-common.sh` | Sourced by both hooks and `ci.yml`'s `secret-scan`: their Gitleaks flags, and the checks that refuse while `gitleaks` is missing or a `.gitleaksignore` exists (round 3 on PR #342; `secret-scan` from IS #293) |
 | `.gitleaks.toml` (never a `.gitleaksignore`: it names no reason, round 1 on PR #342, the owner's call) | Gitleaks' config. Each allowlist entry names why it isn't a secret: the local stack's keys and test fixtures (`CLAUDE.md`, "Secrets") |
 | `sonar-project.properties` | SonarQube Cloud's project key, sources and exclusions |
 | `SECURITY.md` | How to report a vulnerability: GitHub's private reporting |
@@ -713,11 +713,12 @@ controls aren't one of the four gates, whose hand runs stay. A PR whose run took
    read-only. The job downloads the v8.30.1 linux_x64 tarball and checks it against a
    SHA-256 pinned in `ci.yml`, the release checksums file's entry; that file's windows_x64
    entry matches winget's manifest hash. It sources `.githooks/gitleaks-common.sh`, so it
-   runs the hooks' flags and `.gitleaksignore` refusal. It checks that both ends of
-   `base.sha..head.sha` are in the clone, then scans that range twice: `gitleaks git
+   runs the hooks' flags and `.gitleaksignore` refusal. It counts `base.sha..head.sha`
+   (failing if git can't), runs git's own `log -p --diff-merges=remerge` on it (Gitleaks
+   exits 0 when git fails), then scans it twice: `gitleaks git
    --log-opts="--diff-merges=remerge <range>"` for the patches, a merge's own additions
-   included, failing on any `ERR` line Gitleaks logs (it exits 0 when git fails); and
-   each commit's message on its own through `gitleaks stdin` (round 1 on the PR).
+   included; and one `gitleaks dir` over a folder of the commits' messages, one file per
+   commit (rounds 1 and 2 on the PR).
 2. **Node in CI (step 2).** Whether `actions/setup-node` reads the version from
    `package.json`, or the workflow names `26.x`; the job log shows which. **Settled
    (PR #312):** `node-version-file: package.json`, which setup-node v7.1.0 reads from
