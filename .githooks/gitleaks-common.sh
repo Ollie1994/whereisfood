@@ -1,6 +1,7 @@
 # Sourced by pre-commit and commit-msg (IS #292): their flags and checks, kept once. Not
-# a hook: git runs only the files in `core.hooksPath` named for a hook. Git runs a hook
-# from the work-tree root, so the paths below are relative to it.
+# a hook: githooks(5) lists the names git runs, and this isn't one. "Before Git invokes
+# a hook, it changes its working directory to … the root of the working tree"
+# (githooks(5)), so the paths below are relative to it.
 #
 # --config .gitleaks.toml: Gitleaks reads GITLEAKS_CONFIG and GITLEAKS_CONFIG_TOML before
 # the repo's file (`gitleaks git --help`, 8.30.1); with GITLEAKS_CONFIG_TOML set to an
