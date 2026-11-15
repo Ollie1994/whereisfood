@@ -13,7 +13,7 @@ reconciles the context.
 
 **Purpose of the phase:** until now every gate is a command someone remembers to run.
 This phase makes GitHub run them, and the security checks around them, on every PR
-(SonarQube Cloud skipped on Dependabot and fork PRs, #2; skipped altogether in Phase 8, step 9), and makes a red check stop the
+(SonarQube Cloud was to skip Dependabot and fork PRs, #2; it was dropped from Phase 8 altogether, step 9, #295), and makes a red check stop the
 merge, before Phase 9's security work and Phase 10's
 production deploy go through it (#1).
 
@@ -22,8 +22,8 @@ production deploy go through it (#1).
 ## Goal
 
 Every PR into `dev` or `main` must pass the four gates and the secret scan, CodeQL,
-SonarQube Cloud (skipped on Dependabot and fork PRs, which CodeQL is to cover, #2; the
-whole of it skipped in Phase 8, step 9, #295), `npm audit`, the security advisor, the lint rules, the schema controls
+SonarQube Cloud (to be skipped on Dependabot and fork PRs, which CodeQL is to cover, #2;
+dropped from Phase 8 altogether, step 9, #295), `npm audit`, the security advisor, the lint rules, the schema controls
 and the log check, run by hardened GitHub Actions workflows as required checks under
 branch protection, with Dependabot switched on last; done once each required check has
 been seen to fail on a probe PR that branch protection then blocked, and a Dependabot PR
@@ -54,7 +54,7 @@ has run the checks with no Vercel build (#5).
 | TOTP MFA, #241's 6-digit code, session timeouts, the login-abuse and code-guessing probes | Phase 9 |
 | Security headers and the CSP. Phase 8 builds the served-app step in `build` (`smoke.mjs`); Phase 9 adds the header assertions to it | Phase 9 |
 | Usage, spend and 5xx alerts; the ZAP scan; the `x-forwarded-host` probe; free-text length limits; the `users` policy under `aal1` | Phase 9 |
-| The 2FA audit of every account. An account Phase 8 creates (SonarQube Cloud) gets two-factor at creation (`CLAUDE.md`, "Secrets") | Phase 9 |
+| The 2FA audit of every account. An account Phase 8 creates (SonarQube Cloud) gets two-factor at creation (`CLAUDE.md`, "Secrets"); Phase 8 kept none: the trial account (GitHub sign-in, GitHub two-factor) was deleted, and #349 creates one again | Phase 9 |
 | Writing the hosted-settings checklist | Phase 9 (applied in Phase 10) |
 | The production project and deploy, the custom domain, HSTS, rotating credentials, the production Security Advisor, the Production variables | Phase 10 |
 | Deploying from Actions. Vercel keeps deploying (Q27); Phase 8 only extends the Ignored Build Step to cancel `dependabot/*` and `probe/*` (#15) | not planned |
@@ -276,8 +276,9 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
     required check is what fails on a finding (#14): CodeQL's code-scanning result check
     (its analyze jobs stay green on a finding; whether they are required beside it is
     settled here, #14's step 8 note), and SonarQube Cloud's workflow job run with
-    `sonar.qualitygate.wait=true`, not SonarQube Cloud's own app check (none since step 9
-    was skipped, #295: CodeQL's is the only SAST check). *Before it*, a
+    `sonar.qualitygate.wait=true`, not SonarQube Cloud's own app check. **Since step 9 was
+    skipped (#295), there is no SonarQube job or check: CodeQL's are the only SAST checks
+    to require.** *Before it*, a
     fresh no-op PR into `dev` shows every check green under the exact name to be required
     (`gh pr checks`): `ci.yml` is PR-only, so `dev`'s head shows only the push runs. *After
     it*, `gh pr checks --required` on that PR lists the same names, and `gh api
@@ -328,7 +329,11 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
     decisions that outlive the phase (#4, #7, #8, #9, #11, #12, #13, #14, #15 at least),
     hands Phase 10 #11's limit (how its first PR into `main` treats findings with no base
     analysis of `main`, and adding the SAST checks to `main`'s ruleset once one exists),
-    and sets `CLAUDE.md`'s bold line to none, naming this plan as the last one.
+    and sets `CLAUDE.md`'s bold line to none, naming this plan as the last one. It also
+    drops SonarQube Cloud where the context still plans it for Phase 8 (the Phase 8
+    Roadmap row, Part 2's SAST bullet and per-branch token text, and the carried-forward
+    rows for Phase 6 #1 and IS #278 (Phase 8)), with step 9's skip (#295) and the re-scan
+    before production (#349).
 
 ---
 
@@ -662,7 +667,7 @@ controls aren't one of the four gates, whose hand runs stay. A PR whose run took
   blocking finding's issue is closed, fixed or dismissed with a reason; each non-blocking
   finding has an issue in its phase.
 - [ ] Rulesets on both branches: PR required, no force-push, no deletion; on `dev` every
-  check from steps 2–9 required (for SAST, the checks #14 names), on `main` `ci.yml`'s;
+  check from steps 2–9 required (for SAST, the checks #14 names: CodeQL's only, step 9 skipped, #295), on `main` `ci.yml`'s;
   `main`'s bypass list empty; read back with `gh api repos/{owner}/{repo}/rulesets` and
   recorded; `gh pr checks --required` on the no-op PR lists the same names; whether
   "require workflows" is open to this account is recorded.
@@ -790,9 +795,11 @@ controls aren't one of the four gates, whose hand runs stay. A PR whose run took
    this personal account at organization creation). **"Sonar way" as read on this account**
    (`api/qualitygates/show`): on new code, security, reliability and maintainability
    rating worse than A, coverage below 80, duplicated lines above 3, hotspots reviewed
-   below 100. Maintainability is a rating, not a count of issues, so "fail one on a single
-   code smell" above doesn't hold as written; with no coverage imported the coverage
-   measure was empty, and whether the gate then skips it wasn't probed. The trial's
+   below 100. Maintainability is a rating (the technical debt on new code against its
+   development cost, A up to 5%), not a count of issues: one code smell can fail a small PR,
+   whose ratio it pushes past 5%, and not a large one (not probed on a PR). With no
+   coverage imported the coverage measure was empty, and whether the gate then skips it
+   wasn't probed. The trial's
    findings and how each was settled: #295.
 6. **The required-check names for CodeQL and SonarQube Cloud (step 12)**: the exact names
    the checks #14 picks report under, which branch protection lists exactly. **CodeQL's, read
