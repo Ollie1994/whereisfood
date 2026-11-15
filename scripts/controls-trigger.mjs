@@ -12,7 +12,7 @@
 // What it can't see: a change that alters what the controls test without touching a
 // trigger path (a tool the controls run that no file imports, other than the `supabase`
 // CLI, which the package files stand for; an import the guard doesn't follow, its header
-// says which).
+// says which, the runner's own imports among them).
 
 import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";

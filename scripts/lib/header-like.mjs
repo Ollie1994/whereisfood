@@ -4,10 +4,10 @@
 // whitespace and colons; words are separated by spaces or tabs, and any whitespace may
 // come after the opener and before the colon.
 //
-// Keep it a scan. As one regex (`ORACLE` in `header-like.test.mjs`, the spec this matches)
-// it backtracked on a line of dashes, its time growing with the square of the line's
-// length (IS #348's PR); the test compares the two on every short line over two small
-// alphabets.
+// Keep it a scan. As one regex (`ORACLE` in `header-like.test.mjs`, the spec it is tested
+// against) it backtracked on a line of dashes, its time growing with the square of the
+// line's length (IS #348's PR); the test compares the two on every short line over two
+// small alphabets.
 //
 // The lookahead and backreference make each word atomic. When an opener fails, the next
 // openers are skipped while their words would start inside its first word, up to and

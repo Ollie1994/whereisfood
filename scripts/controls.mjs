@@ -158,7 +158,9 @@ function applySql(sql) {
 // `src/lib/db/complete.test.ts` slices it: up to the next table header). Keep `[ \t]*`
 // after the header: `\s*`, which crosses line breaks, made the lazy body backtrack when no
 // table header followed `[api]`, its time growing with the square of the blank lines after
-// it (IS #348's PR; with a header after them it stayed fast). A CRLF
+// it (IS #348's PR; with a header after them it stayed fast). It needs a table header after
+// `[api]` at all: with none, it matches nothing and the script stops on "no [api] port",
+// as the `\s*` form did. A CRLF
 // file needs nothing more: under `m`, `$` also matches before a CR (probed in that PR).
 const API_TABLE = /^\[api\][ \t]*$([\s\S]*?)(?=^\[)/m.exec(CONFIG)?.[1] ?? "";
 const API_PORT = /^port\s*=\s*(\d+)/m.exec(API_TABLE)?.[1];
