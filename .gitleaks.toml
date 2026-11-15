@@ -2,8 +2,9 @@
 # reads `.gitleaks.toml` from the scanned folder's root (`gitleaks git --help`, 8.30.1).
 #
 # The default rules, unchanged. With them (8.30.1, 2026-11-15), on a `git clone --mirror`
-# of the GitHub repo (every ref, `refs/pull/*` included): `gitleaks git` found 0 leaks in
-# 897 commits, every non-merge commit with a diff (no merge carried hunks of its own);
+# of the GitHub repo (every ref it advertises, `refs/pull/*` included): `gitleaks git`
+# found 0 leaks in 897 commits, every non-merge commit with a diff (no merge carried hunks
+# of its own);
 # `gitleaks stdin` on all 1033 commit messages found 0. `gitleaks git` reads patches,
 # not messages: in a scratch repo it missed a flagged message that `gitleaks stdin` found.
 #

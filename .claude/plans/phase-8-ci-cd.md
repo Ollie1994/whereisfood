@@ -694,7 +694,7 @@ controls aren't one of the four gates, whose hand runs stay. A PR whose run took
    --ignore-gitleaks-allow`, and refuses the commit while `gitleaks` isn't on the `PATH`.
    `--ignore-gitleaks-allow`: without it, an inline `gitleaks:allow` comment let a staged
    flagged value through (exit 0); with it, the hook refused it. The one-off history scan
-   ran on a `git clone --mirror` of the GitHub repo, so every ref GitHub serves,
+   ran on a `git clone --mirror` of the GitHub repo, so every ref GitHub advertises,
    `refs/pull/*` included (149 PR heads, 23 non-merge commits reachable from no branch or
    tag). `gitleaks git` (its trace log: `git log -p -U0 --full-history --all
    --diff-filter=tuxdb`) found 0 leaks in 897 commits, every non-merge commit with a diff,
