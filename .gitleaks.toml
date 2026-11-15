@@ -4,7 +4,8 @@
 # Phase 8 plan.
 #
 # An allowlist entry added here names why its value isn't a secret. Write a `paths`
-# entry as `^(b/)?<repo path>$`:
+# entry as `^(b/)?<repo path>$`, the path's regex characters escaped (`\.`); `(b/)?` also
+# matches a real file at `b/<repo path>`, so check none exists:
 # - commit-msg scans text with no path, so no `paths` entry reaches it (`paths = ['.*']`
 #   still left it refusing a flagged message, exit 1);
 # - `secret-scan` scans each message as a file `$RUNNER_TEMP/messages/<sha>`, so an

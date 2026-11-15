@@ -332,7 +332,8 @@ jobs:
 
   # Gitleaks on the PR's commits and their messages (plan step 7, IS #293): what the local
   # hooks can't see, `--no-verify`, `cherry-pick`, `rebase` and a clone without
-  # `core.hooksPath` (`.githooks/pre-commit`'s header), and files git treats as binary. It
+  # `core.hooksPath` (`.githooks/pre-commit`'s header), and most files git treats as
+  # binary (the scan step's comment says which). It
   # pins the Gitleaks version README gives for the hooks, which pin none themselves, and
   # runs their flags and checks: it sources `.githooks/gitleaks-common.sh`, so a committed
   # `.gitleaksignore` fails it too.
@@ -383,9 +384,13 @@ jobs:
       # `b/<path>` (`.gitleaks.toml` says what that means for `paths`). `--text`: without
       # it, `git log -p` prints only "Binary files … differ" for a file git counts as binary
       # (a NUL byte, or `-diff` in `.gitattributes`), and a value in one passed (exit 0);
-      # with it, caught (exit 1). The pre-commit hook has no such option.
+      # with it, caught (exit 1). The pre-commit hook has no such option. Gitleaks' default
+      # config still skips some extensions before any scan: with `--text`, a value beside a
+      # NUL byte in `.bin`, `.png` and `.pdf` files passed, and in `.dat`, `.ico`, `.zip`
+      # and `.pmtiles` files was caught. Git's own run costs one more log of the range (1.2
+      # s for the 596 commits of `main..dev`).
       #
-      # Both scans always run, so one run reports every find; the step fails after them.
+      # Both scans run even when one fails, and the step fails after them.
       #
       # Messages: `gitleaks git` reads patches, not messages (PR #342's C11). Each commit's
       # stored message (`%B`, after git's cleanup; the commit-msg hook sees the file before
@@ -416,7 +421,7 @@ jobs:
           done < <(git log -z --format='%H%n%B' "$BASE..$HEAD")
           files="$(find "$msgs" -type f | wc -l)"
           [ "$files" -eq "$n" ] \
-            || { echo "::error::$files message files for $n commits"; exit 1; }
+            || { echo "::error::$files message files for $n commits"; failed=1; }
           run_gitleaks dir "$msgs" \
             || { echo "::error::the message scan failed (a find, or a Gitleaks error above)"; failed=1; }
           exit "$failed"
