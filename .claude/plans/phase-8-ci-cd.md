@@ -282,7 +282,8 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
     fresh no-op PR into `dev` shows every check green under the exact name to be required
     (`gh pr checks`): `ci.yml` is PR-only, so `dev`'s head shows only the push runs. *After
     it*, `gh pr checks --required` on that PR lists the same names, and `gh api
-    repos/{owner}/{repo}/rulesets` reads the rules back (the CLI token can read rulesets but
+    repos/{owner}/{repo}/rulesets` lists them and `…/rulesets/<id>` reads each one's rules
+    back (the list gives only names and ids, round 1 on PR #352; the CLI token can read rulesets but
     not classic protection: `branches/*/protection` → `403`, probed 2026-11-12). Whether
     rulesets' "require workflows" rule is open to this personal account is read here (#2's
     limit).
@@ -292,7 +293,9 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
     not a gate" and `scripts/controls.mjs`'s header "Not a gate" change with it: the
     `controls` check is required. *Only now*, because every check exists and is green.
     **Settled in #297 (the owner's calls):** `dev`'s bypass list is empty too, so neither
-    ruleset has one; both require branches to be up to date before merging; on `dev`,
+    ruleset has one, and #11's consequence holds on `dev` as well: a required check red for a
+    reason outside the PR (an advisory with no fixed release failing `audit`, an outage)
+    blocks every merge until the rule is lifted by hand; both require branches to be up to date before merging; on `dev`,
     `CodeQL` and both analyze jobs are required (#14). "Require workflows" isn't open here:
     GitHub's list of rules for repository rulesets has no such rule, and organization
     rulesets need GitHub Team or Enterprise (docs read in #297's PR), and the ruleset
@@ -326,7 +329,8 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
     "Nothing below exists yet" become a description of what was built, with what stays for
     Phases 9 and 10; the "Phase map" (the Phase 8 row); any `CLAUDE.md` text still saying
     the gates are manual that step 12 didn't reach; and the README's status parts (their
-    "What does not exist yet" says previews have "one exception so far", which step 1's
+    "What does not exist yet" still says "CI: every gate is run by hand until Phase 8 builds
+    it", stale since step 12, round 1 on PR #352; and it says previews have "one exception so far", which step 1's
     `dependabot/` and `probe/` cancels made stale, IS #284); Part 2's items that rely on the
     Ignored Build Step (Dependabot's branches, and Phase 10's "check it is still set") gain
     the `vercel.json` `ignoreCommand` override and the secret key's `dev` scope (`README.md`,
@@ -380,7 +384,9 @@ protection on both branches (Q2), `main`'s required checks the production deploy
 under the same name. With no required approvals, the guard is the owner reading every
 `.github/` diff, Dependabot's Actions SHA bumps included; whether rulesets' "require
 workflows" rule is open to this personal account is read in step 12, and using it is the
-owner's call then (the narrow read-through on PR #283).
+owner's call then (the narrow read-through on PR #283). It isn't (#297). The same holds for
+the scripts and configs the jobs call (`package.json`'s scripts, `scripts/`, the test and
+lint configs), which a PR also carries: `CLAUDE.md`, "Testing" (round 1 on PR #352).
 
 ### #3 — The between-phases procedure (IS #279)
 
@@ -557,8 +563,7 @@ it doesn't go red at all: on PR #326, where a newer push cancelled the JavaScrip
 misses its upload by failing, timing out or a hand cancel, none seen here. And `CodeQL` can
 end **neutral** on its own: on `cb25816` its title was "Error when processing the SARIF
 file", posted at 07:31:53, before either job was cancelled (07:31:59). GitHub's docs on
-required status checks count neutral as passing (whether a ruleset does too is step 12's to
-read). So required alone, `CodeQL` can pass with no JavaScript analysis, or none read.
+required status checks count neutral as passing (a ruleset too: settled below, in #297). So required alone, `CodeQL` can pass with no JavaScript analysis, or none read.
 Requiring both analyze jobs too makes a failed or cancelled job block, and the merge waits
 until both finish; a SARIF error with both jobs green would still pass: GitHub's docs on
 required checks count `neutral` as passing ("Successful check statuses are `success`,
@@ -606,7 +611,8 @@ on PR #311. `README.md`, "Preview deploys", has the probes.
 `controls` job runs the same script on the same exclude-list stack for those PRs, and its log
 is a record in the PR. So a `controls` job that ran the full set and passed (its log ends
 "N of N as listed") stands in for the hand run, before #297 makes the check required; the
-controls aren't one of the four gates, whose hand runs stay. A PR whose run took only
+controls aren't one of the four gates, whose hand runs stay (until step 12, IS #297, made
+CI the gate: `CLAUDE.md`, "Testing"). A PR whose run took only
 `--check` still gets the hand run if its change needs one. The owner's call, round 3 on PR
 #317.
 
@@ -682,7 +688,7 @@ controls aren't one of the four gates, whose hand runs stay. A PR whose run took
 - [ ] Rulesets on both branches: PR required, no force-push, no deletion; on `dev` every
   check from steps 2–9 required (for SAST, the checks #14 names: CodeQL's only, step 9 skipped, #295), on `main` `ci.yml`'s;
   `main`'s bypass list empty; read back with `gh api repos/{owner}/{repo}/rulesets` and
-  recorded; `gh pr checks --required` on the no-op PR lists the same names; whether
+  each by id, and recorded; `gh pr checks --required` on the no-op PR lists the same names; whether
   "require workflows" is open to this account is recorded.
 - [ ] `CLAUDE.md`'s "Testing" no longer says "No CI check is required yet" (until PR #312
   "There is no CI"), and states Q10's split; neither it nor `scripts/controls.mjs`'s header calls the controls "not a gate".

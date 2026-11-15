@@ -608,8 +608,9 @@ A pull request into `dev` or `main` merges once the checks the branch's ruleset 
 green (`CLAUDE.md`, "Testing"): `.github/workflows/ci.yml`'s four gates, Supabase's security
 advisor, `npm audit`, the process log's check, the schema controls (the full set when a path
 `TRIGGERS` in `scripts/controls-trigger.mjs` covers changes or the pull request is into
-`main`, `--check` otherwise) and Gitleaks, and on `dev` CodeQL too. Locally, the fast loop
-is:
+`main`, `--check` otherwise) and Gitleaks, and on `dev` CodeQL too. The branch must also be
+up to date with its base, so after another pull request merges, update the branch and let
+the checks run again. Locally, the fast loop is:
 
 ```bash
 npx tsc --noEmit

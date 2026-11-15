@@ -326,17 +326,25 @@ Toolchain: the Node and npm ranges under Dependencies.
 `audit` (#291), the process log's check in `process-log` and the schema controls in
 `controls` (#288; the full set only on the PRs "Schema controls" below names), and Gitleaks
 on the PR's commits and messages in `secret-scan` (#293); `codeql.yml` runs CodeQL (#294).
-The rulesets on `dev` and `main` require a PR and those checks by name, and block
-force-pushes and deletion; on `dev` CodeQL's checks are required too (`CodeQL` and both
-`analyze` jobs, plan #14), on `main` they join in Phase 10 (plan #11). Neither ruleset has a
-bypass list, so the rules bind admins. `gh api repos/{owner}/{repo}/rulesets` reads them
-back. A PR is reviewed and merged once its checks are green; nothing runs the gates by hand
-for it. Two things CI doesn't cover:
+The rulesets on `dev` and `main` require a PR, those checks by name and the branch up to
+date with its base, and block force-pushes and deletion; on `dev` CodeQL's checks are
+required too (`CodeQL` and both `analyze` jobs, plan #14), on `main` they join in Phase 10
+(plan #11). Neither ruleset has a bypass list, so the rules bind admins: a required check
+red for a reason outside the PR (an advisory with no fixed release failing `audit`, an
+outage) blocks every merge into that branch until the rule is lifted by hand in the
+repository's settings (plan #11). `gh api repos/{owner}/{repo}/rulesets` lists them, and
+`…/rulesets/<id>` reads one's rules back. A PR is reviewed and merged once its checks are
+green; nothing runs the gates by hand for it. What CI doesn't cover:
 - the `/map` browser check, which stays manual (below);
-- a PR's own workflow files: a PR runs the `.github/workflows/` it carries, so an edit there
-  can turn a required check into one that passes whatever the code does, under the same name
-  (plan #2's limit; rulesets' "require workflows" isn't open to a personal account's
-  repository, #297). Read every `.github/` diff before merging, Dependabot's included.
+- the files a PR's checks run: a PR runs its own `.github/workflows/` and the scripts and
+  configs its jobs call (`package.json`'s scripts, `scripts/`, `vitest.config.ts`, the
+  eslint config), so an edit to one can turn a required check into one that passes whatever
+  the code does, under the same name (plan #2's limit; rulesets' "require workflows" isn't
+  open to a personal account's repository, #297). Read those diffs before merging,
+  Dependabot's included;
+- on a PR into `dev`, a change the controls test that no `TRIGGERS` entry covers ("Schema
+  controls" below), and a PR retargeted to another base, which keeps its last run's results
+  until its next push (`ci.yml`'s header).
 
 Locally, `npx tsc --noEmit`, `npm run test:run` and `npm run lint` are the fast loop, with
 Docker down. `tsc` is a check in its own right: vitest strips types and never type-checks, so
@@ -394,9 +402,9 @@ stayed green), and restores the database with `npx supabase db reset`. CI's requ
 `scripts/controls-trigger.mjs` covers, and on every PR into `main`, and `--check` (parses
 the files, touches nothing) on the rest (#288). Run it by hand while writing a control or a
 migration (one file: `node scripts/controls.mjs tests/controls/<name>.sql`), and for a PR
-whose change the controls test though no `TRIGGERS` entry covers it (that script's header
-says which changes it can't see): into `dev`, the check ran only `--check` there. A new schema guard
-adds its controls by the rule in `.claude/commands/create-issues.md`'s Failure modes. About
+into `dev` whose change the controls test though no `TRIGGERS` entry covers it (that
+script's header says which changes it can't see), since there the check ran only `--check`.
+A new schema guard adds its controls by the rule in `.claude/commands/create-issues.md`'s Failure modes. About
 45 s a control, mostly the reset (64 took 48 minutes, 2026-10-23); the script's header
 says what it can't see.
 
