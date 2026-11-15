@@ -349,10 +349,11 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-      # The SHA-256 is the linux_x64 entry of the release's gitleaks_8.30.1_checksums.txt;
-      # that file's windows_x64 entry matches the hash in winget's manifest for
-      # Gitleaks.Gitleaks 8.30.1, a copy kept outside the release (IS #293's PR).
-      - name: Install Gitleaks 8.30.1
+      # GITLEAKS_SHA256 is the linux_x64 entry of the release's checksums file for
+      # GITLEAKS_VERSION; for 8.30.1, that file's windows_x64 entry matches the hash in
+      # winget's manifest for Gitleaks.Gitleaks, a copy kept outside the release (IS #293's
+      # PR). A version bump changes both values, and README's version for the hooks.
+      - name: Install Gitleaks
         env:
           GITLEAKS_VERSION: 8.30.1
           GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
@@ -367,11 +368,21 @@ jobs:
           "$dir/gitleaks" version
       # `base.sha..head.sha`: the commits reachable from the PR's head and not from the base
       # commit the event names, so dev's commits merged into the branch up to that commit
-      # aren't scanned again (later ones would be, which adds work, not a gap). The step
-      # prints the range and its count. With --log-opts, Gitleaks
-      # runs `git log -p -U0 <range>` in place of its default `--all` (its trace log).
-      # `gitleaks git` reads patches, not messages (PR #342's C11), so the messages get a
-      # pass of their own.
+      # aren't scanned again (later ones would be, which adds work, not a gap). Both ends
+      # are checked first: with a range git can't resolve, Gitleaks logged git's error,
+      # "0 commits scanned", and exited 0 (IS #293's PR, round 1).
+      #
+      # Patches: with --log-opts, Gitleaks runs `git log -p -U0 <opts>` in place of its
+      # default `--all` (its trace log). `git log -p` shows no diff for a merge, so a value
+      # added in a merge commit itself passed; `--diff-merges=remerge` shows what a merge
+      # adds over git's own merge of its parents, and caught it, while a clean merge of a
+      # branch holding a flagged value showed nothing to scan (`--cc` output went
+      # unparsed: "no leaks found"). Gitleaks exits 0 when git fails, so any `ERR` line it
+      # logs fails the step.
+      #
+      # Messages: `gitleaks git` reads patches, not messages (PR #342's C11). Each commit's
+      # message is scanned on its own, as the commit-msg hook sees it, so no hash or other
+      # message joins its text, and a find names its commit.
       - name: Scan the PR's commits and their messages
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
@@ -379,6 +390,26 @@ jobs:
         run: |
           . .githooks/gitleaks-common.sh
           gitleaks_preflight secret-scan
-          echo "Range $BASE..$HEAD: $(git rev-list --count "$BASE..$HEAD") commits"
-          run_gitleaks git --log-opts="$BASE..$HEAD" .
-          git log --format='%H%n%B' "$BASE..$HEAD" | run_gitleaks stdin
+          git rev-parse --quiet --verify "$BASE^{commit}" > /dev/null \
+            || { echo "::error::base commit $BASE isn't in the clone"; exit 1; }
+          git rev-parse --quiet --verify "$HEAD^{commit}" > /dev/null \
+            || { echo "::error::head commit $HEAD isn't in the clone"; exit 1; }
+          commits="$(git rev-list "$BASE..$HEAD")"
+          echo "Range $BASE..$HEAD: $(printf '%s\n' "$commits" | grep -c .) commits"
+
+          log="$RUNNER_TEMP/gitleaks-git.log"
+          status=0
+          run_gitleaks git --log-opts="--diff-merges=remerge $BASE..$HEAD" . 2> "$log" || status=$?
+          cat "$log"
+          if grep -q 'ERR' "$log"; then
+            echo "::error::Gitleaks logged an error, so the patch scan can't be trusted"
+            exit 1
+          fi
+          [ "$status" -eq 0 ] || exit "$status"
+
+          failed=0
+          for c in $commits; do
+            git log -1 --format=%B "$c" | run_gitleaks stdin \
+              || { echo "::error::commit $c: its message"; failed=1; }
+          done
+          exit "$failed"

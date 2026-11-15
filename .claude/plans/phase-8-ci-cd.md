@@ -713,9 +713,11 @@ controls aren't one of the four gates, whose hand runs stay. A PR whose run took
    read-only. The job downloads the v8.30.1 linux_x64 tarball and checks it against a
    SHA-256 pinned in `ci.yml`, the release checksums file's entry; that file's windows_x64
    entry matches winget's manifest hash. It sources `.githooks/gitleaks-common.sh`, so it
-   runs the hooks' flags and `.gitleaksignore` refusal, and scans
-   `base.sha..head.sha` twice: `gitleaks git --log-opts` for the patches, and `git log
-   --format='%H%n%B'` through `gitleaks stdin` for the messages.
+   runs the hooks' flags and `.gitleaksignore` refusal. It checks that both ends of
+   `base.sha..head.sha` are in the clone, then scans that range twice: `gitleaks git
+   --log-opts="--diff-merges=remerge <range>"` for the patches, a merge's own additions
+   included, failing on any `ERR` line Gitleaks logs (it exits 0 when git fails); and
+   each commit's message on its own through `gitleaks stdin` (round 1 on the PR).
 2. **Node in CI (step 2).** Whether `actions/setup-node` reads the version from
    `package.json`, or the workflow names `26.x`; the job log shows which. **Settled
    (PR #312):** `node-version-file: package.json`, which setup-node v7.1.0 reads from

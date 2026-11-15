@@ -1,5 +1,5 @@
-# Gitleaks config (IS #292). Both hooks in `.githooks/` pass `--config .gitleaks.toml`
-# (`gitleaks-common.sh` says why), and #293's CI scan is to read it too. The default rules,
+# Gitleaks config (IS #292). Both hooks in `.githooks/` and `ci.yml`'s `secret-scan` (IS
+# #293) pass `--config .gitleaks.toml` (`gitleaks-common.sh` says why). The default rules,
 # unchanged. The history scan that found nothing to allow is open decision 1's, in the
 # Phase 8 plan.
 #

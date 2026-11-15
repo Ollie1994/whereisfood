@@ -14,20 +14,20 @@ run_gitleaks() {
   gitleaks "$@" --config .gitleaks.toml --redact --no-banner --verbose --ignore-gitleaks-allow
 }
 
-# $1: the hook's name, for the messages. Exits 1 (the commit refused) when gitleaks isn't
-# on the PATH, or when a root `.gitleaksignore` exists: Gitleaks reads one even
+# $1: the caller's name (a hook, or ci.yml's secret-scan), for the messages. Exits 1 when
+# gitleaks isn't on the PATH, or when a root `.gitleaksignore` exists: Gitleaks reads one even
 # untracked, and `-i` pointed at an empty folder or a missing file didn't stop it (a
 # fingerprint there let a staged flagged value through, exit 0). `CLAUDE.md`
 # ("Secrets") bans the file.
 gitleaks_preflight() {
   if ! command -v gitleaks >/dev/null 2>&1; then
     echo "$1: gitleaks not found on PATH; install it (README, \"Getting started\")," >&2
-    echo "or open a new shell if you just did. Commit refused." >&2
+    echo "or, if this shell started before the install, open a new one. Refused." >&2
     exit 1
   fi
   if [ -e .gitleaksignore ]; then
     echo "$1: .gitleaksignore exists; CLAUDE.md (\"Secrets\") bans it. An exception is a" >&2
-    echo ".gitleaks.toml allowlist entry naming why. Commit refused." >&2
+    echo ".gitleaks.toml allowlist entry naming why. Refused." >&2
     exit 1
   fi
 }
