@@ -6,8 +6,8 @@
 #
 # Run: `git commit` (with `-m` or an editor), `--amend`, `git merge -m`, and `rebase -i`'s
 # reword each refused a flagged message here (exit 1). Not run: `cherry-pick` (`-e`
-# too), `am` and a plain `rebase` committed one (exit 0); nor `--no-verify` or a clone
-# without `core.hooksPath`. All probed in scratch repos.
+# too), `am`, a plain `rebase` and `commit --no-verify` each committed one (exit 0).
+# All probed in scratch repos. A clone without `core.hooksPath` doesn't run it either.
 #
 # The message file under `git commit -v` also holds the staged diff after git's scissors
 # line, so a commit removing a flagged line was refused for the `-` line. Git drops that
