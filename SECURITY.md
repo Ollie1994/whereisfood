@@ -9,24 +9,28 @@ Please report security problems privately, through GitHub:
    ([direct link](https://github.com/Ollie1994/whereisfood/security/advisories/new)).
 3. Describe the problem, how to reproduce it, and what it affects.
 
-Please don't report it publicly: no issue, pull request or post elsewhere. We'll agree in
-the report when it can be made public.
+Please don't report it publicly: no issue, pull request or post elsewhere. The maintainer
+will agree with you in the report when it can be made public. If you've had no reply after
+90 days, you may make it public.
 
 Report a real key, token or password the same way, wherever you find it in this project:
 its code or history, an issue, a pull request or a workflow log. The local development
-stack's keys and the fixed values in the test fixtures are not secrets.
+stack's values are not secrets: the Supabase CLI's local keys and the fixed values in the
+test fixtures.
 
 ## Scope
 
-In scope: the latest code on the default branch, the app built from it, and how its
-hosted services are set up.
+In scope: the latest code on `dev` and `main`, the apps built from them, how their hosted
+services are set up, and a problem in one of their dependencies that this app makes
+exploitable.
 
 Out of scope, please report these to their owners instead:
 
 - Problems in Supabase, Vercel, Cloudflare or GitHub themselves
 - Problems in a dependency that this app doesn't make exploitable
 
-Also out of scope: load or volume testing, and social engineering.
+Also out of scope: load or volume testing, social engineering, and reports from automated
+scanners without a way to reproduce the problem.
 
 ## Testing
 
