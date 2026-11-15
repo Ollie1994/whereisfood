@@ -249,7 +249,7 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
    when it can't tell which advisories there are (#12), through
    `scripts/audit-report.mjs` and its unit tests; and #12's rule in `CLAUDE.md`, whose
    wording goes to the owner (Phase 7 #6).
-7. **Gitleaks:** `.githooks/pre-commit` (committed executable), `.gitleaks.toml`, the
+7. **Gitleaks:** `.githooks/pre-commit` and, from round 1 on PR #342, `.githooks/commit-msg` (committed executable), `.gitleaks.toml`, the
    `secret-scan` job, the one-off full-history scan, README's setup lines and `CLAUDE.md`'s "Secrets" line (Q4).
    The CI half is shown red on a throwaway probe PR, closed unmerged, with a fake secret
    committed without a local hook (#13); never on step 7's own PR.
@@ -632,8 +632,8 @@ controls aren't one of the four gates, whose hand runs stay. A PR whose run took
 
 **Secret scan (step 7)**
 - [ ] `git ls-files -s .githooks/` shows mode `100755` for `pre-commit` and `commit-msg`.
-- [ ] In the owner's Git Bash, the hook refuses a commit holding a fake key; `secret-scan`
-  goes red on a throwaway probe PR, closed unmerged, whose fake key was committed with no
+- [ ] In the owner's Git Bash, `pre-commit` refuses a commit holding a fake key and
+  `commit-msg` one whose message holds one; `secret-scan` goes red on a throwaway probe PR, closed unmerged, whose fake key was committed with no
   local hook, as #13 says, and push protection wasn't bypassed.
 - [ ] The full-history scan's result is recorded (its count, and how each find was settled);
   each allowlist entry names why it isn't a secret; README has the setup lines.
@@ -695,8 +695,8 @@ controls aren't one of the four gates, whose hand runs stay. A PR whose run took
    `--ignore-gitleaks-allow`: without it, an inline `gitleaks:allow` comment let a staged
    flagged value through (exit 0); with it, the hook refused it. The one-off history scan
    ran on a `git clone --mirror` of the GitHub repo, so every ref GitHub advertises,
-   `refs/pull/*` included (149 PR heads, 23 non-merge commits reachable from no branch or
-   tag). `gitleaks git` (its trace log: `git log -p -U0 --full-history --all
+   `refs/pull/*` included (148 PR heads and 1 merge ref; 23 non-merge commits reachable
+   from no branch or tag). `gitleaks git` (its trace log: `git log -p -U0 --full-history --all
    --diff-filter=tuxdb`) found 0 leaks in 897 commits, every non-merge commit with a diff,
    and no merge carries hunks of its own (`git show --cc`), so the merges it skips add
    nothing. It reads patches, not messages (in a scratch repo it missed a flagged message

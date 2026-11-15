@@ -2,10 +2,16 @@
 # Refuses a commit whose message holds a value Gitleaks' rules flag (IS #292). The
 # pre-commit hook scans only the staged changes, and `gitleaks git` reads patches, not
 # messages: in a scratch repo it missed a flagged message that `gitleaks stdin` found.
-# Same flags as pre-commit (its header says why). In a scratch repo `git merge -m` and
-# `git commit --amend` with a flagged message were refused here (exit 1); `cherry-pick`,
-# `am` and `rebase` committed one (exit 0): they don't run this hook. Nor do
-# `--no-verify` or a clone without `core.hooksPath`.
+# Same flags as pre-commit (its header says why).
+#
+# Run: `git commit` (with `-m` or an editor), `--amend`, `git merge -m`, and `rebase -i`'s
+# reword each refused a flagged message here (exit 1). Not run: `cherry-pick` (`-e`
+# too), `am` and a plain `rebase` committed one (exit 0); nor `--no-verify` or a clone
+# without `core.hooksPath`. All probed in scratch repos.
+#
+# The message file under `git commit -v` also holds the staged diff after git's scissors
+# line, so a commit removing a flagged line was refused for the `-` line. Git drops that
+# part from the message, so the scan stops at the scissors line.
 
 if ! command -v gitleaks >/dev/null 2>&1; then
   echo "commit-msg: gitleaks not found on PATH; install it (README, \"Getting started\")," >&2
@@ -13,4 +19,10 @@ if ! command -v gitleaks >/dev/null 2>&1; then
   exit 1
 fi
 
-exec gitleaks stdin --redact --no-banner --verbose --ignore-gitleaks-allow < "$1"
+if [ ! -r "$1" ]; then
+  echo "commit-msg: can't read the message file \"$1\". Commit refused." >&2
+  exit 1
+fi
+
+sed '/-\{24\} >8 -\{24\}/,$d' "$1" |
+  gitleaks stdin --redact --no-banner --verbose --ignore-gitleaks-allow
