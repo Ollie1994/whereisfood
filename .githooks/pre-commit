@@ -1,8 +1,13 @@
 #!/bin/sh
 # Refuses a commit whose staged changes hold a value Gitleaks' rules flag (IS #292).
 # Setup is by hand, never a `prepare` script (Phase 8 plan decision #7): README's
-# "Getting started". `git commit --no-verify` and a clone without `core.hooksPath` skip
-# this hook; the CI scan covers both (IS #293).
+# "Getting started".
+#
+# Not scanned here: `git commit --no-verify`; a clone without `core.hooksPath`; the
+# commit message (a flagged `api_key` in `-m` committed, exit 0); and the commits that
+# `git merge`, `cherry-pick`, `rebase` and `am` make, which don't run pre-commit (in a
+# scratch repo each committed a flagged file, exit 0, where `git commit` refused it).
+# #293's CI scan is to cover the PR's commits.
 #
 # --ignore-gitleaks-allow: without it, an inline `gitleaks:allow` comment let a staged
 # flagged value through (exit 0); with it, the hook refused it. A `.gitleaksignore`

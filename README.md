@@ -161,10 +161,12 @@ branch and tag.
   markers and the integration tests need it.
 - **The `pmtiles` CLI**, to cut the map tiles (next section). It's a single binary
   from [go-pmtiles releases](https://github.com/protomaps/go-pmtiles/releases).
-- **Gitleaks**, for the pre-commit secret scan. On Windows: `winget install --id
-  Gitleaks.Gitleaks -e`; elsewhere, a binary from [gitleaks
-  releases](https://github.com/gitleaks/gitleaks/releases). A shell or editor started
-  before the install doesn't see the new `PATH`: start a new one.
+- **Gitleaks 8.30.1**, for the pre-commit secret scan: the version the hook was checked
+  on. On Windows: `winget install --id Gitleaks.Gitleaks -e --version 8.30.1` (winget
+  checks the download's hash); elsewhere, the binary from [the v8.30.1
+  release](https://github.com/gitleaks/gitleaks/releases/tag/v8.30.1), checked against
+  its `gitleaks_8.30.1_checksums.txt`. A shell or editor started before the install
+  doesn't see the new `PATH`: start a new one.
 
 ### 1. Install
 
