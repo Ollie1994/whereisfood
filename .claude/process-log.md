@@ -980,6 +980,7 @@ Old rows that point at them are now pointing there: "see note" (rows 14, 15, 17,
 | 699 | 2026-11-16 | PR #367 / IS #300 | `plan` | `/code-review` round 1 on #367, full, found 8; all applied. **PR #362 shipped `labels: []` with the comment "none of Dependabot's default labels", from a docs summary nobody checked; Dependabot's PR #366 carried both defaults anyway, and this PR dropped the setting without logging the miss.** Also: the label call not a numbered decision; dependabot.yml still future-tense; the fork "not yet" untracked; README; a checkbox; wraps. | `code-review` r1 on PR #367, full | `merged` | `unverified-assumption` | This row. Plan #17 records the owner's call to keep Dependabot's default labels. dependabot.yml states #366's branch and cancel; step 17 tracks the fork "not yet"; README lists #366's cancel; the checkbox ticked; two wraps fixed. |
 | 700 | 2026-11-16 | → IS #301 | `process` | **Asking the owner to keep the round ceiling, I said none of the nine `merged` rows in 543–699 was a miss a dropped round would have found, from their `Caught by` cells alone.** Row 646's `table()` came in round 1's fixes on PR #322 (`f86deed`), which round 2, scoped to them, read and missed. The owner's first call rested on that claim; asked again with the correction, they kept the ceiling. | `self` writing the section's ceiling paragraph (`git log -S` on `ci-advisor.test.mjs`) | `pre-commit` | `imprecise-claim` | The section's ceiling paragraph states what the rows show (646 from round 1's fixes on #322) and that neither measure can tell; the owner was asked again with the correction and kept the ceiling unchanged. |
 | 701 | 2026-11-16 | PR #369 / IS #301 | `process-log` | `/code-review` round 1 on #369, full, found 10; all applied. **The section's counts disagreed with its own commands:** the can't-fail grep it quotes matches 10 rows, not 9 (544 left out), and "`merged` rows rose to 9" counted the `crossed-phase` 649. Also: action 4 missed the six rows the claims check caught (609, 614, 657, 659, 661, 670); action 3 hid that its misses rose, misordered 678, and dated the required check to #288, not #297; the parts' labels; rounds per PR from the wrong PR; #300's close time. | `code-review` r1 on PR #369, full | `pre-merge` | `imprecise-claim` | Each count re-read from its command: 10 grep rows; 8 `merged`, 649 apart; the six claims-check rows. Action 3 states 0 to 3, the six-row class, 678's order and #297. The parts relabelled; 128 rounds over 40 PRs; 07:46:29Z from the issue events. |
+| 702 | 2026-11-16 | PR #369 / IS #301 | `process-log` | `/code-review` round 2 on #369, scoped to round 1's fixes, found 9; all applied. **Round 1's "Its misses rose, from none in 420–542" was refuted by row 565, which names row 535 as the same miss, and called the rows the script's misses though the bullet said the script worked.** Also: "recurred six times" for six occurrences; the declined guard's scope unclear; "can't merge" past CLAUDE.md's limit; 657 dropped from the Miss list; #300's "completed" cited to events that don't show it; two wraps. | `code-review` r2 on PR #369, scoped to `7e6f5a4..3449e3e` | `pre-merge` | `overcorrection` | Action 3 states what the rows show: row 535 unrecorded then, six occurrences, the declined guard as offered; "can't merge" unless the PR changes the check; 657 back in the list; GraphQL's ClosedEvent cited; two paragraphs reflowed. |
 
 ---
 
@@ -2130,10 +2131,12 @@ below.
   controls now run in the required `controls` check (#288).
 
 **3. `scripts/process-log.sh check`. Keep, unchanged.**
-- **Its misses rose,** from none in 420–542 (the Phase 7 retrospective's grep) to three
-  rows that record a commit that didn't wait for `add` or `check`: 565, 587 and 678.
-  With 325, 354 and 382 before them, the class has recurred six times; row 678 named the
-  six for this retrospective.
+- **What the rows show.** Three rows record a commit made without waiting on `add` or
+  `check`: 565, 587 and 678.
+  - **The trend.** The Phase 7 retrospective's grep found no row in 420–542 recording
+    one, but 565 names row 535, in that range, as the same miss, unrecorded then.
+  - **The class.** It holds rows 325, 354, 382, 565, 587 and 678, six occurrences, which
+    row 678 named for this retrospective.
   - In 565, a hand-edited row over the cap was committed and pushed while `check` failed.
     A later commit fixed it.
   - In 587, `add` refused the row, and the commit chained after it with `;` ran anyway,
@@ -2144,10 +2147,13 @@ below.
   In each, the script kept the bad row out, or showed it was bad. What got through was a
   commit made without waiting on it.
 - **CI.** Since PR #317 (#288), CI's `process-log` job runs `check` on every PR into `dev`
-  or `main`. Since PR #352 (#297), the rulesets require it, so a log that fails `check`
-  can't merge.
+  or `main`. Since PR #352 (#297), the rulesets require it. So a log that fails `check`
+  can't merge, unless the same PR changes the check (CLAUDE.md, "Testing": a PR runs its
+  own copy of the scripts its checks run).
 - **Today.** The log passes `check` as this section is written (exit 0).
-- **Offered and not taken:** a `commit-msg` guard for those three.
+- **Offered and not taken:** a `commit-msg` guard, aimed at the six-row class. It would
+  run `check` on a staged log, and refuse a message naming a row the staged log doesn't
+  hold.
 
 **4. The claims check, with the probe words (#200). Keep, unchanged.**
 - **The share rose.** `imprecise-claim` went from 17 of 123 (14%) to 32 of 157 (20%), and
@@ -2157,7 +2163,8 @@ below.
 - **Rows that name it in their Miss:**
   - 548: it passed a rewrap that swallowed a step as "unchanged text";
   - 561: review cited its "probed, not reworded into a hedge";
-  - 610: its fix backed a claim with a probe that couldn't fail.
+  - 610: its fix backed a claim with a probe that couldn't fail;
+  - 657: it found the defect (also under "Rows it caught").
 - **Why kept.** No mechanism was found with evidence that it would move the share.
 
 **5. `Caught by` groups. Keep, unchanged.** `tally 7` grouped all 157 rows, each starting
@@ -2171,13 +2178,13 @@ measures (Phase 7 plan #39):
 - **`merged` rows rose,** to 8 from the 3 in 441–542 that the Phase 7 retrospective's #4
   row counted. Beside them is 649, `crossed-phase`: a Phase 4 regex, which says nothing
   about the ceiling. Of the nine, review found only 699, and that one in a round on
-  #367, from what #366 showed. The rest were found by doing the
-  work, by CodeQL or by the owner ("By `Caught by`" above). One came from a round's own
-  fixes: 646's `table()` arrived in round 1's fixes on PR #322 (`f86deed`), which round
-  2, scoped to them, and the full round 3 both read. Neither measure shows whether the
-  dropped round would have found any of the nine, as Phase 7 said. The owner was first
-  asked with a claim that none would have been found; asked again with this reading,
-  they kept the ceiling (row 700).
+  #367, from what #366 showed. The rest were found by doing the work, by CodeQL or by
+  the owner ("By `Caught by`" above). One came from a round's own fixes: 646's `table()`
+  arrived in round 1's fixes on PR #322 (`f86deed`), which round 2, scoped to them, and
+  the full round 3 both read. Neither measure shows whether the dropped round would
+  have found any of the nine, as Phase 7 said. The owner was first asked with a claim
+  that none would have been found; asked again with this reading, they kept the
+  ceiling (row 700).
 
 ### New actions
 
@@ -2200,10 +2207,11 @@ call, 2026-11-16.
 
 ### Also noted
 
-#300 was closed as completed at 07:46:29Z on 2026-11-16 (its issue events) by the `Ollie1994` account, with
-no commit or PR linked, while its proof was pending. The owner reopened it. The cause is
-unknown: the owner and the agent both act as that account, and the agent's commands in
-that minute were issue-body edits. No action, since nothing points to a cause to guard.
+#300 was closed as completed at 07:46:29Z on 2026-11-16 by the `Ollie1994` account, with
+no commit or PR linked, while its proof was pending (GraphQL's `ClosedEvent`: that time,
+`stateReason` `COMPLETED`). The owner reopened it. The cause is unknown: the owner and the
+agent both act as that account, and the agent's commands in that minute were issue-body
+edits. No action, since nothing points to a cause to guard.
 
 ### Follow-ups
 
