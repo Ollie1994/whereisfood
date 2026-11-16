@@ -16,7 +16,8 @@
 # - `cooldown`: a release is proposed only once it is 7 days old, so a compromised one has
 #   time to be pulled first (the owner's call, round 1 on PR #362). Version updates only
 #   (GitHub's docs, "cooldown").
-# - `labels: []`: none of Dependabot's default labels (the repo's PR label rule).
+# - No `labels`: Dependabot adds its defaults, `dependencies` and `github_actions`.
+#   `labels: []` didn't stop them on PR #366, and the owner allows them on Dependabot PRs.
 #
 # No npm entry: npm gets security updates only, from the repository setting (plan #2). Its
 # updater image runs Node 24 (dependabot-core's npm_and_yarn/Dockerfile, read 2026-11-16)
@@ -38,4 +39,3 @@ updates:
         update-types: [minor, patch]
     cooldown:
       default-days: 7
-    labels: []
