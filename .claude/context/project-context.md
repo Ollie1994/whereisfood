@@ -82,8 +82,9 @@ save-triggered cache purges, grey markers) without a concrete problem that needs
 - `/` redirects to `/map`. `/map` renders MapLibre over PMTiles with Swedish labels
   (`@protomaps/basemaps`, `lang: "sv"`), centred on Gothenburg: a local file in
   development, Cloudflare R2 on a preview ("Map tiles"). Without WebGL2 it shows a Swedish
-  message in place of the map (IS #246), and a failure while starting shows a Swedish error
-  page, `src/app/map/error.tsx` (IS #306).
+  message in place of the map (IS #246), and an error while `/map` renders or in its effects
+  (its start, a marker update) shows a Swedish error page, `src/app/map/error.tsx`, whose
+  header names what it doesn't catch (IS #306).
 - **Markers come from `GET /api/live`**, the one public API route: route → `getLiveMap`
   (`src/lib/services/live.ts`) → the db layer. Part 2's "Read path" (built in Phase 6)
   describes it, server and client: the markers, the popup, polling and failure.
@@ -102,10 +103,11 @@ save-triggered cache purges, grey markers) without a concrete problem that needs
   /auth/logout` sit outside it (Phase 7 plan #28).
 - `src/proxy.ts` checks the session cookie and `is_admin` for `/admin/:path*` and
   `/api/admin/:path*`, letting `/admin/login` through (`CLAUDE.md`, "proxy.ts").
-- **CI** (Phase 8): GitHub Actions runs `.github/workflows/ci.yml` and `codeql.yml` on every
-  PR into `dev` or `main`. Rulesets on both branches require `ci.yml`'s checks, and `dev`'s
-  CodeQL's too (`CLAUDE.md`, "Testing"). Dependabot opens PRs for GitHub Actions updates and npm security fixes (Part 2,
-  "Pre-deploy automation").
+- **CI** (Phase 8): GitHub Actions runs `.github/workflows/ci.yml` on every PR into `dev` or
+  `main`, and `codeql.yml` on those PRs and on pushes to both. Each branch's ruleset requires
+  a list of their checks by name, `main`'s without CodeQL's until Phase 10 (`CLAUDE.md`,
+  "Testing"). Dependabot opens PRs for GitHub Actions updates and npm security fixes (Part
+  2, "Pre-deploy automation").
 
 ## Map tiles
 
@@ -290,7 +292,7 @@ src/
 │   │                               locations/[id], …/[id]/cancel, …/[id]/confirm
 │   └── auth/                     ← callback/route.ts, logout/route.ts (+ tests)
 ├── components/
-│   ├── Map/                      ← MapClient, MapView, TruckPopup
+│   ├── Map/                      ← MapClient, MapView, TruckPopup, styles.ts
 │   └── Admin/                    ← AdminLocations, Checklist, LocationForm, PlacePicker,
 │                                   PickerMap, TodayList, AdminTrucks, TruckForm, TruckList,
 │                                   AdminNav, LoginForm, LogoutButton, styles.ts
@@ -305,7 +307,7 @@ src/
 │   ├── validators/               ← location, truck, uuid, body (tests: all but body)
 │   ├── live.ts, live-loader.ts, stockholm.ts ← (+ tests); timestamp.ts
 │   ├── admin-*.ts                ← the admin screens' helpers, and admin-api.ts's fetch
-│   │                               wrapper (+ tests, but admin-list)
+│   │                               wrapper (+ tests)
 │   ├── basemap.ts, geo.ts, spots.ts, map-setup.ts ← (+ tests); map-texts.ts
 │   ├── login.ts                  ← (+ test)
 │   ├── supabase.ts, supabase-browser.ts, supabase-session.ts
@@ -363,10 +365,10 @@ answering 401 and 403 with `no-store`: Phase 7 plan #13; the 503 cases are
 #371, 2026-11-16) ran 39 unit files (945 tests) and 12 integration files (241 tests), and
 that day `npm run lint` reported no warnings locally. **CI is the gate** (Phase 8, IS
 #297): on each PR into `dev` or `main`, GitHub Actions runs the four gates and the other
-checks, and the rulesets require them. `CLAUDE.md` "Testing" has which checks each branch
-requires, what they don't cover, the local fast loop and the schema controls, which CI's `controls` check
-runs. Green checks don't show the map renders: look at `/map` in a browser after any map,
-dependency or tile change.
+checks, and each branch's ruleset requires its list of them. `CLAUDE.md` "Testing" has the
+lists, what they don't cover, the local fast loop and the schema controls, which CI's
+`controls` check runs. Green checks don't show the map renders: look at `/map` in a browser
+after any map, dependency or tile change.
 
 ---
 
@@ -772,9 +774,10 @@ secret-scanning, Dependabot-alerts and vulnerability-alerts APIs, and no
   `main`. It runs when a build starts, so promoting an existing preview to Production
   doesn't pass through it: don't promote a branch preview. A CLI deploy wasn't tried,
   and its cancel case hasn't been seen (`README.md`, "Preview deploys", #187). A
-  `vercel.json` (or `vercel.ts`) `ignoreCommand` on the branch being built overrides the
-  setting (Phase 8 plan #15, probed on PR #311), so check too that `main` holds none. The
-  secret key is scoped to `dev`'s previews, so Production's variables are set on their own.
+  `vercel.json` `ignoreCommand` on the branch being built overrides the setting (Phase 8
+  plan #15, probed on PR #311; a `vercel.ts` may too, not probed), and branches inherit
+  `dev`'s, so check too that neither `main` nor `dev` holds one. The secret key is scoped to
+  `dev`'s previews, so Production's variables are set on their own.
 - **Rotate every credential**, in case one leaked: every key, token and secret that
   existed before the deploy, or replace it with a new project's. A new production
   Supabase project has new keys by construction. Reuse nothing from the preview setup.
@@ -1004,7 +1007,7 @@ says.
 | Phase 8 #12 | `npm audit` in CI: fail on high or critical in production dependencies and critical anywhere, warn on each production advisory, fail when it can't tell; a PR showing the warning gets an issue per advisory before it merges | `CLAUDE.md` "Dependencies" |
 | Phase 8 #14 | The required SAST check is the one that fails on a finding: on `dev`, `CodeQL` and both analyze jobs, by name; a SARIF error with both jobs green still passes | `CLAUDE.md` "Testing"; `codeql.yml`'s header |
 | Phase 8 #15 | Vercel's Ignored Build Step, inline in its settings, cancels `dependabot/` and `probe/` branches; the secret key is scoped to `dev`'s previews, since a branch's `vercel.json` overrides the step | `README.md` "Preview deploys"; Part 2 "Pre-deploy automation" |
-| Phase 8 #16 | A `controls` run of the full set that passed stands in for the hand run | `CLAUDE.md` "Testing" ("Schema controls": the hand runs it still asks for are the cases CI's `--check` leaves) |
+| Phase 8 #16 | A `controls` run of the full set that passed stands in for the hand run | `CLAUDE.md` "Testing" ("Schema controls": it still asks for a hand run while writing a control or a migration, and when CI ran only `--check`) |
 | Phase 8 #17 | Dependabot's PRs keep its default labels, the exception to PRs carrying only a phase label | `.github/dependabot.yml`'s header |
 | IS #301 (PR #369), IS #368 (PR #371) | The Phase 8 retrospective's calls: the Phase 7 retrospective's actions kept; one new action, the closing-keyword check in `secret-scan`, with `claims.sh` listing a PR body's closing references; squash merging off, since the check models the merge commit GitHub writes (the owner's call, round 4 on PR #371) | `CLAUDE.md` "Testing" and "Review rounds"; `scripts/closing-keywords.mjs`'s header; the process log's Phase 8 retrospective |
 | **between phases**, 2026-11-12, IS #278 (Phase 9), for Phase 9 | Phase 9's scope as the scope draft settles it: TOTP MFA for the admin login with #241's emailed code (amending Phase 7 open decision 1), its enrol-window constraints and the lost-phone routes to probe; session timeouts (amending open decision 2); the login-abuse and code-guessing probes; the split CSP and the cookie's-reach decision; monitoring; the smaller probes and limits; the 2FA audit and the hosted-settings checklist. Phase 9's reconciliation also rewrites the "Phase 7 open decisions 1–5" row this one amends. The owner's calls (the draft's D2, D3, Q11–Q14, Q19–Q23, Q31, Q33) | `.claude/drafts/phases-8-10-scope.md` ("Phase 9 · Security"); Part 2's Phase map (Phase 9 row), "Admin and auth" (MFA and the timeouts) and "Pre-deploy automation" (the 2FA audit) |
