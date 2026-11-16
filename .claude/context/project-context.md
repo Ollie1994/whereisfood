@@ -56,7 +56,8 @@ open.
 | 7 | Admin | done |
 | 8 | CI/CD | done |
 | 9 | Security | next; no plan yet |
-| 10 | Launch (first production deploy) | not started |
+| 10 | Launch (first production deploy, a soft launch) | not started |
+| 11 | Full launch | not started |
 | later | Owners; optional automation | — |
 
 Phase contents are under "Target design → Phase map".
@@ -119,8 +120,9 @@ extract` from a recent Protomaps daily build, with the bounding box from
 
 **Deploys read the same file from Cloudflare R2** (Phase 6 plan decision #7: pulled
 forward from the launch, so a preview tests the launch tile path). The bucket is served
-from its `r2.dev` URL for previews (open decision 1); Phase 10 moves it to a custom
-domain. Its CORS rule admits `http://localhost:3000` and a pattern for this project's
+from its `r2.dev` URL for previews (open decision 1); Phase 11, the full launch, moves it
+to a custom domain (IS #373 (Phase 11)), and Phase 10 adds the production origin to its
+CORS rule. Its CORS rule admits `http://localhost:3000` and a pattern for this project's
 Vercel preview URLs (open decision 10). What that rule admits and doesn't, and how to
 check the bucket, is `README.md`'s "Get the map tiles", the one description.
 
@@ -439,8 +441,9 @@ queries it by hand, as a dev-only authoring tool for `SPOTS`).
 | 6 · Live read path (done) | `GET /api/live` and its service; `useLocations` (polling, timer, marker diffing); the popup with freshness text and Instagram link; `fake-data.ts` and `map-types.ts` deleted; the `is_active` filter in the service; the tiles on R2; a hosted Supabase project for previews, with the hosted checks; the **first preview deploy**, with the CDN cache checked (MISS → HIT → STALE) and requests per visit counted; Node and npm in `package.json` (#139) |
 | 7 · Admin (done) | Magic-link login, admin only (sign-ups off, locally and on the preview); the session and `is_admin` checks in `proxy.ts` and `withAdmin` on every admin route, with `no-store` and the `Origin` check; trucks added, edited and set inactive (no delete); phone-first location entry by known spot, recent place, map tap or GPS; edit; cancel; "Stämmer fortfarande"; overlap → 409; the morning checklist; three phone checkpoints on the preview (#224, #228, #232) |
 | 8 · CI/CD (done) | `ci.yml` on every PR into `dev` and `main` (a read-only token, actions pinned to SHAs, no path filter): the four gates (`typecheck-lint`; `unit`; `integration`, with a local Supabase and Supabase's security advisor; `build`, with a smoke check of the served build), `audit` (`npm audit`, three runs, Phase 8 plan #12), `controls` (`--check`, the full set on a trigger path or a PR into `main`), `process-log`, `secret-scan` (Gitleaks on the PR's commits and messages, and the closing-keyword check, IS #368) and `base`; `codeql.yml` (CodeQL, on PRs and on push); the Gitleaks hooks; lint rules against HTML sinks and string-built filters, each with a fixture test; rulesets on `dev` and `main` (a PR, the checks by name, up to date, no bypass, no force-push or deletion), CodeQL's checks required on `dev` and joining `main`'s in Phase 10 (#11, #14); Dependabot (Actions version updates and npm security updates), its branches and the probes' cancelled by the Ignored Build Step, and the secret key scoped to `dev` (#15); `SECURITY.md` and private vulnerability reporting; the review of the alerts auto-triage dismissed (#299). SonarQube Cloud was dropped: its Free plan has no custom quality gate (#295), and a re-scan before production is #349. Each check required by #298 was seen red on a probe PR the rules blocked; `base (main)`, added after (IS #356), only by its absence keeping one blocked (#359). Built before Phase 10's production deploy (Phase 6 plan #1) |
-| 9 · Security | The scope draft's "Phase 9 · Security" (IS #278): TOTP MFA for the admin login, with #241's 6-digit email code, the enrol window's constraints and the lost-phone routes to probe; session timeouts if the Free plan has them; the login-abuse and code-guessing probes; security headers (a static CSP outside `/admin`, a strict nonce CSP on `/admin`), their assertions added to Phase 8's served-app step, and a decision on the session cookie's reach; usage, spend and 5xx alerts, and reading how long the Auth logs are kept; the `x-forwarded-host` probe; length limits on free text; the `users` policy under `aal1`; one ZAP scan; the 2FA audit of every account and its recovery email, naming the admin's login mailbox; the hosted-settings checklist |
-| 10 · Launch | The history retention period, for the privacy note below (Phase 7 plan #25); the app's final name, until then **WhereIsFood** in the admin screens and "Var är maten? \| Göteborg" as the public title (#26, open decision 10); Supabase Pro (backups); a production Supabase project, new keys (Phase 6 plan #18), with Phase 5 #19's hosted check; the tiles' custom domain on R2, and the CORS rule naming it (the bucket is Phase 6's, #7), in the CSP too, and HSTS; production env; the hosted-settings checklist applied; session timeouts if they need Pro; Swedish privacy note; takedown procedure (one transaction: delete the truck's locations, clear or delete each `users` row pointing at it, then delete the truck; Phase 5 plan #7); tell trucks they're listed; acquisition plan; runbook (Vercel Attack Mode; the usage alerts are Phase 9's, here only if the free plans can't send them); the scope draft's "Phase 10 · Launch" (Q34 open, Q36); Vercel Pro + Spend Management before the first marketing push; from Phase 8: whether CodeQL gets a base analysis of `main` before the first PR into it, and CodeQL's checks added to `main`'s ruleset once one exists (Phase 8 plan #11, #14), #347 (keeping a reported vulnerability's fix private until disclosure, with Q36) and #349 (the SonarQube Cloud re-scan); **before the deploy**, the checks under "Pre-deploy automation", "Before the production deploy": 2FA checked again on every account, the registrar included, the production Security Advisor, the Ignored Build Step, rotating every credential |
+| 9 · Security | The scope draft's "Phase 9 · Security" (IS #278): TOTP MFA for the admin login, with #241's 6-digit email code, the enrol window's constraints and the lost-phone routes to probe; session timeouts, which are Pro-only, so Phase 9 chooses the cover until Pro in Phase 11 (IS #373 (Phase 9)); the login-abuse and code-guessing probes; security headers (a static CSP outside `/admin`, a strict nonce CSP on `/admin`), their assertions added to Phase 8's served-app step, and a decision on the session cookie's reach; usage, spend and 5xx alerts, and reading how long the Auth logs are kept; the `x-forwarded-host` probe; length limits on free text; the `users` policy under `aal1`; one ZAP scan; the 2FA audit of every account and its recovery email, naming the admin's login mailbox; the hosted-settings checklist; the inputs from the soft launch (IS #373 (Phase 9)): the password a stolen session can set, cancel and confirm on ended entries, `getClaims()` and logout, the cookie's reach to `/map` |
+| 10 · Launch | **A soft launch** (IS #373 (Phase 10)): `/map` shown only to the admin, `/` leading to a Swedish `/about`, on Supabase Free (Pricing's "Supabase Free" says what option (c) changes), the `vercel.app` address and `r2.dev`, with a weekly local dump for backups. The history retention period, for the privacy note below (Phase 7 plan #25); the app's final name, until then **WhereIsFood** in the admin screens and "Var är maten? \| Göteborg" as the public title (#26, open decision 10); a production Supabase project, new keys (Phase 6 plan #18), with Phase 5 #19's hosted check; R2's CORS rule admitting the production origin (the bucket is Phase 6's, #7); production env; the hosted-settings checklist applied; Swedish privacy note and a removal contact; takedown procedure (one transaction: delete the truck's locations, clear or delete each `users` row pointing at it, then delete the truck; Phase 5 plan #7; the weekly dumps keep it until rotated out); tell trucks they're listed; runbook (Vercel Attack Mode; the usage alerts are Phase 9's, here only if the free plans can't send them); the scope draft's "Phase 10 · Launch" (Q34 open, Q36), minus what IS #373 (Phase 10) moves to Phase 11; from Phase 8: whether CodeQL gets a base analysis of `main` before the first PR into it, and CodeQL's checks added to `main`'s ruleset once one exists (Phase 8 plan #11, #14), #347 (keeping a reported vulnerability's fix private until disclosure, with Q36) and #349 (the SonarQube Cloud re-scan); **before the deploy**, the checks under "Pre-deploy automation", "Before the production deploy": 2FA checked again on every account, the registrar once one exists, the production Security Advisor, the Ignored Build Step, rotating every credential |
+| 11 · Full launch | When the coverage target holds (IS #373 (Phase 11)): the gate removed and the smoke check restored; Supabase Pro (backups), with session timeouts; the tiles' custom domain on R2, its CORS rule keeping the app's origins, the domain in the CSP too, and, if the app gets its own domain, Vercel's domain, that domain added to R2's CORS rule, Supabase Auth's Site and Redirect URLs, and HSTS; the acquisition plan; Vercel Pro + Spend Management before the first marketing push |
 | later | Owners (claim flow, owner dashboard, override rules, custom SMTP); optional automation (Meta Business Discovery captions in the admin screen, a scheduler) |
 
 ## Data model (built in Phase 5)
@@ -656,8 +659,9 @@ as "Phase 7 #n", and its answered open decisions. The rules are `CLAUDE.md`'s
   and on the preview; the admin user is made by hand (`README.md`, "5. Create the admin
   user"). The link has to be opened in the browser that asked for it, which the login
   says (#240); an emailed 6-digit code is IS #241. A session holds until logout (open
-  decision 2). Phase 9 adds TOTP MFA and #241's emailed code; session timeouts come in
-  Phase 9, or Phase 10 if they need Pro (the IS #278 rows in "Decisions carried
+  decision 2). Phase 9 adds TOTP MFA and #241's emailed code; session timeouts are Pro-only
+  and come with Pro in Phase 11; until then Phase 9 chooses the cover, Pro from the deploy
+  among its options (the IS #278 (Phase 9) and IS #373 (Phase 9) rows in "Decisions carried
   forward").
 - **Cookie sessions through `@supabase/ssr`** (#12). The proxy refreshes the session and
   writes its cookies; admin routes only read them; `/auth/callback` and `POST
@@ -776,8 +780,10 @@ owner, 2026-11-16; `gh api repos/{owner}/{repo}/rulesets/<id>` reads them back).
   recorded as accepted with a reason; INFO read (the owner's call, round 3 on PR #281).
   No hosted advisor run is recorded here, and a hosted project may report lints the
   local stack can't, on Auth settings among them (round 3's reviewer named
-  leaked-password protection; not checked), so the Phase 9 checklist's run on the
-  preview shows what it reports first.
+  leaked-password protection, which the pricing page lists as not on Free: on Free its
+  warning is to be recorded as accepted with a reason, and on Pro the protection is turned
+  on, IS #373 (Phase 10)), so the Phase 9 checklist's run on the preview shows what it
+  reports first.
   With the hosted-settings checklist Phase 9 writes (the draft's Q21, IS #278).
 - **Give Production its variables only after checking that the Vercel project's
   Ignored Build Step is still set** to cancel a Production build from any branch but
@@ -806,8 +812,9 @@ where secrets live meanwhile are `CLAUDE.md`'s ("Secrets").
 
 | Service | Plan | When | ≈ per month |
 |---|---|---|---|
-| Supabase | Pro | **at launch** (Free has no backups) | $25 |
-| Cloudflare R2 | pay as you go | **at launch**, tiles only | $0 at launch traffic |
+| Supabase | Free, then Pro | Free from the production deploy (Phase 10, the soft launch); Pro **at the full launch** (Phase 11; Free has no backups or session timeouts), or at the deploy if Phase 9 chooses it (option (c), IS #373 (Phase 9)) | $0, then $25 |
+| Cloudflare R2 | pay as you go | since Phase 6, tiles only | $0 at expected traffic |
+| A domain | a registrar | the full launch (Phase 11), or earlier once the name is settled, to keep it from being taken | a yearly fee, not priced |
 | Vercel | Pro + Spend Management (pause cap) | before a marketing push, at ~50% of any Hobby limit, or when commercial, whichever first | ~$20/member + capped usage |
 
 - **The Hobby cliff is the main availability risk, from success more than attackers.**
@@ -815,15 +822,33 @@ where secrets live meanwhile are `CLAUDE.md`'s ("Secrets").
   and going over makes the site unavailable for up to 30 days (no bill). Hobby is also
   non-commercial only. Hence tiles on R2 (row 265; already on previews, Phase 6 #7)
   and Pro before marketing.
-- **R2:** 10 GB storage and 10M Class B reads a month free, egress free. ~30–60 reads
-  per visit covers ~200k visits a month. At launch: a **custom domain** on Cloudflare
-  DNS (not `r2.dev`) and a CORS rule whose origins are the domain and localhost, or the
-  map loads blank. The bucket (Standard storage) and its CORS rule exist since Phase 6,
-  on `r2.dev` with a preview pattern (`README.md`, "Get the map tiles"). Skip the
-  Protomaps Worker.
-- **Supabase Free:** 500 MB database, 5 GB egress, pauses after a week idle, no
-  backups. Pro's spend cap is on by default. Keep preview projects in a separate free
-  org, or delete them at launch.
+- **R2:** 10 GB storage and 10M Class B reads a month free, egress free. ~30–60 reads per
+  visit covers ~200k visits a month. At the full launch (Phase 11): a **custom domain** on
+  Cloudflare DNS (not `r2.dev`). The CORS rule keeps naming the app's origins,
+  production's `vercel.app` addresses (each needs its own origin: `README.md`, "Get the
+  map tiles"), the preview pattern and localhost, and gains the app's own domain if it
+  gets one, or the map loads blank. The bucket (Standard storage) and its CORS rule exist
+  since Phase 6, on `r2.dev` with a preview pattern (`README.md`, "Get the map tiles").
+  Skip the Protomaps Worker.
+- **Supabase Free:** 500 MB database, 5 GB egress, no backups, no session timeouts, Auth
+  audit logs kept 24 hours in its logs (the `auth.audit_log_entries` table keeps them
+  while "Write audit logs to the database" is on, an optional setting whose default
+  Supabase's audit-logs docs don't state; Phase 9 reads it), no leaked-password
+  protection. It pauses a project with too little activity ("a few user requests to the
+  database each day" is typically enough); a paused project keeps its data, restorable for
+  a year, and Supabase emails a week before. While paused, the admin screen and
+  `/api/live` fail until it is restored; in the soft launch, before the trucks are back, a
+  week with few entries could pause it. Whether that is acceptable is for Phase 10's plan
+  (IS #373 (Phase 10)). Two active free projects, counted across every organization where
+  the owner is Owner or Administrator: the preview's and, from Phase 10, production's
+  (Supabase's docs and pricing page, read 2026-11-16; IS #373 (Phase 10)). Pro's spend cap
+  is on by default. At Phase 11's upgrade, keep preview projects in a separate free org,
+  or delete them. If Phase 9 chooses Pro from the deploy (option (c), IS #373 (Phase 9)),
+  Pro and these steps move to Phase 10, and Phase 9's PR for that choice rewrites the
+  Free-only text: the Supabase row above and this note, "Admin and auth" (the timeouts),
+  "Before the production deploy" (the leaked-password warning), the Backups and Privacy
+  lines, and the Phase map's Phase 10 and 11 rows. The IS #373 (Phase 10) and (Phase 11)
+  rows get pointers, as `CLAUDE.md` "Process Log" says for a later phase's rows.
 - **On Vercel Pro, Spend Management with a pause cap is required**, or traffic not
   classified as DDoS is billed on demand.
 - Vercel deprecated Node 20 on 2026-10-01. Deploys build on the major `engines.node`
@@ -832,10 +857,12 @@ where secrets live meanwhile are `CLAUDE.md`'s ("Secrets").
 ## Open decisions
 
 For the plans to settle (`transition.md` §12). Phase 7 settled the checklist look-back
-(Phase 7 plan #22) and the pre-filled times (#23), and moved these two to the launch, now
-Phase 10:
+(Phase 7 plan #22) and the pre-filled times (#23), and moved the first two to the launch,
+now Phase 10, the production deploy; IS #373 (Phase 10) added the third:
 1. **Retention period** for detailed location history (GDPR; #25).
 2. **App name** for UI text (#26; until then the admin screens say WhereIsFood).
+3. **Removal contact**, due at the production deploy with the privacy note (IS #373
+   (Phase 10)). Claude suggests a dedicated address, not a personal one.
 
 Deferred to the Owners phase: X-day takeover, heads-up text, owner-overrides-admin
 mechanics, hand-off rule, custom SMTP provider.
@@ -851,9 +878,21 @@ mechanics, hand-off rule, custom SMTP provider.
   be on per truck. Last-minute cancellations are where relayed data goes wrong.
 - **Privacy:** many trucks are sole traders, so location history can be personal data.
   It needs a stated purpose and a retention period, a takedown must delete the
-  history, and the site gets a short Swedish privacy note.
-- Backups: Supabase Pro at launch; before that, a manual `supabase db dump` if real
-  data exists.
+  history (and the weekly dumps keep it until they are rotated out, IS #373 (Phase 10)),
+  and the site gets a short Swedish privacy note.
+- Backups: Supabase Pro at the full launch (Phase 11). From the production deploy until
+  then, a weekly `supabase db dump --data-only --schema public`, never the `auth` schema
+  (its sessions and refresh tokens are credentials), kept only on the admin's machine
+  outside the repo, the last few only. A restore recreates the admin user with its old id
+  first, since `users.id` and `locations.created_by` reference `auth.users`. README's "5.
+  Create the admin user" can't: Studio's "Add user" makes a new id, and the CLI's data
+  dump sets `session_replication_role = replica` (`npx supabase db dump --dry-run
+  --data-only`), so its foreign keys aren't checked: the dump's `users` row and
+  `locations.created_by` load pointing at a user `auth.users` doesn't have, beside the
+  README's new `users` row. A restore from a dump older than a takedown brings that truck
+  back, so the takedown is run again after it. How many dumps are kept, which the privacy
+  note states, how the admin is recreated, and the restore test are Phase 10's (IS #373
+  (Phase 10)).
 
 ---
 
@@ -976,7 +1015,7 @@ says.
 | Phase 6 #4 (IS #176) | Every credential that existed before the production deploy is rotated, or replaced by a new project's, before it | Part 2 "Pre-deploy automation" (the pre-deploy rotation). `CLAUDE.md`'s rotation rule ("Secrets") is another one, for a secret that reached a commit |
 | Phase 6 #5 (IS #176) | Hosted secrets for deploys and CI live in Vercel environment variables, GitHub Actions and Dependabot secrets; developers' own copies stay on their machine; none in a tracked or shared file | `CLAUDE.md` Hard Rules ("Secrets") |
 | Phase 6 #6 (IS #178) | `next.config.ts` sets `experimental.agentUpgrade: false`, so an agent-run build or dev server doesn't fail, or query the advisory source, when an advisory covers the installed Next; advisories come through Dependabot alerts and `npm audit` | `CLAUDE.md` "Dependencies"; the comment in `next.config.ts` |
-| Phase 6 #7 | The tiles are on Cloudflare R2 for every deploy, pulled forward from the launch; development keeps the local file; Phase 10 moves the bucket to a custom domain | Part 1 "Map tiles"; Part 2's Phase map (Phase 10 row) and "Pricing" |
+| Phase 6 #7 | The tiles are on Cloudflare R2 for every deploy, pulled forward from the launch; development keeps the local file; Phase 10 moves the bucket to a custom domain (moved to Phase 11 by IS #373 (Phase 10)) | Part 1 "Map tiles"; Part 2's Phase map (Phase 10 row; the custom domain, Phase 11 row) and "Pricing" |
 | Phase 6 #9, #10, #11, #17, #20 | The read path's server: the `is_active` filter in the service, the first service, entries built field by field, no segment config on the route, a row failing `isLiveEntry` dropped | Part 2 "Read path" (server); `CLAUDE.md` "`/api/live`" (no segment config, the column list) |
 | Phase 6 #12, #14, #15, #16, #21; open decisions 5–8 | The map's behaviour: one marker per truck, a pure marker diff, the clock only in hooks, a failed poll keeping the last good markers with a notice, the popup's hours and freshness text, the empty state, two marker states | `CLAUDE.md` "UI Rules" (#12, #16, open decision 5); Part 2 "Read path" (client) |
 | Phase 6 #18 | The preview database is a separate, disposable free project, with preview keys only; production gets a new project in Phase 10 | Part 2's Phase map (Phase 10 row); "Pricing" ("Supabase Free") |
@@ -1004,8 +1043,8 @@ says.
 | Phase 7 #36 | An issue's browser checks run locally at phone width; the phone on `dev`'s preview is for checkpoints | `CLAUDE.md` "Testing" |
 | Phase 7 #37 | "Poster" and "Foodtrucks" in every admin header but the login's; a question before "Sätt inaktiv" | Part 2 "Admin and auth" |
 | Phase 7 #25, #26; open decision 10 | History retention and the app's final name are the launch's, now Phase 10's; until then the admin screens say WhereIsFood and the public title stays | Part 2 "Phase map" (Phase 10 row) and "Open decisions" |
-| Phase 7 open decisions 1–5 | The login is a magic link (a 6-digit code is IS #241), until Phase 9 adds #241's emailed code beside TOTP MFA; a session lasts until logout, until Phase 9 (or Phase 10, if they need Pro) adds session timeouts (both amended by the IS #278 (Phase 9) row below, and by the Phase 10 row if the timeouts need Pro); a phone gets past Deployment Protection by logging in to Vercel; the preview's Redirect URLs are `dev`'s alias alone, no wildcard; the admin user is made by hand | `README.md` "Hosted preview database" (the Redirect URLs) and "5. Create the admin user"; Part 2 "Admin and auth" (the link, the session); this row (a phone's Vercel login) |
-| Phase 8 #1 (IS #278 (D1)) | Three phases after Phase 7: **8 · CI/CD → 9 · Security → 10 · Launch**, CI/CD first so the security work runs through it. The line between them: 8 the pipeline, 9 the running app and its accounts (the first 2FA audit included), 10 production. Replaces the IS #265 row (2026-11-11, its text in PR #266), keeping what still holds of it: the launch is a phase of its own and runs through working CI, the owner's call to keep each milestone smaller, and Phase 6 #1 holds, CI/CD built before the production deploy. Outside the three: #264 (the README rework) after Phase 8, and #246 and #259 standalone (the owner's calls, the scope draft's D1, Q16, Q17), and #248 and #256 standalone as the draft lists them; the Owners phase gets its own threat model (the draft's Appendix A, A06) | Part 2's Phase map and the Roadmap; Part 2 "Pre-deploy automation" (its intro); `.claude/drafts/phases-8-10-scope.md` ("Decisions", "The line between the phases", "Outside Phases 8–10") |
+| Phase 7 open decisions 1–5 | The login is a magic link (a 6-digit code is IS #241), until Phase 9 adds #241's emailed code beside TOTP MFA; a session lasts until logout, until session timeouts come (amended by the IS #278 (Phase 9) row below; they are Pro-only, IS #373 (Phase 9), and come with Pro in Phase 11, IS #373 (Phase 10), unless Phase 9 chooses Pro from the deploy); a phone gets past Deployment Protection by logging in to Vercel; the preview's Redirect URLs are `dev`'s alias alone, no wildcard; the admin user is made by hand | `README.md` "Hosted preview database" (the Redirect URLs) and "5. Create the admin user"; Part 2 "Admin and auth" (the link, the session); this row (a phone's Vercel login) |
+| Phase 8 #1 (IS #278 (D1)) | Three phases after Phase 7: **8 · CI/CD → 9 · Security → 10 · Launch** (a fourth, 11 · Full launch, added by IS #373 (Phase 11)), CI/CD first so the security work runs through it. The line between them: 8 the pipeline, 9 the running app and its accounts (the first 2FA audit included), 10 production. Replaces the IS #265 row (2026-11-11, its text in PR #266), keeping what still holds of it: the launch is a phase of its own and runs through working CI, the owner's call to keep each milestone smaller, and Phase 6 #1 holds, CI/CD built before the production deploy. Outside the three: #264 (the README rework) after Phase 8, and #246 and #259 standalone (the owner's calls, the scope draft's D1, Q16, Q17), and #248 and #256 standalone as the draft lists them; the Owners phase gets its own threat model (the draft's Appendix A, A06) | Part 2's Phase map and the Roadmap; Part 2 "Pre-deploy automation" (its intro); `.claude/drafts/phases-8-10-scope.md` ("Decisions", "The line between the phases", "Outside Phases 8–10") |
 | Phase 8 #2 (IS #278 (Phase 8)) | Phase 8's scope as the scope draft settled it, as built: GitHub Actions for the checks, grouped by trigger and permissions, one set for `dev` and `main`; Gitleaks, CodeQL, `npm audit`'s thresholds, the security advisor, the lint rules, the controls' trigger and the log check; workflow hardening; Dependabot last, its branches off Vercel builds; branch protection on both branches, `main`'s required checks a production deploy's only gate; `SECURITY.md`; CI as the gate. Its limit: a PR runs its own copy of what its checks read, so the guard is reading every diff, Dependabot's included. The owner's calls (the draft's Q1–Q10, Q25–Q30, Q32, Q35) | `CLAUDE.md` "Testing"; Part 2's Phase map (Phase 8 row) and "Pre-deploy automation"; `.claude/drafts/phases-8-10-scope.md` ("Phase 8 · CI/CD") |
 | Phase 8 #3 (IS #279) | The between-phases procedure: a row's marker may name the later phase whose plan takes it ("for Phase <N>"), earlier plans don't take it and their reconciliations don't replace its marker, though a stale fact in it is fixed like any other hit; and a between-phases row that a later one replaces is removed in the PR that adds the new row, which keeps what still holds and cites the old IS #, as the IS #278 (D1) row does for IS #265; and several rows from one issue carry a label each (`IS #278 (D1)`), so a citation names one. Amends Phase 5 #24's procedure. The owner's calls, rounds 1–3 and the narrow read-through on PR #281 | `CLAUDE.md` "Process Log" (the one copy); `.claude/commands/create-milestone.md` (the Rationale's first decisions) |
 | Phase 8 #4 | The issue that adds a check is done when the check runs and reports correctly; each finding gets an issue of its own, and one that would keep a required check red is settled (fixed, dismissed or allowlisted with a reason) before the check becomes required | `CLAUDE.md` "Testing" ("Adding a required check"); `codeql.yml`'s header (its findings get their own issues) |
@@ -1020,5 +1059,8 @@ says.
 | Phase 8 #16 | A `controls` run of the full set that passed stands in for the hand run | `CLAUDE.md` "Testing" ("Schema controls": it still asks for a hand run while writing a control or a migration, and when CI ran only `--check`) |
 | Phase 8 #17 | Dependabot's PRs keep its default labels, the exception to PRs carrying only a phase label | `.github/dependabot.yml`'s header |
 | IS #301 (PR #369), IS #368 (PR #371) | The Phase 8 retrospective's calls: the Phase 7 retrospective's actions kept; one new action, the closing-keyword check in `secret-scan`, with `claims.sh` listing a PR body's closing references; squash merging off, since the check models the merge commit GitHub writes (the owner's call, round 4 on PR #371) | `CLAUDE.md` "Testing" and "Review rounds"; `scripts/closing-keywords.mjs`'s header; the process log's Phase 8 retrospective |
-| **between phases**, 2026-11-12, IS #278 (Phase 9), for Phase 9 | Phase 9's scope as the scope draft settles it: TOTP MFA for the admin login with #241's emailed code (amending Phase 7 open decision 1), its enrol-window constraints and the lost-phone routes to probe; session timeouts (amending open decision 2); the login-abuse and code-guessing probes; the split CSP and the cookie's-reach decision; monitoring; the smaller probes and limits; the 2FA audit and the hosted-settings checklist. Phase 9's reconciliation also rewrites the "Phase 7 open decisions 1–5" row this one amends. The owner's calls (the draft's D2, D3, Q11–Q14, Q19–Q23, Q31, Q33) | `.claude/drafts/phases-8-10-scope.md` ("Phase 9 · Security"); Part 2's Phase map (Phase 9 row), "Admin and auth" (MFA and the timeouts) and "Pre-deploy automation" (the 2FA audit) |
-| **between phases**, 2026-11-12, IS #278 (Phase 10), for Phase 10 | Phase 10's scope as the scope draft settles it: the old launch row, minus the security headers and the usage emails, plus what the split hands it (the tiles' domain in the CSP, HSTS, Pro-only timeouts (Q19), the hosted-settings checklist applied, with the production Security Advisor run as "Before the production deploy" says (Q21), the usage alerts if the free plans can't send them (Q14)), and Phase 5 #19's hosted check, carried forward, which had fallen out of the old launch row. Once production exists, an unfixed vulnerability found in-house goes to a private security advisory (Q36); the incident runbook, a restore test and the logs in the privacy note are open (Q34). The owner's calls (the draft's Q14, Q19, Q21, Q34, Q36) | `.claude/drafts/phases-8-10-scope.md` ("Phase 10 · Launch"); Part 2's Phase map (Phase 10 row) and "Pre-deploy automation" ("Before the production deploy") |
+| **between phases**, 2026-11-12, IS #278 (Phase 9), for Phase 9 | Phase 9's scope as the scope draft settles it: TOTP MFA for the admin login with #241's emailed code (amending Phase 7 open decision 1), its enrol-window constraints and the lost-phone routes to probe; session timeouts (amending open decision 2; Pro-only, amended by IS #373 (Phase 9)); the login-abuse and code-guessing probes; the split CSP and the cookie's-reach decision; monitoring; the smaller probes and limits; the 2FA audit and the hosted-settings checklist. Phase 9's reconciliation also rewrites the "Phase 7 open decisions 1–5" row this one amends. The owner's calls (the draft's D2, D3, Q11–Q14, Q19–Q23, Q31, Q33) | `.claude/drafts/phases-8-10-scope.md` ("Phase 9 · Security"); Part 2's Phase map (Phase 9 row), "Admin and auth" (MFA and the timeouts) and "Pre-deploy automation" (the 2FA audit) |
+| **between phases**, 2026-11-12, IS #278 (Phase 10), for Phase 10 | Phase 10's scope as the scope draft settles it: the old launch row, minus the security headers and the usage emails, plus what the split hands it (the tiles' domain in the CSP, HSTS, Pro-only timeouts (Q19); these three moved to Phase 11 by IS #373 (Phase 10); the hosted-settings checklist applied, with the production Security Advisor run as "Before the production deploy" says (Q21), the usage alerts if the free plans can't send them (Q14)), and Phase 5 #19's hosted check, carried forward, which had fallen out of the old launch row. Once production exists, an unfixed vulnerability found in-house goes to a private security advisory (Q36); the incident runbook, a restore test and the logs in the privacy note are open (Q34). The owner's calls (the draft's Q14, Q19, Q21, Q34, Q36) | `.claude/drafts/phases-8-10-scope.md` ("Phase 10 · Launch"); Part 2's Phase map (Phase 10 row) and "Pre-deploy automation" ("Before the production deploy") |
+| **between phases**, 2026-11-16, IS #373 (Phase 9), for Phase 9 | Inputs from the soft launch (the IS #373 (Phase 10) row). Session timeouts are Pro-only (Supabase's sessions docs and pricing page, read 2026-11-16), and Pro comes in Phase 11, so from the production deploy to Phase 11 a session lasts until logout. Phase 9 chooses the cover: (a) logging out after each use (logout is `scope: "local"`, and the app has no "log out everywhere"); (b) a time-box in `requireAdmin` from the sign-in time (the `amr` claim, not probed); or (c) Pro from the deploy, which reopens the IS #373 (Phase 10) row's Supabase Free. If Phase 9 reads `aal` through `getClaims()`, as the scope draft proposes, and the project signs with asymmetric keys, a logged-out access token would pass until it expires (today `requireAdmin` asks Auth through `getUser()`, which refuses it): weighed against (a). A stolen session can set a password silently (`secure_password_change = false` and no password-changed email, locally), which outlasts logout and every timeout: the hosted settings turn both on, and MFA's `aal2` closes it. It can also cancel or confirm an ended entry, whose ids the checklist hands out: today both accept one (`cancelEntry` and `confirmEntry` make no `hasEnded` check, which `editEntry` makes, in `src/lib/services/locations.ts`), and whether they should refuse it is open. The gate needs the session cookie to reach `/map`, and puts the script-readable cookie on a page outside `/admin`'s strict CSP: inputs to the cookie's-reach and CSP decisions. The threat model and the recovery steps (end every session; check for a password, a factor or an email change; Free keeps Auth's audit logs 24 h in its logs, and the `auth.audit_log_entries` table keeps them while the project writes audit logs to the database: Phase 9 reads which is on) are in IS #373. Amends the IS #278 (Phase 9) row's "session timeouts" | Part 2's Phase map (Phase 9 row); "Admin and auth" (the timeouts) |
+| **between phases**, 2026-11-16, IS #373 (Phase 10), for Phase 10 | A soft launch (the owner's calls). Phase 10 deploys to production with `/map` shown only to the admin, and `/` leading to a new Swedish `/about`, which says the full launch (Phase 11) comes when the trucks are back. Only real data, from the trucks' own Instagram posts, entered by hand, nothing scraped; every removal request is honoured, company or sole trader. It costs nothing: Supabase Free, the `vercel.app` address and `r2.dev`, with Pro and the custom domain in Phase 11 (the IS #373 (Phase 11) row); R2's CORS rule gains the production origin. `/api/live` stays public, so the privacy note, the removal contact, the retention period, telling each truck it is listed, and the app's name are due at the deploy. On Free: a weekly `--data-only --schema public` dump, never the `auth` schema (its tokens are credentials), kept only on the admin's machine outside the repo, the last few only; a restore needs the admin user recreated with its old id first, since `users.id` and `locations.created_by` reference `auth.users`; a restore test needs a paused project or the local stack (2 active free projects, counted across organizations); a pause keeps the data, restorable for a year; leaked-password protection isn't on Free, so the advisor's warning is accepted with a reason. The proxy is untouched (Plan A): a `/map` branch only if the expired-session probe shows a logout, which changes `CLAUDE.md`'s "never `/map`" proxy rule (Phase 7 plan #10, #28; `src/proxy.test.ts` pins it): the owner's call, with the rule's text changed in the same PR. Proposed, for the plan to settle: the gate in `src/app/map/page.tsx` (`requireAdmin`; anything but `check.ok` gets a 307 to a fixed `/about`, on the server, before anything streams, with no `try` around `redirect()` or `cookies()`; `ƒ /map` in the build; the smoke check expecting the redirects; no answer served from the cache on `dev`'s preview or production) and `AdminNav` linking `/map`. Open: the retention period and the removal contact. Moves to Phase 11, from the IS #278 (Phase 10) row and the old launch row it takes in: Supabase Pro, the custom domain with its CSP entry and HSTS, the Pro-only timeouts, Vercel Pro and the acquisition plan | Part 2's Phase map (Phase 10 row); "Pricing and upgrade triggers"; "Principles and risks" (Backups) |
+| **between phases**, 2026-11-16, IS #373 (Phase 11), for Phase 11 | The full launch is a phase of its own, after Phase 10 and before the Owners phase (the owner's call). Proposed: it starts when a coverage target holds: on a typical weekday at least N trucks, entered before 11:00, held for two weeks and checked against their posts (N open; Claude's guess 5–8). It removes the gate and restores the smoke check, keeping `/about` and the nav link. It holds Supabase Pro, with session timeouts; the custom domain (R2's domain and CORS rule, `NEXT_PUBLIC_PMTILES_URL`, the CSP's tiles domain; and, if the app gets its own domain, Vercel's domain, Supabase Auth's Site and Redirect URLs, and HSTS: open, and Claude suggests one domain with the tiles on a subdomain); Vercel Pro + Spend Management; the acquisition plan | Part 2's Phase map (Phase 11 row); "Pricing and upgrade triggers"; Part 1 "Map tiles" |
