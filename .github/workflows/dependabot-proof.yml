@@ -3,10 +3,12 @@
 # new releases, and every action ci.yml and codeql.yml pin was on its newest release on
 # 2026-11-16, so no Dependabot PR could come for a week or more. This file pins
 # actions/setup-node one release back (v7.0.0), so Dependabot can propose v7.1.0 now
-# (published 2026-10-08, past the cooldown). It runs only when started by hand, and then
-# only installs Node; ci.yml keeps v7.1.0 and is untouched.
+# (published 2026-10-08, past the cooldown). It runs only when started by hand, and nothing
+# relies on it; ci.yml keeps v7.1.0 and is untouched. If an advisory ever lists v7.0.0,
+# Dependabot may open a separate security PR for this file instead; either one is #300's
+# proof.
 #
-# Delete this file once Dependabot's PR for it has been read on #300 (IS #363's steps).
+# Delete this file once Dependabot's PR for it has merged (IS #363's last step).
 name: dependabot-proof
 
 on:
@@ -21,5 +23,3 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 26
