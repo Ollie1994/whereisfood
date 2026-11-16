@@ -79,7 +79,7 @@ has run the checks with no Vercel build (#5).
 | `.github/workflows/ci.yml` | PR-only (`pull_request` into `dev` and `main`), read-only token. Jobs `typecheck-lint`, `unit`, `integration` (local Supabase, and the security advisor), `build` (`.env.example`'s variables from the local stack, then `next start` and `smoke.mjs`), `secret-scan`, `audit` (three runs, #12), `controls` (`--check` always; the full set when `needsFullControls` says so), `process-log`, and `base`, named `base (<base branch>)`, which `main`'s ruleset requires as `base (main)` (IS #356) |
 | `.github/workflows/codeql.yml` | CodeQL, `javascript-typescript` and `actions`, on PRs and on push to `dev` and `main`, with `security-events: write`; on `dev` its code-scanning result check is required, since the analyze jobs stay green on a finding, and both analyze jobs beside it (#14, settled in #297); on `main` they join in Phase 10 (#11) |
 | `.github/workflows/sonarqube.yml` (not created: step 9 skipped, #295) | SonarQube Cloud, on PRs and on push to `dev` and `main`; skipped by `if:` on Dependabot and fork PRs; installs with `--ignore-scripts`; runs with `sonar.qualitygate.wait=true`, so a failed gate fails the job (#14) |
-| `.github/dependabot.yml` | Version updates for `github-actions`, keeping the SHA pins current, with the default `/` branch-name separator (step 15). npm gets security updates only (repository setting) |
+| `.github/dependabot.yml` | Version updates for `github-actions`, keeping the SHA pins current, with the default `/` branch-name separator (step 15). npm gets security updates only (repository setting), off until the npm updater runs Node 26 (open decision 9, IS #361) |
 | `.githooks/pre-commit` | Gitleaks on the staged changes; the folder is set by hand through `core.hooksPath` (#7). Committed executable with `git update-index --chmod=+x`: `core.filemode` is `false` on the owner's machine (read 2026-11-12), so a plain add stores `100644` and git elsewhere ignores the hook |
 | `.githooks/commit-msg` | Gitleaks (`gitleaks stdin`) on the commit message, which `pre-commit` and `gitleaks git` don't read; committed executable as `pre-commit` is (round 1 on PR #342, the owner's call) |
 | `.githooks/gitleaks-common.sh` | Sourced by both hooks and `ci.yml`'s `secret-scan`: their Gitleaks flags, and the checks that refuse while `gitleaks` is missing or a `.gitleaksignore` exists (round 3 on PR #342; `secret-scan` from IS #293) |
@@ -326,6 +326,12 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
     Dependabot PR, from an Actions version update or, if none has come, one triggered with
     "Check for updates" (#5). An npm security PR can't be forced, so the proof may be an
     Actions one, which runs no npm: a stated limit.
+    **Open decision 9 came out against it (#300):** the npm updater runs Node 24
+    (dependabot-core's `npm_and_yarn/Dockerfile`, `NODEJS_VERSION=24`, read 2026-11-16), and
+    npm's lockfile-only install and update stop with `EBADDEVENGINES` on a `devEngines.runtime`
+    mismatch (probed on #300). The owner's call: `dependabot.yml` for `github-actions` now, npm
+    security updates off until the updater runs Node 26 (IS #361, re-checked before Phase
+    10), no change to `devEngines`.
 16. **The Phase 8 retrospective** (`.claude/process-log.md`, "How to use it"): its range
     starts at the row after the Phase 7 retrospective's range. Blocked by every other
     planned issue; its follow-ups block step 17.
@@ -343,7 +349,8 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
     the `vercel.json` `ignoreCommand` override and the secret key's `dev` scope (`README.md`,
     "Preview deploys", PR #311); and "Decisions carried forward"'s Phase 6 #1 and #2 rows,
     whose "Gates stay manual until deploy" and its reading point at `CLAUDE.md` "Testing",
-    which step 12 rewrote for CI as the gate (round 3 on PR #352). It
+    which step 12 rewrote for CI as the gate (round 3 on PR #352); and `codeql.yml`'s header,
+    "No Dependabot or fork PR has run it yet", once #300's Dependabot PR is read (IS #300). It
     replaces the three **between phases** markers this plan took up with #1–#3, leaves the
     IS #278 (Phase 9) and (Phase 10) rows' markers as they are, carries forward this plan's
     decisions that outlive the phase (#4, #7, #8, #9, #11, #12, #13, #14, #15 at least),
@@ -716,7 +723,8 @@ CI the gate: `CLAUDE.md`, "Testing"). A PR whose run took only
 - [ ] Before Dependabot is on, the Node of its npm updater, read from dependabot-core's npm
   updater image definition, is one `devEngines` admits; after, `dependabot.yml` covers
   `github-actions` with the default separator, npm security updates are on, and the
-  Dependabot tab shows the npm job with no error.
+  Dependabot tab shows the npm job with no error. (The Node read is 24, so npm security
+  updates wait for IS #361: the owner's call on #300.)
 - [ ] On one Dependabot PR, on a branch starting `dependabot/`: the checks ran (SonarQube's
   job: none, step 9 skipped, #295), CodeQL ran, and Vercel shows the build
   cancelled by the Ignored Build Step (the commit's statuses, `README.md` "Preview deploys").
@@ -850,4 +858,7 @@ CI the gate: `CLAUDE.md`, "Testing"). A PR whose run took only
 9. **If Dependabot's updater runs a Node below `devEngines` (step 15).** Read before it is
    switched on, from dependabot-core's npm updater image definition; if it does, its npm PRs
    would stop with `EBADDEVENGINES`, and the options are written up for the owner then.
+   **Settled on #300: it does** (Node 24, against `26.x`). Of three options (Actions now and
+   npm later; `onFail: "warn"`; widening `devEngines` to 24), the owner chose the first:
+   step 15's note, IS #361.
 10. **The wording of #12's rule in `CLAUDE.md` (step 6)**, the owner's to approve.

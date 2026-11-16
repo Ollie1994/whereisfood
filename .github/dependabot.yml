@@ -1,0 +1,20 @@
+# Dependabot version updates for the GitHub Actions the workflows pin (Phase 8 plan step 15,
+# IS #300): each `uses:` is pinned to a commit SHA with its version in a comment, and a
+# Dependabot PR moves both. Its branches are `dependabot/github_actions/…` (the default `/`
+# separator, so nothing here sets `pull-request-branch-name`), which Vercel's Ignored Build
+# Step cancels (plan #15, README "Preview deploys"). No auto-merge: a Dependabot PR is
+# reviewed like any other, against the same required checks (plan #2), and its diff is a
+# change to what the checks run (CLAUDE.md, "Testing").
+#
+# No npm entry. npm gets security updates only, from the repository setting, and that stays
+# off for now: the npm updater image runs Node 24 (dependabot-core's npm_and_yarn/Dockerfile,
+# `NODEJS_VERSION=24`, read 2026-11-16), and `devEngines.runtime` is `26.x` with
+# `onFail: "error"`, under which npm's lockfile-only install and update stop with
+# EBADDEVENGINES (probed on #300 with the range set to 24.x under Node 26). IS #361 switches
+# it on once the updater runs Node 26 (the owner's call, open decision 9).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
