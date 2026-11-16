@@ -2065,9 +2065,9 @@ row:
 - **Code CodeQL found on its first analysis of `dev`:** 646, and 649, which dates from
   Phase 4.
 - **A commit message whose closing keyword closed #348 on merge:** 682. No check read
-  commit messages (new action 1).
-- **`labels: []` in `dependabot.yml`, from a docs summary:** 699. Only Dependabot's first
-  PR, #366, could show it.
+  commit messages for closing keywords (new action 1).
+- **`labels: []` in `dependabot.yml`, from a docs summary:** 699. Dependabot's first PR,
+  #366, showed it.
 
 ### Review rounds
 
@@ -2127,11 +2127,13 @@ below.
 
 **3. `scripts/process-log.sh check`. Keep, unchanged.**
 - **What the rows show.** Three rows record a commit that didn't wait for `add` or
-  `check`: 565, 587 and 678. Each time the script refused the bad row, so none stayed in
-  the log; the commit went ahead anyway, and its message named a row the log didn't hold
-  yet.
-- **CI.** Since #288 (PR #317), the required `process-log` check runs `check` on every PR,
-  so a bad log can't merge.
+  `check`: 565, 587 and 678.
+  - In 565, a hand-edited row over the cap was committed and pushed while `check` failed.
+    A later commit fixed it.
+  - In 587 and 678, `add` refused the row, so it never reached the log, but the commit
+    went ahead, its message naming a row the log didn't hold yet.
+- **CI.** Since #288 (PR #317), the required `process-log` check runs `check` on every PR
+  into `dev` or `main`, so a log that fails it can't merge.
 - **Today.** The log passes `check` as this section is written (exit 0).
 - **Offered and not taken:** a `commit-msg` guard for those three.
 
@@ -2165,7 +2167,8 @@ measures (Phase 7 plan #39):
 ### New actions
 
 **1. A closing-keyword check (#368).** Commit `365bdd9`'s message closed #348 when PR
-#350 merged, with none of #348's work done (row 682), and no check read commit messages.
+#350 merged, with none of #348's work done (row 682), and no check read commit messages
+for closing keywords.
 On #300, PR #364's draft body said "close #300 and #363", caught by a hand grep (#301's
 comment of 2026-11-16).
 
