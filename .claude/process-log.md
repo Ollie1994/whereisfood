@@ -978,6 +978,11 @@ Old rows that point at them are now pointing there: "see note" (rows 14, 15, 17,
 | 697 | 2026-11-16 | PR #365 / IS #300 | `plan` | `/code-review` round 1 on #365, full, found 6; all applied. **The PR changed how step 15's proof is made, but left the plan and #300 saying the proof waits for an upstream release, and the file's header pointed to a delete step #363 didn't have.** Also: the proof never runs the full controls under Dependabot, unstated; `node-version: 26` copied `devEngines`; an advisory could bring an ungrouped PR. | `code-review` r1 on PR #365, full | `pre-merge` | `incomplete-guard` | Plan step 15 and #300 name the proof file and its limit (`--check` only); #363 gains the delete step; the header and body agree (delete after merge). The step has no `with:` input now, and the header names the security-PR case. |
 | 698 | 2026-11-16 | PR #365 / IS #300 | `issue` | `/code-review` round 2 on #365, scoped to round 1's fixes, found 7; all applied. **Round 1 added an unprobed sentence (an advisory on v7.0.0 brings a security PR, which per the docs SHA pins get no alert for) that also overrode the plan's proof, and spread the proof's reads over three lists.** Also: a wrong step cited; the --check limit ignores the group; a stale summary. | `code-review` r2 on PR #365, scoped to `c5f6f29..2dda1f9` | `pre-merge` | `imprecise-claim` | The sentence removed; #300's proof step is the one list of reads, #363 points to it; "#363's delete step"; the limit holds unless the group carries a ci.yml pin, in the plan and #300; the header says a hand run proves nothing; the summary rewritten. |
 | 699 | 2026-11-16 | PR #367 / IS #300 | `plan` | `/code-review` round 1 on #367, full, found 8; all applied. **PR #362 shipped `labels: []` with the comment "none of Dependabot's default labels", from a docs summary nobody checked; Dependabot's PR #366 carried both defaults anyway, and this PR dropped the setting without logging the miss.** Also: the label call not a numbered decision; dependabot.yml still future-tense; the fork "not yet" untracked; README; a checkbox; wraps. | `code-review` r1 on PR #367, full | `merged` | `unverified-assumption` | This row. Plan #17 records the owner's call to keep Dependabot's default labels. dependabot.yml states #366's branch and cancel; step 17 tracks the fork "not yet"; README lists #366's cancel; the checkbox ticked; two wraps fixed. |
+| 700 | 2026-11-16 | → IS #301 | `process` | **Asking the owner to keep the round ceiling, I said none of the nine `merged` rows in 543–699 was a miss a dropped round would have found, from their `Caught by` cells alone.** Row 646's `table()` came in round 1's fixes on PR #322 (`f86deed`), which round 2, scoped to them, read and missed. The owner's first call rested on that claim; asked again with the correction, they kept the ceiling. | `self` writing the section's ceiling paragraph (`git log -S` on `ci-advisor.test.mjs`) | `pre-commit` | `imprecise-claim` | The section's ceiling paragraph states what the rows show (646 from round 1's fixes on #322) and that neither measure can tell; the owner was asked again with the correction and kept the ceiling unchanged. |
+| 701 | 2026-11-16 | PR #369 / IS #301 | `process-log` | `/code-review` round 1 on #369, full, found 10; all applied. **The section's counts disagreed with its own commands:** the can't-fail grep it quotes matches 10 rows, not 9 (544 left out), and "`merged` rows rose to 9" counted the `crossed-phase` 649. Also: action 4 missed the six rows the claims check caught (609, 614, 657, 659, 661, 670); action 3 hid that its misses rose, misordered 678, and dated the required check to #288, not #297; the parts' labels; rounds per PR from the wrong PR; #300's close time. | `code-review` r1 on PR #369, full | `pre-merge` | `imprecise-claim` | Each count re-read from its command: 10 grep rows; 8 `merged`, 649 apart; the six claims-check rows. Action 3 states 0 to 3, the six-row class, 678's order and #297. The parts relabelled; 128 rounds over 40 PRs; 07:46:29Z from the issue events. |
+| 702 | 2026-11-16 | PR #369 / IS #301 | `process-log` | `/code-review` round 2 on #369, scoped to round 1's fixes, found 9; all applied. **Round 1's "Its misses rose, from none in 420–542" was refuted by row 565, which names row 535 as the same miss, and called the rows the script's misses though the bullet said the script worked.** Also: "recurred six times" for six occurrences; the declined guard's scope unclear; "can't merge" past CLAUDE.md's limit; 657 dropped from the Miss list; #300's "completed" cited to events that don't show it; two wraps. | `code-review` r2 on PR #369, scoped to `7e6f5a4..3449e3e` | `pre-merge` | `overcorrection` | Action 3 states what the rows show: row 535 unrecorded then, six occurrences, the declined guard as offered; "can't merge" unless the PR changes the check; 657 back in the list; GraphQL's ClosedEvent cited; two paragraphs reflowed. |
+| 703 | 2026-11-16 | PR #369 / IS #301 | `process-log` | `/code-review` round 3 on #369, full, the ceiling's last, found 7, none in what runs; all applied. **The ceiling paragraph written to fix row 700's overclaim undercounted again:** 699's `labels: []` also came from a round's fixes (`9b01db4`, round 1 on #362), not only 646. Also: #300's timeline shows a Projects status change a second before its close; CI's check can't see four of action 3's six rows; seven occurrences, not six; two `merged` baselines; 613 a missing prerequisite, not a claim; a stray line break. | `code-review` r3 on PR #369, full | `pre-merge` | `overcorrection` | Two rows from a round's fixes, each with its commit; #300's timeline recorded, the cause the owner's to confirm; CI's reach split by kind (325, 565 against 354, 382, 587, 678); seven occurrences; rates over both ranges; 613 apart; one paragraph. |
+| 704 | 2026-11-16 | PR #369 / IS #301 | `issue` | **#301's comment of 2026-11-16 said the agent's commands in the minute #300 closed were issue-body edits.** The session's transcript shows `gh pr merge 362` among them (merged 07:46:16Z, 13 s before the close), and no Projects command. Written from memory, not the transcript; this PR's section copied it until round 3's finding sent me to #300's timeline and the transcript. | `self` reading the transcript to back the section's claim after round 3 on PR #369 | `pre-merge` | `unverified-assumption` | The section states the merge, that #362 holds no closing reference to #300 (its closingIssuesReferences, and a grep of its messages), and no Projects command; a comment on #301 corrects its earlier one. |
 
 ---
 
@@ -1991,3 +1996,244 @@ evidence that it would move it.
 ### Follow-ups
 
 - #260: the review round ceiling, full, scoped, full. In #234's `Blocked by`.
+
+## Phase 8 retrospective (2026-11-16, #301)
+
+**Rows counted: 543–699 (157 rows).** The range runs from the Phase 7 retrospective's own
+rows (543–546, PR #261) to the last row written before this retrospective started (699,
+PR #367, 2026-11-16). Row 700 onward belong to the next range, this retrospective's own
+rows included. What the rows came from:
+- **Rows 543–550, Phase 7's closing steps:** the retrospective, its follow-up #260 (PR
+  #262, row 547) and the reconciliation (#234, PR #263, 548–550).
+- **Rows 551–607, between Phase 7 and Phase 8's step 1:** all outside a milestone but the
+  plan's four.
+  - #265 (PR #266, 551–553);
+  - #253 (PR #267, 554–558);
+  - the admin fixes #250, #251, #269, #272, #274 and #275 (PRs #268–#277, 559–582);
+  - the scope review, #278 and #279 (PRs #280 and #281, 583–596);
+  - the Phase 8 plan, in the `phase-8` milestone (#282, PR #283, 597–600);
+  - #259, #246, #304 and #306 (PRs #303–#309, 601–607).
+- **Rows 608–699, Phase 8:** steps 1–15 and the issues they opened (PRs #311–#367). Two
+  rows there were written about earlier work: 649 (a Phase 4 regex, PR #136, which
+  CodeQL found) and 677 (the plan's open decision 5, PR #283).
+
+```bash
+bash scripts/process-log.sh tally 9 543 699    # Cause
+bash scripts/process-log.sh tally 7 543 699    # Caught by
+bash scripts/process-log.sh tally 8 543 699    # Escaped
+```
+
+### By `Cause`
+
+| Cause | Rows | Share | Phase 7 (420–542) |
+|---|---|---|---|
+| `overcorrection` | 46 | 29% | 44 (36%) |
+| `incomplete-guard` | 35 | 22% | 24 (20%) |
+| `imprecise-claim` | 32 | 20% | 17 (14%) |
+| `unverified-assumption` | 31 | 20% | 27 (22%) |
+| `missing-gate` | 5 | 3% | 2 (2%) |
+| `gate-skipped` | 4 | 3% | 7 (6%) |
+| `manual-drift` | 3 | 2% | 2 (2%) |
+| `stale-doc` | 1 | 1% | 0 (0%) |
+
+The two largest parts differ (543–550's eight rows are in neither):
+- **Rows 551–607 (`tally 9 551 607`, 57 rows, the plan's 597–600 included):**
+  `overcorrection` 23, `incomplete-guard` 14, `unverified-assumption` 9, `imprecise-claim`
+  5, `manual-drift` 3, `gate-skipped` 3.
+- **Rows 608–699 (`tally 9 608 699`, 92 rows):** `imprecise-claim` 24, `overcorrection`
+  21, `incomplete-guard` 21, `unverified-assumption` 20, `missing-gate` 5, `gate-skipped`
+  1.
+
+### By `Caught by`
+
+`tally 7` grouped all 157 rows:
+
+| Group | Rows | Phase 7 |
+|---|---|---|
+| `code-review` | 133 | 95 |
+| `self` | 18 | 21 |
+| `user` | 6 | 7 |
+
+**`Escaped`:**
+
+| Escaped | Rows |
+|---|---|
+| `pre-merge` | 144 |
+| `merged` | 8 (608, 613, 635, 640, 646, 677, 682, 699) |
+| `pre-commit` | 4 (559, 583, 641, 667) |
+| `crossed-phase` | 1 (649) |
+
+In Phase 7's range, 420–542, 4 rows were `merged`. The nine that merged or crossed the
+phase, read row by row:
+- **Plan or issue text about how an outside tool behaves, from docs or reasoning, not a
+  probe:** 608, 635, 640 and 677. And 613, a prerequisite the plan left out: the
+  token's Workflows permission. Each was found by `self` while doing the step that used
+  it. Plan #5's can-fail probes found 635 and 640.
+- **Code CodeQL found on its first analysis of `dev`:** 646, and 649, which dates from
+  Phase 4.
+- **A commit message whose closing keyword closed #348 on merge:** 682. No check read
+  commit messages for closing keywords (new action 1).
+- **`labels: []` in `dependabot.yml`, from a docs summary:** 699. Dependabot's first PR,
+  #366, showed it.
+
+### Review rounds
+
+133 rounds on 42 PRs, 1,041 findings. The rows come from the Phase 6 retrospective's round
+script, run with `first=543 last=699`, with one change. The three narrow read-throughs
+(592, 596, 600) have no `rN` in their `Caught by`, so they are counted on a line of their
+own:
+
+| Round | Rounds | Findings | Per round | Headline `overcorrection` |
+|---|---|---|---|---|
+| r1 | 42 | 325 | 7.7 | 0 |
+| r2 | 37 | 286 | 7.7 | 29 |
+| r3 | 30 | 247 | 8.2 | 5 |
+| r4 | 16 | 117 | 7.3 | 8 |
+| r5 | 3 | 23 | 7.7 | 0 |
+| r6 | 1 | 8 | 8.0 | 1 |
+| r7 | 1 | 10 | 10.0 | 0 |
+| read-through | 3 | 25 | 8.3 | 2 |
+
+- **A round's fixes are still the next round's main finding.** 45 of the 91 rounds after
+  round 1 have `overcorrection` as their headline (Phase 7: 42 of 70):
+  - 39 of the 56 scoped rounds (7.6 findings a round);
+  - 4 of the 32 later full rounds (8.3 a round);
+  - 2 of the 3 read-throughs.
+- **No PR's rounds ran down.** Of the 37 PRs with more than one round, each one's last
+  round found 5 to 10. 30 of the 133 rounds found exactly 10 (Phase 7: 32 of 94).
+- **Rounds per PR fell** from 3.9 to 3.2. Under the ceiling of full, scoped, full,
+  which took effect after PR #262 (#260) merged, PRs #263 to #367 had 128 rounds over 40
+  PRs, also 3.2.
+
+### The Phase 7 retrospective's actions
+
+The Phase 7 retrospective kept the Phase 6 retrospective's five actions and changed the
+round ceiling (#260). The owner kept all six unchanged on 2026-11-16, with the evidence
+below.
+
+**1. The fix sweep and `scripts/sweep.sh` (#200). Keep, unchanged.**
+- **The copy grep.** The Phase 6 retrospective's copy grep matches 40 of the 157 rows
+  (25%), down from 36 of 123 (29%): 545, 548, 552, 553, 555, 556, 561, 570, 572, 573,
+  575, 580, 585, 586, 591, 603, 606, 607, 610, 616, 617, 626, 627, 628, 629, 631, 635,
+  636, 642, 649, 652, 660, 664, 665, 667, 685, 687, 688, 691 and 697.
+- **Sweep misses.** A sweep missed a copy, a sibling or a term in 7 rows: 556, 575, 616,
+  620, 647, 658 and 689, all found by review. Phase 7 had 12. These come from a grep for
+  `sweep` over the Miss cells, then each hit read; they are a floor.
+- **Open issue bodies.** Row 689's sweeps skipped them, although step 2 names them.
+
+**2. Negative controls and the "Failure modes" field (#170). Keep, unchanged.**
+- **The share rose.** `incomplete-guard` went from 24 of 123 (20%) to 35 of 157 (22%), and
+  21 of the 35 are in rows 608–699.
+- **Checks that couldn't fail.** A grep of the Miss cells for a check that couldn't fail,
+  or passed with every gate or fixture green, matches 10 rows: 544, 572, 576, 610, 626,
+  631, 639, 664, 668 and 683. The pattern: `can.t fail|couldn.t fail|could only
+  show|can.t have|couldn.t have|cannot fail|could not fail|passes whatever|false
+  green|stayed green|every gate green|with every fixture green|fail open|failed open`.
+- **What Phase 8 added.** Plan #5 made the can-fail probes part of done, and they found
+  635 and 640. Each required check was shown red on a probe PR (#298). The schema
+  controls now run in the required `controls` check (#288).
+
+**3. `scripts/process-log.sh check`. Keep, unchanged.**
+- **What the rows show.** Three rows record a commit made without waiting on `add` or
+  `check`: 565, 587 and 678.
+  - **The trend.** The Phase 7 retrospective's grep found no row in 420–542 recording
+    one, but 565 names row 535, in that range, as the same miss, unrecorded then.
+  - **The class.** Rows 325, 354, 382, 565, 587 and 678 record it, which row 678 named
+    for this retrospective. With row 535, that is seven occurrences.
+  - In 565, a hand-edited row over the cap was committed and pushed while `check` failed.
+    A later commit fixed it.
+  - In 587, `add` refused the row, and the commit chained after it with `;` ran anyway,
+    naming a row the log didn't hold.
+  - In 678, the commit naming the row was made and pushed first (`666b788`), and `add`
+    refused the row afterwards.
+
+  In each, the script kept the bad row out, or showed it was bad. What got through was a
+  commit made without waiting on it.
+- **CI.** Since PR #317 (#288), CI's `process-log` job runs `check` on every PR into `dev`
+  or `main`. Since PR #352 (#297), the rulesets require it. So a log that fails `check`
+  can't merge, unless the same PR changes the check (CLAUDE.md, "Testing": a PR runs its
+  own copy of the scripts its checks run). That covers the class's first kind, a bad row
+  committed (325, 565). It can't see the other, a commit message naming a row the log
+  doesn't hold (354, 382, 587, 678), where the log stays valid, as row 354's Fix says.
+- **Today.** The log passes `check` as this section is written (exit 0).
+- **Offered and not taken:** a `commit-msg` guard, aimed at the six-row class. It would
+  run `check` on a staged log, and refuse a message naming a row the staged log doesn't
+  hold.
+
+**4. The claims check, with the probe words (#200). Keep, unchanged.**
+- **The share rose.** `imprecise-claim` went from 17 of 123 (14%) to 32 of 157 (20%), and
+  24 of the 32 are in rows 608–699.
+- **Rows it caught,** by their `Caught by` cells: 609, 614, 657, 659, 661 and 670, all
+  `self`. 657 was a defect in what runs: a malformed audit entry that threw.
+- **Rows that name it in their Miss:**
+  - 548: it passed a rewrap that swallowed a step as "unchanged text";
+  - 561: review cited its "probed, not reworded into a hedge";
+  - 610: its fix backed a claim with a probe that couldn't fail;
+  - 657: it found the defect (also under "Rows it caught").
+- **Why kept.** No mechanism was found with evidence that it would move the share.
+
+**5. `Caught by` groups. Keep, unchanged.** `tally 7` grouped all 157 rows, each starting
+with a listed group.
+
+**6. The round ceiling, full, scoped, full (#260, PR #262). Keep, unchanged.** Its two
+measures (Phase 7 plan #39):
+- **PRs past it.** Of the 40 PRs from #263 on, 5 had rounds past it that the owner asked
+  for: #280 (rounds 4–7 and a read-through), #281 and #283 (a read-through each), and #315
+  and #342 (a fifth round). Phase 7: 2 of 20.
+- **`merged` rows rose:**
+  - 8 of 157 rows here (5.1%), against 4 of 123 in 420–542 (3.3%);
+  - the Phase 7 retrospective's #4 row counted 3, in 441–542;
+  - beside the 8 is 649, `crossed-phase`, a Phase 4 regex, which says nothing about the
+    ceiling.
+- **Who found the nine.** Review found only 699, and that one in a round on #367, from
+  what #366 showed. The rest were found by doing the work, by CodeQL or by the owner
+  ("By `Caught by`" above).
+- **From a round's own fixes, two.** Each was read by round 2, scoped to those fixes,
+  and by the full round 3:
+  - 646's `table()`, in round 1's fixes on PR #322 (`f86deed`);
+  - 699's `labels: []`, in round 1's fixes on PR #362 (`9b01db4`, `git log -S`).
+- **What the measures can't show.** Neither shows whether the dropped round would have
+  found any of the nine, as Phase 7 said.
+- **The owner's call.** The owner was first asked with a claim that none would have been
+  found. Asked again with 646 alone (row 700), they kept the ceiling.
+
+### New actions
+
+**1. A closing-keyword check (#368).** Commit `365bdd9`'s message closed #348 when PR
+#350 merged, with none of #348's work done (row 682), and no check read commit messages
+for closing keywords. On #300, PR #364's draft body said "close #300 and #363", caught by
+a hand grep (#301's comment of 2026-11-16).
+
+#368 adds a step to the required `secret-scan` job, which fails when one of a PR's
+commit messages, or its title, holds a closing keyword before an issue reference.
+`claims.sh` lists the PR body's closing references, to be confirmed by hand. The owner's
+call, 2026-11-16.
+
+**Offered and not taken:**
+- **The `commit-msg` guard for log rows** (action 3 above).
+- **A plan and issue field for claims about outside tools, with each one's source.**
+  Five of the nine merged or crossed rows were such claims, from docs or reasoning (608,
+  635, 640, 677, 699), and 613 was a prerequisite left out. The owner was shown six. Each
+  was caught by its own step's work or probe, or, for 699, by Dependabot's first PR.
+
+### Also noted
+
+#300 was closed as completed at 07:46:29Z on 2026-11-16 by the `Ollie1994` account, while
+its proof was pending. GraphQL's `ClosedEvent` gives that time and `stateReason`
+`COMPLETED`; the REST `closed` event carries no commit (`commit_id` null). The owner
+reopened it.
+
+Its timeline (`gh api …/issues/300/timeline`) shows the same account changing its
+Projects status at 07:46:28Z, one second before the close, and again at 07:46:36Z, then
+removing it from the project at 07:48:08Z. The status values aren't in the REST payload.
+A board action fits, such as a status set to one a project workflow closes on, but that
+isn't confirmed. Among the agent's commands in that minute (the session's transcript) was
+`gh pr merge 362`, merged at 07:46:16Z. #362 names #300 with no closing keyword:
+`closingIssuesReferences` is empty, and a grep of its five commits' messages and the
+merge commit's finds none. No command touched Projects. #301's comment said the agent's
+commands were issue-body edits, which was wrong (row 704). No action: the cause is the
+owner's to confirm.
+
+### Follow-ups
+
+- #368: the closing-keyword check. In #302's `Blocked by`.
