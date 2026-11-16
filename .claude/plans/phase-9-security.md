@@ -146,20 +146,24 @@ before step 13; every settings change before step 12; step 14 last before the cl
 1. **Probes** (#3), the ones that need no setting changed. Each result is recorded on the
    step's issue, with its command, and the plan's affected decisions or open decisions
    updated through the step's PR. The probes that need TOTP switched on run in step 5a:
-   - login abuse, locally (Q31): how fast `email_sent = 2` an hour is spent, and the email
-     code's guessing limit (`token_verifications`); then the preview's hosted limits, read.
-     What the form answers for an unknown address is already recorded (`src/lib/login.ts`:
-     the same "sent" text, though Auth's own answers in the browser still tell them apart);
+   - login abuse, locally (Q31): how fast `email_sent = 2` an hour is spent, and whether
+     Auth's notification emails (password changed, and #13's if offered) count toward it;
+     the email code's guessing limit (`token_verifications`); then the preview's hosted
+     limits, read. What the form answers for an unknown address is already recorded
+     (`src/lib/login.ts`: the same "sent" text, though Auth's own answers in the browser
+     still tell them apart);
    - the forged-cookie refresh flood (IS #373): a cookie with a past `expires_at` makes the
-     server call Auth's token refresh, rate-limited per IP;
-   - the lost-phone routes (D3): the dashboard's user page, and where an
-     `auth.admin.mfa.deleteFactor` call may run, since it needs the service-role key
-     (`CLAUDE.md`, "Where secrets live", lists no production key on a developer's machine);
+     server call Auth's token refresh, rate-limited per IP, and the calls come from the
+     server's IP, so a flood spends the admin's own refresh budget, and a 429 there ends
+     the admin's session (`src/proxy.ts`'s comment on `_callRefreshToken`);
+   - the lost-phone routes (D3): where an `auth.admin.mfa.deleteFactor` call may run, since
+     it needs the service-role key (`CLAUDE.md`, "Where secrets live", lists no production
+     key on a developer's machine);
    - the `amr` claim: does a verified token carry the first factor's sign-in time (#4)?;
    - the preview project's JWT signing keys (symmetric or asymmetric) and what that means
      for reading `aal` (open decision 11);
    - the preview's "Write audit logs to the database" setting, and whether Supabase offers
-     a factor-enrolled notification email (#13);
+     factor-enrolled and factor-unenrolled notification emails (#13);
    - whether Vercel replaces a client's `x-forwarded-host` (Q20).
 2. **Secure password change.** `secure_password_change = true` and the password-changed
    notification in `config.toml`; the same in the preview's hosted settings; an integration
@@ -167,22 +171,29 @@ before step 13; every settings change before step 12; step 14 last before the cl
    records the rule.
 3. **Length limits** on truck name, description, cuisine type and location label, with
    Swedish messages (Q22); no migration.
-4. **Cancel and confirm refuse an ended entry** (#8): the service passes `now` to the db
-   layer's filter, the routes answer the refusal with a Swedish message (not 404), and
-   `TodayList` hides both buttons on an ended row; integration tests.
+4. **Cancel and confirm refuse an ended entry** (#8): `cancelLocation` and `confirmLocation`
+   filter on the timestamp they already take; when nothing is written, the service reads the
+   entry to tell "ended" from "missing or cancelled"; the routes answer "ended" with a
+   Swedish message (not 404); `TodayList` hides both buttons on an ended row; integration
+   tests.
 5. **The login rework** (D2, D3, Q23):
    - a. `[auth.mfa.totp]` enroll and verify on and `max_enrolled_factors = 1` (#13),
      locally and on the preview; the TOTP test helper (#9); `helpers.ts`'s admin login
      reaches `aal2`. Then the probes that need TOTP: what the app's `unenroll` and a
-     login's verify do to another device's `aal1` and `aal2` sessions; deleting a factor in
-     the SQL editor, locally and on the preview; whether a later verify changes the `amr`
-     claim's first-factor entry (#4); MFA verify's guessing limit; TOTP's digits and period;
+     login's verify do to another device's `aal1` and `aal2` sessions; the swap #13 records,
+     from a second `aal2` session (unenroll the factor, enroll another); deleting a factor in
+     the SQL editor, locally and on the preview, and the dashboard's user page; whether a
+     later verify changes the `amr` claim's first-factor entry (#4); whether an abandoned,
+     unverified factor fills the one slot; MFA verify's guessing limit; TOTP's digits and
+     period;
    - b. `requireAdmin` refuses below `aal2`; the enroll window; which paths an `aal1`
      session reaches and what an admin route answers it (open decisions 5, 6, 11); the
      admin-auth test's on-disk route list gains the `aal1` case; `CLAUDE.md`'s "Admin
      routes" updated;
-   - c. the enroll and code screens (the QR from a `data:` URL), phone-first and Swedish.
-     **b and c ship in one PR**, so `dev` never has a login that can't reach `aal2`;
+   - c. the enroll and code screens (the QR from a `data:` URL), phone-first and Swedish;
+     the enroll step first removes an unverified factor an abandoned enroll left, since the
+     one slot counts it. **b and c ship in one PR**, so `dev` never has a login that can't
+     reach `aal2`;
    - d. #241's 6-digit email code, and whether the magic link stays (open decision 3).
 6. **The session time-box** (#4): `requireAdmin` refuses a session whose sign-in is older
    than the set age (open decision 2); unit and integration tests; `CLAUDE.md` and
@@ -218,15 +229,15 @@ before step 13; every settings change before step 12; step 14 last before the cl
 16. **The reconciliation of `project-context.md`**, blocked by step 15 and its follow-ups.
     It replaces the IS #278 (Phase 9) and IS #373 (Phase 9) markers with #1 and #2, and
     rewrites the "Phase 7 open decisions 1–5" row those rows amend (the login is the email
-    code and TOTP; a session ends at the time-box or a logout of any device), and the Phase 7
-    #17, #18, #19, #20, #33 row, which #8 extends to cancel and confirm. It rewrites Part 2's
-    "Admin and auth" (MFA, the code, the time-box, logout), "Pre-deploy automation" (the 2FA
-    audit's result, which the IS #278 (Phase 9) row names and `CLAUDE.md`'s "Secrets"
-    points to), the Phase map's Phase 9 row, Part 1 where it describes the login, and the
-    README's status parts. It carries
-    forward the decisions that outlive the phase (#4–#13 at least), leaves the IS #278
-    (Phase 10) and IS #373 (Phase 10) and (Phase 11) markers as they are, and sets
-    `CLAUDE.md`'s bold line to none, naming this plan as the last one.
+    code and TOTP; a session ends at the time-box or a logout of any device) and the Phase 7
+    row for #17, #18, #19, #20 and #33, which #8 extends to cancel and confirm. It rewrites
+    Part 2's "Admin and auth" (MFA, the code, the time-box, logout), "Pre-deploy
+    automation" (the 2FA audit's result, which the IS #278 (Phase 9) row names and
+    `CLAUDE.md`'s "Secrets" points to), the Phase map's Phase 9 row, Part 1 where it
+    describes the login, and the README's status parts. It carries forward the decisions
+    that outlive the phase (#4–#11 and #13 at least), leaves the IS #278 (Phase 10) and
+    IS #373 (Phase 10) and (Phase 11) markers as they are, and sets `CLAUDE.md`'s bold line
+    to none, naming this plan as the last one.
 
 ---
 
@@ -246,13 +257,14 @@ calls (the draft's D2, D3, Q11–Q14, Q19–Q23, Q31, Q33).
 
 Takes up the IS #373 (Phase 9) **between phases** row. Session timeouts are Pro-only and Pro
 comes in Phase 11, so this phase builds the cover (#4). A stolen session can set a password
-silently, which outlasts logout and every timeout: step 2 turns the setting and its email on.
-A password reaches only `aal1`, which `requireAdmin` refuses, as long as the thief can't
-also add their own authenticator: #13. It can cancel or confirm an ended entry: #8. Reading `aal`
-through `getClaims()` with asymmetric keys would let a logged-out token pass until it expires:
-open decision 11. The gate needs the session cookie to reach `/map`, outside `/admin`'s strict
-CSP: #6. The recovery steps (end every session; check for a password, a factor or an email
-change; the audit log) feed Phase 10's runbook.
+silently, which outlasts logout and every timeout: step 2 turns the setting and its email
+on. A password alone reaches only `aal1`, which `requireAdmin` refuses, but a stolen `aal2`
+session can also swap the admin's factor for its own, which Supabase's Free plan can't
+block: #13 records what holds instead. It can cancel or confirm an ended entry: #8. Reading
+`aal` through `getClaims()` with asymmetric keys would let a logged-out token pass until it
+expires: open decision 11. The gate needs the session cookie to reach `/map`, outside
+`/admin`'s strict CSP: #6. The recovery steps (end every session; check for a password, a
+factor or an email change; the audit log) feed Phase 10's runbook.
 
 ### #3 — Probes first
 
@@ -301,22 +313,26 @@ limit. The alternative, an `aal2` condition in the policy, needs a migration and
 
 `editEntry` refuses an ended entry, but `cancelEntry` and `confirmEntry` make no `hasEnded`
 check (`src/lib/services/locations.ts`), so a stolen session could cancel past history,
-which the app can't undo. **Both refuse it** (the owner, 2026-11-16). The service reads the
-clock and passes `now` to the db layer's cancel and confirm filter (`ends_at > now`), as
-`CLAUDE.md`'s "db layer" allows (the caller passes the time), so the check and the write are
-one statement, with no race between them. The routes answer the refusal, not 404, and
-`TodayList` hides both buttons on an ended row (round 1 on PR #376, the owner's approval).
-Confirming an ended entry has no use.
+which the app can't undo. **Both refuse it** (the owner, 2026-11-16). `cancelLocation` and
+`confirmLocation` already take the instant (`cancelledAt`, `confirmedAt`) from the service,
+as `CLAUDE.md`'s "db layer" requires, and filter on `ends_at` after it, so the check and the
+write are one statement. Only those two: not the shared `updateLiveRow`, which edits use
+too. A filtered update that writes nothing can't say why, so the service then reads the
+entry, as `editEntry` does, to tell "ended" from "missing or cancelled"; the routes answer
+"ended" with a Swedish message, not 404, and `TodayList` hides both buttons on an ended row
+(rounds 1 and 2 on PR #376, the owner's approval). Confirming an ended entry has no use.
 
 ### #9 — A TOTP helper of our own for the tests
 
 The integration tests must reach `aal2`, which needs a code from the factor's secret. A
 ~20-line RFC 6238 function on Node's `crypto`, tested against the RFC's vectors, instead of a
-library (the owner, 2026-11-16): no new dependency to audit or update. The test admin's
-factor is enrolled once and only challenged and verified at each later login: verifying a
-newly enrolled factor logs out the user's other sessions (auth-js `types.d.ts:1018`), which
-would make multi-session tests pass or fail for the wrong reason, and each extra verify
-spends the per-IP limits.
+library (the owner, 2026-11-16): no new dependency to audit or update. Each fixture admin
+(`helpers.ts` makes one per `sessionUser` call, and `resetTables()` removes it) enrolls its
+one factor when it is created, before any second session of it exists, and keeps the secret
+with the fixture; later logins of that user only challenge and verify. Verifying a newly
+enrolled factor logs out the user's other sessions (auth-js `types.d.ts:1018`), so an
+enroll after a second session exists would make multi-session tests pass or fail for the
+wrong reason (round 2 on PR #376).
 
 ### #10 — The hosted-settings checklist lives in the README
 
@@ -341,18 +357,30 @@ headers; step 13 follows steps 8 and 11, which may create accounts (a CAPTCHA pr
 alerting service) that the audit must cover; step 12 checks every setting the earlier steps
 changed; step 14 checks the whole on a phone (round 1 on PR #376, the owner's approval).
 
-### #13 — A stolen session can't add its own authenticator
+### #13 — One factor per user; a stolen `aal2` session is a takeover, detected and recovered
 
 A stolen `aal2` session can call Supabase Auth directly, so the app's enroll-window check
-doesn't stop it from enrolling a second, attacker-held TOTP factor (`config.toml`'s
-`max_enrolled_factors = 10` today). With a password it also set (inside the recent-login
-window `secure_password_change` allows), it could sign in again later and reach `aal2`,
-outliving the time-box and every logout. **`max_enrolled_factors = 1`**, locally and on the
-preview (later production): the admin's one factor fills it, so no second one can be added.
-A lost phone means deleting the old factor first (D3's routes). Plus a factor-enrolled
-notification email if Supabase offers one (step 1 reads). A password alone then reaches only
-`aal1`, which `requireAdmin` refuses (round 1 on PR #376, the owner's approval; IS #373
-listed "enrolling an MFA factor" among a stolen session's direct Auth calls).
+doesn't bind it. **`max_enrolled_factors = 1`**, locally and on the preview (later
+production; `config.toml` has 10 today): the admin's one factor fills it, so a thief can't
+add a second factor beside it (round 1 on PR #376, the owner's approval; IS #373 listed
+"enrolling an MFA factor" among a stolen session's direct Auth calls).
+
+**What it doesn't stop** (round 2 on PR #376, the owner's approval): at `aal2` the thief can
+unenroll the admin's factor, enroll their own and set a password (inside the recent-login
+window `secure_password_change` allows), then sign in again later, outliving the time-box
+and every logout. Supabase's Free plan has no server-side block for that: its hooks there are
+the access-token and email hooks only (the pricing page's "Auth Hooks" row). So a stolen
+`aal2` session is a takeover, recorded as a limit. What holds instead:
+- **preventing the theft:** the CSP (#6 states its limit), the time-box (#4), logout ending
+  every session (#5);
+- **detecting it:** the password-changed email (step 2), and factor-enrolled and
+  factor-unenrolled emails if Supabase offers them (step 1 reads);
+- **recovering, in this order** (D3's routes, open decision 4), since with one factor
+  allowed, deleting it leaves a gap a password-holder could enroll into: secure the mailbox;
+  end every session; set a new password (or confirm there is none); delete the factor;
+  re-enroll at once.
+
+Step 5a probes the swap from a second `aal2` session.
 
 ---
 
@@ -369,7 +397,8 @@ listed "enrolling an MFA factor" among a stolen session's direct Auth calls).
   tests); `TodayList` shows neither button on an ended row; edit is unchanged.
 - [ ] The TOTP helper passes RFC 6238's test vectors.
 - [ ] TOTP enroll and verify are on, and `max_enrolled_factors = 1`, locally and on the
-  preview; enrolling a second factor is refused (test).
+  preview; enrolling a second factor is refused, and an abandoned unverified factor doesn't
+  block the next enroll (tests).
 - [ ] An `aal1` session is refused on every admin route and page (the admin-auth test finds
   the routes on disk); an `aal2` admin passes; `aal` is read from a verified token (a test
   with a forged `aal2` claim fails).
@@ -408,7 +437,8 @@ listed "enrolling an MFA factor" among a stolen session's direct Auth calls).
    1 shows it carries the sign-in time; otherwise a fallback named then.
 3. **The magic link (step 5d):** kept beside the 6-digit code, or the code only.
 4. **The lost-phone route (D3)**, where a `deleteFactor` call may run, and whether the login
-   rework needs an unenroll screen, from the probes in steps 1 and 5a.
+   rework needs an unenroll screen, from the probes in steps 1 and 5a. The recovery order is
+   #13's.
 5. **Which paths an `aal1` session reaches** for the enroll and code steps, and the proxy's
    exemption for them (step 5b). Today `/auth/callback` sends every login to `/admin`, and
    the proxy exempts only `/admin/login`.
