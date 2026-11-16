@@ -20,9 +20,12 @@
 // resolve, resolves and resolved; "can be followed by colons or in uppercase"; the forms
 // `#ISSUE-NUMBER` and `OWNER/REPOSITORY#ISSUE-NUMBER`. Not from the page: any case; any
 // whitespace (newlines included), Markdown emphasis (`*`, `_`, `~`) or nothing around the
-// keyword and before the reference ("**Fixes** #12"); `GH-<n>`, GitHub's other issue
-// autolink; and an issue or pull-request URL. A keyword inside a word ("prefixes #3") isn't
-// one: letters and digits bound it, not `_`, so "_fixes #12_" is one.
+// keyword and before the reference; a reference in a Markdown link's text or in `<…>`;
+// `GH-<n>`, GitHub's other issue autolink; and an issue or pull-request URL. A keyword with
+// a letter or digit on either side isn't one ("prefixes #3", "fixups/foo#2"), and an owner
+// name starts with a letter or digit, so "fix-up/foo#2" isn't one either. `_` doesn't bound
+// it, so an italic keyword counts, and so does one ending a snake_case name ("auto_close"
+// before an issue number): an over-match, kept for the italic one (round 2 on PR #371).
 //
 // Does not catch: a form GitHub reads that the page doesn't list; a keyword in a PR body
 // (`--lines` lists those); a title changed after the run that read it, since ci.yml has no
@@ -38,9 +41,10 @@ import { pathToFileURL } from "node:url";
 import { escapeData } from "./lib/workflow-command.mjs";
 
 const KEYWORD = String.raw`(?<![A-Za-z0-9])(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)(?![A-Za-z0-9])`;
-const NAME = String.raw`[\w.-]+`;
-const REFERENCE = String.raw`(?:#\d|GH-\d|${NAME}\/${NAME}#\d|https?:\/\/(?:www\.)?github\.com\/${NAME}\/${NAME}\/(?:issues|pull)\/\d)`;
-export const CLOSING = new RegExp(String.raw`${KEYWORD}[*_~]*:?[*_~\s]*${REFERENCE}`, "gi");
+const OWNER = String.raw`[A-Za-z0-9][\w.-]*`;
+const REPO = String.raw`[\w.-]+`;
+const REFERENCE = String.raw`(?:#\d|GH-\d|${OWNER}\/${REPO}#\d|https?:\/\/(?:www\.)?github\.com\/${OWNER}\/${REPO}\/(?:issues|pull)\/\d)`;
+export const CLOSING = new RegExp(String.raw`${KEYWORD}[*_~]*:?[*_~\s]*[[<]?${REFERENCE}`, "gi");
 
 // Commits already on `dev` before this check, each with why it may stay. A PR into `main`
 // reads `main..dev`, which holds them; they can't be reworded without rewriting `dev`.

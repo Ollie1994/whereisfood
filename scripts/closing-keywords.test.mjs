@@ -2,9 +2,9 @@
 // title holds a closing keyword before an issue reference, and lists those in a PR body for
 // claims.sh (IS #368).
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { EXEMPT, check, closingRefs, parseRecords } from "./closing-keywords.mjs";
@@ -42,6 +42,9 @@ describe("closingRefs()", () => {
     ["a bold keyword", "**Fixes** #12"],
     ["an italic keyword and reference", "_fixes #12_"],
     ["a bold keyword with a colon", "**Closes:** #12"],
+    ["a Markdown link's text", "Fixes [#12](https://github.com/a/b/issues/12)"],
+    ["an angle-bracket autolink", "Fixes <https://github.com/a/b/issues/12>"],
+    ["a keyword ending a snake_case name, an over-match kept for italics", "auto_close #4"],
   ])("finds %s", (_, text) => {
     expect(closingRefs(text)).toHaveLength(1);
   });
@@ -49,6 +52,7 @@ describe("closingRefs()", () => {
   it.each([
     ["a keyword inside a word", "prefixes #3 and suffixed #4"],
     ["a word that starts with a keyword and runs into a reference", "see fixups/foo#2 and closedgh-5"],
+    ["a hyphenated or dotted word that starts with a keyword", "the fix-up/foo#2 branch, closed-loop/x#1, fixes.md/foo#3"],
     ["a keyword with no reference", "round 1's fixes, then #348's"],
     ["a reference before the keyword", "#361 closed"],
     ["a number with no #", "fixes 348"],
@@ -151,6 +155,21 @@ describe("the command line", () => {
       expect(result.status).toBe(0);
       expect(result.stdout).toBe(`${body}:1: Closes #1. More.\n`);
       expect(run(["--lines", join(dir, "missing.md")]).status).toBe(2);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // Round 1 on PR #371: a path compare alone skipped the check through a link, since Node
+  // resolves import.meta.url through it. A junction on Windows, a symlink elsewhere.
+  it("runs its check when reached through a linked folder", () => {
+    const dir = mkdtempSync(join(tmpdir(), "closing-link-"));
+    try {
+      const link = join(dir, "scripts");
+      symlinkSync(dirname(SCRIPT), link, "junction");
+      const result = spawnSync(process.execPath, [join(link, "closing-keywords.mjs")], { input: record(SHA, "fixes #99999\n"), encoding: "utf8" });
+      expect(result.status).toBe(1);
+      expect(result.stdout).toMatch(/closes an issue on merge/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
