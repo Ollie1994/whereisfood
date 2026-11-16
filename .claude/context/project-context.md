@@ -150,7 +150,8 @@ every gate green (Phase 4 plan decision #13, process-log row 282). It wasn't ret
 Toolchain: `package.json`'s `devEngines` admits Node `26.x` and npm `>=11.0.0`, with
 `onFail: "error"`, and `engines.node` is `26.x`, the major Vercel builds with (#139,
 #199; Phase 6 plan open decision 9). Vercel's preview build ran Node 26.13.0 and npm
-11.20.0, and the gates have run on 26.13.0 only, not an early 26.x. Why each range, and
+11.20.0. CI's setup-node resolves `26.x` from `devEngines` (Node v26.13.1 on PR #312, the
+Phase 8 plan's open decision 2), so no early 26.x has been tested. Why each range, and
 which npm reads `devEngines`, is `CLAUDE.md`'s ("Dependencies").
 
 On 2026-11-03 `npm audit` reported 16 moderate findings, all from one advisory,
@@ -269,7 +270,7 @@ before the app uses it: below `MAX_ROWS`, a `listRecentLocationsForTruck` call w
 | `scripts/smoke.mjs` | the served build's smoke check (+ test) | `ci.yml`'s `build` |
 | `scripts/audit-report.mjs` | run 3 of the `audit` job: a warning per advisory, a failure when it can't tell which (+ test) | `ci.yml`'s `audit` |
 | `scripts/closing-keywords.mjs` | the closing-keyword check, and `--lines` for a PR body (+ test) | `ci.yml`'s `secret-scan`; `claims.sh` |
-| `scripts/lib/header-like.mjs`, `scripts/lib/workflow-command.mjs` | a control file's header-line test; workflow-command escaping (+ test for the first) | `controls.mjs` and `controls-trigger.mjs`; `audit-report.mjs` and `closing-keywords.mjs` |
+| `scripts/lib/header-like.mjs`, `scripts/lib/workflow-command.mjs` | a control file's header-line test; workflow-command escaping (+ test for the first) | `controls.mjs` (and `TRIGGERS` lists it); `audit-report.mjs` and `closing-keywords.mjs` |
 | `scripts/claims.sh` | the pre-review claims check, and the PR body's closing references (`CLAUDE.md`, "Review rounds") | every review round |
 | `scripts/sweep.sh` | lists the sweep's candidates: removed text still elsewhere, moved or nowhere; added text repeated elsewhere (`CLAUDE.md`, "Review rounds"; IS #200) | every review round |
 | `scripts/lib/diff.sh` | the diff reading `claims.sh` and `sweep.sh` share: flags, `git_diff`, `rev_end`, the untracked warning | both scripts |
@@ -316,10 +317,12 @@ src/
 └── proxy.ts                      ← (+ test)
 scripts/                          ← copy-maplibre-worker.mjs, seed-dictionary.mjs, test-all.mjs,
                                     controls.mjs, controls-trigger.mjs, write-env-local.mjs,
-                                    smoke.mjs, audit-report.mjs, closing-keywords.mjs (+ tests),
-                                    lint-rules.test.mjs, ci-advisor.test.mjs, claims.sh,
-                                    sweep.sh, process-log.sh, lib/ (diff.sh, header-like.mjs,
-                                    workflow-command.mjs)
+                                    smoke.mjs, audit-report.mjs, closing-keywords.mjs (tests:
+                                    all but controls.mjs),
+                                    controls-trigger-coverage.test.mjs, lint-rules.test.mjs,
+                                    ci-advisor.test.mjs, claims.sh,
+                                    sweep.sh, process-log.sh, lib/ (diff.sh, header-like.mjs
+                                    (+ test), workflow-command.mjs)
 supabase/                         ← config.toml, migrations/0001_baseline.sql, seed.sql
 tests/integration/                ← setup.ts, helpers.ts (+ test), schema, rls, db-trucks,
                                     db-locations, db-users, api-live, auth-routes,
@@ -435,7 +438,7 @@ queries it by hand, as a dev-only authoring tool for `SPOTS`).
 | 5 · Schema reset (done) | Squashed baseline: `trucks`, `locations`, `users`; `btree_gist` + exclusion constraint + `CHECK (ends_at > starts_at)` + `updated_at` trigger; RLS + explicit GRANTs (no anon SELECT on `trucks`/`locations`); regenerate types; rewrite `seed.sql`, `db/trucks.ts`, `db/locations.ts` (with the history queries) and the integration tests (constraint, cancelled rows don't block, CHECK, RLS) |
 | 6 · Live read path (done) | `GET /api/live` and its service; `useLocations` (polling, timer, marker diffing); the popup with freshness text and Instagram link; `fake-data.ts` and `map-types.ts` deleted; the `is_active` filter in the service; the tiles on R2; a hosted Supabase project for previews, with the hosted checks; the **first preview deploy**, with the CDN cache checked (MISS → HIT → STALE) and requests per visit counted; Node and npm in `package.json` (#139) |
 | 7 · Admin (done) | Magic-link login, admin only (sign-ups off, locally and on the preview); the session and `is_admin` checks in `proxy.ts` and `withAdmin` on every admin route, with `no-store` and the `Origin` check; trucks added, edited and set inactive (no delete); phone-first location entry by known spot, recent place, map tap or GPS; edit; cancel; "Stämmer fortfarande"; overlap → 409; the morning checklist; three phone checkpoints on the preview (#224, #228, #232) |
-| 8 · CI/CD (done) | `ci.yml` on every PR into `dev` and `main` (a read-only token, actions pinned to SHAs, no path filter): the four gates (`typecheck-lint`; `unit`; `integration`, with a local Supabase and Supabase's security advisor; `build`, with a smoke check of the served build), `audit` (`npm audit`, three runs, Phase 8 plan #12), `controls` (`--check`, the full set on a trigger path or a PR into `main`), `process-log`, `secret-scan` (Gitleaks on the PR's commits and messages, and the closing-keyword check, IS #368) and `base`; `codeql.yml` (CodeQL, on PRs and on push); the Gitleaks hooks; lint rules against HTML sinks and string-built filters, each with a fixture test; rulesets on `dev` and `main` (a PR, the checks by name, up to date, no bypass, no force-push or deletion), CodeQL's checks required on `dev` and joining `main`'s in Phase 10 (#11, #14); Dependabot (Actions version updates and npm security updates), its branches and the probes' cancelled by the Ignored Build Step, and the secret key scoped to `dev` (#15); `SECURITY.md` and private vulnerability reporting; the review of the alerts auto-triage dismissed (#299). SonarQube Cloud was dropped: its Free plan has no custom quality gate (#295), and a re-scan before production is #349. Each required check was seen red on a probe PR the rules blocked (#298). Built before Phase 10's production deploy (Phase 6 plan #1) |
+| 8 · CI/CD (done) | `ci.yml` on every PR into `dev` and `main` (a read-only token, actions pinned to SHAs, no path filter): the four gates (`typecheck-lint`; `unit`; `integration`, with a local Supabase and Supabase's security advisor; `build`, with a smoke check of the served build), `audit` (`npm audit`, three runs, Phase 8 plan #12), `controls` (`--check`, the full set on a trigger path or a PR into `main`), `process-log`, `secret-scan` (Gitleaks on the PR's commits and messages, and the closing-keyword check, IS #368) and `base`; `codeql.yml` (CodeQL, on PRs and on push); the Gitleaks hooks; lint rules against HTML sinks and string-built filters, each with a fixture test; rulesets on `dev` and `main` (a PR, the checks by name, up to date, no bypass, no force-push or deletion), CodeQL's checks required on `dev` and joining `main`'s in Phase 10 (#11, #14); Dependabot (Actions version updates and npm security updates), its branches and the probes' cancelled by the Ignored Build Step, and the secret key scoped to `dev` (#15); `SECURITY.md` and private vulnerability reporting; the review of the alerts auto-triage dismissed (#299). SonarQube Cloud was dropped: its Free plan has no custom quality gate (#295), and a re-scan before production is #349. Each check required by #298 was seen red on a probe PR the rules blocked; `base (main)`, added after (IS #356), only by its absence keeping one blocked (#359). Built before Phase 10's production deploy (Phase 6 plan #1) |
 | 9 · Security | The scope draft's "Phase 9 · Security" (IS #278): TOTP MFA for the admin login, with #241's 6-digit email code, the enrol window's constraints and the lost-phone routes to probe; session timeouts if the Free plan has them; the login-abuse and code-guessing probes; security headers (a static CSP outside `/admin`, a strict nonce CSP on `/admin`), their assertions added to Phase 8's served-app step, and a decision on the session cookie's reach; usage, spend and 5xx alerts, and reading how long the Auth logs are kept; the `x-forwarded-host` probe; length limits on free text; the `users` policy under `aal1`; one ZAP scan; the 2FA audit of every account and its recovery email, naming the admin's login mailbox; the hosted-settings checklist |
 | 10 · Launch | The history retention period, for the privacy note below (Phase 7 plan #25); the app's final name, until then **WhereIsFood** in the admin screens and "Var är maten? \| Göteborg" as the public title (#26, open decision 10); Supabase Pro (backups); a production Supabase project, new keys (Phase 6 plan #18), with Phase 5 #19's hosted check; the tiles' custom domain on R2, and the CORS rule naming it (the bucket is Phase 6's, #7), in the CSP too, and HSTS; production env; the hosted-settings checklist applied; session timeouts if they need Pro; Swedish privacy note; takedown procedure (one transaction: delete the truck's locations, clear or delete each `users` row pointing at it, then delete the truck; Phase 5 plan #7); tell trucks they're listed; acquisition plan; runbook (Vercel Attack Mode; the usage alerts are Phase 9's, here only if the free plans can't send them); the scope draft's "Phase 10 · Launch" (Q34 open, Q36); Vercel Pro + Spend Management before the first marketing push; from Phase 8: whether CodeQL gets a base analysis of `main` before the first PR into it, and CodeQL's checks added to `main`'s ruleset once one exists (Phase 8 plan #11, #14), #347 (keeping a reported vulnerability's fix private until disclosure, with Q36) and #349 (the SonarQube Cloud re-scan); **before the deploy**, the checks under "Pre-deploy automation", "Before the production deploy": 2FA checked again on every account, the registrar included, the production Security Advisor, the Ignored Build Step, rotating every credential |
 | later | Owners (claim flow, owner dashboard, override rules, custom SMTP); optional automation (Meta Business Discovery captions in the admin screen, a scheduler) |
@@ -717,7 +720,10 @@ and Phase 10 runs the rest of "Before the production deploy". Since Phase 8, CI 
 All of these can be switched off without any change in the repo. They were checked in
 the GitHub UI: the CLI token used here, though it has admin rights, gets `403` from the
 secret-scanning, Dependabot-alerts and vulnerability-alerts APIs, and no
-`security_and_analysis` field (probed 2026-10-24).
+`security_and_analysis` field (probed 2026-10-24). The one read by command is squash
+merging (`gh api repos/{owner}/{repo}`: `allow_squash_merge: false`, 2026-11-16). Both
+rulesets still allow squash among their merge methods, so the repository setting alone
+keeps it off.
 
 **Built in Phase 8** (`.claude/plans/phase-8-ci-cd.md` records each step and its probes):
 - **The secret scan.** Gitleaks in `.githooks/pre-commit` (the staged changes) and
@@ -743,8 +749,10 @@ secret-scanning, Dependabot-alerts and vulnerability-alerts APIs, and no
   ran every required check, `CodeQL` included, and Vercel's Ignored Build Step cancelled its
   build. A Dependabot PR is reviewed like any other; nothing merges on its own.
 - **Branch protection.** Rulesets on `dev` and `main` with no bypass list, so they bind
-  admins (Phase 8 plan #11); what they require is `CLAUDE.md`'s ("Testing"). Each required
-  check was seen red on a probe PR the rules then blocked (#298; Phase 8 plan #5, #6).
+  admins (Phase 8 plan #11); what they require is `CLAUDE.md`'s ("Testing"). Each check
+  required by #298 was seen red on a probe PR the rules then blocked (Phase 8 plan #5, #6).
+  `base (main)`, required after it (IS #356), was shown only by its absence: probe PR #359
+  stayed blocked until a run against `main` reported it.
 - **Branches kept off Vercel builds.** The Ignored Build Step cancels `dependabot/` and
   `probe/` branches. A branch's `vercel.json` `ignoreCommand` overrides it, so the secret
   key is scoped to `dev`'s previews alone (Phase 8 plan #15; `README.md`, "Preview
@@ -760,7 +768,9 @@ secret-scanning, Dependabot-alerts and vulnerability-alerts APIs, and no
   owner's GitHub included, each account's recovery email, and a registrar once there
   is one, and keep the recovery codes offline. Phase 9 audits every account that
   exists then, naming the admin's login mailbox; Phase 10 checks again before its
-  deploy. An account Phase 8 creates gets two-factor at creation.
+  deploy. Phase 8 kept no new account: the owner deleted the SonarQube Cloud trial account
+  and organization (#295), and #349's re-scan creates one again, with two-factor at
+  creation.
 - **Run the production project's hosted Security Advisor** (`db advisors --linked --type
   security`, or the dashboard) before the deploy: no ERROR, and every WARN fixed or
   recorded as accepted with a reason; INFO read (the owner's call, round 3 on PR #281).
@@ -978,7 +988,7 @@ says.
 | IS #170 (PR #174) | Schema guards get negative controls in `tests/controls/`, run by `node scripts/controls.mjs`, which CI's `controls` check runs (Phase 8 #16) | `CLAUDE.md` "Testing"; `.claude/commands/create-issues.md` "Failure modes" |
 | Phase 7 #1 (IS #205) | What a review fix may add, and what becomes a stated limit or an issue instead. Measure: fix-added code's share of the findings after round 1 (20.1% in rows 441–542, from 18.8% in #203; the Phase 7 retrospective) | `CLAUDE.md` "Review rounds" ("Applying a finding") |
 | Phase 7 #2 (IS #205) | The order for a false or too-broad claim: cut first, reword last. Measure: new imprecision's share after round 1 (12.8% in rows 441–542, from 22.1%) | `CLAUDE.md` "Review rounds" ("Applying a finding"; the claims check points to it) |
-| Phase 7 #4, #39 (IS #207, #260) | The review round ceiling: full, scoped, full, then stop, with one scoped round on the fixes when the last full round finds a defect in what runs. Measures: PRs past the ceiling (2 of 20 in rows 441–542) and rows with `Escaped` `merged` (3 in 441–542); neither should rise. Neither sees a defect a dropped round would have found. Rows 543–699: 5 of 40 PRs past it, all at the owner's request, and 8 `merged`; kept (the Phase 8 retrospective) | `CLAUDE.md` "Review rounds" ("The round itself") |
+| Phase 7 #4, #39 (IS #207, #260) | The review round ceiling: full, scoped, full, then stop, with one scoped round on the fixes when the last full round finds a defect in what runs. Measures: PRs past the ceiling (2 of 20 in rows 441–542) and rows with `Escaped` `merged` (3 in 441–542); neither should rise. Neither sees a defect a dropped round would have found. Phase 8 retrospective: 5 of the 40 PRs from #263 on past it, all at the owner's request, and 8 `merged` rows in 543–699; kept | `CLAUDE.md` "Review rounds" ("The round itself") |
 | Phase 7 #5 (IS #207) | The final records check, and rounds skipping the records. Measure: records findings (2 of 560 named in rows 441–542, from 54 of 498) and record errors found after merge (2: rows 453, 537); each PR body gives the count of errors the final pass found | `CLAUDE.md` "Review rounds" ("The final records check") |
 | Phase 7 #6 (IS #207) | A fix changing what the owner approved goes back to the owner. Measure: log rows recording such a change made without asking (1 in Phase 7, row 513) | `CLAUDE.md` "Review rounds" ("Applying a finding") |
 | Phase 7 #7 (IS #209) | The reconciliation also brings `README.md`'s status parts in line. Measure: reconciliation review findings on them (row 432; judged in IS #234's PR) | the process log's "How to use it", part 6 |

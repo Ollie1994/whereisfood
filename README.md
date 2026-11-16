@@ -15,10 +15,10 @@ shut down in 2017.
 > today's entries from the database through `GET /api/live`, locally against a local
 > Supabase and on protected Vercel previews against a hosted one. One admin logs in with
 > an emailed link and keeps the map up to date from a phone-first admin screen. Every pull
-> request runs the checks in GitHub Actions, which must pass before it merges. There is
-> no production deploy yet. Phase 4 removed the old design (automatic ingestion from
-> Make.com and email, plus a Swedish text parser), and Phase 5 replaced its database
-> schema; see [Project status](#project-status).
+> request into `dev` or `main` runs the checks in GitHub Actions, which must pass before it
+> merges. There is no production deploy yet. Phase 4 removed the old design (automatic
+> ingestion from Make.com and email, plus a Swedish text parser), and Phase 5 replaced its
+> database schema; see [Project status](#project-status).
 
 ---
 
