@@ -3,12 +3,10 @@
 # new releases, and every action ci.yml and codeql.yml pin was on its newest release on
 # 2026-11-16, so no Dependabot PR could come for a week or more. This file pins
 # actions/setup-node one release back (v7.0.0), so Dependabot can propose v7.1.0 now
-# (published 2026-10-08, past the cooldown). It runs only when started by hand, and nothing
-# relies on it; ci.yml keeps v7.1.0 and is untouched. If an advisory ever lists v7.0.0,
-# Dependabot may open a separate security PR for this file instead; either one is #300's
-# proof.
+# (published 2026-10-08, past the cooldown). It runs only when started by hand, and a hand
+# run's result is no part of the proof; ci.yml keeps v7.1.0 and is untouched.
 #
-# Delete this file once Dependabot's PR for it has merged (IS #363's last step).
+# Delete this file once Dependabot's PR for it has merged (IS #363's delete step).
 name: dependabot-proof
 
 on:

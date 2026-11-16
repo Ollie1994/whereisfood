@@ -332,9 +332,10 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
     the proof is made on a temporary `.github/workflows/dependabot-proof.yml` (manual trigger
     only) pinning `actions/setup-node` one release back, v7.0.0, which Dependabot can move to
     v7.1.0 (2026-10-08) now; the file is deleted after that PR merges (the owner's calls:
-    keep the cooldown; PR #364, which downgraded `ci.yml` instead, closed). Limit: that PR
-    edits no `TRIGGERS` path, so it runs `controls` at `--check` only; the first Dependabot
-    PR that moves a `ci.yml` pin is the first to run the full set.
+    keep the cooldown; PR #364, which downgraded `ci.yml` instead, closed). Limit: unless the
+    group also carries a `ci.yml` pin past its cooldown, that PR edits no `TRIGGERS` path and
+    runs `controls` at `--check` only, so the full set under Dependabot is first seen on a PR
+    that moves a `ci.yml` pin. The reads are #300's.
     **Open decision 9 (PR #362):** the npm updater runs Node 24 (dependabot-core's
     `npm_and_yarn/Dockerfile`, `NODEJS_VERSION=24`, read 2026-11-16), outside `devEngines`'s
     `26.x`. Its lockfile commands (`npm install`, `npm update`, and an experiment-gated
