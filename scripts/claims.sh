@@ -26,6 +26,14 @@
 # Every added line is read, process-log rows included: an added row is this change's
 # claim, not history. Only `package-lock.json` is skipped.
 #
+# Closing references (IS #368): each whole file, and each `--was` pair's <new> read whole,
+# is also read by `node scripts/closing-keywords.mjs --lines`, and every line holding a
+# closing keyword before an issue reference ("Closes #301") prints as `closing: path:line:
+# text`. A PR body's closing references close those issues when the PR merges into `dev`, so
+# confirm each names only an issue the PR closes. An issue body's closing references close
+# nothing, and the diff isn't read: a file's text closes nothing. With a file or `--was`
+# pair and no `node` on PATH, it exits 2 before reading anything.
+#
 # Does not catch: an over-claim without a listed word (row 284), including other
 # forms of a listed word ("verifies", "checks", "probes"); wrong counts (rows
 # 298-300); a claim on a line the diff doesn't add; untracked files (it warns about
@@ -33,7 +41,8 @@
 # them); and whether a listed claim is true.
 #
 # Exit codes: 0 when the run worked, hits or not; 2 for no or an empty <rev>, `-h`,
-# a bad <rev>, an unreadable file, a `--was` without two files, or no git repository.
+# a bad <rev>, an unreadable file, a `--was` without two files, no git repository, no `node`
+# with a file or pair given, or closing-keywords.mjs failing.
 # Piped into a reader that stops early (`| head`), it can exit 141 (SIGPIPE) after a
 # good run.
 
@@ -71,6 +80,8 @@ walk() {
 readable() { [ -f "$1" ] && [ -r "$1" ] || { echo "claims.sh: cannot read $1" >&2; exit 2; }; }
 check() { readable "$2"; [ "$1" = file ] || readable "$3"; }
 walk check "$@"
+[ $# -eq 0 ] || command -v node >/dev/null \
+  || { echo "claims.sh: node not found (closing-keywords.mjs needs it for the files given)" >&2; exit 2; }
 root=$(git rev-parse --show-toplevel 2>/dev/null) || { echo "claims.sh: not in a git repository" >&2; exit 2; }
 
 # The diff, read as sweep.sh reads it: scripts/lib/diff.sh holds the flags and why.
@@ -130,5 +141,17 @@ scan_arg() {
   printf '%s\n' "$d" | CLAIMS_MODE=diff CLAIMS_NAME="$3 (since $2)" CLAIMS_PATH="$3" awk "$scan"
 }
 
+closing_arg() {
+  local f="$2" out
+  [ "$1" = file ] || f="$3"
+  # Through stdin, labelled `-`, then relabelled with the path as given: node would print the
+  # path MSYS converted (`C:/…` for `/c/…`), not the one the other lines show.
+  out=$(node "$root/scripts/closing-keywords.mjs" --lines - < "$f") \
+    || { echo "claims.sh: closing-keywords.mjs failed on $f" >&2; exit 2; }
+  [ -z "$out" ] || printf '%s\n' "$out" | CLAIMS_PATH="$f" awk '{ print "closing: " ENVIRON["CLAIMS_PATH"] substr($0, 2) }'
+  echo "claims.sh: $f: $(printf '%s' "$out" | grep -c '') closing references" >&2
+}
+
 CLAIMS_MODE=diff CLAIMS_NAME="diff $rev" awk "$scan" < "$diffout"
 walk scan_arg "$@"
+walk closing_arg "$@"
