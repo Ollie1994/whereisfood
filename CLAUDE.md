@@ -3,7 +3,7 @@
 Full project reference: `.claude/context/project-context.md`
 Read it at the start of any non-trivial task.
 
-**Current phase plan: `.claude/plans/phase-8-ci-cd.md`.**
+**Current phase plan: none (the last one: `.claude/plans/phase-8-ci-cd.md`).**
 
 While that line names no plan (between phases, after a reconciliation and before the
 next plan's step 0), the reconciled `project-context.md` is current and wins over the
@@ -173,10 +173,10 @@ said otherwise: Phase 4 plan decision #14.
   registrar, their recovery email) uses two-factor authentication by passkey, hardware
   key or authenticator app, not SMS: set up when the account is created, all checked
   before the production deploy (Phase 6 plan decision #3, IS #176). Which accounts don't
-  meet it yet is `project-context.md`'s, "Pre-deploy automation (planned)"
+  meet it yet is `project-context.md`'s, "Pre-deploy automation"
 - A push that GitHub's push protection blocks is fixed by removing the value from the
   commits, not by bypassing the block (what is switched on: `project-context.md`,
-  "Pre-deploy automation (planned)")
+  "Pre-deploy automation")
 - **The Gitleaks hooks** (IS #292): `.githooks/pre-commit` scans the staged changes and
   `.githooks/commit-msg` the message. `core.hooksPath` is set by hand in each clone
   (README, "1. Install"), never by a `prepare` script, which `npm ci` would run in CI too
@@ -320,14 +320,14 @@ Toolchain: the Node and npm ranges under Dependencies.
 | `npm run test:integration` | integration only (fails if it collects zero files) | yes |
 | `npm run test:all` | **every project in `RUNS`** of `scripts/test-all.mjs` (today `unit` + `integration`), checked against the projects `vitest.config.ts` declares; takes no arguments | yes |
 
-**CI is the gate** (Q10; Phase 8 plan step 12, IS #297). On each PR into `dev` or `main`,
-`.github/workflows/ci.yml` runs the four gates (`typecheck-lint`, `unit`, `integration`,
-`build`; #285, #286), Supabase's security advisor in `integration` (#290), `npm audit` in
-`audit` (#291), the process log's check in `process-log` and the schema controls in
-`controls` (#288; the full set only on the PRs "Schema controls" below names), and Gitleaks
-on the PR's commits and messages in `secret-scan` (#293), which also fails when one of those
-messages, or the merge commit's branch name and title, has a closing keyword before an issue
-reference, as "fixes #348" did (#368); `codeql.yml` runs CodeQL (#294).
+**CI is the gate** (Q10; Phase 8 plan #2 and step 12, IS #297). On each PR into `dev` or
+`main`, `.github/workflows/ci.yml` runs the four gates (`typecheck-lint`, `unit`,
+`integration`, `build`; #285, #286), Supabase's security advisor in `integration` (#290),
+`npm audit` in `audit` (#291), the process log's check in `process-log` and the schema
+controls in `controls` (#288; the full set only on the PRs "Schema controls" below names),
+and Gitleaks on the PR's commits and messages in `secret-scan` (#293), which also fails when
+one of those messages, or the merge commit's branch name and title, has a closing keyword
+before an issue reference, as "fixes #348" did (#368); `codeql.yml` runs CodeQL (#294).
 The rulesets on `dev` and `main` require a PR, the branch up to date with its base and, by
 name, `ci.yml`'s checks other than `base`; on `dev` CodeQL's too (`CodeQL` and both
 `analyze` jobs, plan #14), on `main` they join in Phase 10 (plan #11). `main`'s also
@@ -359,6 +359,16 @@ for it. What CI doesn't cover:
   results into `main`'s; and `dev`'s ruleset requires no `base (dev)`, so a PR retargeted
   from `main` to `dev` counts its run against `main` (IS #356's review). Open a PR fresh
   against the branch it merges into, don't retarget it, and re-run only its newest run.
+
+**Adding a required check** (Phase 8 plan #4, #5, #6, #13). The issue that adds a check is
+done when the check runs and reports correctly and has been seen to fail: on a probe PR that
+breaks it, from a branch named `probe/…`, which the ruleset then blocks, on each branch
+whose ruleset requires it. The probe PR is closed unmerged with its branch deleted, and no
+merge is attempted, `--admin` included. A `secret-scan` probe uses a made-up value Gitleaks
+flags, checked locally first and committed with no local hook, never pushed past push
+protection ("Secrets"). The check's findings get issues of their own. One that would keep
+the check red on `dev` is settled (fixed, dismissed, or allowlisted with a reason) before
+the check becomes required, since a red required check blocks every PR.
 
 Locally, `npx tsc --noEmit`, `npm run test:run` and `npm run lint` are the fast loop, with
 Docker down. `tsc` is a check in its own right: vitest strips types and never type-checks, so
@@ -630,10 +640,10 @@ this paragraph is the procedure's one copy, and the other files point here):
   names a later phase (`**between phases**, <date>, IS #<n>, for Phase <N>`) is that
   phase's plan's instead: earlier plans don't take it, and their reconciliations don't
   replace its marker, though a stale fact in it is fixed like any other hit (the
-  owner's calls, IS #279). Such a row waits through the phases before its own. A
-  between-phases row that a later one replaces is removed in the PR that adds the new
+  owner's calls, IS #279; Phase 8 plan #3). Such a row waits through the phases before its
+  own. A between-phases row that a later one replaces is removed in the PR that adds the new
   row, which keeps what still holds and cites the old row's IS #; the old text stays in
-  its PR (IS #279).
+  its PR (IS #279; Phase 8 plan #3).
 - That plan's reconciliation replaces each marker with the plan decision, and the rule
   text here cites it. When the decision didn't outlive the phase, the reconciliation
   removes the row and the rule text with it.
