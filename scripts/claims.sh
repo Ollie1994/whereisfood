@@ -26,6 +26,13 @@
 # Every added line is read, process-log rows included: an added row is this change's
 # claim, not history. Only `package-lock.json` is skipped.
 #
+# Closing references (IS #368): each whole file, and each `--was` pair's <new> read whole,
+# is also read by `node scripts/closing-keywords.mjs --lines`, and every line holding a
+# closing keyword before an issue reference ("Closes #301") prints as `closing: path:line:
+# text`. A PR body's closing references close those issues when the PR merges into `dev`, so
+# confirm each names only an issue the PR closes. Not the diff: a file's text closes nothing.
+# A failure to run it (no `node`) exits 2.
+#
 # Does not catch: an over-claim without a listed word (row 284), including other
 # forms of a listed word ("verifies", "checks", "probes"); wrong counts (rows
 # 298-300); a claim on a line the diff doesn't add; untracked files (it warns about
@@ -130,5 +137,15 @@ scan_arg() {
   printf '%s\n' "$d" | CLAIMS_MODE=diff CLAIMS_NAME="$3 (since $2)" CLAIMS_PATH="$3" awk "$scan"
 }
 
+closing_arg() {
+  local f="$2" out
+  [ "$1" = file ] || f="$3"
+  out=$(node "$root/scripts/closing-keywords.mjs" --lines "$f") \
+    || { echo "claims.sh: closing-keywords.mjs failed on $f" >&2; exit 2; }
+  [ -z "$out" ] || printf '%s\n' "$out" | sed 's/^/closing: /'
+  echo "claims.sh: $f: $(printf '%s' "$out" | grep -c '') closing references" >&2
+}
+
 CLAIMS_MODE=diff CLAIMS_NAME="diff $rev" awk "$scan" < "$diffout"
 walk scan_arg "$@"
+walk closing_arg "$@"

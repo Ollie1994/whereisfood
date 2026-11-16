@@ -325,7 +325,9 @@ Toolchain: the Node and npm ranges under Dependencies.
 `build`; #285, #286), Supabase's security advisor in `integration` (#290), `npm audit` in
 `audit` (#291), the process log's check in `process-log` and the schema controls in
 `controls` (#288; the full set only on the PRs "Schema controls" below names), and Gitleaks
-on the PR's commits and messages in `secret-scan` (#293); `codeql.yml` runs CodeQL (#294).
+on the PR's commits and messages in `secret-scan` (#293), which also fails when one of those
+messages, or the PR's title, has a closing keyword before an issue reference, as "fixes
+#348" did (#368); `codeql.yml` runs CodeQL (#294).
 The rulesets on `dev` and `main` require a PR, the branch up to date with its base and, by
 name, `ci.yml`'s checks other than `base`; on `dev` CodeQL's too (`CodeQL` and both
 `analyze` jobs, plan #14), on `main` they join in Phase 10 (plan #11). `main`'s also
@@ -555,6 +557,10 @@ hit, do one of three things:
   no command can check it, says only what you know. A claim about behaviour that a probe
   can settle is **probed, not reworded into a hedge** ("could … (not probed)", row 350);
 - or note it is a rule, not a claim of fact.
+
+It also prints, as `closing:`, each line of the PR body (and of each other file or `--was`
+<new>) with a closing keyword before an issue reference. Confirm each names only an issue the
+PR closes: merging into `dev` closes every one (IS #368).
 
 Record the hit count and how each was settled in the PR body, under the round the
 check comes before (the first round's goes in the body as opened). The script lists

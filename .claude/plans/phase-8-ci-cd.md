@@ -76,7 +76,7 @@ has run the checks with no Vercel build (#5).
 
 | File | What it is |
 |---|---|
-| `.github/workflows/ci.yml` | PR-only (`pull_request` into `dev` and `main`), read-only token. Jobs `typecheck-lint`, `unit`, `integration` (local Supabase, and the security advisor), `build` (`.env.example`'s variables from the local stack, then `next start` and `smoke.mjs`), `secret-scan`, `audit` (three runs, #12), `controls` (`--check` always; the full set when `needsFullControls` says so), `process-log`, and `base`, named `base (<base branch>)`, which `main`'s ruleset requires as `base (main)` (IS #356) |
+| `.github/workflows/ci.yml` | PR-only (`pull_request` into `dev` and `main`), read-only token. Jobs `typecheck-lint`, `unit`, `integration` (local Supabase, and the security advisor), `build` (`.env.example`'s variables from the local stack, then `next start` and `smoke.mjs`), `secret-scan` (Gitleaks, and the closing-keyword check, IS #368), `audit` (three runs, #12), `controls` (`--check` always; the full set when `needsFullControls` says so), `process-log`, and `base`, named `base (<base branch>)`, which `main`'s ruleset requires as `base (main)` (IS #356) |
 | `.github/workflows/codeql.yml` | CodeQL, `javascript-typescript` and `actions`, on PRs and on push to `dev` and `main`, with `security-events: write`; on `dev` its code-scanning result check is required, since the analyze jobs stay green on a finding, and both analyze jobs beside it (#14, settled in #297); on `main` they join in Phase 10 (#11) |
 | `.github/workflows/sonarqube.yml` (not created: step 9 skipped, #295) | SonarQube Cloud, on PRs and on push to `dev` and `main`; skipped by `if:` on Dependabot and fork PRs; installs with `--ignore-scripts`; runs with `sonar.qualitygate.wait=true`, so a failed gate fails the job (#14) |
 | `.github/dependabot.yml` | Version updates for `github-actions`, keeping the SHA pins current, with the default `/` branch-name separator (step 15). npm gets security updates only (repository setting); its updater's Node 24 is outside `devEngines`, and `--force` lets it through with a warning (open decision 9). Minor and patch updates grouped into one PR, a 7-day cooldown (PR #362); Dependabot's default labels allowed (#17) |
@@ -91,6 +91,7 @@ has run the checks with no Vercel build (#5).
 | `scripts/smoke.mjs` (+ test of its expectations if it has pure parts) | The served-app check the `build` job runs |
 | `scripts/write-env-local.mjs` (+ test) | `.env.local` from `npx supabase status -o env`, for every CI job that starts the local stack (IS #286; open decision 3) |
 | `scripts/audit-report.mjs` (+ test) | Reads run 3's `npm audit --json` report and prints its warnings, or fails when it can't tell which advisories there are (#12; moved out of `ci.yml` and tested, round 3 on IS #291's PR, the owner's call) |
+| `scripts/closing-keywords.mjs` (+ test) | Fails `secret-scan` when one of a PR's commit messages, or its title, holds a closing keyword before an issue reference; `--lines` lists a PR body's for `claims.sh` (IS #368, the Phase 8 retrospective's new action) |
 | `scripts/lint-rules.test.mjs` | One fixture per rule and per term, inline in the test, linted through ESLint's API (#9) |
 | `scripts/ci-advisor.test.mjs` | `integration`'s `ADVISOR_DB_URL` port and `pgrst.db_schemas` match `config.toml`'s `[db]` port and `[api]` schemas, read through `js-yaml` (rounds 1 and 4 on IS #290's PR); the advisor's run and its self-test's line are one command exactly, both steps hold only `name`, `if` and `run`, and no step's `env` or `run` sets the URL (IS #325) |
 
@@ -104,6 +105,7 @@ has run the checks with no Vercel build (#5).
 | `package.json` | Only a script the trigger or smoke step needs, and `js-yaml` as a devDependency for `scripts/ci-advisor.test.mjs` (the owner's call, round 4 on IS #290's PR); no `prepare` hook (#7) |
 | `CLAUDE.md` | The bold plan line (step 0); #12's audit rule (step 6); the Gitleaks hook under "Secrets" (step 7); "Testing" rewritten for CI as the gate, its "Schema controls … not a gate" included (step 12) |
 | `README.md` | "Getting started": installing Gitleaks and setting `core.hooksPath` (step 7); "Preview deploys": the Ignored Build Step's new command (step 1, #15). The status parts wait for step 17 (Phase 7 #8) |
+| `scripts/claims.sh` | Lists a PR body's closing references (IS #368) |
 | `.claude/process-log.md` | Rows as they happen; the retrospective (step 16) |
 | `.claude/context/project-context.md` | Step 17 only |
 
