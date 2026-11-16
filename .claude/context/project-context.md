@@ -721,9 +721,9 @@ All of these can be switched off without any change in the repo. They were check
 the GitHub UI: the CLI token used here, though it has admin rights, gets `403` from the
 secret-scanning, Dependabot-alerts and vulnerability-alerts APIs, and no
 `security_and_analysis` field (probed 2026-10-24). The one read by command is squash
-merging (`gh api repos/{owner}/{repo}`: `allow_squash_merge: false`, 2026-11-16). Both
-rulesets still allow squash among their merge methods, so the repository setting alone
-keeps it off.
+merging (`gh api repos/{owner}/{repo}`: `allow_squash_merge: false`, 2026-11-16), and
+both rulesets also refuse it: their allowed merge methods are `merge` and `rebase` (the
+owner, 2026-11-16; `gh api repos/{owner}/{repo}/rulesets/<id>` reads them back).
 
 **Built in Phase 8** (`.claude/plans/phase-8-ci-cd.md` records each step and its probes):
 - **The secret scan.** Gitleaks in `.githooks/pre-commit` (the staged changes) and
