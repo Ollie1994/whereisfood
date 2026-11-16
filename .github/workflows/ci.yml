@@ -458,7 +458,10 @@ jobs:
       # (process-log row 682). The same range as the scan above, and the PR's title, which
       # GitHub's merge commit carries; scripts/closing-keywords.mjs's header has the pattern,
       # the one exempt commit and what it can't see. These steps run when the scan fails, so
-      # one run shows both. The title comes through `env`, never into the script's text.
+      # one run shows both. The title comes through `env`, never into the script's text. A title
+      # changed after a run isn't read until the next push or a close and reopen (no `edited`
+      # trigger, above). A red result here names a message or the title, not a secret: the
+      # step's name and its annotation say which.
       - id: node
         if: ${{ !cancelled() }}
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0

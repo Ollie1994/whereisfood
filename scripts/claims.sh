@@ -30,8 +30,9 @@
 # is also read by `node scripts/closing-keywords.mjs --lines`, and every line holding a
 # closing keyword before an issue reference ("Closes #301") prints as `closing: path:line:
 # text`. A PR body's closing references close those issues when the PR merges into `dev`, so
-# confirm each names only an issue the PR closes. Not the diff: a file's text closes nothing.
-# A failure to run it (no `node`) exits 2.
+# confirm each names only an issue the PR closes. An issue body's close nothing, and the
+# diff isn't read: a file's text closes nothing. Without `node` on PATH it exits 2 before
+# reading anything.
 #
 # Does not catch: an over-claim without a listed word (row 284), including other
 # forms of a listed word ("verifies", "checks", "probes"); wrong counts (rows
@@ -40,7 +41,8 @@
 # them); and whether a listed claim is true.
 #
 # Exit codes: 0 when the run worked, hits or not; 2 for no or an empty <rev>, `-h`,
-# a bad <rev>, an unreadable file, a `--was` without two files, or no git repository.
+# a bad <rev>, an unreadable file, a `--was` without two files, no git repository, no `node`,
+# or closing-keywords.mjs failing.
 # Piped into a reader that stops early (`| head`), it can exit 141 (SIGPIPE) after a
 # good run.
 
@@ -78,6 +80,7 @@ walk() {
 readable() { [ -f "$1" ] && [ -r "$1" ] || { echo "claims.sh: cannot read $1" >&2; exit 2; }; }
 check() { readable "$2"; [ "$1" = file ] || readable "$3"; }
 walk check "$@"
+command -v node >/dev/null || { echo "claims.sh: node not found (closing-keywords.mjs needs it)" >&2; exit 2; }
 root=$(git rev-parse --show-toplevel 2>/dev/null) || { echo "claims.sh: not in a git repository" >&2; exit 2; }
 
 # The diff, read as sweep.sh reads it: scripts/lib/diff.sh holds the flags and why.

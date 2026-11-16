@@ -21,6 +21,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { escapeData } from "./lib/workflow-command.mjs";
 
 export const WARNING_LIMIT = 10;
 
@@ -30,9 +31,6 @@ const NOTE = 'it needs an issue before this PR merges, unless it has one (CLAUDE
 // function, and a template literal throws on it ("Cannot convert object to primitive
 // value", round 3); JSON.stringify can't throw on parsed JSON.
 const text = (value) => (typeof value === "string" ? value : value === undefined ? "?" : JSON.stringify(value));
-
-// Workflow-command data escaping (GitHub's docs, "Workflow commands"): `%`, CR and LF.
-const escapeData = (s) => s.replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
 
 const SEVERITY = ["critical", "high", "moderate", "low", "info"];
 const rank = (severity) => (SEVERITY.includes(severity) ? SEVERITY.indexOf(severity) : SEVERITY.length);

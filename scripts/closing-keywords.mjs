@@ -18,20 +18,29 @@
 // The pattern over-matches on purpose: refusing too much costs a reworded message. From
 // GitHub's page (read 2026-11-16): the keywords close, closes, closed, fix, fixes, fixed,
 // resolve, resolves and resolved; "can be followed by colons or in uppercase"; the forms
-// `#ISSUE-NUMBER` and `OWNER/REPOSITORY#ISSUE-NUMBER`. Not from the page: any case, any
-// whitespace (newlines included) or none between the keyword and the reference, and an
-// issue or pull-request URL. A keyword inside a word ("prefixes #3") isn't one.
+// `#ISSUE-NUMBER` and `OWNER/REPOSITORY#ISSUE-NUMBER`. Not from the page: any case; any
+// whitespace (newlines included), Markdown emphasis (`*`, `_`, `~`) or nothing around the
+// keyword and before the reference ("**Fixes** #12"); `GH-<n>`, GitHub's other issue
+// autolink; and an issue or pull-request URL. A keyword inside a word ("prefixes #3") isn't
+// one: letters and digits bound it, not `_`, so "_fixes #12_" is one.
 //
 // Does not catch: a form GitHub reads that the page doesn't list; a keyword in a PR body
-// (`--lines` lists those); a title or message changed after the run that read it.
+// (`--lines` lists those); a title changed after the run that read it, since ci.yml has no
+// `edited` trigger (its header says why), though GitHub's merge commit carries the title as
+// it is at merge. Nothing refuses a message at commit time: the commit-msg hook runs Gitleaks
+// only (the owner's call, round 1 on PR #371). A red check is fixed on the PR's branch:
+// recommit the commit it names (`git commit --amend` for the last one, or `git reset --soft`
+// to before it and commit again) and force-push the branch, which the rulesets allow on any
+// branch but `dev` and `main`.
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { escapeData } from "./lib/workflow-command.mjs";
 
-const KEYWORD = String.raw`\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b`;
+const KEYWORD = String.raw`(?<![A-Za-z0-9])(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)(?![A-Za-z0-9])`;
 const NAME = String.raw`[\w.-]+`;
-const REFERENCE = String.raw`(?:#\d|${NAME}\/${NAME}#\d|https?:\/\/(?:www\.)?github\.com\/${NAME}\/${NAME}\/(?:issues|pull)\/\d)`;
-export const CLOSING = new RegExp(String.raw`${KEYWORD}:?\s*${REFERENCE}`, "gi");
+const REFERENCE = String.raw`(?:#\d|GH-\d|${NAME}\/${NAME}#\d|https?:\/\/(?:www\.)?github\.com\/${NAME}\/${NAME}\/(?:issues|pull)\/\d)`;
+export const CLOSING = new RegExp(String.raw`${KEYWORD}[*_~]*:?[*_~\s]*${REFERENCE}`, "gi");
 
 // Commits already on `dev` before this check, each with why it may stay. A PR into `main`
 // reads `main..dev`, which holds them; they can't be reworded without rewriting `dev`.
@@ -61,8 +70,7 @@ export function closingRefs(text) {
 // Pure. `git log -z --format='%H%n%B'` output as [{ sha, message }], or { error }.
 export function parseRecords(input) {
   const records = [];
-  for (const raw of input.split("\0")) {
-    const rec = raw.replace(/^\n/, "");
+  for (const rec of input.split("\0")) {
     if (rec === "") continue;
     const newline = rec.indexOf("\n");
     const sha = newline === -1 ? rec : rec.slice(0, newline);
@@ -71,9 +79,6 @@ export function parseRecords(input) {
   }
   return { records };
 }
-
-// Workflow-command data escaping (GitHub's docs, "Workflow commands"): `%`, CR and LF.
-const escapeData = (s) => s.replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
 
 // Pure. The lines the step prints, and its exit code.
 export function check(input, title) {
@@ -133,4 +138,9 @@ function main(argv) {
   return code;
 }
 
-if (import.meta.url === pathToFileURL(resolve(process.argv[1] ?? "")).href) process.exitCode = main(process.argv.slice(2));
+// Run only when executed, not when a test imports it (controls-trigger.mjs's form). The
+// path compare alone skipped `main` when run through a junction and exited 0, since Node
+// resolves `import.meta.url` through it and `argv[1]` isn't (round 1 on PR #371).
+const isMain =
+  import.meta.main ?? (process.argv[1] !== undefined && pathToFileURL(resolve(process.argv[1])).href === import.meta.url);
+if (isMain) process.exitCode = main(process.argv.slice(2));

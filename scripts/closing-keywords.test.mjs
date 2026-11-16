@@ -38,12 +38,17 @@ describe("closingRefs()", () => {
     ["another repository", "Fixes octo-org/octo-repo#100"],
     ["an issue URL", "resolves https://github.com/Ollie1994/whereisfood/issues/300"],
     ["a pull request URL", "closes https://github.com/Ollie1994/whereisfood/pull/369"],
+    ["GitHub's GH- autolink", "Fixes GH-348"],
+    ["a bold keyword", "**Fixes** #12"],
+    ["an italic keyword and reference", "_fixes #12_"],
+    ["a bold keyword with a colon", "**Closes:** #12"],
   ])("finds %s", (_, text) => {
     expect(closingRefs(text)).toHaveLength(1);
   });
 
   it.each([
     ["a keyword inside a word", "prefixes #3 and suffixed #4"],
+    ["a word that starts with a keyword and runs into a reference", "see fixups/foo#2 and closedgh-5"],
     ["a keyword with no reference", "round 1's fixes, then #348's"],
     ["a reference before the keyword", "#361 closed"],
     ["a number with no #", "fixes 348"],
@@ -79,6 +84,10 @@ describe("parseRecords()", () => {
 
   it("refuses a record that doesn't start with a SHA", () => {
     expect(parseRecords("not a sha\nmessage\0").error).toMatch(/doesn't start with a commit SHA/);
+  });
+
+  it("refuses a record that starts with a newline, which git's -z output doesn't hold", () => {
+    expect(parseRecords(`\n${SHA}\nmessage\0`).error).toMatch(/doesn't start with a commit SHA/);
   });
 });
 

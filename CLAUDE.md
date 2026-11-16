@@ -559,8 +559,9 @@ hit, do one of three things:
 - or note it is a rule, not a claim of fact.
 
 It also prints, as `closing:`, each line of the PR body (and of each other file or `--was`
-<new>) with a closing keyword before an issue reference. Confirm each names only an issue the
-PR closes: merging into `dev` closes every one (IS #368).
+<new>) with a closing keyword before an issue reference. In the PR body, confirm each names
+only an issue the PR closes: merging into `dev` closes every one. In an issue body they close
+nothing (IS #368).
 
 Record the hit count and how each was settled in the PR body, under the round the
 check comes before (the first round's goes in the body as opened). The script lists
