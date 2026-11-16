@@ -4,8 +4,8 @@
 # #291); the process log's check and
 # the schema controls' `--check`, with the full controls on a trigger path or a PR into
 # main (step 3, IS #288); and Gitleaks on the PR's commits and messages in `secret-scan`
-# (step 7, IS #293), with the closing-keyword check on those messages and the PR's title
-# (IS #368). Each of those jobs is a check the rulesets on dev and main require by
+# (step 7, IS #293), with the closing-keyword check on those messages and on the merge
+# commit's branch name and title (IS #368). Each of those jobs is a check the rulesets on dev and main require by
 # its job id (step 12, IS #297; CLAUDE.md, "Testing"); `base` reports under its `name:`,
 # `base (<base branch>)`, and main's ruleset requires `base (main)` (IS #356). Renaming a
 # job, or changing or adding a `name:`, renames its check, and the ruleset waits on the old
@@ -457,20 +457,19 @@ jobs:
       # commit lands on `dev`, the default branch, and PR #350's merge closed #348 that way
       # (process-log row 682). The same range as the scan above, and the PR's branch name and
       # title, which GitHub's merge commit carries; scripts/closing-keywords.mjs's header has
-      # the pattern,
-      # the one exempt commit and what it can't see. These steps run when the scan fails, so
-      # one run shows both. The title and branch come through `env`, never into the script's
-      # text, and the script fails when either is missing. A title
-      # changed after a run isn't read until the next push or a close and reopen (no `edited`
-      # trigger, above). A red result here names a message or the title, not a secret: the
-      # step's name and its annotation say which.
+      # the pattern, the exempt commits, the merge settings it relies on and what it can't
+      # see. These steps run when the scan fails, so one run shows both. The title and branch
+      # come through `env`, never into the script's text, and the script fails when either is
+      # missing or empty. A title changed after a run isn't read until the next push or a
+      # close and reopen (no `edited` trigger, above). A red result here names a message, or
+      # the branch name and title, not a secret: the step's name and its annotation say which.
       - id: node
         if: ${{ !cancelled() }}
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: package.json
           package-manager-cache: false
-      - name: Closing keywords in the PR's commit messages and title
+      - name: Closing keywords in the PR's commit messages, branch name and title
         if: ${{ !cancelled() && steps.node.outcome == 'success' }}
         env:
           BASE: ${{ github.event.pull_request.base.sha }}

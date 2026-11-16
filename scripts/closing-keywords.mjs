@@ -9,8 +9,9 @@
 //     #<n> from <owner>/<branch>", a blank line, then the PR's title (`62e6a5f`), so the
 //     branch name and the title are read as that text, where a branch ending in a keyword and
 //     a title starting with a reference meet (round 3 on PR #371). Both variables are
-//     required, empty allowed, so a step that stops passing one fails rather than skipping
-//     it. Prints an `::error::` per line holding a closing reference and exits 1 on any;
+//     required and non-empty (GitHub gives every PR a title and a head branch), so a step
+//     that stops passing one, or passes an expression that comes out empty, fails rather
+//     than skipping it. Prints an `::error::` per line holding a closing reference and exits 1 on any;
 //     exits 2 when the input isn't such records or a variable is missing.
 //
 //   node scripts/closing-keywords.mjs --lines <file>...
@@ -41,6 +42,13 @@
 // branch but `dev` and `main`. One that reaches `dev` anyway (a title edited after the run,
 // or a message edited in GitHub's merge dialog) closes its issue there, and stays in every
 // later PR into `main`'s range: a PR into `dev` adds its SHA to EXEMPT, with the reason.
+//
+// It models the repository's merge settings as read on 2026-11-16 (`gh api repos/{owner}/
+// {repo}`): a merge commit's title is "Merge pull request #<n> from <owner>/<branch>"
+// (MERGE_MESSAGE) and its message the PR title (PR_TITLE); rebase merging keeps each
+// commit's message; squash merging, which joins every message into one text this doesn't
+// read, is off (the owner's call, round 4 on PR #371). A change to those settings changes
+// what lands on `dev`, and needs this script read again.
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -52,9 +60,10 @@ const REPO = String.raw`[\w.-]+`;
 const REFERENCE = String.raw`(?:#\d|GH-\d|${OWNER}\/${REPO}#\d|https?:\/\/(?:www\.)?github\.com\/${OWNER}\/${REPO}\/(?:issues|pull)\/\d)`;
 export const CLOSING = new RegExp(String.raw`${KEYWORD}[*_~]*:?[*_~\s]*[[<]?${REFERENCE}`, "gi");
 
-// Commits already on `dev` before this check, each with why it may stay. A PR into `main`
-// reads `main..dev`, which holds them; they can't be reworded without rewriting `dev`.
-// `git log origin/main..origin/dev` with this pattern, 2026-11-16: 1 hit in 654 commits.
+// Commits on `dev` this check lets stay, each with why: those from before it, and any that
+// reach `dev` past it (the header's way back). A PR into `main` reads `main..dev`, which
+// holds them; they can't be reworded without rewriting `dev`. Before the check, `git log
+// origin/main..origin/dev` with this pattern, 2026-11-16: 1 hit in 654 commits.
 export const EXEMPT = new Map([
   ["365bdd968443c746a3eb98d2e93f3f99cb08d203", "row 682: closed #348 on PR #350's merge; #348 was reopened and closed by PR #351"],
 ]);
@@ -105,14 +114,12 @@ export function check(input, pr) {
       lines.push(`::error::commit ${sha.slice(0, 7)} closes an issue on merge, line ${ref.line}: ${escapeData(ref.text)}`);
     }
   }
-  if (pr !== undefined) {
-    for (const ref of closingRefs(`from ${pr.branch}\n\n${pr.title}`)) {
-      const where = ref.line === 1 ? "the branch name, with the title after it," : "the PR title";
-      lines.push(`::error::${where} closes an issue on merge (GitHub's merge commit joins them): ${escapeData(ref.text)}`);
-    }
+  for (const ref of closingRefs(`from ${pr.branch}\n\n${pr.title}`)) {
+    const text = ref.line === 1 ? `branch ${pr.branch}, then title ${pr.title}` : `title ${ref.text}`;
+    lines.push(`::error::the merge commit's branch name and title close an issue on merge (rename the branch or retitle the PR): ${escapeData(text)}`);
   }
   const failed = lines.length > 0;
-  lines.push(`${parsed.records.length} commits read, ${exempt} exempt${pr === undefined ? "" : ", and the merge commit's branch and title"}; ${failed ? "reword each line above so no closing keyword comes before an issue reference" : "no closing reference"}`);
+  lines.push(`${parsed.records.length} commits read, ${exempt} exempt, and the merge commit's branch and title; ${failed ? "reword each line above so no closing keyword comes before an issue reference" : "no closing reference"}`);
   return { lines, code: failed ? 1 : 0 };
 }
 
@@ -147,8 +154,8 @@ function main(argv) {
     return 2;
   }
   const { PR_TITLE: title, PR_BRANCH: branch } = process.env;
-  if (title === undefined || branch === undefined) {
-    console.log("::error::closing-keywords: PR_TITLE and PR_BRANCH must both be set (empty is allowed)");
+  if (!title || !branch) {
+    console.log("::error::closing-keywords: PR_TITLE and PR_BRANCH must both be set and non-empty");
     return 2;
   }
   const { lines, code } = check(input, { title, branch });

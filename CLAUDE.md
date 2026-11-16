@@ -326,8 +326,8 @@ Toolchain: the Node and npm ranges under Dependencies.
 `audit` (#291), the process log's check in `process-log` and the schema controls in
 `controls` (#288; the full set only on the PRs "Schema controls" below names), and Gitleaks
 on the PR's commits and messages in `secret-scan` (#293), which also fails when one of those
-messages, or the PR's title, has a closing keyword before an issue reference, as "fixes
-#348" did (#368); `codeql.yml` runs CodeQL (#294).
+messages, or the merge commit's branch name and title, has a closing keyword before an issue
+reference, as "fixes #348" did (#368); `codeql.yml` runs CodeQL (#294).
 The rulesets on `dev` and `main` require a PR, the branch up to date with its base and, by
 name, `ci.yml`'s checks other than `base`; on `dev` CodeQL's too (`CodeQL` and both
 `analyze` jobs, plan #14), on `main` they join in Phase 10 (plan #11). `main`'s also

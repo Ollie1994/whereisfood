@@ -14,8 +14,9 @@ const SHA = "a".repeat(40);
 const EXEMPT_SHA = [...EXEMPT.keys()][0];
 const record = (sha, message) => `${sha}\n${message}\0`;
 // The parent's own PR_TITLE and PR_BRANCH (CI sets them in the step that runs the script, not
-// here) are dropped, so only `env` sets them; by default both are empty.
-const run = (args, input, env = { PR_TITLE: "", PR_BRANCH: "" }) => {
+// here) are dropped, so only `env` sets them; by default both are PR's.
+const PR = { title: "A title", branch: "phase-9/a-branch" };
+const run = (args, input, env = { PR_TITLE: PR.title, PR_BRANCH: PR.branch }) => {
   const base = { ...process.env };
   delete base.PR_TITLE;
   delete base.PR_BRANCH;
@@ -98,21 +99,21 @@ describe("parseRecords()", () => {
 
 describe("check()", () => {
   it("fails on a commit's closing reference, naming the commit and line", () => {
-    const { lines, code } = check(record(SHA, "subject\n\nthe trial's fixes #348\n"));
+    const { lines, code } = check(record(SHA, "subject\n\nthe trial's fixes #348\n"), PR);
     expect(code).toBe(1);
     expect(lines[0]).toBe("::error::commit aaaaaaa closes an issue on merge, line 3: the trial's fixes #348");
   });
 
   it("passes an exempt commit, and fails the same text under another SHA", () => {
     const message = "re-scan is #349, the trial's fixes #348.\n";
-    expect(check(record(EXEMPT_SHA, message)).code).toBe(0);
-    expect(check(record(SHA, message)).code).toBe(1);
+    expect(check(record(EXEMPT_SHA, message), PR).code).toBe(0);
+    expect(check(record(SHA, message), PR).code).toBe(1);
   });
 
   it("fails on the title", () => {
     const { lines, code } = check("", { title: "Closes #99999 probe", branch: "phase-9/x" });
     expect(code).toBe(1);
-    expect(lines[0]).toMatch(/^::error::the PR title closes an issue on merge/);
+    expect(lines[0]).toMatch(/^::error::the merge commit's branch name and title close an issue on merge .*: title Closes #99999 probe$/);
   });
 
   // Round 3 on PR #371: GitHub's merge commit joins them as "…from <owner>/<branch>", a
@@ -120,7 +121,7 @@ describe("check()", () => {
   it("fails on a branch ending in a keyword with a title starting with a reference", () => {
     const { lines, code } = check("", { title: "#401 follow-up", branch: "phase-9/fix" });
     expect(code).toBe(1);
-    expect(lines[0]).toMatch(/^::error::the branch name, with the title after it, closes an issue on merge/);
+    expect(lines[0]).toMatch(/: branch phase-9\/fix, then title #401 follow-up$/);
     expect(check("", { title: "the #401 follow-up", branch: "phase-9/fix" }).code).toBe(0);
   });
 
@@ -132,11 +133,11 @@ describe("check()", () => {
   });
 
   it("escapes a workflow command's data", () => {
-    expect(check(record(SHA, "fixes #1 at 100%\n")).lines[0]).toMatch(/at 100%25$/);
+    expect(check(record(SHA, "fixes #1 at 100%\n"), PR).lines[0]).toMatch(/at 100%25$/);
   });
 
   it("exits 2 on input that isn't git's records", () => {
-    expect(check("garbage").code).toBe(2);
+    expect(check("garbage", PR).code).toBe(2);
   });
 });
 
@@ -149,13 +150,15 @@ describe("the command line", () => {
   it("reads the title from PR_TITLE and the branch from PR_BRANCH", () => {
     const result = run([], "", { PR_TITLE: "closes #99999", PR_BRANCH: "x" });
     expect(result.status).toBe(1);
-    expect(result.stdout).toMatch(/the PR title/);
-    expect(run([], "", { PR_TITLE: "#99999 x", PR_BRANCH: "y/fixes" }).stdout).toMatch(/the branch name/);
+    expect(result.stdout).toMatch(/title closes #99999/);
+    expect(run([], "", { PR_TITLE: "#99999 x", PR_BRANCH: "y/fixes" }).stdout).toMatch(/branch y\/fixes, then title #99999 x/);
   });
 
-  it("exits 2 when PR_TITLE or PR_BRANCH isn't set, so a step that drops one fails", () => {
+  it("exits 2 when PR_TITLE or PR_BRANCH is unset or empty, so a step that drops one fails", () => {
     expect(run([], record(SHA, "fine\n"), { PR_BRANCH: "x" }).status).toBe(2);
     expect(run([], record(SHA, "fine\n"), { PR_TITLE: "x" }).status).toBe(2);
+    expect(run([], record(SHA, "fine\n"), { PR_TITLE: "x", PR_BRANCH: "" }).status).toBe(2);
+    expect(run([], record(SHA, "fine\n"), { PR_TITLE: "", PR_BRANCH: "x" }).status).toBe(2);
   });
 
   it("exits 2 on unreadable input", () => {
@@ -187,7 +190,7 @@ describe("the command line", () => {
       const result = spawnSync(process.execPath, [join(link, "closing-keywords.mjs")], {
         input: record(SHA, "fixes #99999\n"),
         encoding: "utf8",
-        env: { ...process.env, PR_TITLE: "", PR_BRANCH: "" },
+        env: { ...process.env, PR_TITLE: PR.title, PR_BRANCH: PR.branch },
       });
       expect(result.status).toBe(1);
       expect(result.stdout).toMatch(/closes an issue on merge/);
