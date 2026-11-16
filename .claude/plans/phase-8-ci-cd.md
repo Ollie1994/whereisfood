@@ -79,7 +79,7 @@ has run the checks with no Vercel build (#5).
 | `.github/workflows/ci.yml` | PR-only (`pull_request` into `dev` and `main`), read-only token. Jobs `typecheck-lint`, `unit`, `integration` (local Supabase, and the security advisor), `build` (`.env.example`'s variables from the local stack, then `next start` and `smoke.mjs`), `secret-scan`, `audit` (three runs, #12), `controls` (`--check` always; the full set when `needsFullControls` says so), `process-log`, and `base`, named `base (<base branch>)`, which `main`'s ruleset requires as `base (main)` (IS #356) |
 | `.github/workflows/codeql.yml` | CodeQL, `javascript-typescript` and `actions`, on PRs and on push to `dev` and `main`, with `security-events: write`; on `dev` its code-scanning result check is required, since the analyze jobs stay green on a finding, and both analyze jobs beside it (#14, settled in #297); on `main` they join in Phase 10 (#11) |
 | `.github/workflows/sonarqube.yml` (not created: step 9 skipped, #295) | SonarQube Cloud, on PRs and on push to `dev` and `main`; skipped by `if:` on Dependabot and fork PRs; installs with `--ignore-scripts`; runs with `sonar.qualitygate.wait=true`, so a failed gate fails the job (#14) |
-| `.github/dependabot.yml` | Version updates for `github-actions`, keeping the SHA pins current, with the default `/` branch-name separator (step 15). npm gets security updates only (repository setting); its updater's Node 24 passes `devEngines` under `--force` (open decision 9). All actions grouped into one PR, a 7-day cooldown, no labels (PR #362) |
+| `.github/dependabot.yml` | Version updates for `github-actions`, keeping the SHA pins current, with the default `/` branch-name separator (step 15). npm gets security updates only (repository setting); its updater's Node 24 is outside `devEngines`, and `--force` lets it through with a warning (open decision 9). Minor and patch updates grouped into one PR, a 7-day cooldown, no labels (PR #362) |
 | `.githooks/pre-commit` | Gitleaks on the staged changes; the folder is set by hand through `core.hooksPath` (#7). Committed executable with `git update-index --chmod=+x`: `core.filemode` is `false` on the owner's machine (read 2026-11-12), so a plain add stores `100644` and git elsewhere ignores the hook |
 | `.githooks/commit-msg` | Gitleaks (`gitleaks stdin`) on the commit message, which `pre-commit` and `gitleaks git` don't read; committed executable as `pre-commit` is (round 1 on PR #342, the owner's call) |
 | `.githooks/gitleaks-common.sh` | Sourced by both hooks and `ci.yml`'s `secret-scan`: their Gitleaks flags, and the checks that refuse while `gitleaks` is missing or a `.gitleaksignore` exists (round 3 on PR #342; `secret-scan` from IS #293) |
@@ -326,18 +326,24 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
     for a security update, once one runs). The proof: one
     Dependabot PR, from an Actions version update or, if none has come, one triggered with
     "Check for updates" (#5). An npm security PR can't be forced, so the proof may be an
-    Actions one, which runs no npm: a stated limit.
+    Actions one, which runs no npm: a stated limit. With the 7-day cooldown (PR #362) and
+    every pinned action on its latest release when it merged, the proof waits for an
+    upstream release to turn 7 days old; "Check for updates" applies the cooldown too (the
+    owner's call: keep it and wait).
     **Open decision 9 (PR #362):** the npm updater runs Node 24 (dependabot-core's
     `npm_and_yarn/Dockerfile`, `NODEJS_VERSION=24`, read 2026-11-16), outside `devEngines`'s
-    `26.x`. Its lockfile commands (`npm install` and `npm update`, `--package-lock-only`) pass
-    `--force`, under which npm only warns `EBADDEVENGINES` and exits 0 (probed on npm 11.21
+    `26.x`. Its lockfile commands (`npm install`, `npm update`, and an experiment-gated
+    `npm audit fix` fallback, all `--package-lock-only`) pass `--force`, under which npm only warns `EBADDEVENGINES` and exits 0 (probed on npm 11.21
     and on the image's npm 12.2.0, PR #362); its peer-dependency check runs without `--force`
     and fails, and dependabot-core reads that failure as no conflicts. So npm security
     updates go on as planned (the owner's call, after a first call made on a probe without
     `--force`; IS #361 closed as not needed), with no change to `devEngines`. Limits: no
-    peer conflict is detected first, and the `--force` write may let one into the lockfile
-    (whether CI's `npm ci` then fails: not probed); and with no open alert, no npm job runs,
-    so the npm half is first seen on the first alert with a patch.
+    peer conflict is detected first, and the `--force` write lets one into the lockfile; CI
+    then goes red (probed on PR #362: npm 12.2.0's forced write of a `react-dom@18` beside
+    `react@19`, then `npm ci`, `ERESOLVE`, exit 1). With no open alert, no npm job runs, so
+    the npm half is first seen on the first alert with a patch. A security PR for `next`
+    moves `next` alone; `eslint-config-next` and the `/map` check are added by hand before it
+    merges (`CLAUDE.md`, "Dependencies").
 16. **The Phase 8 retrospective** (`.claude/process-log.md`, "How to use it"): its range
     starts at the row after the Phase 7 retrospective's range. Blocked by every other
     planned issue; its follow-ups block step 17.
@@ -357,7 +363,8 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
     whose "Gates stay manual until deploy" and its reading point at `CLAUDE.md` "Testing",
     which step 12 rewrote for CI as the gate (round 3 on PR #352); the "Pre-deploy automation"
     Dependabot bullet's "below it, npm stops with `EBADDEVENGINES` and no PR comes", which
-    PR #362 refuted (Dependabot passes `--force`); and `codeql.yml`'s header,
+    PR #362 contradicts from dependabot-core's source and a local probe (Dependabot passes
+    `--force`; no Dependabot npm job has run yet); and `codeql.yml`'s header,
     "No Dependabot or fork PR has run it yet", once #300's Dependabot PR is read (IS #300). It
     replaces the three **between phases** markers this plan took up with #1–#3, leaves the
     IS #278 (Phase 9) and (Phase 10) rows' markers as they are, carries forward this plan's

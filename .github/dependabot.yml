@@ -6,20 +6,26 @@
 # #300 reads the name and the cancel on the first Dependabot PR. No auto-merge: a Dependabot
 # PR is reviewed like any other, and its diff is a change to what the checks run (CLAUDE.md,
 # "Testing"); its commit message, release notes included, is scanned by `secret-scan` too,
-# and a false find there is settled like any (CLAUDE.md, "Secrets").
+# and a false find there is settled as CLAUDE.md's "Secrets" says: a `.gitleaks.toml` entry
+# naming why, by its own PR into dev (the PR's copy is what runs), then `@dependabot rebase`.
 #
 # - `groups`: the week's minor and patch version updates in one PR. A major bump comes as
 #   its own PR, and so does a security update, which groups don't cover by default. A PR
 #   that moves an action ci.yml pins edits a `TRIGGERS` path and runs the full controls; one
 #   that moves only codeql-action edits codeql.yml and runs `--check`.
 # - `cooldown`: a release is proposed only once it is 7 days old, so a compromised one has
-#   time to be pulled first (the owner's call, round 1 on PR #362). Version updates only.
+#   time to be pulled first (the owner's call, round 1 on PR #362). Version updates only;
+#   "Check for updates" applies it too.
 # - `labels: []`: none of Dependabot's default labels (the repo's PR label rule).
 #
 # No npm entry: npm gets security updates only, from the repository setting (plan #2). Its
 # updater image runs Node 24 (dependabot-core's npm_and_yarn/Dockerfile, read 2026-11-16)
 # against `devEngines`'s `26.x`, but its lockfile commands pass `--force`, under which npm only
-# warns EBADDEVENGINES (probed on PR #362, npm 11.21 and the image's npm 12.2.0).
+# warns EBADDEVENGINES (probed on PR #362, npm 11.21 and the image's npm 12.2.0). Its
+# peer-dependency check runs without `--force`, fails, and is read as no conflicts, so a
+# peer conflict reaches the lockfile and turns CI's `npm ci` red (ERESOLVE, probed there).
+# A security PR for `next` moves `next` alone: add `eslint-config-next` and run the `/map`
+# check before merging (CLAUDE.md, "Dependencies").
 version: 2
 updates:
   - package-ecosystem: github-actions
