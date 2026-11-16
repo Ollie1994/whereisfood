@@ -1,9 +1,9 @@
 # CodeQL on every PR into dev or main and every push to them (Phase 8 plan step 8, IS #294).
 # Plan #2 counts on it to scan Dependabot and fork PRs. On Dependabot's first, PR #366, both
 # analyze jobs succeeded and `CodeQL` posted ("No new alerts"); no fork PR has run it yet.
-# `CodeQL` and both analyze jobs are required on `dev`, whose ruleset has no bypass list: if a job fails or `CodeQL` never posts on such a PR, the PR can't merge
-# until that changes or the rule is lifted by hand. The push runs give a PR its base analysis to
-# compare with; `main` has none before Phase 10 (plan #11). The same pull-request trigger as
+# `CodeQL` and both analyze jobs are required on `dev`, whose ruleset has no bypass list: if
+# a job fails or `CodeQL` never posts on such a PR, the PR can't merge until that changes or
+# the rule is lifted by hand. The push runs give a PR its base analysis to compare with; `main` has none before Phase 10 (plan #11). The same pull-request trigger as
 # ci.yml, so a PR retargeted to dev or main gets no new run until its next push or a close
 # and reopen (ci.yml's header). Once CodeQL's checks join `main`'s ruleset (Phase 10),
 # ci.yml's `base (main)` makes a PR retargeted from dev wait for a ci.yml run against main
