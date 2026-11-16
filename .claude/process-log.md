@@ -982,6 +982,7 @@ Old rows that point at them are now pointing there: "see note" (rows 14, 15, 17,
 | 701 | 2026-11-16 | PR #369 / IS #301 | `process-log` | `/code-review` round 1 on #369, full, found 10; all applied. **The section's counts disagreed with its own commands:** the can't-fail grep it quotes matches 10 rows, not 9 (544 left out), and "`merged` rows rose to 9" counted the `crossed-phase` 649. Also: action 4 missed the six rows the claims check caught (609, 614, 657, 659, 661, 670); action 3 hid that its misses rose, misordered 678, and dated the required check to #288, not #297; the parts' labels; rounds per PR from the wrong PR; #300's close time. | `code-review` r1 on PR #369, full | `pre-merge` | `imprecise-claim` | Each count re-read from its command: 10 grep rows; 8 `merged`, 649 apart; the six claims-check rows. Action 3 states 0 to 3, the six-row class, 678's order and #297. The parts relabelled; 128 rounds over 40 PRs; 07:46:29Z from the issue events. |
 | 702 | 2026-11-16 | PR #369 / IS #301 | `process-log` | `/code-review` round 2 on #369, scoped to round 1's fixes, found 9; all applied. **Round 1's "Its misses rose, from none in 420–542" was refuted by row 565, which names row 535 as the same miss, and called the rows the script's misses though the bullet said the script worked.** Also: "recurred six times" for six occurrences; the declined guard's scope unclear; "can't merge" past CLAUDE.md's limit; 657 dropped from the Miss list; #300's "completed" cited to events that don't show it; two wraps. | `code-review` r2 on PR #369, scoped to `7e6f5a4..3449e3e` | `pre-merge` | `overcorrection` | Action 3 states what the rows show: row 535 unrecorded then, six occurrences, the declined guard as offered; "can't merge" unless the PR changes the check; 657 back in the list; GraphQL's ClosedEvent cited; two paragraphs reflowed. |
 | 703 | 2026-11-16 | PR #369 / IS #301 | `process-log` | `/code-review` round 3 on #369, full, the ceiling's last, found 7, none in what runs; all applied. **The ceiling paragraph written to fix row 700's overclaim undercounted again:** 699's `labels: []` also came from a round's fixes (`9b01db4`, round 1 on #362), not only 646. Also: #300's timeline shows a Projects status change a second before its close; CI's check can't see four of action 3's six rows; seven occurrences, not six; two `merged` baselines; 613 a missing prerequisite, not a claim; a stray line break. | `code-review` r3 on PR #369, full | `pre-merge` | `overcorrection` | Two rows from a round's fixes, each with its commit; #300's timeline recorded, the cause the owner's to confirm; CI's reach split by kind (325, 565 against 354, 382, 587, 678); seven occurrences; rates over both ranges; 613 apart; one paragraph. |
+| 704 | 2026-11-16 | PR #369 / IS #301 | `issue` | **#301's comment of 2026-11-16 said the agent's commands in the minute #300 closed were issue-body edits.** The session's transcript shows `gh pr merge 362` among them (merged 07:46:16Z, 13 s before the close), and no Projects command. Written from memory, not the transcript; this PR's section copied it until round 3's finding sent me to #300's timeline and the transcript. | `self` reading the transcript to back the section's claim after round 3 on PR #369 | `pre-merge` | `unverified-assumption` | The section states the merge, that #362 holds no closing reference to #300 (its closingIssuesReferences, and a grep of its messages), and no Projects command; a comment on #301 corrects its earlier one. |
 
 ---
 
@@ -2226,8 +2227,12 @@ Its timeline (`gh api …/issues/300/timeline`) shows the same account changing 
 Projects status at 07:46:28Z, one second before the close, and again at 07:46:36Z, then
 removing it from the project at 07:48:08Z. The status values aren't in the REST payload.
 A board action fits, such as a status set to one a project workflow closes on, but that
-isn't confirmed. The agent's commands in that minute were issue-body edits, with no
-Projects action. No action: the cause is the owner's to confirm.
+isn't confirmed. Among the agent's commands in that minute (the session's transcript) was
+`gh pr merge 362`, merged at 07:46:16Z. #362 names #300 with no closing keyword:
+`closingIssuesReferences` is empty, and a grep of its five commits' messages and the
+merge commit's finds none. No command touched Projects. #301's comment said the agent's
+commands were issue-body edits, which was wrong (row 704). No action: the cause is the
+owner's to confirm.
 
 ### Follow-ups
 
