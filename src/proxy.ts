@@ -134,3 +134,6 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: ["/admin/:path*", "/api/admin/:path*"],
 };
+
+// Probe for IS #298 (build): a route segment config in the proxy, which only next build refuses. Never merged.
+export const runtime = "nodejs";

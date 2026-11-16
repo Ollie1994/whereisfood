@@ -35,6 +35,7 @@
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.106.2",
     "date-fns": "^4.3.0",
+    "lodash": "^4.17.20",
     "maplibre-gl": "6.11.2",
     "next": "16.4.5",
     "pmtiles": "^4.5.0",
