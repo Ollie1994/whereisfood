@@ -368,9 +368,10 @@ add a second factor beside it (round 1 on PR #376, the owner's approval; IS #373
 **What it doesn't stop** (round 2 on PR #376, the owner's approval): at `aal2` the thief can
 unenroll the admin's factor, enroll their own and set a password (inside the recent-login
 window `secure_password_change` allows), then sign in again later, outliving the time-box
-and every logout. Supabase's Free plan has no server-side block for that: its hooks there are
-the access-token and email hooks only (the pricing page's "Auth Hooks" row). So a stolen
-`aal2` session is a takeover, recorded as a limit. What holds instead:
+and every logout. Supabase's Free plan has no server-side block for that: its hooks there
+are the access-token and email hooks only, as on Pro (the pricing page's "Auth Hooks" row:
+"All" from Team), so Phase 11's Pro doesn't add one either. So a stolen `aal2` session is a
+takeover, recorded as a limit. What holds instead:
 - **preventing the theft:** the CSP (#6 states its limit), the time-box (#4), logout ending
   every session (#5);
 - **detecting it:** the password-changed email (step 2), and factor-enrolled and
