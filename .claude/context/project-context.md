@@ -752,7 +752,7 @@ keeps it off.
   admins (Phase 8 plan #11); what they require is `CLAUDE.md`'s ("Testing"). Each check
   required by #298 was seen red on a probe PR the rules then blocked (Phase 8 plan #5, #6).
   `base (main)`, required after it (IS #356), was shown only by its absence: probe PR #359
-  stayed blocked until a run against `main` reported it.
+  read `BLOCKED` while no run against `main` had reported it.
 - **Branches kept off Vercel builds.** The Ignored Build Step cancels `dependabot/` and
   `probe/` branches. A branch's `vercel.json` `ignoreCommand` overrides it, so the secret
   key is scoped to `dev`'s previews alone (Phase 8 plan #15; `README.md`, "Preview
