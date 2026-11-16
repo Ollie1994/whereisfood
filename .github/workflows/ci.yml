@@ -58,10 +58,13 @@ env:
 jobs:
   # The base this run was made against, in the check's name (IS #356): `base (dev)` or
   # `base (main)`. `main`'s ruleset requires `base (main)`, so a PR retargeted from dev to
-  # main, which starts no new run (the header), waits until a push runs every job against
-  # main; without it, main's ruleset counted the run made against dev (#298's probe, PR
-  # #355: `CLEAN` after the retarget, `controls` `--check` only). No `if:`: a job skipped by
-  # `if:` reports success (GitHub's docs on required checks).
+  # main, which starts no new run (the header), waits for a run against main, from a push or
+  # a close and reopen (PR #359: `BLOCKED` until the push); without it, main's ruleset
+  # counted the run made against dev (#298's probe, PR #355: `CLEAN` after the retarget,
+  # `controls` `--check` only). No `if:`: a job skipped by `if:` reports success (GitHub's
+  # docs on required checks). Limits (CLAUDE.md, "Testing"): it shows that a run against
+  # main reported on the commit, not that each other check's newest result came from it;
+  # and its name comes from the PR's own copy of this file (plan #2's limit).
   base:
     name: base (${{ github.base_ref }})
     runs-on: ubuntu-24.04
