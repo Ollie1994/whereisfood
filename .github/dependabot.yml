@@ -14,8 +14,8 @@
 #   that moves an action ci.yml pins edits a `TRIGGERS` path and runs the full controls; one
 #   that moves only codeql-action edits codeql.yml and runs `--check`.
 # - `cooldown`: a release is proposed only once it is 7 days old, so a compromised one has
-#   time to be pulled first (the owner's call, round 1 on PR #362). Version updates only;
-#   "Check for updates" applies it too.
+#   time to be pulled first (the owner's call, round 1 on PR #362). Version updates only
+#   (GitHub's docs, "cooldown").
 # - `labels: []`: none of Dependabot's default labels (the repo's PR label rule).
 #
 # No npm entry: npm gets security updates only, from the repository setting (plan #2). Its

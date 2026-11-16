@@ -327,9 +327,10 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
     Dependabot PR, from an Actions version update or, if none has come, one triggered with
     "Check for updates" (#5). An npm security PR can't be forced, so the proof may be an
     Actions one, which runs no npm: a stated limit. With the 7-day cooldown (PR #362) and
-    every pinned action on its latest release when it merged, the proof waits for an
-    upstream release to turn 7 days old; "Check for updates" applies the cooldown too (the
-    owner's call: keep it and wait).
+    every pinned action on its latest release when it merged (each repo's newest release or
+    tag, read 2026-11-16), the proof waits for an upstream release to turn 7 days old, unless
+    "Check for updates" ignores the cooldown, which #300 reads (the owner's call: keep it
+    and wait).
     **Open decision 9 (PR #362):** the npm updater runs Node 24 (dependabot-core's
     `npm_and_yarn/Dockerfile`, `NODEJS_VERSION=24`, read 2026-11-16), outside `devEngines`'s
     `26.x`. Its lockfile commands (`npm install`, `npm update`, and an experiment-gated
