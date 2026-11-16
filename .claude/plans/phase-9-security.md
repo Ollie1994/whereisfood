@@ -167,12 +167,15 @@ before the closing steps (#12).
    - whether Vercel replaces a client's `x-forwarded-host` (Q20).
 2. **Secure password change.** `secure_password_change = true` and the password-changed
    notification in `config.toml`; the same in the preview's hosted settings. A probe, not a
-   test: Auth asks for re-authentication only when the session is over 24 hours old, which
-   a test can't make, so the probe ages a session by SQL on the local stack and records the
-   refusal. The limit is stated: a stolen session under 24 hours old can still set a
-   password, which #13's `password` refusal makes useless in the app. Then, with the
-   notification on, whether Auth's notification emails count toward `email_sent` (step 8
-   reads it). `CLAUDE.md` records the rule.
+   test: Auth asks for re-authentication only when the session is over 24 hours old
+   (Supabase's password docs: "a session created within the last 24 hours" counts as
+   recent), which a test can't make, so the probe ages a session by SQL on the local stack
+   and records the refusal. The limit is stated: a stolen session under 24 hours old can
+   still set a password, which #13's `password` refusal makes useless in the app. Then, with
+   the notification on, whether Auth's notification emails count toward `email_sent` (step 8
+   reads it), and whether Supabase's "require current password" option (`current_password`
+   on `updateUser`) is on Free and stops a first password being set. `CLAUDE.md` records the
+   rule.
 3. **Length limits** on truck name, description, cuisine type and location label, with
    Swedish messages (Q22); no migration.
 4. **Cancel and confirm refuse an ended entry** (#8): `cancelLocation` and `confirmLocation`
@@ -399,9 +402,9 @@ a way in; recorded as a limit. What else holds:
   factor-unenrolled emails if Supabase offers them (step 1 reads);
 - **recovering, in this order** (D3's routes, open decision 4), since with one factor
   allowed, deleting it leaves a gap a password-holder could enroll into: secure the mailbox;
-  end every session; replace the password with the service role's `updateUserById` (or
-  SQL), since Auth refuses a password change from `aal1` once MFA is on
-  (`insufficient_aal`); delete the factor; re-enroll at once. Step 5a probes each route.
+  end every session; replace the password with the service role's `updateUserById` (or SQL),
+  since Auth may refuse a password change from `aal1` once MFA is on (auth-js has an
+  `insufficient_aal` code); delete the factor; re-enroll at once. Step 5a probes each route.
 
 Step 5a probes the swap from a second `aal2` session.
 
