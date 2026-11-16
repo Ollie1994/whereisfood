@@ -327,10 +327,14 @@ Toolchain: the Node and npm ranges under Dependencies.
 `controls` (#288; the full set only on the PRs "Schema controls" below names), and Gitleaks
 on the PR's commits and messages in `secret-scan` (#293); `codeql.yml` runs CodeQL (#294).
 The rulesets on `dev` and `main` require a PR, the branch up to date with its base and, by
-name, `ci.yml`'s checks; on `dev` CodeQL's too (`CodeQL` and both `analyze` jobs, plan #14),
-on `main` they join in Phase 10 (plan #11). They block force-pushes and deletion. Neither
-ruleset has a bypass list, so the rules bind admins: a required check
-red on every PR for a reason outside them (an advisory with no fixed release failing
+name, `ci.yml`'s checks other than `base`; on `dev` CodeQL's too (`CodeQL` and both
+`analyze` jobs, plan #14), on `main` they join in Phase 10 (plan #11). `main`'s also
+requires `base (main)`, a job in `ci.yml` named after the base the run was made against: a
+PR retargeted from `dev` to `main` starts no new run, and without it `main`'s ruleset counted
+the run made against `dev` (#298's probe), so it now waits for a run against `main`, from a
+push or from closing and reopening the PR (IS #356). Both rulesets block force-pushes and
+deletion. Neither ruleset has a bypass list, so the rules bind admins: a required check red
+on every PR for a reason outside them (an advisory with no fixed release failing
 `audit`, an outage) blocks every merge into that branch until it passes again (a re-run
 after the outage; a PR that works around the advisory and passes its own checks) or the
 rule is lifted by hand in the repository's settings (plan #11).
@@ -346,9 +350,13 @@ for it. What CI doesn't cover:
   not only in the app;
 - on a PR into `dev`, a change the controls test that no `TRIGGERS` entry covers ("Schema
   controls" below);
-- a PR retargeted from `dev` to `main`: its last run, into `dev`, may have run the controls'
-  `--check` only, and no new run starts until its next push (`ci.yml`'s header; whether the
-  ruleset counts that run is #298's probe).
+- which run each check came from: `base (main)` shows that a run against `main` reported on
+  the commit, not that every other check's newest result came from it. A later run against
+  `dev` on the same commit (a PR closed and reopened while it targets `dev`, then retargeted
+  to `main`; two PRs from one branch; a re-run of an older run against `dev`) can mix its
+  results into `main`'s; and `dev`'s ruleset requires no `base (dev)`, so a PR retargeted
+  from `main` to `dev` counts its run against `main` (IS #356's review). Open a PR fresh
+  against the branch it merges into, don't retarget it, and re-run only its newest run.
 
 Locally, `npx tsc --noEmit`, `npm run test:run` and `npm run lint` are the fast loop, with
 Docker down. `tsc` is a check in its own right: vitest strips types and never type-checks, so

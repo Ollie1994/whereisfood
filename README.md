@@ -608,9 +608,12 @@ A pull request into `dev` or `main` merges once the checks the branch's ruleset 
 green (`CLAUDE.md`, "Testing"): `.github/workflows/ci.yml`'s four gates, Supabase's security
 advisor, `npm audit`, the process log's check, the schema controls (the full set when a path
 `TRIGGERS` in `scripts/controls-trigger.mjs` covers changes or the pull request is into
-`main`, `--check` otherwise) and Gitleaks, and on `dev` CodeQL too. The branch must also be
-up to date with its base, so after another pull request merges, update the branch and let
-the checks run again. What the checks don't cover (the `/map` browser check, and when the
+`main`, `--check` otherwise) and Gitleaks; on `dev` CodeQL too, and on `main` `base (main)`,
+which makes a pull request retargeted from `dev` wait for a run against `main`. It doesn't
+show which run each other check came from, so a pull request is opened fresh against the
+branch it merges into, not retargeted (`CLAUDE.md`, "Testing"). The branch must also be up
+to date with its base, so after another pull request merges, update the branch and let the
+checks run again. What the checks don't cover (the `/map` browser check, and when the
 controls need a hand run among others) is in `CLAUDE.md`, "Testing". Locally, the fast loop
 is:
 

@@ -76,7 +76,7 @@ has run the checks with no Vercel build (#5).
 
 | File | What it is |
 |---|---|
-| `.github/workflows/ci.yml` | PR-only (`pull_request` into `dev` and `main`), read-only token. Jobs `typecheck-lint`, `unit`, `integration` (local Supabase, and the security advisor), `build` (`.env.example`'s variables from the local stack, then `next start` and `smoke.mjs`), `secret-scan`, `audit` (three runs, #12), `controls` (`--check` always; the full set when `needsFullControls` says so) and `process-log` |
+| `.github/workflows/ci.yml` | PR-only (`pull_request` into `dev` and `main`), read-only token. Jobs `typecheck-lint`, `unit`, `integration` (local Supabase, and the security advisor), `build` (`.env.example`'s variables from the local stack, then `next start` and `smoke.mjs`), `secret-scan`, `audit` (three runs, #12), `controls` (`--check` always; the full set when `needsFullControls` says so), `process-log`, and `base`, named `base (<base branch>)`, which `main`'s ruleset requires as `base (main)` (IS #356) |
 | `.github/workflows/codeql.yml` | CodeQL, `javascript-typescript` and `actions`, on PRs and on push to `dev` and `main`, with `security-events: write`; on `dev` its code-scanning result check is required, since the analyze jobs stay green on a finding, and both analyze jobs beside it (#14, settled in #297); on `main` they join in Phase 10 (#11) |
 | `.github/workflows/sonarqube.yml` (not created: step 9 skipped, #295) | SonarQube Cloud, on PRs and on push to `dev` and `main`; skipped by `if:` on Dependabot and fork PRs; installs with `--ignore-scripts`; runs with `sonar.qualitygate.wait=true`, so a failed gate fails the job (#14) |
 | `.github/dependabot.yml` | Version updates for `github-actions`, keeping the SHA pins current, with the default `/` branch-name separator (step 15). npm gets security updates only (repository setting) |
@@ -300,6 +300,14 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
     rulesets need GitHub Team or Enterprise (docs read in #297's PR), and the ruleset
     editor's list of rules on this repository has none (the owner's read, 2026-11-15); #2's
     limit stands. Both rulesets read back as set (`dev` 27326965, `main` 27327048; PR #352).
+    **Then step 13's retarget probe** (PR #355) showed `main`'s ruleset counting a run made
+    against `dev`: a PR retargeted from `dev` to `main` read `CLEAN` with no new run. So
+    `ci.yml` gains a `base` job named after the run's base, and `main`'s ruleset requires
+    `base (main)`; `dev`'s doesn't require `base (dev)` (the owner's calls, IS #356). Its
+    negative control, PR #359, read `BLOCKED` after the same retarget; after a push,
+    `base (main)` reported and `controls` took the full set's path (closed before that run
+    finished). A limit stays: it shows a run against `main` reported, not that each
+    other check's newest result came from it (`CLAUDE.md`, "Testing").
 13. **The proof (the phase's checkpoint, #6).** On `dev`, one probe PR with one break per
     required check, split only where a break would cascade, its `secret-scan` break made as
     #13 says; on `main`, one probe PR from a branch off `dev` (a branch off `main` has no
