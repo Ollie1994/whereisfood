@@ -11,7 +11,7 @@ themselves later.
 It fills a real gap: Gothenburg has had no central food-truck map since Streetkäk
 shut down in 2017.
 
-> **Status: Phase 8 of 10 (CI/CD) done; Phase 9 (security) next.** The map shows
+> **Status: Phase 8 of 11 (CI/CD) done; Phase 9 (security) next.** The map shows
 > today's entries from the database through `GET /api/live`, locally against a local
 > Supabase and on protected Vercel previews against a hosted one. One admin logs in with
 > an emailed link and keeps the map up to date from a phone-first admin screen. Every pull
@@ -45,8 +45,9 @@ Consumers are always anonymous. All user-facing text is in Swedish.
 ## How it's designed to work
 
 This is the design. Phases 5 to 8 built the schema, the public read path (the map, its
-polling and cache, the popup's freshness text), the admin screen with its entry flow,
-and CI/CD; security is Phase 9's, and the launch Phase 10's.
+polling and cache, the popup's freshness text), the admin screen with its entry flow, and
+CI/CD; security is Phase 9's, the first production deploy Phase 10's, as a soft launch
+with the map shown only to the admin, and the full launch Phase 11's.
 
 - **The admin enters every location by hand.** A pin comes from a map tap, a known
   Gothenburg spot, a recently used place, or the phone's GPS. Start and end times are
@@ -100,7 +101,8 @@ The working rules live in [`CLAUDE.md`](CLAUDE.md) and the design reference in
 | 7 · Admin            | Admin login, location entry, truck management, the morning checklist | ✅ Done |
 | 8 · CI/CD            | The checks in GitHub Actions, secret scanning, CodeQL, Dependabot, branch protection | ✅ Done |
 | 9 · Security         | Admin MFA, security headers, monitoring, the 2FA audit | ⬜ Next |
-| 10 · Launch          | A custom domain for the tiles, production deploy | ⬜ Not started |
+| 10 · Launch          | Production deploy, a soft launch: the map shown only to the admin, an about page for everyone else | ⬜ Not started |
+| 11 · Full launch     | The map public, a custom domain for the tiles, paid plans | ⬜ Not started |
 
 Phases 2 and 3 built automatic ingestion: Make.com webhooks and Mailgun email, run
 through a Swedish parser that turned captions into locations. It was dropped for the
@@ -222,7 +224,8 @@ Cloudflare dashboard (no API token needed):
 - **Public access:** the bucket's *Public Development URL* (`https://pub-<id>.r2.dev`),
   under Settings. Deploys set `NEXT_PUBLIC_PMTILES_URL` to
   `https://pub-<id>.r2.dev/gothenburg.pmtiles`. Cloudflare rate-limits `r2.dev` and
-  says it isn't for production, so launch moves the tiles to a custom domain (Phase 10).
+  says it isn't for production, so the full launch moves the tiles to a custom domain
+  (Phase 11).
 - **CORS policy** (Settings): without it R2's responses carry no
   `Access-Control-Allow-Origin`, so the browser refuses them (the curl check below shows
   the header).
