@@ -81,7 +81,9 @@ save-triggered cache purges, grey markers) without a concrete problem that needs
 
 - `/` redirects to `/map`. `/map` renders MapLibre over PMTiles with Swedish labels
   (`@protomaps/basemaps`, `lang: "sv"`), centred on Gothenburg: a local file in
-  development, Cloudflare R2 on a preview ("Map tiles").
+  development, Cloudflare R2 on a preview ("Map tiles"). Without WebGL2 it shows a Swedish
+  message in place of the map (IS #246), and a failure while starting shows a Swedish error
+  page, `src/app/map/error.tsx` (IS #306).
 - **Markers come from `GET /api/live`**, the one public API route: route → `getLiveMap`
   (`src/lib/services/live.ts`) → the db layer. Part 2's "Read path" (built in Phase 6)
   describes it, server and client: the markers, the popup, polling and failure.
@@ -101,8 +103,8 @@ save-triggered cache purges, grey markers) without a concrete problem that needs
 - `src/proxy.ts` checks the session cookie and `is_admin` for `/admin/:path*` and
   `/api/admin/:path*`, letting `/admin/login` through (`CLAUDE.md`, "proxy.ts").
 - **CI** (Phase 8): GitHub Actions runs `.github/workflows/ci.yml` and `codeql.yml` on every
-  PR into `dev` or `main`, and rulesets on both branches require their checks ("Tests and
-  gates"). Dependabot opens PRs for GitHub Actions updates and npm security fixes (Part 2,
+  PR into `dev` or `main`. Rulesets on both branches require `ci.yml`'s checks, and `dev`'s
+  CodeQL's too (`CLAUDE.md`, "Testing"). Dependabot opens PRs for GitHub Actions updates and npm security fixes (Part 2,
   "Pre-deploy automation").
 
 ## Map tiles
@@ -281,7 +283,7 @@ src/
 ├── app/
 │   ├── layout.tsx, globals.css, favicon.ico
 │   ├── page.tsx                  ← redirects to /map
-│   ├── map/page.tsx
+│   ├── map/                      ← page.tsx, error.tsx (the Swedish error page, IS #306)
 │   ├── admin/                    ← layout.tsx, page.tsx (Poster), login/page.tsx, trucks/page.tsx
 │   ├── api/live/route.ts         ← (+ test)
 │   ├── api/admin/                ← checklist, places, trucks, trucks/[id], locations,
@@ -304,7 +306,7 @@ src/
 │   ├── live.ts, live-loader.ts, stockholm.ts ← (+ tests); timestamp.ts
 │   ├── admin-*.ts                ← the admin screens' helpers, and admin-api.ts's fetch
 │   │                               wrapper (+ tests, but admin-list)
-│   ├── basemap.ts, geo.ts, spots.ts ← (+ tests); map-setup.ts
+│   ├── basemap.ts, geo.ts, spots.ts, map-setup.ts ← (+ tests); map-texts.ts
 │   ├── login.ts                  ← (+ test)
 │   ├── supabase.ts, supabase-browser.ts, supabase-session.ts
 │   ├── types.ts, database.types.ts
@@ -361,8 +363,8 @@ answering 401 and 403 with `no-store`: Phase 7 plan #13; the 503 cases are
 #371, 2026-11-16) ran 39 unit files (945 tests) and 12 integration files (241 tests), and
 that day `npm run lint` reported no warnings locally. **CI is the gate** (Phase 8, IS
 #297): on each PR into `dev` or `main`, GitHub Actions runs the four gates and the other
-checks, and the rulesets require them. `CLAUDE.md` "Testing" has which checks, what they
-don't cover, the local fast loop and the schema controls, which CI's `controls` check
+checks, and the rulesets require them. `CLAUDE.md` "Testing" has which checks each branch
+requires, what they don't cover, the local fast loop and the schema controls, which CI's `controls` check
 runs. Green checks don't show the map renders: look at `/map` in a browser after any map,
 dependency or tile change.
 
@@ -701,9 +703,9 @@ and Phase 10 runs the rest of "Before the production deploy". Since Phase 8, CI 
   gets no update PR; CI's `audit` still fails on a critical advisory anywhere and a high
   one in production dependencies.
 - **Dependabot security updates** (2026-11-16, #300).
-- **Squash merging off** (2026-11-16): the closing-keyword check reads the merge commits
-  GitHub writes, and a squash would join every message into one it doesn't read (IS #368;
-  `scripts/closing-keywords.mjs`'s header).
+- **Squash merging off** (2026-11-16): the closing-keyword check reads a PR's commits and
+  the merge commit GitHub will write from its branch name and title; a squash would join
+  every message into one it doesn't read (IS #368; `scripts/closing-keywords.mjs`'s header).
 - **Two-factor authentication** (the rule is `CLAUDE.md`'s, "Secrets"): the owner's
   GitHub account and the Cloudflare, Supabase and Vercel accounts Phase 6 created all
   use a mobile authenticator app (the owner's confirmations in PRs #194, #195 and #197,
@@ -770,9 +772,9 @@ secret-scanning, Dependabot-alerts and vulnerability-alerts APIs, and no
   `main`. It runs when a build starts, so promoting an existing preview to Production
   doesn't pass through it: don't promote a branch preview. A CLI deploy wasn't tried,
   and its cancel case hasn't been seen (`README.md`, "Preview deploys", #187). A
-  `vercel.json` `ignoreCommand` on the branch being built overrides the setting, and the
-  secret key is scoped to `dev`'s previews (Phase 8 plan #15), so Production's variables
-  are a scope of their own.
+  `vercel.json` (or `vercel.ts`) `ignoreCommand` on the branch being built overrides the
+  setting (Phase 8 plan #15, probed on PR #311), so check too that `main` holds none. The
+  secret key is scoped to `dev`'s previews, so Production's variables are set on their own.
 - **Rotate every credential**, in case one leaked: every key, token and secret that
   existed before the deploy, or replace it with a new project's. A new production
   Supabase project has new keys by construction. Reuse nothing from the preview setup.
@@ -990,11 +992,11 @@ says.
 | Phase 7 #37 | "Poster" and "Foodtrucks" in every admin header but the login's; a question before "Sätt inaktiv" | Part 2 "Admin and auth" |
 | Phase 7 #25, #26; open decision 10 | History retention and the app's final name are the launch's, now Phase 10's; until then the admin screens say WhereIsFood and the public title stays | Part 2 "Phase map" (Phase 10 row) and "Open decisions" |
 | Phase 7 open decisions 1–5 | The login is a magic link (a 6-digit code is IS #241), until Phase 9 adds #241's emailed code beside TOTP MFA; a session lasts until logout, until Phase 9 (or Phase 10, if they need Pro) adds session timeouts (both amended by the IS #278 (Phase 9) row below, and by the Phase 10 row if the timeouts need Pro); a phone gets past Deployment Protection by logging in to Vercel; the preview's Redirect URLs are `dev`'s alias alone, no wildcard; the admin user is made by hand | `README.md` "Hosted preview database" (the Redirect URLs) and "5. Create the admin user"; Part 2 "Admin and auth" (the link, the session); this row (a phone's Vercel login) |
-| Phase 8 #1 (IS #278 (D1)) | Three phases after Phase 7: **8 · CI/CD → 9 · Security → 10 · Launch**, CI/CD first so the security work runs through it. The line between them: 8 the pipeline, 9 the running app and its accounts (the first 2FA audit included), 10 production. Replaces the IS #265 row (2026-11-11, its text in PR #266), keeping what still holds of it: the launch is a phase of its own and runs through working CI, the owner's call to keep each milestone smaller, and Phase 6 #1 holds, CI/CD built before the production deploy. Outside the three: #264 (the README rework) after Phase 8, and #246 and #259 standalone (the owner's calls, the scope draft's D1, Q16, Q17), and #248 and #256 standalone as the draft lists them; the Owners phase gets its own threat model (the draft's Appendix A, A06) | Part 2's Phase map and the Roadmap; Part 2 "Pre-deploy automation" (its intro); `CLAUDE.md` "Testing"; `.claude/drafts/phases-8-10-scope.md` ("Decisions", "The line between the phases", "Outside Phases 8–10") |
+| Phase 8 #1 (IS #278 (D1)) | Three phases after Phase 7: **8 · CI/CD → 9 · Security → 10 · Launch**, CI/CD first so the security work runs through it. The line between them: 8 the pipeline, 9 the running app and its accounts (the first 2FA audit included), 10 production. Replaces the IS #265 row (2026-11-11, its text in PR #266), keeping what still holds of it: the launch is a phase of its own and runs through working CI, the owner's call to keep each milestone smaller, and Phase 6 #1 holds, CI/CD built before the production deploy. Outside the three: #264 (the README rework) after Phase 8, and #246 and #259 standalone (the owner's calls, the scope draft's D1, Q16, Q17), and #248 and #256 standalone as the draft lists them; the Owners phase gets its own threat model (the draft's Appendix A, A06) | Part 2's Phase map and the Roadmap; Part 2 "Pre-deploy automation" (its intro); `.claude/drafts/phases-8-10-scope.md` ("Decisions", "The line between the phases", "Outside Phases 8–10") |
 | Phase 8 #2 (IS #278 (Phase 8)) | Phase 8's scope as the scope draft settled it, as built: GitHub Actions for the checks, grouped by trigger and permissions, one set for `dev` and `main`; Gitleaks, CodeQL, `npm audit`'s thresholds, the security advisor, the lint rules, the controls' trigger and the log check; workflow hardening; Dependabot last, its branches off Vercel builds; branch protection on both branches, `main`'s required checks a production deploy's only gate; `SECURITY.md`; CI as the gate. Its limit: a PR runs its own copy of what its checks read, so the guard is reading every diff, Dependabot's included. The owner's calls (the draft's Q1–Q10, Q25–Q30, Q32, Q35) | `CLAUDE.md` "Testing"; Part 2's Phase map (Phase 8 row) and "Pre-deploy automation"; `.claude/drafts/phases-8-10-scope.md` ("Phase 8 · CI/CD") |
 | Phase 8 #3 (IS #279) | The between-phases procedure: a row's marker may name the later phase whose plan takes it ("for Phase <N>"), earlier plans don't take it and their reconciliations don't replace its marker, though a stale fact in it is fixed like any other hit; and a between-phases row that a later one replaces is removed in the PR that adds the new row, which keeps what still holds and cites the old IS #, as the IS #278 (D1) row does for IS #265; and several rows from one issue carry a label each (`IS #278 (D1)`), so a citation names one. Amends Phase 5 #24's procedure. The owner's calls, rounds 1–3 and the narrow read-through on PR #281 | `CLAUDE.md` "Process Log" (the one copy); `.claude/commands/create-milestone.md` (the Rationale's first decisions) |
-| Phase 8 #4 | The issue that adds a check is done when the check runs and reports correctly; each finding gets an issue of its own, and one that would keep a required check red is settled (fixed, dismissed or allowlisted with a reason) before the check becomes required | this row; `codeql.yml`'s header (its findings get their own issues) |
-| Phase 8 #5, #6, #13 | A check is done once it has been seen to fail: probe PRs with one break per required check, split only where breaks cascade, named `probe/…`, closed unmerged with their branches deleted, no merge attempted (`--admin` included); `secret-scan`'s with a made-up value Gitleaks flags, run locally first and committed with no local hook, never bypassing push protection | this row; `CLAUDE.md` Hard Rules ("Secrets", push protection) |
+| Phase 8 #4 | The issue that adds a check is done when the check runs and reports correctly; each finding gets an issue of its own, and one that would keep a required check red is settled (fixed, dismissed or allowlisted with a reason) before the check becomes required | `CLAUDE.md` "Testing" ("Adding a required check"); `codeql.yml`'s header (its findings get their own issues) |
+| Phase 8 #5, #6, #13 | A check is done once it has been seen to fail: probe PRs with one break per required check, split only where breaks cascade, named `probe/…`, closed unmerged with their branches deleted, no merge attempted (`--admin` included); `secret-scan`'s with a made-up value Gitleaks flags, run locally first and committed with no local hook, never bypassing push protection | `CLAUDE.md` "Testing" ("Adding a required check") and Hard Rules ("Secrets", push protection) |
 | Phase 8 #7 | `core.hooksPath` is set by hand in each clone, never by a `prepare` script, which `npm ci` would run in CI too | `CLAUDE.md` Hard Rules ("Secrets", the Gitleaks hooks); `README.md` "1. Install" |
 | Phase 8 #8 | The controls' trigger list is guarded by a test that follows each control's tests' imports | `scripts/controls-trigger-coverage.test.mjs`'s header; `CLAUDE.md` "Testing" ("Schema controls") |
 | Phase 8 #9 | Each lint rule has a fixture test: a mistyped selector lints clean | `eslint.config.mjs`'s header; `scripts/lint-rules.test.mjs` |
@@ -1002,8 +1004,8 @@ says.
 | Phase 8 #12 | `npm audit` in CI: fail on high or critical in production dependencies and critical anywhere, warn on each production advisory, fail when it can't tell; a PR showing the warning gets an issue per advisory before it merges | `CLAUDE.md` "Dependencies" |
 | Phase 8 #14 | The required SAST check is the one that fails on a finding: on `dev`, `CodeQL` and both analyze jobs, by name; a SARIF error with both jobs green still passes | `CLAUDE.md` "Testing"; `codeql.yml`'s header |
 | Phase 8 #15 | Vercel's Ignored Build Step, inline in its settings, cancels `dependabot/` and `probe/` branches; the secret key is scoped to `dev`'s previews, since a branch's `vercel.json` overrides the step | `README.md` "Preview deploys"; Part 2 "Pre-deploy automation" |
-| Phase 8 #16 | A `controls` run of the full set that passed stands in for the hand run | `CLAUDE.md` "Testing" ("Schema controls") |
+| Phase 8 #16 | A `controls` run of the full set that passed stands in for the hand run | `CLAUDE.md` "Testing" ("Schema controls": the hand runs it still asks for are the cases CI's `--check` leaves) |
 | Phase 8 #17 | Dependabot's PRs keep its default labels, the exception to PRs carrying only a phase label | `.github/dependabot.yml`'s header |
-| IS #301 (PR #369), IS #368 (PR #371) | The Phase 8 retrospective's calls: the Phase 7 retrospective's actions kept; one new action, the closing-keyword check in `secret-scan`, with `claims.sh` listing a PR body's closing references; squash merging off, since the check reads merge commits (the owner's call, round 4 on PR #371) | `CLAUDE.md` "Testing" and "Review rounds"; `scripts/closing-keywords.mjs`'s header; the process log's Phase 8 retrospective |
+| IS #301 (PR #369), IS #368 (PR #371) | The Phase 8 retrospective's calls: the Phase 7 retrospective's actions kept; one new action, the closing-keyword check in `secret-scan`, with `claims.sh` listing a PR body's closing references; squash merging off, since the check models the merge commit GitHub writes (the owner's call, round 4 on PR #371) | `CLAUDE.md` "Testing" and "Review rounds"; `scripts/closing-keywords.mjs`'s header; the process log's Phase 8 retrospective |
 | **between phases**, 2026-11-12, IS #278 (Phase 9), for Phase 9 | Phase 9's scope as the scope draft settles it: TOTP MFA for the admin login with #241's emailed code (amending Phase 7 open decision 1), its enrol-window constraints and the lost-phone routes to probe; session timeouts (amending open decision 2); the login-abuse and code-guessing probes; the split CSP and the cookie's-reach decision; monitoring; the smaller probes and limits; the 2FA audit and the hosted-settings checklist. Phase 9's reconciliation also rewrites the "Phase 7 open decisions 1–5" row this one amends. The owner's calls (the draft's D2, D3, Q11–Q14, Q19–Q23, Q31, Q33) | `.claude/drafts/phases-8-10-scope.md` ("Phase 9 · Security"); Part 2's Phase map (Phase 9 row), "Admin and auth" (MFA and the timeouts) and "Pre-deploy automation" (the 2FA audit) |
 | **between phases**, 2026-11-12, IS #278 (Phase 10), for Phase 10 | Phase 10's scope as the scope draft settles it: the old launch row, minus the security headers and the usage emails, plus what the split hands it (the tiles' domain in the CSP, HSTS, Pro-only timeouts (Q19), the hosted-settings checklist applied, with the production Security Advisor run as "Before the production deploy" says (Q21), the usage alerts if the free plans can't send them (Q14)), and Phase 5 #19's hosted check, carried forward, which had fallen out of the old launch row. Once production exists, an unfixed vulnerability found in-house goes to a private security advisory (Q36); the incident runbook, a restore test and the logs in the privacy note are open (Q34). The owner's calls (the draft's Q14, Q19, Q21, Q34, Q36) | `.claude/drafts/phases-8-10-scope.md` ("Phase 10 · Launch"); Part 2's Phase map (Phase 10 row) and "Pre-deploy automation" ("Before the production deploy") |

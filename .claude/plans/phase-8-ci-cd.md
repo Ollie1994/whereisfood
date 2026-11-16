@@ -772,8 +772,7 @@ easy to filter, and stripping them by hand would recur on every PR. The owner's 
 
 **Always**
 - [ ] Each PR before step 12 ran the four gates by hand, exit codes read unpiped.
-- [x] The closing steps of the milestone-retrospective procedure are done: the
-  retrospective (#301, PR #369), its follow-up #368 (PR #371) and this reconciliation (#302).
+- [ ] The closing steps of the milestone-retrospective procedure are done.
 
 ---
 

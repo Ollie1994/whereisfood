@@ -320,7 +320,7 @@ Toolchain: the Node and npm ranges under Dependencies.
 | `npm run test:integration` | integration only (fails if it collects zero files) | yes |
 | `npm run test:all` | **every project in `RUNS`** of `scripts/test-all.mjs` (today `unit` + `integration`), checked against the projects `vitest.config.ts` declares; takes no arguments | yes |
 
-**CI is the gate** (Q10; Phase 8 plan step 12, IS #297). On each PR into `dev` or `main`,
+**CI is the gate** (Q10; Phase 8 plan #2 and step 12, IS #297). On each PR into `dev` or `main`,
 `.github/workflows/ci.yml` runs the four gates (`typecheck-lint`, `unit`, `integration`,
 `build`; #285, #286), Supabase's security advisor in `integration` (#290), `npm audit` in
 `audit` (#291), the process log's check in `process-log` and the schema controls in
@@ -359,6 +359,16 @@ for it. What CI doesn't cover:
   results into `main`'s; and `dev`'s ruleset requires no `base (dev)`, so a PR retargeted
   from `main` to `dev` counts its run against `main` (IS #356's review). Open a PR fresh
   against the branch it merges into, don't retarget it, and re-run only its newest run.
+
+**Adding a required check** (Phase 8 plan #4, #5, #6, #13). The issue that adds a check is
+done when the check runs and reports correctly and has been seen red: on a probe PR with one
+break per required check (split only where breaks would cascade), from a branch named
+`probe/…`, closed unmerged with its branch deleted, and no merge attempted, `--admin`
+included. A `secret-scan` probe uses a made-up value Gitleaks flags, checked locally first and
+committed with no local hook, never pushed past push protection ("Secrets"). The check's
+findings get issues of their own. One that would keep the check red on `dev` is settled
+(fixed, dismissed, or allowlisted with a reason) before the check becomes required, since a
+red required check blocks every PR.
 
 Locally, `npx tsc --noEmit`, `npm run test:run` and `npm run lint` are the fast loop, with
 Docker down. `tsc` is a check in its own right: vitest strips types and never type-checks, so

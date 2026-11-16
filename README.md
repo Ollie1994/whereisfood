@@ -146,9 +146,9 @@ branch and tag.
 
 ### What does not exist yet
 
-- A production deploy (Phase 10). Pushes to branches other than `main` build previews,
-  except `dependabot/` and `probe/` branches, and only `dev`'s preview has the secret key
-  (see "Preview deploys")
+- A production deploy (Phase 10). A push to a branch other than `main` starts a preview
+  build, except on `dependabot/` and `probe/` branches; only `dev`'s gets the secret key, so
+  another branch's build fails with today's code (see "Preview deploys")
 
 ---
 
