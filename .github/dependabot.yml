@@ -1,20 +1,31 @@
 # Dependabot version updates for the GitHub Actions the workflows pin (Phase 8 plan step 15,
 # IS #300): each `uses:` is pinned to a commit SHA with its version in a comment, and a
-# Dependabot PR moves both. Its branches are `dependabot/github_actions/…` (the default `/`
-# separator, so nothing here sets `pull-request-branch-name`), which Vercel's Ignored Build
-# Step cancels (plan #15, README "Preview deploys"). No auto-merge: a Dependabot PR is
-# reviewed like any other, against the same required checks (plan #2), and its diff is a
-# change to what the checks run (CLAUDE.md, "Testing").
+# Dependabot PR moves both. No `pull-request-branch-name`, so the separator is the default
+# `/` and the branches should start `dependabot/`, which Vercel's Ignored Build Step cancels
+# (plan #15, README "Preview deploys", seen there on a hand-pushed `dependabot/` branch);
+# #300 reads the name and the cancel on the first Dependabot PR. No auto-merge: a Dependabot
+# PR is reviewed like any other, and its diff is a change to what the checks run (CLAUDE.md,
+# "Testing"); its commit message, release notes included, is scanned by `secret-scan` too.
 #
-# No npm entry. npm gets security updates only, from the repository setting, and that stays
-# off for now: the npm updater image runs Node 24 (dependabot-core's npm_and_yarn/Dockerfile,
-# `NODEJS_VERSION=24`, read 2026-11-16), and `devEngines.runtime` is `26.x` with
-# `onFail: "error"`, under which npm's lockfile-only install and update stop with
-# EBADDEVENGINES (probed on #300 with the range set to 24.x under Node 26). IS #361 switches
-# it on once the updater runs Node 26 (the owner's call, open decision 9).
+# - `groups`: every action in one PR a week. Each such PR edits a workflow, ci.yml among them
+#   a `TRIGGERS` path, so it runs the full controls (round 1 on PR #362).
+# - `cooldown`: a release is proposed only once it is 7 days old, so a compromised one has
+#   time to be pulled first (the owner's call, round 1 on PR #362). Version updates only.
+# - `labels: []`: none of Dependabot's default labels (the repo's PR label rule).
+#
+# No npm entry: npm gets security updates only, from the repository setting (plan #2). Its
+# updater image runs Node 24 (dependabot-core's npm_and_yarn/Dockerfile, read 2026-11-16)
+# against `devEngines`'s `26.x`, but its lockfile commands pass `--force`, under which npm only
+# warns EBADDEVENGINES (probed on PR #362 on npm 11.21, not the image's npm 12).
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+    cooldown:
+      default-days: 7
+    labels: []
