@@ -981,6 +981,7 @@ Old rows that point at them are now pointing there: "see note" (rows 14, 15, 17,
 | 700 | 2026-11-16 | → IS #301 | `process` | **Asking the owner to keep the round ceiling, I said none of the nine `merged` rows in 543–699 was a miss a dropped round would have found, from their `Caught by` cells alone.** Row 646's `table()` came in round 1's fixes on PR #322 (`f86deed`), which round 2, scoped to them, read and missed. The owner's first call rested on that claim; asked again with the correction, they kept the ceiling. | `self` writing the section's ceiling paragraph (`git log -S` on `ci-advisor.test.mjs`) | `pre-commit` | `imprecise-claim` | The section's ceiling paragraph states what the rows show (646 from round 1's fixes on #322) and that neither measure can tell; the owner was asked again with the correction and kept the ceiling unchanged. |
 | 701 | 2026-11-16 | PR #369 / IS #301 | `process-log` | `/code-review` round 1 on #369, full, found 10; all applied. **The section's counts disagreed with its own commands:** the can't-fail grep it quotes matches 10 rows, not 9 (544 left out), and "`merged` rows rose to 9" counted the `crossed-phase` 649. Also: action 4 missed the six rows the claims check caught (609, 614, 657, 659, 661, 670); action 3 hid that its misses rose, misordered 678, and dated the required check to #288, not #297; the parts' labels; rounds per PR from the wrong PR; #300's close time. | `code-review` r1 on PR #369, full | `pre-merge` | `imprecise-claim` | Each count re-read from its command: 10 grep rows; 8 `merged`, 649 apart; the six claims-check rows. Action 3 states 0 to 3, the six-row class, 678's order and #297. The parts relabelled; 128 rounds over 40 PRs; 07:46:29Z from the issue events. |
 | 702 | 2026-11-16 | PR #369 / IS #301 | `process-log` | `/code-review` round 2 on #369, scoped to round 1's fixes, found 9; all applied. **Round 1's "Its misses rose, from none in 420–542" was refuted by row 565, which names row 535 as the same miss, and called the rows the script's misses though the bullet said the script worked.** Also: "recurred six times" for six occurrences; the declined guard's scope unclear; "can't merge" past CLAUDE.md's limit; 657 dropped from the Miss list; #300's "completed" cited to events that don't show it; two wraps. | `code-review` r2 on PR #369, scoped to `7e6f5a4..3449e3e` | `pre-merge` | `overcorrection` | Action 3 states what the rows show: row 535 unrecorded then, six occurrences, the declined guard as offered; "can't merge" unless the PR changes the check; 657 back in the list; GraphQL's ClosedEvent cited; two paragraphs reflowed. |
+| 703 | 2026-11-16 | PR #369 / IS #301 | `process-log` | `/code-review` round 3 on #369, full, the ceiling's last, found 7, none in what runs; all applied. **The ceiling paragraph written to fix row 700's overclaim undercounted again:** 699's `labels: []` also came from a round's fixes (`9b01db4`, round 1 on #362), not only 646. Also: #300's timeline shows a Projects status change a second before its close; CI's check can't see four of action 3's six rows; seven occurrences, not six; two `merged` baselines; 613 a missing prerequisite, not a claim; a stray line break. | `code-review` r3 on PR #369, full | `pre-merge` | `overcorrection` | Two rows from a round's fixes, each with its commit; #300's timeline recorded, the cause the owner's to confirm; CI's reach split by kind (325, 565 against 354, 382, 587, 678); seven occurrences; rates over both ranges; 613 apart; one paragraph. |
 
 ---
 
@@ -2064,8 +2065,9 @@ The two largest parts differ (543–550's eight rows are in neither):
 In Phase 7's range, 420–542, 4 rows were `merged`. The nine that merged or crossed the
 phase, read row by row:
 - **Plan or issue text about how an outside tool behaves, from docs or reasoning, not a
-  probe:** 608, 613, 635, 640 and 677. Each was found by `self` while doing the step
-  that used it. Plan #5's can-fail probes found 635 and 640.
+  probe:** 608, 635, 640 and 677. And 613, a prerequisite the plan left out: the
+  token's Workflows permission. Each was found by `self` while doing the step that used
+  it. Plan #5's can-fail probes found 635 and 640.
 - **Code CodeQL found on its first analysis of `dev`:** 646, and 649, which dates from
   Phase 4.
 - **A commit message whose closing keyword closed #348 on merge:** 682. No check read
@@ -2135,8 +2137,8 @@ below.
   `check`: 565, 587 and 678.
   - **The trend.** The Phase 7 retrospective's grep found no row in 420–542 recording
     one, but 565 names row 535, in that range, as the same miss, unrecorded then.
-  - **The class.** It holds rows 325, 354, 382, 565, 587 and 678, six occurrences, which
-    row 678 named for this retrospective.
+  - **The class.** Rows 325, 354, 382, 565, 587 and 678 record it, which row 678 named
+    for this retrospective. With row 535, that is seven occurrences.
   - In 565, a hand-edited row over the cap was committed and pushed while `check` failed.
     A later commit fixed it.
   - In 587, `add` refused the row, and the commit chained after it with `;` ran anyway,
@@ -2149,7 +2151,9 @@ below.
 - **CI.** Since PR #317 (#288), CI's `process-log` job runs `check` on every PR into `dev`
   or `main`. Since PR #352 (#297), the rulesets require it. So a log that fails `check`
   can't merge, unless the same PR changes the check (CLAUDE.md, "Testing": a PR runs its
-  own copy of the scripts its checks run).
+  own copy of the scripts its checks run). That covers the class's first kind, a bad row
+  committed (325, 565). It can't see the other, a commit message naming a row the log
+  doesn't hold (354, 382, 587, 678), where the log stays valid, as row 354's Fix says.
 - **Today.** The log passes `check` as this section is written (exit 0).
 - **Offered and not taken:** a `commit-msg` guard, aimed at the six-row class. It would
   run `check` on a staged log, and refuse a message naming a row the staged log doesn't
@@ -2175,24 +2179,29 @@ measures (Phase 7 plan #39):
 - **PRs past it.** Of the 40 PRs from #263 on, 5 had rounds past it that the owner asked
   for: #280 (rounds 4–7 and a read-through), #281 and #283 (a read-through each), and #315
   and #342 (a fifth round). Phase 7: 2 of 20.
-- **`merged` rows rose,** to 8 from the 3 in 441–542 that the Phase 7 retrospective's #4
-  row counted. Beside them is 649, `crossed-phase`: a Phase 4 regex, which says nothing
-  about the ceiling. Of the nine, review found only 699, and that one in a round on
-  #367, from what #366 showed. The rest were found by doing the work, by CodeQL or by
-  the owner ("By `Caught by`" above). One came from a round's own fixes: 646's `table()`
-  arrived in round 1's fixes on PR #322 (`f86deed`), which round 2, scoped to them, and
-  the full round 3 both read. Neither measure shows whether the dropped round would
-  have found any of the nine, as Phase 7 said. The owner was first asked with a claim
-  that none would have been found; asked again with this reading, they kept the
-  ceiling (row 700).
+- **`merged` rows rose:**
+  - 8 of 157 rows here (5.1%), against 4 of 123 in 420–542 (3.3%);
+  - the Phase 7 retrospective's #4 row counted 3, in 441–542;
+  - beside the 8 is 649, `crossed-phase`, a Phase 4 regex, which says nothing about the
+    ceiling.
+- **Who found the nine.** Review found only 699, and that one in a round on #367, from
+  what #366 showed. The rest were found by doing the work, by CodeQL or by the owner
+  ("By `Caught by`" above).
+- **From a round's own fixes, two.** Each was read by round 2, scoped to those fixes,
+  and by the full round 3:
+  - 646's `table()`, in round 1's fixes on PR #322 (`f86deed`);
+  - 699's `labels: []`, in round 1's fixes on PR #362 (`9b01db4`, `git log -S`).
+- **What the measures can't show.** Neither shows whether the dropped round would have
+  found any of the nine, as Phase 7 said.
+- **The owner's call.** The owner was first asked with a claim that none would have been
+  found. Asked again with 646 alone (row 700), they kept the ceiling.
 
 ### New actions
 
 **1. A closing-keyword check (#368).** Commit `365bdd9`'s message closed #348 when PR
 #350 merged, with none of #348's work done (row 682), and no check read commit messages
-for closing keywords.
-On #300, PR #364's draft body said "close #300 and #363", caught by a hand grep (#301's
-comment of 2026-11-16).
+for closing keywords. On #300, PR #364's draft body said "close #300 and #363", caught by
+a hand grep (#301's comment of 2026-11-16).
 
 #368 adds a step to the required `secret-scan` job, which fails when one of a PR's
 commit messages, or its title, holds a closing keyword before an issue reference.
@@ -2202,16 +2211,23 @@ call, 2026-11-16.
 **Offered and not taken:**
 - **The `commit-msg` guard for log rows** (action 3 above).
 - **A plan and issue field for claims about outside tools, with each one's source.**
-  Five of the nine merged or crossed rows were such claims (608, 613, 635, 640, 677),
-  and 699 came from a docs summary. Each was caught by its own step's work or probe.
+  Five of the nine merged or crossed rows were such claims, from docs or reasoning (608,
+  635, 640, 677, 699), and 613 was a prerequisite left out. The owner was shown six. Each
+  was caught by its own step's work or probe, or, for 699, by Dependabot's first PR.
 
 ### Also noted
 
-#300 was closed as completed at 07:46:29Z on 2026-11-16 by the `Ollie1994` account, with
-no commit or PR linked, while its proof was pending (GraphQL's `ClosedEvent`: that time,
-`stateReason` `COMPLETED`). The owner reopened it. The cause is unknown: the owner and the
-agent both act as that account, and the agent's commands in that minute were issue-body
-edits. No action, since nothing points to a cause to guard.
+#300 was closed as completed at 07:46:29Z on 2026-11-16 by the `Ollie1994` account, while
+its proof was pending. GraphQL's `ClosedEvent` gives that time and `stateReason`
+`COMPLETED`; the REST `closed` event carries no commit (`commit_id` null). The owner
+reopened it.
+
+Its timeline (`gh api …/issues/300/timeline`) shows the same account changing its
+Projects status at 07:46:28Z, one second before the close, and again at 07:46:36Z, then
+removing it from the project at 07:48:08Z. The status values aren't in the REST payload.
+A board action fits, such as a status set to one a project workflow closes on, but that
+isn't confirmed. The agent's commands in that minute were issue-body edits, with no
+Projects action. No action: the cause is the owner's to confirm.
 
 ### Follow-ups
 
