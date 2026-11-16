@@ -1,9 +1,9 @@
 # Dependabot version updates for the GitHub Actions the workflows pin (Phase 8 plan step 15,
 # IS #300): each `uses:` is pinned to a commit SHA with its version in a comment, and a
 # Dependabot PR moves both. No `pull-request-branch-name`, so the separator is the default
-# `/` and the branches should start `dependabot/`, which Vercel's Ignored Build Step cancels
-# (plan #15, README "Preview deploys", seen there on a hand-pushed `dependabot/` branch);
-# #300 reads the name and the cancel on the first Dependabot PR. No auto-merge: a Dependabot
+# `/` and the branches start `dependabot/` (PR #366: `dependabot/github_actions/…`), which
+# Vercel's Ignored Build Step cancels (plan #15; PR #366's commit read "Canceled by Ignored
+# Build Step"). No auto-merge: a Dependabot
 # PR is reviewed like any other, and its diff is a change to what the checks run (CLAUDE.md,
 # "Testing"); its commit message, release notes included, is scanned by `secret-scan` too,
 # and a false find there is settled as CLAUDE.md's "Secrets" says: a `.gitleaks.toml` entry
@@ -16,7 +16,9 @@
 # - `cooldown`: a release is proposed only once it is 7 days old, so a compromised one has
 #   time to be pulled first (the owner's call, round 1 on PR #362). Version updates only
 #   (GitHub's docs, "cooldown").
-# - `labels: []`: none of Dependabot's default labels (the repo's PR label rule).
+# - No `labels`: Dependabot adds its defaults, `dependencies` and an ecosystem label
+#   (`github_actions` here). `labels: []` didn't stop them on PR #366, and the owner allows
+#   Dependabot's default labels on its PRs (plan #17).
 #
 # No npm entry: npm gets security updates only, from the repository setting (plan #2). Its
 # updater image runs Node 24 (dependabot-core's npm_and_yarn/Dockerfile, read 2026-11-16)
@@ -38,4 +40,3 @@ updates:
         update-types: [minor, patch]
     cooldown:
       default-days: 7
-    labels: []

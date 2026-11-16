@@ -533,6 +533,9 @@ below).
   the same branches got no new status (that commit's `/statuses` holds only `dev`'s own
   pair, from 2026-11-12), so the check used new commits. Why the first push got none
   wasn't tested: the commit already built, or a push with no new commit.
+- Seen on a branch Dependabot made: PR #366's `dependabot/github_actions/actions-2f4c4b3894`
+  read "Canceled by Ignored Build Step" in its commit's statuses (2026-11-16, Phase 8 plan
+  step 15).
 - A preview of any other branch passes the command: IS #284's PR's own preview built, before
   the secret key was scoped to `dev`, and Vercel logs the command before the build (#187's
   PR).
