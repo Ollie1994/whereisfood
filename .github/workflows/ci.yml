@@ -4,10 +4,11 @@
 # #291); the process log's check and
 # the schema controls' `--check`, with the full controls on a trigger path or a PR into
 # main (step 3, IS #288); and Gitleaks on the PR's commits and messages in `secret-scan`
-# (step 7, IS #293). Each job is a check the rulesets on dev and main require by its job
-# id (step 12, IS #297; CLAUDE.md, "Testing"). Renaming a job, or giving it a `name:`,
-# renames its check, and the ruleset waits on the old name as on a check that never runs
-# (below).
+# (step 7, IS #293). Each of those jobs is a check the rulesets on dev and main require by
+# its job id (step 12, IS #297; CLAUDE.md, "Testing"); `base` reports under its `name:`,
+# `base (<base branch>)`, and main's ruleset requires `base (main)` (IS #356). Renaming a
+# job, or changing or adding a `name:`, renames its check, and the ruleset waits on the old
+# name as on a check that never runs (below).
 #
 # Hardening (plan #2, Q5): the plain pull-request trigger only, never its target-branch
 # variant; a read-only token; every action pinned to a commit SHA; no path filter on the
@@ -15,12 +16,13 @@
 #
 # The default activity types (opened, synchronize, reopened) don't include a change of the
 # PR's base, so a PR retargeted to dev or main gets no new run until its next push; the
-# results of its last run stay on its head commit, tested against the old base (whether
-# #297's rulesets count them for the new base: not probed; #298 probes it). So a PR
-# retargeted from dev to main keeps the `controls` result its dev run left, which may be
-# `--check` only, though every PR into main is meant to run the full set. `edited`
-# would start a run, and would also rerun every job on each edit of the PR's title or
-# body (GitHub's docs: `edited` fires on a change of the title, body or base branch).
+# results of its last run stay on its head commit, tested against the old base, and a
+# ruleset counts them for the new base (#298's probe, PR #355: retargeted from dev to main,
+# it read `CLEAN` on the dev run, `controls` `--check` only). So main's ruleset also
+# requires `base (main)`, which a run made against dev doesn't report (the `base` job, IS
+# #356). `edited` would start a run, and would also rerun every job on each edit of the
+# PR's title or body (GitHub's docs: `edited` fires on a change of the title, body or base
+# branch).
 name: ci
 
 on:
@@ -54,6 +56,21 @@ env:
   SUPABASE_EXCLUDE: realtime,imgproxy,studio,edge-runtime,vector,logflare,postgres-meta,storage-api,supavisor
 
 jobs:
+  # The base this run was made against, in the check's name (IS #356): `base (dev)` or
+  # `base (main)`. `main`'s ruleset requires `base (main)`, so a PR retargeted from dev to
+  # main, which starts no new run (the header), waits until a push runs every job against
+  # main; without it, main's ruleset counted the run made against dev (#298's probe, PR
+  # #355: `CLEAN` after the retarget, `controls` `--check` only). No `if:`: a job skipped by
+  # `if:` reports success (GitHub's docs on required checks).
+  base:
+    name: base (${{ github.base_ref }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - run: echo "This run was made against $BASE."
+        env:
+          BASE: ${{ github.base_ref }}
+
   typecheck-lint:
     runs-on: ubuntu-24.04
     timeout-minutes: 10

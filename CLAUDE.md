@@ -328,7 +328,11 @@ Toolchain: the Node and npm ranges under Dependencies.
 on the PR's commits and messages in `secret-scan` (#293); `codeql.yml` runs CodeQL (#294).
 The rulesets on `dev` and `main` require a PR, the branch up to date with its base and, by
 name, `ci.yml`'s checks; on `dev` CodeQL's too (`CodeQL` and both `analyze` jobs, plan #14),
-on `main` they join in Phase 10 (plan #11). They block force-pushes and deletion. Neither
+on `main` they join in Phase 10 (plan #11). `main`'s also requires `base (main)`, a job in
+`ci.yml` named after the base the run was made against: a PR retargeted from `dev` to `main`
+starts no new run, and without it `main`'s ruleset counted the run made against `dev`
+(#298's probe), so it now waits for a push that runs every job against `main` (IS #356).
+They block force-pushes and deletion. Neither
 ruleset has a bypass list, so the rules bind admins: a required check
 red on every PR for a reason outside them (an advisory with no fixed release failing
 `audit`, an outage) blocks every merge into that branch until it passes again (a re-run
@@ -345,10 +349,7 @@ for it. What CI doesn't cover:
   repository, #297). Read every diff, Dependabot's included, for what it changes in a check,
   not only in the app;
 - on a PR into `dev`, a change the controls test that no `TRIGGERS` entry covers ("Schema
-  controls" below);
-- a PR retargeted from `dev` to `main`: its last run, into `dev`, may have run the controls'
-  `--check` only, and no new run starts until its next push (`ci.yml`'s header; whether the
-  ruleset counts that run is #298's probe).
+  controls" below).
 
 Locally, `npx tsc --noEmit`, `npm run test:run` and `npm run lint` are the fast loop, with
 Docker down. `tsc` is a check in its own right: vitest strips types and never type-checks, so

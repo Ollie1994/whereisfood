@@ -300,6 +300,10 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
     rulesets need GitHub Team or Enterprise (docs read in #297's PR), and the ruleset
     editor's list of rules on this repository has none (the owner's read, 2026-11-15); #2's
     limit stands. Both rulesets read back as set (`dev` 27326965, `main` 27327048; PR #352).
+    **Then step 13's retarget probe** (PR #355) showed `main`'s ruleset counting a run made
+    against `dev`: a PR retargeted from `dev` to `main` read `CLEAN` with no new run. So
+    `ci.yml` gains a `base` job named after the run's base, and `main`'s ruleset requires
+    `base (main)`; `dev`'s doesn't require `base (dev)` (the owner's calls, IS #356).
 13. **The proof (the phase's checkpoint, #6).** On `dev`, one probe PR with one break per
     required check, split only where a break would cascade, its `secret-scan` break made as
     #13 says; on `main`, one probe PR from a branch off `dev` (a branch off `main` has no
