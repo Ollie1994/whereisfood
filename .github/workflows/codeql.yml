@@ -5,9 +5,11 @@
 # has no bypass list: if a job fails or `CodeQL` never posts on such a PR, the PR can't merge
 # until that changes or the rule is lifted by hand. The push runs give a PR its base analysis to
 # compare with; `main` has none before Phase 10 (plan #11). The same pull-request trigger as
-# ci.yml, so a PR retargeted to dev or main gets no new run until its next push (ci.yml's
-# header): once CodeQL's checks join `main`'s ruleset (Phase 10), it is ci.yml's
-# `base (main)` that makes a PR retargeted from dev wait for a run against main (IS #356).
+# ci.yml, so a PR retargeted to dev or main gets no new run until its next push or a close
+# and reopen (ci.yml's header): once CodeQL's checks join `main`'s ruleset (Phase 10), it is
+# ci.yml's `base (main)` that makes a PR retargeted from dev wait for a run against main
+# (IS #356), with the same limit: it doesn't show which run CodeQL's checks came from
+# (CLAUDE.md, "Testing").
 #
 # The analyze jobs finish green when they find something: a PR's verdict is the separate
 # code-scanning result check GitHub posts from the uploaded results, named `CodeQL` (app

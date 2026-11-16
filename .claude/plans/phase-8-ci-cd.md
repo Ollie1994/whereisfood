@@ -304,8 +304,9 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
     against `dev`: a PR retargeted from `dev` to `main` read `CLEAN` with no new run. So
     `ci.yml` gains a `base` job named after the run's base, and `main`'s ruleset requires
     `base (main)`; `dev`'s doesn't require `base (dev)` (the owner's calls, IS #356). Its
-    negative control, PR #359, read `BLOCKED` after the same retarget, until a push ran
-    against `main`. A limit stays: it shows a run against `main` reported, not that each
+    negative control, PR #359, read `BLOCKED` after the same retarget; after a push,
+    `base (main)` reported and `controls` took the full set's path (closed before that run
+    finished). A limit stays: it shows a run against `main` reported, not that each
     other check's newest result came from it (`CLAUDE.md`, "Testing").
 13. **The proof (the phase's checkpoint, #6).** On `dev`, one probe PR with one break per
     required check, split only where a break would cascade, its `secret-scan` break made as

@@ -352,9 +352,10 @@ for it. What CI doesn't cover:
 - on a PR into `dev`, a change the controls test that no `TRIGGERS` entry covers ("Schema
   controls" below);
 - which run each check came from: `base (main)` shows that a run against `main` reported on
-  the commit, not that every other check's newest result came from it, so retargeting a PR
-  back and forth, or two PRs from one branch, can mix a `dev` run's results into `main`'s
-  (IS #356's review). Open a PR into `main` fresh from `dev`, and don't retarget it.
+  the commit, not that every other check's newest result came from it. A later run against
+  `dev` on the same commit (a PR closed and reopened while it targets `dev`, then retargeted
+  to `main`; two PRs from one branch) can mix its results into `main`'s (IS #356's review).
+  Open a PR into `main` fresh from `dev`, and don't retarget it.
 
 Locally, `npx tsc --noEmit`, `npm run test:run` and `npm run lint` are the fast loop, with
 Docker down. `tsc` is a check in its own right: vitest strips types and never type-checks, so
