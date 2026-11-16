@@ -3,7 +3,7 @@
 Full project reference: `.claude/context/project-context.md`
 Read it at the start of any non-trivial task.
 
-**Current phase plan: `.claude/plans/phase-8-ci-cd.md`.**
+**Current phase plan: none (the last one: `.claude/plans/phase-8-ci-cd.md`).**
 
 While that line names no plan (between phases, after a reconciliation and before the
 next plan's step 0), the reconciled `project-context.md` is current and wins over the
@@ -173,10 +173,10 @@ said otherwise: Phase 4 plan decision #14.
   registrar, their recovery email) uses two-factor authentication by passkey, hardware
   key or authenticator app, not SMS: set up when the account is created, all checked
   before the production deploy (Phase 6 plan decision #3, IS #176). Which accounts don't
-  meet it yet is `project-context.md`'s, "Pre-deploy automation (planned)"
+  meet it yet is `project-context.md`'s, "Pre-deploy automation"
 - A push that GitHub's push protection blocks is fixed by removing the value from the
   commits, not by bypassing the block (what is switched on: `project-context.md`,
-  "Pre-deploy automation (planned)")
+  "Pre-deploy automation")
 - **The Gitleaks hooks** (IS #292): `.githooks/pre-commit` scans the staged changes and
   `.githooks/commit-msg` the message. `core.hooksPath` is set by hand in each clone
   (README, "1. Install"), never by a `prepare` script, which `npm ci` would run in CI too
@@ -630,10 +630,10 @@ this paragraph is the procedure's one copy, and the other files point here):
   names a later phase (`**between phases**, <date>, IS #<n>, for Phase <N>`) is that
   phase's plan's instead: earlier plans don't take it, and their reconciliations don't
   replace its marker, though a stale fact in it is fixed like any other hit (the
-  owner's calls, IS #279). Such a row waits through the phases before its own. A
-  between-phases row that a later one replaces is removed in the PR that adds the new
+  owner's calls, IS #279; Phase 8 plan #3). Such a row waits through the phases before its
+  own. A between-phases row that a later one replaces is removed in the PR that adds the new
   row, which keeps what still holds and cites the old row's IS #; the old text stays in
-  its PR (IS #279).
+  its PR (IS #279; Phase 8 plan #3).
 - That plan's reconciliation replaces each marker with the plan decision, and the rule
   text here cites it. When the decision didn't outlive the phase, the reconciliation
   removes the row and the rule text with it.

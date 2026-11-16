@@ -11,10 +11,11 @@ themselves later.
 It fills a real gap: Gothenburg has had no central food-truck map since Streetkäk
 shut down in 2017.
 
-> **Status: Phase 7 of 10 (admin) done; Phase 8 (CI/CD) next.** The map shows
+> **Status: Phase 8 of 10 (CI/CD) done; Phase 9 (security) next.** The map shows
 > today's entries from the database through `GET /api/live`, locally against a local
 > Supabase and on protected Vercel previews against a hosted one. One admin logs in with
-> an emailed link and keeps the map up to date from a phone-first admin screen. There is
+> an emailed link and keeps the map up to date from a phone-first admin screen. Every pull
+> request runs the checks in GitHub Actions, which must pass before it merges. There is
 > no production deploy yet. Phase 4 removed the old design (automatic ingestion from
 > Make.com and email, plus a Swedish text parser), and Phase 5 replaced its database
 > schema; see [Project status](#project-status).
@@ -43,9 +44,9 @@ Consumers are always anonymous. All user-facing text is in Swedish.
 
 ## How it's designed to work
 
-This is the design. Phases 5 to 7 built the schema, the public read path (the map, its
-polling and cache, the popup's freshness text) and the admin screen with its entry
-flow; CI/CD is Phase 8's, security Phase 9's, and the launch Phase 10's.
+This is the design. Phases 5 to 8 built the schema, the public read path (the map, its
+polling and cache, the popup's freshness text), the admin screen with its entry flow,
+and CI/CD; security is Phase 9's, and the launch Phase 10's.
 
 - **The admin enters every location by hand.** A pin comes from a map tap, a known
   Gothenburg spot, a recently used place, or the phone's GPS. Start and end times are
@@ -97,8 +98,8 @@ The working rules live in [`CLAUDE.md`](CLAUDE.md) and the design reference in
 | 5 · Schema reset     | A fresh 3-table schema (`trucks`, `locations`, `users`) | ✅ Done |
 | 6 · Live read path   | `/api/live`, polling, map tiles on Cloudflare R2, first preview deploy | ✅ Done |
 | 7 · Admin            | Admin login, location entry, truck management, the morning checklist | ✅ Done |
-| 8 · CI/CD            | The gates in GitHub Actions, secret scanning, SAST, Dependabot, branch protection | ⬜ Next |
-| 9 · Security         | Admin MFA, security headers, monitoring, the 2FA audit | ⬜ Not started |
+| 8 · CI/CD            | The checks in GitHub Actions, secret scanning, CodeQL, Dependabot, branch protection | ✅ Done |
+| 9 · Security         | Admin MFA, security headers, monitoring, the 2FA audit | ⬜ Next |
 | 10 · Launch          | A custom domain for the tiles, production deploy | ⬜ Not started |
 
 Phases 2 and 3 built automatic ingestion: Make.com webhooks and Mailgun email, run
@@ -137,12 +138,17 @@ branch and tag.
 - Unit tests, and integration tests against a local Supabase for the schema (its
   constraints, grants and row-level security), the database layer, `/api/live`, the
   login routes and every admin route.
+- **CI.** On every pull request into `dev` or `main`, GitHub Actions runs the four gates,
+  `npm audit`, the schema controls, the process log's check, a secret scan and CodeQL,
+  and the branches' rules require them, with no bypass (CodeQL's on `dev` only until Phase
+  10; "Scripts"). Dependabot opens pull
+  requests for GitHub Actions updates and npm security fixes.
 
 ### What does not exist yet
 
-- CI: every gate is run by hand until Phase 8 builds it
 - A production deploy (Phase 10). Pushes to branches other than `main` build previews,
-  with one exception so far (see "Preview deploys")
+  except `dependabot/` and `probe/` branches, and only `dev`'s preview has the secret key
+  (see "Preview deploys")
 
 ---
 

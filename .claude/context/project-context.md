@@ -7,17 +7,18 @@
 > `project-context` and `CLAUDE.md` are both already named in it.
 
 **How to read this file.** It was rewritten at the end of Phase 4 (#127) and
-reconciled at the end of Phases 5 (#165), 6 (#189) and 7 (#234). It has three parts:
+reconciled at the end of Phases 5 (#165), 6 (#189), 7 (#234) and 8 (#302). It has three
+parts:
 
-1. **Current state** — what exists on `dev` after Phase 7. Trust it for "what is the
+1. **Current state** — what exists on `dev` after Phase 8. Trust it for "what is the
    code doing today".
 2. **Target design** — the design from Phase 5 on, the Owners phase's principles
    included, condensed from `.claude/transition.md` (now history). Trust it for "what
    are we building", never as a description of the code. The exceptions are the
    sections marked "built in Phase 5", for what they say about the **schema** (Part 1's
    "Database" says it matches them), "Read path", marked "built in Phase 6", "Admin
-   and auth", marked "built in Phase 7", and the Product model's launch items where they
-   cite a Phase 7 plan decision.
+   and auth", marked "built in Phase 7", "Pre-deploy automation"'s "Built in Phase 8", and
+   the Product model's launch items where they cite a Phase 7 plan decision.
 3. **Standing rules** — conventions that hold in both.
 
 The current phase plan wins over this file. This file is reconciled with reality at
@@ -53,8 +54,8 @@ open.
 | 5 | Schema reset | done |
 | 6 | Live read path (first preview deploy) | done |
 | 7 | Admin | done |
-| 8 | CI/CD | next; no plan yet |
-| 9 | Security | not started |
+| 8 | CI/CD | done |
+| 9 | Security | next; no plan yet |
 | 10 | Launch (first production deploy) | not started |
 | later | Owners; optional automation | — |
 
@@ -74,7 +75,7 @@ save-triggered cache purges, grey markers) without a concrete problem that needs
 
 ---
 
-# Part 1 — Current state (after Phase 7)
+# Part 1 — Current state (after Phase 8)
 
 ## What runs
 
@@ -99,6 +100,10 @@ save-triggered cache purges, grey markers) without a concrete problem that needs
   /auth/logout` sit outside it (Phase 7 plan #28).
 - `src/proxy.ts` checks the session cookie and `is_admin` for `/admin/:path*` and
   `/api/admin/:path*`, letting `/admin/login` through (`CLAUDE.md`, "proxy.ts").
+- **CI** (Phase 8): GitHub Actions runs `.github/workflows/ci.yml` and `codeql.yml` on every
+  PR into `dev` or `main`, and rulesets on both branches require their checks ("Tests and
+  gates"). Dependabot opens PRs for GitHub Actions updates and npm security fixes (Part 2,
+  "Pre-deploy automation").
 
 ## Map tiles
 
@@ -148,9 +153,11 @@ On 2026-11-03 `npm audit` reported 16 moderate findings, all from one advisory,
 GHSA-g3hv-75wg-m249 (`minimatch` before 11.0.1, in dev dependencies only), and `npm
 audit --omit=dev` found 0 vulnerabilities. The owner dismissed Dependabot alert #7 for
 it: Phase 6 plan decision #24 lists the copies, the ranges holding them and when to
-revisit. That is a dated result: re-run both before relying on it. Dependabot alerts
-are on, but an auto-triage rule can dismiss low-impact alerts on development
-dependencies ("Pre-deploy automation (planned)", "Already on"). `next.config.ts` sets
+revisit. On 2026-11-16 (#299) the advisory sat in alert #8, dismissed by hand and kept so,
+and `npm audit --omit=dev` again found 0. That is a dated result: CI's `audit` job now runs
+it on every PR (`CLAUDE.md`, "Dependencies"). Dependabot alerts are on, but an auto-triage
+rule can dismiss low-impact alerts on development dependencies ("Pre-deploy automation",
+"Already on"). `next.config.ts` sets
 `agentRules: false` (Phase 4 plan decision #12), `experimental.agentUpgrade: false`
 (Phase 6 plan decision #6; `CLAUDE.md` "Dependencies") and, for `next dev` only,
 `allowedDevOrigins: ["127.0.0.1"]`, so the app opened at `127.0.0.1:3000` (Supabase's
@@ -252,8 +259,14 @@ before the app uses it: below `MAX_ROWS`, a `listRecentLocationsForTruck` call w
 | `src/lib/maplibre-worker.mjs` | worker folder and file list (+ test) | — |
 | `scripts/seed-dictionary.mjs` | prints `Spot` stubs from OpenStreetMap for **human review**; never paste its output over `SPOTS`, which reverts hand-corrected pins | when adding spots |
 | `scripts/test-all.mjs` | the `test:all` gate | — |
-| `scripts/controls.mjs`, `tests/controls/*.sql` | the schema's negative controls; not a gate | when `CLAUDE.md` "Testing" says |
-| `scripts/claims.sh` | the pre-review claims check (`CLAUDE.md`, "Review rounds") | every review round |
+| `scripts/controls.mjs`, `tests/controls/*.sql` | the schema's negative controls, which CI's required `controls` check runs: `--check` on every PR, the full set on a trigger path or a PR into `main` | `ci.yml`'s `controls`; by hand when `CLAUDE.md` "Testing" says |
+| `scripts/controls-trigger.mjs` | `TRIGGERS`, `changedPaths` and `needsFullControls`: whether a PR gets the full controls (+ tests; `controls-trigger-coverage.test.mjs` guards the list, Phase 8 plan #8) | `ci.yml`'s `controls` |
+| `scripts/write-env-local.mjs` | `.env.local` from `npx supabase status -o env`, failing on a missing value (+ test) | `ci.yml`'s `integration`, `build` and `controls` |
+| `scripts/smoke.mjs` | the served build's smoke check (+ test) | `ci.yml`'s `build` |
+| `scripts/audit-report.mjs` | run 3 of the `audit` job: a warning per advisory, a failure when it can't tell which (+ test) | `ci.yml`'s `audit` |
+| `scripts/closing-keywords.mjs` | the closing-keyword check, and `--lines` for a PR body (+ test) | `ci.yml`'s `secret-scan`; `claims.sh` |
+| `scripts/lib/header-like.mjs`, `scripts/lib/workflow-command.mjs` | a control file's header-line test; workflow-command escaping (+ test for the first) | `controls.mjs` and `controls-trigger.mjs`; `audit-report.mjs` and `closing-keywords.mjs` |
+| `scripts/claims.sh` | the pre-review claims check, and the PR body's closing references (`CLAUDE.md`, "Review rounds") | every review round |
 | `scripts/sweep.sh` | lists the sweep's candidates: removed text still elsewhere, moved or nowhere; added text repeated elsewhere (`CLAUDE.md`, "Review rounds"; IS #200) | every review round |
 | `scripts/lib/diff.sh` | the diff reading `claims.sh` and `sweep.sh` share: flags, `git_diff`, `rev_end`, the untracked warning | both scripts |
 | `scripts/process-log.sh` | `add` and `check` for the process log (`CLAUDE.md`, "Process Log") | every log row |
@@ -298,8 +311,11 @@ src/
 │   └── maplibre-worker.mjs       ← (+ test)
 └── proxy.ts                      ← (+ test)
 scripts/                          ← copy-maplibre-worker.mjs, seed-dictionary.mjs, test-all.mjs,
-                                    controls.mjs, claims.sh, sweep.sh, lib/diff.sh,
-                                    process-log.sh
+                                    controls.mjs, controls-trigger.mjs, write-env-local.mjs,
+                                    smoke.mjs, audit-report.mjs, closing-keywords.mjs (+ tests),
+                                    lint-rules.test.mjs, ci-advisor.test.mjs, claims.sh,
+                                    sweep.sh, process-log.sh, lib/ (diff.sh, header-like.mjs,
+                                    workflow-command.mjs)
 supabase/                         ← config.toml, migrations/0001_baseline.sql, seed.sql
 tests/integration/                ← setup.ts, helpers.ts (+ test), schema, rls, db-trucks,
                                     db-locations, db-users, api-live, auth-routes,
@@ -308,7 +324,12 @@ tests/integration/                ← setup.ts, helpers.ts (+ test), schema, rls
 tests/controls/                   ← one .sql per negative control, run by controls.mjs
 public/                           ← gothenburg.pmtiles (development; deploys read R2) and
                                     maplibre/ (both gitignored)
-.claude/                          ← plans, context, commands, process-log.md, transition.md
+.claude/                          ← plans, context, commands, drafts, process-log.md,
+                                    transition.md
+.github/                          ← workflows/ci.yml, workflows/codeql.yml, dependabot.yml
+.githooks/                        ← pre-commit, commit-msg, gitleaks-common.sh (set through
+                                    core.hooksPath, by hand)
+SECURITY.md, .gitleaks.toml       ← how to report a vulnerability; Gitleaks' config
 ```
 
 ## Environment
@@ -336,14 +357,14 @@ CHECK, NOT NULL, enum, trigger, foreign keys, the unique Instagram handle), `rls
 `auth-routes` (callback and logout), `admin-auth` (every admin route, found on disk,
 answering 401 and 403 with `no-store`: Phase 7 plan #13; the 503 cases are
 `withAdmin`'s and `requireAdmin`'s unit tests), `api-admin-trucks`,
-`api-admin-locations`, `api-admin-checklist` and `helpers`. On 2026-11-11 `test:all`
-ran 27 unit files (692 tests) and 12 integration files (241 tests), and `npm run lint`
-reported no warnings. There is no CI; the four
-gates are run by hand: `npx tsc --noEmit`, `npm run lint`, `npm run test:all`, `npm run
-build`. Details, and what the gates can't see, are in `CLAUDE.md` "Testing", which also
-covers the schema controls (`node scripts/controls.mjs`: not a gate; when to run them
-is there). Green gates don't show the map renders: look at `/map` in a browser after
-any map, dependency or tile change.
+`api-admin-locations`, `api-admin-checklist` and `helpers`. CI's run on `928a7bf` (PR
+#371, 2026-11-16) ran 39 unit files (945 tests) and 12 integration files (241 tests), and
+that day `npm run lint` reported no warnings locally. **CI is the gate** (Phase 8, IS
+#297): on each PR into `dev` or `main`, GitHub Actions runs the four gates and the other
+checks, and the rulesets require them. `CLAUDE.md` "Testing" has which checks, what they
+don't cover, the local fast loop and the schema controls, which CI's `controls` check
+runs. Green checks don't show the map renders: look at `/map` in a browser after any map,
+dependency or tile change.
 
 ---
 
@@ -410,9 +431,9 @@ queries it by hand, as a dev-only authoring tool for `SPOTS`).
 | 5 · Schema reset (done) | Squashed baseline: `trucks`, `locations`, `users`; `btree_gist` + exclusion constraint + `CHECK (ends_at > starts_at)` + `updated_at` trigger; RLS + explicit GRANTs (no anon SELECT on `trucks`/`locations`); regenerate types; rewrite `seed.sql`, `db/trucks.ts`, `db/locations.ts` (with the history queries) and the integration tests (constraint, cancelled rows don't block, CHECK, RLS) |
 | 6 · Live read path (done) | `GET /api/live` and its service; `useLocations` (polling, timer, marker diffing); the popup with freshness text and Instagram link; `fake-data.ts` and `map-types.ts` deleted; the `is_active` filter in the service; the tiles on R2; a hosted Supabase project for previews, with the hosted checks; the **first preview deploy**, with the CDN cache checked (MISS → HIT → STALE) and requests per visit counted; Node and npm in `package.json` (#139) |
 | 7 · Admin (done) | Magic-link login, admin only (sign-ups off, locally and on the preview); the session and `is_admin` checks in `proxy.ts` and `withAdmin` on every admin route, with `no-store` and the `Origin` check; trucks added, edited and set inactive (no delete); phone-first location entry by known spot, recent place, map tap or GPS; edit; cancel; "Stämmer fortfarande"; overlap → 409; the morning checklist; three phone checkpoints on the preview (#224, #228, #232) |
-| 8 · CI/CD | What "Pre-deploy automation (planned)" lists to build, as the scope draft's "Phase 8 · CI/CD" settles it (IS #278): the four gates in GitHub Actions, with a local Supabase in the job and a served-app step; a Gitleaks secret scan, pre-commit and in CI; SonarQube Cloud and CodeQL; `npm audit`; Supabase's security advisor and lint rules against HTML sinks and string-built filters; the schema controls and the log check; workflow hardening; Dependabot security updates (and Actions version updates), switched on last, with its branches kept off Vercel builds; branch protection on `dev` and `main`, whose required checks on `main` are a production deploy's only gate (the draft's Q6); SonarQube skipped by `if:` on Dependabot and fork PRs, with CodeQL covering them (no token copy); `SECURITY.md` and private vulnerability reporting. Also the review of the alerts Dependabot's auto-triage dismissed. Built before Phase 10's production deploy (Phase 6 plan #1) |
+| 8 · CI/CD (done) | `ci.yml` on every PR into `dev` and `main` (a read-only token, actions pinned to SHAs, no path filter): the four gates (`typecheck-lint`; `unit`; `integration`, with a local Supabase and Supabase's security advisor; `build`, with a smoke check of the served build), `audit` (`npm audit`, three runs, Phase 8 plan #12), `controls` (`--check`, the full set on a trigger path or a PR into `main`), `process-log`, `secret-scan` (Gitleaks on the PR's commits and messages, and the closing-keyword check, IS #368) and `base`; `codeql.yml` (CodeQL, on PRs and on push); the Gitleaks hooks; lint rules against HTML sinks and string-built filters, each with a fixture test; rulesets on `dev` and `main` (a PR, the checks by name, up to date, no bypass, no force-push or deletion), CodeQL's checks required on `dev` and joining `main`'s in Phase 10 (#11, #14); Dependabot (Actions version updates and npm security updates), its branches and the probes' cancelled by the Ignored Build Step, and the secret key scoped to `dev` (#15); `SECURITY.md` and private vulnerability reporting; the review of the alerts auto-triage dismissed (#299). SonarQube Cloud was dropped: its Free plan has no custom quality gate (#295), and a re-scan before production is #349. Each required check was seen red on a probe PR the rules blocked (#298). Built before Phase 10's production deploy (Phase 6 plan #1) |
 | 9 · Security | The scope draft's "Phase 9 · Security" (IS #278): TOTP MFA for the admin login, with #241's 6-digit email code, the enrol window's constraints and the lost-phone routes to probe; session timeouts if the Free plan has them; the login-abuse and code-guessing probes; security headers (a static CSP outside `/admin`, a strict nonce CSP on `/admin`), their assertions added to Phase 8's served-app step, and a decision on the session cookie's reach; usage, spend and 5xx alerts, and reading how long the Auth logs are kept; the `x-forwarded-host` probe; length limits on free text; the `users` policy under `aal1`; one ZAP scan; the 2FA audit of every account and its recovery email, naming the admin's login mailbox; the hosted-settings checklist |
-| 10 · Launch | The history retention period, for the privacy note below (Phase 7 plan #25); the app's final name, until then **WhereIsFood** in the admin screens and "Var är maten? \| Göteborg" as the public title (#26, open decision 10); Supabase Pro (backups); a production Supabase project, new keys (Phase 6 plan #18), with Phase 5 #19's hosted check; the tiles' custom domain on R2, and the CORS rule naming it (the bucket is Phase 6's, #7), in the CSP too, and HSTS; production env; the hosted-settings checklist applied; session timeouts if they need Pro; Swedish privacy note; takedown procedure (one transaction: delete the truck's locations, clear or delete each `users` row pointing at it, then delete the truck; Phase 5 plan #7); tell trucks they're listed; acquisition plan; runbook (Vercel Attack Mode; the usage alerts are Phase 9's, here only if the free plans can't send them); the scope draft's "Phase 10 · Launch" (Q34 open, Q36); Vercel Pro + Spend Management before the first marketing push; **before the deploy**, the checks under "Pre-deploy automation (planned)", "Before the production deploy": 2FA checked again on every account, the registrar included, the production Security Advisor, the Ignored Build Step, rotating every credential |
+| 10 · Launch | The history retention period, for the privacy note below (Phase 7 plan #25); the app's final name, until then **WhereIsFood** in the admin screens and "Var är maten? \| Göteborg" as the public title (#26, open decision 10); Supabase Pro (backups); a production Supabase project, new keys (Phase 6 plan #18), with Phase 5 #19's hosted check; the tiles' custom domain on R2, and the CORS rule naming it (the bucket is Phase 6's, #7), in the CSP too, and HSTS; production env; the hosted-settings checklist applied; session timeouts if they need Pro; Swedish privacy note; takedown procedure (one transaction: delete the truck's locations, clear or delete each `users` row pointing at it, then delete the truck; Phase 5 plan #7); tell trucks they're listed; acquisition plan; runbook (Vercel Attack Mode; the usage alerts are Phase 9's, here only if the free plans can't send them); the scope draft's "Phase 10 · Launch" (Q34 open, Q36); Vercel Pro + Spend Management before the first marketing push; from Phase 8: whether CodeQL gets a base analysis of `main` before the first PR into it, and CodeQL's checks added to `main`'s ruleset once one exists (Phase 8 plan #11, #14), #347 (keeping a reported vulnerability's fix private until disclosure, with Q36) and #349 (the SonarQube Cloud re-scan); **before the deploy**, the checks under "Pre-deploy automation", "Before the production deploy": 2FA checked again on every account, the registrar included, the production Security Advisor, the Ignored Build Step, rotating every credential |
 | later | Owners (claim flow, owner dashboard, override rules, custom SMTP); optional automation (Meta Business Discovery captions in the admin screen, a scheduler) |
 
 ## Data model (built in Phase 5)
@@ -660,25 +681,29 @@ as "Phase 7 #n", and its answered open decisions. The rules are `CLAUDE.md`'s
   still cached for a logged-in admin (#224); an entry reaching the public map (#228);
   the whole walkthrough (#232, its history inserted by SQL: Phase 7 #38).
 
-## Pre-deploy automation (planned)
+## Pre-deploy automation
 
 Planned by the owner on 2026-10-24 (IS #176) as **one piece of work, designed together,
-before the first production deploy**. Since IS #265 and IS #278, Phase 8 builds what's
-under "To build", Phase 9 does the first 2FA audit, and Phase 10 runs the rest of "Before
-the production deploy". The scope draft (`.claude/drafts/phases-8-10-scope.md`, IS #278)
-settles how Phase 8 builds each item; the IS #278 rows in "Decisions carried forward"
-carry it. Until Phase 8 builds it, every gate is manual (`CLAUDE.md`, "Testing"). Nothing
-below exists yet unless marked **on**.
+before the first production deploy**. Since IS #265 and IS #278 (Phase 8 plan #1), Phase 8
+built what was "To build" ("Built in Phase 8", below), Phase 9 does the first 2FA audit,
+and Phase 10 runs the rest of "Before the production deploy". Since Phase 8, CI is the gate:
+`CLAUDE.md` "Testing" says which checks the rulesets require and what they can't see.
 
-**Already on** (repository and account settings, the owner, 2026-10-24):
+**Already on** (repository and account settings, the owner, 2026-10-24, unless dated):
 - **GitHub Secret Protection and push protection** on the repository, and push
   protection for the owner's account. A history scan found no secret.
 - **Dependabot alerts and malware alerts**, with the dependency graph. One auto-triage
   rule is enabled, GitHub's preset "Dismiss low-impact alerts for development-scoped
-  dependencies" (the owner's screenshot, 2026-10-24). Which alerts it has dismissed,
-  including any on `eslint-config-next`, an exact pin in `devDependencies`, is reviewed
-  in Phase 8, when the CI is designed. The preset "Dismiss package malware alerts" is
-  disabled.
+  dependencies"; the preset "Dismiss package malware alerts" is disabled. Phase 8 reviewed
+  what the rule had dismissed (#299, 2026-11-16): one alert, #6 (`zod`, dev, high), since
+  fixed, and none still dismissed. Alert #8 (`minimatch`, dev, the advisory alert #7 had)
+  stays dismissed by hand, and the rule stays on (the owner's calls). A dismissed alert
+  gets no update PR; CI's `audit` still fails on a critical advisory anywhere and a high
+  one in production dependencies.
+- **Dependabot security updates** (2026-11-16, #300).
+- **Squash merging off** (2026-11-16): the closing-keyword check reads the merge commits
+  GitHub writes, and a squash would join every message into one it doesn't read (IS #368;
+  `scripts/closing-keywords.mjs`'s header).
 - **Two-factor authentication** (the rule is `CLAUDE.md`'s, "Secrets"): the owner's
   GitHub account and the Cloudflare, Supabase and Vercel accounts Phase 6 created all
   use a mobile authenticator app (the owner's confirmations in PRs #194, #195 and #197,
@@ -690,43 +715,41 @@ the GitHub UI: the CLI token used here, though it has admin rights, gets `403` f
 secret-scanning, Dependabot-alerts and vulnerability-alerts APIs, and no
 `security_and_analysis` field (probed 2026-10-24).
 
-**To build:**
-- **A pre-commit secret scan** (Gitleaks, the draft's Q4), run from a tracked hooks folder
-  through `core.hooksPath`. **The same scan runs in CI**, because `--no-verify`, or a
-  clone that never set `core.hooksPath`, skips a local hook. It covers what
-  `.gitignore` can't: a value pasted into a tracked file, or `git add -f`.
-- **GitHub Actions running the four gates** on every PR into `dev`, and into `main`.
-  `test:all` needs a local Supabase in the job, and the job needs a Node `devEngines`
-  admits.
-- **SAST.** SonarQube Cloud and CodeQL, GitHub's own, both (the draft's Q3);
-  self-hosted SonarQube would need a server. Confirm SonarQube Cloud's free tier for
-  public repositories and the setup when it's built. Plus a dependency check in CI,
-  `npm audit`, with the draft's Q35 thresholds.
-- **Dependabot security updates** (automatic PRs) for npm, and version updates for
-  GitHub Actions to keep their SHA pins current (the draft's Q9), switched on last in
-  Phase 8: after the gates run as required checks and branch protection is on.
-  `next`, `eslint-config-next` and `maplibre-gl` are exact pins upgraded deliberately,
-  each with a browser check of `/map` (Phase 4 plan decision #10). A Dependabot PR is
-  reviewed like any other, and the pinned packages keep their browser check. Dependabot's
-  branches may not build on Vercel with the Preview variables, the secret key among them
-  (Git Fork Protection covers forks only): the Ignored Build Step also cancels
-  `dependabot/*`, before Dependabot is turned on (the draft's Q1, IS #278). Before
-  turning it on, also check that Dependabot's updater runs a Node `devEngines` admits:
-  below it, npm stops with `EBADDEVENGINES` and no PR comes (not probed: nothing runs it
-  yet).
-- **Branch protection** on `dev` and `main`: PR required, the checks required, no
-  force-push. `main` exists, and its next push is Phase 10's (README, "Preview deploys");
-  Phase 8 protects it, with the rules applying to admins (the draft's Q2 and Q30, IS
-  #278).
-- **Secrets in CI runs:** a workflow that Dependabot triggers reads the Dependabot
-  secrets store, not Actions secrets, and a PR from a fork reads neither. Required
-  checks are set per branch, so a check that needs a token (SonarQube Cloud's, say)
-  fails on those PRs and blocks them. The ways round it: a Dependabot copy of the token,
-  or a job condition (`if:`) that skips the check, which GitHub reports as passing. The
-  draft's Q3 (IS #278) chose the `if:` skip, with no token copy: **a skip means SAST
-  didn't run on that PR**, so CodeQL, which needs no token, runs beside SonarQube Cloud
-  and covers those PRs. What a token-free run reads and how a skip reports are GitHub's
-  documented behaviour, not probed: no CI exists yet.
+**Built in Phase 8** (`.claude/plans/phase-8-ci-cd.md` records each step and its probes):
+- **The secret scan.** Gitleaks in `.githooks/pre-commit` (the staged changes) and
+  `.githooks/commit-msg` (the message), through `core.hooksPath`, set by hand in each clone
+  (Phase 8 plan #7; `CLAUDE.md`, "Secrets"); and `ci.yml`'s `secret-scan` on the PR's
+  commits and their messages, since a clone without the hooks, or a commit made on GitHub,
+  skips them. The one-off history scan found no real secret; rerun with `--text`, its one
+  find was probe PR #344's made-up value (the plan's open decision 1, #13).
+- **CI.** `ci.yml` on every PR into `dev` and `main`, and `codeql.yml`: the Phase map's
+  Phase 8 row lists the jobs.
+- **SAST.** CodeQL alone. On `dev` its result check `CodeQL` and both analyze jobs are
+  required (Phase 8 plan #14); on `main` they join in Phase 10 (#11). SonarQube Cloud was
+  dropped in step 9: its Free plan has no custom quality gate (#295); a re-scan before the
+  production deploy is #349. `npm audit` runs in `audit` with the draft's Q35 thresholds
+  (Phase 8 plan #12; `CLAUDE.md`, "Dependencies").
+- **Dependabot.** `.github/dependabot.yml`: version updates for GitHub Actions, weekly,
+  minor and patch grouped into one PR, with a 7-day cooldown; npm gets security updates
+  only, from the repository setting. Its updater runs Node 24, below `devEngines`, but its
+  lockfile commands pass `--force`, under which npm only warns (the plan's open decision 9,
+  PR #362); no Dependabot npm job has run yet. A `next` security PR moves `next` alone, so
+  `eslint-config-next` is moved to the same version and `/map` checked in a browser before
+  it merges (`CLAUDE.md`, "Dependencies"; `dependabot.yml`'s header). Its first PR, #366,
+  ran every required check, `CodeQL` included, and Vercel's Ignored Build Step cancelled its
+  build. A Dependabot PR is reviewed like any other; nothing merges on its own.
+- **Branch protection.** Rulesets on `dev` and `main` with no bypass list, so they bind
+  admins (Phase 8 plan #11); what they require is `CLAUDE.md`'s ("Testing"). Each required
+  check was seen red on a probe PR the rules then blocked (#298; Phase 8 plan #5, #6).
+- **Branches kept off Vercel builds.** The Ignored Build Step cancels `dependabot/` and
+  `probe/` branches. A branch's `vercel.json` `ignoreCommand` overrides it, so the secret
+  key is scoped to `dev`'s previews alone (Phase 8 plan #15; `README.md`, "Preview
+  deploys").
+- **`SECURITY.md`** and GitHub's private vulnerability reporting (#296). How a reported
+  vulnerability's fix stays private until disclosure is #347, for Phase 10.
+- **Secrets in CI runs.** No required check needs a token (SonarQube Cloud's would have),
+  so none was copied to the Dependabot secrets store. CodeQL ran on Dependabot's first PR
+  (#366); no fork PR has run it yet (none had been opened, 2026-11-16).
 
 **Before the production deploy:**
 - **Check every account against `CLAUDE.md`'s two-factor rule** ("Secrets"), the
@@ -746,7 +769,10 @@ secret-scanning, Dependabot-alerts and vulnerability-alerts APIs, and no
   Ignored Build Step is still set** to cancel a Production build from any branch but
   `main`. It runs when a build starts, so promoting an existing preview to Production
   doesn't pass through it: don't promote a branch preview. A CLI deploy wasn't tried,
-  and its cancel case hasn't been seen (`README.md`, "Preview deploys", #187).
+  and its cancel case hasn't been seen (`README.md`, "Preview deploys", #187). A
+  `vercel.json` `ignoreCommand` on the branch being built overrides the setting, and the
+  secret key is scoped to `dev`'s previews (Phase 8 plan #15), so Production's variables
+  are a scope of their own.
 - **Rotate every credential**, in case one leaked: every key, token and secret that
   existed before the deploy, or replace it with a new project's. A new production
   Supabase project has new keys by construction. Reuse nothing from the preview setup.
@@ -929,10 +955,10 @@ says.
 | Phase 5 #12; Phase 6 #13 | `label` is nullable; a missing one leaves the popup's place line out | Part 2 "Read path" (client) |
 | Phase 5 #19; PR #167 round 5 (`max_rows`) | A hosted project is checked for `sv-SE-x-icu`, both extensions in `extensions` and the Data API's Max rows before the app uses it (the preview project's passed, 2026-11-02; production's is Phase 10's) | Part 1 "Database"; `CLAUDE.md` "Hard Rules" ("db layer", Max rows) |
 | Phase 5 #9, #11, #13 | Built in Phase 7: the checklist reuses `findLocationsOverlapping` with its own day windows; truck writes came with the truck screen; the Gothenburg box is checked by the location validator, never a database CHECK | Part 1 "Database" (the db layer, coordinates) |
-| Phase 6 #1 (IS #176) | CI/CD (the four gates in GitHub Actions), SAST (SonarQube Cloud and CodeQL, IS #278), a pre-commit and CI secret scan, Dependabot security updates once CI runs, and branch protection are one piece of Phase 8's work, built before Phase 10's production deploy (the split into Phases 8, 9 and 10: IS #265, IS #278) | Part 2 "Pre-deploy automation (planned)"; `CLAUDE.md` "Testing" |
-| Phase 6 #2 (IS #176) | The "deploy" in the 2026-09-06 decision "Gates stay manual until deploy" is the official production deploy, not a preview deploy | `CLAUDE.md` "Testing" |
-| Phase 6 #3 (IS #176) | Two-factor authentication on every account that can reach the project, by passkey, hardware key or authenticator app, not SMS; set up as each account is created, checked again before the production deploy | `CLAUDE.md` Hard Rules ("Secrets", the rule); Part 2 "Pre-deploy automation (planned)" (which accounts meet it, and the pre-deploy check) |
-| Phase 6 #4 (IS #176) | Every credential that existed before the production deploy is rotated, or replaced by a new project's, before it | Part 2 "Pre-deploy automation (planned)" (the pre-deploy rotation). `CLAUDE.md`'s rotation rule ("Secrets") is another one, for a secret that reached a commit |
+| Phase 6 #1 (IS #176) | CI/CD (the four gates in GitHub Actions), SAST, a pre-commit and CI secret scan, Dependabot security updates once CI runs, and branch protection are one piece of work, built before Phase 10's production deploy. Built in Phase 8, with CodeQL as the SAST (SonarQube Cloud dropped, #295; the split into Phases 8, 9 and 10: IS #265, Phase 8 #1) | Part 2 "Pre-deploy automation"; `CLAUDE.md` "Testing" |
+| Phase 6 #2 (IS #176) | The "deploy" in the 2026-09-06 decision "Gates stay manual until deploy" was the official production deploy, not a preview deploy. The gates stopped being manual before it: since Phase 8, CI is the gate (IS #297) | `CLAUDE.md` "Testing" (CI is the gate) |
+| Phase 6 #3 (IS #176) | Two-factor authentication on every account that can reach the project, by passkey, hardware key or authenticator app, not SMS; set up as each account is created, checked again before the production deploy | `CLAUDE.md` Hard Rules ("Secrets", the rule); Part 2 "Pre-deploy automation" (which accounts meet it, and the pre-deploy check) |
+| Phase 6 #4 (IS #176) | Every credential that existed before the production deploy is rotated, or replaced by a new project's, before it | Part 2 "Pre-deploy automation" (the pre-deploy rotation). `CLAUDE.md`'s rotation rule ("Secrets") is another one, for a secret that reached a commit |
 | Phase 6 #5 (IS #176) | Hosted secrets for deploys and CI live in Vercel environment variables, GitHub Actions and Dependabot secrets; developers' own copies stay on their machine; none in a tracked or shared file | `CLAUDE.md` Hard Rules ("Secrets") |
 | Phase 6 #6 (IS #178) | `next.config.ts` sets `experimental.agentUpgrade: false`, so an agent-run build or dev server doesn't fail, or query the advisory source, when an advisory covers the installed Next; advisories come through Dependabot alerts and `npm audit` | `CLAUDE.md` "Dependencies"; the comment in `next.config.ts` |
 | Phase 6 #7 | The tiles are on Cloudflare R2 for every deploy, pulled forward from the launch; development keeps the local file; Phase 10 moves the bucket to a custom domain | Part 1 "Map tiles"; Part 2's Phase map (Phase 10 row) and "Pricing" |
@@ -941,13 +967,13 @@ says.
 | Phase 6 #18 | The preview database is a separate, disposable free project, with preview keys only; production gets a new project in Phase 10 | Part 2's Phase map (Phase 10 row); "Pricing" ("Supabase Free") |
 | Phase 6 #22 | The read path's scaling limits are known and written down, with their fixes and the first trigger; nothing is built for them yet | Part 2 "Read path" ("Scaling limits") |
 | Phase 6 #23 (PR #201) | The Phase 6 retrospective's calls: `scripts/sweep.sh` (IS #200); the review-row level and limit rule retired (from row 422 a review row records neither, and a count may have been cut by the default limit); no action on row 325's repeats | `CLAUDE.md` "Review rounds"; the log's "Columns" ("What one row is") |
-| Phase 6 #24 | Dependabot alert #7 (`minimatch` before 11.0.1, dev only) dismissed; revisit if `npm audit --omit=dev` lists it or a lint run takes glob patterns from outside the repo | Part 1 "Versions" |
+| Phase 6 #24 | Dependabot alert #7 (`minimatch` before 11.0.1, dev only) dismissed, its advisory in alert #8 since 2026-11-07 and kept dismissed (#299); revisit if `npm audit --omit=dev` lists it or a lint run takes glob patterns from outside the repo | Part 1 "Versions" |
 | Phase 6 open decisions 1, 3, 4, 9, 10, 11 | The preview setup: the bucket's `r2.dev` URL, the newer Supabase keys in the old variable names, Stockholm for both regions, `onFail: "error"` and `engines.node: "26.x"`, the CORS pattern, Deployment Protection with a bypass secret | `README.md` "Get the map tiles", "Hosted preview database", "Preview deploys"; `CLAUDE.md` "Dependencies" (open decision 9) |
 | IS #200 (PR #202) | Each review round's sweep runs `scripts/sweep.sh`, whose hits are a floor, not the list; `claims.sh` lists the probe words; both read the diff through `scripts/lib/diff.sh` | `CLAUDE.md` "Review rounds"; the scripts' headers |
-| IS #170 (PR #174) | Schema guards get negative controls in `tests/controls/`, run by `node scripts/controls.mjs` | `CLAUDE.md` "Testing"; `.claude/commands/create-issues.md` "Failure modes" |
+| IS #170 (PR #174) | Schema guards get negative controls in `tests/controls/`, run by `node scripts/controls.mjs`, which CI's `controls` check runs (Phase 8 #16) | `CLAUDE.md` "Testing"; `.claude/commands/create-issues.md` "Failure modes" |
 | Phase 7 #1 (IS #205) | What a review fix may add, and what becomes a stated limit or an issue instead. Measure: fix-added code's share of the findings after round 1 (20.1% in rows 441–542, from 18.8% in #203; the Phase 7 retrospective) | `CLAUDE.md` "Review rounds" ("Applying a finding") |
 | Phase 7 #2 (IS #205) | The order for a false or too-broad claim: cut first, reword last. Measure: new imprecision's share after round 1 (12.8% in rows 441–542, from 22.1%) | `CLAUDE.md` "Review rounds" ("Applying a finding"; the claims check points to it) |
-| Phase 7 #4, #39 (IS #207, #260) | The review round ceiling: full, scoped, full, then stop, with one scoped round on the fixes when the last full round finds a defect in what runs. Measures: PRs past the ceiling (2 of 20 in rows 441–542) and rows with `Escaped` `merged` (3 in 441–542); neither should rise. Neither sees a defect a dropped round would have found | `CLAUDE.md` "Review rounds" ("The round itself") |
+| Phase 7 #4, #39 (IS #207, #260) | The review round ceiling: full, scoped, full, then stop, with one scoped round on the fixes when the last full round finds a defect in what runs. Measures: PRs past the ceiling (2 of 20 in rows 441–542) and rows with `Escaped` `merged` (3 in 441–542); neither should rise. Neither sees a defect a dropped round would have found. Rows 543–699: 5 of 40 PRs past it, all at the owner's request, and 8 `merged`; kept (the Phase 8 retrospective) | `CLAUDE.md` "Review rounds" ("The round itself") |
 | Phase 7 #5 (IS #207) | The final records check, and rounds skipping the records. Measure: records findings (2 of 560 named in rows 441–542, from 54 of 498) and record errors found after merge (2: rows 453, 537); each PR body gives the count of errors the final pass found | `CLAUDE.md` "Review rounds" ("The final records check") |
 | Phase 7 #6 (IS #207) | A fix changing what the owner approved goes back to the owner. Measure: log rows recording such a change made without asking (1 in Phase 7, row 513) | `CLAUDE.md` "Review rounds" ("Applying a finding") |
 | Phase 7 #7 (IS #209) | The reconciliation also brings `README.md`'s status parts in line. Measure: reconciliation review findings on them (row 432; judged in IS #234's PR) | the process log's "How to use it", part 6 |
@@ -964,8 +990,20 @@ says.
 | Phase 7 #37 | "Poster" and "Foodtrucks" in every admin header but the login's; a question before "Sätt inaktiv" | Part 2 "Admin and auth" |
 | Phase 7 #25, #26; open decision 10 | History retention and the app's final name are the launch's, now Phase 10's; until then the admin screens say WhereIsFood and the public title stays | Part 2 "Phase map" (Phase 10 row) and "Open decisions" |
 | Phase 7 open decisions 1–5 | The login is a magic link (a 6-digit code is IS #241), until Phase 9 adds #241's emailed code beside TOTP MFA; a session lasts until logout, until Phase 9 (or Phase 10, if they need Pro) adds session timeouts (both amended by the IS #278 (Phase 9) row below, and by the Phase 10 row if the timeouts need Pro); a phone gets past Deployment Protection by logging in to Vercel; the preview's Redirect URLs are `dev`'s alias alone, no wildcard; the admin user is made by hand | `README.md` "Hosted preview database" (the Redirect URLs) and "5. Create the admin user"; Part 2 "Admin and auth" (the link, the session); this row (a phone's Vercel login) |
-| **between phases**, 2026-11-12, IS #278 (D1) | Three phases after Phase 7: **8 · CI/CD → 9 · Security → 10 · Launch**, CI/CD first so the security work runs through it. The line between them: 8 the pipeline, 9 the running app and its accounts (the first 2FA audit included), 10 production. Replaces the IS #265 row (2026-11-11, its text in PR #266), keeping what still holds of it: the launch is a phase of its own and runs through working CI, the owner's call to keep each milestone smaller, and Phase 6 #1 holds, CI/CD built before the production deploy. Outside the three: #264 (the README rework) after Phase 8, and #246 and #259 standalone (the owner's calls, the scope draft's D1, Q16, Q17), and #248 and #256 standalone as the draft lists them; the Owners phase gets its own threat model (the draft's Appendix A, A06) | Part 2's Phase map and the Roadmap; Part 2 "Pre-deploy automation (planned)" (its intro); `CLAUDE.md` "Testing"; `.claude/drafts/phases-8-10-scope.md` ("Decisions", "The line between the phases", "Outside Phases 8–10") |
-| **between phases**, 2026-11-12, IS #278 (Phase 8) | Phase 8's scope as the scope draft settles it: the workflows (GitHub Actions for checks, grouped by trigger and permissions, one set for `dev` and `main`), the checks (Gitleaks, SonarQube Cloud and CodeQL, `npm audit`'s thresholds, the security advisor, the lint rules, the controls' trigger, the log check), workflow hardening, Dependabot (security updates for npm and version updates for Actions, switched on last, its branches off Vercel builds), branch protection on both branches with admins bound on `main`, SonarQube skipped by `if:` on Dependabot and fork PRs with CodeQL covering them, `SECURITY.md`; CI as the gate once it exists. The owner's calls (the draft's Q1–Q10, Q25–Q30, Q32, Q35) | `.claude/drafts/phases-8-10-scope.md` ("Phase 8 · CI/CD"); Part 2's Phase map (Phase 8 row) and "Pre-deploy automation (planned)" |
-| **between phases**, 2026-11-12, IS #278 (Phase 9), for Phase 9 | Phase 9's scope as the scope draft settles it: TOTP MFA for the admin login with #241's emailed code (amending Phase 7 open decision 1), its enrol-window constraints and the lost-phone routes to probe; session timeouts (amending open decision 2); the login-abuse and code-guessing probes; the split CSP and the cookie's-reach decision; monitoring; the smaller probes and limits; the 2FA audit and the hosted-settings checklist. Phase 9's reconciliation also rewrites the "Phase 7 open decisions 1–5" row this one amends. The owner's calls (the draft's D2, D3, Q11–Q14, Q19–Q23, Q31, Q33) | `.claude/drafts/phases-8-10-scope.md` ("Phase 9 · Security"); Part 2's Phase map (Phase 9 row), "Admin and auth" (MFA and the timeouts) and "Pre-deploy automation (planned)" (the 2FA audit) |
-| **between phases**, 2026-11-12, IS #278 (Phase 10), for Phase 10 | Phase 10's scope as the scope draft settles it: the old launch row, minus the security headers and the usage emails, plus what the split hands it (the tiles' domain in the CSP, HSTS, Pro-only timeouts (Q19), the hosted-settings checklist applied, with the production Security Advisor run as "Before the production deploy" says (Q21), the usage alerts if the free plans can't send them (Q14)), and Phase 5 #19's hosted check, carried forward, which had fallen out of the old launch row. Once production exists, an unfixed vulnerability found in-house goes to a private security advisory (Q36); the incident runbook, a restore test and the logs in the privacy note are open (Q34). The owner's calls (the draft's Q14, Q19, Q21, Q34, Q36) | `.claude/drafts/phases-8-10-scope.md` ("Phase 10 · Launch"); Part 2's Phase map (Phase 10 row) and "Pre-deploy automation (planned)" ("Before the production deploy") |
-| **between phases**, 2026-11-12, IS #279 | The between-phases procedure: a row's marker may name the later phase whose plan takes it ("for Phase <N>"), earlier plans don't take it and their reconciliations don't replace its marker, though a stale fact in it is fixed like any other hit; and a between-phases row that a later one replaces is removed in the PR that adds the new row, which keeps what still holds and cites the old IS #, as the IS #278 (D1) row does for IS #265; and several rows from one issue carry a label each (`IS #278 (D1)`), so a citation names one. Amends Phase 5 #24's procedure. The owner's calls, rounds 1–3 and the narrow read-through on PR #281 | `CLAUDE.md` "Process Log" (the one copy); `.claude/commands/create-milestone.md` (the Rationale's first decisions) |
+| Phase 8 #1 (IS #278 (D1)) | Three phases after Phase 7: **8 · CI/CD → 9 · Security → 10 · Launch**, CI/CD first so the security work runs through it. The line between them: 8 the pipeline, 9 the running app and its accounts (the first 2FA audit included), 10 production. Replaces the IS #265 row (2026-11-11, its text in PR #266), keeping what still holds of it: the launch is a phase of its own and runs through working CI, the owner's call to keep each milestone smaller, and Phase 6 #1 holds, CI/CD built before the production deploy. Outside the three: #264 (the README rework) after Phase 8, and #246 and #259 standalone (the owner's calls, the scope draft's D1, Q16, Q17), and #248 and #256 standalone as the draft lists them; the Owners phase gets its own threat model (the draft's Appendix A, A06) | Part 2's Phase map and the Roadmap; Part 2 "Pre-deploy automation" (its intro); `CLAUDE.md` "Testing"; `.claude/drafts/phases-8-10-scope.md` ("Decisions", "The line between the phases", "Outside Phases 8–10") |
+| Phase 8 #2 (IS #278 (Phase 8)) | Phase 8's scope as the scope draft settled it, as built: GitHub Actions for the checks, grouped by trigger and permissions, one set for `dev` and `main`; Gitleaks, CodeQL, `npm audit`'s thresholds, the security advisor, the lint rules, the controls' trigger and the log check; workflow hardening; Dependabot last, its branches off Vercel builds; branch protection on both branches, `main`'s required checks a production deploy's only gate; `SECURITY.md`; CI as the gate. Its limit: a PR runs its own copy of what its checks read, so the guard is reading every diff, Dependabot's included. The owner's calls (the draft's Q1–Q10, Q25–Q30, Q32, Q35) | `CLAUDE.md` "Testing"; Part 2's Phase map (Phase 8 row) and "Pre-deploy automation"; `.claude/drafts/phases-8-10-scope.md` ("Phase 8 · CI/CD") |
+| Phase 8 #3 (IS #279) | The between-phases procedure: a row's marker may name the later phase whose plan takes it ("for Phase <N>"), earlier plans don't take it and their reconciliations don't replace its marker, though a stale fact in it is fixed like any other hit; and a between-phases row that a later one replaces is removed in the PR that adds the new row, which keeps what still holds and cites the old IS #, as the IS #278 (D1) row does for IS #265; and several rows from one issue carry a label each (`IS #278 (D1)`), so a citation names one. Amends Phase 5 #24's procedure. The owner's calls, rounds 1–3 and the narrow read-through on PR #281 | `CLAUDE.md` "Process Log" (the one copy); `.claude/commands/create-milestone.md` (the Rationale's first decisions) |
+| Phase 8 #4 | The issue that adds a check is done when the check runs and reports correctly; each finding gets an issue of its own, and one that would keep a required check red is settled (fixed, dismissed or allowlisted with a reason) before the check becomes required | this row; `codeql.yml`'s header (its findings get their own issues) |
+| Phase 8 #5, #6, #13 | A check is done once it has been seen to fail: probe PRs with one break per required check, split only where breaks cascade, named `probe/…`, closed unmerged with their branches deleted, no merge attempted (`--admin` included); `secret-scan`'s with a made-up value Gitleaks flags, run locally first and committed with no local hook, never bypassing push protection | this row; `CLAUDE.md` Hard Rules ("Secrets", push protection) |
+| Phase 8 #7 | `core.hooksPath` is set by hand in each clone, never by a `prepare` script, which `npm ci` would run in CI too | `CLAUDE.md` Hard Rules ("Secrets", the Gitleaks hooks); `README.md` "1. Install" |
+| Phase 8 #8 | The controls' trigger list is guarded by a test that follows each control's tests' imports | `scripts/controls-trigger-coverage.test.mjs`'s header; `CLAUDE.md` "Testing" ("Schema controls") |
+| Phase 8 #9 | Each lint rule has a fixture test: a mistyped selector lints clean | `eslint.config.mjs`'s header; `scripts/lint-rules.test.mjs` |
+| Phase 8 #11 | Both rulesets bind admins (no bypass list): a required check red for a reason outside the PRs blocks every merge until it passes again or the rule is lifted by hand. CodeQL's checks join `main`'s ruleset in Phase 10, once `main` has a base analysis | `CLAUDE.md` "Testing"; Part 2's Phase map (Phase 10 row) |
+| Phase 8 #12 | `npm audit` in CI: fail on high or critical in production dependencies and critical anywhere, warn on each production advisory, fail when it can't tell; a PR showing the warning gets an issue per advisory before it merges | `CLAUDE.md` "Dependencies" |
+| Phase 8 #14 | The required SAST check is the one that fails on a finding: on `dev`, `CodeQL` and both analyze jobs, by name; a SARIF error with both jobs green still passes | `CLAUDE.md` "Testing"; `codeql.yml`'s header |
+| Phase 8 #15 | Vercel's Ignored Build Step, inline in its settings, cancels `dependabot/` and `probe/` branches; the secret key is scoped to `dev`'s previews, since a branch's `vercel.json` overrides the step | `README.md` "Preview deploys"; Part 2 "Pre-deploy automation" |
+| Phase 8 #16 | A `controls` run of the full set that passed stands in for the hand run | `CLAUDE.md` "Testing" ("Schema controls") |
+| Phase 8 #17 | Dependabot's PRs keep its default labels, the exception to PRs carrying only a phase label | `.github/dependabot.yml`'s header |
+| IS #301 (PR #369), IS #368 (PR #371) | The Phase 8 retrospective's calls: the Phase 7 retrospective's actions kept; one new action, the closing-keyword check in `secret-scan`, with `claims.sh` listing a PR body's closing references; squash merging off, since the check reads merge commits (the owner's call, round 4 on PR #371) | `CLAUDE.md` "Testing" and "Review rounds"; `scripts/closing-keywords.mjs`'s header; the process log's Phase 8 retrospective |
+| **between phases**, 2026-11-12, IS #278 (Phase 9), for Phase 9 | Phase 9's scope as the scope draft settles it: TOTP MFA for the admin login with #241's emailed code (amending Phase 7 open decision 1), its enrol-window constraints and the lost-phone routes to probe; session timeouts (amending open decision 2); the login-abuse and code-guessing probes; the split CSP and the cookie's-reach decision; monitoring; the smaller probes and limits; the 2FA audit and the hosted-settings checklist. Phase 9's reconciliation also rewrites the "Phase 7 open decisions 1–5" row this one amends. The owner's calls (the draft's D2, D3, Q11–Q14, Q19–Q23, Q31, Q33) | `.claude/drafts/phases-8-10-scope.md` ("Phase 9 · Security"); Part 2's Phase map (Phase 9 row), "Admin and auth" (MFA and the timeouts) and "Pre-deploy automation" (the 2FA audit) |
+| **between phases**, 2026-11-12, IS #278 (Phase 10), for Phase 10 | Phase 10's scope as the scope draft settles it: the old launch row, minus the security headers and the usage emails, plus what the split hands it (the tiles' domain in the CSP, HSTS, Pro-only timeouts (Q19), the hosted-settings checklist applied, with the production Security Advisor run as "Before the production deploy" says (Q21), the usage alerts if the free plans can't send them (Q14)), and Phase 5 #19's hosted check, carried forward, which had fallen out of the old launch row. Once production exists, an unfixed vulnerability found in-house goes to a private security advisory (Q36); the incident runbook, a restore test and the logs in the privacy note are open (Q34). The owner's calls (the draft's Q14, Q19, Q21, Q34, Q36) | `.claude/drafts/phases-8-10-scope.md` ("Phase 10 · Launch"); Part 2's Phase map (Phase 10 row) and "Pre-deploy automation" ("Before the production deploy") |
