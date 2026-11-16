@@ -412,8 +412,8 @@ Step 5a probes the swap from a second `aal2` session.
 
 ## Acceptance Criteria
 
-- [ ] The probes of steps 1 and 5a are recorded, each with its command and result, and the
-  decisions they settle are updated.
+- [ ] The probes of steps 1, 2 and 5a are recorded, each with its command and result, and
+  the decisions they settle are updated.
 - [ ] `config.toml` has `secure_password_change = true` and the password-changed
   notification on, and so does the preview; step 2's probe shows a password change from a
   session over 24 hours old refused.
