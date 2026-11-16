@@ -322,19 +322,22 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
     default `/` branch-name separator, so its branches match step 1's `dependabot/*`; npm
     security updates on. *Before switching on*, the Node its npm updater runs is read from
     dependabot-core's npm updater image definition and checked against `devEngines` (open
-    decision 9); *after*, the Dependabot tab shows the npm job with no error. The proof: one
+    decision 9); *after*, no npm job shows an error (the Dependabot tab, or the alert's page
+    for a security update, once one runs). The proof: one
     Dependabot PR, from an Actions version update or, if none has come, one triggered with
     "Check for updates" (#5). An npm security PR can't be forced, so the proof may be an
     Actions one, which runs no npm: a stated limit.
     **Open decision 9 (PR #362):** the npm updater runs Node 24 (dependabot-core's
     `npm_and_yarn/Dockerfile`, `NODEJS_VERSION=24`, read 2026-11-16), outside `devEngines`'s
     `26.x`. Its lockfile commands (`npm install` and `npm update`, `--package-lock-only`) pass
-    `--force`, under which npm only warns `EBADDEVENGINES` and exits 0, probed on npm 11.21
-    (not the image's npm 12); its peer-dependency check runs without `--force` and fails, and
-    dependabot-core reads that failure as no conflicts. So npm security updates go on as
-    planned (the owner's call, after a first call made on a probe without `--force`; IS #361
-    closed as not needed), with no change to `devEngines`. Limit: Dependabot doesn't detect
-    peer conflicts first; CI's `npm ci` would fail on one.
+    `--force`, under which npm only warns `EBADDEVENGINES` and exits 0 (probed on npm 11.21
+    and on the image's npm 12.2.0, PR #362); its peer-dependency check runs without `--force`
+    and fails, and dependabot-core reads that failure as no conflicts. So npm security
+    updates go on as planned (the owner's call, after a first call made on a probe without
+    `--force`; IS #361 closed as not needed), with no change to `devEngines`. Limits: no
+    peer conflict is detected first, and the `--force` write may let one into the lockfile
+    (whether CI's `npm ci` then fails: not probed); and with no open alert, no npm job runs,
+    so the npm half is first seen on the first alert with a patch.
 16. **The Phase 8 retrospective** (`.claude/process-log.md`, "How to use it"): its range
     starts at the row after the Phase 7 retrospective's range. Blocked by every other
     planned issue; its follow-ups block step 17.
@@ -352,7 +355,9 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
     the `vercel.json` `ignoreCommand` override and the secret key's `dev` scope (`README.md`,
     "Preview deploys", PR #311); and "Decisions carried forward"'s Phase 6 #1 and #2 rows,
     whose "Gates stay manual until deploy" and its reading point at `CLAUDE.md` "Testing",
-    which step 12 rewrote for CI as the gate (round 3 on PR #352); and `codeql.yml`'s header,
+    which step 12 rewrote for CI as the gate (round 3 on PR #352); the "Pre-deploy automation"
+    Dependabot bullet's "below it, npm stops with `EBADDEVENGINES` and no PR comes", which
+    PR #362 refuted (Dependabot passes `--force`); and `codeql.yml`'s header,
     "No Dependabot or fork PR has run it yet", once #300's Dependabot PR is read (IS #300). It
     replaces the three **between phases** markers this plan took up with #1–#3, leaves the
     IS #278 (Phase 9) and (Phase 10) rows' markers as they are, carries forward this plan's
@@ -724,10 +729,10 @@ CI the gate: `CLAUDE.md`, "Testing"). A PR whose run took only
   either; both are closed unmerged, their branches deleted, and `origin/main` is unchanged.
 - [ ] Each alert auto-triage dismissed is reviewed, reopened or kept with a reason.
 - [ ] Before Dependabot is on, the Node of its npm updater, read from dependabot-core's npm
-  updater image definition, is one `devEngines` admits; after, `dependabot.yml` covers
-  `github-actions` with the default separator, npm security updates are on, and the
-  Dependabot tab shows the npm job with no error. (The Node read is 24; Dependabot's
-  `--force` makes the mismatch a warning: open decision 9.)
+  updater image definition, is one `devEngines` admits, or one Dependabot's `--force` lets
+  through (open decision 9: 24, let through); after, `dependabot.yml` covers
+  `github-actions` with the default separator, npm security updates are on, and no npm job
+  shows an error once one runs.
 - [ ] On one Dependabot PR, on a branch starting `dependabot/`: the checks ran (SonarQube's
   job: none, step 9 skipped, #295), CodeQL ran, and Vercel shows the build
   cancelled by the Ignored Build Step (the commit's statuses, `README.md` "Preview deploys").
