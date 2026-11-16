@@ -328,9 +328,14 @@ found in history is rotated at once, then recorded in its issue (`CLAUDE.md`, "S
     "Check for updates" (#5). An npm security PR can't be forced, so the proof may be an
     Actions one, which runs no npm: a stated limit. With the 7-day cooldown (PR #362) and
     every pinned action on its latest release when it merged (each repo's newest release or
-    tag, read 2026-11-16), the proof waits for an upstream release to turn 7 days old, unless
-    "Check for updates" ignores the cooldown, which #300 reads (the owner's call: keep it
-    and wait).
+    tag, read 2026-11-16), no PR could come until an upstream release turned 7 days old. So
+    the proof is made on a temporary `.github/workflows/dependabot-proof.yml` (manual trigger
+    only) pinning `actions/setup-node` one release back, v7.0.0, which Dependabot can move to
+    v7.1.0 (2026-10-08) now; the file is deleted after that PR merges (the owner's calls:
+    keep the cooldown; PR #364, which downgraded `ci.yml` instead, closed). Limit: unless the
+    group also carries a `ci.yml` pin past its cooldown, that PR edits no `TRIGGERS` path and
+    runs `controls` at `--check` only, so the full set under Dependabot is first seen on a PR
+    that moves a `ci.yml` pin. The reads are #300's.
     **Open decision 9 (PR #362):** the npm updater runs Node 24 (dependabot-core's
     `npm_and_yarn/Dockerfile`, `NODEJS_VERSION=24`, read 2026-11-16), outside `devEngines`'s
     `26.x`. Its lockfile commands (`npm install`, `npm update`, and an experiment-gated
