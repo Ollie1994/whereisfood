@@ -3,16 +3,20 @@
 // `365bdd9` said "the trial's fixes #348" and its merge closed #348 with none of its work
 // done (process-log row 682; IS #368, the Phase 8 retrospective's new action).
 //
-//   git log -z --format='%H%n%B' <base>..<head> | node scripts/closing-keywords.mjs
+//   git log -z --format='%H%n%B' <base>..<head> | PR_TITLE=… PR_BRANCH=… node scripts/closing-keywords.mjs
 //     ci.yml's `secret-scan` job. Reads the NUL-separated records (a commit's SHA, a newline,
-//     its message) and, from PR_TITLE when it is set, the PR's title: GitHub's merge commit
-//     carries the title as its message's second paragraph (`62e6a5f`: "Merge pull request
-//     #367 from …", then the title). Prints an `::error::` per line holding a closing
-//     reference and exits 1 on any; exits 2 when the input isn't such records.
+//     its message), and the merge commit GitHub will write: its message is "Merge pull request
+//     #<n> from <owner>/<branch>", a blank line, then the PR's title (`62e6a5f`), so the
+//     branch name and the title are read as that text, where a branch ending in a keyword and
+//     a title starting with a reference meet (round 3 on PR #371). Both variables are
+//     required, empty allowed, so a step that stops passing one fails rather than skipping
+//     it. Prints an `::error::` per line holding a closing reference and exits 1 on any;
+//     exits 2 when the input isn't such records or a variable is missing.
 //
 //   node scripts/closing-keywords.mjs --lines <file>...
 //     claims.sh. Prints each line of each file that holds a closing reference, as
-//     `path:line: text`, and exits 0; exits 2 when a file can't be read. A PR body's own
+//     `path:line: text` (`-` reads stdin, printed as `-`), and exits 0; exits 2 when a file
+//     can't be read. A PR body's own
 //     "Closes #n" is meant, so this lists them for the author to confirm, and fails nothing.
 //
 // The pattern over-matches on purpose: refusing too much costs a reworded message. From
@@ -34,7 +38,9 @@
 // only (the owner's call, round 1 on PR #371). A red check is fixed on the PR's branch:
 // recommit the commit it names (`git commit --amend` for the last one, or `git reset --soft`
 // to before it and commit again) and force-push the branch, which the rulesets allow on any
-// branch but `dev` and `main`.
+// branch but `dev` and `main`. One that reaches `dev` anyway (a title edited after the run,
+// or a message edited in GitHub's merge dialog) closes its issue there, and stays in every
+// later PR into `main`'s range: a PR into `dev` adds its SHA to EXEMPT, with the reason.
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -85,7 +91,7 @@ export function parseRecords(input) {
 }
 
 // Pure. The lines the step prints, and its exit code.
-export function check(input, title) {
+export function check(input, pr) {
   const parsed = parseRecords(input);
   if (parsed.error) return { lines: [`::error::closing-keywords: ${escapeData(parsed.error)}`], code: 2 };
   const lines = [];
@@ -99,11 +105,14 @@ export function check(input, title) {
       lines.push(`::error::commit ${sha.slice(0, 7)} closes an issue on merge, line ${ref.line}: ${escapeData(ref.text)}`);
     }
   }
-  if (title !== undefined) {
-    for (const ref of closingRefs(title)) lines.push(`::error::the PR title closes an issue on merge (the merge commit carries it): ${escapeData(ref.text)}`);
+  if (pr !== undefined) {
+    for (const ref of closingRefs(`from ${pr.branch}\n\n${pr.title}`)) {
+      const where = ref.line === 1 ? "the branch name, with the title after it," : "the PR title";
+      lines.push(`::error::${where} closes an issue on merge (GitHub's merge commit joins them): ${escapeData(ref.text)}`);
+    }
   }
   const failed = lines.length > 0;
-  lines.push(`${parsed.records.length} commits read, ${exempt} exempt${title === undefined ? "" : ", and the title"}; ${failed ? "reword each line above so no closing keyword comes before an issue reference" : "no closing reference"}`);
+  lines.push(`${parsed.records.length} commits read, ${exempt} exempt${pr === undefined ? "" : ", and the merge commit's branch and title"}; ${failed ? "reword each line above so no closing keyword comes before an issue reference" : "no closing reference"}`);
   return { lines, code: failed ? 1 : 0 };
 }
 
@@ -116,7 +125,7 @@ function main(argv) {
     for (const file of argv.slice(1)) {
       let text;
       try {
-        text = readFileSync(file, "utf8");
+        text = readFileSync(file === "-" ? 0 : file, "utf8");
       } catch (e) {
         console.error(`closing-keywords: cannot read ${file}: ${e.message}`);
         return 2;
@@ -137,7 +146,12 @@ function main(argv) {
     console.log(`::error::closing-keywords: cannot read stdin: ${escapeData(e.message)}`);
     return 2;
   }
-  const { lines, code } = check(input, process.env.PR_TITLE);
+  const { PR_TITLE: title, PR_BRANCH: branch } = process.env;
+  if (title === undefined || branch === undefined) {
+    console.log("::error::closing-keywords: PR_TITLE and PR_BRANCH must both be set (empty is allowed)");
+    return 2;
+  }
+  const { lines, code } = check(input, { title, branch });
   for (const line of lines) console.log(line);
   return code;
 }

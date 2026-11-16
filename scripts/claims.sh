@@ -144,9 +144,11 @@ scan_arg() {
 closing_arg() {
   local f="$2" out
   [ "$1" = file ] || f="$3"
-  out=$(node "$root/scripts/closing-keywords.mjs" --lines "$f") \
+  # Through stdin, labelled `-`, then relabelled with the path as given: node would print the
+  # path MSYS converted (`C:/…` for `/c/…`), not the one the other lines show.
+  out=$(node "$root/scripts/closing-keywords.mjs" --lines - < "$f") \
     || { echo "claims.sh: closing-keywords.mjs failed on $f" >&2; exit 2; }
-  [ -z "$out" ] || printf '%s\n' "$out" | sed 's/^/closing: /'
+  [ -z "$out" ] || printf '%s\n' "$out" | CLAIMS_PATH="$f" awk '{ print "closing: " ENVIRON["CLAIMS_PATH"] substr($0, 2) }'
   echo "claims.sh: $f: $(printf '%s' "$out" | grep -c '') closing references" >&2
 }
 

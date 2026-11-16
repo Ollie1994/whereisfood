@@ -91,7 +91,8 @@ has run the checks with no Vercel build (#5).
 | `scripts/smoke.mjs` (+ test of its expectations if it has pure parts) | The served-app check the `build` job runs |
 | `scripts/write-env-local.mjs` (+ test) | `.env.local` from `npx supabase status -o env`, for every CI job that starts the local stack (IS #286; open decision 3) |
 | `scripts/audit-report.mjs` (+ test) | Reads run 3's `npm audit --json` report and prints its warnings, or fails when it can't tell which advisories there are (#12; moved out of `ci.yml` and tested, round 3 on IS #291's PR, the owner's call) |
-| `scripts/closing-keywords.mjs` (+ test) | Fails `secret-scan` when one of a PR's commit messages, or its title, holds a closing keyword before an issue reference; `--lines` lists a PR body's for `claims.sh` (IS #368, the Phase 8 retrospective's new action) |
+| `scripts/closing-keywords.mjs` (+ test) | Fails `secret-scan` when one of a PR's commit messages, or the merge commit's branch name and title, holds a closing keyword before an issue reference; `--lines` lists a PR body's for `claims.sh` (IS #368, the Phase 8 retrospective's new action) |
+| `scripts/lib/workflow-command.mjs` | `escapeData`, the workflow-command escaping `audit-report.mjs` and `closing-keywords.mjs` import (IS #368) |
 | `scripts/lint-rules.test.mjs` | One fixture per rule and per term, inline in the test, linted through ESLint's API (#9) |
 | `scripts/ci-advisor.test.mjs` | `integration`'s `ADVISOR_DB_URL` port and `pgrst.db_schemas` match `config.toml`'s `[db]` port and `[api]` schemas, read through `js-yaml` (rounds 1 and 4 on IS #290's PR); the advisor's run and its self-test's line are one command exactly, both steps hold only `name`, `if` and `run`, and no step's `env` or `run` sets the URL (IS #325) |
 
@@ -103,9 +104,10 @@ has run the checks with no Vercel build (#5).
 | `vitest.config.ts` | Only if the new script tests sit where the `unit` project doesn't collect them |
 | `scripts/controls.mjs` | Its header's "Not a gate (CLAUDE.md, "Testing")" (line 43), which a required `controls` check makes false (step 12); anything else only if CI needs it, and no trigger mode (open decision 4, settled: its own script) |
 | `package.json` | Only a script the trigger or smoke step needs, and `js-yaml` as a devDependency for `scripts/ci-advisor.test.mjs` (the owner's call, round 4 on IS #290's PR); no `prepare` hook (#7) |
-| `CLAUDE.md` | The bold plan line (step 0); #12's audit rule (step 6); the Gitleaks hook under "Secrets" (step 7); "Testing" rewritten for CI as the gate, its "Schema controls … not a gate" included (step 12) |
-| `README.md` | "Getting started": installing Gitleaks and setting `core.hooksPath` (step 7); "Preview deploys": the Ignored Build Step's new command (step 1, #15). The status parts wait for step 17 (Phase 7 #8) |
+| `CLAUDE.md` | The bold plan line (step 0); #12's audit rule (step 6); the Gitleaks hook under "Secrets" (step 7); "Testing" rewritten for CI as the gate, its "Schema controls … not a gate" included (step 12); `secret-scan`'s closing-keyword check in "Testing" and the claims check's `closing:` lines in "Review rounds" (IS #368) |
+| `README.md` | "Getting started": installing Gitleaks and setting `core.hooksPath` (step 7); "Preview deploys": the Ignored Build Step's new command (step 1, #15); the CI summary names the closing-keyword check (IS #368). The status parts wait for step 17 (Phase 7 #8) |
 | `scripts/claims.sh` | Lists a PR body's closing references (IS #368) |
+| `scripts/audit-report.mjs` | Imports `escapeData` from `scripts/lib/workflow-command.mjs` (IS #368) |
 | `.claude/process-log.md` | Rows as they happen; the retrospective (step 16) |
 | `.claude/context/project-context.md` | Step 17 only |
 

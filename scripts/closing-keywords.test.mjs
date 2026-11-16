@@ -13,11 +13,12 @@ const SCRIPT = fileURLToPath(new URL("./closing-keywords.mjs", import.meta.url))
 const SHA = "a".repeat(40);
 const EXEMPT_SHA = [...EXEMPT.keys()][0];
 const record = (sha, message) => `${sha}\n${message}\0`;
-// The parent's own PR_TITLE (CI sets one in the step that runs the script, not here) is
-// dropped, so only `env` sets it.
-const run = (args, input, env = {}) => {
+// The parent's own PR_TITLE and PR_BRANCH (CI sets them in the step that runs the script, not
+// here) are dropped, so only `env` sets them; by default both are empty.
+const run = (args, input, env = { PR_TITLE: "", PR_BRANCH: "" }) => {
   const base = { ...process.env };
   delete base.PR_TITLE;
+  delete base.PR_BRANCH;
   return spawnSync(process.execPath, [SCRIPT, ...args], { input, encoding: "utf8", env: { ...base, ...env } });
 };
 
@@ -109,14 +110,23 @@ describe("check()", () => {
   });
 
   it("fails on the title", () => {
-    const { lines, code } = check("", "Closes #99999 probe");
+    const { lines, code } = check("", { title: "Closes #99999 probe", branch: "phase-9/x" });
     expect(code).toBe(1);
     expect(lines[0]).toMatch(/^::error::the PR title closes an issue on merge/);
   });
 
+  // Round 3 on PR #371: GitHub's merge commit joins them as "…from <owner>/<branch>", a
+  // blank line, then the title.
+  it("fails on a branch ending in a keyword with a title starting with a reference", () => {
+    const { lines, code } = check("", { title: "#401 follow-up", branch: "phase-9/fix" });
+    expect(code).toBe(1);
+    expect(lines[0]).toMatch(/^::error::the branch name, with the title after it, closes an issue on merge/);
+    expect(check("", { title: "the #401 follow-up", branch: "phase-9/fix" }).code).toBe(0);
+  });
+
   it("passes clean commits and a clean title", () => {
-    expect(check(record(SHA, "docs: round 1's fixes (PR #369 / IS #301)\n"), "The Phase 8 retrospective")).toEqual({
-      lines: ["1 commits read, 0 exempt, and the title; no closing reference"],
+    expect(check(record(SHA, "docs: round 1's fixes (PR #369 / IS #301)\n"), { title: "The Phase 8 retrospective", branch: "phase-8/retrospective" })).toEqual({
+      lines: ["1 commits read, 0 exempt, and the merge commit's branch and title; no closing reference"],
       code: 0,
     });
   });
@@ -136,10 +146,16 @@ describe("the command line", () => {
     expect(run([], record(SHA, "fine\n")).status).toBe(0);
   });
 
-  it("reads the title from PR_TITLE", () => {
-    const result = run([], "", { PR_TITLE: "closes #99999" });
+  it("reads the title from PR_TITLE and the branch from PR_BRANCH", () => {
+    const result = run([], "", { PR_TITLE: "closes #99999", PR_BRANCH: "x" });
     expect(result.status).toBe(1);
     expect(result.stdout).toMatch(/the PR title/);
+    expect(run([], "", { PR_TITLE: "#99999 x", PR_BRANCH: "y/fixes" }).stdout).toMatch(/the branch name/);
+  });
+
+  it("exits 2 when PR_TITLE or PR_BRANCH isn't set, so a step that drops one fails", () => {
+    expect(run([], record(SHA, "fine\n"), { PR_BRANCH: "x" }).status).toBe(2);
+    expect(run([], record(SHA, "fine\n"), { PR_TITLE: "x" }).status).toBe(2);
   });
 
   it("exits 2 on unreadable input", () => {
@@ -155,6 +171,7 @@ describe("the command line", () => {
       expect(result.status).toBe(0);
       expect(result.stdout).toBe(`${body}:1: Closes #1. More.\n`);
       expect(run(["--lines", join(dir, "missing.md")]).status).toBe(2);
+      expect(run(["--lines", "-"], "x\nfixes #2\n").stdout).toBe("-:2: fixes #2\n");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -167,7 +184,11 @@ describe("the command line", () => {
     try {
       const link = join(dir, "scripts");
       symlinkSync(dirname(SCRIPT), link, "junction");
-      const result = spawnSync(process.execPath, [join(link, "closing-keywords.mjs")], { input: record(SHA, "fixes #99999\n"), encoding: "utf8" });
+      const result = spawnSync(process.execPath, [join(link, "closing-keywords.mjs")], {
+        input: record(SHA, "fixes #99999\n"),
+        encoding: "utf8",
+        env: { ...process.env, PR_TITLE: "", PR_BRANCH: "" },
+      });
       expect(result.status).toBe(1);
       expect(result.stdout).toMatch(/closes an issue on merge/);
     } finally {

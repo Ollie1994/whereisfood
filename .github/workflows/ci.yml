@@ -455,10 +455,12 @@ jobs:
           exit "$failed"
       # Closing keywords (IS #368): "fixes #348" in a commit message closes #348 when the
       # commit lands on `dev`, the default branch, and PR #350's merge closed #348 that way
-      # (process-log row 682). The same range as the scan above, and the PR's title, which
-      # GitHub's merge commit carries; scripts/closing-keywords.mjs's header has the pattern,
+      # (process-log row 682). The same range as the scan above, and the PR's branch name and
+      # title, which GitHub's merge commit carries; scripts/closing-keywords.mjs's header has
+      # the pattern,
       # the one exempt commit and what it can't see. These steps run when the scan fails, so
-      # one run shows both. The title comes through `env`, never into the script's text. A title
+      # one run shows both. The title and branch come through `env`, never into the script's
+      # text, and the script fails when either is missing. A title
       # changed after a run isn't read until the next push or a close and reopen (no `edited`
       # trigger, above). A red result here names a message or the title, not a secret: the
       # step's name and its annotation say which.
@@ -474,4 +476,5 @@ jobs:
           BASE: ${{ github.event.pull_request.base.sha }}
           HEAD: ${{ github.event.pull_request.head.sha }}
           PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
         run: git log -z --format='%H%n%B' "$BASE..$HEAD" | node scripts/closing-keywords.mjs
