@@ -1,6 +1,6 @@
-// closing-keywords.mjs, which fails ci.yml's `secret-scan` job when a PR's commit message or
-// title holds a closing keyword before an issue reference, and lists those in a PR body for
-// claims.sh (IS #368).
+// closing-keywords.mjs, which fails ci.yml's `secret-scan` job when a PR's commit message, or
+// the merge commit's branch name and title, holds a closing keyword before an issue
+// reference, and lists those in a PR body for claims.sh (IS #368).
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -14,7 +14,7 @@ const SHA = "a".repeat(40);
 const EXEMPT_SHA = [...EXEMPT.keys()][0];
 const record = (sha, message) => `${sha}\n${message}\0`;
 // The parent's own PR_TITLE and PR_BRANCH (CI sets them in the step that runs the script, not
-// here) are dropped, so only `env` sets them; by default both are PR's.
+// here) are dropped, so only `env` sets them; by default they hold PR's title and branch.
 const PR = { title: "A title", branch: "phase-9/a-branch" };
 const run = (args, input, env = { PR_TITLE: PR.title, PR_BRANCH: PR.branch }) => {
   const base = { ...process.env };
@@ -121,8 +121,14 @@ describe("check()", () => {
   it("fails on a branch ending in a keyword with a title starting with a reference", () => {
     const { lines, code } = check("", { title: "#401 follow-up", branch: "phase-9/fix" });
     expect(code).toBe(1);
-    expect(lines[0]).toMatch(/: branch phase-9\/fix, then title #401 follow-up$/);
+    expect(lines[0]).toMatch(/\(rename the branch or retitle the PR\): branch phase-9\/fix, then title #401 follow-up$/);
     expect(check("", { title: "the #401 follow-up", branch: "phase-9/fix" }).code).toBe(0);
+  });
+
+  it("names the branch alone when the reference is wholly in it", () => {
+    const { lines, code } = check("", { title: "Some title", branch: "phase-9/fix#12" });
+    expect(code).toBe(1);
+    expect(lines[0]).toMatch(/\(rename the branch\): branch phase-9\/fix#12$/);
   });
 
   it("passes clean commits and a clean title", () => {

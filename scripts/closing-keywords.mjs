@@ -3,7 +3,8 @@
 // `365bdd9` said "the trial's fixes #348" and its merge closed #348 with none of its work
 // done (process-log row 682; IS #368, the Phase 8 retrospective's new action).
 //
-//   git log -z --format='%H%n%B' <base>..<head> | PR_TITLE=… PR_BRANCH=… node scripts/closing-keywords.mjs
+//   git log -z --format='%H%n%B' <base>..<head> \
+//     | PR_TITLE=… PR_BRANCH=… node scripts/closing-keywords.mjs
 //     ci.yml's `secret-scan` job. Reads the NUL-separated records (a commit's SHA, a newline,
 //     its message), and the merge commit GitHub will write: its message is "Merge pull request
 //     #<n> from <owner>/<branch>", a blank line, then the PR's title (`62e6a5f`), so the
@@ -11,8 +12,8 @@
 //     a title starting with a reference meet (round 3 on PR #371). Both variables are
 //     required and non-empty (GitHub gives every PR a title and a head branch), so a step
 //     that stops passing one, or passes an expression that comes out empty, fails rather
-//     than skipping it. Prints an `::error::` per line holding a closing reference and exits 1 on any;
-//     exits 2 when the input isn't such records or a variable is missing.
+//     than skipping it. Prints an `::error::` per line holding a closing reference and exits
+//     1 on any; exits 2 when the input isn't such records or a variable is missing or empty.
 //
 //   node scripts/closing-keywords.mjs --lines <file>...
 //     claims.sh. Prints each line of each file that holds a closing reference, as
@@ -41,7 +42,9 @@
 // to before it and commit again) and force-push the branch, which the rulesets allow on any
 // branch but `dev` and `main`. One that reaches `dev` anyway (a title edited after the run,
 // or a message edited in GitHub's merge dialog) closes its issue there, and stays in every
-// later PR into `main`'s range: a PR into `dev` adds its SHA to EXEMPT, with the reason.
+// later PR into `main`'s range: a PR into `dev` adds its SHA to EXEMPT, with the reason. The
+// SHA is the one `dev` holds, from `git log origin/main..origin/dev`: a rebase merge gives the
+// commits new SHAs, so the one a PR's failed run named may not be it.
 //
 // It models the repository's merge settings as read on 2026-11-16 (`gh api repos/{owner}/
 // {repo}`): a merge commit's title is "Merge pull request #<n> from <owner>/<branch>"
@@ -99,7 +102,8 @@ export function parseRecords(input) {
   return { records };
 }
 
-// Pure. The lines the step prints, and its exit code.
+// Pure. The lines the step prints, and its exit code. `pr` is required: { title, branch },
+// both strings, as main() reads them from PR_TITLE and PR_BRANCH.
 export function check(input, pr) {
   const parsed = parseRecords(input);
   if (parsed.error) return { lines: [`::error::closing-keywords: ${escapeData(parsed.error)}`], code: 2 };
@@ -114,9 +118,15 @@ export function check(input, pr) {
       lines.push(`::error::commit ${sha.slice(0, 7)} closes an issue on merge, line ${ref.line}: ${escapeData(ref.text)}`);
     }
   }
+  const branchAlone = closingRefs(`from ${pr.branch}`).length > 0;
   for (const ref of closingRefs(`from ${pr.branch}\n\n${pr.title}`)) {
-    const text = ref.line === 1 ? `branch ${pr.branch}, then title ${pr.title}` : `title ${ref.text}`;
-    lines.push(`::error::the merge commit's branch name and title close an issue on merge (rename the branch or retitle the PR): ${escapeData(text)}`);
+    const [text, fix] =
+      ref.line !== 1
+        ? [`title ${ref.text}`, "retitle the PR"]
+        : branchAlone
+          ? [`branch ${pr.branch}`, "rename the branch"]
+          : [`branch ${pr.branch}, then title ${pr.title}`, "rename the branch or retitle the PR"];
+    lines.push(`::error::the merge commit's branch name and title close an issue on merge (${fix}): ${escapeData(text)}`);
   }
   const failed = lines.length > 0;
   lines.push(`${parsed.records.length} commits read, ${exempt} exempt, and the merge commit's branch and title; ${failed ? "reword each line above so no closing keyword comes before an issue reference" : "no closing reference"}`);
