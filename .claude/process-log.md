@@ -2034,8 +2034,9 @@ bash scripts/process-log.sh tally 8 543 699    # Escaped
 | `stale-doc` | 1 | 1% | 0 (0%) |
 
 The two largest parts differ (543–550's eight rows are in neither):
-- **Rows 551–607 (`tally 9 551 607`, 57 rows, the plan's 597–600 included):** `overcorrection` 23, `incomplete-guard`
-  14, `unverified-assumption` 9, `imprecise-claim` 5, `manual-drift` 3, `gate-skipped` 3.
+- **Rows 551–607 (`tally 9 551 607`, 57 rows, the plan's 597–600 included):**
+  `overcorrection` 23, `incomplete-guard` 14, `unverified-assumption` 9, `imprecise-claim`
+  5, `manual-drift` 3, `gate-skipped` 3.
 - **Rows 608–699 (`tally 9 608 699`, 92 rows):** `imprecise-claim` 24, `overcorrection`
   21, `incomplete-guard` 21, `unverified-assumption` 20, `missing-gate` 5, `gate-skipped`
   1.
@@ -2059,8 +2060,8 @@ The two largest parts differ (543–550's eight rows are in neither):
 | `pre-commit` | 4 (559, 583, 641, 667) |
 | `crossed-phase` | 1 (649) |
 
-In Phase 7's range, 420–542, 4 rows were `merged`. The nine that merged or crossed the phase, read row by
-row:
+In Phase 7's range, 420–542, 4 rows were `merged`. The nine that merged or crossed the
+phase, read row by row:
 - **Plan or issue text about how an outside tool behaves, from docs or reasoning, not a
   probe:** 608, 613, 635, 640 and 677. Each was found by `self` while doing the step
   that used it. Plan #5's can-fail probes found 635 and 640.
@@ -2167,10 +2168,10 @@ measures (Phase 7 plan #39):
 - **PRs past it.** Of the 40 PRs from #263 on, 5 had rounds past it that the owner asked
   for: #280 (rounds 4–7 and a read-through), #281 and #283 (a read-through each), and #315
   and #342 (a fifth round). Phase 7: 2 of 20.
-- **`merged` rows rose,** to 8 from the 3 in 441–542 that the Phase 7 retrospective's #4 row counted.
-  Beside them is 649, `crossed-phase`: a Phase 4 regex, which says nothing about the
-  ceiling. Of the nine, review found only 699, and
-  that one in a round on #367, from what #366 showed. The rest were found by doing the
+- **`merged` rows rose,** to 8 from the 3 in 441–542 that the Phase 7 retrospective's #4
+  row counted. Beside them is 649, `crossed-phase`: a Phase 4 regex, which says nothing
+  about the ceiling. Of the nine, review found only 699, and that one in a round on
+  #367, from what #366 showed. The rest were found by doing the
   work, by CodeQL or by the owner ("By `Caught by`" above). One came from a round's own
   fixes: 646's `table()` arrived in round 1's fixes on PR #322 (`f86deed`), which round
   2, scoped to them, and the full round 3 both read. Neither measure shows whether the
