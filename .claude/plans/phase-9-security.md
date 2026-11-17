@@ -105,7 +105,8 @@ checked against a written checklist.
   fixtures sign in through the PKCE magic link, read from Mailpit, not a password (#14), and
   the admin login reaches `aal2`),
   and new or extended integration tests (`admin-auth.test.ts`, MFA, logout, cancel and
-  confirm); a unit test that `config.toml` keeps `secure_password_change = true` (step 2).
+  confirm); a unit test that `config.toml` keeps `secure_password_change = true` and the
+  password-changed email on (step 2, `supabase/config.test.ts`).
 - No migration: `users_select_own` stays as it is (#7).
 
 **Docs:**
@@ -185,7 +186,8 @@ before the closing steps (#12).
    the notification on, whether Auth's notification emails count toward `email_sent` (step 8
    reads it), and whether Supabase's "require current password" option (`current_password`
    on `updateUser`) is on Free and stops a first password being set. `CLAUDE.md` records the
-   rule.
+   rule. Settled by IS #378: the email counts on the preview, not locally; the option is on
+   Free, hosted only, and stops no first password, so the admin keeps one (#13).
 3. **Length limits** on truck name, description, cuisine type and location label, with
    Swedish messages (Q22); no migration.
 4. **Cancel and confirm refuse an ended entry** (#8): `cancelLocation` and `confirmLocation`
@@ -253,8 +255,9 @@ before the closing steps (#12).
 12. **The hosted-settings checklist** (Q21) in `README.md` (#10), each item checked on the
     preview: sign-ups off, redirect URLs, rate limits, the email OTP length (no email shows the
     code, #14, but a guessed one is an `aal1` session at Auth, so its length sets open
-    decision 1's odds), MFA, the password
-    setting, secure email change (#13), the audit log setting, Deployment Protection, Git Fork Protection,
+    decision 1's odds), MFA, the password settings (secure password change, its email, and
+    require current password, with the admin's password set long and random, IS #378), secure email change (#13), the audit log setting, Deployment
+    Protection, Git Fork Protection,
     "Enforce SSL", unused services, network restrictions, and the hosted Security Advisor
     (`db advisors --linked`).
 13. **The 2FA audit** (Q12): every account that exists then and each one's recovery email,
@@ -277,7 +280,9 @@ before the closing steps (#12).
     and Part 1's "Ändra" until it ends). It rewrites Part 2's "Admin and auth" (MFA behind
     the magic link, #14; the time-box, logout), "Pre-deploy automation" (the 2FA audit's result, which the
     IS #278 (Phase 9) row names and `CLAUDE.md`'s "Secrets" points to), the Phase map's
-    Phase 9 row, Part 1 where it describes the login, and the README's status parts; in the
+    Phase 9 row, Part 1 where it describes the login, the backups item's restore (it
+    recreates the admin by its old id, which must get a long random password, README's "5.
+    Create the admin user"), and the README's status parts; in the
     Phase 9 row, "Admin and auth" and the "Phase 7 open decisions 1–5" row, "6-digit" goes, since
     the code doesn't ship in Phase 9 (#14). It
     carries forward the decisions that outlive the phase (#4–#11, #13 and #14 at least, #14
@@ -427,7 +432,8 @@ add a second factor beside it (round 1 on PR #376, the owner's approval; IS #373
 
 **What it doesn't stop on its own** (round 2 on PR #376, the owner's approval): at `aal2`
 the thief can unenroll the admin's factor, enroll their own and set a password (inside the
-recent-login window `secure_password_change` allows), then sign in again later, outliving
+recent-login window `secure_password_change` allows; with "Require current password" on, only
+if it also has the admin's unused password, IS #378), then sign in again later, outliving
 the time-box and every logout. Supabase's Free plan has no server-side block for that: its
 hooks there are the access-token and email hooks only, as on Pro (the pricing page's "Auth
 Hooks" row: "All" from Team), so Phase 11's Pro doesn't add one either.
@@ -443,7 +449,16 @@ guessed code. The swap stays possible as sabotage
 (locking the admin out), not as a way in; recorded as a limit. What else holds:
 - **preventing the theft:** the CSP (#6 states its limit), the time-box (#4), logout ending
   every session (#5);
-- **detecting it:** the password-changed email (step 2), and factor-enrolled and
+- **preventing the password:** "Require current password when updating" on the preview and
+  production (the owner, 2026-11-17, IS #378): a hosted setting only (the CLI has no
+  `config.toml` key), checked only for a user who already has a password, which the admin
+  does (README, "5. Create the admin user"), and not in a password-recovery session;
+- **detecting it:** the password-changed email (step 2; it spends the preview's `email_sent`
+  budget, which anyone who knows the admin's address can spend by asking for login links,
+  at the preview's `email_sent` of 2 an hour until step 8 changes it, and a change whose
+  email the spent budget refuses still succeeds, IS #378; so a careful thief can spend it
+  first, and the emails catch only a careless one), and
+  factor-enrolled and
   factor-unenrolled emails, which Auth offers, both off by default (GoTrue v2.197.0's
   notification settings; the preview's dashboard lists both on Free, with password-changed,
   all off, IS #377; step 5a switches the two factor emails on);
@@ -480,9 +495,12 @@ probes the order). The app refuses a guessed code's session before TOTP, and the
 signs that session out at Auth with `scope: "local"`, as #4's does. `mfaStepAllowed`
 applies the same allowlist to the app's enroll page; the enroll itself goes from the browser
 to Auth (`useMfa`), so it gates the page, not Auth. **A limit:** a guessed code's session
-that never reaches the app is still a valid `aal1` session at Auth, so it can call Auth and
-the Data API directly (#7's own-row read through the Data API; `updateUser` at Auth, which
-secure password change and, hosted, "Require current password" bound, IS #378), and, while
+that never reaches the app, or a password login's if the admin's password leaked (README's
+step 5 makes it long and random, stored nowhere, IS #378), is still a valid `aal1` session
+at Auth, so it can call Auth and the Data API directly (#7's own-row read through the Data
+API; `updateUser` at Auth, which secure password change and, hosted, "Require current
+password" bound for a guessed code's session, but not for a password login's, which is new
+and knows the password, IS #378), and, while
 the one factor slot is free (between #13's factor deletion and its re-enroll), enroll a
 factor at Auth itself. On Free nothing ends it but a logout of every session (#5) or #13's
 recovery; the time-box sees only sessions that reach the app (#4). TOTP stands between it
@@ -493,7 +511,8 @@ link. The test fixtures sign in through the PKCE link, read from Mailpit as
 `auth-routes.test.ts` does, not `generate_link` + `verifyOtp` (#9, step 5a), with two
 cautions for #381: a second link to the same user within `max_frequency` (1 s locally) is
 refused, so a fixture waits it out; and Mailpit keeps every earlier mail, so a fixture reads
-the mail sent after its own request, not the newest one already there. Each sign-in is
+the mail sent after its own request that holds a login link, not the newest one already
+there (the password-changed email, on locally since IS #378, lands there too). Each sign-in is
 then a Mailpit round trip, so `helpers.ts`'s rule of one sign-in per file or describe keeps
 the sequential integration suite's time down.
 

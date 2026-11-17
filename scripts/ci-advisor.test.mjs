@@ -25,7 +25,7 @@ const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf
 // alert #4, js/incomplete-sanitization, IS #328). complete.test.ts and controls.mjs slice
 // [api] with a multiline regex instead, which needs a table header after [api] (this
 // reads to the end of the file) and treats unusual whitespace and line endings its own
-// way, so the three may disagree there.
+// way, so they may disagree there. supabase/config.test.ts reads tables as this does.
 const HEADER = /^\[([^\]]+)\]\s*$/;
 const TABLE_START = /^\[/;
 function table(config, name) {
