@@ -63,7 +63,7 @@ checked against a written checklist.
 
 **The login rework (MFA and #241's email code):**
 - `src/app/admin/login/page.tsx`, `src/components/Admin/LoginForm.tsx`, `src/hooks/useLogin.ts`,
-  `src/lib/login.ts` (+ tests): the email step and #241's 6-digit code.
+  `src/lib/login.ts` (+ tests): the email step and #241's emailed code.
 - New: the enroll and code steps (a page under `/admin/login` or `/admin/mfa`, open
   decision 5), their hook (`useMfa`) and components (`MfaEnroll`, `MfaCode`).
 - `src/app/auth/callback/route.ts` (+ test): an `aal1` session goes to the MFA step.
@@ -97,8 +97,8 @@ checked against a written checklist.
 
 **Config and tests:**
 - `supabase/config.toml`: `[auth.mfa.totp]` enroll and verify on, `max_enrolled_factors = 1`
-  (#13), `secure_password_change = true`, the password-changed notification, a
-  factor-enrolled notification if Supabase offers one (#13), and whatever step 8 chooses
+  (#13), `secure_password_change = true`, the password-changed notification, the
+  factor-enrolled and factor-unenrolled notifications (#13, step 5a), and whatever step 8 chooses
   (rate limits, CAPTCHA).
 - New: a TOTP helper for the integration tests (#9), `tests/integration/helpers.ts` (the
   fixtures sign in by the email code, not a password, and the admin login reaches `aal2`),
@@ -122,7 +122,7 @@ checked against a written checklist.
 |---|---|---|
 | `requireAdmin` | service (`admin-auth.ts`) | Also refuses a session below `aal2`, with the level read from a token Auth has verified, never a decoded cookie (open decision 11); a new refusal reason for "needs the second factor"; admits only a session whose first factor is the email code (#13); the time-box, signing the refused session out with `scope: "local"` (#4) |
 | `mfaStepAllowed` (working name) | service | An `aal1` session may enroll only while the user has no verified factor (the enroll window) |
-| login steps (`login.ts`) | lib, pure | The steps (email, 6-digit code, TOTP enroll or code) and their Swedish texts |
+| login steps (`login.ts`) | lib, pure | The steps (email, emailed code, TOTP enroll or code) and their Swedish texts |
 | `buildAdminCsp(nonce)`, the static header list (`csp.ts`) | lib, pure | The two CSPs and the other headers, shared by `next.config.ts` and the proxy |
 | length limits (`MAX_*`) | validators, pure | The bounds on free text, with Swedish messages |
 | TOTP helper | tests only | An RFC 6238 code from a secret, so integration tests reach `aal2` (#9) |
@@ -152,8 +152,9 @@ before the closing steps (#12).
    updated through the step's PR. The probes that need TOTP switched on run in step 5a:
    - login abuse (Q31): how fast `email_sent = 2` an hour is spent; the email
      code's guessing limit (`token_verifications`); then the preview's hosted
-     limits, read. The local stack enforces neither, so these run on the preview (IS
-     #377). What the form answers for an unknown address is already recorded
+     limits, read. The local stack enforces neither (IS #377): the guessing limit ran on
+     the preview; `email_sent`'s pace is read from GoTrue's source and the preview's value,
+     since spending it sends the owner's login emails (the owner's call). What the form answers for an unknown address is already recorded
      (`src/lib/login.ts`: the same "sent" text, though Auth's own answers in the browser
      still tell them apart);
    - the forged-cookie refresh flood (IS #373): a cookie with a past `expires_at` makes the
@@ -217,7 +218,8 @@ before the closing steps (#12).
      5a shows an unverified factor fills the one slot, the enroll step first removes one an
      abandoned enroll left. **b and c ship in one PR**, so `dev` never has a login that
      can't reach `aal2`;
-   - d. #241's 6-digit email code, and whether the magic link stays (open decision 3).
+   - d. #241's emailed code, one length in `config.toml` and on the preview, and whether the
+     magic link stays (open decision 3).
 6. **The session time-box** (#4): `requireAdmin` refuses a session whose sign-in is older
    than the set age (open decision 2), and the refusal signs that session out at Auth with
    `scope: "local"` (that session only); if the sign-out fails, the refusal stands. A
@@ -313,8 +315,8 @@ and it holds when a logout is forgotten. It is measured from the **first factor'
 a session's holder must not be able to reset the bound by verifying again (round 1 on PR
 #376; step 5a probes it). The source is the `amr` claim: step 1 showed a verified token
 carries the first factor's method and sign-in time (`[{ method: "magiclink", timestamp }]`
-for today's link, `"otp"` for #241's code), unchanged by a refresh (IS #377; open decision
-2). A refusal alone would leave the Supabase session alive, its refresh token
+for today's link, `"otp"` for #241's code, seen with the admin API's `generate_link` code
+verified as `type: "email"`), unchanged by a refresh (IS #377; open decision 2). A refusal alone would leave the Supabase session alive, its refresh token
 still good for direct Auth calls, so the refusal also signs that session out at Auth (round
 3 on PR #376, the owner's approval), with `scope: "local"`, so an old tab doesn't end a
 fresh session elsewhere (auth-js's `signOut()` defaults to global); a failed sign-out
@@ -460,7 +462,7 @@ Step 5a probes the swap from a second `aal2` session.
   the routes on disk); an `aal2` admin passes; `aal` is read from a verified token (a test
   with a forged `aal2` claim fails).
 - [ ] An `aal1` session may enroll only while the user has no verified factor (test).
-- [ ] The login runs email → 6-digit code → TOTP (enroll the first time) → `/admin`.
+- [ ] The login runs email → emailed code → TOTP (enroll the first time) → `/admin`.
 - [ ] A session whose first factor isn't the email code (a password login) is refused, and
   the test fixtures sign in by the email code (tests).
 - [ ] A session past the time-box is refused and signed out at Auth, that session only
@@ -494,24 +496,28 @@ Step 5a probes the swap from a second `aal2` session.
    (`src/lib/login.ts`), and that doesn't hide which addresses have accounts, since the
    browser sees Auth's own answers. Step 1's inputs (IS #377): on the preview, the 31st
    wrong code in a burst got a 429, a client-set `sb-forwarded-for`, `X-Forwarded-For`,
-   `X-Real-IP` or `CF-Connecting-IP` didn't reach a fresh bucket, and locally a wrong guess
+   `X-Real-IP` or `CF-Connecting-IP` didn't reach a fresh bucket, and 25 wrong guesses
    didn't spend the code; the preview's code is 8 digits and lasts 3600 s, so a burst of 30
-   and 0.1 a second gives about 390 guesses per IP per code, 1 in 256,000; the email budget is one per project (GoTrue's source; not
+   and 0.1 a second gives about 390 guesses per IP per code, 1 in 256,000; the email budget
+   is one per project (GoTrue's source; not
    probed on the preview, the owner's call); a forged-cookie flood through the app spends
    the server's bucket, which the login's code exchange shares, and shows the 503 page
    while it lasts without ending the session. The preview's "IP address forwarding" is off;
    the dashboard says that, on, it lets a client forward the end user's IP "for rate
-   limiting when using secret API keys" (IS #377), an option for the flood.
+   limiting when using secret API keys" (IS #377). The proxy's refreshes go through
+   `createSessionClient`, with the anon key, so it covers the flood only if they carried a
+   secret key, which `CLAUDE.md` keeps to the db layer.
 2. **The time-box's length (step 6).** Leaning 12 hours. Its source is settled: the `amr`
    claim's first-factor timestamp (#4, IS #377).
-3. **The magic link (step 5d):** kept beside the 6-digit code, or the code only. Step 1
+3. **The magic link (step 5d):** kept beside the emailed code, or the code only. Step 1
    (IS #377): the preview's dashboard says "Set up custom SMTP to edit templates. Emails
    will be sent using the default templates.", custom SMTP is off there, and the local
    default magic-link email held
    no code; so the code needs custom SMTP on a hosted project (planned for the Owners phase,
    `project-context.md`'s Phase map), or another route #383 finds; the dashboard's own
    offers are Pro and a "Send Email hook". The preview's code is 8 digits, `config.toml`'s
-   `otp_length` 6.
+   `otp_length` 6 (IS #377): if the code ships, step 5d sets one length in both, and the
+   code step takes that length, so a screen tested locally fits the preview's email.
 4. **The lost-phone route (D3)**, where the service-role calls (`deleteFactor`,
    `updateUserById`) may run with production's secret key, and whether the login rework
    needs an unenroll screen, from the probes in steps 1 and 5a. The recovery order is #13's.

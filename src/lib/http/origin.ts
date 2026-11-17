@@ -11,11 +11,11 @@ import { NextResponse } from "next/server";
 // A limit: the `x-forwarded-*` values are used as the request carries them, so a client
 // that sets its own names any host where nothing in front replaces it, as under `next
 // start` (`redirectTo` below). A browser form can't set either header, so a forged
-// cross-site form can't use it. Vercel replaces a client's `X-Forwarded-Host`: on `dev`'s
-// preview, a POST to `/auth/logout` with `Origin: https://evil.example` and
+// cross-site form can't use it. On `dev`'s preview, Vercel replaced a client's
+// `X-Forwarded-Host`: a POST to `/auth/logout` with `Origin: https://evil.example` and
 // `X-Forwarded-Host: evil.example` was refused 403, and one with the deploy's own `Origin`
-// and `X-Forwarded-Host: evil.example` answered 303 (IS #377). Redirects still don't use
-// it: `redirectTo` below.
+// and `X-Forwarded-Host: evil.example` answered 303 (IS #377). `X-Forwarded-Proto` and the
+// production domain weren't probed. Redirects still don't use it: `redirectTo` below.
 
 type HeaderSource = { headers: Headers };
 
