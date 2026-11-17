@@ -162,9 +162,9 @@ said otherwise: Phase 4 plan decision #14.
   made before this rule, was given a long random one (IS #378). Limits: Auth counts a session
   as recent for 24 hours from its creation (GoTrue's `user.go`), so a stolen session under a
   day old can still set a password where "Require current password" is off, as locally, or
-  where the thief knows the current one (a leaked password), which the first-factor check makes useless in the app (plan #13); and the
-  email can be suppressed by spending the project's `email_sent` budget first (plan #13,
-  IS #378)
+  where the thief knows the current one (a leaked password), which the first-factor check
+  makes useless in the app (plan #13); and the email can be suppressed by spending the
+  project's `email_sent` budget first (plan #13, IS #378)
 
 **Secrets** (IS #176; the repo is public)
 - Never commit a `.env*` file except `.env.example`, which holds variable names only.
