@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LOCATION_ERRORS, parseLocationPatch, parseNewLocation } from "@/lib/validators/location";
+import { LOCATION_ERRORS, MAX_LABEL, parseLocationPatch, parseNewLocation } from "@/lib/validators/location";
 
 // Järntorget, inside the Gothenburg box (`src/lib/geo.ts`).
 const LAT = 57.6997;
@@ -218,5 +218,44 @@ describe("LOCATION_ERRORS", () => {
   it("are distinct, so a test can tell which check refused", () => {
     const messages = Object.values(LOCATION_ERRORS);
     expect(new Set(messages).size).toBe(messages.length);
+  });
+});
+
+// Phase 9 plan step 3 (IS #379): the label at its maximum and one over, on create and
+// patch, in code points on the trimmed text, as `truck.test.ts` pins for a truck's fields.
+describe("the label's length", () => {
+  it(`takes ${MAX_LABEL} characters on create and patch`, () => {
+    const label = "a".repeat(MAX_LABEL);
+    expect(parseNewLocation({ ...BODY, label })).toMatchObject({ ok: true, value: { label } });
+    expect(parseLocationPatch({ label })).toEqual({ ok: true, value: { label } });
+  });
+
+  it(`refuses ${MAX_LABEL + 1} characters on create and patch`, () => {
+    const label = "a".repeat(MAX_LABEL + 1);
+    expect(parseNewLocation({ ...BODY, label })).toEqual(refused(LOCATION_ERRORS.labelLength));
+    expect(parseLocationPatch({ label })).toEqual(refused(LOCATION_ERRORS.labelLength));
+  });
+
+  it("counts an emoji as one character on create and patch", () => {
+    const label = "🍔".repeat(MAX_LABEL);
+    expect(parseNewLocation({ ...BODY, label })).toMatchObject({ ok: true, value: { label } });
+    expect(parseLocationPatch({ label })).toEqual({ ok: true, value: { label } });
+    expect(parseNewLocation({ ...BODY, label: `${label}🍔` })).toEqual(refused(LOCATION_ERRORS.labelLength));
+    expect(parseLocationPatch({ label: `${label}🍔` })).toEqual(refused(LOCATION_ERRORS.labelLength));
+  });
+
+  // Mixed, past `tooLong`'s first shortcut, as `truck.test.ts` has it.
+  it("takes letters and an emoji at the maximum on create and patch, refusing one more", () => {
+    const label = `${"a".repeat(MAX_LABEL - 1)}🍔`;
+    expect(parseNewLocation({ ...BODY, label })).toMatchObject({ ok: true, value: { label } });
+    expect(parseLocationPatch({ label })).toEqual({ ok: true, value: { label } });
+    expect(parseNewLocation({ ...BODY, label: `a${label}` })).toEqual(refused(LOCATION_ERRORS.labelLength));
+    expect(parseLocationPatch({ label: `a${label}` })).toEqual(refused(LOCATION_ERRORS.labelLength));
+  });
+
+  it("doesn't count the spaces trimmed off, on create and patch", () => {
+    const label = "a".repeat(MAX_LABEL);
+    expect(parseNewLocation({ ...BODY, label: `  ${label}  ` })).toMatchObject({ ok: true, value: { label } });
+    expect(parseLocationPatch({ label: `  ${label}  ` })).toEqual({ ok: true, value: { label } });
   });
 });

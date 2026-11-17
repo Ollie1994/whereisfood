@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { TRUCK_ERRORS, parseNewTruck, parseTruckPatch } from "@/lib/validators/truck";
+import {
+  MAX_CUISINE,
+  MAX_DESCRIPTION,
+  MAX_NAME,
+  TRUCK_ERRORS,
+  parseNewTruck,
+  parseTruckPatch,
+} from "@/lib/validators/truck";
 
 const BODY = { name: "Burgarbilen", instagram_handle: "burgarbilen_gbg", cuisine_type: "Burgare", description: "Smash burgers" };
 
@@ -108,5 +115,51 @@ describe("parseTruckPatch", () => {
     ["no body", "x", TRUCK_ERRORS.body],
   ])("refuses %s", (_, body, error) => {
     expect(parseTruckPatch(body)).toEqual({ ok: false, error });
+  });
+});
+
+// Phase 9 plan step 3 (IS #379): each free-text field at its maximum and one over, on
+// create and on patch.
+describe.each([
+  ["name", MAX_NAME, TRUCK_ERRORS.nameLength],
+  ["cuisine_type", MAX_CUISINE, TRUCK_ERRORS.cuisineLength],
+  ["description", MAX_DESCRIPTION, TRUCK_ERRORS.descriptionLength],
+] as const)("%s's length", (key, max, error) => {
+  it(`takes ${max} characters on create and patch`, () => {
+    const text = "a".repeat(max);
+    expect(parseNewTruck({ ...BODY, [key]: text })).toMatchObject({ ok: true, value: { [key]: text } });
+    expect(parseTruckPatch({ [key]: text })).toEqual({ ok: true, value: { [key]: text } });
+  });
+
+  it(`refuses ${max + 1} characters on create and patch`, () => {
+    const text = "a".repeat(max + 1);
+    expect(parseNewTruck({ ...BODY, [key]: text })).toEqual({ ok: false, error });
+    expect(parseTruckPatch({ [key]: text })).toEqual({ ok: false, error });
+  });
+
+  // `tooLong` counts code points: the maximum in burgers is twice that in UTF-16 units.
+  it("counts an emoji as one character on create and patch", () => {
+    const text = "🍔".repeat(max);
+    expect(parseNewTruck({ ...BODY, [key]: text })).toMatchObject({ ok: true, value: { [key]: text } });
+    expect(parseTruckPatch({ [key]: text })).toEqual({ ok: true, value: { [key]: text } });
+    expect(parseNewTruck({ ...BODY, [key]: `${text}🍔` })).toEqual({ ok: false, error });
+    expect(parseTruckPatch({ [key]: `${text}🍔` })).toEqual({ ok: false, error });
+  });
+
+  // Mixed: `max` characters in `max + 1` units, past `tooLong`'s first shortcut, so the
+  // count itself decides at the maximum; one more letter is over.
+  it("takes letters and an emoji at the maximum on create and patch, refusing one more", () => {
+    const text = `${"a".repeat(max - 1)}🍔`;
+    expect(parseNewTruck({ ...BODY, [key]: text })).toMatchObject({ ok: true, value: { [key]: text } });
+    expect(parseTruckPatch({ [key]: text })).toEqual({ ok: true, value: { [key]: text } });
+    expect(parseNewTruck({ ...BODY, [key]: `a${text}` })).toEqual({ ok: false, error });
+    expect(parseTruckPatch({ [key]: `a${text}` })).toEqual({ ok: false, error });
+  });
+
+  // The stored text is the trimmed one.
+  it("doesn't count the spaces trimmed off, on create and patch", () => {
+    const text = "a".repeat(max);
+    expect(parseNewTruck({ ...BODY, [key]: `  ${text}  ` })).toMatchObject({ ok: true, value: { [key]: text } });
+    expect(parseTruckPatch({ [key]: `  ${text}  ` })).toEqual({ ok: true, value: { [key]: text } });
   });
 });
