@@ -212,13 +212,19 @@ describe("POST /api/admin/locations/[id]/cancel", () => {
   });
 
   // Phase 9 plan #8: an entry that has started and not ended is still cancelled.
-  it("cancels a running entry", async () => {
-    const { id } = await seedLocation(truckId, window(-HOUR));
+  it("cancels a running entry at the request's now, changing nothing else", async () => {
+    const seeded = await seedLocation(truckId, window(-HOUR));
 
-    const response = await call(CANCEL, "POST", id);
+    const before = Date.now();
+    const response = await call(CANCEL, "POST", seeded.id);
+    const after = Date.now();
 
     expect(response.status).toBe(200);
-    expect((await readLocation(id)).cancelled_at).not.toBeNull();
+    const stored = await readLocation(seeded.id);
+    expect(Date.parse(stored.cancelled_at!)).toBeGreaterThanOrEqual(before);
+    expect(Date.parse(stored.cancelled_at!)).toBeLessThanOrEqual(after);
+    // The `updated_at` trigger moves it on every update (#18).
+    expect({ ...stored, cancelled_at: null, updated_at: seeded.updated_at }).toEqual(seeded);
   });
 
   // Phase 9 plan #8: past history can't be cancelled.

@@ -378,6 +378,14 @@ describe.each([
     expect(db.getLocationById).toHaveBeenCalledWith(ID);
   });
 
+  // `writeUnlessEnded`'s stated limit, pinned so a change to it is seen: the read's `ends_at`
+  // isn't checked, so a row an edit moved past NOW after the write is answered as ended too.
+  it("answers a row the read finds running as ended too, the race it states", async () => {
+    write.mockResolvedValue(null);
+    db.getLocationById.mockResolvedValue(row());
+    expect(await act(ID, NOW)).toEqual({ ok: false, reason: "invalid", error: ENTRY_ERRORS.endedEdit });
+  });
+
   it("answers a missing or cancelled entry as not found", async () => {
     write.mockResolvedValue(null);
     db.getLocationById.mockResolvedValue(null);

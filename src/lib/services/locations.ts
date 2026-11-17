@@ -181,10 +181,11 @@ export async function editEntry(id: string, patch: LocationPatch, now: Date): Pr
 // on `ends_at` after `now`, and when it writes nothing, a read tells why. No row: missing or
 // cancelled, 404. A row: the write's only other filter is `cancelled_at`, and nothing sets
 // it back to null, so the row the read finds wasn't cancelled at the write either: its
-// `ends_at` kept it out, and it is answered as ended, with the edit's message (the owner's
-// call, IS #380). A limit: it had ended at the write, not always at the read. An edit read
+// `ends_at` kept it out of the write, and it is answered as ended, with the edit's message
+// (the owner's call, IS #380). The read's `ends_at` isn't checked. A limit: an edit read
 // before the end can land after it with a later `ends_at` (#33's limit, `editEntry`'s), so
-// a cancel between the two is told "har redan slutat" about an entry running again.
+// a cancel between the write and the read is told "har redan slutat" about an entry running
+// again (pinned in `locations.test.ts`).
 async function writeUnlessEnded(
   id: string,
   now: Date,
