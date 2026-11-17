@@ -146,6 +146,16 @@ describe.each([
     expect(parseTruckPatch({ [key]: `${text}🍔` })).toEqual({ ok: false, error });
   });
 
+  // Mixed: `max` characters in `max + 1` units, past `tooLong`'s first shortcut, so the
+  // count itself decides at the maximum; one more letter is over.
+  it("takes letters and an emoji at the maximum on create and patch, refusing one more", () => {
+    const text = `${"a".repeat(max - 1)}🍔`;
+    expect(parseNewTruck({ ...BODY, [key]: text })).toMatchObject({ ok: true, value: { [key]: text } });
+    expect(parseTruckPatch({ [key]: text })).toEqual({ ok: true, value: { [key]: text } });
+    expect(parseNewTruck({ ...BODY, [key]: `a${text}` })).toEqual({ ok: false, error });
+    expect(parseTruckPatch({ [key]: `a${text}` })).toEqual({ ok: false, error });
+  });
+
   // The stored text is the trimmed one.
   it("doesn't count the spaces trimmed off, on create and patch", () => {
     const text = "a".repeat(max);

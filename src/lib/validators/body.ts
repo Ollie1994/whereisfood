@@ -16,12 +16,14 @@ export const refuse = (error: string): { ok: false; error: string } => ({ ok: fa
 
 // Whether a text is over `max` characters, counted as Unicode code points (the string's
 // iterator), not `.length`'s UTF-16 units: "🍔" counts one (Phase 9 plan step 3, the owner's
-// call, IS #379; pinned in `truck.test.ts` and `location.test.ts`). A limit: a letter typed
-// as a base and a combining mark (an NFD "å") counts two. No text, null, is never over. A
-// code point is one or two UTF-16 units, so `.length` settles a text at most `max` or over
-// `2 × max` units without splitting it, and the array the count builds is at most `2 × max`
-// long. The text is still parsed and trimmed whole before this: `readJson` sets no size cap
-// of its own (`admin.ts`).
+// call, IS #379; pinned in `truck.test.ts` and `location.test.ts`). A limit: what a reader
+// sees as one character can be several code points, each counted: an NFD "å" 2, "👍🏽" 2, a
+// flag such as "🇸🇪" 2, a family emoji "👨‍👩‍👧" 5 (`Array.from` in Node, PR #399). No text,
+// null, is never over. `.length` settles a text at most `max` units or over `2 × max`
+// without counting; the tests at those edges failed when the first was widened or the
+// second narrowed, and when the count's `>` became `>=` (PR #399's controls). The text
+// is still parsed and trimmed whole before this: `readJson` sets no size cap of its own
+// (`admin.ts`).
 export function tooLong(text: string | null, max: number): boolean {
   if (text === null || text.length <= max) return false;
   if (text.length > 2 * max) return true;

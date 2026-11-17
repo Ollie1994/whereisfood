@@ -7,7 +7,9 @@ import { BODY_ERRORS, type Parsed, isRecord, refuse, tooLong } from "@/lib/valid
 
 // The free-text bounds, in characters (`tooLong`), on the trimmed text that is stored
 // (Phase 9 plan step 3, Q22; the values are the owner's, IS #379). A limit: only the app
-// is bound; the schema has no CHECK (the plan: no migration), so SQL can write longer.
+// is bound; the schema has no CHECK (the plan: no migration), so SQL can write longer. Also
+// a limit: a NUL or a lone surrogate passes here and the db layer throws on it, so the
+// route answers 500 (the probe: `location.ts`'s `label`; IS #400).
 export const MAX_NAME = 80;
 export const MAX_CUISINE = 50;
 export const MAX_DESCRIPTION = 500;

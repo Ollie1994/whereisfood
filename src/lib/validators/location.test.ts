@@ -244,6 +244,15 @@ describe("the label's length", () => {
     expect(parseLocationPatch({ label: `${label}🍔` })).toEqual(refused(LOCATION_ERRORS.labelLength));
   });
 
+  // Mixed, past `tooLong`'s first shortcut, as `truck.test.ts` has it.
+  it("takes letters and an emoji at the maximum on create and patch, refusing one more", () => {
+    const label = `${"a".repeat(MAX_LABEL - 1)}🍔`;
+    expect(parseNewLocation({ ...BODY, label })).toMatchObject({ ok: true, value: { label } });
+    expect(parseLocationPatch({ label })).toEqual({ ok: true, value: { label } });
+    expect(parseNewLocation({ ...BODY, label: `a${label}` })).toEqual(refused(LOCATION_ERRORS.labelLength));
+    expect(parseLocationPatch({ label: `a${label}` })).toEqual(refused(LOCATION_ERRORS.labelLength));
+  });
+
   it("doesn't count the spaces trimmed off, on create and patch", () => {
     const label = "a".repeat(MAX_LABEL);
     expect(parseNewLocation({ ...BODY, label: `  ${label}  ` })).toMatchObject({ ok: true, value: { label } });

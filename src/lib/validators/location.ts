@@ -46,8 +46,10 @@ function coordinate(value: unknown): number | undefined {
 }
 
 // Absent, null or blank is no label. Its length is checked by the callers (`MAX_LABEL`).
-// A limit: any character is allowed. Until the Owners phase only the admin writes one,
-// through `/api/admin/*`.
+// A limit: no character is refused here, so a NUL or a lone surrogate reaches the db layer,
+// which throws (`22P05` for a NUL, `PGRST102` for a surrogate: `updateLocation` and
+// `updateTruck` probed locally in PR #399), and `withErrorHandling` answers 500, not 400
+// (IS #400). Until the Owners phase only the admin writes one, through `/api/admin/*`.
 function label(value: unknown): string | null | undefined {
   if (value === undefined || value === null) return null;
   if (typeof value !== "string") return undefined;
