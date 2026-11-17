@@ -319,7 +319,7 @@ and it holds when a logout is forgotten. It is measured from the **first factor'
 a session's holder must not be able to reset the bound by verifying again (round 1 on PR
 #376; step 5a probes it). The source is the `amr` claim: step 1 showed a verified token
 carries the first factor's method and sign-in time (`[{ method: "magiclink", timestamp }]`
-for today's PKCE link, `"otp"` for any direct verify, a typed or guessed code included, #14),
+for today's PKCE link, `"otp"` for each direct verify probed, a typed code included, #14),
 unchanged by a refresh (IS #377; open decision 2). A refusal alone would leave the Supabase session alive, its refresh token
 still good for direct Auth calls, so the refusal also signs that session out at Auth (round
 3 on PR #376, the owner's approval), with `scope: "local"`, so an old tab doesn't end a
@@ -457,9 +457,9 @@ service and code of ours. **Chosen: the magic link only for Phase 9** (the owner
 the phone's Gmail app keeps #240's hint (open the link in the browser that asked for it).
 
 A probe while settling it (local stack, IS #396): GoTrue gives `amr` `magiclink` only for
-the PKCE link flow (`/auth/callback`'s code exchange); every direct verify gives `otp`: a
-typed code, `generate_link`'s hashed token (`verifyOtp` with `token_hash`), a plain GET of
-the action link, and so a guessed code, since Auth still issues and accepts the code no
+the PKCE link flow (`/auth/callback`'s code exchange); each direct verify probed gives `otp`:
+a typed code, `generate_link`'s hashed token (`verifyOtp` with `token_hash`), a plain GET of
+the action link; a guessed code is a typed code, since Auth still issues and accepts the code no
 email shows. **#13's allowlist admits `magiclink` only** (the owner, 2026-11-17, IS #396):
 a guessed code is refused before TOTP. So the test fixtures sign in through the PKCE link,
 read from Mailpit as `auth-routes.test.ts` already does, not `generate_link` +
