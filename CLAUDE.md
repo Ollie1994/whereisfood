@@ -154,7 +154,8 @@ said otherwise: Phase 4 plan decision #14.
 - **Secure password change and the password-changed email stay on** (Phase 9 plan step 2,
   IS #378): `config.toml`'s `secure_password_change = true` and
   `[auth.email.notification.password_changed]`, which `src/lib/auth-config.test.ts` pins;
-  a hosted project's are the hosted-settings checklist's (plan step 12, #390). Limits: Auth counts a
+  a hosted project's are the hosted-settings checklist's (plan step 12, #390), with "Require
+  current password when updating", which has no `config.toml` key in the CLI (plan #13). Limits: Auth counts a
   session as recent for 24 hours from its creation (GoTrue's `user.go`), so a stolen session
   under a day old can still set a password, which the first-factor check makes useless in
   the app (plan #13); and the email spends the project's `email_sent` budget where that

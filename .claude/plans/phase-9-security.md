@@ -246,8 +246,9 @@ before the closing steps (#12).
 11. **Monitoring** (Q14): usage, spend and 5xx alerts on Vercel and Supabase where the free
     plans allow (open decision 7), and the log retentions read and recorded.
 12. **The hosted-settings checklist** (Q21) in `README.md` (#10), each item checked on the
-    preview: sign-ups off, redirect URLs, rate limits, MFA, the password setting, secure
-    email change (#13), the audit log setting, Deployment Protection, Git Fork Protection,
+    preview: sign-ups off, redirect URLs, rate limits, MFA, the password settings (secure
+    password change, its email, and require current password), secure email change (#13),
+    the audit log setting, Deployment Protection, Git Fork Protection,
     "Enforce SSL", unused services, network restrictions, and the hosted Security Advisor
     (`db advisors --linked`).
 13. **The 2FA audit** (Q12): every account that exists then and each one's recovery email,
@@ -417,7 +418,8 @@ add a second factor beside it (round 1 on PR #376, the owner's approval; IS #373
 
 **What it doesn't stop on its own** (round 2 on PR #376, the owner's approval): at `aal2`
 the thief can unenroll the admin's factor, enroll their own and set a password (inside the
-recent-login window `secure_password_change` allows), then sign in again later, outliving
+recent-login window `secure_password_change` allows; with "Require current password" on, only
+if it also has the admin's unused password, IS #378), then sign in again later, outliving
 the time-box and every logout. Supabase's Free plan has no server-side block for that: its
 hooks there are the access-token and email hooks only, as on Pro (the pricing page's "Auth
 Hooks" row: "All" from Team), so Phase 11's Pro doesn't add one either.
@@ -434,7 +436,13 @@ locks the admin out (#382's body); both need the mailbox. The swap stays possibl
 (locking the admin out), not as a way in; recorded as a limit. What else holds:
 - **preventing the theft:** the CSP (#6 states its limit), the time-box (#4), logout ending
   every session (#5);
-- **detecting it:** the password-changed email (step 2), and factor-enrolled and
+- **preventing the password:** "Require current password when updating" on the preview and
+  production (the owner, 2026-11-17, IS #378): a hosted setting only (the CLI has no
+  `config.toml` key), checked only for a user who already has a password, which the admin
+  does (README, "5. Create the admin user"), and not in a password-recovery session;
+- **detecting it:** the password-changed email (step 2; it spends the preview's `email_sent`
+  budget, and a change whose email the spent budget refuses still succeeds, IS #378), and
+  factor-enrolled and
   factor-unenrolled emails, which Auth offers, both off by default (GoTrue v2.197.0's
   notification settings; the preview's dashboard lists both on Free, with password-changed,
   all off, IS #377; step 5a switches the two factor emails on);
