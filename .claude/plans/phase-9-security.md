@@ -150,15 +150,17 @@ before the closing steps (#12).
 1. **Probes** (#3), the ones that need no setting changed. Each result is recorded on the
    step's issue, with its command, and the plan's affected decisions or open decisions
    updated through the step's PR. The probes that need TOTP switched on run in step 5a:
-   - login abuse, locally (Q31): how fast `email_sent = 2` an hour is spent; the email
+   - login abuse (Q31): how fast `email_sent = 2` an hour is spent; the email
      code's guessing limit (`token_verifications`); then the preview's hosted
-     limits, read. What the form answers for an unknown address is already recorded
+     limits, read. The local stack enforces neither, so these run on the preview (IS
+     #377). What the form answers for an unknown address is already recorded
      (`src/lib/login.ts`: the same "sent" text, though Auth's own answers in the browser
      still tell them apart);
    - the forged-cookie refresh flood (IS #373): a cookie with a past `expires_at` makes the
      server call Auth's token refresh, rate-limited per IP, and the calls come from the
-     server's IP, so a flood spends the admin's own refresh budget, and a 429 there ends
-     the admin's session (`src/proxy.ts`'s comment on `_callRefreshToken`);
+     server's IP, so a flood spends the admin's own refresh budget. A 429 there reads as
+     "unavailable", which keeps the admin's session cookie (`src/proxy.ts`; the preview's
+     flood in IS #377);
    - the lost-phone and recovery routes (D3, #13): where a service-role call may run
      (`auth.admin.mfa.deleteFactor`, `updateUserById`), since it needs the secret key
      (`CLAUDE.md`, "Where secrets live", lists no production key on a developer's machine);
@@ -307,8 +309,10 @@ soft launch's Free). **Chosen: (b) with (a)** (the owner, 2026-11-16): free, a l
 and it holds when a logout is forgotten. It is measured from the **first factor's** sign-in
 (the email login), never the newest `amr` entry: a later TOTP verify adds a fresh entry, and
 a session's holder must not be able to reset the bound by verifying again (round 1 on PR
-#376; step 5a probes it). The source is the `amr` claim if step 1 shows it carries that time
-(open decision 2). A refusal alone would leave the Supabase session alive, its refresh token
+#376; step 5a probes it). The source is the `amr` claim: step 1 showed a verified token
+carries the first factor's method and sign-in time (`[{ method: "magiclink", timestamp }]`
+for today's link, `"otp"` for #241's code), unchanged by a refresh (IS #377; open decision
+2). A refusal alone would leave the Supabase session alive, its refresh token
 still good for direct Auth calls, so the refusal also signs that session out at Auth (round
 3 on PR #376, the owner's approval), with `scope: "local"`, so an old tab doesn't end a
 fresh session elsewhere (auth-js's `signOut()` defaults to global); a failed sign-out
@@ -419,7 +423,9 @@ checklist) keeps the thief from moving to their own. The swap stays possible as 
 - **preventing the theft:** the CSP (#6 states its limit), the time-box (#4), logout ending
   every session (#5);
 - **detecting it:** the password-changed email (step 2), and factor-enrolled and
-  factor-unenrolled emails if Supabase offers them (step 1 reads);
+  factor-unenrolled emails, which Auth offers, both off by default (GoTrue v2.197.0's
+  notification settings; whether the preview's dashboard offers them on Free is read in IS
+  #377);
 - **recovering, in this order** (D3's routes, open decision 4; round 4 on PR #376, the
   owner's approval): secure the mailbox; replace the password with the service role's
   `updateUserById` (or SQL), since Auth may refuse a password change from `aal1` once MFA is
@@ -484,13 +490,21 @@ Step 5a probes the swap from a second `aal2` session.
    (`config.toml`'s `[auth.captcha]`: hCaptcha or Turnstile), a shorter code life, a
    lockout, or accepting it. The form already shows one message for every address
    (`src/lib/login.ts`), and that doesn't hide which addresses have accounts, since the
-   browser sees Auth's own answers.
-2. **The time-box's length and source (step 6).** Leaning 12 hours. The `amr` claim if step
-   1 shows it carries the sign-in time; otherwise a fallback named then.
+   browser sees Auth's own answers. Step 1's inputs (IS #377): on the preview, the 31st
+   wrong code in a burst got a 429, a client-set `sb-forwarded-for`, `X-Forwarded-For`,
+   `X-Real-IP` or `CF-Connecting-IP` didn't reach a fresh bucket, and locally a wrong guess
+   didn't spend the code; the email budget is one per project (GoTrue's source; not
+   probed on the preview, the owner's call); a forged-cookie flood through the app spends
+   the server's bucket, which the login's code exchange shares, and shows the 503 page
+   while it lasts without ending the session.
+2. **The time-box's length (step 6).** Leaning 12 hours. Its source is settled: the `amr`
+   claim's first-factor timestamp (#4, IS #377).
 3. **The magic link (step 5d):** kept beside the 6-digit code, or the code only.
 4. **The lost-phone route (D3)**, where the service-role calls (`deleteFactor`,
    `updateUserById`) may run with production's secret key, and whether the login rework
    needs an unenroll screen, from the probes in steps 1 and 5a. The recovery order is #13's.
+   Step 1 recommends the Supabase dashboard (IS #377): its SQL editor, with the Users page
+   where it covers a step, which need no key outside Supabase; step 5a probes the SQL.
 5. **Which paths an `aal1` session reaches** for the enroll and code steps, and the proxy's
    exemption for them (step 5b). Today `/auth/callback` sends every login to `/admin`, and
    the proxy exempts only `/admin/login`.
@@ -499,7 +513,10 @@ Step 5a probes the swap from a second `aal2` session.
    told apart from "no session" in the answer, so a test can't pass for the wrong reason
    (#9).
 7. **What Vercel Hobby and Supabase Free can alert on (step 11).**
-8. **The rate limits' values (step 8)**, which step 12 then checks.
+8. **The rate limits' values (step 8)**, which step 12 then checks. The per-IP limits the login
+   uses (`token_refresh`, `token_verifications`, `sign_in_sign_ups`) are each a burst of 30,
+   then a refill of the value per 5 minutes (GoTrue v2.197.0's `apilimiter.go`), and the
+   local stack enforces none of them, so only the preview shows a value working (IS #377).
 9. **The CSP's exact sources (step 9)**, found by the browser checks: MapLibre's worker, the
    tiles' range requests, the basemap's glyphs and sprite, `blob:`/`data:` images, the
    Supabase URL the login calls, and the CAPTCHA's script and frame if step 8 chooses one.
@@ -507,4 +524,6 @@ Step 5a probes the swap from a second `aal2` session.
 11. **How `requireAdmin` reads `aal` (step 5b).** `getClaims()` verifies an asymmetric token
     locally, so a logged-out token would pass until it expires; `getUser()` asks Auth, which
     refuses it, but returns no `aal`. Leaning: `getUser()`, then the `aal` claim of the token
-    Auth just accepted, which keeps logout effective. Step 1 reads the preview's key type.
+    Auth just accepted, which keeps logout effective. Step 1 (IS #377): the preview signs
+    with ES256, as the local stack does, and locally `getClaims()` accepted a token after a
+    global logout, with no call to Auth, while `getUser()` refused it.
