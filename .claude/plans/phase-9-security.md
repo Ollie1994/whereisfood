@@ -206,7 +206,9 @@ before the closing steps (#12).
      verified factor exists (auth-js has a `mfa_verified_factor_exists` code); each recovery
      route #13 names (replacing the password with the service role, deleting the factor and
      whether that ends every session, ending sessions by SQL on `auth.sessions`); MFA
-     verify's guessing limit; TOTP's digits and period;
+     verify's guessing limit; TOTP's digits and period. It also switches on the
+     factor-enrolled and factor-unenrolled notification emails, locally and on the preview
+     (#13's detection; the owner, 2026-11-17, IS #377);
    - b. `requireAdmin` refuses below `aal2`, and admits only a session whose first factor is
      the email code (#13); the enroll window; which paths an `aal1` session reaches and what
      an admin route answers it (open decisions 5, 6, 11); the admin-auth test's on-disk
@@ -425,7 +427,7 @@ checklist) keeps the thief from moving to their own. The swap stays possible as 
 - **detecting it:** the password-changed email (step 2), and factor-enrolled and
   factor-unenrolled emails, which Auth offers, both off by default (GoTrue v2.197.0's
   notification settings; the preview's dashboard lists both on Free, with password-changed,
-  all off, IS #377);
+  all off, IS #377; step 5a switches the two factor emails on);
 - **recovering, in this order** (D3's routes, open decision 4; round 4 on PR #376, the
   owner's approval): secure the mailbox; replace the password with the service role's
   `updateUserById` (or SQL), since Auth may refuse a password change from `aal1` once MFA is
@@ -493,7 +495,8 @@ Step 5a probes the swap from a second `aal2` session.
    browser sees Auth's own answers. Step 1's inputs (IS #377): on the preview, the 31st
    wrong code in a burst got a 429, a client-set `sb-forwarded-for`, `X-Forwarded-For`,
    `X-Real-IP` or `CF-Connecting-IP` didn't reach a fresh bucket, and locally a wrong guess
-   didn't spend the code; the email budget is one per project (GoTrue's source; not
+   didn't spend the code; the preview's code is 8 digits and lasts 3600 s, so a burst of 30
+   and 0.1 a second gives about 390 guesses per IP per code, 1 in 256,000; the email budget is one per project (GoTrue's source; not
    probed on the preview, the owner's call); a forged-cookie flood through the app spends
    the server's bucket, which the login's code exchange shares, and shows the 503 page
    while it lasts without ending the session. The preview's "IP address forwarding" is off;
@@ -506,7 +509,9 @@ Step 5a probes the swap from a second `aal2` session.
    will be sent using the default templates.", custom SMTP is off there, and the local
    default magic-link email held
    no code; so the code needs custom SMTP on a hosted project (planned for the Owners phase,
-   `project-context.md`'s Phase map), or another route #383 finds.
+   `project-context.md`'s Phase map), or another route #383 finds; the dashboard's own
+   offers are Pro and a "Send Email hook". The preview's code is 8 digits, `config.toml`'s
+   `otp_length` 6.
 4. **The lost-phone route (D3)**, where the service-role calls (`deleteFactor`,
    `updateUserById`) may run with production's secret key, and whether the login rework
    needs an unenroll screen, from the probes in steps 1 and 5a. The recovery order is #13's.
