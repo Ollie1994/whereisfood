@@ -424,8 +424,8 @@ checklist) keeps the thief from moving to their own. The swap stays possible as 
   every session (#5);
 - **detecting it:** the password-changed email (step 2), and factor-enrolled and
   factor-unenrolled emails, which Auth offers, both off by default (GoTrue v2.197.0's
-  notification settings; whether the preview's dashboard offers them on Free is read in IS
-  #377);
+  notification settings; the preview's dashboard lists both on Free, with password-changed,
+  all off, IS #377);
 - **recovering, in this order** (D3's routes, open decision 4; round 4 on PR #376, the
   owner's approval): secure the mailbox; replace the password with the service role's
   `updateUserById` (or SQL), since Auth may refuse a password change from `aal1` once MFA is
@@ -496,10 +496,17 @@ Step 5a probes the swap from a second `aal2` session.
    didn't spend the code; the email budget is one per project (GoTrue's source; not
    probed on the preview, the owner's call); a forged-cookie flood through the app spends
    the server's bucket, which the login's code exchange shares, and shows the 503 page
-   while it lasts without ending the session.
+   while it lasts without ending the session. The preview's "IP address forwarding" is off;
+   the dashboard says that, on, it lets a client forward the end user's IP "for rate
+   limiting when using secret API keys" (IS #377), an option for the flood.
 2. **The time-box's length (step 6).** Leaning 12 hours. Its source is settled: the `amr`
    claim's first-factor timestamp (#4, IS #377).
-3. **The magic link (step 5d):** kept beside the 6-digit code, or the code only.
+3. **The magic link (step 5d):** kept beside the 6-digit code, or the code only. Step 1
+   (IS #377): the preview's dashboard says "Set up custom SMTP to edit templates. Emails
+   will be sent using the default templates.", custom SMTP is off there, and the local
+   default magic-link email held
+   no code; so the code needs custom SMTP on a hosted project (planned for the Owners phase,
+   `project-context.md`'s Phase map), or another route #383 finds.
 4. **The lost-phone route (D3)**, where the service-role calls (`deleteFactor`,
    `updateUserById`) may run with production's secret key, and whether the login rework
    needs an unenroll screen, from the probes in steps 1 and 5a. The recovery order is #13's.
@@ -517,6 +524,9 @@ Step 5a probes the swap from a second `aal2` session.
    uses (`token_refresh`, `token_verifications`, `sign_in_sign_ups`) are each a burst of 30,
    then a refill of the value per 5 minutes (GoTrue v2.197.0's `apilimiter.go`), and the
    local stack enforces none of them, so only the preview shows a value working (IS #377).
+   The preview's values, read 2026-11-17, match `config.toml`'s: `email_sent` 2 an hour,
+   `token_refresh` 150, `token_verifications` 30 and `sign_in_sign_ups` 30 per 5 minutes;
+   its "Minimum interval per user", 60 s, "Only applies when Custom SMTP is configured".
 9. **The CSP's exact sources (step 9)**, found by the browser checks: MapLibre's worker, the
    tiles' range requests, the basemap's glyphs and sprite, `blob:`/`data:` images, the
    Supabase URL the login calls, and the CAPTCHA's script and frame if step 8 chooses one.
