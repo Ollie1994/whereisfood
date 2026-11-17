@@ -12,22 +12,18 @@ import {
   createFixtureAuthUser,
   fixtureEmail,
   jarClient,
-  mailIds,
-  newLink,
+  requestLink,
   resetTables,
   sessionFor,
   sessionUser,
 } from "./helpers";
 
 // `/auth/callback` and `/auth/logout` against the local stack (Phase 7 plan, step 2).
-// Each `sessionUser`/`sessionFor` is a sign-in (`helpers.ts`, `signedInClient`), and the
-// file also asks for a link three times (`signInWithOtp`). `config.toml`'s
-// `sign_in_sign_ups` doesn't bind them: the local stack enforces none of Auth's per-IP
-// limits. Nor does its `email_sent = 2`: the CLI starts Auth with
-// `GOTRUE_RATE_LIMIT_EMAIL_SENT=360000` (IS #377).
+// Each `sessionUser`/`sessionFor` is a magic-link sign-in, and the file also asks for a
+// link itself, once through `requestLink` and twice for an address with no account; why no
+// Auth limit binds them is `helpers.ts`'s `signInByLink`.
 
 const ORIGIN = "http://127.0.0.1:3000";
-// Mailpit, the local stack's mail catcher: `supabase/config.toml`, `[local_smtp]`'s port.
 const SESSION_COOKIE = /^sb-[^=]+-auth-token(\.\d+)?$/;
 
 function request(path: string, { method = "GET", cookie = "", origin = ORIGIN as string | null } = {}) {
@@ -89,15 +85,8 @@ describe("GET /auth/callback", () => {
   beforeAll(async () => {
     userId = await createFixtureAuthUser();
     verifierJar = new Map();
-    // The mail this request sends, not one already there (`newLink`, Phase 9 plan #14).
-    const before = new Set(await mailIds(fixtureEmail(userId)));
-    const { error } = await jarClient(verifierJar).auth.signInWithOtp({
-      email: fixtureEmail(userId),
-      options: { shouldCreateUser: false, emailRedirectTo: `${ORIGIN}/auth/callback` },
-    });
-    if (error) throw error;
-
-    const verify = await fetch(await newLink(fixtureEmail(userId), before), { redirect: "manual" });
+    const link = await requestLink(jarClient(verifierJar), fixtureEmail(userId), `${ORIGIN}/auth/callback`);
+    const verify = await fetch(link, { redirect: "manual" });
     const location = new URL(verify.headers.get("location") ?? "");
     expect(`${location.origin}${location.pathname}`).toBe(`${ORIGIN}/auth/callback`);
     code = location.searchParams.get("code") ?? "";

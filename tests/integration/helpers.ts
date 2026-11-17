@@ -357,15 +357,16 @@ export async function readLocation(id: string): Promise<Tables<"locations">> {
 
 // A supabase-js client with the anon key and no session: what the browser has before
 // anyone signs in. Not `supabaseClient` from `@/lib/supabase-browser`, which keeps its
-// session in browser cookies. A new client per call, because `signedInClient()` signs
-// one in and the session lives on the client.
-export function anonClient(): SupabaseClient<Database> {
+// session in browser cookies. A new client per call: a session signed in on one lives on
+// that client. With `{ pkce: true }`, the PKCE flow `signInByLink` needs: supabase-js's
+// default flow is implicit, which the link's code exchange can't finish.
+export function anonClient({ pkce = false } = {}): SupabaseClient<Database> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !anonKey) throw new Error("anonClient: missing the Supabase URL or anon key");
 
   return createClient<Database>(url, anonKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
+    auth: { autoRefreshToken: false, persistSession: false, ...(pkce ? { flowType: "pkce" } : {}) },
   });
 }
 
@@ -427,8 +428,9 @@ export async function mailIds(email: string): Promise<string[]> {
 // The sign-in link of the first mail to `email` that isn't in `before` and holds one.
 // Mailpit keeps every earlier mail, and the password-changed and factor emails land there
 // too, so neither the newest mail nor any mail will do (Phase 9 plan #14).
+// It gives up after about 5 s, inside vitest's 10 s hook timeout, so its own error shows.
 export async function newLink(email: string, before: ReadonlySet<string>): Promise<string> {
-  for (let attempt = 0; attempt < 40; attempt++) {
+  for (let attempt = 0; attempt < 20; attempt++) {
     for (const id of await mailIds(email)) {
       if (before.has(id)) continue;
       const message = (await (await fetch(`${MAILPIT}/api/v1/message/${id}`)).json()) as { HTML?: string; Text?: string };
@@ -440,46 +442,44 @@ export async function newLink(email: string, before: ReadonlySet<string>): Promi
   throw new Error(`newLink: no new sign-in link to ${email} in Mailpit`);
 }
 
-// Signs `client` in as the admin does: a PKCE magic link (`signInWithOtp`), the link from
-// Mailpit, and the code it carries exchanged on the same client, which holds the verifier.
-// Its first factor is `amr` `magiclink`, the one #14 admits; `generateLink` + `verifyOtp`
-// would give `otp` (IS #396). The link's redirect isn't followed: the code is read from
-// its `Location`. Returns the session's access token.
-//
-// ⚠ EACH CALL IS ONE SIGN-IN AND A MAILPIT ROUND TRIP. `config.toml`'s `[auth.rate_limit]`
-// doesn't bind it (the local stack enforces none of Auth's per-IP limits, IS #377), but the
-// suite runs one file at a time, so sign in once per file or describe, not per test.
-async function signInByLink(client: SupabaseClient<Database>, email: string): Promise<string> {
+// Asks Auth for a magic link to `email` on `client` (`signInWithOtp`, the PKCE flow on a
+// PKCE client, which keeps the verifier) and returns the link from the mail it sent. Waits
+// out `max_frequency` since this file's last request to the same address, and records this
+// one. `redirectTo` is where the link sends the browser, the app's callback by default.
+export async function requestLink(client: SupabaseClient<Database>, email: string, redirectTo = CALLBACK): Promise<string> {
   const wait = (lastLinkRequest.get(email) ?? 0) + LINK_INTERVAL_MS - Date.now();
   if (wait > 0) await sleep(wait);
   const before = new Set(await mailIds(email));
 
-  const { error: sendError } = await client.auth.signInWithOtp({
+  const { error } = await client.auth.signInWithOtp({
     email,
-    options: { shouldCreateUser: false, emailRedirectTo: CALLBACK },
+    options: { shouldCreateUser: false, emailRedirectTo: redirectTo },
   });
   lastLinkRequest.set(email, Date.now());
-  if (sendError) throw sendError;
+  if (error) throw error;
+  return newLink(email, before);
+}
 
-  const verify = await fetch(await newLink(email, before), { redirect: "manual" });
+// Signs `client` in as the admin does: a PKCE magic link (`requestLink`), and the code it
+// carries exchanged on the same client, which holds the verifier. Its first factor is `amr`
+// `magiclink`, the one #14 admits; `generateLink` + `verifyOtp` would give `otp` (IS #396).
+// The link's redirect isn't followed: the code is read from its `Location`. Returns the
+// session's access token.
+//
+// ⚠ EACH CALL IS ONE SIGN-IN AND A MAILPIT ROUND TRIP. `config.toml`'s `[auth.rate_limit]`
+// per-IP limits (`sign_in_sign_ups`, `token_verifications`) don't bind it: GoTrue applies
+// them only when `RateLimitHeader` or `sb-forwarded-for` is set, and the local stack sets
+// neither (`middleware.go` and `docker inspect`, IS #377). Nor does `email_sent` (the CLI's
+// `GOTRUE_RATE_LIMIT_EMAIL_SENT=360000`, IS #377). But the suite runs one file at a time,
+// so sign in once per file or describe, not per test.
+async function signInByLink(client: SupabaseClient<Database>, email: string): Promise<string> {
+  const verify = await fetch(await requestLink(client, email), { redirect: "manual" });
   const code = new URL(verify.headers.get("location") ?? "", CALLBACK).searchParams.get("code");
   if (!code) throw new Error(`signInByLink: the link answered ${verify.status} with no code`);
 
   const { data, error } = await client.auth.exchangeCodeForSession(code);
   if (error) throw error;
   return data.session.access_token;
-}
-
-// A client with the anon key, no stored session and the PKCE flow, for `signInByLink`:
-// `anonClient()`'s default flow is implicit, which the link's code exchange can't finish.
-function pkceClient(): SupabaseClient<Database> {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !anonKey) throw new Error("pkceClient: missing the Supabase URL or anon key");
-
-  return createClient<Database>(url, anonKey, {
-    auth: { autoRefreshToken: false, persistSession: false, flowType: "pkce" },
-  });
 }
 
 // A `createFixtureUser()`, signed in by the magic link: an `authenticated` client at
@@ -493,7 +493,7 @@ export async function signedInClient({ usersRow = true } = {}): Promise<{
 }> {
   const userId = usersRow ? await createFixtureUser() : await createFixtureAuthUser();
 
-  const client = pkceClient();
+  const client = anonClient({ pkce: true });
   await signInByLink(client, fixtureEmail(userId));
   return { client, userId };
 }
@@ -526,8 +526,9 @@ export function jarClient(jar: Map<string, string>): SupabaseClient<Database> {
 // Each fixture's one TOTP factor, by user id: `sessionUser({ aal2: true })` enrolls it when
 // it creates the user, before any other session of it exists, since verifying a new factor
 // logs the user's other sessions out (auth-js `types.d.ts:1018`; Phase 9 plan #9). A later
-// `sessionFor(userId, { aal2: true })` only challenges and verifies it. The secret is the
-// local stack's, a fixture value (`CLAUDE.md`, "Secrets").
+// `sessionFor(userId, { aal2: true })` only challenges and verifies it, which still ends the
+// user's `aal1` sessions (IS #381's probe). The secret is the local stack's, a fixture value
+// (`CLAUDE.md`, "Secrets").
 const factors = new Map<string, { factorId: string; secret: string }>();
 
 // Raises `client`'s session to `aal2` with the user's factor: a challenge, then a verify
@@ -551,6 +552,18 @@ async function enrollFactor(client: SupabaseClient<Database>, userId: string): P
   return verifyFactor(client, factor);
 }
 
+// A new jar signed in as `userId` by the magic link: the jar, its session client and the
+// access token. `sessionFor` and `sessionUser` each add their own factor step.
+async function signIn(userId: string): Promise<{
+  jar: Map<string, string>;
+  client: SupabaseClient<Database>;
+  accessToken: string;
+}> {
+  const jar = new Map<string, string>();
+  const client = jarClient(jar);
+  return { jar, client, accessToken: await signInByLink(client, fixtureEmail(userId)) };
+}
+
 // `userId`'s session as the cookies `@supabase/ssr` writes, for route tests (Phase 7
 // plan, open decision 7): `jarClient` signs in by the magic link, so the library writes
 // its own format. With `{ aal2: true }`, raised to `aal2` with the factor `sessionUser`
@@ -558,13 +571,15 @@ async function enrollFactor(client: SupabaseClient<Database>, userId: string): P
 // session.
 //
 // ⚠ EACH CALL IS ONE SIGN-IN (`signInByLink`).
+// ⚠ `{ aal2: true }` ENDS THE USER'S `aal1` SESSIONS, those made before it included: a
+// login's verify does (IS #381's probe). A test that needs one user at both levels makes
+// the `aal2` session first and the `aal1` one after it (Phase 9 plan #9).
 export async function sessionFor(
   userId: string,
   { aal2 = false } = {},
 ): Promise<{ jar: Map<string, string>; accessToken: string }> {
-  const jar = new Map<string, string>();
-  const client = jarClient(jar);
-  let accessToken = await signInByLink(client, fixtureEmail(userId));
+  const { jar, client, accessToken: signedIn } = await signIn(userId);
+  let accessToken = signedIn;
   if (aal2) {
     const factor = factors.get(userId);
     if (!factor) throw new Error("sessionFor: no factor for this user; make it with sessionUser({ aal2: true })");
@@ -587,9 +602,7 @@ export async function sessionUser({ isAdmin = false, aal2 = false } = {}): Promi
     const { error } = await supabaseAdmin.from("users").update({ is_admin: true }).eq("id", userId);
     if (error) throw error;
   }
-  const jar = new Map<string, string>();
-  const client = jarClient(jar);
-  let accessToken = await signInByLink(client, fixtureEmail(userId));
-  if (aal2) accessToken = await enrollFactor(client, userId);
+  const { jar, client, accessToken: signedIn } = await signIn(userId);
+  const accessToken = aal2 ? await enrollFactor(client, userId) : signedIn;
   return { userId, jar, accessToken };
 }
