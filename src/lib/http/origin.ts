@@ -9,9 +9,17 @@ import { NextResponse } from "next/server";
 // A header may hold a list (`a, b`) when proxies chain; the first entry is the client's.
 //
 // A limit: the `x-forwarded-*` values are used as the request carries them, so a client
-// that sets its own names any host. A browser form can't set either header, so a forged
-// cross-site form can't use it. Whether Vercel replaces a client's own values wasn't
-// checked. So redirects don't use it: `redirectTo` below.
+// that sets its own names any host where nothing in front puts its own value first, as
+// under `next start` (`redirectTo` below). A browser form can't set either header, so a
+// forged cross-site form can't use it. On `dev`'s preview, the first entry, which
+// `firstValue` reads, wasn't a client's `X-Forwarded-Host`: a POST to `/auth/logout` with
+// `Origin: https://evil.example` and `X-Forwarded-Host: evil.example` was refused 403, and
+// one with the deploy's own `Origin` and `X-Forwarded-Host: evil.example` answered 303
+// (IS #377). Nor a client's `X-Forwarded-Proto: http`: the same POST with it and an
+// `http://` `Origin` was refused 403, and with the `https://` one answered 303. Whether
+// Vercel drops the client's value or keeps it after its own wasn't seen, so reading any
+// entry but the first would need a new probe. The production domain, which doesn't exist
+// yet, wasn't probed. Redirects still don't use `requestOrigin`: `redirectTo` below.
 
 type HeaderSource = { headers: Headers };
 

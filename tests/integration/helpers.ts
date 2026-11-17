@@ -403,9 +403,9 @@ export async function createFixtureUser(truckId: string | null = null): Promise<
 // With `{ usersRow: false }`, a bare `createFixtureAuthUser()` instead: a signed-in
 // user with no `users` row, who could try to insert its own.
 //
-// ⚠ EACH CALL IS ONE SIGN-IN, and local Auth limits sign-ins and sign-ups to
-// `sign_in_sign_ups` per 5 minutes per IP (`supabase/config.toml`, `[auth.rate_limit]`).
-// Call it once per file or describe, not per test.
+// ⚠ EACH CALL IS ONE SIGN-IN. `config.toml`'s `[auth.rate_limit]` doesn't bind it: the
+// local stack enforces none of Auth's per-IP limits, and 40 password sign-ins in a row all
+// signed in (IS #377). Call it once per file or describe, not per test.
 export async function signedInClient({ usersRow = true } = {}): Promise<{
   client: SupabaseClient<Database>;
   userId: string;
@@ -452,7 +452,7 @@ export function jarClient(jar: Map<string, string>): SupabaseClient<Database> {
 // Also returns the access token, to check later
 // whether Auth still accepts the session.
 //
-// ⚠ EACH CALL IS ONE SIGN-IN, under the same limit as `signedInClient()`.
+// ⚠ EACH CALL IS ONE SIGN-IN, as `signedInClient()`'s is.
 export async function sessionFor(userId: string): Promise<{
   jar: Map<string, string>;
   accessToken: string;
