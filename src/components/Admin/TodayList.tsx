@@ -5,9 +5,10 @@ import type { AdminEntry } from "@/lib/services/locations";
 
 // Today's and the next 13 days' entries (plan #24), each with "Ändra", "Stämmer fortfarande"
 // and "Ställ in" while it hasn't ended: the routes refuse all three on one that has (Phase 7
-// plan #33; Phase 9 plan #8), so an ended entry says so and shows none (`hasEnded`, the rule
-// the service uses). `now` is the list's clock, which moves each minute. Every button waits
-// while the form saves (`locked`).
+// plan #33; Phase 9 plan #8), so an ended entry says so and shows none (`hasEnded`: `ends_at`
+// at or before `now`, as the edit's check and the cancel and confirm write's filter have it).
+// `now` is the list's clock, which moves each minute. Every button waits while the form
+// saves (`locked`).
 export default function TodayList({
   entries,
   now,
