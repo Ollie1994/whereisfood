@@ -6,7 +6,7 @@ import { GET, POST } from "@/app/api/admin/trucks/route";
 import { PATCH } from "@/app/api/admin/trucks/[id]/route";
 import type { LiveResponse } from "@/lib/live";
 import { supabaseAdmin } from "@/lib/supabase";
-import { FIXTURE_PREFIX, cookieHeader, keysOf, removeTrucks, resetTables, seedLocation, seedTruck, sessionUser } from "./helpers";
+import { FIXTURE_PREFIX, SIGN_IN_TIMEOUT, cookieHeader, keysOf, removeTrucks, resetTables, seedLocation, seedTruck, sessionUser } from "./helpers";
 
 // The truck routes on the admin's session against the local stack (Phase 7 plan, steps 3
 // and 10). Refusals of anyone else are `admin-auth.test.ts`'s. One sign-in (`sessionUser`).
@@ -24,7 +24,7 @@ let cookie: string;
 beforeAll(async () => {
   await resetTables();
   cookie = cookieHeader((await sessionUser({ isAdmin: true })).jar);
-});
+}, SIGN_IN_TIMEOUT);
 afterAll(resetTables);
 
 function request(method: string, body?: unknown) {

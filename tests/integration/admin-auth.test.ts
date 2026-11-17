@@ -3,13 +3,13 @@ import { globSync } from "node:fs";
 import { NextResponse, NextRequest } from "next/server";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { readJson, withAdmin } from "@/lib/http/admin";
-import { cookieHeader, createFixtureAuthUser, resetTables, sessionFor, sessionUser } from "./helpers";
+import { SIGN_IN_TIMEOUT, cookieHeader, createFixtureAuthUser, resetTables, sessionFor, sessionUser } from "./helpers";
 
 // Every admin route refuses anyone but the admin (Phase 7 plan, #13). The routes are FOUND
 // ON DISK, not listed: a route added under `src/app/api/admin/` is covered with no edit
 // here. Each exported method is called as Next would, with a request and its params.
 //
-// The sessions sign in once, in `beforeAll` (`helpers.ts`, `signedInClient`: once per file
+// The sessions sign in once, in `beforeAll` (`helpers.ts`, `signInByLink`: once per file
 // or describe).
 
 const ORIGIN = "http://127.0.0.1:3000";
@@ -41,7 +41,7 @@ beforeAll(async () => {
   sessions["a non-admin"] = cookieHeader((await sessionUser()).jar);
   sessions["an auth user with no users row"] = cookieHeader((await sessionFor(await createFixtureAuthUser())).jar);
   sessions.admin = cookieHeader((await sessionUser({ isAdmin: true })).jar);
-});
+}, SIGN_IN_TIMEOUT);
 afterAll(resetTables);
 
 describe("the admin routes on disk", () => {

@@ -6,27 +6,26 @@ import { POST as logout } from "@/app/auth/logout/route";
 import { supabaseAdmin } from "@/lib/supabase";
 import {
   FIXTURE_PREFIX,
+  SIGN_IN_TIMEOUT,
   anonClient,
   authUserIdsWhere,
   cookieHeader,
   createFixtureAuthUser,
   fixtureEmail,
   jarClient,
+  requestLink,
   resetTables,
   sessionFor,
   sessionUser,
 } from "./helpers";
 
 // `/auth/callback` and `/auth/logout` against the local stack (Phase 7 plan, step 2).
-// Each `sessionUser`/`sessionFor` is a sign-in (`helpers.ts`, `signedInClient`), and the
-// file also asks for a link three times (`signInWithOtp`). `config.toml`'s
-// `sign_in_sign_ups` doesn't bind them: the local stack enforces none of Auth's per-IP
-// limits. Nor does its `email_sent = 2`: the CLI starts Auth with
-// `GOTRUE_RATE_LIMIT_EMAIL_SENT=360000` (IS #377).
+// Each `sessionUser`/`sessionFor` is a magic-link sign-in, and the file also asks Auth
+// itself: a link once through `requestLink`, a link twice for an address with no account,
+// and a password sign-up once; why no Auth limit binds them is `helpers.ts`'s
+// `signInByLink`.
 
 const ORIGIN = "http://127.0.0.1:3000";
-// Mailpit, the local stack's mail catcher: `supabase/config.toml`, `[local_smtp]`'s port.
-const MAILPIT = "http://127.0.0.1:54324";
 const SESSION_COOKIE = /^sb-[^=]+-auth-token(\.\d+)?$/;
 
 function request(path: string, { method = "GET", cookie = "", origin = ORIGIN as string | null } = {}) {
@@ -56,22 +55,6 @@ function sessionCookieNames(cookies: Map<string, string>): string[] {
 async function accepted(accessToken: string): Promise<boolean> {
   const { data, error } = await supabaseAdmin.auth.getUser(accessToken);
   return !error && data.user !== null;
-}
-
-// The newest sign-in link Mailpit holds for `email`.
-async function emailedLink(email: string): Promise<string> {
-  for (let attempt = 0; attempt < 20; attempt++) {
-    const search = await fetch(`${MAILPIT}/api/v1/search?query=${encodeURIComponent(`to:"${email}"`)}`);
-    const { messages } = (await search.json()) as { messages: { ID: string }[] };
-    if (messages.length > 0) {
-      const message = await (await fetch(`${MAILPIT}/api/v1/message/${messages[0].ID}`)).json();
-      const link = String(message.HTML ?? message.Text).match(/https?:\/\/[^"'\s<>]+\/verify\?[^"'\s<>]+/);
-      if (!link) throw new Error(`emailedLink: no verify link in the mail to ${email}`);
-      return link[0].replaceAll("&amp;", "&");
-    }
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  }
-  throw new Error(`emailedLink: no mail to ${email} in Mailpit`);
 }
 
 beforeAll(resetTables);
@@ -104,18 +87,13 @@ describe("GET /auth/callback", () => {
   beforeAll(async () => {
     userId = await createFixtureAuthUser();
     verifierJar = new Map();
-    const { error } = await jarClient(verifierJar).auth.signInWithOtp({
-      email: fixtureEmail(userId),
-      options: { shouldCreateUser: false, emailRedirectTo: `${ORIGIN}/auth/callback` },
-    });
-    if (error) throw error;
-
-    const verify = await fetch(await emailedLink(fixtureEmail(userId)), { redirect: "manual" });
+    const link = await requestLink(jarClient(verifierJar), fixtureEmail(userId));
+    const verify = await fetch(link, { redirect: "manual" });
     const location = new URL(verify.headers.get("location") ?? "");
     expect(`${location.origin}${location.pathname}`).toBe(`${ORIGIN}/auth/callback`);
     code = location.searchParams.get("code") ?? "";
     expect(code).not.toBe("");
-  });
+  }, SIGN_IN_TIMEOUT);
 
   // The next two run before the exchange test, which then shows the code wasn't spent: if
   // either ever spends it, the failure shows there, not here.
@@ -203,7 +181,7 @@ describe("POST /auth/logout", () => {
     laptop = await sessionFor(admin.userId);
     nonAdmin = await sessionUser();
     toExpire = await sessionUser();
-  });
+  }, SIGN_IN_TIMEOUT);
 
   async function expectLoggedOut(jar: Map<string, string>) {
     const response = await logout(request("/auth/logout", { method: "POST", cookie: cookieHeader(jar) }));

@@ -49,6 +49,7 @@ export const TRIGGERS = [
   ".github/workflows/ci.yml",
   "tests/integration/setup.ts",
   "tests/integration/helpers.ts",
+  "tests/totp.ts",
   "tests/integration/db-trucks.test.ts",
   "tests/integration/rls.test.ts",
   "tests/integration/schema.test.ts",

@@ -220,15 +220,20 @@ before the closing steps (#12).
      spends one of the preview's 2 emails an hour). It also switches on the
      factor-enrolled and factor-unenrolled notification emails, locally and on the preview
      (#13's detection; the owner, 2026-11-17, IS #377);
+     **settled by IS #381** (its comments hold each probe and result): the settings are on
+     locally and on the preview (the owner, 2026-11-17), the fixtures sign in by the link and
+     reach `aal2`, and the owner's preview login is `magiclink`; what the probes change is in
+     #9, #13, #14, step 5c and open decisions 2, 4 and 10. Moved to #382: the preview's factor
+     deletion by SQL and on the dashboard's user page, which need a factor there;
    - b. `requireAdmin` refuses below `aal2`, and admits only a session whose first factor is
      the magic link (#13, #14: the first factor's `amr` method `magiclink` only, a refused
      session signed out with `scope: "local"`);
      the enroll window; which paths an `aal1` session reaches and what
      an admin route answers it (open decisions 5, 6, 11); the admin-auth test's on-disk
      route list gains the `aal1` case; `CLAUDE.md`'s "Admin routes" updated;
-   - c. the enroll and code screens (the QR from a `data:` URL), phone-first and Swedish; if
-     5a shows an unverified factor fills the one slot, the enroll step first removes one an
-     abandoned enroll left. **b and c ship in one PR**, so `dev` never has a login that
+   - c. the enroll and code screens (the QR from a `data:` URL), phone-first and Swedish; an
+     unverified factor fills the one slot, so the enroll step first removes one an abandoned
+     enroll left, which an `aal1` session may do (IS #381's probes). **b and c ship in one PR**, so `dev` never has a login that
      can't reach `aal2`;
    - d. none in Phase 9: the magic link stays the only first factor, and #241's code waits
      for custom SMTP or Pro (#14; #383 closed as not planned).
@@ -396,10 +401,11 @@ with the fixture; later logins of that user only challenge and verify. Verifying
 enrolled factor logs out the user's other sessions (auth-js `types.d.ts:1018`), so an
 enroll after a second session exists would make multi-session tests pass or fail for the
 wrong reason (round 2 on PR #376). The fixtures sign in through the PKCE magic link, read from Mailpit (#14), since #13
-refuses any other first factor (`helpers.ts` signs in by password today). If step 5a shows a login's
-verify also ends the user's `aal1` sessions, a test that needs one user at both levels makes
-the `aal2` session first and the `aal1` one after it, and an `aal1` refusal must be told
-apart from "no session" (open decision 6) (round 4 on PR #376).
+refuses any other first factor (`helpers.ts` signed in by password until IS #381). A login's
+verify does end the user's `aal1` sessions, those made before it included (IS #381's
+probes), so a test that needs one user at both levels makes the `aal2` session first and
+the `aal1` one after it, and an `aal1` refusal must be told apart from "no session" (open
+decision 6) (round 4 on PR #376).
 
 ### #10 — The hosted-settings checklist lives in the README
 
@@ -468,14 +474,19 @@ guessed code. The swap stays possible as sabotage
 - **recovering, in this order** (D3's routes, open decision 4; round 4 on PR #376, the
   owner's approval): secure the mailbox; replace the password with the service role's
   `updateUserById` (or SQL), since Auth may refuse a password change from `aal1` once MFA is
-  on (auth-js has an `insufficient_aal` code); delete the factor, which with
-  `deleteFactor` "will log the user out of all active sessions" (auth-js `types.d.ts:1494`),
-  or else end every session by SQL on `auth.sessions`, since the admin API's `signOut` needs
-  the session's own JWT; re-enroll at once, since a free slot can be filled at Auth by any
-  `aal1` session, a guessed code's included (#14). Ending sessions comes after the password and the
-  factor, or the thief signs straight back in. Step 5a probes each route.
+  on (auth-js has an `insufficient_aal` code); delete the factor; end every session by SQL on
+  `auth.sessions`, since the admin API's `signOut` needs the session's own JWT; re-enroll at
+  once, since a free slot can be filled at Auth by any `aal1` session, a guessed code's
+  included (#14). Ending sessions comes after the password and the factor, or the thief signs
+  straight back in. **Probed locally (IS #381):** the service role's password change ends
+  every session and keeps the factor; `deleteFactor`, against auth-js's "will log the user out
+  of all active sessions" (`types.d.ts:1494`), ends none, nor does deleting the factor's row
+  by SQL or an unenroll, so the last step can't be skipped; deleting the user's
+  `auth.sessions` rows ends them all.
 
-Step 5a probes the swap from a second `aal2` session.
+**The swap, probed** (IS #381): from a second `aal2` session, unenroll, enroll and verify all
+succeed, and the new factor's verify ends the admin's own `aal2` session; the
+factor-unenrolled and factor-enrolled emails both arrive.
 
 ### #14 — The magic link only, and an allowlist of `magiclink`
 
@@ -493,8 +504,9 @@ a typed code, `generate_link`'s hashed token (`verifyOtp` with `token_hash`), a 
 the action link; a guessed code is a typed code, since Auth still issues and accepts the code no
 email shows. **#13's allowlist admits `magiclink` only** (the owner, 2026-11-17, IS #396).
 **The first factor is the `amr` entry that isn't an MFA method** (not `totp`): after a TOTP
-verify, `amr` holds both, and the allowlist and #4's time-box read that entry (step 5a
-probes the order). The app refuses a guessed code's session before TOTP, and the refusal
+verify, `amr` holds both, and the allowlist and #4's time-box read that entry, found by its
+method, not its place: the order varies between logins (IS #381's probe gave `[totp,
+magiclink]`; four of five runs of PR #404's test gave `[magiclink, totp]`). The app refuses a guessed code's session before TOTP, and the refusal
 signs that session out at Auth with `scope: "local"`, as #4's does. `mfaStepAllowed`
 applies the same allowlist to the app's enroll page; the enroll itself goes from the browser
 to Auth (`useMfa`), so it gates the page, not Auth. **A limit:** a guessed code's session
@@ -596,8 +608,8 @@ the sequential integration suite's time down.
    `createSessionClient`, with the anon key, so it covers the flood only if they carried a
    secret API key, which the session client doesn't hold.
 2. **The time-box's length (step 6).** Leaning 12 hours. Its source: the `amr` claim's
-   first-factor timestamp (#4, IS #377), unless step 5a's probe shows a TOTP verify changes
-   that entry.
+   first-factor timestamp (#4, IS #377), which a later TOTP verify leaves as it was (IS #381's
+   probe).
 3. ~~**The magic link (step 5d):** kept beside the emailed code, or the code only.~~ →
    **settled by #14** (the owner, 2026-11-17, IS #396): the magic link only. What step 1
    found (IS #377): the preview's dashboard says "Set up custom SMTP to edit templates.
@@ -608,7 +620,11 @@ the sequential integration suite's time down.
    `updateUserById`) may run with production's secret key, and whether the login rework
    needs an unenroll screen, from the probes in steps 1 and 5a. The recovery order is #13's.
    Step 1 recommends the Supabase dashboard (IS #377): its SQL editor, with the Users page
-   where it covers a step, which need no key outside Supabase; step 5a probes the SQL.
+   where it covers a step, which need no key outside Supabase. Probed locally (IS #381):
+   deleting the factor's row by SQL ends no session and frees the slot for any `aal1`
+   session's enroll, so the SQL that deletes the factor also deletes the user's
+   `auth.sessions` rows, then the admin re-enrolls at once (#13). The same on the preview,
+   and the dashboard's user page, need a factor there: #382's enroll screen makes one.
 5. **Which paths an `aal1` session reaches** for the enroll and code steps, and the proxy's
    exemption for them (step 5b). Today `/auth/callback` sends every login to `/admin`, and
    the proxy exempts only `/admin/login`.
@@ -627,7 +643,8 @@ the sequential integration suite's time down.
 9. **The CSP's exact sources (step 9)**, found by the browser checks: MapLibre's worker, the
    tiles' range requests, the basemap's glyphs and sprite, `blob:`/`data:` images, the
    Supabase URL the login calls, and the CAPTCHA's script and frame if step 8 chooses one.
-10. **TOTP's digits and period (step 5a)**, confirmed by a local enroll.
+10. ~~**TOTP's digits and period (step 5a)**, confirmed by a local enroll.~~ → **settled**
+    (IS #381): the enroll URI says SHA1, 6 digits, 30 seconds.
 11. **How `requireAdmin` reads `aal` (step 5b).** `getClaims()` verifies an asymmetric token
     locally, so a logged-out token would pass until it expires; `getUser()` asks Auth, which
     refuses it, but returns no `aal`. Leaning: `getUser()`, then the `aal` claim of the token

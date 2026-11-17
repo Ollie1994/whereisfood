@@ -44,4 +44,29 @@ describe("supabase/config.toml's Auth guards", () => {
   it("keeps the password-changed email on", () => {
     expect(setting("auth.email.notification.password_changed", "enabled")).toBe("true");
   });
+
+  // One factor per user, so a stolen session can't add a second (Phase 9 plan #13, IS
+  // #381). `helpers.test.ts` shows Auth refusing the second; this keeps the setting in the
+  // file.
+  it("keeps one MFA factor per user", () => {
+    expect(setting("auth.mfa", "max_enrolled_factors")).toBe("1");
+  });
+
+  it("keeps TOTP enroll and verify on", () => {
+    expect(setting("auth.mfa.totp", "enroll_enabled")).toBe("true");
+    expect(setting("auth.mfa.totp", "verify_enabled")).toBe("true");
+  });
+
+  // The integration fixtures wait this long between two links to one user
+  // (`tests/integration/helpers.ts`'s `LINK_INTERVAL_MS`, 1.1 s): a longer interval
+  // refuses their second link, so a change here changes that constant too (IS #381).
+  it("keeps the email link interval at 1 s", () => {
+    expect(setting("auth.email", "max_frequency")).toBe('"1s"');
+  });
+
+  // The admin is told when a factor is added or removed, the swap #13 can only detect.
+  it("keeps the factor-enrolled and factor-unenrolled emails on", () => {
+    expect(setting("auth.email.notification.mfa_factor_enrolled", "enabled")).toBe("true");
+    expect(setting("auth.email.notification.mfa_factor_unenrolled", "enabled")).toBe("true");
+  });
 });

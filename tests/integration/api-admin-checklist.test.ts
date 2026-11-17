@@ -5,7 +5,7 @@ import { POST } from "@/app/api/admin/locations/route";
 import { POST as CANCEL } from "@/app/api/admin/locations/[id]/cancel/route";
 import { getChecklist, type Suggestion } from "@/lib/services/checklist";
 import { entryWindow, stockholmDay } from "@/lib/stockholm";
-import { cookieHeader, resetTables, seedLocation, seedTruck, sessionUser } from "./helpers";
+import { SIGN_IN_TIMEOUT, cookieHeader, resetTables, seedLocation, seedTruck, sessionUser } from "./helpers";
 
 // The checklist against the local stack (Phase 7 plan, step 11). Refusals of anyone but the
 // admin are `admin-auth.test.ts`'s. One sign-in (`sessionUser`).
@@ -25,7 +25,7 @@ let cookie: string;
 beforeAll(async () => {
   await resetTables();
   cookie = cookieHeader((await sessionUser({ isAdmin: true })).jar);
-});
+}, SIGN_IN_TIMEOUT);
 afterAll(resetTables);
 
 function request(path: string, method = "GET", body?: unknown) {
