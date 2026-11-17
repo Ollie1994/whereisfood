@@ -240,6 +240,9 @@ said otherwise: Phase 4 plan decision #14.
   and `/api/admin/:path*`, with `/admin/login` let through in the function. Never
   `/api/live`, `/map`, `/auth/*` or `/dashboard`; `src/proxy.test.ts` pins the list
   (Phase 7 plan, #10, #28)
+- `/admin/mfa` is the one admin page an `aal1` admin session reaches, for the TOTP enroll
+  and code: every other admin page sends such a session there, and it sends an `aal2` one
+  on to `/admin` (Phase 9 plan, open decision 5)
 - The proxy and the admin routes check for a session cookie **before any network or
   DB call**, so a cookie-less flood costs only the function run (Phase 7)
 - The proxy is a first filter, not the only check: every admin route checks again
@@ -256,6 +259,12 @@ said otherwise: Phase 4 plan decision #14.
   database can't say, never 401 for that; every answer's `Cache-Control` holds `no-store`.
   `tests/integration/admin-auth.test.ts` finds the routes on disk, so a new one is tested
   with no edit. A handler reads its body through `readJson()`, never `request.json()`
+- **The admin is at `aal2`, with the magic link as the first factor** (Phase 9 plan step
+  5b, #11, #14): `requireAdmin` reads `aal` and `amr` from the access token Auth has just
+  verified (`getUser(token)`), never from a decoded cookie. An `aal1` admin session gets
+  401 with its own text, told apart from no session (open decision 6). A session whose
+  first factor (the `amr` entry that isn't `totp`) isn't `magiclink` is signed out at
+  Auth (`scope: "local"`) and answered as no session
 
 **`/api/live` (the public read path, Phase 6)**
 - An ordinary (dynamic) route, cached by Vercel's CDN through

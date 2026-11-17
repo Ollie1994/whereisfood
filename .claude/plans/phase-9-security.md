@@ -235,6 +235,11 @@ before the closing steps (#12).
      unverified factor fills the one slot, so the enroll step first removes one an abandoned
      enroll left, which an `aal1` session may do (IS #381's probes). **b and c ship in one PR**, so `dev` never has a login that
      can't reach `aal2`;
+     **settled by IS #382:** open decisions 5, 6 and 11 (the owner, 2026-11-17), and the
+     screens at `/admin/mfa`, whose enroll first removes an unverified factor and names its
+     own `WhereIsFood`. A local probe there: an unnamed enroll beside an unnamed verified
+     factor was refused `mfa_factor_name_conflict`, not the slot's
+     `too_many_enrolled_mfa_factors`;
    - d. none in Phase 9: the magic link stays the only first factor, and #241's code waits
      for custom SMTP or Pro (#14; #383 closed as not planned).
 6. **The session time-box** (#4): `requireAdmin` refuses a session whose sign-in is older
@@ -625,13 +630,16 @@ the sequential integration suite's time down.
    session's enroll, so the SQL that deletes the factor also deletes the user's
    `auth.sessions` rows, then the admin re-enrolls at once (#13). The same on the preview,
    and the dashboard's user page, need a factor there: #382's enroll screen makes one.
-5. **Which paths an `aal1` session reaches** for the enroll and code steps, and the proxy's
-   exemption for them (step 5b). Today `/auth/callback` sends every login to `/admin`, and
-   the proxy exempts only `/admin/login`.
-6. **What an admin route answers an `aal1` session (step 5b):** 401 or 403, and its Swedish
-   text (`CLAUDE.md`'s "Admin routes": 401 for no valid session, 403 for a non-admin). It is
-   told apart from "no session" in the answer, so a test can't pass for the wrong reason
-   (#9).
+5. ~~**Which paths an `aal1` session reaches** for the enroll and code steps, and the proxy's
+   exemption for them (step 5b).~~ → **settled** (the owner, 2026-11-17, IS #382): one page,
+   `/admin/mfa`, showing the enroll while the user has no verified factor and the code once
+   one exists. `/auth/callback` lands a login there; the proxy lets an `aal1` admin session
+   through to it (`mfaStepAllowed`, with #14's allowlist), sends one from every other admin
+   page to it, and sends an `aal2` one from it to `/admin`. `/admin/login` stays let through.
+6. ~~**What an admin route answers an `aal1` session (step 5b):** 401 or 403, and its Swedish
+   text.~~ → **settled** (the owner, 2026-11-17, IS #382): 401, since the request isn't fully
+   authenticated yet, with its own text, "Ange koden från din autentiseringsapp för att
+   fortsätta", where no session's is "Du är inte inloggad"; the per-route test checks each.
 7. **What Vercel Hobby and Supabase Free can alert on (step 11).**
 8. **The rate limits' values (step 8)**, which step 12 then checks. The per-IP limits the login
    uses (`token_refresh`, `token_verifications`, `sign_in_sign_ups`) are each a burst of 30,
@@ -645,7 +653,12 @@ the sequential integration suite's time down.
    Supabase URL the login calls, and the CAPTCHA's script and frame if step 8 chooses one.
 10. ~~**TOTP's digits and period (step 5a)**, confirmed by a local enroll.~~ → **settled**
     (IS #381): the enroll URI says SHA1, 6 digits, 30 seconds.
-11. **How `requireAdmin` reads `aal` (step 5b).** `getClaims()` verifies an asymmetric token
+11. ~~**How `requireAdmin` reads `aal` (step 5b).**~~ → **settled** (the owner, 2026-11-17,
+    IS #382): the session's access token from `getSession()` (which refreshes an expiring
+    one), then `getUser(token)`, which asks Auth to verify that token, then `aal` and `amr`
+    from the same token. `getUser(token)`, unlike `getUser()`, doesn't clear a signed-out
+    session from storage (auth-js 2.106.2's `_getUser`), so `requireAdmin` signs such a
+    session out locally to clear its cookies. What was weighed: `getClaims()` verifies an asymmetric token
     locally, so a logged-out token would pass until it expires; `getUser()` asks Auth, which
     refuses it, but returns no `aal`. Leaning: `getUser()`, then the `aal` claim of the token
     Auth just accepted, which keeps logout effective. Step 1 (IS #377): the preview signs
