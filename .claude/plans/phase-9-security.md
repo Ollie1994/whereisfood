@@ -122,8 +122,8 @@ checked against a written checklist.
 
 | Name | Layer | What it does |
 |---|---|---|
-| `requireAdmin` | service (`admin-auth.ts`) | Also refuses a session below `aal2`, with the level read from a token Auth has verified, never a decoded cookie (open decision 11); a new refusal reason for "needs the second factor"; admits only a session whose first factor is the PKCE magic link, `amr` `magiclink` (#13, #14); the time-box, signing the refused session out with `scope: "local"` (#4) |
-| `mfaStepAllowed` (working name) | service | An `aal1` session may enroll only while the user has no verified factor (the enroll window), and only with a `magiclink` first factor, #14's allowlist |
+| `requireAdmin` | service (`admin-auth.ts`) | Also refuses a session below `aal2`, with the level read from a token Auth has verified, never a decoded cookie (open decision 11); a new refusal reason for "needs the second factor"; admits only a session whose first factor (the `amr` entry that isn't `totp`) is the PKCE magic link, `amr` `magiclink`, signing a refused one out with `scope: "local"` (#13, #14); the time-box, signing the refused session out with `scope: "local"` (#4) |
+| `mfaStepAllowed` (working name) | service | An `aal1` session may enroll only while the user has no verified factor (the enroll window), and only with a `magiclink` first factor, #14's allowlist (the page; the enroll call goes to Auth) |
 | login steps (`login.ts`) | lib, pure | The steps (email, then TOTP enroll or code) and their Swedish texts |
 | `buildAdminCsp(nonce)`, the static header list (`csp.ts`) | lib, pure | The two CSPs and the other headers, shared by `next.config.ts` and the proxy |
 | length limits (`MAX_*`) | validators, pure | The bounds on free text, with Swedish messages |
@@ -216,7 +216,8 @@ before the closing steps (#12).
      factor-enrolled and factor-unenrolled notification emails, locally and on the preview
      (#13's detection; the owner, 2026-11-17, IS #377);
    - b. `requireAdmin` refuses below `aal2`, and admits only a session whose first factor is
-     the magic link (#13, #14: `amr` method `magiclink` only);
+     the magic link (#13, #14: the first factor's `amr` method `magiclink` only, a refused
+     session signed out with `scope: "local"`);
      the enroll window; which paths an `aal1` session reaches and what
      an admin route answers it (open decisions 5, 6, 11); the admin-auth test's on-disk
      route list gains the `aal1` case; `CLAUDE.md`'s "Admin routes" updated;
@@ -250,8 +251,9 @@ before the closing steps (#12).
 11. **Monitoring** (Q14): usage, spend and 5xx alerts on Vercel and Supabase where the free
     plans allow (open decision 7), and the log retentions read and recorded.
 12. **The hosted-settings checklist** (Q21) in `README.md` (#10), each item checked on the
-    preview: sign-ups off, redirect URLs, rate limits, the email OTP length (the code serves
-    no login, #14, so its length only sets open decision 1's guessing odds), MFA, the password
+    preview: sign-ups off, redirect URLs, rate limits, the email OTP length (no email shows the
+    code, #14, but a guessed one is an `aal1` session at Auth, so its length sets open
+    decision 1's odds), MFA, the password
     setting, secure email change (#13), the audit log setting, Deployment Protection, Git Fork Protection,
     "Enforce SSL", unused services, network restrictions, and the hosted Security Advisor
     (`db advisors --linked`).
@@ -259,9 +261,9 @@ before the closing steps (#12).
     the admin's login mailbox named, recovery codes offline. No secret is recorded.
 14. **The phone checkpoint** on `dev`'s preview: the magic link, the TOTP enroll and code,
     `/admin`, an entry reaching `/map`, logout ending the other device's session, and no
-    CSP block in the browser's console. Its two logins (two devices) and the factor-enrolled email
-    are three emails, past the preview's `email_sent` of 2 an hour, so they run across two
-    hours (the password email counts there, IS #378, and the factor emails go through the
+    CSP block in the browser's console. Its two logins (two devices), the factor-enrolled email,
+    and the factor-unenrolled one if step 5a's factor is removed first, are three or four
+    emails, past the preview's `email_sent` of 2 an hour, so they run across two hours (the password email counts there, IS #378, and the factor emails go through the
     same `sendEmail`, GoTrue's `mail.go`, not probed).
 15. **The Phase 9 retrospective** (`.claude/process-log.md`, "How to use it"): its range
     starts at the row after the Phase 8 retrospective's range. Blocked by every other
@@ -278,7 +280,8 @@ before the closing steps (#12).
     Phase 9 row, Part 1 where it describes the login, and the README's status parts; in the
     Phase 9 row, "Admin and auth" and the "Phase 7 open decisions 1–5" row, "6-digit" goes, since
     the code doesn't ship in Phase 9 (#14). It
-    carries forward the decisions that outlive the phase (#4–#11 and #13 at least), leaves
+    carries forward the decisions that outlive the phase (#4–#11, #13 and #14 at least, #14
+    with #241's trigger: custom SMTP or Pro, whichever comes first), leaves
     the IS #278 (Phase 10) and IS #373 (Phase 10) and (Phase 11) markers as they are, and
     sets `CLAUDE.md`'s bold line to none, naming this plan as the last one.
 
@@ -470,22 +473,29 @@ the PKCE link (`/auth/callback`'s code exchange) gives `amr` `magiclink`; each d
 probed gives `otp`:
 a typed code, `generate_link`'s hashed token (`verifyOtp` with `token_hash`), a plain GET of
 the action link; a guessed code is a typed code, since Auth still issues and accepts the code no
-email shows. **#13's allowlist admits `magiclink` only** (the owner, 2026-11-17, IS #396):
-the app refuses a guessed code's session before TOTP. `mfaStepAllowed` applies the same allowlist, so the
-app's enroll step refuses it too. **A limit:** that session is still a valid `aal1` session
-at Auth, refused by the app but not signed out, so it can call Auth and the Data API directly
-(#7's own-row read through the Data API; `updateUser` at Auth, which secure password change
-and, hosted, "Require current password" bound, IS #378), and, while the one factor slot is
-free (between #13's factor deletion and its re-enroll), enroll a factor at Auth itself. On
-Free nothing ends it but a logout of every session (#5) or #13's recovery; the time-box
-sees only sessions that reach the app (#4). TOTP stands between it and `aal2`. **Before step 5b ships the allowlist**, step 5a reads the
+email shows. **#13's allowlist admits `magiclink` only** (the owner, 2026-11-17, IS #396).
+**The first factor is the `amr` entry that isn't an MFA method** (not `totp`): after a TOTP
+verify, `amr` holds both, and the allowlist and #4's time-box read that entry (step 5a
+probes the order). The app refuses a guessed code's session before TOTP, and the refusal
+signs that session out at Auth with `scope: "local"`, as #4's does. `mfaStepAllowed`
+applies the same allowlist to the app's enroll page; the enroll itself goes from the browser
+to Auth (`useMfa`), so it gates the page, not Auth. **A limit:** a guessed code's session
+that never reaches the app is still a valid `aal1` session at Auth, so it can call Auth and
+the Data API directly (#7's own-row read through the Data API; `updateUser` at Auth, which
+secure password change and, hosted, "Require current password" bound, IS #378), and, while
+the one factor slot is free (between #13's factor deletion and its re-enroll), enroll a
+factor at Auth itself. On Free nothing ends it but a logout of every session (#5) or #13's
+recovery; the time-box sees only sessions that reach the app (#4). TOTP stands between it
+and `aal2`. **Before step 5b ships the allowlist**, step 5a reads the
 `amr` method of the owner's own PKCE link login on the preview; the admin was created with
 "Create new user", not an invite (README, "5. Create the admin user"), so its login is the
 link. The test fixtures sign in through the PKCE link, read from Mailpit as
 `auth-routes.test.ts` does, not `generate_link` + `verifyOtp` (#9, step 5a), with two
 cautions for #381: a second link to the same user within `max_frequency` (1 s locally) is
 refused, so a fixture waits it out; and Mailpit keeps every earlier mail, so a fixture reads
-the mail sent after its own request, not the newest one already there.
+the mail sent after its own request, not the newest one already there. Each sign-in is
+then a Mailpit round trip, so `helpers.ts`'s rule of one sign-in per file or describe keeps
+the sequential integration suite's time down.
 
 ---
 
@@ -507,7 +517,9 @@ the mail sent after its own request, not the newest one already there.
 - [ ] An `aal1` session is refused on every admin route and page (the admin-auth test finds
   the routes on disk); an `aal2` admin passes; `aal` is read from a verified token (a test
   with a forged `aal2` claim fails).
-- [ ] An `aal1` session may enroll only while the user has no verified factor (test).
+- [ ] An `aal1` session may enroll only while the user has no verified factor, and only with a
+  `magiclink` first factor (tests).
+- [ ] A session refused for its first factor is signed out at Auth, that session only (test).
 - [ ] The login runs email → magic link → TOTP (enroll the first time) → `/admin`.
 - [ ] A session whose first factor isn't the PKCE magic link (a password login, a code
   verified directly) is refused, and the test fixtures sign in through that link (tests).
@@ -537,7 +549,8 @@ the mail sent after its own request, not the newest one already there.
 ## Open Decisions
 
 1. **The login-abuse fix (step 8)**, after the probes of steps 1, 2 and 5a: a CAPTCHA
-   (`config.toml`'s `[auth.captcha]`: hCaptcha or Turnstile), a shorter code life, a
+   (`config.toml`'s `[auth.captcha]`: hCaptcha or Turnstile), a longer code (no one types
+   it, #14; locally and on the preview), a shorter code life, a
    lockout, or accepting it. The form already shows one message for every address
    (`src/lib/login.ts`), and that doesn't hide which addresses have accounts, since the
    browser sees Auth's own answers. Step 1's inputs (IS #377): on the preview, the 31st
