@@ -422,7 +422,7 @@ the time-box and every logout. Supabase's Free plan has no server-side block for
 hooks there are the access-token and email hooks only, as on Pro (the pricing page's "Auth
 Hooks" row: "All" from Team), so Phase 11's Pro doesn't add one either.
 
-**`requireAdmin` admits only an email-code login** (round 3 on PR #376, the owner's
+**`requireAdmin` admits only an email login** (round 3 on PR #376, the owner's
 approval; an allowlist since round 4): the admin signs in only by the email code, so a
 session whose first factor is anything else (a password, a later OAuth link) is refused. A
 password the thief sets then gets them nothing in the app: getting back in needs the email
