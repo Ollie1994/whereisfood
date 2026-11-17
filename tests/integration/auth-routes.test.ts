@@ -12,6 +12,7 @@ import {
   authUserIdsWhere,
   cookieHeader,
   editSessionCookie,
+  SESSION_COOKIE,
   createFixtureAuthUser,
   fixtureEmail,
   jarClient,
@@ -28,7 +29,6 @@ import {
 // `signInByLink`.
 
 const ORIGIN = "http://127.0.0.1:3000";
-const SESSION_COOKIE = /^sb-[^=]+-auth-token(\.\d+)?$/;
 
 function request(path: string, { method = "GET", cookie = "", origin = ORIGIN as string | null } = {}) {
   const headers: Record<string, string> = { host: "127.0.0.1:3000" };

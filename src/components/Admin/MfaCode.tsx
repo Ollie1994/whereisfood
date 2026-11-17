@@ -31,6 +31,7 @@ export default function MfaCode({
           type="text"
           name="code"
           required
+          readOnly={mfaFormOff(status)}
           autoComplete="one-time-code"
           inputMode="numeric"
           value={code}

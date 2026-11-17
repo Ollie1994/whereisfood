@@ -18,7 +18,11 @@ export type EnrolledFactor = { factorId: string; qrCode: string; secret: string 
 export async function enrollFactor(
   mfa: Pick<GoTrueMFAApi, "listFactors" | "unenroll" | "enroll">,
 ): Promise<EnrolledFactor | "expired" | null> {
-  const failed = (error: unknown) => (isInvalidSession(error) ? "expired" : null);
+  const failed = (error: unknown) => {
+    if (isInvalidSession(error)) return "expired";
+    console.error("[mfa] the enroll answered:", error);
+    return null;
+  };
   try {
     // `all` holds unverified factors too; `totp` lists verified ones only (local stack, the
     // PR for IS #382).

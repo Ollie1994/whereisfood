@@ -527,6 +527,10 @@ export function cookieJar(jar: Map<string, string>): CookieMethodsServer {
   };
 }
 
+// The name of a session cookie `@supabase/ssr` writes, whole or a chunk (`admin-auth.ts`'s
+// `SESSION_COOKIE` in the app).
+export const SESSION_COOKIE = /^sb-[^=]+-auth-token(\.\d+)?$/;
+
 // A copy of `jar` with its session, `@supabase/ssr`'s one unchunked cookie (`base64-` and the
 // session's JSON, base64url), passed through `edit`. Throws on a chunked session: a session
 // cookie was 2,709 characters when `auth-routes.test.ts` first edited one, and
@@ -535,10 +539,12 @@ export function editSessionCookie(
   jar: Map<string, string>,
   edit: (session: { access_token: string; expires_at: number }) => void,
 ): Map<string, string> {
-  const names = [...jar.keys()].filter((name) => /^sb-.+-auth-token(\.\d+)?$/.test(name));
+  const names = [...jar.keys()].filter((name) => SESSION_COOKIE.test(name));
   if (names.length !== 1 || /\.\d+$/.test(names[0])) throw new Error(`editSessionCookie: not one unchunked session cookie: ${names.join(", ")}`);
   const [name] = names;
-  const session = JSON.parse(Buffer.from(jar.get(name)!.replace(/^base64-/, ""), "base64url").toString("utf8"));
+  const value = jar.get(name)!;
+  if (!value.startsWith("base64-")) throw new Error("editSessionCookie: the session cookie isn't base64- encoded");
+  const session = JSON.parse(Buffer.from(value.slice("base64-".length), "base64url").toString("utf8"));
   edit(session);
   return new Map(jar).set(name, `base64-${Buffer.from(JSON.stringify(session)).toString("base64url")}`);
 }

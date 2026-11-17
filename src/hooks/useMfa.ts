@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { mfaAlert, mfaCode, mfaFormOff, mfaStatusFor, type MfaStatus } from "@/lib/login";
+import { mfaCode, mfaFormOff, mfaStatusFor, type MfaStatus } from "@/lib/login";
 import { enrollFactor } from "@/lib/mfa";
 import type { MfaStep } from "@/lib/services/admin-auth";
 import { supabaseClient } from "@/lib/supabase-browser";
@@ -49,24 +49,20 @@ export function useMfa(check: MfaStep): {
     });
   }, [enroll]);
 
-  // Typing a new code clears the format alert and an earlier attempt's answer ("Fel kod", a
-  // failure), which isn't about the new input.
+  // Typing a new code clears the format alert and "Fel kod", which were about the code
+  // typed before. Not "rate-limited" or "failed", which say to wait whatever is typed. The
+  // field is off while a verify runs (`mfaFormOff`), so no answer lands under newer text.
   function setCode(next: string) {
     setCodeState(next);
     setInvalid(false);
-    if (mfaAlert(status) && !mfaFormOff(status)) setStatus("ready");
+    if (status === "wrong-code") setStatus("ready");
   }
 
   async function submit() {
     if (!factorId || verifying.current || mfaFormOff(status)) return;
     const digits = mfaCode(code);
     setInvalid(digits === null);
-    if (digits === null) {
-      // The last attempt's answer ("Fel kod", a failure) isn't about this input, which never
-      // reached Auth (the owner's browser check showed both under a three-digit code).
-      if (mfaAlert(status)) setStatus("ready");
-      return;
-    }
+    if (digits === null) return;
 
     verifying.current = true;
     setStatus("verifying");
@@ -74,6 +70,7 @@ export function useMfa(check: MfaStep): {
     try {
       const { error } = await supabaseClient.auth.mfa.challengeAndVerify({ factorId, code: digits });
       next = mfaStatusFor(error);
+      if (next === "failed") console.error("[mfa] the verify answered:", error);
     } catch (err) {
       console.error("[mfa] the verify threw:", err);
       next = "failed";

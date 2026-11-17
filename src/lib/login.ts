@@ -143,25 +143,33 @@ export function mfaStatusFor(error: { status?: number; code?: string } | null): 
   return "failed";
 }
 
-// Typed, so a status renamed in `MfaStatus` but not here fails `tsc`.
-const ALERTS: readonly MfaStatus[] = ["unprepared", "wrong-code", "rate-limited", "failed", "replaced", "expired"];
-const KEY_HIDDEN: readonly MfaStatus[] = ["unprepared", "replaced", "expired"];
-const FORM_OFF: readonly MfaStatus[] = ["preparing", "unprepared", "verifying", "verified", "replaced", "expired"];
+// Each status's flags, one row per status, so a status added to `MfaStatus` and not here
+// fails `tsc`. `alert`: its message is a refusal or a failure, not a progress note;
+// `formOff`: the code field and button take nothing; `keyHidden`: the enroll's QR code and
+// key are dead or moot (the factor or the session is gone, or the enroll failed).
+const MFA_FLAGS: Record<MfaStatus, { alert: boolean; formOff: boolean; keyHidden: boolean }> = {
+  preparing: { alert: false, formOff: true, keyHidden: false },
+  unprepared: { alert: true, formOff: true, keyHidden: true },
+  ready: { alert: false, formOff: false, keyHidden: false },
+  verifying: { alert: false, formOff: true, keyHidden: false },
+  "wrong-code": { alert: true, formOff: false, keyHidden: false },
+  "rate-limited": { alert: true, formOff: false, keyHidden: false },
+  failed: { alert: true, formOff: false, keyHidden: false },
+  replaced: { alert: true, formOff: true, keyHidden: true },
+  expired: { alert: true, formOff: true, keyHidden: true },
+  verified: { alert: false, formOff: true, keyHidden: false },
+};
 
-// Whether `status`'s message is an alert (a refusal or a failure), not a progress note.
 export function mfaAlert(status: MfaStatus): boolean {
-  return ALERTS.includes(status);
+  return MFA_FLAGS[status].alert;
 }
 
-// Whether the enroll's QR code and key are still worth showing: not once the factor is gone
-// or the session is.
 export function mfaKeyShown(status: MfaStatus): boolean {
-  return !KEY_HIDDEN.includes(status);
+  return !MFA_FLAGS[status].keyHidden;
 }
 
-// Whether the code form takes no submit in `status`.
 export function mfaFormOff(status: MfaStatus): boolean {
-  return FORM_OFF.includes(status);
+  return MFA_FLAGS[status].formOff;
 }
 
 export function mfaMessage(status: MfaStatus): string | null {

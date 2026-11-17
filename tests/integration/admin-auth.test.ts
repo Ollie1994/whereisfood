@@ -15,6 +15,7 @@ import {
   cookieHeader,
   createFixtureAuthUser,
   editSessionCookie,
+  SESSION_COOKIE,
   jarClient,
   resetTables,
   sessionFor,
@@ -151,15 +152,16 @@ function get(path: string, cookie: string) {
 // call them.
 const input = (jar: Map<string, string>) => ({ cookieNames: [...jar.keys()], auth: jarClient(jar).auth });
 
-// The jar's session with its access token's payload edited and its signature kept: a claim
-// Auth never signed (#11).
+// The jar's session cookie alone, with its access token's payload edited and its signature
+// kept: a claim Auth never signed (#11).
 function forged(jar: Map<string, string>, edit: (claims: Record<string, unknown>) => void): Map<string, string> {
-  return editSessionCookie(jar, (session) => {
+  const edited = editSessionCookie(jar, (session) => {
     const [header, payload, signature] = session.access_token.split(".");
     const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
     edit(claims);
     session.access_token = [header, Buffer.from(JSON.stringify(claims)).toString("base64url"), signature].join(".");
   });
+  return new Map([...edited].filter(([name]) => SESSION_COOKIE.test(name)));
 }
 
 // The first factor and the second (Phase 9 plan step 5b, #14), on real sessions. A refused
@@ -223,7 +225,10 @@ describe("the first factor and the second", () => {
     // proxy's redirect deletes the cookies with no signOut of the app's.
     const page = await proxy(get("/admin", cookieHeader(loggedOut.jar)));
     expect(new URL(page.headers.get("location") ?? "").pathname).toBe("/admin/login");
-    const deleted = page.headers.getSetCookie().filter((line) => /^sb-.+-auth-token(\.\d+)?=;/.test(line));
+    const deleted = page.headers.getSetCookie().filter((line) => {
+      const [name, value] = line.split(";")[0].split("=");
+      return SESSION_COOKIE.test(name) && value === "";
+    });
     expect(deleted.length).toBeGreaterThan(0);
   });
 
