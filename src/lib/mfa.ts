@@ -38,7 +38,8 @@ export async function enrollFactor(
     });
     if (enrollError) return failed(enrollError);
     return { factorId: data.id, qrCode: data.totp.qr_code, secret: data.totp.secret };
-  } catch {
+  } catch (err) {
+    console.error("[mfa] the enroll threw:", err);
     return null;
   }
 }

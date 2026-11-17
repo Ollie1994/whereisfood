@@ -143,20 +143,25 @@ export function mfaStatusFor(error: { status?: number; code?: string } | null): 
   return "failed";
 }
 
+// Typed, so a status renamed in `MfaStatus` but not here fails `tsc`.
+const ALERTS: readonly MfaStatus[] = ["unprepared", "wrong-code", "rate-limited", "failed", "replaced", "expired"];
+const KEY_HIDDEN: readonly MfaStatus[] = ["unprepared", "replaced", "expired"];
+const FORM_OFF: readonly MfaStatus[] = ["preparing", "unprepared", "verifying", "verified", "replaced", "expired"];
+
 // Whether `status`'s message is an alert (a refusal or a failure), not a progress note.
 export function mfaAlert(status: MfaStatus): boolean {
-  return ["unprepared", "wrong-code", "rate-limited", "failed", "replaced", "expired"].includes(status);
+  return ALERTS.includes(status);
 }
 
 // Whether the enroll's QR code and key are still worth showing: not once the factor is gone
 // or the session is.
 export function mfaKeyShown(status: MfaStatus): boolean {
-  return !["unprepared", "replaced", "expired"].includes(status);
+  return !KEY_HIDDEN.includes(status);
 }
 
 // Whether the code form takes no submit in `status`.
 export function mfaFormOff(status: MfaStatus): boolean {
-  return ["preparing", "unprepared", "verifying", "verified", "replaced", "expired"].includes(status);
+  return FORM_OFF.includes(status);
 }
 
 export function mfaMessage(status: MfaStatus): string | null {

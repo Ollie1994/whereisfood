@@ -527,6 +527,22 @@ export function cookieJar(jar: Map<string, string>): CookieMethodsServer {
   };
 }
 
+// A copy of `jar` with its session, `@supabase/ssr`'s one unchunked cookie (`base64-` and the
+// session's JSON, base64url), passed through `edit`. Throws on a chunked session: a session
+// cookie was 2,709 characters when `auth-routes.test.ts` first edited one, and
+// `@supabase/ssr` chunks above 3,180.
+export function editSessionCookie(
+  jar: Map<string, string>,
+  edit: (session: { access_token: string; expires_at: number }) => void,
+): Map<string, string> {
+  const names = [...jar.keys()].filter((name) => /^sb-.+-auth-token(\.\d+)?$/.test(name));
+  if (names.length !== 1 || /\.\d+$/.test(names[0])) throw new Error(`editSessionCookie: not one unchunked session cookie: ${names.join(", ")}`);
+  const [name] = names;
+  const session = JSON.parse(Buffer.from(jar.get(name)!.replace(/^base64-/, ""), "base64url").toString("utf8"));
+  edit(session);
+  return new Map(jar).set(name, `base64-${Buffer.from(JSON.stringify(session)).toString("base64url")}`);
+}
+
 // The jar as a `Cookie` request header.
 export function cookieHeader(jar: Map<string, string>): string {
   return [...jar].map(([name, value]) => `${name}=${value}`).join("; ");

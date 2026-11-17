@@ -49,9 +49,12 @@ export function useMfa(check: MfaStep): {
     });
   }, [enroll]);
 
+  // Typing a new code clears the format alert and an earlier attempt's answer ("Fel kod", a
+  // failure), which isn't about the new input.
   function setCode(next: string) {
     setCodeState(next);
     setInvalid(false);
+    if (mfaAlert(status) && !mfaFormOff(status)) setStatus("ready");
   }
 
   async function submit() {
@@ -71,7 +74,8 @@ export function useMfa(check: MfaStep): {
     try {
       const { error } = await supabaseClient.auth.mfa.challengeAndVerify({ factorId, code: digits });
       next = mfaStatusFor(error);
-    } catch {
+    } catch (err) {
+      console.error("[mfa] the verify threw:", err);
       next = "failed";
     }
     // Still set once verified, so no second verify starts while the browser leaves.

@@ -14,6 +14,7 @@ import {
   authClock,
   cookieHeader,
   createFixtureAuthUser,
+  editSessionCookie,
   jarClient,
   resetTables,
   sessionFor,
@@ -150,18 +151,15 @@ function get(path: string, cookie: string) {
 // call them.
 const input = (jar: Map<string, string>) => ({ cookieNames: [...jar.keys()], auth: jarClient(jar).auth });
 
-// The session `@supabase/ssr` keeps in one cookie (`base64-` and its JSON), with its access
-// token's payload edited and its signature kept: a claim Auth never signed (#11).
+// The jar's session with its access token's payload edited and its signature kept: a claim
+// Auth never signed (#11).
 function forged(jar: Map<string, string>, edit: (claims: Record<string, unknown>) => void): Map<string, string> {
-  const cookies = [...jar].filter(([name]) => /^sb-.+-auth-token$/.test(name));
-  expect(cookies, "one unchunked session cookie").toHaveLength(1);
-  const [name, value] = cookies[0];
-  const session = JSON.parse(Buffer.from(value.replace(/^base64-/, ""), "base64url").toString("utf8"));
-  const [header, payload, signature] = session.access_token.split(".");
-  const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
-  edit(claims);
-  session.access_token = [header, Buffer.from(JSON.stringify(claims)).toString("base64url"), signature].join(".");
-  return new Map([[name, `base64-${Buffer.from(JSON.stringify(session)).toString("base64url")}`]]);
+  return editSessionCookie(jar, (session) => {
+    const [header, payload, signature] = session.access_token.split(".");
+    const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    edit(claims);
+    session.access_token = [header, Buffer.from(JSON.stringify(claims)).toString("base64url"), signature].join(".");
+  });
 }
 
 // The first factor and the second (Phase 9 plan step 5b, #14), on real sessions. A refused
