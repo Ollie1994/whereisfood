@@ -48,7 +48,8 @@ defaults:
     shell: bash
 
 # The local Supabase services a job starts without: every one but db, auth, kong, rest and
-# inbucket (Mailpit, which auth-routes.test.ts reads at 127.0.0.1:54324). With these
+# inbucket (Mailpit, at 127.0.0.1:54324, where every integration sign-in reads its link:
+# tests/integration/helpers.ts's requestLink, IS #381). With these
 # excluded, a local `npm run test:all` gave the full stack's counts (supabase CLI 2.109.1,
 # IS #285's PR). That CLI refused `analytics,functions,meta,storage` as names to exclude,
 # though its --help lists them, with a WARNING and exit 0, leaving those containers

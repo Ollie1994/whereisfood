@@ -286,6 +286,9 @@ describe("the fixtures' sign-in", () => {
       expect(error?.code).toBe("too_many_enrolled_mfa_factors");
     });
 
+    // Within seconds of the enroll, so it sends the enroll's code again: it rests on Auth
+    // accepting that (`verifyFactor`'s stated limit), and would fail every run if it
+    // stopped.
     it("signs the same user in again at aal2 with its factor", async () => {
       const again = await sessionFor(fixture.userId, { aal2: true });
 

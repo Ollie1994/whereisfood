@@ -9,7 +9,7 @@ import { SIGN_IN_TIMEOUT, cookieHeader, createFixtureAuthUser, resetTables, sess
 // ON DISK, not listed: a route added under `src/app/api/admin/` is covered with no edit
 // here. Each exported method is called as Next would, with a request and its params.
 //
-// The sessions sign in once, in `beforeAll` (`helpers.ts`, `signedInClient`: once per file
+// The sessions sign in once, in `beforeAll` (`helpers.ts`, `signInByLink`: once per file
 // or describe).
 
 const ORIGIN = "http://127.0.0.1:3000";

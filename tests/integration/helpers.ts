@@ -432,11 +432,12 @@ async function mailIds(email: string): Promise<string[]> {
 }
 
 // The sign-in link of the first mail to `email` that isn't in `before` and holds one.
-// Mailpit keeps every earlier mail, and the password-changed and factor emails land there
-// too, so neither the newest mail nor any mail will do (Phase 9 plan #14). A mail read once
-// and holding no link isn't fetched again. It polls for 10 s by the clock, fetches
-// included, so a test or hook that signs in needs a timeout above vitest's defaults (5 s a
-// test, 10 s a hook) for this error, which names the address, to show first.
+// Mailpit keeps earlier mails (up to its message cap), and the password-changed and
+// factor emails land there too, so neither the newest mail nor any mail will do (Phase 9
+// plan #14). A mail read once and holding no link isn't fetched again. It polls for 10 s by
+// the clock, fetches included, so a test or hook that signs in needs a timeout above
+// vitest's defaults (5 s a test, 10 s a hook) for this error, which names the address, to
+// show first.
 async function newLink(email: string, before: ReadonlySet<string>): Promise<string> {
   const checked = new Set(before);
   const deadline = Date.now() + 10_000;
@@ -483,8 +484,9 @@ export async function requestLink(client: SupabaseClient<Database>, email: strin
 // per-IP limits (`sign_in_sign_ups`, `token_verifications`) don't bind it: GoTrue applies
 // them only when `RateLimitHeader` or `sb-forwarded-for` is set, and the local stack sets
 // neither (`middleware.go` and `docker inspect`, IS #377). Nor does `email_sent` (the CLI's
-// `GOTRUE_RATE_LIMIT_EMAIL_SENT=360000`, IS #377). But the suite runs one file at a time,
-// so sign in once per file or describe, not per test.
+// `GOTRUE_RATE_LIMIT_EMAIL_SENT=360000`, IS #377). The rule, not a limit: sign in once
+// per file or describe, not per test (IS #381); each sign-in is a Mailpit round trip, and a
+// second to one address first waits out `LINK_INTERVAL_MS`.
 async function signInByLink(client: SupabaseClient<Database>, email: string): Promise<string> {
   const verify = await fetch(await requestLink(client, email), { redirect: "manual" });
   const code = new URL(verify.headers.get("location") ?? "", CALLBACK).searchParams.get("code");
@@ -544,16 +546,28 @@ export function jarClient(jar: Map<string, string>): SupabaseClient<Database> {
 // (`CLAUDE.md`, "Secrets").
 const factors = new Map<string, { factorId: string; secret: string }>();
 
+// Auth's clock, from the `Date` header of its health endpoint (through the local stack's
+// gateway, in the same Docker VM as Auth), in epoch milliseconds. A TOTP code is checked
+// against Auth's clock, and on WSL2 the VM's clock can fall behind the host's after a
+// sleep, so a code from `Date.now()` would fail with an error that names the code, not the
+// clock.
+async function authClock(): Promise<number> {
+  const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/health`);
+  const date = Date.parse(response.headers.get("date") ?? "");
+  if (Number.isNaN(date)) throw new Error(`authClock: Auth's answer (${response.status}) has no Date header`);
+  return date;
+}
+
 // Raises `client`'s session to `aal2` with the user's factor: a challenge, then a verify
-// with the code `totp` computes now. Returns the new access token. A limit: a second
-// verify within one 30 s step sends the same code again, which the local stack's Auth
-// accepts (`helpers.test.ts`'s "signs the same user in again at aal2" does so seconds
-// after its enroll); if Auth starts refusing a code's second use (RFC 6238, 5.2), wait for
-// the next step here.
+// with the code `totp` computes at Auth's time (`authClock`). Returns the new access
+// token. A limit: a second verify within one 30 s step sends the same code again, which the
+// local stack's Auth accepts (`helpers.test.ts`'s "signs the same user in again at aal2"
+// does so seconds after its enroll); if Auth starts refusing a code's second use (RFC 6238,
+// 5.2), wait for the next step here.
 async function verifyFactor(client: SupabaseClient<Database>, factor: { factorId: string; secret: string }): Promise<string> {
   const { data, error } = await client.auth.mfa.challengeAndVerify({
     factorId: factor.factorId,
-    code: totp(factor.secret, Date.now()),
+    code: totp(factor.secret, await authClock()),
   });
   if (error) throw error;
   return data.access_token;
@@ -595,11 +609,10 @@ export async function sessionFor(
   userId: string,
   { aal2 = false } = {},
 ): Promise<{ jar: Map<string, string>; accessToken: string }> {
-  const factor = factors.get(userId);
+  const factor = aal2 ? factors.get(userId) : undefined;
   if (aal2 && !factor) throw new Error("sessionFor: no factor for this user; make it with sessionUser({ aal2: true })");
   const { jar, client, accessToken: signedIn } = await signIn(userId);
-  const accessToken = factor && aal2 ? await verifyFactor(client, factor) : signedIn;
-  return { jar, accessToken };
+  return { jar, accessToken: factor ? await verifyFactor(client, factor) : signedIn };
 }
 
 // A fixture user with a `users` row, `is_admin` as given, signed in by the magic link.

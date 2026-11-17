@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/lib/supabase";
 import {
   FIXTURE_PLACE,
   FIXTURE_PREFIX,
+  SIGN_IN_TIMEOUT,
   anonClient,
   createFixtureAuthUser,
   dayWindow,
@@ -64,7 +65,7 @@ beforeAll(async () => {
   me = await signedInClient();
   other = await signedInClient();
   rowless = await signedInClient({ usersRow: false });
-}, 30_000);
+}, SIGN_IN_TIMEOUT);
 
 // A valid row for `table`, which `service_role` could insert: with the INSERT grant (a
 // control), the case got the RLS message with no hint. Prefixed and on the fixture
