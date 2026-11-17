@@ -163,3 +163,29 @@ describe.each([
     expect(parseTruckPatch({ [key]: `  ${text}  ` })).toEqual({ ok: true, value: { [key]: text } });
   });
 });
+
+// IS #400: a character the database refuses (`unstorable`) is refused here, the name with
+// "Ogiltigt namn" (PR #402) and the others with their own message, on create and patch; an
+// emoji (a surrogate pair) and U+0001 aren't.
+describe.each([
+  ["name", TRUCK_ERRORS.nameInvalid],
+  ["cuisine_type", TRUCK_ERRORS.cuisine],
+  ["description", TRUCK_ERRORS.description],
+] as const)("%s's characters", (key, error) => {
+  it.each([
+    ["a NUL", "a\u0000b"],
+    ["a lone high surrogate", "a\ud800b"],
+    ["a lone low surrogate", "a\udc00b"],
+  ])("refuses %s on create and patch", (_, text) => {
+    expect(parseNewTruck({ ...BODY, [key]: text })).toEqual({ ok: false, error });
+    expect(parseTruckPatch({ [key]: text })).toEqual({ ok: false, error });
+  });
+
+  it.each([
+    ["an emoji", "Taco 🌮"],
+    ["U+0001", "a\u0001b"],
+  ])("takes %s on create and patch", (_, text) => {
+    expect(parseNewTruck({ ...BODY, [key]: text })).toMatchObject({ ok: true, value: { [key]: text } });
+    expect(parseTruckPatch({ [key]: text })).toEqual({ ok: true, value: { [key]: text } });
+  });
+});

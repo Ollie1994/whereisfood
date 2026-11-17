@@ -113,6 +113,9 @@ describe("POST /api/admin/trucks", () => {
     ["a space inside the handle", { name: named("X"), instagram_handle: "foo bar" }, "Ogiltigt Instagram-konto: bara a–z, 0–9, punkt och understreck, högst 30 tecken"],
     ["a 31-character handle", { name: named("X"), instagram_handle: "a".repeat(31) }, "Ogiltigt Instagram-konto: bara a–z, 0–9, punkt och understreck, högst 30 tecken"],
     ["no name", { instagram_handle: "foo" }, "Ange foodtruckens namn"],
+    // IS #400: characters the database refuses (`22P05`, `PGRST102`, PR #399's probe).
+    ["a name holding a NUL", { name: named("a\u0000b") }, "Ogiltigt namn"],
+    ["a name holding a lone surrogate", { name: named("a\ud800b") }, "Ogiltigt namn"],
     ["a body that isn't valid JSON", "{", undefined],
   ])("answers %s with 400 in Swedish, creating nothing", async (_, body, error) => {
     const before = await countFixtureTrucks();
@@ -185,15 +188,29 @@ describe("PATCH /api/admin/trucks/[id]", () => {
     ["a malformed id", "abc", { is_active: false }, "Ogiltigt id"],
     ["a patch with no known key", null, { id: "x" }, "Ändringen innehåller inget att ändra"],
     ["a blank name", null, { name: " " }, "Ange foodtruckens namn"],
-  ])("answers %s with 400 in Swedish", async (_, badId, body, error) => {
+    // IS #400, as POST's.
+    ["a name holding a NUL", null, { name: "a\u0000b" }, "Ogiltigt namn"],
+    ["a name holding a lone surrogate", null, { name: "a\ud800b" }, "Ogiltigt namn"],
+    ["a cuisine type holding a NUL", null, { cuisine_type: "a\u0000b" }, "Ogiltig typ av mat"],
+    ["a description holding a lone surrogate", null, { description: "a\udc00b" }, "Ogiltig beskrivning"],
+  ])("answers %s with 400 in Swedish, leaving the truck", async (_, badId, body, error) => {
     const id = badId ?? (await seedTruck("Orörd"));
+    const before = badId ? null : await readTruck(id);
 
     const response = await patch(id, body);
 
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error });
+    if (before) expect(await readTruck(id)).toEqual(before);
   });
 });
+
+// The truck row as stored, every column.
+async function readTruck(id: string) {
+  const { data, error } = await supabaseAdmin.from("trucks").select("*").eq("id", id).single();
+  if (error) throw error;
+  return data;
+}
 
 async function countFixtureTrucks(): Promise<number> {
   const { count, error } = await supabaseAdmin

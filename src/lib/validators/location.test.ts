@@ -259,3 +259,23 @@ describe("the label's length", () => {
     expect(parseLocationPatch({ label: `  ${label}  ` })).toEqual({ ok: true, value: { label } });
   });
 });
+
+// IS #400: as `truck.test.ts`'s, for the label.
+describe("the label's characters", () => {
+  it.each([
+    ["a NUL", "a\u0000b"],
+    ["a lone high surrogate", "a\ud800b"],
+    ["a lone low surrogate", "a\udc00b"],
+  ])("refuses %s on create and patch", (_, label) => {
+    expect(parseNewLocation({ ...BODY, label })).toEqual(refused(LOCATION_ERRORS.label));
+    expect(parseLocationPatch({ label })).toEqual(refused(LOCATION_ERRORS.label));
+  });
+
+  it.each([
+    ["an emoji", "Järntorget 🌮"],
+    ["U+0001", "a\u0001b"],
+  ])("takes %s on create and patch", (_, label) => {
+    expect(parseNewLocation({ ...BODY, label })).toMatchObject({ ok: true, value: { label } });
+    expect(parseLocationPatch({ label })).toEqual({ ok: true, value: { label } });
+  });
+});

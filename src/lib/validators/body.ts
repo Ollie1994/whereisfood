@@ -1,5 +1,5 @@
 // What the location and truck validators share: the result type, the body's shape check,
-// the refusal, the length check, and the two texts about the body as a whole.
+// the refusal, the length and character checks, and the two texts about the body as a whole.
 
 export type Parsed<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -28,4 +28,20 @@ export function tooLong(text: string | null, max: number): boolean {
   if (text === null || text.length <= max) return false;
   if (text.length > 2 * max) return true;
   return Array.from(text).length > max;
+}
+
+// Whether a text holds a character the database refuses: a NUL (U+0000) or a lone UTF-16
+// surrogate, which the db layer throws on (probed in PR #399 through `updateTruck` and
+// `updateLocation`: `22P05` for `"a\u0000b"`, `PGRST102` for `"a\ud800b"` and
+// `"a\udc00b"`; `"a\u0001b"` was stored). With the `u` flag a surrogate pair is one code
+// point, so an emoji passes and only a lone half matches `\p{Surrogate}`. Not
+// `isWellFormed`: this runs in the browser too (`admin-trucks.ts`), Next's target includes
+// `firefox 111` (`modern-browserslist-target.js`), and Firefox shipped `isWellFormed` in
+// 119 (MDN's Firefox 119 release notes, bug 1850755); `\p{…}` has been in every browser
+// since July 2020 (MDN's Baseline) (PR #402). Other control characters pass (IS #400's
+// non-goal).
+const UNSTORABLE = /\u0000|\p{Surrogate}/u;
+
+export function unstorable(text: string): boolean {
+  return UNSTORABLE.test(text);
 }

@@ -1,5 +1,5 @@
 import type { NewTruck, TruckPatch } from "@/lib/types";
-import { BODY_ERRORS, type Parsed, isRecord, refuse, tooLong } from "@/lib/validators/body";
+import { BODY_ERRORS, type Parsed, isRecord, refuse, tooLong, unstorable } from "@/lib/validators/body";
 
 // A truck body from `readJson`, checked and reduced to the keys a client may set. Pure: no
 // clock, no env (`CLAUDE.md`, "Time"). `id` and `created_at` are never read, and every
@@ -7,9 +7,7 @@ import { BODY_ERRORS, type Parsed, isRecord, refuse, tooLong } from "@/lib/valid
 
 // The free-text bounds, in characters (`tooLong`), on the trimmed text that is stored
 // (Phase 9 plan step 3, Q22; the values are the owner's, IS #379). A limit: only the app
-// is bound; the schema has no CHECK (the plan: no migration), so SQL can write longer. Also
-// a limit: a NUL or a lone surrogate passes here and the db layer throws on it, so the
-// route answers 500 (the probe: `location.ts`'s `label`; IS #400).
+// is bound; the schema has no CHECK (the plan: no migration), so SQL can write longer.
 export const MAX_NAME = 80;
 export const MAX_CUISINE = 50;
 export const MAX_DESCRIPTION = 500;
@@ -17,6 +15,9 @@ export const MAX_DESCRIPTION = 500;
 export const TRUCK_ERRORS = {
   body: BODY_ERRORS.body,
   name: "Ange foodtruckens namn",
+  // A name holding a character the database refuses (`unstorable`; the owner's wording,
+  // PR #402).
+  nameInvalid: "Ogiltigt namn",
   nameLength: `Namnet får vara högst ${MAX_NAME} tecken`,
   handle: "Ogiltigt Instagram-konto: bara a–z, 0–9, punkt och understreck, högst 30 tecken",
   cuisine: "Ogiltig typ av mat",
@@ -30,7 +31,8 @@ export const TRUCK_ERRORS = {
 // Instagram's character set and length cap, as the plan's #29 has them.
 const HANDLE = /^[a-z0-9._]{1,30}$/;
 
-// The field checks: each gives the field's value, or undefined to refuse it.
+// The field checks: each gives the field's value, or undefined to refuse it, except `name`,
+// which gives its value or the message to refuse it with.
 
 // A handle in its one stored form (#29): trimmed, a leading `@` stripped, lower-cased, and
 // empty as null, so "@StreetFoodGBG " and "streetfoodgbg" are one account and two trucks
@@ -44,17 +46,24 @@ function handle(value: unknown): string | null | undefined {
   return HANDLE.test(normal) ? normal : undefined;
 }
 
-// A trimmed name; blank or not a string is refused. Its length is checked by the callers,
-// with a message of its own (`MAX_NAME`).
-function name(value: unknown): string | undefined {
-  if (typeof value !== "string") return undefined;
-  return value.trim() || undefined;
+// The trimmed name, or the message to refuse it with: not a string or blank, the name's
+// own; holding a character the database refuses (`unstorable`, IS #400), "Ogiltigt namn"
+// (the owner's wording, PR #402); over `MAX_NAME`, the length's. The one check of a name,
+// so both parsers refuse alike.
+function name(value: unknown): { ok: true; name: string } | { ok: false; error: string } {
+  if (typeof value !== "string") return { ok: false, error: TRUCK_ERRORS.name };
+  if (unstorable(value)) return { ok: false, error: TRUCK_ERRORS.nameInvalid };
+  const trimmed = value.trim();
+  if (!trimmed) return { ok: false, error: TRUCK_ERRORS.name };
+  if (tooLong(trimmed, MAX_NAME)) return { ok: false, error: TRUCK_ERRORS.nameLength };
+  return { ok: true, name: trimmed };
 }
 
-// An optional text: absent, null or blank is none. Its length is checked as `name`'s.
+// An optional text: absent, null or blank is none; not a string, or `unstorable`, is
+// refused. Its length is checked by the callers (`MAX_CUISINE`, `MAX_DESCRIPTION`).
 function optionalText(value: unknown): string | null | undefined {
   if (value === undefined || value === null) return null;
-  if (typeof value !== "string") return undefined;
+  if (typeof value !== "string" || unstorable(value)) return undefined;
   return value.trim() || null;
 }
 
@@ -62,8 +71,7 @@ export function parseNewTruck(body: unknown): Parsed<NewTruck> {
   if (!isRecord(body)) return refuse(TRUCK_ERRORS.body);
 
   const truckName = name(body.name);
-  if (truckName === undefined) return refuse(TRUCK_ERRORS.name);
-  if (tooLong(truckName, MAX_NAME)) return refuse(TRUCK_ERRORS.nameLength);
+  if (!truckName.ok) return refuse(truckName.error);
   const instagram = handle(body.instagram_handle);
   if (instagram === undefined) return refuse(TRUCK_ERRORS.handle);
   const cuisine = optionalText(body.cuisine_type);
@@ -79,7 +87,7 @@ export function parseNewTruck(body: unknown): Parsed<NewTruck> {
   return {
     ok: true,
     value: {
-      name: truckName,
+      name: truckName.name,
       instagram_handle: instagram,
       cuisine_type: cuisine,
       description,
@@ -96,9 +104,8 @@ export function parseTruckPatch(body: unknown): Parsed<TruckPatch> {
 
   if (body.name !== undefined) {
     const value = name(body.name);
-    if (value === undefined) return refuse(TRUCK_ERRORS.name);
-    if (tooLong(value, MAX_NAME)) return refuse(TRUCK_ERRORS.nameLength);
-    patch.name = value;
+    if (!value.ok) return refuse(value.error);
+    patch.name = value.name;
   }
   if (body.instagram_handle !== undefined) {
     const value = handle(body.instagram_handle);
