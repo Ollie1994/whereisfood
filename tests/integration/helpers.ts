@@ -433,10 +433,10 @@ async function mailIds(email: string): Promise<string[]> {
 
 // The sign-in link of the first mail to `email` that isn't in `before` and holds one.
 // Mailpit keeps earlier mails, and the password-changed and factor emails land there
-// too, so neither the newest mail nor any mail will do (Phase 9 plan #14). A mail read once and holding no link isn't fetched again. It polls for 10 s by
-// the clock, fetches included, so a test or hook that signs in needs a timeout above
-// vitest's defaults (5 s a test, 10 s a hook) for this error, which names the address, to
-// show first.
+// too, so neither the newest mail nor any mail will do (Phase 9 plan #14). A mail read
+// once and holding no link isn't fetched again. It polls for 10 s by the clock, fetches
+// included, so a test or hook that signs in needs a timeout above vitest's defaults (5 s a
+// test, 10 s a hook) for this error, which names the address, to show first.
 async function newLink(email: string, before: ReadonlySet<string>): Promise<string> {
   const checked = new Set(before);
   const deadline = Date.now() + 10_000;
