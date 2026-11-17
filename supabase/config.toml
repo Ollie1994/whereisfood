@@ -256,8 +256,8 @@ otp_expiry = 3600
 # subject = "You have been invited"
 # content_path = "./supabase/templates/invite.html"
 
-# Uncomment to customize notification email template
-# On: tells the admin a password was set (IS #378). The default template, so no content_path.
+# The password-changed email, on: tells the admin a password was set (CLAUDE.md, "Supabase";
+# IS #378). The default template, so no subject or content_path.
 [auth.email.notification.password_changed]
 enabled = true
 

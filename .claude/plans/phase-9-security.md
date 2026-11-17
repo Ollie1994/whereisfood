@@ -105,7 +105,8 @@ checked against a written checklist.
   fixtures sign in through the PKCE magic link, read from Mailpit, not a password (#14), and
   the admin login reaches `aal2`),
   and new or extended integration tests (`admin-auth.test.ts`, MFA, logout, cancel and
-  confirm); a unit test that `config.toml` keeps `secure_password_change = true` (step 2).
+  confirm); a unit test that `config.toml` keeps `secure_password_change = true` and the
+  password-changed email on (step 2, `src/lib/auth-config.test.ts`).
 - No migration: `users_select_own` stays as it is (#7).
 
 **Docs:**
@@ -185,7 +186,8 @@ before the closing steps (#12).
    the notification on, whether Auth's notification emails count toward `email_sent` (step 8
    reads it), and whether Supabase's "require current password" option (`current_password`
    on `updateUser`) is on Free and stops a first password being set. `CLAUDE.md` records the
-   rule.
+   rule. Settled by IS #378: the email counts on the preview, not locally; the option is on
+   Free, hosted only, and stops no first password, so the admin keeps one (#13).
 3. **Length limits** on truck name, description, cuisine type and location label, with
    Swedish messages (Q22); no migration.
 4. **Cancel and confirm refuse an ended entry** (#8): `cancelLocation` and `confirmLocation`
@@ -450,7 +452,9 @@ guessed code. The swap stays possible as sabotage
   `config.toml` key), checked only for a user who already has a password, which the admin
   does (README, "5. Create the admin user"), and not in a password-recovery session;
 - **detecting it:** the password-changed email (step 2; it spends the preview's `email_sent`
-  budget, and a change whose email the spent budget refuses still succeeds, IS #378), and
+  budget, which anyone can spend by asking for two login links for the admin's address,
+  and a change whose email the spent budget refuses still succeeds, IS #378; so a careful
+  thief can spend it first, and the emails catch only a careless one), and
   factor-enrolled and
   factor-unenrolled emails, which Auth offers, both off by default (GoTrue v2.197.0's
   notification settings; the preview's dashboard lists both on Free, with password-changed,

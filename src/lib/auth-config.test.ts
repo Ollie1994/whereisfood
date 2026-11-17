@@ -3,20 +3,22 @@ import { describe, expect, it } from "vitest";
 
 // Auth settings that guard the admin account, which the repo holds only in
 // `supabase/config.toml`, so a test keeps them on locally (the preview's and production's
-// are set in each project's dashboard and checked by the hosted-settings checklist). No TOML parser: one table's body is read from its header to the next
-// header, as `src/lib/db/complete.test.ts` reads `[api]`. Line endings are normalised first,
-// since the working copy may hold CRLF.
-const config = readFileSync(new URL("../../supabase/config.toml", import.meta.url), "utf8").replace(/\r\n/g, "\n");
+// are set in each project's dashboard and checked by the hosted-settings checklist). No TOML
+// parser: one table's body is read from its header to the next header, as
+// `src/lib/db/complete.test.ts` reads `[api]`. A CRLF working copy needs no normalising: in
+// multiline mode `$` matches before `\r` too (this test passes on the CRLF checkout).
+const config = readFileSync(new URL("../../supabase/config.toml", import.meta.url), "utf8");
+
+const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 function table(name: string): string {
-  const escaped = name.replace(/[.[\]]/g, "\\$&");
-  const match = new RegExp(`^\\[${escaped}\\][ \\t]*$([\\s\\S]*?)(?=^\\[|(?![\\s\\S]))`, "m").exec(config);
+  const match = new RegExp(`^\\[${escape(name)}\\][ \\t]*$([\\s\\S]*?)(?=^\\[|(?![\\s\\S]))`, "m").exec(config);
   if (!match) throw new Error(`config.toml has no [${name}] table`);
   return match[1];
 }
 
 function setting(name: string, key: string): string | undefined {
-  return new RegExp(`^${key}\\s*=\\s*(\\S+)\\s*$`, "m").exec(table(name))?.[1];
+  return new RegExp(`^${escape(key)}\\s*=\\s*(\\S+)\\s*$`, "m").exec(table(name))?.[1];
 }
 
 describe("supabase/config.toml's Auth guards", () => {
