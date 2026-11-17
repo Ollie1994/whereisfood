@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-// Auth settings that guard the admin account and live only in `supabase/config.toml`, so a
-// test keeps them on locally (the preview's and production's are the hosted-settings
-// checklist's). No TOML parser: one table's body is read from its header to the next
+// Auth settings that guard the admin account, which the repo holds only in
+// `supabase/config.toml`, so a test keeps them on locally (the preview's and production's
+// are set in each project's dashboard and checked by the hosted-settings checklist). No TOML parser: one table's body is read from its header to the next
 // header, as `src/lib/db/complete.test.ts` reads `[api]`. Line endings are normalised first,
 // since the working copy may hold CRLF.
 const config = readFileSync(new URL("../../supabase/config.toml", import.meta.url), "utf8").replace(/\r\n/g, "\n");
