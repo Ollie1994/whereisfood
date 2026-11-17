@@ -16,7 +16,10 @@ import { isUuid } from "@/lib/validators/uuid";
 export type NewLocationInput = Omit<NewLocation, "created_by" | "source">;
 
 // The label's bound, as `truck.ts`'s `MAX_*` (characters, on the trimmed text; the owner's
-// value, IS #379; the app only, no CHECK in the schema).
+// value, IS #379; the app only, no CHECK in the schema). A limit: a label stored longer (by
+// SQL, or before IS #379) is copied into the checklist's suggestion as it is, so that ✓ is
+// refused with `labelLength` (`checklistRefusal` shows it as it came); the form, with a
+// shorter name, still enters the entry.
 export const MAX_LABEL = 100;
 
 export const LOCATION_ERRORS = {
@@ -42,8 +45,8 @@ function coordinate(value: unknown): number | undefined {
 }
 
 // Absent, null or blank is no label. Its length is checked by the callers (`MAX_LABEL`).
-// A limit: no character bound. Until the Owners phase only the admin writes one, through
-// `/api/admin/*`.
+// A limit: any character is allowed. Until the Owners phase only the admin writes one,
+// through `/api/admin/*`.
 function label(value: unknown): string | null | undefined {
   if (value === undefined || value === null) return null;
   if (typeof value !== "string") return undefined;

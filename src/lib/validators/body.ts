@@ -17,7 +17,12 @@ export const refuse = (error: string): { ok: false; error: string } => ({ ok: fa
 // Whether a text is over `max` characters, counted as Unicode code points (the string's
 // iterator), not `.length`'s UTF-16 units: "🍔" counts one (Phase 9 plan step 3, the owner's
 // call, IS #379; pinned in `truck.test.ts`). A limit: a letter typed as a base and a
-// combining mark (an NFD "å") counts two. No text, null, is never over.
+// combining mark (an NFD "å") counts two. No text, null, is never over. A code point is one
+// or two UTF-16 units, so `.length` settles a text at most `max` or over `2 × max` units
+// without splitting it, and an oversized body (`readJson` reads any size) isn't made into
+// an array to refuse it.
 export function tooLong(text: string | null, max: number): boolean {
-  return text !== null && Array.from(text).length > max;
+  if (text === null || text.length <= max) return false;
+  if (text.length > 2 * max) return true;
+  return Array.from(text).length > max;
 }

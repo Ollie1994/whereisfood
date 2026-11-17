@@ -221,8 +221,8 @@ describe("LOCATION_ERRORS", () => {
   });
 });
 
-// Phase 9 plan step 3 (IS #379): the label at its maximum and one over, on create and patch.
-// The count's unit and the trim are pinned for `tooLong` in `truck.test.ts`.
+// Phase 9 plan step 3 (IS #379): the label at its maximum and one over, on create and
+// patch, in code points on the trimmed text, as `truck.test.ts` pins for a truck's fields.
 describe("the label's length", () => {
   it(`takes ${MAX_LABEL} characters on create and patch`, () => {
     const label = "a".repeat(MAX_LABEL);
@@ -234,5 +234,19 @@ describe("the label's length", () => {
     const label = "a".repeat(MAX_LABEL + 1);
     expect(parseNewLocation({ ...BODY, label })).toEqual(refused(LOCATION_ERRORS.labelLength));
     expect(parseLocationPatch({ label })).toEqual(refused(LOCATION_ERRORS.labelLength));
+  });
+
+  it("counts an emoji as one character on create and patch", () => {
+    const label = "🍔".repeat(MAX_LABEL);
+    expect(parseNewLocation({ ...BODY, label })).toMatchObject({ ok: true, value: { label } });
+    expect(parseLocationPatch({ label })).toEqual({ ok: true, value: { label } });
+    expect(parseNewLocation({ ...BODY, label: `${label}🍔` })).toEqual(refused(LOCATION_ERRORS.labelLength));
+    expect(parseLocationPatch({ label: `${label}🍔` })).toEqual(refused(LOCATION_ERRORS.labelLength));
+  });
+
+  it("doesn't count the spaces trimmed off, on create and patch", () => {
+    const label = "a".repeat(MAX_LABEL);
+    expect(parseNewLocation({ ...BODY, label: `  ${label}  ` })).toMatchObject({ ok: true, value: { label } });
+    expect(parseLocationPatch({ label: `  ${label}  ` })).toEqual({ ok: true, value: { label } });
   });
 });

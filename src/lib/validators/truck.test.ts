@@ -138,13 +138,18 @@ describe.each([
   });
 
   // `tooLong` counts code points: the maximum in burgers is twice that in UTF-16 units.
-  it("counts an emoji as one character", () => {
-    expect(parseNewTruck({ ...BODY, [key]: "🍔".repeat(max) }).ok).toBe(true);
-    expect(parseNewTruck({ ...BODY, [key]: "🍔".repeat(max + 1) })).toEqual({ ok: false, error });
+  it("counts an emoji as one character on create and patch", () => {
+    const text = "🍔".repeat(max);
+    expect(parseNewTruck({ ...BODY, [key]: text }).ok).toBe(true);
+    expect(parseTruckPatch({ [key]: text })).toEqual({ ok: true, value: { [key]: text } });
+    expect(parseNewTruck({ ...BODY, [key]: `${text}🍔` })).toEqual({ ok: false, error });
+    expect(parseTruckPatch({ [key]: `${text}🍔` })).toEqual({ ok: false, error });
   });
 
   // The stored text is the trimmed one.
-  it("doesn't count the spaces trimmed off", () => {
-    expect(parseTruckPatch({ [key]: `  ${"a".repeat(max)}  ` })).toEqual({ ok: true, value: { [key]: "a".repeat(max) } });
+  it("doesn't count the spaces trimmed off, on create and patch", () => {
+    const text = "a".repeat(max);
+    expect(parseNewTruck({ ...BODY, [key]: `  ${text}  ` })).toMatchObject({ ok: true, value: { [key]: text } });
+    expect(parseTruckPatch({ [key]: `  ${text}  ` })).toEqual({ ok: true, value: { [key]: text } });
   });
 });
