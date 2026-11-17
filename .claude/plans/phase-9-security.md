@@ -106,7 +106,7 @@ checked against a written checklist.
   the admin login reaches `aal2`),
   and new or extended integration tests (`admin-auth.test.ts`, MFA, logout, cancel and
   confirm); a unit test that `config.toml` keeps `secure_password_change = true` and the
-  password-changed email on (step 2, `src/lib/auth-config.test.ts`).
+  password-changed email on (step 2, `supabase/config.test.ts`).
 - No migration: `users_select_own` stays as it is (#7).
 
 **Docs:**
@@ -281,8 +281,8 @@ before the closing steps (#12).
     the magic link, #14; the time-box, logout), "Pre-deploy automation" (the 2FA audit's result, which the
     IS #278 (Phase 9) row names and `CLAUDE.md`'s "Secrets" points to), the Phase map's
     Phase 9 row, Part 1 where it describes the login, the backups item's restore (it
-    recreates the admin by its old id, which must get a long random password, `CLAUDE.md`,
-    "Supabase"), and the README's status parts; in the
+    recreates the admin by its old id, which must get a long random password, README's "5.
+    Create the admin user"), and the README's status parts; in the
     Phase 9 row, "Admin and auth" and the "Phase 7 open decisions 1–5" row, "6-digit" goes, since
     the code doesn't ship in Phase 9 (#14). It
     carries forward the decisions that outlive the phase (#4–#11, #13 and #14 at least, #14
@@ -495,10 +495,12 @@ probes the order). The app refuses a guessed code's session before TOTP, and the
 signs that session out at Auth with `scope: "local"`, as #4's does. `mfaStepAllowed`
 applies the same allowlist to the app's enroll page; the enroll itself goes from the browser
 to Auth (`useMfa`), so it gates the page, not Auth. **A limit:** a guessed code's session
-that never reaches the app, or a password login's if the admin's password leaked (the README
-makes it long, random and kept by no one, IS #378), is still a valid `aal1` session at Auth, so it can call Auth and
-the Data API directly (#7's own-row read through the Data API; `updateUser` at Auth, which
-secure password change and, hosted, "Require current password" bound, IS #378), and, while
+that never reaches the app, or a password login's if the admin's password leaked (README's
+step 5 makes it long and random, stored nowhere, IS #378), is still a valid `aal1` session
+at Auth, so it can call Auth and the Data API directly (#7's own-row read through the Data
+API; `updateUser` at Auth, which secure password change and, hosted, "Require current
+password" bound for a guessed code's session, but not for a password login's, which is new
+and knows the password, IS #378), and, while
 the one factor slot is free (between #13's factor deletion and its re-enroll), enroll a
 factor at Auth itself. On Free nothing ends it but a logout of every session (#5) or #13's
 recovery; the time-box sees only sessions that reach the app (#4). TOTP stands between it
@@ -509,7 +511,8 @@ link. The test fixtures sign in through the PKCE link, read from Mailpit as
 `auth-routes.test.ts` does, not `generate_link` + `verifyOtp` (#9, step 5a), with two
 cautions for #381: a second link to the same user within `max_frequency` (1 s locally) is
 refused, so a fixture waits it out; and Mailpit keeps every earlier mail, so a fixture reads
-the mail sent after its own request, not the newest one already there. Each sign-in is
+the mail sent after its own request that holds a login link, not the newest one already
+there (the password-changed email, on locally since IS #378, lands there too). Each sign-in is
 then a Mailpit round trip, so `helpers.ts`'s rule of one sign-in per file or describe keeps
 the sequential integration suite's time down.
 

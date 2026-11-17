@@ -354,8 +354,8 @@ admin is created by hand, and again after each `npx supabase db reset`:
 
 1. In Studio ([http://127.0.0.1:54323](http://127.0.0.1:54323)), Authentication →
    Users → Add user → Create new user, with your email, a long random password, and "Auto
-   Confirm User" on. You never need the password (the login is a link, and a recovery
-   replaces it with the service role), but the user must have one: on a hosted project,
+   Confirm User" on. Store the password nowhere: you never need it (the login is a link, and
+   a recovery replaces it with the service role), but the user must have one: on a hosted project,
    "Require current password when updating" asks for it before a password change
    (`CLAUDE.md`, "Supabase").
 2. In Studio's SQL Editor:
