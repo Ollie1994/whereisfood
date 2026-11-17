@@ -15,9 +15,10 @@ import { NextResponse } from "next/server";
 // `X-Forwarded-Host`: a POST to `/auth/logout` with `Origin: https://evil.example` and
 // `X-Forwarded-Host: evil.example` was refused 403, and one with the deploy's own `Origin`
 // and `X-Forwarded-Host: evil.example` answered 303 (IS #377). It replaced a client's
-// `X-Forwarded-Proto: http` too: with it, an `http://` `Origin` was refused 403 and the
-// `https://` one answered 303. The production domain, which doesn't exist yet, wasn't
-// probed. Redirects still don't use it: `redirectTo` below.
+// `X-Forwarded-Proto: http` too: the same POST with it and an `http://` `Origin` was
+// refused 403, and with the `https://` one answered 303. The production domain, which
+// doesn't exist yet, wasn't probed. Redirects still don't use `requestOrigin`:
+// `redirectTo` below.
 
 type HeaderSource = { headers: Headers };
 

@@ -98,7 +98,8 @@ checked against a written checklist.
 **Config and tests:**
 - `supabase/config.toml`: `[auth.mfa.totp]` enroll and verify on, `max_enrolled_factors = 1`
   (#13), `secure_password_change = true`, the password-changed notification, the
-  factor-enrolled and factor-unenrolled notifications (#13, step 5a), and whatever step 8 chooses
+  factor-enrolled and factor-unenrolled notifications (#13, step 5a), `otp_length` if step
+  5d's code ships (one length with the preview, open decision 3), and whatever step 8 chooses
   (rate limits, CAPTCHA).
 - New: a TOTP helper for the integration tests (#9), `tests/integration/helpers.ts` (the
   fixtures sign in by the email code, not a password, and the admin login reaches `aal2`),
@@ -265,7 +266,9 @@ before the closing steps (#12).
     and Part 1's "Ändra" until it ends). It rewrites Part 2's "Admin and auth" (MFA, the
     code, the time-box, logout), "Pre-deploy automation" (the 2FA audit's result, which the
     IS #278 (Phase 9) row names and `CLAUDE.md`'s "Secrets" points to), the Phase map's
-    Phase 9 row, Part 1 where it describes the login, and the README's status parts. It
+    Phase 9 row, Part 1 where it describes the login, and the README's status parts; in the
+    Phase 9 row, "Admin and auth" and the "Phase 7 open decisions 1–5" row, "6-digit" becomes
+    the length step 5d set, or goes if the link stays (IS #377). It
     carries forward the decisions that outlive the phase (#4–#11 and #13 at least), leaves
     the IS #278 (Phase 10) and IS #373 (Phase 10) and (Phase 11) markers as they are, and
     sets `CLAUDE.md`'s bold line to none, naming this plan as the last one.
@@ -463,6 +466,8 @@ Step 5a probes the swap from a second `aal2` session.
   with a forged `aal2` claim fails).
 - [ ] An `aal1` session may enroll only while the user has no verified factor (test).
 - [ ] The login runs email → emailed code → TOTP (enroll the first time) → `/admin`.
+- [ ] If the emailed code ships, `config.toml`'s `otp_length` and the preview's are the same
+  (the preview's read by the owner, dated, on step 5d's issue).
 - [ ] A session whose first factor isn't the email code (a password login) is refused, and
   the test fixtures sign in by the email code (tests).
 - [ ] A session past the time-box is refused and signed out at Auth, that session only
@@ -497,8 +502,11 @@ Step 5a probes the swap from a second `aal2` session.
    browser sees Auth's own answers. Step 1's inputs (IS #377): on the preview, the 31st
    wrong code in a burst got a 429, a client-set `sb-forwarded-for`, `X-Forwarded-For`,
    `X-Real-IP` or `CF-Connecting-IP` didn't reach a fresh bucket, and 25 wrong guesses
-   didn't spend the code; the preview's code is 8 digits and lasts 3600 s, so a burst of 30
-   and 0.1 a second gives about 390 guesses per IP per code, 1 in 256,000; the email budget
+   didn't spend the code. Computed from those, the dashboard's `token_verifications` 30 and
+   GoTrue's refill (`apilimiter.go`), not observed past 25 guesses: a burst of 30 and 0.1 a
+   second over the code's 3600 s is about 390 guesses per IP per code, 1 in 256,000 at the
+   preview's 8 digits, 1 in 2,600 at `config.toml`'s 6; step 8 reads it at step 5d's length.
+   The email budget
    is one per project (GoTrue's source; not
    probed on the preview, the owner's call); a forged-cookie flood through the app spends
    the server's bucket, which the login's code exchange shares, and shows the 503 page
@@ -506,7 +514,7 @@ Step 5a probes the swap from a second `aal2` session.
    the dashboard says that, on, it lets a client forward the end user's IP "for rate
    limiting when using secret API keys" (IS #377). The proxy's refreshes go through
    `createSessionClient`, with the anon key, so it covers the flood only if they carried a
-   secret key, which `CLAUDE.md` keeps to the db layer.
+   secret API key, which the session client doesn't hold.
 2. **The time-box's length (step 6).** Leaning 12 hours. Its source is settled: the `amr`
    claim's first-factor timestamp (#4, IS #377).
 3. **The magic link (step 5d):** kept beside the emailed code, or the code only. Step 1

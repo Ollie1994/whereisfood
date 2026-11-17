@@ -405,8 +405,7 @@ export async function createFixtureUser(truckId: string | null = null): Promise<
 //
 // ⚠ EACH CALL IS ONE SIGN-IN. `config.toml`'s `[auth.rate_limit]` doesn't bind it: the
 // local stack enforces none of Auth's per-IP limits, and 40 password sign-ins in a row all
-// signed in (IS #377). Call it once per file or describe, not per test: a rule kept by the
-// owner's call (PR #395), though its recorded reason, a local sign-in limit, didn't hold.
+// signed in (IS #377). Call it once per file or describe, not per test.
 export async function signedInClient({ usersRow = true } = {}): Promise<{
   client: SupabaseClient<Database>;
   userId: string;
