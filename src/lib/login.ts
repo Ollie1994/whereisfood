@@ -114,8 +114,8 @@ export const LOGOUT_LABEL = "Logga ut";
 // The TOTP step's states (`useMfa`; Phase 9 plan step 5c). `preparing`: the enroll step's
 // enroll is under way (the code step starts `ready`, with the factor the page read);
 // `unprepared`: the enroll failed, so there is nothing to verify; `replaced`: the factor is
-// gone, replaced by another visit to the enroll step, so the key shown is dead and a reload
-// shows the newest; `expired`: the `aal1`
+// gone (another visit to the enroll step replaced it, or it was deleted, Phase 9 plan #13's
+// recovery), so the key shown is dead and a reload starts the step again; `expired`: the `aal1`
 // session is gone (`isInvalidSession`), so only a new login helps.
 export type MfaStatus =
   | "preparing"
@@ -172,7 +172,7 @@ export function mfaMessage(status: MfaStatus): string | null {
     case "failed":
       return "Det gick inte att kontrollera koden just nu. Försök igen om en stund.";
     case "replaced":
-      return "Nyckeln gäller inte längre: sidan har öppnats igen, här eller i en annan flik. Ladda om sidan och lägg till den nya nyckeln i appen.";
+      return "Nyckeln gäller inte längre, till exempel för att sidan har öppnats igen i en annan flik. Ladda om sidan.";
     case "expired":
       return "Inloggningen har gått ut. Logga in igen.";
     case "verified":
