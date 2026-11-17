@@ -23,7 +23,7 @@ password, cancelling history, outliving logout) are closed or recorded.
 ## Goal
 
 The running app and its accounts are hardened before production: the admin login requires
-TOTP MFA (with #241's email code), sessions are bounded until Pro, every page sends security
+TOTP MFA (with #241's email code, if open decision 3 ships it), sessions are bounded until Pro, every page sends security
 headers (a strict CSP on `/admin`), the login-abuse and stolen-session risks are probed and
 settled, alerts exist where the free plans allow, and every account and hosted setting is
 checked against a written checklist.
@@ -212,7 +212,8 @@ before the closing steps (#12).
      factor-enrolled and factor-unenrolled notification emails, locally and on the preview
      (#13's detection; the owner, 2026-11-17, IS #377);
    - b. `requireAdmin` refuses below `aal2`, and admits only a session whose first factor is
-     the email code (#13); the enroll window; which paths an `aal1` session reaches and what
+     the email login (#13: `otp`, and `magiclink` until step 5d settles open decision 3);
+     the enroll window; which paths an `aal1` session reaches and what
      an admin route answers it (open decisions 5, 6, 11); the admin-auth test's on-disk
      route list gains the `aal1` case; `CLAUDE.md`'s "Admin routes" updated;
    - c. the enroll and code screens (the QR from a `data:` URL), phone-first and Swedish; if
@@ -251,7 +252,8 @@ before the closing steps (#12).
     (`db advisors --linked`).
 13. **The 2FA audit** (Q12): every account that exists then and each one's recovery email,
     the admin's login mailbox named, recovery codes offline. No secret is recorded.
-14. **The phone checkpoint** on `dev`'s preview: the email code, the TOTP enroll and code,
+14. **The phone checkpoint** on `dev`'s preview: the email login (the code, or the link if
+    open decision 3 keeps only it), the TOTP enroll and code,
     `/admin`, an entry reaching `/map`, logout ending the other device's session, and no
     CSP block in the browser's console.
 15. **The Phase 9 retrospective** (`.claude/process-log.md`, "How to use it"): its range
@@ -268,7 +270,7 @@ before the closing steps (#12).
     IS #278 (Phase 9) row names and `CLAUDE.md`'s "Secrets" points to), the Phase map's
     Phase 9 row, Part 1 where it describes the login, and the README's status parts; in the
     Phase 9 row, "Admin and auth" and the "Phase 7 open decisions 1–5" row, "6-digit" becomes
-    the length step 5d set, or goes if the link stays (IS #377). It
+    the length step 5d set, or goes if the code doesn't ship (IS #377). It
     carries forward the decisions that outlive the phase (#4–#11 and #13 at least), leaves
     the IS #278 (Phase 10) and IS #373 (Phase 10) and (Phase 11) markers as they are, and
     sets `CLAUDE.md`'s bold line to none, naming this plan as the last one.
@@ -425,7 +427,10 @@ approval; an allowlist since round 4): the admin signs in only by the email code
 session whose first factor is anything else (a password, a later OAuth link) is refused. A
 password the thief sets then gets them nothing in the app: getting back in needs the email
 code, so the mailbox too, which secure email change (both addresses confirm, step 12's
-checklist) keeps the thief from moving to their own. The swap stays possible as sabotage
+checklist) keeps the thief from moving to their own. The email login's `amr` methods are
+`magiclink` for today's link and `otp` for #241's code (IS #377): the allowlist holds `otp`,
+which the fixtures use, and `magiclink` too until step 5d settles open decision 3, or `dev`
+locks the admin out (#382's body); both need the mailbox. The swap stays possible as sabotage
 (locking the admin out), not as a way in; recorded as a limit. What else holds:
 - **preventing the theft:** the CSP (#6 states its limit), the time-box (#4), logout ending
   every session (#5);
@@ -465,10 +470,11 @@ Step 5a probes the swap from a second `aal2` session.
   the routes on disk); an `aal2` admin passes; `aal` is read from a verified token (a test
   with a forged `aal2` claim fails).
 - [ ] An `aal1` session may enroll only while the user has no verified factor (test).
-- [ ] The login runs email → emailed code → TOTP (enroll the first time) → `/admin`.
+- [ ] The login runs email → emailed code (or the link, if open decision 3 keeps only it) →
+  TOTP (enroll the first time) → `/admin`.
 - [ ] If the emailed code ships, `config.toml`'s `otp_length` and the preview's are the same
   (the preview's read by the owner, dated, on step 5d's issue).
-- [ ] A session whose first factor isn't the email code (a password login) is refused, and
+- [ ] A session whose first factor isn't the email login (a password login) is refused, and
   the test fixtures sign in by the email code (tests).
 - [ ] A session past the time-box is refused and signed out at Auth, that session only
   (test).
@@ -505,7 +511,9 @@ Step 5a probes the swap from a second `aal2` session.
    didn't spend the code. Computed from those, the dashboard's `token_verifications` 30 and
    GoTrue's refill (`apilimiter.go`), not observed past 25 guesses: a burst of 30 and 0.1 a
    second over the code's 3600 s is about 390 guesses per IP per code, 1 in 256,000 at the
-   preview's 8 digits, 1 in 2,600 at `config.toml`'s 6; step 8 reads it at step 5d's length.
+   preview's 8 digits, 1 in 2,600 at `config.toml`'s 6, per IP: the limit is per IP and a
+   wrong guess doesn't spend the code, so N addresses multiply it (about 2,600 cover a
+   6-digit code within its hour); step 8 reads it at step 5d's length.
    The email budget
    is one per project (GoTrue's source; not
    probed on the preview, the owner's call); a forged-cookie flood through the app spends
@@ -515,8 +523,9 @@ Step 5a probes the swap from a second `aal2` session.
    limiting when using secret API keys" (IS #377). The proxy's refreshes go through
    `createSessionClient`, with the anon key, so it covers the flood only if they carried a
    secret API key, which the session client doesn't hold.
-2. **The time-box's length (step 6).** Leaning 12 hours. Its source is settled: the `amr`
-   claim's first-factor timestamp (#4, IS #377).
+2. **The time-box's length (step 6).** Leaning 12 hours. Its source: the `amr` claim's
+   first-factor timestamp (#4, IS #377), unless step 5a's probe shows a TOTP verify changes
+   that entry.
 3. **The magic link (step 5d):** kept beside the emailed code, or the code only. Step 1
    (IS #377): the preview's dashboard says "Set up custom SMTP to edit templates. Emails
    will be sent using the default templates.", custom SMTP is off there, and the local

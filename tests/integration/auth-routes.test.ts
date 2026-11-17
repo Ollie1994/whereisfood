@@ -21,7 +21,8 @@ import {
 // Each `sessionUser`/`sessionFor` is a sign-in (`helpers.ts`, `signedInClient`), and the
 // file also asks for a link three times (`signInWithOtp`). `config.toml`'s
 // `sign_in_sign_ups` doesn't bind them: the local stack enforces none of Auth's per-IP
-// limits (IS #377).
+// limits. Nor does its `email_sent = 2`: the CLI starts Auth with
+// `GOTRUE_RATE_LIMIT_EMAIL_SENT=360000` (IS #377).
 
 const ORIGIN = "http://127.0.0.1:3000";
 // Mailpit, the local stack's mail catcher: `supabase/config.toml`, `[local_smtp]`'s port.

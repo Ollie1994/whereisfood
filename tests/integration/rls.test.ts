@@ -25,8 +25,9 @@ import {
 // (probed on the local stack's Postgres 17.6, 2026-10-18 and 2026-10-23). If an upgrade
 // drops the hint, these cases fail rather than pass (open decision 4).
 //
-// No `resetTables()` between cases: the fixtures below are made once, and `resetTables()`
-// removes fixture users (`removeFixtureUsers`), so a reset between cases would delete them.
+// No `resetTables()` between cases: the fixtures below are made once, in `beforeAll`, as
+// `helpers.ts` asks of `signedInClient()`, and `resetTables()` removes fixture users
+// (`removeFixtureUsers`), so a reset between cases would delete them.
 // `setup.ts`'s `afterAll` removes them after the file.
 
 type Table = keyof Database["public"]["Tables"];
