@@ -223,7 +223,7 @@ describe("POST /api/admin/locations/[id]/cancel", () => {
     const stored = await readLocation(seeded.id);
     expect(Date.parse(stored.cancelled_at!)).toBeGreaterThanOrEqual(before);
     expect(Date.parse(stored.cancelled_at!)).toBeLessThanOrEqual(after);
-    // The `updated_at` trigger moves it on every update (#18).
+    // The `updated_at` trigger moves it on this update too (#18).
     expect({ ...stored, cancelled_at: null, updated_at: seeded.updated_at }).toEqual(seeded);
   });
 
