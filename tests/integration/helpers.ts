@@ -418,7 +418,7 @@ const LINK_INTERVAL_MS = 1_100;
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // The ids of the mails Mailpit holds for `email`, newest first.
-export async function mailIds(email: string): Promise<string[]> {
+async function mailIds(email: string): Promise<string[]> {
   const search = await fetch(`${MAILPIT}/api/v1/search?query=${encodeURIComponent(`to:"${email}"`)}`);
   if (!search.ok) throw new Error(`mailIds: Mailpit answered ${search.status}`);
   const { messages } = (await search.json()) as { messages: { ID: string }[] };
@@ -427,15 +427,20 @@ export async function mailIds(email: string): Promise<string[]> {
 
 // The sign-in link of the first mail to `email` that isn't in `before` and holds one.
 // Mailpit keeps every earlier mail, and the password-changed and factor emails land there
-// too, so neither the newest mail nor any mail will do (Phase 9 plan #14).
-// It gives up after about 5 s, inside vitest's 10 s hook timeout, so its own error shows.
-export async function newLink(email: string, before: ReadonlySet<string>): Promise<string> {
-  for (let attempt = 0; attempt < 20; attempt++) {
+// too, so neither the newest mail nor any mail will do (Phase 9 plan #14). A mail read once
+// and holding no link isn't fetched again. It polls for 10 s by the clock, fetches
+// included; a hook that chains several sign-ins can reach vitest's 10 s hook timeout first,
+// whose error names no address.
+async function newLink(email: string, before: ReadonlySet<string>): Promise<string> {
+  const checked = new Set(before);
+  const deadline = Date.now() + 10_000;
+  while (Date.now() < deadline) {
     for (const id of await mailIds(email)) {
-      if (before.has(id)) continue;
+      if (checked.has(id)) continue;
       const message = (await (await fetch(`${MAILPIT}/api/v1/message/${id}`)).json()) as { HTML?: string; Text?: string };
       const link = String(message.HTML ?? message.Text).match(/https?:\/\/[^"'\s<>]+\/verify\?[^"'\s<>]+/);
       if (link) return link[0].replaceAll("&amp;", "&");
+      checked.add(id);
     }
     await sleep(250);
   }
@@ -445,15 +450,15 @@ export async function newLink(email: string, before: ReadonlySet<string>): Promi
 // Asks Auth for a magic link to `email` on `client` (`signInWithOtp`, the PKCE flow on a
 // PKCE client, which keeps the verifier) and returns the link from the mail it sent. Waits
 // out `max_frequency` since this file's last request to the same address, and records this
-// one. `redirectTo` is where the link sends the browser, the app's callback by default.
-export async function requestLink(client: SupabaseClient<Database>, email: string, redirectTo = CALLBACK): Promise<string> {
+// one. The link sends the browser to the app's callback (`CALLBACK`).
+export async function requestLink(client: SupabaseClient<Database>, email: string): Promise<string> {
   const wait = (lastLinkRequest.get(email) ?? 0) + LINK_INTERVAL_MS - Date.now();
   if (wait > 0) await sleep(wait);
   const before = new Set(await mailIds(email));
 
   const { error } = await client.auth.signInWithOtp({
     email,
-    options: { shouldCreateUser: false, emailRedirectTo: redirectTo },
+    options: { shouldCreateUser: false, emailRedirectTo: CALLBACK },
   });
   lastLinkRequest.set(email, Date.now());
   if (error) throw error;
@@ -579,12 +584,9 @@ export async function sessionFor(
   { aal2 = false } = {},
 ): Promise<{ jar: Map<string, string>; accessToken: string }> {
   const { jar, client, accessToken: signedIn } = await signIn(userId);
-  let accessToken = signedIn;
-  if (aal2) {
-    const factor = factors.get(userId);
-    if (!factor) throw new Error("sessionFor: no factor for this user; make it with sessionUser({ aal2: true })");
-    accessToken = await verifyFactor(client, factor);
-  }
+  const factor = factors.get(userId);
+  if (aal2 && !factor) throw new Error("sessionFor: no factor for this user; make it with sessionUser({ aal2: true })");
+  const accessToken = aal2 && factor ? await verifyFactor(client, factor) : signedIn;
   return { jar, accessToken };
 }
 

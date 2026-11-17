@@ -19,9 +19,10 @@ import {
 } from "./helpers";
 
 // `/auth/callback` and `/auth/logout` against the local stack (Phase 7 plan, step 2).
-// Each `sessionUser`/`sessionFor` is a magic-link sign-in, and the file also asks for a
-// link itself, once through `requestLink` and twice for an address with no account; why no
-// Auth limit binds them is `helpers.ts`'s `signInByLink`.
+// Each `sessionUser`/`sessionFor` is a magic-link sign-in, and the file also asks Auth
+// itself: a link once through `requestLink`, a link twice for an address with no account,
+// and a password sign-up once; why no Auth limit binds them is `helpers.ts`'s
+// `signInByLink`.
 
 const ORIGIN = "http://127.0.0.1:3000";
 const SESSION_COOKIE = /^sb-[^=]+-auth-token(\.\d+)?$/;
@@ -85,7 +86,7 @@ describe("GET /auth/callback", () => {
   beforeAll(async () => {
     userId = await createFixtureAuthUser();
     verifierJar = new Map();
-    const link = await requestLink(jarClient(verifierJar), fixtureEmail(userId), `${ORIGIN}/auth/callback`);
+    const link = await requestLink(jarClient(verifierJar), fixtureEmail(userId));
     const verify = await fetch(link, { redirect: "manual" });
     const location = new URL(verify.headers.get("location") ?? "");
     expect(`${location.origin}${location.pathname}`).toBe(`${ORIGIN}/auth/callback`);
