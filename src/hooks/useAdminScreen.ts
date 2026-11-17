@@ -37,7 +37,9 @@ export function useAdminScreen() {
   });
   // A limit: a refused "Stämmer fortfarande" or "Ställ in" reloads the list alone. Its 404 is
   // an entry cancelled elsewhere, which the checklist sees on its next read: a save, a
-  // cancel, a ✓ or the day turning.
+  // cancel, a ✓ or the day turning. Its 400 is an entry that had ended (Phase 9 plan #8):
+  // the refusal wrote nothing (`api-admin-locations.test.ts` reads the row back unchanged),
+  // so it gives the checklist nothing new; an edit elsewhere is seen as the 404's is.
   const checklist = useChecklist({
     revision: form.saves + list.cancels,
     now: list.now,

@@ -211,6 +211,33 @@ describe("POST /api/admin/locations/[id]/cancel", () => {
     expect((await readLocation(id)).cancelled_at).toBe(cancelledAt);
   });
 
+  // Phase 9 plan #8: an entry that has started and not ended is still cancelled.
+  it("cancels a running entry at the request's now, changing nothing else", async () => {
+    const seeded = await seedLocation(truckId, window(-HOUR));
+
+    const before = Date.now();
+    const response = await call(CANCEL, "POST", seeded.id);
+    const after = Date.now();
+
+    expect(response.status).toBe(200);
+    const stored = await readLocation(seeded.id);
+    expect(Date.parse(stored.cancelled_at!)).toBeGreaterThanOrEqual(before);
+    expect(Date.parse(stored.cancelled_at!)).toBeLessThanOrEqual(after);
+    // The `updated_at` trigger moves it on this update too (#18).
+    expect({ ...stored, cancelled_at: null, updated_at: seeded.updated_at }).toEqual(seeded);
+  });
+
+  // Phase 9 plan #8: past history can't be cancelled.
+  it("refuses an entry that has ended with 400 and leaves it", async () => {
+    const seeded = await seedLocation(truckId, window(-DAY));
+
+    const response = await call(CANCEL, "POST", seeded.id);
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "Posten har redan slutat och kan inte ändras" });
+    expect(await readLocation(seeded.id)).toEqual(seeded);
+  });
+
   it("answers a malformed id with 400", async () => {
     const response = await call(CANCEL, "POST", "nope");
 
@@ -237,6 +264,27 @@ describe("POST /api/admin/locations/[id]/confirm", () => {
     const response = await call(CONFIRM, "POST", seeded.id);
 
     expect(response.status).toBe(404);
+    expect(await readLocation(seeded.id)).toEqual(seeded);
+  });
+
+  // Phase 9 plan #8: started and not ended, so still confirmed.
+  it("confirms a running entry", async () => {
+    const seeded = await seedLocation(truckId, window(-HOUR));
+
+    const response = await call(CONFIRM, "POST", seeded.id);
+
+    expect(response.status).toBe(200);
+    expect(Date.parse((await readLocation(seeded.id)).updated_at)).toBeGreaterThan(Date.parse(seeded.updated_at));
+  });
+
+  // Phase 9 plan #8.
+  it("refuses an entry that has ended with 400 and leaves it", async () => {
+    const seeded = await seedLocation(truckId, window(-DAY));
+
+    const response = await call(CONFIRM, "POST", seeded.id);
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "Posten har redan slutat och kan inte ändras" });
     expect(await readLocation(seeded.id)).toEqual(seeded);
   });
 

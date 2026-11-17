@@ -70,8 +70,7 @@ export async function insertLocation(location: NewLocation): Promise<Location> {
   return data;
 }
 
-// Update a row that isn't cancelled and return it; null when no such row. The one path
-// for both edits and cancels, so the live-row filter and the select are written once.
+// Update a row that isn't cancelled and return it; null when no such row. The edits' path.
 async function updateLiveRow(
   id: string,
   values: TablesUpdate<"locations">,
@@ -81,6 +80,27 @@ async function updateLiveRow(
     .update(values)
     .eq("id", id)
     .is("cancelled_at", null)
+    .select(LOCATION_COLUMNS)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
+// As `updateLiveRow`, and only while the row's `ends_at` is after `at`, in the same
+// statement, so no write lands between a check and the update. Cancel's and confirm's path:
+// Phase 9 plan #8 keeps this filter out of `updateLiveRow`, which edits use (IS #380).
+async function updateUnendedRow(
+  id: string,
+  values: TablesUpdate<"locations">,
+  at: string,
+): Promise<Location | null> {
+  const { data, error } = await supabaseAdmin
+    .from("locations")
+    .update(values)
+    .eq("id", id)
+    .is("cancelled_at", null)
+    .gt("ends_at", at)
     .select(LOCATION_COLUMNS)
     .maybeSingle();
 
@@ -107,17 +127,20 @@ export async function updateLocation(
   return updateLiveRow(id, picked);
 }
 
-// Cancel a live row: set `cancelled_at` where it is still null. Null when the row is
-// missing or already cancelled, so a second cancel can't move the first's timestamp.
+// Cancel a live row that hasn't ended: set `cancelled_at` where it is still null and
+// `ends_at` is after `cancelledAt`. Null when the row is missing, already cancelled or
+// ended, so a second cancel can't move the first's timestamp and past history can't be
+// cancelled (Phase 9 plan #8). The caller tells those apart.
 export async function cancelLocation(
   id: string,
   cancelledAt: string,
 ): Promise<Location | null> {
-  return updateLiveRow(id, { cancelled_at: cancelledAt });
+  return updateUnendedRow(id, { cancelled_at: cancelledAt }, cancelledAt);
 }
 
 // The row when it isn't cancelled; null for an unknown id or a cancelled row, the same
-// rows `updateLiveRow` finds.
+// rows `updateLiveRow` finds. It finds an ended row, which `updateUnendedRow` skips: the
+// service tells ended from missing by that difference (Phase 9 plan #8).
 export async function getLocationById(id: string): Promise<Location | null> {
   const { data, error } = await supabaseAdmin
     .from("locations")
@@ -133,12 +156,13 @@ export async function getLocationById(id: string): Promise<Location | null> {
 // "Stämmer fortfarande" on a live row: an UPDATE that writes only `updated_at`, and the
 // `locations_updated_at` trigger then stores its own `now()`, not `confirmedAt` (Phase 7
 // plan, #18; `db-locations.test.ts` writes 2000-01-01 and reads back the transaction's
-// time). Null when the row is missing or cancelled.
+// time). Null when the row is missing, cancelled, or ended at `confirmedAt` (its `ends_at`
+// not after it; Phase 9 plan #8). The caller tells those apart.
 export async function confirmLocation(
   id: string,
   confirmedAt: string,
 ): Promise<Location | null> {
-  return updateLiveRow(id, { updated_at: confirmedAt });
+  return updateUnendedRow(id, { updated_at: confirmedAt }, confirmedAt);
 }
 
 // Live rows of every truck overlapping [from, to): `starts_at < to AND ends_at > from`.

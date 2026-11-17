@@ -186,7 +186,7 @@ describe("updateLocation", () => {
 
 describe("cancelLocation", () => {
   it("sets cancelled_at to the caller's timestamp and returns the row", async () => {
-    const { id } = await seedLocation(truckId);
+    const { id } = await seedLocation(truckId, { starts_at: LUNCH_START, ends_at: LUNCH_END });
 
     const cancelled = await cancelLocation(id, "2026-08-22T08:00:00.000Z");
 
@@ -196,7 +196,7 @@ describe("cancelLocation", () => {
   });
 
   it("returns null for an already-cancelled row and keeps the first timestamp", async () => {
-    const { id } = await seedLocation(truckId);
+    const { id } = await seedLocation(truckId, { starts_at: LUNCH_START, ends_at: LUNCH_END });
     await cancelLocation(id, "2026-08-22T08:00:00.000Z");
 
     expect(await cancelLocation(id, "2026-08-22T10:00:00.000Z")).toBeNull();
@@ -207,6 +207,15 @@ describe("cancelLocation", () => {
 
   it("returns null for an unknown id", async () => {
     expect(await cancelLocation(randomUUID(), "2026-08-22T08:00:00.000Z")).toBeNull();
+  });
+
+  // Phase 9 plan #8: `ends_at` must be after the instant.
+  it("returns null for a row that has ended at the instant, writing nothing, and cancels it a millisecond before", async () => {
+    const seeded = await seedLocation(truckId, { starts_at: LUNCH_START, ends_at: LUNCH_END });
+
+    expect(await cancelLocation(seeded.id, LUNCH_END)).toBeNull();
+    expect(await readLocation(seeded.id)).toEqual(seeded);
+    expect((await cancelLocation(seeded.id, "2026-08-22T11:59:59.999Z"))?.id).toBe(seeded.id);
   });
 });
 
@@ -247,11 +256,25 @@ describe("confirmLocation", () => {
   });
 
   it("returns null for a cancelled row, leaving updated_at, and for an unknown id", async () => {
-    const seeded = await seedLocation(truckId, { cancelled_at: "2026-08-21T08:00:00.000Z" });
+    // A window that hasn't ended at the instant, so only `cancelled_at` keeps the row out.
+    const seeded = await seedLocation(truckId, {
+      starts_at: LUNCH_START,
+      ends_at: LUNCH_END,
+      cancelled_at: "2026-08-21T08:00:00.000Z",
+    });
 
     expect(await confirmLocation(seeded.id, "2026-08-22T08:00:00.000Z")).toBeNull();
     expect((await readLocation(seeded.id)).updated_at).toBe(seeded.updated_at);
     expect(await confirmLocation(randomUUID(), "2026-08-22T08:00:00.000Z")).toBeNull();
+  });
+
+  // Phase 9 plan #8, as `cancelLocation`'s.
+  it("returns null for a row that has ended at the instant, leaving updated_at, and confirms it a millisecond before", async () => {
+    const seeded = await seedLocation(truckId, { starts_at: LUNCH_START, ends_at: LUNCH_END });
+
+    expect(await confirmLocation(seeded.id, LUNCH_END)).toBeNull();
+    expect(await readLocation(seeded.id)).toEqual(seeded);
+    expect((await confirmLocation(seeded.id, "2026-08-22T11:59:59.999Z"))?.id).toBe(seeded.id);
   });
 });
 

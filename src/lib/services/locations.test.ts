@@ -357,15 +357,39 @@ describe("editEntry", () => {
   });
 });
 
-describe("cancelEntry and confirmEntry", () => {
-  it("pass the id and now to the db layer, and its null through", async () => {
-    db.cancelLocation.mockResolvedValue(null);
-    db.confirmLocation.mockResolvedValue(row());
+// Phase 9 plan #8 (IS #380). The db write's filter is `db-locations.test.ts`'s; here, what
+// the service answers for each thing the write and the read can return.
+describe.each([
+  ["cancelEntry", cancelEntry, db.cancelLocation],
+  ["confirmEntry", confirmEntry, db.confirmLocation],
+] as const)("%s", (_, act, write) => {
+  it("passes the id and now to the db layer, and returns the written entry", async () => {
+    write.mockResolvedValue(row());
+    expect(await act(ID, NOW)).toEqual({ ok: true, entry: row() });
+    expect(write).toHaveBeenCalledWith(ID, NOW.toISOString());
+    expect(db.getLocationById).not.toHaveBeenCalled();
+  });
 
-    expect(await cancelEntry(ID, NOW)).toBeNull();
-    expect(await confirmEntry(ID, NOW)).toEqual(row());
-    expect(db.cancelLocation).toHaveBeenCalledWith(ID, NOW.toISOString());
-    expect(db.confirmLocation).toHaveBeenCalledWith(ID, NOW.toISOString());
+  it("answers an entry the write skipped but the read finds as ended", async () => {
+    write.mockResolvedValue(null);
+    // Ended before NOW (08:00), as a row the write skipped is.
+    db.getLocationById.mockResolvedValue(row({ starts_at: "2026-08-22T06:00:00+00:00", ends_at: "2026-08-22T07:00:00+00:00" }));
+    expect(await act(ID, NOW)).toEqual({ ok: false, reason: "invalid", error: ENTRY_ERRORS.endedEdit });
+    expect(db.getLocationById).toHaveBeenCalledWith(ID);
+  });
+
+  // `writeUnlessEnded`'s stated limit, pinned so a change to it is seen: the read's `ends_at`
+  // isn't checked, so a row an edit moved past NOW after the write is answered as ended too.
+  it("answers a row the read finds running as ended too, the race it states", async () => {
+    write.mockResolvedValue(null);
+    db.getLocationById.mockResolvedValue(row());
+    expect(await act(ID, NOW)).toEqual({ ok: false, reason: "invalid", error: ENTRY_ERRORS.endedEdit });
+  });
+
+  it("answers a missing or cancelled entry as not found", async () => {
+    write.mockResolvedValue(null);
+    db.getLocationById.mockResolvedValue(null);
+    expect(await act(ID, NOW)).toEqual({ ok: false, reason: "not-found", error: ENTRY_ERRORS.notFound });
   });
 });
 

@@ -3,10 +3,14 @@ import { UNKNOWN_PLACE, entryTimeText, updatedText } from "@/lib/admin-form";
 import { hasEnded } from "@/lib/admin-list";
 import type { AdminEntry } from "@/lib/services/locations";
 
-// Today's and the next 13 days' entries (plan #24), each with "Stämmer fortfarande" and
-// "Ställ in", and "Ändra" while it hasn't ended: #33 refuses an edit of one that has, so an
-// ended entry says so instead (`hasEnded`, the rule the route uses). `now` is the list's
-// clock, which moves each minute. Every button waits while the form saves (`locked`).
+// Today's and the next 13 days' entries (plan #24), each with "Ändra", "Stämmer fortfarande"
+// and "Ställ in" while it hasn't ended: the routes refuse all three on one that has (Phase 7
+// plan #33; Phase 9 plan #8), so an ended entry says so and shows none (`hasEnded`: `ends_at`
+// at or before `now`, as the edit's check and the cancel and confirm write's filter have it).
+// `now` is the list's clock, which moves each minute. A limit: that is the device's clock,
+// and the routes judge by the server's, so a device ahead hides the buttons early and one
+// behind shows them past the end, each press answered 400 until it catches up. Every button
+// waits while the form saves (`locked`).
 export default function TodayList({
   entries,
   now,
@@ -43,19 +47,19 @@ export default function TodayList({
               </span>
               <span className="text-xs text-foreground/60">{updatedText(entry.updated_at, now)}</span>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {!ended && (
+            {!ended && (
+              <div className="flex flex-wrap gap-2">
                 <button type="button" onClick={() => onEdit(entry)} disabled={busy || locked} className={ACTION}>
                   Ändra
                 </button>
-              )}
-              <button type="button" onClick={() => onConfirm(entry)} disabled={busy || locked} className={ACTION}>
-                Stämmer fortfarande
-              </button>
-              <button type="button" onClick={() => onCancel(entry)} disabled={busy || locked} className={ACTION}>
-                Ställ in
-              </button>
-            </div>
+                <button type="button" onClick={() => onConfirm(entry)} disabled={busy || locked} className={ACTION}>
+                  Stämmer fortfarande
+                </button>
+                <button type="button" onClick={() => onCancel(entry)} disabled={busy || locked} className={ACTION}>
+                  Ställ in
+                </button>
+              </div>
+            )}
           </li>
         );
       })}
