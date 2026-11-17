@@ -3,7 +3,7 @@ import { globSync } from "node:fs";
 import { NextResponse, NextRequest } from "next/server";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { readJson, withAdmin } from "@/lib/http/admin";
-import { prepareFactor } from "@/lib/mfa";
+import { enrollFactor } from "@/lib/mfa";
 import { mfaStepAllowed, requireAdmin } from "@/lib/services/admin-auth";
 import { supabaseAdmin } from "@/lib/supabase";
 import { proxy } from "@/proxy";
@@ -220,6 +220,13 @@ describe("the first factor and the second", () => {
 
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual({ error: NO_SESSION });
+
+    // `getUser(token)`'s `AuthSessionMissingError` clears the session from storage, so the
+    // proxy's redirect deletes the cookies with no signOut of the app's.
+    const page = await proxy(get("/admin", cookieHeader(loggedOut.jar)));
+    expect(new URL(page.headers.get("location") ?? "").pathname).toBe("/admin/login");
+    const deleted = page.headers.getSetCookie().filter((line) => /^sb-.+-auth-token(\.\d+)?=;/.test(line));
+    expect(deleted.length).toBeGreaterThan(0);
   });
 
   // Read from the cookie, this would pass as `aal2`; Auth refuses the signature instead.
@@ -236,7 +243,7 @@ describe("the first factor and the second", () => {
   });
 
   it("gives an enrolled admin's aal1 session the code step, and Auth refuses it a second factor", async () => {
-    expect(await mfaStepAllowed(input(enrolledAal1.jar))).toEqual({ ok: true, step: "code" });
+    expect(await mfaStepAllowed(input(enrolledAal1.jar))).toEqual({ ok: true, step: "code", factorId: expect.any(String) });
 
     // Named: an unnamed one beside the fixture's unnamed factor is refused
     // `mfa_factor_name_conflict` first (local stack, the PR for IS #382).
@@ -261,7 +268,7 @@ describe("the first factor and the second", () => {
     expect(await mfaStepAllowed(input(fresh.jar))).toEqual({ ok: true, step: "enroll" });
     expect((await proxy(get("/admin/mfa", cookieHeader(fresh.jar)))).headers.get("x-middleware-next")).toBe("1");
 
-    const prepared = await prepareFactor(client.auth.mfa, "enroll");
+    const prepared = await enrollFactor(client.auth.mfa);
     expect(prepared?.qrCode).toMatch(/^data:image\/svg\+xml/);
     expect(prepared?.factorId).not.toBe(abandoned.data?.id);
     const { data: factors } = await client.auth.mfa.listFactors();
@@ -269,7 +276,7 @@ describe("the first factor and the second", () => {
 
     const { error } = await client.auth.mfa.challengeAndVerify({
       factorId: prepared!.factorId,
-      code: totp(prepared!.secret!, await authClock()),
+      code: totp(prepared!.secret, await authClock()),
     });
     expect(error).toBeNull();
     expect(await requireAdmin(input(fresh.jar))).toEqual({ ok: true, userId: fresh.userId });

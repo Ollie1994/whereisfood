@@ -20,7 +20,7 @@ export default async function MfaPage() {
     if (check.reason === "unavailable") {
       return (
         <>
-          <h1 className="text-2xl font-semibold">{MFA_TEXTS.codeTitle}</h1>
+          <h1 className="text-2xl font-semibold">{MFA_TEXTS.unavailableTitle}</h1>
           <p role="alert" className="text-sm text-foreground/70">{SESSION_CHECK_FAILED}</p>
         </>
       );
@@ -35,7 +35,7 @@ export default async function MfaPage() {
         <h1 className="text-2xl font-semibold">{enroll ? MFA_TEXTS.enrollTitle : MFA_TEXTS.codeTitle}</h1>
         <p className="text-sm text-foreground/70">{enroll ? MFA_TEXTS.enrollIntro : MFA_TEXTS.codeIntro}</p>
       </div>
-      <MfaForm step={check.step} />
+      <MfaForm step={check} />
     </>
   );
 }

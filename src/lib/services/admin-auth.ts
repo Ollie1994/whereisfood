@@ -23,16 +23,17 @@ type Refused = "no-session" | "not-admin" | "unavailable";
 export type AdminCheck = { ok: true; userId: string } | { ok: false; reason: Refused | "needs-mfa" };
 
 // What the MFA page shows an `aal1` admin: the enroll while the user has no verified factor
-// (the enroll window, plan step 5b), the code once one exists. `done`: already `aal2`.
-export type MfaStep = "enroll" | "code";
-export type MfaCheck = { ok: true; step: MfaStep } | { ok: false; reason: Refused | "done" };
+// (the enroll window, plan step 5b), the code once one exists, with that factor's id.
+// `done`: already `aal2`.
+export type MfaStep = { step: "enroll" } | { step: "code"; factorId: string };
+export type MfaCheck = ({ ok: true } & MfaStep) | { ok: false; reason: Refused | "done" };
 
 // The session client's `auth`, as far as this file uses it (supabase-js's
 // `SupabaseAuthClient` passes as it is).
 export type SessionAuth = {
   getSession(): Promise<{ data: { session: { access_token: string } | null }; error: unknown }>;
   getUser(jwt: string): Promise<{
-    data: { user: { id: string; factors?: readonly { status: string }[] } | null };
+    data: { user: { id: string; factors?: readonly { id: string; status: string }[] } | null };
     error: unknown;
   }>;
   signOut(options: { scope: "local" }): Promise<{ error: unknown }>;
@@ -120,21 +121,24 @@ async function endSession(auth: SessionAuth, why: string): Promise<void> {
   }
 }
 
-type Verified = { ok: true; userId: string; aal2: boolean; hasVerifiedFactor: boolean };
+// `verifiedFactorId`: the user's verified factor, if any. TOTP is the only factor type
+// `config.toml` turns on, and `max_enrolled_factors = 1` allows one.
+type Verified = { ok: true; userId: string; aal2: boolean; verifiedFactorId: string | null };
 
 // In this order, each step only when the one before passed (`project-context.md`, "Admin
-// and auth", with Phase 9 plan step 5b's first factor and `aal2`): a session cookie, with no network or DB call before it; the session's access
-// token (`getSession`, which refreshes an expiring one and writes the rotated cookies), then
-// `getUser(token)`, which asks Auth to verify that token, so a logged-out or forged one is
-// refused (open decision 11); the first factor, from that same token; then `is_admin`
-// through the db layer. An auth user with no `users` row is not an admin.
+// and auth", with Phase 9 plan step 5b's first factor and `aal2`): a session cookie, with
+// no network or DB call before it; the session's access token (`getSession`, which
+// refreshes an expiring one and writes the rotated cookies), then `getUser(token)`, which
+// asks Auth to verify that token, so a logged-out or forged one is refused (open decision
+// 11); the first factor, from that same token; then `is_admin` through the db layer. An
+// auth user with no `users` row is not an admin.
 async function verify({ cookieNames, auth }: { cookieNames: readonly string[]; auth: SessionAuth }): Promise<
   Verified | { ok: false; reason: Refused }
 > {
   if (!hasSessionCookie(cookieNames)) return { ok: false, reason: "no-session" };
 
   let token: string;
-  let user: { id: string; factors?: readonly { status: string }[] };
+  let user: { id: string; factors?: readonly { id: string; status: string }[] };
   try {
     const session = await auth.getSession();
     if (session.error) return { ok: false, reason: isInvalidSession(session.error) ? "no-session" : "unavailable" };
@@ -142,13 +146,7 @@ async function verify({ cookieNames, auth }: { cookieNames: readonly string[]; a
     token = session.data.session.access_token;
 
     const { data, error } = await auth.getUser(token);
-    if (error) {
-      if (!isInvalidSession(error)) return { ok: false, reason: "unavailable" };
-      // `getUser()` with no token clears a signed-out session from storage; with one it
-      // doesn't (auth-js 2.106.2, `_getUser`), so the signOut does, as before.
-      if (isAuthSessionMissingError(error)) await endSession(auth, "a session Auth no longer has");
-      return { ok: false, reason: "no-session" };
-    }
+    if (error) return { ok: false, reason: isInvalidSession(error) ? "no-session" : "unavailable" };
     if (!data.user) return { ok: false, reason: "no-session" };
     user = data.user;
   } catch (err) {
@@ -175,7 +173,7 @@ async function verify({ cookieNames, auth }: { cookieNames: readonly string[]; a
     ok: true,
     userId: user.id,
     aal2: claims?.aal === "aal2",
-    hasVerifiedFactor: (user.factors ?? []).some((factor) => factor.status === "verified"),
+    verifiedFactorId: user.factors?.find((factor) => factor.status === "verified")?.id ?? null,
   };
 }
 
@@ -195,5 +193,7 @@ export async function mfaStepAllowed(input: { cookieNames: readonly string[]; au
   const check = await verify(input);
   if (!check.ok) return check;
   if (check.aal2) return { ok: false, reason: "done" };
-  return { ok: true, step: check.hasVerifiedFactor ? "code" : "enroll" };
+  return check.verifiedFactorId
+    ? { ok: true, step: "code", factorId: check.verifiedFactorId }
+    : { ok: true, step: "enroll" };
 }

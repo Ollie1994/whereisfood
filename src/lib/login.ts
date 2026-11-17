@@ -1,4 +1,8 @@
-import { isAuthPKCECodeVerifierMissingError, isAuthRetryableFetchError } from "@supabase/supabase-js";
+import {
+  isAuthPKCECodeVerifierMissingError,
+  isAuthRetryableFetchError,
+  isAuthSessionMissingError,
+} from "@supabase/supabase-js";
 
 // The login form's states and their Swedish text, kept pure so they are tested without a
 // browser. `useLogin` runs the request; `LoginForm` renders what this returns.
@@ -110,7 +114,8 @@ export const LOGOUT_PATH = "/auth/logout";
 export const LOGOUT_LABEL = "Logga ut";
 
 // The TOTP step's states (`useMfa`; Phase 9 plan step 5c). `preparing`: the enroll or the
-// factor read is under way; `unprepared`: it failed, so there is nothing to verify.
+// factor read is under way; `unprepared`: it failed, so there is nothing to verify;
+// `expired`: the `aal1` session is gone, so only a new login helps.
 export type MfaStatus =
   | "preparing"
   | "unprepared"
@@ -119,12 +124,18 @@ export type MfaStatus =
   | "wrong-code"
   | "rate-limited"
   | "failed"
+  | "expired"
   | "verified";
 
 // What Auth answered to `challengeAndVerify`, reduced to a status. A wrong code: 422
 // `mfa_verification_failed`, "Invalid TOTP code entered" (local stack, the PR for IS #382).
+// A session that is gone: `AuthSessionMissingError`, which auth-js 2.106.2 answers with no
+// stored session (`_challenge`'s `_useSession`) and makes of Auth's `session_not_found`
+// (`lib/fetch.js`); a verify on another tab or device ends the user's `aal1` sessions (IS
+// #381's probe).
 export function mfaStatusFor(error: { status?: number; code?: string } | null): MfaStatus {
   if (!error) return "verified";
+  if (isAuthSessionMissingError(error)) return "expired";
   if (error.code === "mfa_verification_failed") return "wrong-code";
   if (error.status === 429) return "rate-limited";
   return "failed";
@@ -142,6 +153,8 @@ export function mfaMessage(status: MfaStatus): string | null {
       return "För många försök. Vänta en stund och försök igen.";
     case "failed":
       return "Det gick inte att kontrollera koden just nu. Försök igen om en stund.";
+    case "expired":
+      return "Inloggningen har gått ut. Logga in igen.";
     case "verified":
       return "Klart. Öppnar admin…";
     default:
@@ -164,6 +177,7 @@ export const MFA_TEXTS = {
   qrAlt: "QR-kod att skanna med autentiseringsappen",
   secretNote: "Går det inte att skanna? Lägg till kontot i appen med den här nyckeln:",
   codeTitle: "Ange kod",
+  unavailableTitle: "Tvåstegsverifiering",
   codeIntro: "Skriv in den sexsiffriga koden som autentiseringsappen visar för WhereIsFood.",
   codeLabel: "Kod",
   invalidCode: "Koden ska vara sex siffror.",

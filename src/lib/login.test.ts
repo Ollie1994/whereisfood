@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { AuthApiError, AuthPKCECodeVerifierMissingError, AuthRetryableFetchError } from "@supabase/supabase-js";
+import {
+  AuthApiError,
+  AuthPKCECodeVerifierMissingError,
+  AuthRetryableFetchError,
+  AuthSessionMissingError,
+} from "@supabase/supabase-js";
 import {
   callbackErrorFor,
   callbackErrorMessage,
@@ -130,6 +135,10 @@ describe("mfaStatusFor", () => {
     expect(mfaStatusFor({ status: 429, code: "over_request_rate_limit" })).toBe("rate-limited");
   });
 
+  it("is expired when the session is gone", () => {
+    expect(mfaStatusFor(new AuthSessionMissingError())).toBe("expired");
+  });
+
   it("is failed on any other error", () => {
     expect(mfaStatusFor({ status: 500, code: "unexpected_failure" })).toBe("failed");
     expect(mfaStatusFor({ status: 422, code: "mfa_challenge_expired" })).toBe("failed");
@@ -138,7 +147,7 @@ describe("mfaStatusFor", () => {
 });
 
 describe("mfaMessage", () => {
-  it.each<MfaStatus>(["preparing", "unprepared", "wrong-code", "rate-limited", "failed", "verified"])(
+  it.each<MfaStatus>(["preparing", "unprepared", "wrong-code", "rate-limited", "failed", "expired", "verified"])(
     "has Swedish text for %s",
     (status) => {
       expect(mfaMessage(status)).toEqual(expect.any(String));
@@ -150,7 +159,7 @@ describe("mfaMessage", () => {
   });
 
   it("gives every refusal its own text", () => {
-    const texts = (["unprepared", "wrong-code", "rate-limited", "failed"] as const).map(mfaMessage);
+    const texts = (["unprepared", "wrong-code", "rate-limited", "failed", "expired"] as const).map(mfaMessage);
     expect(new Set(texts).size).toBe(texts.length);
   });
 });

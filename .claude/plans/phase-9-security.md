@@ -656,9 +656,9 @@ the sequential integration suite's time down.
 11. ~~**How `requireAdmin` reads `aal` (step 5b).**~~ → **settled** (the owner, 2026-11-17,
     IS #382): the session's access token from `getSession()` (which refreshes an expiring
     one), then `getUser(token)`, which asks Auth to verify that token, then `aal` and `amr`
-    from the same token. `getUser(token)`, unlike `getUser()`, doesn't clear a signed-out
-    session from storage (auth-js 2.106.2's `_getUser`), so `requireAdmin` signs such a
-    session out locally to clear its cookies. What was weighed: `getClaims()` verifies an asymmetric token
+    from the same token. A signed-out session's `getUser(token)` still clears its cookies, as
+    `getUser()` did (auth-js 2.106.2's `_getUser`; the PR for IS #382's logged-out test).
+    What was weighed: `getClaims()` verifies an asymmetric token
     locally, so a logged-out token would pass until it expires; `getUser()` asks Auth, which
     refuses it, but returns no `aal`. Leaning: `getUser()`, then the `aal` claim of the token
     Auth just accepted, which keeps logout effective. Step 1 (IS #377): the preview signs

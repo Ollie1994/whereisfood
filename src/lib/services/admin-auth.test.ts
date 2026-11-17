@@ -8,6 +8,7 @@ const getUserById = vi.fn();
 vi.mock("@/lib/db/users", () => ({ getUserById: (id: string) => getUserById(id) }));
 
 const { hasSessionCookie, mfaStepAllowed, requireAdmin } = await import("@/lib/services/admin-auth");
+type SessionAuth = import("@/lib/services/admin-auth").SessionAuth;
 
 const ID = "00000000-0000-4000-8000-000000000001";
 const SESSION = ["sb-127-auth-token"];
@@ -22,12 +23,13 @@ const totp = { method: "totp", timestamp: 2 };
 const AAL1 = token({ aal: "aal1", amr: [link] });
 const AAL2 = token({ aal: "aal2", amr: [link, totp] });
 
-const verified = [{ status: "verified" }];
+const FACTOR = "00000000-0000-4000-8000-0000000000f1";
+const verified = [{ id: FACTOR, status: "verified" }];
 
 // The stubbed `auth`: `getSession` hands out `access`, `getUser` answers `user` (or `error`).
 function auth({
   access = AAL2,
-  user = { id: ID, factors: verified } as { id: string; factors?: { status: string }[] } | null,
+  user = { id: ID, factors: verified } as { id: string; factors?: { id: string; status: string }[] } | null,
   sessionError = null as unknown,
   userError = null as unknown,
 } = {}) {
@@ -35,8 +37,8 @@ function auth({
     getSession: vi.fn(() =>
       Promise.resolve({ data: { session: sessionError ? null : { access_token: access } }, error: sessionError }),
     ),
-    getUser: vi.fn((_jwt: string) => Promise.resolve({ data: { user: userError ? null : user }, error: userError })),
-    signOut: vi.fn((_options: { scope: "local" }) => Promise.resolve({ error: null as unknown })),
+    getUser: vi.fn<SessionAuth["getUser"]>(() => Promise.resolve({ data: { user: userError ? null : user }, error: userError })),
+    signOut: vi.fn<SessionAuth["signOut"]>(() => Promise.resolve({ error: null })),
   };
 }
 
@@ -173,23 +175,13 @@ describe("requireAdmin", () => {
     expect(getUserById).not.toHaveBeenCalled();
   });
 
-  it.each(invalid)("reads %s from getUser as no-session, without reading users", async (_, error) => {
-    expect(await requireAdmin({ cookieNames: SESSION, auth: auth({ userError: error }) })).toEqual({
-      ok: false,
-      reason: "no-session",
-    });
+  // No signOut of its own: `getUser(token)` clears a missing session from storage itself
+  // (auth-js 2.106.2, `_getUser`'s `catch`; the integration test's logged-out case).
+  it.each(invalid)("reads %s from getUser as no-session, without reading users or signing out", async (_, error) => {
+    const stub = auth({ userError: error });
+    expect(await requireAdmin({ cookieNames: SESSION, auth: stub })).toEqual({ ok: false, reason: "no-session" });
     expect(getUserById).not.toHaveBeenCalled();
-  });
-
-  // `getUser(token)` doesn't clear a signed-out session from storage, as `getUser()` did.
-  it("signs out a session Auth no longer has, so its cookies are cleared, and nothing else", async () => {
-    const missing = auth({ userError: new AuthSessionMissingError() });
-    await requireAdmin({ cookieNames: SESSION, auth: missing });
-    expect(missing.signOut).toHaveBeenCalledExactlyOnceWith({ scope: "local" });
-
-    const badJwt = auth({ userError: new AuthApiError("invalid JWT", 403, "bad_jwt") });
-    await requireAdmin({ cookieNames: SESSION, auth: badJwt });
-    expect(badJwt.signOut).not.toHaveBeenCalled();
+    expect(stub.signOut).not.toHaveBeenCalled();
   });
 
   it("reads no session and no error as no-session, without asking Auth", async () => {
@@ -231,12 +223,13 @@ describe("requireAdmin", () => {
 
 describe("mfaStepAllowed", () => {
   it.each([
-    ["no factor", [], "enroll"],
-    ["only an unverified one (an abandoned enroll)", [{ status: "unverified" }], "enroll"],
-    ["a verified factor", verified, "code"],
-  ])("gives an aal1 admin with %s the %s step", async (_, factors, step) => {
+    ["no factor", [], { step: "enroll" }],
+    ["only an unverified one (an abandoned enroll)", [{ id: "x", status: "unverified" }], { step: "enroll" }],
+    ["a verified factor", verified, { step: "code", factorId: FACTOR }],
+    ["an unverified and a verified one", [{ id: "x", status: "unverified" }, ...verified], { step: "code", factorId: FACTOR }],
+  ])("gives an aal1 admin with %s the step %j", async (_, factors, step) => {
     const stub = auth({ access: AAL1, user: { id: ID, factors } });
-    expect(await mfaStepAllowed({ cookieNames: SESSION, auth: stub })).toEqual({ ok: true, step });
+    expect(await mfaStepAllowed({ cookieNames: SESSION, auth: stub })).toEqual({ ok: true, ...step });
   });
 
   it("reads a user with no factors list as enroll", async () => {

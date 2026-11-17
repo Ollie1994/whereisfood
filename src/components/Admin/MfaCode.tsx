@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { MFA_TEXTS, mfaMessage, type MfaStatus } from "@/lib/login";
 
 // The code input and its answer. `one-time-code` lets the phone offer a code it has.
@@ -14,9 +15,14 @@ export default function MfaCode({
   invalid: boolean;
   submit: () => Promise<void>;
 }) {
-  const busy = status === "verifying" || status === "verified";
+  const busy = status === "verifying" || status === "verified" || status === "expired";
   const message = mfaMessage(status);
-  const alert = status === "wrong-code" || status === "rate-limited" || status === "failed" || status === "unprepared";
+  const alert =
+    status === "wrong-code" ||
+    status === "rate-limited" ||
+    status === "failed" ||
+    status === "unprepared" ||
+    status === "expired";
 
   return (
     <form
@@ -59,6 +65,11 @@ export default function MfaCode({
         <p role={alert ? "alert" : "status"} className="text-sm text-foreground/70">
           {message}
         </p>
+      )}
+      {status === "expired" && (
+        <Link href="/admin/login" className="text-sm underline">
+          Logga in
+        </Link>
       )}
     </form>
   );
