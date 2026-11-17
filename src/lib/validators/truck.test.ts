@@ -140,7 +140,7 @@ describe.each([
   // `tooLong` counts code points: the maximum in burgers is twice that in UTF-16 units.
   it("counts an emoji as one character on create and patch", () => {
     const text = "🍔".repeat(max);
-    expect(parseNewTruck({ ...BODY, [key]: text }).ok).toBe(true);
+    expect(parseNewTruck({ ...BODY, [key]: text })).toMatchObject({ ok: true, value: { [key]: text } });
     expect(parseTruckPatch({ [key]: text })).toEqual({ ok: true, value: { [key]: text } });
     expect(parseNewTruck({ ...BODY, [key]: `${text}🍔` })).toEqual({ ok: false, error });
     expect(parseTruckPatch({ [key]: `${text}🍔` })).toEqual({ ok: false, error });

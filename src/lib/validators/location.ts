@@ -17,9 +17,10 @@ export type NewLocationInput = Omit<NewLocation, "created_by" | "source">;
 
 // The label's bound, as `truck.ts`'s `MAX_*` (characters, on the trimmed text; the owner's
 // value, IS #379; the app only, no CHECK in the schema). A limit: a label stored longer (by
-// SQL, or before IS #379) is copied into the checklist's suggestion as it is, so that ✓ is
-// refused with `labelLength` (`checklistRefusal` shows it as it came); the form, with a
-// shorter name, still enters the entry.
+// SQL, or before IS #379) is copied as it is into the checklist's suggestion, whose ✓ is
+// then refused with `labelLength` (`checklistRefusal` shows it as it came), and into the
+// form by a recent place (`placeValues` in `admin-form.ts`), whose save is refused until the
+// admin shortens the name.
 export const MAX_LABEL = 100;
 
 export const LOCATION_ERRORS = {
