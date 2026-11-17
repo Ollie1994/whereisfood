@@ -100,18 +100,6 @@ describe("POST /api/admin/trucks", () => {
     expect(await response.json()).toEqual({ error: "Instagram-kontot används redan av en annan foodtruck" });
   });
 
-  // IS #400: the database refuses these (`22P05`, `PGRST102`, probed in PR #399), which
-  // answered 500; the validator now refuses them first.
-  it.each([
-    ["a NUL", "a\u0000b"],
-    ["a lone surrogate", "a\ud800b"],
-  ])("refuses a name holding %s with 400 in Swedish", async (_, text) => {
-    const response = await post({ name: named(text) });
-
-    expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({ error: "Ange foodtruckens namn" });
-  });
-
   // #29: no handle, a blank field included, is none, so two of them aren't a duplicate.
   it("creates two trucks with no handle, one sent blank", async () => {
     await created(await post({ name: named("Utan ett") }));
@@ -125,6 +113,9 @@ describe("POST /api/admin/trucks", () => {
     ["a space inside the handle", { name: named("X"), instagram_handle: "foo bar" }, "Ogiltigt Instagram-konto: bara a–z, 0–9, punkt och understreck, högst 30 tecken"],
     ["a 31-character handle", { name: named("X"), instagram_handle: "a".repeat(31) }, "Ogiltigt Instagram-konto: bara a–z, 0–9, punkt och understreck, högst 30 tecken"],
     ["no name", { instagram_handle: "foo" }, "Ange foodtruckens namn"],
+    // IS #400: characters the database refuses (`22P05`, `PGRST102`, PR #399's probe).
+    ["a name holding a NUL", { name: named("a\u0000b") }, "Ogiltigt namn"],
+    ["a name holding a lone surrogate", { name: named("a\ud800b") }, "Ogiltigt namn"],
     ["a body that isn't valid JSON", "{", undefined],
   ])("answers %s with 400 in Swedish, creating nothing", async (_, body, error) => {
     const before = await countFixtureTrucks();
@@ -197,6 +188,10 @@ describe("PATCH /api/admin/trucks/[id]", () => {
     ["a malformed id", "abc", { is_active: false }, "Ogiltigt id"],
     ["a patch with no known key", null, { id: "x" }, "Ändringen innehåller inget att ändra"],
     ["a blank name", null, { name: " " }, "Ange foodtruckens namn"],
+    // IS #400, as POST's.
+    ["a name holding a NUL", null, { name: "a\u0000b" }, "Ogiltigt namn"],
+    ["a cuisine type holding a NUL", null, { cuisine_type: "a\u0000b" }, "Ogiltig typ av mat"],
+    ["a description holding a lone surrogate", null, { description: "a\udc00b" }, "Ogiltig beskrivning"],
   ])("answers %s with 400 in Swedish", async (_, badId, body, error) => {
     const id = badId ?? (await seedTruck("Orörd"));
 

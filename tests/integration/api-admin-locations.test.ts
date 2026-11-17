@@ -105,6 +105,18 @@ describe("POST /api/admin/locations", () => {
     expect(await countLocations(inactive)).toBe(0);
   });
 
+  // IS #400: characters the database refuses (`22P05`, `PGRST102`, PR #399's probe).
+  it.each([
+    ["a NUL", "a\u0000b"],
+    ["a lone surrogate", "a\ud800b"],
+  ])("refuses a label holding %s with 400, creating nothing", async (_, label) => {
+    const response = await POST(request("POST", { truck_id: truckId, ...FIXTURE_PLACE, label, ...window(HOUR) }));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "Ogiltigt platsnamn" });
+    expect(await countLocations(truckId)).toBe(0);
+  });
+
   it("refuses an entry that has already ended with 400 (#33)", async () => {
     const response = await POST(request("POST", { truck_id: truckId, ...FIXTURE_PLACE, ...window(-DAY) }));
 
@@ -161,8 +173,7 @@ describe("PATCH /api/admin/locations/[id]", () => {
     expect(await readLocation(seeded.id)).toEqual(seeded);
   });
 
-  // IS #400: the database refuses these (`22P05`, `PGRST102`, probed in PR #399), which
-  // answered 500; the validator now refuses them first.
+  // IS #400: characters the database refuses (`22P05`, `PGRST102`, PR #399's probe).
   it.each([
     ["a NUL", "a\u0000b"],
     ["a lone surrogate", "a\ud800b"],

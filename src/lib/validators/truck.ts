@@ -15,6 +15,9 @@ export const MAX_DESCRIPTION = 500;
 export const TRUCK_ERRORS = {
   body: BODY_ERRORS.body,
   name: "Ange foodtruckens namn",
+  // A name holding a character the database refuses (`unstorable`; the owner's wording,
+  // PR #402).
+  nameInvalid: "Ogiltigt namn",
   nameLength: `Namnet får vara högst ${MAX_NAME} tecken`,
   handle: "Ogiltigt Instagram-konto: bara a–z, 0–9, punkt och understreck, högst 30 tecken",
   cuisine: "Ogiltig typ av mat",
@@ -42,13 +45,17 @@ function handle(value: unknown): string | null | undefined {
   return HANDLE.test(normal) ? normal : undefined;
 }
 
-// A trimmed name; blank, not a string, or holding a character the database refuses
-// (`unstorable`, IS #400) is refused. Its length is checked by the callers, with a message
-// of its own (`MAX_NAME`).
+// A trimmed name; blank or not a string is refused. The callers check, each with a message
+// of its own, a character the database refuses first (`unstorableName`) and the length
+// after (`MAX_NAME`).
 function name(value: unknown): string | undefined {
-  if (typeof value !== "string" || unstorable(value)) return undefined;
+  if (typeof value !== "string") return undefined;
   return value.trim() || undefined;
 }
+
+// A name holding a character the database refuses (`unstorable`, IS #400): "Ogiltigt namn",
+// not the blank name's "Ange foodtruckens namn" (PR #402).
+const unstorableName = (value: unknown): boolean => typeof value === "string" && unstorable(value);
 
 // An optional text: absent, null or blank is none; not a string, or `unstorable`, is
 // refused. Its length is checked as `name`'s.
@@ -61,6 +68,7 @@ function optionalText(value: unknown): string | null | undefined {
 export function parseNewTruck(body: unknown): Parsed<NewTruck> {
   if (!isRecord(body)) return refuse(TRUCK_ERRORS.body);
 
+  if (unstorableName(body.name)) return refuse(TRUCK_ERRORS.nameInvalid);
   const truckName = name(body.name);
   if (truckName === undefined) return refuse(TRUCK_ERRORS.name);
   if (tooLong(truckName, MAX_NAME)) return refuse(TRUCK_ERRORS.nameLength);
@@ -95,6 +103,7 @@ export function parseTruckPatch(body: unknown): Parsed<TruckPatch> {
   const patch: TruckPatch = {};
 
   if (body.name !== undefined) {
+    if (unstorableName(body.name)) return refuse(TRUCK_ERRORS.nameInvalid);
     const value = name(body.name);
     if (value === undefined) return refuse(TRUCK_ERRORS.name);
     if (tooLong(value, MAX_NAME)) return refuse(TRUCK_ERRORS.nameLength);

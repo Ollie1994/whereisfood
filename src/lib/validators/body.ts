@@ -31,11 +31,15 @@ export function tooLong(text: string | null, max: number): boolean {
 }
 
 // Whether a text holds a character the database refuses: a NUL (U+0000) or a lone UTF-16
-// surrogate (`isWellFormed` is false), which the db layer threw on, so the route answered
-// 500 (probed in PR #399 through `updateTruck` and `updateLocation`: `22P05` for
-// `"a\u0000b"`, `PGRST102` for `"a\ud800b"` and `"a\udc00b"`; `"a\u0001b"` was stored).
-// A surrogate pair, an emoji, is well formed. Other control characters pass (IS #400's
-// non-goal).
+// surrogate, which the db layer throws on (probed in PR #399 through `updateTruck` and
+// `updateLocation`: `22P05` for `"a\u0000b"`, `PGRST102` for `"a\ud800b"` and
+// `"a\udc00b"`; `"a\u0001b"` was stored). With the `u` flag a surrogate pair is one code
+// point, so an emoji passes and only a lone half matches `\p{Surrogate}`. Not
+// `isWellFormed`: it runs in the browser too (`admin-trucks.ts`), and Firefox has it from
+// 119, below Next's target of 111 (`modern-browserslist-target.js`; PR #402). Other control
+// characters pass (IS #400's non-goal).
+const UNSTORABLE = /\u0000|\p{Surrogate}/u;
+
 export function unstorable(text: string): boolean {
-  return text.includes("\u0000") || !text.isWellFormed();
+  return UNSTORABLE.test(text);
 }

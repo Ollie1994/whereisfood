@@ -47,7 +47,7 @@ function coordinate(value: unknown): number | undefined {
 
 // Absent, null or blank is no label; not a string, or holding a character the database
 // refuses (`unstorable`, IS #400), is refused. Its length is checked by the callers
-// (`MAX_LABEL`). Until the Owners phase only the admin writes one, through `/api/admin/*`.
+// (`MAX_LABEL`).
 function label(value: unknown): string | null | undefined {
   if (value === undefined || value === null) return null;
   if (typeof value !== "string" || unstorable(value)) return undefined;

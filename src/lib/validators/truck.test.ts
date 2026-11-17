@@ -164,10 +164,11 @@ describe.each([
   });
 });
 
-// IS #400: a character the database refuses (`unstorable`) is refused here, with the
-// field's own message, on create and patch; an emoji (a surrogate pair) and U+0001 aren't.
+// IS #400: a character the database refuses (`unstorable`) is refused here, the name with
+// "Ogiltigt namn" (PR #402) and the others with their own message, on create and patch; an
+// emoji (a surrogate pair) and U+0001 aren't.
 describe.each([
-  ["name", TRUCK_ERRORS.name],
+  ["name", TRUCK_ERRORS.nameInvalid],
   ["cuisine_type", TRUCK_ERRORS.cuisine],
   ["description", TRUCK_ERRORS.description],
 ] as const)("%s's characters", (key, error) => {
