@@ -1,6 +1,6 @@
 import { NextResponse, NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { LINK, TOTP, unsignedJwt } from "../../../tests/jwt";
+import { LINK, TOTP, unsignedJwt as jwt } from "../../../tests/jwt";
 
 // `withAdmin` and `readJson` with the real session client and `fetch` stubbed, so Auth's
 // answers are whatever a test returns, and the db layer stubbed. Auth failures the local
@@ -16,7 +16,6 @@ const ID = "00000000-0000-4000-8000-000000000001";
 
 // By default an `aal2` magic-link session (`tests/jwt.ts`).
 const AAL2 = { aal: "aal2", amr: [LINK, TOTP] };
-const jwt = unsignedJwt;
 
 // A session cookie in `@supabase/ssr`'s format (`base64-` and the session's JSON, base64url),
 // unexpired, so `getSession` doesn't refresh and `getUser` asks Auth's `/user`.
@@ -106,7 +105,7 @@ describe("withAdmin", () => {
     authAnswers(userJson);
     getUserById.mockResolvedValue({ id: ID, is_admin: true, truck_id: null, created_at: "" });
 
-    const response = await withAdmin(request({ cookie: sessionCookie({ aal: "aal1", amr: [{ method: "magiclink", timestamp: 1 }] }) }), handler);
+    const response = await withAdmin(request({ cookie: sessionCookie({ aal: "aal1", amr: [LINK] }) }), handler);
 
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual({ error: "Ange koden från din autentiseringsapp för att fortsätta" });

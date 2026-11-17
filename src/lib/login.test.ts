@@ -14,6 +14,7 @@ import {
   mfaAlert,
   mfaCode,
   mfaFormOff,
+  mfaKeyShown,
   mfaMessage,
   mfaStatusFor,
   type LoginStatus,
@@ -134,8 +135,8 @@ describe("mfaStatusFor", () => {
   });
 
   // A factor another visit to the enroll step replaced (local stack, the PR for IS #382).
-  it("is unprepared on mfa_factor_not_found, so the page says to reload", () => {
-    expect(mfaStatusFor({ status: 404, code: "mfa_factor_not_found" })).toBe("unprepared");
+  it("is replaced on mfa_factor_not_found, so the page says to reload and add the new key", () => {
+    expect(mfaStatusFor({ status: 404, code: "mfa_factor_not_found" })).toBe("replaced");
   });
 
   it("is rate-limited on 429", () => {
@@ -160,7 +161,7 @@ describe("mfaStatusFor", () => {
 });
 
 describe("mfaMessage", () => {
-  it.each<MfaStatus>(["preparing", "unprepared", "wrong-code", "rate-limited", "failed", "expired", "verified"])(
+  it.each<MfaStatus>(["preparing", "unprepared", "wrong-code", "rate-limited", "failed", "replaced", "expired", "verified"])(
     "has Swedish text for %s",
     (status) => {
       expect(mfaMessage(status)).toEqual(expect.any(String));
@@ -172,7 +173,7 @@ describe("mfaMessage", () => {
   });
 
   it("gives every refusal its own text", () => {
-    const texts = (["unprepared", "wrong-code", "rate-limited", "failed", "expired"] as const).map(mfaMessage);
+    const texts = (["unprepared", "wrong-code", "rate-limited", "failed", "replaced", "expired"] as const).map(mfaMessage);
     expect(new Set(texts).size).toBe(texts.length);
   });
 });
@@ -191,14 +192,18 @@ describe("mfaCode", () => {
   });
 });
 
-describe("mfaAlert and mfaFormOff", () => {
-  const all: MfaStatus[] = ["preparing", "unprepared", "ready", "verifying", "wrong-code", "rate-limited", "failed", "expired", "verified"];
+describe("mfaAlert, mfaFormOff and mfaKeyShown", () => {
+  const all: MfaStatus[] = ["preparing", "unprepared", "ready", "verifying", "wrong-code", "rate-limited", "failed", "replaced", "expired", "verified"];
 
   it("marks each refusal or failure, and only those, as an alert", () => {
-    expect(all.filter(mfaAlert)).toEqual(["unprepared", "wrong-code", "rate-limited", "failed", "expired"]);
+    expect(all.filter(mfaAlert)).toEqual(["unprepared", "wrong-code", "rate-limited", "failed", "replaced", "expired"]);
   });
 
   it("turns the form off while there is nothing to verify, a verify runs, or it is done", () => {
-    expect(all.filter(mfaFormOff)).toEqual(["preparing", "unprepared", "verifying", "expired", "verified"]);
+    expect(all.filter(mfaFormOff)).toEqual(["preparing", "unprepared", "verifying", "replaced", "expired", "verified"]);
+  });
+
+  it("hides the enroll's key once the factor or the session is gone", () => {
+    expect(all.filter((status) => !mfaKeyShown(status))).toEqual(["unprepared", "replaced", "expired"]);
   });
 });

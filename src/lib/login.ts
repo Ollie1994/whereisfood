@@ -113,8 +113,9 @@ export const LOGOUT_LABEL = "Logga ut";
 
 // The TOTP step's states (`useMfa`; Phase 9 plan step 5c). `preparing`: the enroll step's
 // enroll is under way (the code step starts `ready`, with the factor the page read);
-// `unprepared`: the enroll failed, or the factor is gone, so there is nothing to verify (a
-// reload starts over); `expired`: the `aal1`
+// `unprepared`: the enroll failed, so there is nothing to verify; `replaced`: the factor is
+// gone, replaced by another visit to the enroll step, so the key shown is dead and a reload
+// shows the newest; `expired`: the `aal1`
 // session is gone (`isInvalidSession`), so only a new login helps.
 export type MfaStatus =
   | "preparing"
@@ -124,6 +125,7 @@ export type MfaStatus =
   | "wrong-code"
   | "rate-limited"
   | "failed"
+  | "replaced"
   | "expired"
   | "verified";
 
@@ -131,12 +133,11 @@ export type MfaStatus =
 // `mfa_verification_failed`, "Invalid TOTP code entered" (local stack, the PR for IS #382).
 // A session that is gone (`isInvalidSession`): a verify on another device ends the user's
 // `aal1` sessions (IS #381's probe). A factor that is gone: 404 `mfa_factor_not_found`,
-// as for one another visit to the enroll step replaced (local stack, the PR for IS #382),
-// so the page must be loaded again, as when the enroll failed.
+// as for one another visit to the enroll step replaced (local stack, the PR for IS #382).
 export function mfaStatusFor(error: { status?: number; code?: string } | null): MfaStatus {
   if (!error) return "verified";
   if (isInvalidSession(error)) return "expired";
-  if (error.code === "mfa_factor_not_found") return "unprepared";
+  if (error.code === "mfa_factor_not_found") return "replaced";
   if (error.code === "mfa_verification_failed") return "wrong-code";
   if (error.status === 429) return "rate-limited";
   return "failed";
@@ -144,12 +145,18 @@ export function mfaStatusFor(error: { status?: number; code?: string } | null): 
 
 // Whether `status`'s message is an alert (a refusal or a failure), not a progress note.
 export function mfaAlert(status: MfaStatus): boolean {
-  return ["unprepared", "wrong-code", "rate-limited", "failed", "expired"].includes(status);
+  return ["unprepared", "wrong-code", "rate-limited", "failed", "replaced", "expired"].includes(status);
+}
+
+// Whether the enroll's QR code and key are still worth showing: not once the factor is gone
+// or the session is.
+export function mfaKeyShown(status: MfaStatus): boolean {
+  return !["unprepared", "replaced", "expired"].includes(status);
 }
 
 // Whether the code form takes no submit in `status`.
 export function mfaFormOff(status: MfaStatus): boolean {
-  return ["preparing", "unprepared", "verifying", "verified", "expired"].includes(status);
+  return ["preparing", "unprepared", "verifying", "verified", "replaced", "expired"].includes(status);
 }
 
 export function mfaMessage(status: MfaStatus): string | null {
@@ -164,6 +171,8 @@ export function mfaMessage(status: MfaStatus): string | null {
       return "För många försök. Vänta en stund och försök igen.";
     case "failed":
       return "Det gick inte att kontrollera koden just nu. Försök igen om en stund.";
+    case "replaced":
+      return "Nyckeln gäller inte längre: sidan har öppnats igen, här eller i en annan flik. Ladda om sidan och lägg till den nya nyckeln i appen.";
     case "expired":
       return "Inloggningen har gått ut. Logga in igen.";
     case "verified":

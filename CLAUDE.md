@@ -264,7 +264,8 @@ said otherwise: Phase 4 plan decision #14.
   verified (`getUser(token)`), never from a decoded cookie. An `aal1` admin session gets
   401 with its own text, told apart from no session (open decision 6). A session whose
   first factor (the `amr` entry that isn't `totp`) isn't `magiclink` is signed out at
-  Auth (`scope: "local"`) and answered as no session
+  Auth (`scope: "local"`) and answered as no session, or as unavailable (503) if that
+  sign-out failed, so a later request tries again
 
 **`/api/live` (the public read path, Phase 6)**
 - An ordinary (dynamic) route, cached by Vercel's CDN through

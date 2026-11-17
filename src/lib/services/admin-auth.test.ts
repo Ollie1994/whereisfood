@@ -1,6 +1,6 @@
 import { AuthApiError, AuthRetryableFetchError, AuthSessionMissingError, AuthUnknownError } from "@supabase/supabase-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { LINK, TOTP, unsignedJwt } from "../../../tests/jwt";
+import { LINK as link, TOTP as totp, unsignedJwt as token } from "../../../tests/jwt";
 
 // `requireAdmin`'s and `mfaStepAllowed`'s outcomes, with the session client's `auth` and the
 // db layer stubbed. The integration tests (`tests/integration/admin-auth.test.ts`) run the
@@ -15,9 +15,6 @@ const ID = "00000000-0000-4000-8000-000000000001";
 const SESSION = ["sb-127-auth-token"];
 const ADMIN = { id: ID, is_admin: true, truck_id: null, created_at: "" };
 
-const token = unsignedJwt;
-const link = LINK;
-const totp = TOTP;
 const AAL1 = token({ aal: "aal1", amr: [link] });
 const AAL2 = token({ aal: "aal2", amr: [link, totp] });
 
