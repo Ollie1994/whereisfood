@@ -2,7 +2,7 @@ import { parseISO } from "date-fns";
 import { isInGothenburg } from "@/lib/geo";
 import { isTimestamp } from "@/lib/timestamp";
 import type { LocationPatch, NewLocation } from "@/lib/types";
-import { BODY_ERRORS, type Parsed, isRecord, refuse, tooLong } from "@/lib/validators/body";
+import { BODY_ERRORS, type Parsed, isRecord, refuse, tooLong, unstorable } from "@/lib/validators/body";
 import { isUuid } from "@/lib/validators/uuid";
 
 // A location body from `readJson`, checked and reduced to the keys a client may set. Pure:
@@ -45,14 +45,12 @@ function coordinate(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
-// Absent, null or blank is no label. Its length is checked by the callers (`MAX_LABEL`).
-// A limit: no character is refused here, so a NUL or a lone surrogate reaches the db layer,
-// which throws (`22P05` for a NUL, `PGRST102` for a surrogate: `updateLocation` and
-// `updateTruck` probed locally in PR #399), and `withErrorHandling` answers 500, not 400
-// (IS #400). Until the Owners phase only the admin writes one, through `/api/admin/*`.
+// Absent, null or blank is no label; not a string, or holding a character the database
+// refuses (`unstorable`, IS #400), is refused. Its length is checked by the callers
+// (`MAX_LABEL`). Until the Owners phase only the admin writes one, through `/api/admin/*`.
 function label(value: unknown): string | null | undefined {
   if (value === undefined || value === null) return null;
-  if (typeof value !== "string") return undefined;
+  if (typeof value !== "string" || unstorable(value)) return undefined;
   return value.trim() || null;
 }
 

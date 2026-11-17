@@ -1,5 +1,5 @@
 import type { NewTruck, TruckPatch } from "@/lib/types";
-import { BODY_ERRORS, type Parsed, isRecord, refuse, tooLong } from "@/lib/validators/body";
+import { BODY_ERRORS, type Parsed, isRecord, refuse, tooLong, unstorable } from "@/lib/validators/body";
 
 // A truck body from `readJson`, checked and reduced to the keys a client may set. Pure: no
 // clock, no env (`CLAUDE.md`, "Time"). `id` and `created_at` are never read, and every
@@ -7,9 +7,7 @@ import { BODY_ERRORS, type Parsed, isRecord, refuse, tooLong } from "@/lib/valid
 
 // The free-text bounds, in characters (`tooLong`), on the trimmed text that is stored
 // (Phase 9 plan step 3, Q22; the values are the owner's, IS #379). A limit: only the app
-// is bound; the schema has no CHECK (the plan: no migration), so SQL can write longer. Also
-// a limit: a NUL or a lone surrogate passes here and the db layer throws on it, so the
-// route answers 500 (the probe: `location.ts`'s `label`; IS #400).
+// is bound; the schema has no CHECK (the plan: no migration), so SQL can write longer.
 export const MAX_NAME = 80;
 export const MAX_CUISINE = 50;
 export const MAX_DESCRIPTION = 500;
@@ -44,17 +42,19 @@ function handle(value: unknown): string | null | undefined {
   return HANDLE.test(normal) ? normal : undefined;
 }
 
-// A trimmed name; blank or not a string is refused. Its length is checked by the callers,
-// with a message of its own (`MAX_NAME`).
+// A trimmed name; blank, not a string, or holding a character the database refuses
+// (`unstorable`, IS #400) is refused. Its length is checked by the callers, with a message
+// of its own (`MAX_NAME`).
 function name(value: unknown): string | undefined {
-  if (typeof value !== "string") return undefined;
+  if (typeof value !== "string" || unstorable(value)) return undefined;
   return value.trim() || undefined;
 }
 
-// An optional text: absent, null or blank is none. Its length is checked as `name`'s.
+// An optional text: absent, null or blank is none; not a string, or `unstorable`, is
+// refused. Its length is checked as `name`'s.
 function optionalText(value: unknown): string | null | undefined {
   if (value === undefined || value === null) return null;
-  if (typeof value !== "string") return undefined;
+  if (typeof value !== "string" || unstorable(value)) return undefined;
   return value.trim() || null;
 }
 

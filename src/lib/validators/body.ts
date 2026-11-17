@@ -1,5 +1,5 @@
 // What the location and truck validators share: the result type, the body's shape check,
-// the refusal, the length check, and the two texts about the body as a whole.
+// the refusal, the length and character checks, and the two texts about the body as a whole.
 
 export type Parsed<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -28,4 +28,14 @@ export function tooLong(text: string | null, max: number): boolean {
   if (text === null || text.length <= max) return false;
   if (text.length > 2 * max) return true;
   return Array.from(text).length > max;
+}
+
+// Whether a text holds a character the database refuses: a NUL (U+0000) or a lone UTF-16
+// surrogate (`isWellFormed` is false), which the db layer threw on, so the route answered
+// 500 (probed in PR #399 through `updateTruck` and `updateLocation`: `22P05` for
+// `"a\u0000b"`, `PGRST102` for `"a\ud800b"` and `"a\udc00b"`; `"a\u0001b"` was stored).
+// A surrogate pair, an emoji, is well formed. Other control characters pass (IS #400's
+// non-goal).
+export function unstorable(text: string): boolean {
+  return text.includes("\u0000") || !text.isWellFormed();
 }

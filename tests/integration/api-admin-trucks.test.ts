@@ -100,6 +100,18 @@ describe("POST /api/admin/trucks", () => {
     expect(await response.json()).toEqual({ error: "Instagram-kontot används redan av en annan foodtruck" });
   });
 
+  // IS #400: the database refuses these (`22P05`, `PGRST102`, probed in PR #399), which
+  // answered 500; the validator now refuses them first.
+  it.each([
+    ["a NUL", "a\u0000b"],
+    ["a lone surrogate", "a\ud800b"],
+  ])("refuses a name holding %s with 400 in Swedish", async (_, text) => {
+    const response = await post({ name: named(text) });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "Ange foodtruckens namn" });
+  });
+
   // #29: no handle, a blank field included, is none, so two of them aren't a duplicate.
   it("creates two trucks with no handle, one sent blank", async () => {
     await created(await post({ name: named("Utan ett") }));
