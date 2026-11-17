@@ -260,8 +260,8 @@ before the closing steps (#12).
     planned issue; its follow-ups block step 16.
 16. **The reconciliation of `project-context.md`**, blocked by step 15 and its follow-ups.
     It replaces the IS #278 (Phase 9) and IS #373 (Phase 9) markers with #1 and #2, and
-    rewrites the "Phase 7 open decisions 1–5" row those rows amend (the login is the email
-    code and TOTP; a session ends at the time-box or a logout of any device) and the Phase 7
+    rewrites the "Phase 7 open decisions 1–5" row those rows amend (the login is the magic
+    link and TOTP, #14; a session ends at the time-box or a logout of any device) and the Phase 7
     row for #17, #18, #19, #20 and #33, which #8 extends to cancel and confirm, with the
     other places that state today's rule (Part 2's Product model item 3, "Status codes",
     and Part 1's "Ändra" until it ends). It rewrites Part 2's "Admin and auth" (MFA, the
