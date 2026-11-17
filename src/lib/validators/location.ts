@@ -2,7 +2,7 @@ import { parseISO } from "date-fns";
 import { isInGothenburg } from "@/lib/geo";
 import { isTimestamp } from "@/lib/timestamp";
 import type { LocationPatch, NewLocation } from "@/lib/types";
-import { BODY_ERRORS, type Parsed, isRecord, refuse } from "@/lib/validators/body";
+import { BODY_ERRORS, type Parsed, isRecord, refuse, tooLong } from "@/lib/validators/body";
 import { isUuid } from "@/lib/validators/uuid";
 
 // A location body from `readJson`, checked and reduced to the keys a client may set. Pure:
@@ -15,12 +15,17 @@ import { isUuid } from "@/lib/validators/uuid";
 // A new entry as a client sends it: the service adds `created_by` and `source` (#17).
 export type NewLocationInput = Omit<NewLocation, "created_by" | "source">;
 
+// The label's bound, as `truck.ts`'s `MAX_*` (characters, on the trimmed text; the owner's
+// value, IS #379; the app only, no CHECK in the schema).
+export const MAX_LABEL = 100;
+
 export const LOCATION_ERRORS = {
   body: BODY_ERRORS.body,
   truck: "Ogiltig foodtruck",
   position: "Ogiltig position",
   outside: "Platsen ligger utanför Göteborg",
   label: "Ogiltigt platsnamn",
+  labelLength: `Platsnamnet får vara högst ${MAX_LABEL} tecken`,
   startsAt: "Ogiltig starttid",
   endsAt: "Ogiltig sluttid",
   order: "Sluttiden måste vara efter starttiden",
@@ -36,9 +41,9 @@ function coordinate(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
-// Absent, null or blank is no label. A limit: no length or character bound, and the
-// schema has none either (`0001_baseline.sql`). Until the Owners phase only the admin
-// writes one, through `/api/admin/*`.
+// Absent, null or blank is no label. Its length is checked by the callers (`MAX_LABEL`).
+// A limit: no character bound. Until the Owners phase only the admin writes one, through
+// `/api/admin/*`.
 function label(value: unknown): string | null | undefined {
   if (value === undefined || value === null) return null;
   if (typeof value !== "string") return undefined;
@@ -89,6 +94,7 @@ export function parseNewLocation(body: unknown): Parsed<NewLocationInput> {
 
   const name = label(body.label);
   if (name === undefined) return refuse(LOCATION_ERRORS.label);
+  if (tooLong(name, MAX_LABEL)) return refuse(LOCATION_ERRORS.labelLength);
 
   const startsAt = timestamp(body.starts_at);
   if (!startsAt) return refuse(LOCATION_ERRORS.startsAt);
@@ -124,6 +130,7 @@ export function parseLocationPatch(body: unknown): Parsed<LocationPatch> {
   if (body.label !== undefined) {
     const name = label(body.label);
     if (name === undefined) return refuse(LOCATION_ERRORS.label);
+    if (tooLong(name, MAX_LABEL)) return refuse(LOCATION_ERRORS.labelLength);
     patch.label = name;
   }
 

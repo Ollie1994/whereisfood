@@ -1,16 +1,26 @@
 import type { NewTruck, TruckPatch } from "@/lib/types";
-import { BODY_ERRORS, type Parsed, isRecord, refuse } from "@/lib/validators/body";
+import { BODY_ERRORS, type Parsed, isRecord, refuse, tooLong } from "@/lib/validators/body";
 
 // A truck body from `readJson`, checked and reduced to the keys a client may set. Pure: no
 // clock, no env (`CLAUDE.md`, "Time"). `id` and `created_at` are never read, and every
 // other unknown key is dropped too.
 
+// The free-text bounds, in characters (`tooLong`), on the trimmed text that is stored
+// (Phase 9 plan step 3, Q22; the values are the owner's, IS #379). A limit: only the app
+// is bound; the schema has no CHECK (the plan: no migration), so SQL can write longer.
+export const MAX_NAME = 80;
+export const MAX_CUISINE = 50;
+export const MAX_DESCRIPTION = 500;
+
 export const TRUCK_ERRORS = {
   body: BODY_ERRORS.body,
   name: "Ange foodtruckens namn",
+  nameLength: `Namnet får vara högst ${MAX_NAME} tecken`,
   handle: "Ogiltigt Instagram-konto: bara a–z, 0–9, punkt och understreck, högst 30 tecken",
   cuisine: "Ogiltig typ av mat",
+  cuisineLength: `Typen av mat får vara högst ${MAX_CUISINE} tecken`,
   description: "Ogiltig beskrivning",
+  descriptionLength: `Beskrivningen får vara högst ${MAX_DESCRIPTION} tecken`,
   active: "Ogiltig status",
   emptyPatch: BODY_ERRORS.emptyPatch,
 } as const;
@@ -32,14 +42,14 @@ function handle(value: unknown): string | null | undefined {
   return HANDLE.test(normal) ? normal : undefined;
 }
 
-// A trimmed name; blank or not a string is refused. A limit: no length bound, and the
-// schema has none either (`0001_baseline.sql`). Only the admin writes one.
+// A trimmed name; blank or not a string is refused. Its length is checked by the callers,
+// with a message of its own (`MAX_NAME`).
 function name(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
   return value.trim() || undefined;
 }
 
-// An optional text: absent, null or blank is none. No length bound, as `name`.
+// An optional text: absent, null or blank is none. Its length is checked as `name`'s.
 function optionalText(value: unknown): string | null | undefined {
   if (value === undefined || value === null) return null;
   if (typeof value !== "string") return undefined;
@@ -51,12 +61,15 @@ export function parseNewTruck(body: unknown): Parsed<NewTruck> {
 
   const truckName = name(body.name);
   if (truckName === undefined) return refuse(TRUCK_ERRORS.name);
+  if (tooLong(truckName, MAX_NAME)) return refuse(TRUCK_ERRORS.nameLength);
   const instagram = handle(body.instagram_handle);
   if (instagram === undefined) return refuse(TRUCK_ERRORS.handle);
   const cuisine = optionalText(body.cuisine_type);
   if (cuisine === undefined) return refuse(TRUCK_ERRORS.cuisine);
+  if (tooLong(cuisine, MAX_CUISINE)) return refuse(TRUCK_ERRORS.cuisineLength);
   const description = optionalText(body.description);
   if (description === undefined) return refuse(TRUCK_ERRORS.description);
+  if (tooLong(description, MAX_DESCRIPTION)) return refuse(TRUCK_ERRORS.descriptionLength);
   // A new truck is active unless the body says otherwise.
   const active = body.is_active === undefined ? true : body.is_active;
   if (typeof active !== "boolean") return refuse(TRUCK_ERRORS.active);
@@ -82,6 +95,7 @@ export function parseTruckPatch(body: unknown): Parsed<TruckPatch> {
   if (body.name !== undefined) {
     const value = name(body.name);
     if (value === undefined) return refuse(TRUCK_ERRORS.name);
+    if (tooLong(value, MAX_NAME)) return refuse(TRUCK_ERRORS.nameLength);
     patch.name = value;
   }
   if (body.instagram_handle !== undefined) {
@@ -89,13 +103,14 @@ export function parseTruckPatch(body: unknown): Parsed<TruckPatch> {
     if (value === undefined) return refuse(TRUCK_ERRORS.handle);
     patch.instagram_handle = value;
   }
-  for (const [key, error] of [
-    ["cuisine_type", TRUCK_ERRORS.cuisine],
-    ["description", TRUCK_ERRORS.description],
+  for (const [key, error, max, lengthError] of [
+    ["cuisine_type", TRUCK_ERRORS.cuisine, MAX_CUISINE, TRUCK_ERRORS.cuisineLength],
+    ["description", TRUCK_ERRORS.description, MAX_DESCRIPTION, TRUCK_ERRORS.descriptionLength],
   ] as const) {
     if (body[key] === undefined) continue;
     const value = optionalText(body[key]);
     if (value === undefined) return refuse(error);
+    if (tooLong(value, max)) return refuse(lengthError);
     patch[key] = value;
   }
   if (body.is_active !== undefined) {

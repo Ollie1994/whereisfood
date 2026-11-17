@@ -187,7 +187,10 @@ before the closing steps (#12).
    on `updateUser`) is on Free and stops a first password being set. `CLAUDE.md` records the
    rule.
 3. **Length limits** on truck name, description, cuisine type and location label, with
-   Swedish messages (Q22); no migration.
+   Swedish messages (Q22); no migration. Settled by IS #379 (the owner's values): name 80,
+   cuisine type 50, description 500, label 100, in characters (code points, not UTF-16
+   units), on the trimmed text; `/api/live` sends the name, cuisine type and label, not the
+   description (`live.ts`'s entry).
 4. **Cancel and confirm refuse an ended entry** (#8): `cancelLocation` and `confirmLocation`
    filter on the timestamp they already take; when nothing is written, the service reads the
    entry to tell "ended" from "missing or cancelled"; both return an `EntryResult`
