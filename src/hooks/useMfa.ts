@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { mfaCode, mfaStatusFor, type MfaStatus } from "@/lib/login";
+import { mfaAlert, mfaCode, mfaFormOff, mfaStatusFor, type MfaStatus } from "@/lib/login";
 import { enrollFactor } from "@/lib/mfa";
 import type { MfaStep } from "@/lib/services/admin-auth";
 import { supabaseClient } from "@/lib/supabase-browser";
@@ -55,10 +55,15 @@ export function useMfa(check: MfaStep): {
   }
 
   async function submit() {
-    if (!factorId || verifying.current || status === "verified" || status === "expired") return;
+    if (!factorId || verifying.current || mfaFormOff(status)) return;
     const digits = mfaCode(code);
     setInvalid(digits === null);
-    if (digits === null) return;
+    if (digits === null) {
+      // The last attempt's answer ("Fel kod", a failure) isn't about this input, which never
+      // reached Auth (the owner's browser check showed both under a three-digit code).
+      if (mfaAlert(status)) setStatus("ready");
+      return;
+    }
 
     verifying.current = true;
     setStatus("verifying");
