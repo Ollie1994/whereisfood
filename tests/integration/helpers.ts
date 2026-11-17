@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/lib/supabase";
 import { createSessionClient } from "@/lib/supabase-session";
 import type { Database, Tables } from "@/lib/database.types";
 import type { Location, NewLocation } from "@/lib/types";
+import { totp } from "../totp";
 
 // Fixtures and checks more than one integration test file needs: fixture trucks,
 // locations and auth users, their cleanup, the anon and signed-in clients, bulk inserts
@@ -74,6 +75,9 @@ export function fixtureEmail(userId: string): string {
   return `${FIXTURE_PREFIX}${userId}@example.test`;
 }
 
+// Every fixture user has this password, as the admin has one (README, "5. Create the admin
+// user"), but signs in by the magic link (`signInByLink`): the app admits no other first
+// factor (Phase 9 plan #14).
 const FIXTURE_PASSWORD = "itest-fixture-password";
 
 // One page of `auth.admin.listUsers`, which is also its default size. Exported for the
@@ -367,10 +371,10 @@ export function anonClient(): SupabaseClient<Database> {
 
 // ⚠ THE ONLY WAY A TEST CREATES AN AUTH USER. Its email starts with the fixture
 // prefix, so `resetTables()` finds it even when the test fails before its own cleanup;
-// an auth user made any other way leaks. Confirmed at creation, so a password sign-in
-// works with no OTP (Phase 5 plan, open decision 4: checked on the local stack,
-// 2026-10-23). Returns the id, which is generated here so the email can be derived
-// from it, as `seedTruck` generates its truck's.
+// an auth user made any other way leaks. Confirmed at creation, so it can sign in at once
+// (Phase 5 plan, open decision 4: checked on the local stack, 2026-10-23). Returns the id,
+// which is generated here so the email can be derived from it, as `seedTruck` generates
+// its truck's.
 //
 // The user has no `users` row: that is what `createFixtureUser()` adds. A bare author
 // is what the `created_by` trigger cases need, since a `users` row blocks deleting its
@@ -399,26 +403,98 @@ export async function createFixtureUser(truckId: string | null = null): Promise<
   return id;
 }
 
-// A `createFixtureUser()`, signed in: an `authenticated` client and the user's id.
-// With `{ usersRow: false }`, a bare `createFixtureAuthUser()` instead: a signed-in
-// user with no `users` row, who could try to insert its own.
+// Mailpit, the local stack's mail catcher, where Auth's emails land.
+const MAILPIT = "http://127.0.0.1:54324";
+
+// Where the link sends the browser: the app's callback, which `[auth] site_url` admits.
+const CALLBACK = "http://127.0.0.1:3000/auth/callback";
+
+// A link to one user within `[auth.email] max_frequency` (1 s) of the last is refused, so
+// each fixture's last request is kept, to wait it out (Phase 9 plan #14).
+const lastLinkRequest = new Map<string, number>();
+const LINK_INTERVAL_MS = 1_100;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// The ids of the mails Mailpit holds for `email`, newest first.
+export async function mailIds(email: string): Promise<string[]> {
+  const search = await fetch(`${MAILPIT}/api/v1/search?query=${encodeURIComponent(`to:"${email}"`)}`);
+  if (!search.ok) throw new Error(`mailIds: Mailpit answered ${search.status}`);
+  const { messages } = (await search.json()) as { messages: { ID: string }[] };
+  return messages.map((message) => message.ID);
+}
+
+// The sign-in link of the first mail to `email` that isn't in `before` and holds one. Mailpit
+// keeps every earlier mail, and the password-changed and factor emails land there too, so
+// neither the newest mail nor any mail will do (Phase 9 plan #14).
+export async function newLink(email: string, before: ReadonlySet<string>): Promise<string> {
+  for (let attempt = 0; attempt < 40; attempt++) {
+    for (const id of await mailIds(email)) {
+      if (before.has(id)) continue;
+      const message = (await (await fetch(`${MAILPIT}/api/v1/message/${id}`)).json()) as { HTML?: string; Text?: string };
+      const link = String(message.HTML ?? message.Text).match(/https?:\/\/[^"'\s<>]+\/verify\?[^"'\s<>]+/);
+      if (link) return link[0].replaceAll("&amp;", "&");
+    }
+    await sleep(250);
+  }
+  throw new Error(`newLink: no new sign-in link to ${email} in Mailpit`);
+}
+
+// Signs `client` in as the admin does: a PKCE magic link (`signInWithOtp`), the link from
+// Mailpit, and the code it carries exchanged on the same client, which holds the verifier.
+// Its first factor is `amr` `magiclink`, the one #14 admits; `generateLink` + `verifyOtp`
+// would give `otp` (IS #396). The link's redirect isn't followed: the code is read from
+// its `Location`. Returns the session's access token.
 //
-// ⚠ EACH CALL IS ONE SIGN-IN. `config.toml`'s `[auth.rate_limit]` doesn't bind it: the
-// local stack enforces none of Auth's per-IP limits, and 40 password sign-ins in a row all
-// signed in (IS #377). Call it once per file or describe, not per test.
+// ⚠ EACH CALL IS ONE SIGN-IN AND A MAILPIT ROUND TRIP. `config.toml`'s `[auth.rate_limit]`
+// doesn't bind it (the local stack enforces none of Auth's per-IP limits, IS #377), but the
+// suite runs one file at a time, so sign in once per file or describe, not per test.
+async function signInByLink(client: SupabaseClient<Database>, email: string): Promise<string> {
+  const wait = (lastLinkRequest.get(email) ?? 0) + LINK_INTERVAL_MS - Date.now();
+  if (wait > 0) await sleep(wait);
+  const before = new Set(await mailIds(email));
+
+  const { error: sendError } = await client.auth.signInWithOtp({
+    email,
+    options: { shouldCreateUser: false, emailRedirectTo: CALLBACK },
+  });
+  lastLinkRequest.set(email, Date.now());
+  if (sendError) throw sendError;
+
+  const verify = await fetch(await newLink(email, before), { redirect: "manual" });
+  const code = new URL(verify.headers.get("location") ?? "", CALLBACK).searchParams.get("code");
+  if (!code) throw new Error(`signInByLink: the link answered ${verify.status} with no code`);
+
+  const { data, error } = await client.auth.exchangeCodeForSession(code);
+  if (error) throw error;
+  return data.session.access_token;
+}
+
+// A client with the anon key, no stored session and the PKCE flow, for `signInByLink`:
+// `anonClient()`'s default flow is implicit, which the link's code exchange can't finish.
+function pkceClient(): SupabaseClient<Database> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !anonKey) throw new Error("pkceClient: missing the Supabase URL or anon key");
+
+  return createClient<Database>(url, anonKey, {
+    auth: { autoRefreshToken: false, persistSession: false, flowType: "pkce" },
+  });
+}
+
+// A `createFixtureUser()`, signed in by the magic link: an `authenticated` client at `aal1`
+// and the user's id. With `{ usersRow: false }`, a bare `createFixtureAuthUser()` instead: a
+// signed-in user with no `users` row, who could try to insert its own.
+//
+// ⚠ EACH CALL IS ONE SIGN-IN (`signInByLink`).
 export async function signedInClient({ usersRow = true } = {}): Promise<{
   client: SupabaseClient<Database>;
   userId: string;
 }> {
   const userId = usersRow ? await createFixtureUser() : await createFixtureAuthUser();
 
-  const client = anonClient();
-  const { error } = await client.auth.signInWithPassword({
-    email: fixtureEmail(userId),
-    password: FIXTURE_PASSWORD,
-  });
-
-  if (error) throw error;
+  const client = pkceClient();
+  await signInByLink(client, fixtureEmail(userId));
   return { client, userId };
 }
 
@@ -447,28 +523,59 @@ export function jarClient(jar: Map<string, string>): SupabaseClient<Database> {
   return createSessionClient(cookieJar(jar));
 }
 
-// `userId`'s session as the cookies `@supabase/ssr` writes, for route tests (Phase 7
-// plan, open decision 7): `jarClient` signs in, so the library writes its own format.
-// Also returns the access token, to check later
-// whether Auth still accepts the session.
-//
-// ⚠ EACH CALL IS ONE SIGN-IN, as `signedInClient()`'s is.
-export async function sessionFor(userId: string): Promise<{
-  jar: Map<string, string>;
-  accessToken: string;
-}> {
-  const jar = new Map<string, string>();
-  const { data, error } = await jarClient(jar).auth.signInWithPassword({
-    email: fixtureEmail(userId),
-    password: FIXTURE_PASSWORD,
-  });
+// Each fixture's one TOTP factor, by user id: `sessionUser({ aal2: true })` enrolls it when
+// it creates the user, before any other session of it exists, since verifying a new factor
+// logs the user's other sessions out (auth-js `types.d.ts:1018`; Phase 9 plan #9). A later
+// `sessionFor(userId, { aal2: true })` only challenges and verifies it. The secret is the
+// local stack's, a fixture value (`CLAUDE.md`, "Secrets").
+const factors = new Map<string, { factorId: string; secret: string }>();
 
+// Raises `client`'s session to `aal2` with the user's factor: a challenge, then a verify with
+// the code `totp` computes now. Returns the new access token.
+async function verifyFactor(client: SupabaseClient<Database>, factor: { factorId: string; secret: string }): Promise<string> {
+  const { data, error } = await client.auth.mfa.challengeAndVerify({
+    factorId: factor.factorId,
+    code: totp(factor.secret, Date.now()),
+  });
   if (error) throw error;
-  return { jar, accessToken: data.session.access_token };
+  return data.access_token;
 }
 
-// A fixture user with a `users` row, `is_admin` as given, signed in through `sessionFor`.
-export async function sessionUser({ isAdmin = false } = {}): Promise<{
+// Enrolls `client`'s user's one TOTP factor and verifies it, which raises the session to
+// `aal2`. Returns the new access token.
+async function enrollFactor(client: SupabaseClient<Database>, userId: string): Promise<string> {
+  const { data, error } = await client.auth.mfa.enroll({ factorType: "totp" });
+  if (error) throw error;
+  const factor = { factorId: data.id, secret: data.totp.secret };
+  factors.set(userId, factor);
+  return verifyFactor(client, factor);
+}
+
+// `userId`'s session as the cookies `@supabase/ssr` writes, for route tests (Phase 7
+// plan, open decision 7): `jarClient` signs in by the magic link, so the library writes its
+// own format. With `{ aal2: true }`, raised to `aal2` with the factor `sessionUser` enrolled.
+// Also returns the access token, to check later whether Auth still accepts the session.
+//
+// ⚠ EACH CALL IS ONE SIGN-IN (`signInByLink`).
+export async function sessionFor(
+  userId: string,
+  { aal2 = false } = {},
+): Promise<{ jar: Map<string, string>; accessToken: string }> {
+  const jar = new Map<string, string>();
+  const client = jarClient(jar);
+  let accessToken = await signInByLink(client, fixtureEmail(userId));
+  if (aal2) {
+    const factor = factors.get(userId);
+    if (!factor) throw new Error("sessionFor: no factor for this user; make it with sessionUser({ aal2: true })");
+    accessToken = await verifyFactor(client, factor);
+  }
+  return { jar, accessToken };
+}
+
+// A fixture user with a `users` row, `is_admin` as given, signed in by the magic link. With
+// `{ aal2: true }`, its one TOTP factor is enrolled and verified on this first session, which
+// reaches `aal2`; `sessionFor(userId, { aal2: true })` signs it in again at `aal2`.
+export async function sessionUser({ isAdmin = false, aal2 = false } = {}): Promise<{
   userId: string;
   jar: Map<string, string>;
   accessToken: string;
@@ -478,5 +585,9 @@ export async function sessionUser({ isAdmin = false } = {}): Promise<{
     const { error } = await supabaseAdmin.from("users").update({ is_admin: true }).eq("id", userId);
     if (error) throw error;
   }
-  return { userId, ...(await sessionFor(userId)) };
+  const jar = new Map<string, string>();
+  const client = jarClient(jar);
+  let accessToken = await signInByLink(client, fixtureEmail(userId));
+  if (aal2) accessToken = await enrollFactor(client, userId);
+  return { userId, jar, accessToken };
 }

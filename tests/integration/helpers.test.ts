@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { supabaseAdmin } from "@/lib/supabase";
 import {
   AUTH_PAGE,
@@ -7,10 +7,14 @@ import {
   createFixtureAuthUser,
   createFixtureUser,
   deleteAuthUsers,
+  jarClient,
   resetTables,
   seedLocation,
   seedTruck,
   seedTrucks,
+  sessionFor,
+  sessionUser,
+  signedInClient,
 } from "./helpers";
 
 // ⚠ EVERY BYSTANDER IS ADVERSARIAL, AND THE FIRST VERSION'S WAS NOT. It was named
@@ -236,6 +240,51 @@ describe("resetTables and fixture auth users", () => {
 
       expect(await authUserExists(bystander)).toBe(true);
       expect(await authUserExists(fixture)).toBe(false);
+    });
+  });
+});
+
+// The fixtures' sign-in (Phase 9 plan step 5a, #9, #13, #14; IS #381). Claims are read from
+// the access token Auth issued: the payload's JSON, which these tests only read.
+function claimsOf(accessToken: string): { aal: string; amr: { method: string; timestamp: number }[] } {
+  return JSON.parse(Buffer.from(accessToken.split(".")[1], "base64url").toString("utf8"));
+}
+
+describe("the fixtures' sign-in", () => {
+  it("signs signedInClient in by the magic link, at aal1, its one first factor magiclink", async () => {
+    const { client } = await signedInClient();
+    const { data } = await client.auth.getSession();
+
+    const claims = claimsOf(data.session!.access_token);
+    expect(claims.aal).toBe("aal1");
+    expect(claims.amr.map((entry) => entry.method)).toEqual(["magiclink"]);
+  });
+
+  describe("an aal2 fixture", () => {
+    let fixture: Awaited<ReturnType<typeof sessionUser>>;
+    beforeAll(async () => {
+      fixture = await sessionUser({ aal2: true });
+    });
+
+    it("reaches aal2 with totp beside the magiclink first factor", () => {
+      const claims = claimsOf(fixture.accessToken);
+      expect(claims.aal).toBe("aal2");
+      expect(claims.amr.map((entry) => entry.method).sort()).toEqual(["magiclink", "totp"]);
+    });
+
+    // #13: one factor per user (`max_enrolled_factors = 1`), so a stolen session can't add a
+    // second beside the admin's. A name of its own, or Auth refuses it as a name conflict first.
+    it("refuses a second factor's enroll", async () => {
+      const { data, error } = await jarClient(fixture.jar).auth.mfa.enroll({ factorType: "totp", friendlyName: "second" });
+
+      expect(data).toBeNull();
+      expect(error?.code).toBe("too_many_enrolled_mfa_factors");
+    });
+
+    it("signs the same user in again at aal2 with its factor", async () => {
+      const again = await sessionFor(fixture.userId, { aal2: true });
+
+      expect(claimsOf(again.accessToken).aal).toBe("aal2");
     });
   });
 });

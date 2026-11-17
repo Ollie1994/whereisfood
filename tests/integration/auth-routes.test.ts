@@ -12,6 +12,8 @@ import {
   createFixtureAuthUser,
   fixtureEmail,
   jarClient,
+  mailIds,
+  newLink,
   resetTables,
   sessionFor,
   sessionUser,
@@ -26,7 +28,6 @@ import {
 
 const ORIGIN = "http://127.0.0.1:3000";
 // Mailpit, the local stack's mail catcher: `supabase/config.toml`, `[local_smtp]`'s port.
-const MAILPIT = "http://127.0.0.1:54324";
 const SESSION_COOKIE = /^sb-[^=]+-auth-token(\.\d+)?$/;
 
 function request(path: string, { method = "GET", cookie = "", origin = ORIGIN as string | null } = {}) {
@@ -56,22 +57,6 @@ function sessionCookieNames(cookies: Map<string, string>): string[] {
 async function accepted(accessToken: string): Promise<boolean> {
   const { data, error } = await supabaseAdmin.auth.getUser(accessToken);
   return !error && data.user !== null;
-}
-
-// The newest sign-in link Mailpit holds for `email`.
-async function emailedLink(email: string): Promise<string> {
-  for (let attempt = 0; attempt < 20; attempt++) {
-    const search = await fetch(`${MAILPIT}/api/v1/search?query=${encodeURIComponent(`to:"${email}"`)}`);
-    const { messages } = (await search.json()) as { messages: { ID: string }[] };
-    if (messages.length > 0) {
-      const message = await (await fetch(`${MAILPIT}/api/v1/message/${messages[0].ID}`)).json();
-      const link = String(message.HTML ?? message.Text).match(/https?:\/\/[^"'\s<>]+\/verify\?[^"'\s<>]+/);
-      if (!link) throw new Error(`emailedLink: no verify link in the mail to ${email}`);
-      return link[0].replaceAll("&amp;", "&");
-    }
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  }
-  throw new Error(`emailedLink: no mail to ${email} in Mailpit`);
 }
 
 beforeAll(resetTables);
@@ -104,13 +89,15 @@ describe("GET /auth/callback", () => {
   beforeAll(async () => {
     userId = await createFixtureAuthUser();
     verifierJar = new Map();
+    // The mail this request sends, not one already there (`newLink`, Phase 9 plan #14).
+    const before = new Set(await mailIds(fixtureEmail(userId)));
     const { error } = await jarClient(verifierJar).auth.signInWithOtp({
       email: fixtureEmail(userId),
       options: { shouldCreateUser: false, emailRedirectTo: `${ORIGIN}/auth/callback` },
     });
     if (error) throw error;
 
-    const verify = await fetch(await emailedLink(fixtureEmail(userId)), { redirect: "manual" });
+    const verify = await fetch(await newLink(fixtureEmail(userId), before), { redirect: "manual" });
     const location = new URL(verify.headers.get("location") ?? "");
     expect(`${location.origin}${location.pathname}`).toBe(`${ORIGIN}/auth/callback`);
     code = location.searchParams.get("code") ?? "";
