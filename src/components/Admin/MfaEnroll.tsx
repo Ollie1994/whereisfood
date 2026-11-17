@@ -7,7 +7,6 @@ export default function MfaEnroll({ qrCode, secret }: { qrCode: string | null; s
   if (!qrCode) return null;
   return (
     <div className="flex flex-col items-center gap-3">
-      {/* A `data:` URL: `next/image` would only pass it through unoptimized. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={qrCode} alt={MFA_TEXTS.qrAlt} width={200} height={200} className="rounded-md bg-white p-2" />
       {secret && (

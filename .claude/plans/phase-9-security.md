@@ -635,7 +635,7 @@ the sequential integration suite's time down.
    `/admin/mfa`, showing the enroll while the user has no verified factor and the code once
    one exists. `/auth/callback` lands a login there; the proxy lets an `aal1` admin session
    through to it (`mfaStepAllowed`, with #14's allowlist), sends one from every other admin
-   page to it, and sends an `aal2` one from it to `/admin`. `/admin/login` stays let through.
+   page but the login to it, and sends an `aal2` one from it to `/admin`. `/admin/login` stays let through.
 6. ~~**What an admin route answers an `aal1` session (step 5b):** 401 or 403, and its Swedish
    text.~~ → **settled** (the owner, 2026-11-17, IS #382): 401, since the request isn't fully
    authenticated yet, with its own text, "Ange koden från din autentiseringsapp för att

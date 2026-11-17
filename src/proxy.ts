@@ -76,7 +76,7 @@ export async function proxy(request: NextRequest) {
     const input = { cookieNames: request.cookies.getAll().map(({ name }) => name), auth: supabase.auth };
 
     // `/admin/mfa` lets an `aal1` admin through, and sends an `aal2` one on to `/admin`.
-    // Every other admin page sends an `aal1` session to it; a route answers it 401 with its
+    // Every other admin page but the login sends an `aal1` session to it; a route answers it 401 with its
     // own text (`needs-mfa`, open decision 6).
     let reason: "no-session" | "not-admin" | "unavailable";
     if (pathname === MFA_PATH) {

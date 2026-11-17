@@ -5,8 +5,8 @@ import { MFA_TEXTS, SESSION_CHECK_FAILED } from "@/lib/login";
 import { mfaStepAllowed } from "@/lib/services/admin-auth";
 import { createSessionClient, readOnlyCookies } from "@/lib/supabase-session";
 
-// The TOTP step (Phase 9 plan step 5c, open decision 5): the one admin page an `aal1`
-// session reaches. Behind the proxy, which has just run the same check and refreshed the
+// The TOTP step (Phase 9 plan step 5c, open decision 5): the one admin page besides the
+// login that an `aal1` session reaches. Behind the proxy, which has just run the same check and refreshed the
 // session; this run picks the step: the enroll while the user has no verified factor (the
 // enroll window), the code once one exists.
 export default async function MfaPage() {

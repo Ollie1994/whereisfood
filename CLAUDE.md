@@ -240,9 +240,9 @@ said otherwise: Phase 4 plan decision #14.
   and `/api/admin/:path*`, with `/admin/login` let through in the function. Never
   `/api/live`, `/map`, `/auth/*` or `/dashboard`; `src/proxy.test.ts` pins the list
   (Phase 7 plan, #10, #28)
-- `/admin/mfa` is the one admin page an `aal1` admin session reaches, for the TOTP enroll
-  and code: every other admin page sends such a session there, and it sends an `aal2` one
-  on to `/admin` (Phase 9 plan, open decision 5)
+- `/admin/mfa` is the one admin page besides `/admin/login` that an `aal1` admin session
+  reaches, for the TOTP enroll and code: every other admin page sends such a session there,
+  and `/admin/mfa` sends an `aal2` one on to `/admin` (Phase 9 plan, open decision 5)
 - The proxy and the admin routes check for a session cookie **before any network or
   DB call**, so a cookie-less flood costs only the function run (Phase 7)
 - The proxy is a first filter, not the only check: every admin route checks again

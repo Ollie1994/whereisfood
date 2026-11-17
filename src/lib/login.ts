@@ -99,9 +99,9 @@ export function callbackErrorMessage(error: string | string[] | undefined): stri
 // `/admin` when Auth couldn't say whether the session is valid.
 export const SESSION_CHECK_FAILED = "Det gick inte att kontrollera inloggningen just nu. Ladda om sidan om en stund.";
 
-// The one admin page an `aal1` session reaches, for the TOTP enroll and the code (Phase 9
-// plan, open decision 5, the owner): `/auth/callback` lands a login here, and the proxy sends
-// an `aal1` session here from every other admin page.
+// The admin page besides the login that an `aal1` session reaches, for the TOTP enroll and
+// the code (Phase 9 plan, open decision 5, the owner): `/auth/callback` lands a login here,
+// and the proxy sends an `aal1` session here from every other admin page but the login.
 export const MFA_PATH = "/admin/mfa";
 
 // Logout's form: `LogoutButton`'s, and the proxy's 503 page's, which can't render a
