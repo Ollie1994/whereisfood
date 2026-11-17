@@ -3,8 +3,8 @@ import { createHmac } from "node:crypto";
 // A TOTP code (RFC 6238) for the integration tests' fixture factors, on Node's `crypto`,
 // not a library (Phase 9 plan #9, the owner's call: no dependency to audit or update).
 // Checked against RFC 6238's SHA-1 vectors in `totp.test.ts`. Test code only: the app never
-// computes a code; it holds a factor's secret only while the enroll step shows it
-// (`src/lib/mfa.ts`).
+// computes a code, and holds a factor's secret only in the enroll step's page while it is
+// open (`src/lib/mfa.ts`, `useMfa`).
 
 const BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 
