@@ -23,7 +23,7 @@ let cookie: string;
 
 beforeAll(async () => {
   await resetTables();
-  cookie = cookieHeader((await sessionUser({ isAdmin: true })).jar);
+  cookie = cookieHeader((await sessionUser({ isAdmin: true, aal2: true })).jar);
 }, SIGN_IN_TIMEOUT);
 afterAll(resetTables);
 

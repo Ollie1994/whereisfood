@@ -6,7 +6,11 @@ import {
   isTemporaryAuthError,
   loginMessage,
   loginStatusFor,
+  mfaCode,
+  mfaMessage,
+  mfaStatusFor,
   type LoginStatus,
+  type MfaStatus,
 } from "@/lib/login";
 
 describe("loginStatusFor", () => {
@@ -109,5 +113,58 @@ describe("isTemporaryAuthError", () => {
     expect(isTemporaryAuthError(null)).toBe(false);
     expect(isTemporaryAuthError(new AuthApiError("used", 400, "validation_failed"))).toBe(false);
     expect(isTemporaryAuthError(new AuthApiError("gone", 403, "session_not_found"))).toBe(false);
+  });
+});
+
+describe("mfaStatusFor", () => {
+  it("is verified when Auth answers with no error", () => {
+    expect(mfaStatusFor(null)).toBe("verified");
+  });
+
+  // Local Auth's answer to a wrong code (the PR for IS #382).
+  it("is wrong-code on mfa_verification_failed", () => {
+    expect(mfaStatusFor({ status: 422, code: "mfa_verification_failed" })).toBe("wrong-code");
+  });
+
+  it("is rate-limited on 429", () => {
+    expect(mfaStatusFor({ status: 429, code: "over_request_rate_limit" })).toBe("rate-limited");
+  });
+
+  it("is failed on any other error", () => {
+    expect(mfaStatusFor({ status: 500, code: "unexpected_failure" })).toBe("failed");
+    expect(mfaStatusFor({ status: 422, code: "mfa_challenge_expired" })).toBe("failed");
+    expect(mfaStatusFor({})).toBe("failed");
+  });
+});
+
+describe("mfaMessage", () => {
+  it.each<MfaStatus>(["preparing", "unprepared", "wrong-code", "rate-limited", "failed", "verified"])(
+    "has Swedish text for %s",
+    (status) => {
+      expect(mfaMessage(status)).toEqual(expect.any(String));
+    },
+  );
+
+  it.each<MfaStatus>(["ready", "verifying"])("has none for %s", (status) => {
+    expect(mfaMessage(status)).toBeNull();
+  });
+
+  it("gives every refusal its own text", () => {
+    const texts = (["unprepared", "wrong-code", "rate-limited", "failed"] as const).map(mfaMessage);
+    expect(new Set(texts).size).toBe(texts.length);
+  });
+});
+
+describe("mfaCode", () => {
+  it.each([
+    ["123456", "123456"],
+    ["123 456", "123456"],
+    [" 012345 ", "012345"],
+  ])("reads %j as %s", (input, code) => {
+    expect(mfaCode(input)).toBe(code);
+  });
+
+  it.each(["", "12345", "1234567", "12345a", "１２３４５６"])("refuses %j", (input) => {
+    expect(mfaCode(input)).toBeNull();
   });
 });

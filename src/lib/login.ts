@@ -99,7 +99,74 @@ export function callbackErrorMessage(error: string | string[] | undefined): stri
 // `/admin` when Auth couldn't say whether the session is valid.
 export const SESSION_CHECK_FAILED = "Det gick inte att kontrollera inloggningen just nu. Ladda om sidan om en stund.";
 
+// The one admin page an `aal1` session reaches, for the TOTP enroll and the code (Phase 9
+// plan, open decision 5, the owner): `/auth/callback` lands a login here, and the proxy sends
+// an `aal1` session here from every other admin page.
+export const MFA_PATH = "/admin/mfa";
+
 // Logout's form: `LogoutButton`'s, and the proxy's 503 page's, which can't render a
 // component. One copy, so both post to the same route with the same label.
 export const LOGOUT_PATH = "/auth/logout";
 export const LOGOUT_LABEL = "Logga ut";
+
+// The TOTP step's states (`useMfa`; Phase 9 plan step 5c). `preparing`: the enroll or the
+// factor read is under way; `unprepared`: it failed, so there is nothing to verify.
+export type MfaStatus =
+  | "preparing"
+  | "unprepared"
+  | "ready"
+  | "verifying"
+  | "wrong-code"
+  | "rate-limited"
+  | "failed"
+  | "verified";
+
+// What Auth answered to `challengeAndVerify`, reduced to a status. A wrong code: 422
+// `mfa_verification_failed`, "Invalid TOTP code entered" (local stack, the PR for IS #382).
+export function mfaStatusFor(error: { status?: number; code?: string } | null): MfaStatus {
+  if (!error) return "verified";
+  if (error.code === "mfa_verification_failed") return "wrong-code";
+  if (error.status === 429) return "rate-limited";
+  return "failed";
+}
+
+export function mfaMessage(status: MfaStatus): string | null {
+  switch (status) {
+    case "preparing":
+      return "Förbereder…";
+    case "unprepared":
+      return "Det gick inte att förbereda inloggningen. Ladda om sidan om en stund.";
+    case "wrong-code":
+      return "Fel kod. Kontrollera att koden kommer från WhereIsFood i appen och försök igen.";
+    case "rate-limited":
+      return "För många försök. Vänta en stund och försök igen.";
+    case "failed":
+      return "Det gick inte att kontrollera koden just nu. Försök igen om en stund.";
+    case "verified":
+      return "Klart. Öppnar admin…";
+    default:
+      return null;
+  }
+}
+
+// The six digits TOTP gives here (the enroll's URI: SHA1, 6 digits, 30 s, IS #381), with
+// the spaces an app shows between groups taken out. `null` for anything else.
+export function mfaCode(input: string): string | null {
+  const code = input.replace(/\s/g, "");
+  return /^\d{6}$/.test(code) ? code : null;
+}
+
+// The TOTP step's fixed texts.
+export const MFA_TEXTS = {
+  enrollTitle: "Lägg till tvåstegsverifiering",
+  enrollIntro:
+    "Skanna QR-koden med en autentiseringsapp i telefonen, till exempel Google Authenticator eller Microsoft Authenticator. Skriv sedan in koden som appen visar.",
+  qrAlt: "QR-kod att skanna med autentiseringsappen",
+  secretNote: "Går det inte att skanna? Lägg till kontot i appen med den här nyckeln:",
+  codeTitle: "Ange kod",
+  codeIntro: "Skriv in den sexsiffriga koden som autentiseringsappen visar för WhereIsFood.",
+  codeLabel: "Kod",
+  invalidCode: "Koden ska vara sex siffror.",
+  submit: "Bekräfta",
+  submitting: "Bekräftar…",
+} as const;

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { MFA_PATH } from "@/lib/login";
 
 const LINKS = [
   { href: "/admin", text: "Poster" },
@@ -9,10 +10,10 @@ const LINKS = [
 ] as const;
 
 // The admin screens' links, the current one marked (the owner's call, #230). None on the
-// login screen, where every link would lead back to it.
+// login screen or the TOTP step, where every link would lead back to it.
 export default function AdminNav() {
   const pathname = usePathname();
-  if (pathname === "/admin/login") return null;
+  if (pathname === "/admin/login" || pathname === MFA_PATH) return null;
 
   return (
     <nav className="flex gap-4 text-sm">

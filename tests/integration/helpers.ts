@@ -77,7 +77,8 @@ export function fixtureEmail(userId: string): string {
 
 // Every fixture user has this password, as the admin has one (README, "5. Create the admin
 // user"), but signs in by the magic link (`signInByLink`): the app admits no other first
-// factor (Phase 9 plan #14).
+// factor (Phase 9 plan #14). `sessionFor`'s `firstFactor: "password"` signs in with it, for
+// the tests that the app refuses that.
 const FIXTURE_PASSWORD = "itest-fixture-password";
 
 // One page of `auth.admin.listUsers`, which is also its default size. Exported for the
@@ -537,6 +538,13 @@ export function jarClient(jar: Map<string, string>): SupabaseClient<Database> {
   return createSessionClient(cookieJar(jar));
 }
 
+// Does Auth still accept this access token? `getUser` asks the server, which checks the
+// token's session still exists.
+export async function accepted(accessToken: string): Promise<boolean> {
+  const { data, error } = await supabaseAdmin.auth.getUser(accessToken);
+  return !error && data.user !== null;
+}
+
 // Each fixture's one TOTP factor, by user id: `sessionUser({ aal2: true })` enrolls it when
 // it creates the user, before any other session of it exists, since verifying a new factor
 // logs the user's other sessions out (auth-js `types.d.ts:1018`; Phase 9 plan #9). A later
@@ -550,7 +558,7 @@ const factors = new Map<string, { factorId: string; secret: string }>();
 // against Auth's clock, and on WSL2 the VM's clock can fall behind the host's after a
 // sleep, so a code from `Date.now()` would fail with an error that names the code, not the
 // clock.
-async function authClock(): Promise<number> {
+export async function authClock(): Promise<number> {
   const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/health`);
   const date = Date.parse(response.headers.get("date") ?? "");
   if (Number.isNaN(date)) throw new Error(`authClock: Auth's answer (${response.status}) has no Date header`);
@@ -582,43 +590,66 @@ async function enrollFactor(client: SupabaseClient<Database>, userId: string): P
   return verifyFactor(client, factor);
 }
 
-// A new jar signed in as `userId` by the magic link: the jar, its session client and the
-// access token. `sessionFor` and `sessionUser` each add their own factor step.
-async function signIn(userId: string): Promise<{
+// How a session signs in, by its `amr` method: `magiclink`, the PKCE link the admin uses
+// (`signInByLink`); `password`; and `otp`, `generateLink`'s hashed token verified directly,
+// as a typed or guessed code would be (IS #396's probe). Only `magiclink` is a Mailpit round
+// trip.
+export type FirstFactor = "magiclink" | "password" | "otp";
+
+async function signInWith(client: SupabaseClient<Database>, email: string, firstFactor: FirstFactor): Promise<string> {
+  if (firstFactor === "magiclink") return signInByLink(client, email);
+  if (firstFactor === "password") {
+    const { data, error } = await client.auth.signInWithPassword({ email, password: FIXTURE_PASSWORD });
+    if (error) throw error;
+    return data.session.access_token;
+  }
+  const { data: link, error: linkError } = await supabaseAdmin.auth.admin.generateLink({ type: "magiclink", email });
+  if (linkError) throw linkError;
+  const { data, error } = await client.auth.verifyOtp({ token_hash: link.properties.hashed_token, type: "magiclink" });
+  if (error) throw error;
+  if (!data.session) throw new Error("signInWith: verifyOtp answered no session");
+  return data.session.access_token;
+}
+
+// A new jar signed in as `userId`, by the magic link unless `firstFactor` says otherwise:
+// the jar, its session client and the access token. `sessionFor` and `sessionUser` each add
+// their own factor step.
+async function signIn(userId: string, firstFactor: FirstFactor = "magiclink"): Promise<{
   jar: Map<string, string>;
   client: SupabaseClient<Database>;
   accessToken: string;
 }> {
   const jar = new Map<string, string>();
   const client = jarClient(jar);
-  return { jar, client, accessToken: await signInByLink(client, fixtureEmail(userId)) };
+  return { jar, client, accessToken: await signInWith(client, fixtureEmail(userId), firstFactor) };
 }
 
 // `userId`'s session as the cookies `@supabase/ssr` writes, for route tests (Phase 7
-// plan, open decision 7): `jarClient` signs in by the magic link, so the library writes
-// its own format. With `{ aal2: true }`, raised to `aal2` with the factor `sessionUser`
+// plan, open decision 7): `jarClient` signs in by the magic link (or `firstFactor`), so the
+// library writes its own format. With `{ aal2: true }`, raised to `aal2` with the factor `sessionUser`
 // enrolled. Also returns the access token, to check later whether Auth still accepts the
 // session.
 //
-// ⚠ EACH CALL IS ONE SIGN-IN (`signInByLink`).
+// ⚠ EACH CALL IS ONE SIGN-IN (`signInWith`).
 // ⚠ `{ aal2: true }` ENDS THE USER'S `aal1` SESSIONS, those made before it included: a
 // login's verify does (IS #381's probe). A test that needs one user at both levels makes
 // the `aal2` session first and the `aal1` one after it (Phase 9 plan #9).
 export async function sessionFor(
   userId: string,
-  { aal2 = false } = {},
+  { aal2 = false, firstFactor = "magiclink" as FirstFactor } = {},
 ): Promise<{ jar: Map<string, string>; accessToken: string }> {
   const factor = aal2 ? factors.get(userId) : undefined;
   if (aal2 && !factor) throw new Error("sessionFor: no factor for this user; make it with sessionUser({ aal2: true })");
-  const { jar, client, accessToken: signedIn } = await signIn(userId);
+  const { jar, client, accessToken: signedIn } = await signIn(userId, firstFactor);
   return { jar, accessToken: factor ? await verifyFactor(client, factor) : signedIn };
 }
 
-// A fixture user with a `users` row, `is_admin` as given, signed in by the magic link.
+// A fixture user with a `users` row, `is_admin` as given, signed in by the magic link (or
+// `firstFactor`).
 // With `{ aal2: true }`, its one TOTP factor is enrolled and verified on this first
 // session, which reaches `aal2`; `sessionFor(userId, { aal2: true })` signs it in again at
 // `aal2`.
-export async function sessionUser({ isAdmin = false, aal2 = false } = {}): Promise<{
+export async function sessionUser({ isAdmin = false, aal2 = false, firstFactor = "magiclink" as FirstFactor } = {}): Promise<{
   userId: string;
   jar: Map<string, string>;
   accessToken: string;
@@ -628,7 +659,7 @@ export async function sessionUser({ isAdmin = false, aal2 = false } = {}): Promi
     const { error } = await supabaseAdmin.from("users").update({ is_admin: true }).eq("id", userId);
     if (error) throw error;
   }
-  const { jar, client, accessToken: signedIn } = await signIn(userId);
+  const { jar, client, accessToken: signedIn } = await signIn(userId, firstFactor);
   const accessToken = aal2 ? await enrollFactor(client, userId) : signedIn;
   return { userId, jar, accessToken };
 }

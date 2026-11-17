@@ -12,6 +12,9 @@ type Refusal = Extract<AdminCheck, { ok: false }>["reason"];
 
 const REFUSALS: Record<Refusal, { status: number; error: string }> = {
   "no-session": { status: 401, error: "Du är inte inloggad" },
+  // An `aal1` admin session: 401, as the request isn't fully authenticated yet, with its own
+  // text, so it is told apart from no session (Phase 9 plan, open decision 6, the owner).
+  "needs-mfa": { status: 401, error: "Ange koden från din autentiseringsapp för att fortsätta" },
   "not-admin": { status: 403, error: "Du har inte behörighet" },
   // An Auth or database failure isn't "logged out" (#32).
   unavailable: { status: 503, error: "Det gick inte att kontrollera inloggningen just nu" },
@@ -42,7 +45,7 @@ export async function withAdmin(
     const supabase = createSessionClient(readOnlyCookies(request.cookies));
     const check = await requireAdmin({
       cookieNames: request.cookies.getAll().map(({ name }) => name),
-      getUser: () => supabase.auth.getUser(),
+      auth: supabase.auth,
     });
     if (!check.ok) return adminRefusal(check.reason);
 

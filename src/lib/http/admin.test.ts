@@ -13,11 +13,16 @@ const { readJson, withAdmin } = await import("@/lib/http/admin");
 const ORIGIN = "http://127.0.0.1:3000";
 const ID = "00000000-0000-4000-8000-000000000001";
 
+// An access token whose payload holds `claims`, unsigned: `fetch` is stubbed, so Auth's check
+// of the signature is the integration test's. By default an `aal2` magic-link session.
+const AAL2 = { aal: "aal2", amr: [{ method: "magiclink", timestamp: 1 }, { method: "totp", timestamp: 2 }] };
+const jwt = (claims: object) => ["e30", Buffer.from(JSON.stringify(claims)).toString("base64url"), "sig"].join(".");
+
 // A session cookie in `@supabase/ssr`'s format (`base64-` and the session's JSON, base64url),
-// unexpired, so `getUser` asks Auth's `/user` and doesn't refresh first.
-function sessionCookie(): string {
+// unexpired, so `getSession` doesn't refresh and `getUser` asks Auth's `/user`.
+function sessionCookie(claims: object = AAL2): string {
   const session = {
-    access_token: "header.payload.signature",
+    access_token: jwt(claims),
     refresh_token: "refresh",
     token_type: "bearer",
     expires_in: 3600,
@@ -95,6 +100,29 @@ describe("withAdmin", () => {
     getUserById.mockRejectedValue(new Error("connection refused"));
 
     expect((await withAdmin(request({ cookie: sessionCookie() }), handler)).status).toBe(503);
+  });
+
+  it("answers an aal1 admin session 401 with its own text, not no-session's (open decision 6)", async () => {
+    authAnswers(userJson);
+    getUserById.mockResolvedValue({ id: ID, is_admin: true, truck_id: null, created_at: "" });
+
+    const response = await withAdmin(request({ cookie: sessionCookie({ aal: "aal1", amr: [{ method: "magiclink", timestamp: 1 }] }) }), handler);
+
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ error: "Ange koden från din autentiseringsapp för att fortsätta" });
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("answers a first factor outside the allowlist 401 no-session, after signing it out at Auth (plan #14)", async () => {
+    authAnswers(userJson);
+
+    const response = await withAdmin(request({ cookie: sessionCookie({ aal: "aal2", amr: [{ method: "otp", timestamp: 1 }, { method: "totp", timestamp: 2 }] }) }), handler);
+
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ error: "Du är inte inloggad" });
+    expect(fetchSpy.mock.calls.map(([url]) => String(url))).toContainEqual(expect.stringContaining("/auth/v1/logout?scope=local"));
+    expect(getUserById).not.toHaveBeenCalled();
   });
 
   it("answers 401 when Auth refuses the token", async () => {

@@ -7,6 +7,7 @@ import { supabaseAdmin } from "@/lib/supabase";
 import {
   FIXTURE_PREFIX,
   SIGN_IN_TIMEOUT,
+  accepted,
   anonClient,
   authUserIdsWhere,
   cookieHeader,
@@ -48,13 +49,6 @@ function setCookies(response: Response): Map<string, string> {
 
 function sessionCookieNames(cookies: Map<string, string>): string[] {
   return [...cookies.keys()].filter((name) => SESSION_COOKIE.test(name));
-}
-
-// Does Auth still accept this access token? `getUser` asks the server, which checks the
-// token's session still exists.
-async function accepted(accessToken: string): Promise<boolean> {
-  const { data, error } = await supabaseAdmin.auth.getUser(accessToken);
-  return !error && data.user !== null;
 }
 
 beforeAll(resetTables);
@@ -130,11 +124,11 @@ describe("GET /auth/callback", () => {
     expect(sessionCookieNames(written).filter((name) => written.get(name) !== "")).toEqual([]);
   });
 
-  it("exchanges the code, writes a session cookie Auth accepts, and lands on /admin", async () => {
+  it("exchanges the code, writes a session cookie Auth accepts, and lands on the MFA step", async () => {
     const response = await callback(request(`/auth/callback?code=${code}`, { cookie: cookieHeader(verifierJar) }));
 
     expect(response.status).toBe(303);
-    expect(response.headers.get("location")).toBe("/admin");
+    expect(response.headers.get("location")).toBe("/admin/mfa");
 
     const written = setCookies(response);
     const names = sessionCookieNames(written).filter((name) => written.get(name) !== "");

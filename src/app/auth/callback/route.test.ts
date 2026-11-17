@@ -22,12 +22,12 @@ function callback(query: string) {
 beforeEach(() => exchangeCodeForSession.mockReset());
 
 describe("GET /auth/callback", () => {
-  it("lands on /admin when the exchange succeeds", async () => {
+  it("lands on the MFA step when the exchange succeeds (a new session is aal1)", async () => {
     exchangeCodeForSession.mockResolvedValue({ data: {}, error: null });
     const response = await callback("?code=abc");
 
     expect(response.status).toBe(303);
-    expect(response.headers.get("location")).toBe("/admin");
+    expect(response.headers.get("location")).toBe("/admin/mfa");
     expect(exchangeCodeForSession).toHaveBeenCalledWith("abc");
   });
 
@@ -77,5 +77,5 @@ it("redirects to a relative path whatever X-Forwarded-Host says", async () => {
     }),
   );
 
-  expect(response.headers.get("location")).toBe("/admin");
+  expect(response.headers.get("location")).toBe("/admin/mfa");
 });
