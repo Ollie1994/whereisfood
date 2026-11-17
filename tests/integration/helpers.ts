@@ -411,11 +411,17 @@ const MAILPIT = "http://127.0.0.1:54324";
 const CALLBACK = "http://127.0.0.1:3000/auth/callback";
 
 // A link to one user within `[auth.email] max_frequency` (1 s) of the last is refused, so
-// each fixture's last request is kept, to wait it out (Phase 9 plan #14).
+// each fixture's last request is kept, to wait it out (Phase 9 plan #14). The 1 s is
+// pinned in `supabase/config.test.ts`, so a change there names this constant.
 const lastLinkRequest = new Map<string, number>();
 const LINK_INTERVAL_MS = 1_100;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// The timeout for a test or hook that signs in: a sign-in polls Mailpit for up to 10 s
+// (`newLink`), past vitest's defaults (5 s a test, 10 s a hook), and a hook may chain
+// several.
+export const SIGN_IN_TIMEOUT = 30_000;
 
 // The ids of the mails Mailpit holds for `email`, newest first.
 async function mailIds(email: string): Promise<string[]> {
@@ -429,16 +435,18 @@ async function mailIds(email: string): Promise<string[]> {
 // Mailpit keeps every earlier mail, and the password-changed and factor emails land there
 // too, so neither the newest mail nor any mail will do (Phase 9 plan #14). A mail read once
 // and holding no link isn't fetched again. It polls for 10 s by the clock, fetches
-// included; a hook that chains several sign-ins can reach vitest's 10 s hook timeout first,
-// whose error names no address.
+// included, so a test or hook that signs in needs a timeout above vitest's defaults (5 s a
+// test, 10 s a hook) for this error, which names the address, to show first.
 async function newLink(email: string, before: ReadonlySet<string>): Promise<string> {
   const checked = new Set(before);
   const deadline = Date.now() + 10_000;
   while (Date.now() < deadline) {
     for (const id of await mailIds(email)) {
       if (checked.has(id)) continue;
-      const message = (await (await fetch(`${MAILPIT}/api/v1/message/${id}`)).json()) as { HTML?: string; Text?: string };
-      const link = String(message.HTML ?? message.Text).match(/https?:\/\/[^"'\s<>]+\/verify\?[^"'\s<>]+/);
+      const response = await fetch(`${MAILPIT}/api/v1/message/${id}`);
+      if (!response.ok) throw new Error(`newLink: Mailpit answered ${response.status} for a mail to ${email}`);
+      const message = (await response.json()) as { HTML?: string; Text?: string };
+      const link = String(message.HTML || message.Text).match(/https?:\/\/[^"'\s<>]+\/verify\?[^"'\s<>]+/);
       if (link) return link[0].replaceAll("&amp;", "&");
       checked.add(id);
     }
@@ -537,7 +545,11 @@ export function jarClient(jar: Map<string, string>): SupabaseClient<Database> {
 const factors = new Map<string, { factorId: string; secret: string }>();
 
 // Raises `client`'s session to `aal2` with the user's factor: a challenge, then a verify
-// with the code `totp` computes now. Returns the new access token.
+// with the code `totp` computes now. Returns the new access token. A limit: a second
+// verify within one 30 s step sends the same code again, which the local stack's Auth
+// accepts (`helpers.test.ts`'s "signs the same user in again at aal2" does so seconds
+// after its enroll); if Auth starts refusing a code's second use (RFC 6238, 5.2), wait for
+// the next step here.
 async function verifyFactor(client: SupabaseClient<Database>, factor: { factorId: string; secret: string }): Promise<string> {
   const { data, error } = await client.auth.mfa.challengeAndVerify({
     factorId: factor.factorId,
@@ -583,10 +595,10 @@ export async function sessionFor(
   userId: string,
   { aal2 = false } = {},
 ): Promise<{ jar: Map<string, string>; accessToken: string }> {
-  const { jar, client, accessToken: signedIn } = await signIn(userId);
   const factor = factors.get(userId);
   if (aal2 && !factor) throw new Error("sessionFor: no factor for this user; make it with sessionUser({ aal2: true })");
-  const accessToken = aal2 && factor ? await verifyFactor(client, factor) : signedIn;
+  const { jar, client, accessToken: signedIn } = await signIn(userId);
+  const accessToken = factor && aal2 ? await verifyFactor(client, factor) : signedIn;
   return { jar, accessToken };
 }
 

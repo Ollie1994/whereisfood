@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase";
 import {
   AUTH_PAGE,
   FIXTURE_PREFIX,
+  SIGN_IN_TIMEOUT,
   authUserIdsWhere,
   createFixtureAuthUser,
   createFixtureUser,
@@ -258,18 +259,20 @@ describe("the fixtures' sign-in", () => {
     const claims = claimsOf(data.session!.access_token);
     expect(claims.aal).toBe("aal1");
     expect(claims.amr.map((entry) => entry.method)).toEqual(["magiclink"]);
-  });
+  }, SIGN_IN_TIMEOUT);
 
   describe("an aal2 fixture", () => {
     let fixture: Awaited<ReturnType<typeof sessionUser>>;
     beforeAll(async () => {
       fixture = await sessionUser({ aal2: true });
-    });
+    }, SIGN_IN_TIMEOUT);
 
+    // The order IS #381's probe found, `totp` first, pinned. Phase 9 plan #14 finds the
+    // first factor by its method, not its place, so a change here changes only #14's note.
     it("reaches aal2 with totp beside the magiclink first factor", () => {
       const claims = claimsOf(fixture.accessToken);
       expect(claims.aal).toBe("aal2");
-      expect(claims.amr.map((entry) => entry.method).sort()).toEqual(["magiclink", "totp"]);
+      expect(claims.amr.map((entry) => entry.method)).toEqual(["totp", "magiclink"]);
     });
 
     // #13: one factor per user (`max_enrolled_factors = 1`), so a stolen session can't add
@@ -286,6 +289,6 @@ describe("the fixtures' sign-in", () => {
       const again = await sessionFor(fixture.userId, { aal2: true });
 
       expect(claimsOf(again.accessToken).aal).toBe("aal2");
-    });
+    }, SIGN_IN_TIMEOUT);
   });
 });

@@ -6,6 +6,7 @@ import { POST as logout } from "@/app/auth/logout/route";
 import { supabaseAdmin } from "@/lib/supabase";
 import {
   FIXTURE_PREFIX,
+  SIGN_IN_TIMEOUT,
   anonClient,
   authUserIdsWhere,
   cookieHeader,
@@ -92,7 +93,7 @@ describe("GET /auth/callback", () => {
     expect(`${location.origin}${location.pathname}`).toBe(`${ORIGIN}/auth/callback`);
     code = location.searchParams.get("code") ?? "";
     expect(code).not.toBe("");
-  });
+  }, SIGN_IN_TIMEOUT);
 
   // The next two run before the exchange test, which then shows the code wasn't spent: if
   // either ever spends it, the failure shows there, not here.
@@ -180,7 +181,7 @@ describe("POST /auth/logout", () => {
     laptop = await sessionFor(admin.userId);
     nonAdmin = await sessionUser();
     toExpire = await sessionUser();
-  });
+  }, SIGN_IN_TIMEOUT);
 
   async function expectLoggedOut(jar: Map<string, string>) {
     const response = await logout(request("/auth/logout", { method: "POST", cookie: cookieHeader(jar) }));

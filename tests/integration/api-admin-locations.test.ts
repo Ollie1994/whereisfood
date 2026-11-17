@@ -7,7 +7,7 @@ import { POST as CANCEL } from "@/app/api/admin/locations/[id]/cancel/route";
 import { POST as CONFIRM } from "@/app/api/admin/locations/[id]/confirm/route";
 import { GET as PLACES } from "@/app/api/admin/places/route";
 import { supabaseAdmin } from "@/lib/supabase";
-import { FIXTURE_PLACE, cookieHeader, readLocation, resetTables, seedLocation, seedTruck, sessionUser } from "./helpers";
+import { FIXTURE_PLACE, SIGN_IN_TIMEOUT, cookieHeader, readLocation, resetTables, seedLocation, seedTruck, sessionUser } from "./helpers";
 
 // The location routes on the admin's session against the local stack (Phase 7 plan, step
 // 6). Refusals of anyone else are `admin-auth.test.ts`'s. One sign-in (`sessionUser`).
@@ -33,7 +33,7 @@ beforeAll(async () => {
   const admin = await sessionUser({ isAdmin: true });
   cookie = cookieHeader(admin.jar);
   adminId = admin.userId;
-});
+}, SIGN_IN_TIMEOUT);
 afterAll(resetTables);
 
 beforeEach(async () => {
