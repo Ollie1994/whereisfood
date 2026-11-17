@@ -123,7 +123,7 @@ checked against a written checklist.
 | Name | Layer | What it does |
 |---|---|---|
 | `requireAdmin` | service (`admin-auth.ts`) | Also refuses a session below `aal2`, with the level read from a token Auth has verified, never a decoded cookie (open decision 11); a new refusal reason for "needs the second factor"; admits only a session whose first factor is the PKCE magic link, `amr` `magiclink` (#13, #14); the time-box, signing the refused session out with `scope: "local"` (#4) |
-| `mfaStepAllowed` (working name) | service | An `aal1` session may enroll only while the user has no verified factor (the enroll window) |
+| `mfaStepAllowed` (working name) | service | An `aal1` session may enroll only while the user has no verified factor (the enroll window), and only with a `magiclink` first factor, #14's allowlist |
 | login steps (`login.ts`) | lib, pure | The steps (email, then TOTP enroll or code) and their Swedish texts |
 | `buildAdminCsp(nonce)`, the static header list (`csp.ts`) | lib, pure | The two CSPs and the other headers, shared by `next.config.ts` and the proxy |
 | length limits (`MAX_*`) | validators, pure | The bounds on free text, with Swedish messages |
@@ -211,7 +211,8 @@ before the closing steps (#12).
      whether that ends every session, ending sessions by SQL on `auth.sessions`); MFA
      verify's guessing limit; TOTP's digits and period; and, before step 5b ships #14's
      allowlist, the `amr` method of the owner's own PKCE link login on the preview (#14 rests
-     on a local probe). It also switches on the
+     on a local probe; anything but `magiclink` goes back to the owner before 5b; the login
+     spends one of the preview's 2 emails an hour). It also switches on the
      factor-enrolled and factor-unenrolled notification emails, locally and on the preview
      (#13's detection; the owner, 2026-11-17, IS #377);
    - b. `requireAdmin` refuses below `aal2`, and admits only a session whose first factor is
@@ -249,18 +250,19 @@ before the closing steps (#12).
 11. **Monitoring** (Q14): usage, spend and 5xx alerts on Vercel and Supabase where the free
     plans allow (open decision 7), and the log retentions read and recorded.
 12. **The hosted-settings checklist** (Q21) in `README.md` (#10), each item checked on the
-    preview: sign-ups off, redirect URLs, rate limits, the email OTP length (8, which open decision 1's odds use), MFA, the password
-    setting, secure
-    email change (#13), the audit log setting, Deployment Protection, Git Fork Protection,
+    preview: sign-ups off, redirect URLs, rate limits, the email OTP length (the code serves
+    no login, #14, so its length only sets open decision 1's guessing odds), MFA, the password
+    setting, secure email change (#13), the audit log setting, Deployment Protection, Git Fork Protection,
     "Enforce SSL", unused services, network restrictions, and the hosted Security Advisor
     (`db advisors --linked`).
 13. **The 2FA audit** (Q12): every account that exists then and each one's recovery email,
     the admin's login mailbox named, recovery codes offline. No secret is recorded.
 14. **The phone checkpoint** on `dev`'s preview: the magic link, the TOTP enroll and code,
     `/admin`, an entry reaching `/map`, logout ending the other device's session, and no
-    CSP block in the browser's console. Its logins (two devices) and the factor-enrolled email
-    are planned around the preview's `email_sent` of 2 an hour (#14; IS #378 found the
-    notification counts there), across two hours if they need more.
+    CSP block in the browser's console. Its two logins (two devices) and the factor-enrolled email
+    are three emails, past the preview's `email_sent` of 2 an hour, so they run across two
+    hours (the password email counts there, IS #378, and the factor emails go through the
+    same `sendEmail`, GoTrue's `mail.go`, not probed).
 15. **The Phase 9 retrospective** (`.claude/process-log.md`, "How to use it"): its range
     starts at the row after the Phase 8 retrospective's range. Blocked by every other
     planned issue; its follow-ups block step 16.
@@ -448,7 +450,8 @@ guessed code. The swap stays possible as sabotage
   on (auth-js has an `insufficient_aal` code); delete the factor, which with
   `deleteFactor` "will log the user out of all active sessions" (auth-js `types.d.ts:1494`),
   or else end every session by SQL on `auth.sessions`, since the admin API's `signOut` needs
-  the session's own JWT; re-enroll at once. Ending sessions comes after the password and the
+  the session's own JWT; re-enroll at once, since a free slot can be filled at Auth by any
+  `aal1` session, a guessed code's included (#14). Ending sessions comes after the password and the
   factor, or the thief signs straight back in. Step 5a probes each route.
 
 Step 5a probes the swap from a second `aal2` session.
@@ -468,10 +471,14 @@ probed gives `otp`:
 a typed code, `generate_link`'s hashed token (`verifyOtp` with `token_hash`), a plain GET of
 the action link; a guessed code is a typed code, since Auth still issues and accepts the code no
 email shows. **#13's allowlist admits `magiclink` only** (the owner, 2026-11-17, IS #396):
-the app refuses a guessed code's session before TOTP. **A limit:** that session is still a
-valid `aal1` session at Auth, refused by the app but not signed out, so it can call Auth
-directly (#7's own-row read; `updateUser`, which IS #378's password settings bound) until it ends; TOTP
-stands between it and `aal2`. **Before step 5b ships the allowlist**, step 5a reads the
+the app refuses a guessed code's session before TOTP. `mfaStepAllowed` applies the same allowlist, so the
+app's enroll step refuses it too. **A limit:** that session is still a valid `aal1` session
+at Auth, refused by the app but not signed out, so it can call Auth and the Data API directly
+(#7's own-row read through the Data API; `updateUser` at Auth, which secure password change
+and, hosted, "Require current password" bound, IS #378), and, while the one factor slot is
+free (between #13's factor deletion and its re-enroll), enroll a factor at Auth itself. On
+Free nothing ends it but a logout of every session (#5) or #13's recovery; the time-box
+sees only sessions that reach the app (#4). TOTP stands between it and `aal2`. **Before step 5b ships the allowlist**, step 5a reads the
 `amr` method of the owner's own PKCE link login on the preview; the admin was created with
 "Create new user", not an invite (README, "5. Create the admin user"), so its login is the
 link. The test fixtures sign in through the PKCE link, read from Mailpit as
