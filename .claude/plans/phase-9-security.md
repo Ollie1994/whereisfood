@@ -23,7 +23,7 @@ password, cancelling history, outliving logout) are closed or recorded.
 ## Goal
 
 The running app and its accounts are hardened before production: the admin login requires
-TOTP MFA (with #241's email code, if open decision 3 ships it), sessions are bounded until Pro, every page sends security
+TOTP MFA (behind the magic link; #241's code waits, #14), sessions are bounded until Pro, every page sends security
 headers (a strict CSP on `/admin`), the login-abuse and stolen-session risks are probed and
 settled, alerts exist where the free plans allow, and every account and hosted setting is
 checked against a written checklist.
@@ -54,6 +54,7 @@ checked against a written checklist.
 | Supabase Pro and its session timeouts (this phase builds the cover until then, #4); the custom domain, its CSP entry and HSTS; Vercel Pro | Phase 11 (the IS #373 (Phase 11) row) |
 | Passkey/WebAuthn MFA (experimental in Supabase, Appendix B); phone MFA (paid; `CLAUDE.md`'s 2FA rule excludes SMS) | not planned |
 | A log drain; paid monitoring | not planned (Q14) |
+| #241's emailed code (#14) | custom SMTP (the Owners phase) or Pro (Phase 11), whichever comes first |
 | #248, #256, #264, #308, #310 | standalone, outside any phase |
 | Truck-owner accounts and their threat model | Owners phase |
 
@@ -61,9 +62,9 @@ checked against a written checklist.
 
 ## Files
 
-**The login rework (MFA and #241's email code):**
+**The login rework (MFA behind the magic link, #14):**
 - `src/app/admin/login/page.tsx`, `src/components/Admin/LoginForm.tsx`, `src/hooks/useLogin.ts`,
-  `src/lib/login.ts` (+ tests): the email step and #241's emailed code.
+  `src/lib/login.ts` (+ tests): the email step, then the MFA step.
 - New: the enroll and code steps (a page under `/admin/login` or `/admin/mfa`, open
   decision 5), their hook (`useMfa`) and components (`MfaEnroll`, `MfaCode`).
 - `src/app/auth/callback/route.ts` (+ test): an `aal1` session goes to the MFA step.
@@ -98,11 +99,11 @@ checked against a written checklist.
 **Config and tests:**
 - `supabase/config.toml`: `[auth.mfa.totp]` enroll and verify on, `max_enrolled_factors = 1`
   (#13), `secure_password_change = true`, the password-changed notification, the
-  factor-enrolled and factor-unenrolled notifications (#13, step 5a), `otp_length` if step
-  5d's code ships (one length with the preview, open decision 3), and whatever step 8 chooses
+  factor-enrolled and factor-unenrolled notifications (#13, step 5a), and whatever step 8 chooses
   (rate limits, CAPTCHA).
 - New: a TOTP helper for the integration tests (#9), `tests/integration/helpers.ts` (the
-  fixtures sign in by the email code, not a password, and the admin login reaches `aal2`),
+  fixtures sign in through the PKCE magic link, read from Mailpit, not a password (#14), and
+  the admin login reaches `aal2`),
   and new or extended integration tests (`admin-auth.test.ts`, MFA, logout, cancel and
   confirm); a unit test that `config.toml` keeps `secure_password_change = true` (step 2).
 - No migration: `users_select_own` stays as it is (#7).
@@ -121,14 +122,14 @@ checked against a written checklist.
 
 | Name | Layer | What it does |
 |---|---|---|
-| `requireAdmin` | service (`admin-auth.ts`) | Also refuses a session below `aal2`, with the level read from a token Auth has verified, never a decoded cookie (open decision 11); a new refusal reason for "needs the second factor"; admits only a session whose first factor is the email code (#13); the time-box, signing the refused session out with `scope: "local"` (#4) |
-| `mfaStepAllowed` (working name) | service | An `aal1` session may enroll only while the user has no verified factor (the enroll window) |
-| login steps (`login.ts`) | lib, pure | The steps (email, emailed code, TOTP enroll or code) and their Swedish texts |
+| `requireAdmin` | service (`admin-auth.ts`) | Also refuses a session below `aal2`, with the level read from a token Auth has verified, never a decoded cookie (open decision 11); a new refusal reason for "needs the second factor"; admits only a session whose first factor (the `amr` entry that isn't `totp`) is the PKCE magic link, `amr` `magiclink`, signing a refused one out with `scope: "local"` (#13, #14); the time-box, signing the refused session out with `scope: "local"` (#4) |
+| `mfaStepAllowed` (working name) | service | An `aal1` session may enroll only while the user has no verified factor (the enroll window), and only with a `magiclink` first factor, #14's allowlist (the page; the enroll call goes to Auth) |
+| login steps (`login.ts`) | lib, pure | The steps (email, then TOTP enroll or code) and their Swedish texts |
 | `buildAdminCsp(nonce)`, the static header list (`csp.ts`) | lib, pure | The two CSPs and the other headers, shared by `next.config.ts` and the proxy |
 | length limits (`MAX_*`) | validators, pure | The bounds on free text, with Swedish messages |
 | TOTP helper | tests only | An RFC 6238 code from a secret, so integration tests reach `aal2` (#9) |
-| `useLogin`, `useMfa` | hooks (browser; Auth only, through `supabaseClient`) | #241's code step; enroll (QR) and verify |
-| `LoginForm`, `MfaEnroll`, `MfaCode` | components (render only) | The email and code form; the QR image from a `data:` URL with the secret; the code input |
+| `useLogin`, `useMfa` | hooks (browser; Auth only, through `supabaseClient`) | The email step; enroll (QR) and verify |
+| `LoginForm`, `MfaEnroll`, `MfaCode` | components (render only) | The email form; the QR image from a `data:` URL with the secret; the code input |
 | `proxy` | proxy | `aal2` through `requireAdmin`; the nonce CSP on `/admin` |
 | callback, logout | routes | An `aal1` session to the MFA step; logout with `scope: "global"` (#5) |
 | `cancelEntry`, `confirmEntry` | service (`locations.ts`) | Refuse an ended entry, as `editEntry` does: `cancelLocation` and `confirmLocation` filter on `ends_at`, then a read tells "ended" from "missing or cancelled"; both return an `EntryResult`, which the routes answer through the existing `entryAnswer` (#8) |
@@ -196,9 +197,9 @@ before the closing steps (#12).
    tests.
 5. **The login rework** (D2, D3, Q23):
    - a. `[auth.mfa.totp]` enroll and verify on and `max_enrolled_factors = 1` (#13), locally
-     and on the preview; the TOTP test helper (#9); `helpers.ts`'s fixtures sign in by the
-     email code (the admin API's generated link, then `verifyOtp`), not a password, and the
-     admin login reaches `aal2`. Then the probes that need TOTP: what the app's `unenroll`
+     and on the preview; the TOTP test helper (#9); `helpers.ts`'s fixtures sign in through the
+     PKCE magic link, read from Mailpit (#14), not a password, and the admin login reaches
+     `aal2`. Then the probes that need TOTP: what the app's `unenroll`
      and a login's verify do to another device's `aal1` and `aal2` sessions; the swap #13
      records, from a second `aal2` session (unenroll the factor, enroll another); deleting a
      factor in the SQL editor, locally and on the preview, and the dashboard's user page;
@@ -208,11 +209,15 @@ before the closing steps (#12).
      verified factor exists (auth-js has a `mfa_verified_factor_exists` code); each recovery
      route #13 names (replacing the password with the service role, deleting the factor and
      whether that ends every session, ending sessions by SQL on `auth.sessions`); MFA
-     verify's guessing limit; TOTP's digits and period. It also switches on the
+     verify's guessing limit; TOTP's digits and period; and, before step 5b ships #14's
+     allowlist, the `amr` method of the owner's own PKCE link login on the preview (#14 rests
+     on a local probe; anything but `magiclink` goes back to the owner before 5b; the login
+     spends one of the preview's 2 emails an hour). It also switches on the
      factor-enrolled and factor-unenrolled notification emails, locally and on the preview
      (#13's detection; the owner, 2026-11-17, IS #377);
    - b. `requireAdmin` refuses below `aal2`, and admits only a session whose first factor is
-     the email login (#13: `otp`, and `magiclink` until step 5d settles open decision 3);
+     the magic link (#13, #14: the first factor's `amr` method `magiclink` only, a refused
+     session signed out with `scope: "local"`);
      the enroll window; which paths an `aal1` session reaches and what
      an admin route answers it (open decisions 5, 6, 11); the admin-auth test's on-disk
      route list gains the `aal1` case; `CLAUDE.md`'s "Admin routes" updated;
@@ -220,8 +225,8 @@ before the closing steps (#12).
      5a shows an unverified factor fills the one slot, the enroll step first removes one an
      abandoned enroll left. **b and c ship in one PR**, so `dev` never has a login that
      can't reach `aal2`;
-   - d. #241's emailed code, one length in `config.toml` and on the preview, and whether the
-     magic link stays (open decision 3).
+   - d. none in Phase 9: the magic link stays the only first factor, and #241's code waits
+     for custom SMTP or Pro (#14; #383 closed as not planned).
 6. **The session time-box** (#4): `requireAdmin` refuses a session whose sign-in is older
    than the set age (open decision 2), and the refusal signs that session out at Auth with
    `scope: "local"` (that session only); if the sign-out fails, the refusal stands. A
@@ -246,33 +251,38 @@ before the closing steps (#12).
 11. **Monitoring** (Q14): usage, spend and 5xx alerts on Vercel and Supabase where the free
     plans allow (open decision 7), and the log retentions read and recorded.
 12. **The hosted-settings checklist** (Q21) in `README.md` (#10), each item checked on the
-    preview: sign-ups off, redirect URLs, rate limits, MFA, the password settings (secure
-    password change, its email, and require current password), secure email change (#13),
-    the audit log setting, Deployment Protection, Git Fork Protection,
+    preview: sign-ups off, redirect URLs, rate limits, the email OTP length (no email shows the
+    code, #14, but a guessed one is an `aal1` session at Auth, so its length sets open
+    decision 1's odds), MFA, the password settings (secure password change, its email, and
+    require current password), secure email change (#13), the audit log setting, Deployment
+    Protection, Git Fork Protection,
     "Enforce SSL", unused services, network restrictions, and the hosted Security Advisor
     (`db advisors --linked`).
 13. **The 2FA audit** (Q12): every account that exists then and each one's recovery email,
     the admin's login mailbox named, recovery codes offline. No secret is recorded.
-14. **The phone checkpoint** on `dev`'s preview: the email login (the code, or the link if
-    open decision 3 keeps only it), the TOTP enroll and code,
+14. **The phone checkpoint** on `dev`'s preview: the magic link, the TOTP enroll and code,
     `/admin`, an entry reaching `/map`, logout ending the other device's session, and no
-    CSP block in the browser's console.
+    CSP block in the browser's console. Its two logins (two devices), the factor-enrolled email,
+    and the factor-unenrolled one if step 5a's factor is removed first, are three or four
+    emails, past the preview's `email_sent` of 2 an hour, so they run across two hours (the password email counts there, IS #378, and the factor emails go through the
+    same `sendEmail`, GoTrue's `mail.go`, not probed).
 15. **The Phase 9 retrospective** (`.claude/process-log.md`, "How to use it"): its range
     starts at the row after the Phase 8 retrospective's range. Blocked by every other
     planned issue; its follow-ups block step 16.
 16. **The reconciliation of `project-context.md`**, blocked by step 15 and its follow-ups.
     It replaces the IS #278 (Phase 9) and IS #373 (Phase 9) markers with #1 and #2, and
-    rewrites the "Phase 7 open decisions 1–5" row those rows amend (the login is the email
-    code and TOTP; a session ends at the time-box or a logout of any device) and the Phase 7
+    rewrites the "Phase 7 open decisions 1–5" row those rows amend (the login is the magic
+    link and TOTP, #14; a session ends at the time-box or a logout of any device) and the Phase 7
     row for #17, #18, #19, #20 and #33, which #8 extends to cancel and confirm, with the
     other places that state today's rule (Part 2's Product model item 3, "Status codes",
-    and Part 1's "Ändra" until it ends). It rewrites Part 2's "Admin and auth" (MFA, the
-    code, the time-box, logout), "Pre-deploy automation" (the 2FA audit's result, which the
+    and Part 1's "Ändra" until it ends). It rewrites Part 2's "Admin and auth" (MFA behind
+    the magic link, #14; the time-box, logout), "Pre-deploy automation" (the 2FA audit's result, which the
     IS #278 (Phase 9) row names and `CLAUDE.md`'s "Secrets" points to), the Phase map's
     Phase 9 row, Part 1 where it describes the login, and the README's status parts; in the
-    Phase 9 row, "Admin and auth" and the "Phase 7 open decisions 1–5" row, "6-digit" becomes
-    the length step 5d set, or goes if the code doesn't ship (IS #377). It
-    carries forward the decisions that outlive the phase (#4–#11 and #13 at least), leaves
+    Phase 9 row, "Admin and auth" and the "Phase 7 open decisions 1–5" row, "6-digit" goes, since
+    the code doesn't ship in Phase 9 (#14). It
+    carries forward the decisions that outlive the phase (#4–#11, #13 and #14 at least, #14
+    with #241's trigger: custom SMTP or Pro, whichever comes first), leaves
     the IS #278 (Phase 10) and IS #373 (Phase 10) and (Phase 11) markers as they are, and
     sets `CLAUDE.md`'s bold line to none, naming this plan as the last one.
 
@@ -283,7 +293,7 @@ before the closing steps (#12).
 ### #1 — Phase 9's scope as the scope draft settles it (IS #278 (Phase 9))
 
 Takes up the IS #278 (Phase 9) **between phases** row: TOTP MFA for the admin login with
-#241's emailed code (amending Phase 7 open decision 1), its enroll-window constraints and
+#241's emailed code (amending Phase 7 open decision 1; #14 defers the code), its enroll-window constraints and
 the lost-phone routes to probe; session timeouts (amending open decision 2); the login-abuse
 and code-guessing probes; the split CSP and the cookie's-reach decision; monitoring; the
 smaller probes and limits (`x-forwarded-host`, length limits); the 2FA audit and the
@@ -295,7 +305,7 @@ calls (the draft's D2, D3, Q11–Q14, Q19–Q23, Q31, Q33).
 Takes up the IS #373 (Phase 9) **between phases** row. Session timeouts are Pro-only and Pro
 comes in Phase 11, so this phase builds the cover (#4). A stolen session can set a password
 silently, which outlasts logout and every timeout: step 2 turns the setting and its email
-on. #13 makes the app admit only a session whose first factor is the email code, so a
+on. #13 makes the app admit only a session whose first factor is the magic link (#14), so a
 password gets nothing there; a stolen `aal2` session can still swap the admin's factor for
 its own, which Supabase's Free plan can't block: #13 records what holds instead. It can
 cancel or confirm an ended entry: #8. Reading `aal` through `getClaims()` with asymmetric
@@ -321,8 +331,8 @@ and it holds when a logout is forgotten. It is measured from the **first factor'
 a session's holder must not be able to reset the bound by verifying again (round 1 on PR
 #376; step 5a probes it). The source is the `amr` claim: step 1 showed a verified token
 carries the first factor's method and sign-in time (`[{ method: "magiclink", timestamp }]`
-for today's link, `"otp"` for #241's code, seen with the admin API's `generate_link` code
-verified as `type: "email"`), unchanged by a refresh (IS #377; open decision 2). A refusal alone would leave the Supabase session alive, its refresh token
+for today's PKCE link, `"otp"` for each direct verify probed, a typed code included, #14),
+unchanged by a refresh (IS #377; open decision 2). A refusal alone would leave the Supabase session alive, its refresh token
 still good for direct Auth calls, so the refusal also signs that session out at Auth (round
 3 on PR #376, the owner's approval), with `scope: "local"`, so an old tab doesn't end a
 fresh session elsewhere (auth-js's `signOut()` defaults to global); a failed sign-out
@@ -378,8 +388,8 @@ one factor when it is created, before any second session of it exists, and keeps
 with the fixture; later logins of that user only challenge and verify. Verifying a newly
 enrolled factor logs out the user's other sessions (auth-js `types.d.ts:1018`), so an
 enroll after a second session exists would make multi-session tests pass or fail for the
-wrong reason (round 2 on PR #376). The fixtures sign in by the email code, since #13 refuses
-any other first factor (`helpers.ts` signs in by password today). If step 5a shows a login's
+wrong reason (round 2 on PR #376). The fixtures sign in through the PKCE magic link, read from Mailpit (#14), since #13
+refuses any other first factor (`helpers.ts` signs in by password today). If step 5a shows a login's
 verify also ends the user's `aal1` sessions, a test that needs one user at both levels makes
 the `aal2` session first and the `aal1` one after it, and an `aal1` refusal must be told
 apart from "no session" (open decision 6) (round 4 on PR #376).
@@ -424,15 +434,14 @@ the time-box and every logout. Supabase's Free plan has no server-side block for
 hooks there are the access-token and email hooks only, as on Pro (the pricing page's "Auth
 Hooks" row: "All" from Team), so Phase 11's Pro doesn't add one either.
 
-**`requireAdmin` admits only an email login** (round 3 on PR #376, the owner's
-approval; an allowlist since round 4): the admin signs in only by the email code, so a
+**`requireAdmin` admits only the magic link** (round 3 on PR #376, the owner's
+approval; an allowlist since round 4): the admin signs in only by the emailed link, so a
 session whose first factor is anything else (a password, a later OAuth link) is refused. A
-password the thief sets then gets them nothing in the app: getting back in needs the email
-code, so the mailbox too, which secure email change (both addresses confirm, step 12's
-checklist) keeps the thief from moving to their own. The email login's `amr` methods are
-`magiclink` for today's link and `otp` for #241's code (IS #377): the allowlist holds `otp`,
-which the fixtures use, and `magiclink` too until step 5d settles open decision 3, or `dev`
-locks the admin out (#382's body); both need the mailbox. The swap stays possible as sabotage
+password the thief sets then gets them nothing in the app: getting back in needs the emailed
+link, so the mailbox too, which secure email change (both addresses confirm, step 12's
+checklist) keeps the thief from moving to their own. The allowlist holds `magiclink`
+only (#14): the method of the PKCE link the admin uses, while `otp` would also admit a
+guessed code. The swap stays possible as sabotage
 (locking the admin out), not as a way in; recorded as a limit. What else holds:
 - **preventing the theft:** the CSP (#6 states its limit), the time-box (#4), logout ending
   every session (#5);
@@ -452,10 +461,49 @@ locks the admin out (#382's body); both need the mailbox. The swap stays possibl
   on (auth-js has an `insufficient_aal` code); delete the factor, which with
   `deleteFactor` "will log the user out of all active sessions" (auth-js `types.d.ts:1494`),
   or else end every session by SQL on `auth.sessions`, since the admin API's `signOut` needs
-  the session's own JWT; re-enroll at once. Ending sessions comes after the password and the
+  the session's own JWT; re-enroll at once, since a free slot can be filled at Auth by any
+  `aal1` session, a guessed code's included (#14). Ending sessions comes after the password and the
   factor, or the thief signs straight back in. Step 5a probes each route.
 
 Step 5a probes the swap from a second `aal2` session.
+
+### #14 — The magic link only, and an allowlist of `magiclink`
+
+Open decision 3 asked whether #241's emailed code joins or replaces the link. Step 1 found
+the preview can't edit its email template without custom SMTP (off, planned for the Owners
+phase); the other routes are Pro (Phase 11) and a Send Email hook, which still needs a mail
+service and code of ours. **Chosen: the magic link only for Phase 9** (the owner,
+2026-11-17, IS #396). #241 waits for custom SMTP or Pro, whichever comes first; until then
+the phone's Gmail app keeps #240's hint (open the link in the browser that asked for it).
+
+A probe while settling it (local stack, GoTrue v2.197.0, IS #396): of the flows probed, only
+the PKCE link (`/auth/callback`'s code exchange) gives `amr` `magiclink`; each direct verify
+probed gives `otp`:
+a typed code, `generate_link`'s hashed token (`verifyOtp` with `token_hash`), a plain GET of
+the action link; a guessed code is a typed code, since Auth still issues and accepts the code no
+email shows. **#13's allowlist admits `magiclink` only** (the owner, 2026-11-17, IS #396).
+**The first factor is the `amr` entry that isn't an MFA method** (not `totp`): after a TOTP
+verify, `amr` holds both, and the allowlist and #4's time-box read that entry (step 5a
+probes the order). The app refuses a guessed code's session before TOTP, and the refusal
+signs that session out at Auth with `scope: "local"`, as #4's does. `mfaStepAllowed`
+applies the same allowlist to the app's enroll page; the enroll itself goes from the browser
+to Auth (`useMfa`), so it gates the page, not Auth. **A limit:** a guessed code's session
+that never reaches the app is still a valid `aal1` session at Auth, so it can call Auth and
+the Data API directly (#7's own-row read through the Data API; `updateUser` at Auth, which
+secure password change and, hosted, "Require current password" bound, IS #378), and, while
+the one factor slot is free (between #13's factor deletion and its re-enroll), enroll a
+factor at Auth itself. On Free nothing ends it but a logout of every session (#5) or #13's
+recovery; the time-box sees only sessions that reach the app (#4). TOTP stands between it
+and `aal2`. **Before step 5b ships the allowlist**, step 5a reads the
+`amr` method of the owner's own PKCE link login on the preview; the admin was created with
+"Create new user", not an invite (README, "5. Create the admin user"), so its login is the
+link. The test fixtures sign in through the PKCE link, read from Mailpit as
+`auth-routes.test.ts` does, not `generate_link` + `verifyOtp` (#9, step 5a), with two
+cautions for #381: a second link to the same user within `max_frequency` (1 s locally) is
+refused, so a fixture waits it out; and Mailpit keeps every earlier mail, so a fixture reads
+the mail sent after its own request, not the newest one already there. Each sign-in is
+then a Mailpit round trip, so `helpers.ts`'s rule of one sign-in per file or describe keeps
+the sequential integration suite's time down.
 
 ---
 
@@ -477,13 +525,12 @@ Step 5a probes the swap from a second `aal2` session.
 - [ ] An `aal1` session is refused on every admin route and page (the admin-auth test finds
   the routes on disk); an `aal2` admin passes; `aal` is read from a verified token (a test
   with a forged `aal2` claim fails).
-- [ ] An `aal1` session may enroll only while the user has no verified factor (test).
-- [ ] The login runs email → emailed code (or the link, if open decision 3 keeps only it) →
-  TOTP (enroll the first time) → `/admin`.
-- [ ] If the emailed code ships, `config.toml`'s `otp_length` and the preview's are the same
-  (the preview's read by the owner, dated, on step 5d's issue).
-- [ ] A session whose first factor isn't the email login (a password login) is refused, and
-  the test fixtures sign in by the email code (tests).
+- [ ] An `aal1` session may enroll only while the user has no verified factor, and only with a
+  `magiclink` first factor (tests).
+- [ ] A session refused for its first factor is signed out at Auth, that session only (test).
+- [ ] The login runs email → magic link → TOTP (enroll the first time) → `/admin`.
+- [ ] A session whose first factor isn't the PKCE magic link (a password login, a code
+  verified directly) is refused, and the test fixtures sign in through that link (tests).
 - [ ] A session past the time-box is refused and signed out at Auth, that session only
   (test).
 - [ ] Logout ends every session: another session's next request is refused (test).
@@ -510,7 +557,8 @@ Step 5a probes the swap from a second `aal2` session.
 ## Open Decisions
 
 1. **The login-abuse fix (step 8)**, after the probes of steps 1, 2 and 5a: a CAPTCHA
-   (`config.toml`'s `[auth.captcha]`: hCaptcha or Turnstile), a shorter code life, a
+   (`config.toml`'s `[auth.captcha]`: hCaptcha or Turnstile), a longer code (no one types
+   it, #14; locally and on the preview), a shorter code life, a
    lockout, or accepting it. The form already shows one message for every address
    (`src/lib/login.ts`), and that doesn't hide which addresses have accounts, since the
    browser sees Auth's own answers. Step 1's inputs (IS #377): on the preview, the 31st
@@ -521,7 +569,9 @@ Step 5a probes the swap from a second `aal2` session.
    second over the code's 3600 s is about 390 guesses per IP per code, 1 in 256,000 at the
    preview's 8 digits, 1 in 2,600 at `config.toml`'s 6, per IP: the limit is per IP and a
    wrong guess doesn't spend the code, so N addresses multiply it (about 2,600 cover a
-   6-digit code within its hour); step 8 reads it at step 5d's length.
+   6-digit code within its hour); with the link only (#14), Auth still issues and accepts
+   the 8-digit code though no email shows it, and `requireAdmin` refuses the `otp` session a
+   guess would give.
    The email budget
    is one per project (GoTrue's source; not
    probed on the preview, the owner's call); a forged-cookie flood through the app spends
@@ -534,15 +584,12 @@ Step 5a probes the swap from a second `aal2` session.
 2. **The time-box's length (step 6).** Leaning 12 hours. Its source: the `amr` claim's
    first-factor timestamp (#4, IS #377), unless step 5a's probe shows a TOTP verify changes
    that entry.
-3. **The magic link (step 5d):** kept beside the emailed code, or the code only. Step 1
-   (IS #377): the preview's dashboard says "Set up custom SMTP to edit templates. Emails
-   will be sent using the default templates.", custom SMTP is off there, and the local
-   default magic-link email held
-   no code; so the code needs custom SMTP on a hosted project (planned for the Owners phase,
-   `project-context.md`'s Phase map), or another route #383 finds; the dashboard's own
-   offers are Pro and a "Send Email hook". The preview's code is 8 digits, `config.toml`'s
-   `otp_length` 6 (IS #377): if the code ships, step 5d sets one length in both, and the
-   code step takes that length, so a screen tested locally fits the preview's email.
+3. ~~**The magic link (step 5d):** kept beside the emailed code, or the code only.~~ →
+   **settled by #14** (the owner, 2026-11-17, IS #396): the magic link only. What step 1
+   found (IS #377): the preview's dashboard says "Set up custom SMTP to edit templates.
+   Emails will be sent using the default templates.", custom SMTP is off there, and the
+   local default magic-link email held no code; the dashboard's other routes are Pro and a
+   "Send Email hook". The preview's code is 8 digits, `config.toml`'s `otp_length` 6.
 4. **The lost-phone route (D3)**, where the service-role calls (`deleteFactor`,
    `updateUserById`) may run with production's secret key, and whether the login rework
    needs an unenroll screen, from the probes in steps 1 and 5a. The recovery order is #13's.
