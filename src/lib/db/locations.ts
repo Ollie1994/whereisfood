@@ -70,19 +70,39 @@ export async function insertLocation(location: NewLocation): Promise<Location> {
   return data;
 }
 
-// Update a row that isn't cancelled and return it; null when no such row. The one path
-// for edits, cancels and confirms, so the live-row filter and the select are written once.
-// With `endsAfter`, also only a row whose `ends_at` is after that instant, in the same
-// statement, so no write lands between a check and the update: cancel and confirm pass it,
-// edits don't (Phase 9 plan #8, IS #380).
+// Update a row that isn't cancelled and return it; null when no such row. The edits' path.
 async function updateLiveRow(
   id: string,
   values: TablesUpdate<"locations">,
-  endsAfter?: string,
 ): Promise<Location | null> {
-  let query = supabaseAdmin.from("locations").update(values).eq("id", id).is("cancelled_at", null);
-  if (endsAfter !== undefined) query = query.gt("ends_at", endsAfter);
-  const { data, error } = await query.select(LOCATION_COLUMNS).maybeSingle();
+  const { data, error } = await supabaseAdmin
+    .from("locations")
+    .update(values)
+    .eq("id", id)
+    .is("cancelled_at", null)
+    .select(LOCATION_COLUMNS)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
+// As `updateLiveRow`, and only while the row's `ends_at` is after `at`, in the same
+// statement, so no write lands between a check and the update. Cancel's and confirm's path:
+// Phase 9 plan #8 keeps this filter out of `updateLiveRow`, which edits use (IS #380).
+async function updateUnendedRow(
+  id: string,
+  values: TablesUpdate<"locations">,
+  at: string,
+): Promise<Location | null> {
+  const { data, error } = await supabaseAdmin
+    .from("locations")
+    .update(values)
+    .eq("id", id)
+    .is("cancelled_at", null)
+    .gt("ends_at", at)
+    .select(LOCATION_COLUMNS)
+    .maybeSingle();
 
   if (error) throw error;
   return data;
@@ -115,11 +135,12 @@ export async function cancelLocation(
   id: string,
   cancelledAt: string,
 ): Promise<Location | null> {
-  return updateLiveRow(id, { cancelled_at: cancelledAt }, cancelledAt);
+  return updateUnendedRow(id, { cancelled_at: cancelledAt }, cancelledAt);
 }
 
 // The row when it isn't cancelled; null for an unknown id or a cancelled row, the same
-// rows `updateLiveRow` finds.
+// rows `updateLiveRow` finds. It finds an ended row, which `updateUnendedRow` skips: the
+// service tells ended from missing by that difference (Phase 9 plan #8).
 export async function getLocationById(id: string): Promise<Location | null> {
   const { data, error } = await supabaseAdmin
     .from("locations")
@@ -141,7 +162,7 @@ export async function confirmLocation(
   id: string,
   confirmedAt: string,
 ): Promise<Location | null> {
-  return updateLiveRow(id, { updated_at: confirmedAt }, confirmedAt);
+  return updateUnendedRow(id, { updated_at: confirmedAt }, confirmedAt);
 }
 
 // Live rows of every truck overlapping [from, to): `starts_at < to AND ends_at > from`.

@@ -372,7 +372,8 @@ describe.each([
 
   it("answers an entry the write skipped but the read finds as ended", async () => {
     write.mockResolvedValue(null);
-    db.getLocationById.mockResolvedValue(row());
+    // Ended before NOW (08:00), as a row the write skipped is.
+    db.getLocationById.mockResolvedValue(row({ starts_at: "2026-08-22T06:00:00+00:00", ends_at: "2026-08-22T07:00:00+00:00" }));
     expect(await act(ID, NOW)).toEqual({ ok: false, reason: "invalid", error: ENTRY_ERRORS.endedEdit });
     expect(db.getLocationById).toHaveBeenCalledWith(ID);
   });

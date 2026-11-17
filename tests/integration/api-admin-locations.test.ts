@@ -211,6 +211,16 @@ describe("POST /api/admin/locations/[id]/cancel", () => {
     expect((await readLocation(id)).cancelled_at).toBe(cancelledAt);
   });
 
+  // Phase 9 plan #8: an entry that has started and not ended is still cancelled.
+  it("cancels a running entry", async () => {
+    const { id } = await seedLocation(truckId, window(-HOUR));
+
+    const response = await call(CANCEL, "POST", id);
+
+    expect(response.status).toBe(200);
+    expect((await readLocation(id)).cancelled_at).not.toBeNull();
+  });
+
   // Phase 9 plan #8: past history can't be cancelled.
   it("refuses an entry that has ended with 400 and leaves it", async () => {
     const seeded = await seedLocation(truckId, window(-DAY));
@@ -249,6 +259,16 @@ describe("POST /api/admin/locations/[id]/confirm", () => {
 
     expect(response.status).toBe(404);
     expect(await readLocation(seeded.id)).toEqual(seeded);
+  });
+
+  // Phase 9 plan #8: started and not ended, so still confirmed.
+  it("confirms a running entry", async () => {
+    const seeded = await seedLocation(truckId, window(-HOUR));
+
+    const response = await call(CONFIRM, "POST", seeded.id);
+
+    expect(response.status).toBe(200);
+    expect(Date.parse((await readLocation(seeded.id)).updated_at)).toBeGreaterThan(Date.parse(seeded.updated_at));
   });
 
   // Phase 9 plan #8.

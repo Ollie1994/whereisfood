@@ -256,7 +256,12 @@ describe("confirmLocation", () => {
   });
 
   it("returns null for a cancelled row, leaving updated_at, and for an unknown id", async () => {
-    const seeded = await seedLocation(truckId, { cancelled_at: "2026-08-21T08:00:00.000Z" });
+    // A window that hasn't ended at the instant, so only `cancelled_at` keeps the row out.
+    const seeded = await seedLocation(truckId, {
+      starts_at: LUNCH_START,
+      ends_at: LUNCH_END,
+      cancelled_at: "2026-08-21T08:00:00.000Z",
+    });
 
     expect(await confirmLocation(seeded.id, "2026-08-22T08:00:00.000Z")).toBeNull();
     expect((await readLocation(seeded.id)).updated_at).toBe(seeded.updated_at);
