@@ -14,8 +14,10 @@ import { NextResponse } from "next/server";
 // cross-site form can't use it. On `dev`'s preview, Vercel replaced a client's
 // `X-Forwarded-Host`: a POST to `/auth/logout` with `Origin: https://evil.example` and
 // `X-Forwarded-Host: evil.example` was refused 403, and one with the deploy's own `Origin`
-// and `X-Forwarded-Host: evil.example` answered 303 (IS #377). `X-Forwarded-Proto` and the
-// production domain weren't probed. Redirects still don't use it: `redirectTo` below.
+// and `X-Forwarded-Host: evil.example` answered 303 (IS #377). It replaced a client's
+// `X-Forwarded-Proto: http` too: with it, an `http://` `Origin` was refused 403 and the
+// `https://` one answered 303. The production domain, which doesn't exist yet, wasn't
+// probed. Redirects still don't use it: `redirectTo` below.
 
 type HeaderSource = { headers: Headers };
 
