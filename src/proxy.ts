@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { adminRefusal } from "@/lib/http/admin";
 import { foreignOriginRefusal, isSameOrigin, isWrite } from "@/lib/http/origin";
-import { LOGOUT_LABEL, LOGOUT_PATH, SESSION_CHECK_FAILED } from "@/lib/login";
-import { hasSessionCookie, requireAdmin } from "@/lib/services/admin-auth";
+import { LOGOUT_LABEL, LOGOUT_PATH, MFA_PATH, SESSION_CHECK_FAILED } from "@/lib/login";
+import { hasSessionCookie, mfaStepAllowed, requireAdmin } from "@/lib/services/admin-auth";
 import { createSessionClient, writingCookies } from "@/lib/supabase-session";
 
 // NO `export const runtime` HERE — and none is needed. Next.js 16 rejects route
@@ -45,7 +45,8 @@ function wroteSession(from: NextResponse): boolean {
 
 // A page's answer when the session can't be checked: Swedish text, not the login, which
 // would send the admin to spend one of the built-in email's few links an hour (#32). With
-// `LogoutButton`'s form, so a session stuck as "unavailable" (`admin-auth.ts`'s limit) can
+// `LogoutButton`'s form, so a session stuck as "unavailable" (`isInvalidSession`'s limit, or
+// a refused first factor whose sign-out keeps failing, `admin-auth.ts`) can
 // be cleared here; logging out sends no email (the owner's call, PR for IS #223, round 4).
 function unavailablePage(): NextResponse {
   const html = `<!doctype html><html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>WhereIsFood – admin</title></head><body><p role="alert">${SESSION_CHECK_FAILED}</p><form method="post" action="${LOGOUT_PATH}"><button type="submit">${LOGOUT_LABEL}</button></form></body></html>`;
@@ -73,11 +74,25 @@ export async function proxy(request: NextRequest) {
     const written = new NextResponse();
     const supabase = createSessionClient(writingCookies(request, written));
 
-    const check = await requireAdmin({
-      cookieNames: request.cookies.getAll().map(({ name }) => name),
-      getUser: () => supabase.auth.getUser(),
-    });
-    if (check.ok) return carry(written, NextResponse.next({ request }));
+    const input = { cookieNames: request.cookies.getAll().map(({ name }) => name), auth: supabase.auth };
+
+    // `/admin/mfa` lets an `aal1` admin through, and sends an `aal2` one on to `/admin`.
+    // Every other admin page but the login sends an `aal1` session to it; a route answers it 401 with its
+    // own text (`needs-mfa`, open decision 6).
+    let reason: "no-session" | "not-admin" | "unavailable";
+    if (pathname === MFA_PATH) {
+      const step = await mfaStepAllowed(input);
+      if (step.ok) return carry(written, NextResponse.next({ request }));
+      if (step.reason === "done") return carry(written, NextResponse.redirect(new URL("/admin", request.url), 303));
+      reason = step.reason;
+    } else {
+      const check = await requireAdmin(input);
+      if (check.ok) return carry(written, NextResponse.next({ request }));
+      if (check.reason === "needs-mfa") {
+        return carry(written, isApi ? adminRefusal(check.reason) : NextResponse.redirect(new URL(MFA_PATH, request.url), 303));
+      }
+      reason = check.reason;
+    }
 
     // "Unavailable" isn't logged out (#32), so its answer carries a new session but never
     // a deletion alone. A refresh Auth refused with a 429 or a 500 still deletes the
@@ -85,12 +100,12 @@ export async function proxy(request: NextRequest) {
     // but a retryable one (502–504, 520–530), and `@supabase/ssr` then wrote
     // `sb-127-auth-token=''`, `maxAge=0` through `setAll` (a stubbed `fetch`, PR for IS #223,
     // round 3). A refresh that worked before the database failed is kept.
-    if (check.reason === "unavailable") {
-      const answer = isApi ? adminRefusal(check.reason) : unavailablePage();
+    if (reason === "unavailable") {
+      const answer = isApi ? adminRefusal(reason) : unavailablePage();
       return wroteSession(written) ? carry(written, answer) : answer;
     }
 
-    if (isApi) return carry(written, adminRefusal(check.reason));
+    if (isApi) return carry(written, adminRefusal(reason));
     // A limit: a logged-in non-admin lands on the login with no message, and a new link
     // brings them back here. Sign-ups are off, and until the Owners phase the plan creates
     // only the admin's account, so the admin's own use doesn't reach it (PR for IS #223,

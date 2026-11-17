@@ -3,6 +3,7 @@ import { AuthApiError, AuthRetryableFetchError, AuthSessionMissingError } from "
 import { unstable_doesMiddlewareMatch } from "next/experimental/testing/server";
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { LINK, TOTP, unsignedJwt as jwt } from "../tests/jwt";
 import nextConfig from "../next.config";
 
 // The proxy's matcher and its answers, with the session client and the db layer stubbed.
@@ -14,14 +15,16 @@ import nextConfig from "../next.config";
 const getUserById = vi.fn();
 vi.mock("@/lib/db/users", () => ({ getUserById: (id: string) => getUserById(id) }));
 
+const getSession = vi.fn();
 const getUser = vi.fn();
+const signOut = vi.fn();
 let adapter: CookieMethodsServer | undefined;
 // The real `writingCookies`, so what a stubbed refresh writes goes through the app's adapter.
 vi.mock("@/lib/supabase-session", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/supabase-session")>()),
   createSessionClient: (cookies: CookieMethodsServer) => {
     adapter = cookies;
-    return { auth: { getUser } };
+    return { auth: { getSession, getUser, signOut } };
   },
 }));
 
@@ -33,6 +36,13 @@ const SESSION = "sb-127-auth-token=base64-abc";
 // The proxy's login redirect: built from `request.url`, where `NextRequest` names
 // `127.0.0.1` as `localhost`. A real server then makes it relative (`src/proxy.ts`).
 const LOGIN_URL = new URL("/admin/login", new NextRequest(ORIGIN).url).href;
+const MFA_URL = new URL("/admin/mfa", new NextRequest(ORIGIN).url).href;
+const ADMIN_URL = new URL("/admin", new NextRequest(ORIGIN).url).href;
+
+// The session's access token, as `getSession` hands it out (`tests/jwt.ts`'s `unsignedJwt`).
+// By default an `aal2` magic-link session.
+const withToken = (claims: object) =>
+  getSession.mockResolvedValue({ data: { session: { access_token: jwt(claims) } }, error: null });
 
 function request(path: string, cookie = "") {
   const headers: Record<string, string> = { host: "127.0.0.1:3000" };
@@ -46,7 +56,11 @@ const forwarded = (response: Response) => response.headers.get("x-middleware-nex
 const fetchSpy = vi.fn(() => Promise.reject(new Error("unexpected network call")));
 
 beforeEach(() => {
+  getSession.mockReset();
+  withToken({ aal: "aal2", amr: [LINK, TOTP] });
   getUser.mockReset();
+  signOut.mockReset();
+  signOut.mockResolvedValue({ error: null });
   getUserById.mockReset();
   fetchSpy.mockClear();
   adapter = undefined;
@@ -58,7 +72,7 @@ afterEach(() => vi.unstubAllGlobals());
 describe("the matcher", () => {
   const matches = (url: string) => unstable_doesMiddlewareMatch({ config, nextConfig, url });
 
-  it.each(["/admin", "/admin/login", "/admin/trucks", "/api/admin/trucks", "/api/admin/locations/x/cancel"])(
+  it.each(["/admin", "/admin/login", "/admin/mfa", "/admin/trucks", "/api/admin/trucks", "/api/admin/locations/x/cancel"])(
     "runs on %s",
     (url) => expect(matches(url)).toBe(true),
   );
@@ -277,6 +291,81 @@ describe("proxy with a session cookie", () => {
     });
 
     expect((await proxy(forged)).headers.get("location")).toBe(LOGIN_URL);
+  });
+});
+
+// The MFA step (Phase 9 plan step 5b, open decisions 5 and 6).
+describe("proxy and the second factor", () => {
+  const admin = () => {
+    getUser.mockResolvedValue({ data: { user: { id: ID, factors: [] } }, error: null });
+    getUserById.mockResolvedValue({ id: ID, is_admin: true, truck_id: null, created_at: "" });
+  };
+
+  it.each(["/admin", "/admin/trucks"])("sends an aal1 admin's %s to /admin/mfa", async (path) => {
+    admin();
+    withToken({ aal: "aal1", amr: [LINK] });
+
+    const response = await proxy(request(path, SESSION));
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe(MFA_URL);
+  });
+
+  it("answers an aal1 admin's route 401 with its own text, not no-session's", async () => {
+    admin();
+    withToken({ aal: "aal1", amr: [LINK] });
+
+    const response = await proxy(request("/api/admin/trucks", SESSION));
+
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ error: "Ange koden från din autentiseringsapp för att fortsätta" });
+  });
+
+  it("lets an aal1 admin through to /admin/mfa", async () => {
+    admin();
+    withToken({ aal: "aal1", amr: [LINK] });
+
+    expect(forwarded(await proxy(request("/admin/mfa", SESSION)))).toBe(true);
+  });
+
+  it("sends an aal2 admin on from /admin/mfa to /admin", async () => {
+    admin();
+
+    const response = await proxy(request("/admin/mfa", SESSION));
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe(ADMIN_URL);
+  });
+
+  it("sends /admin/mfa to the login with no session cookie, with no Auth call", async () => {
+    const response = await proxy(request("/admin/mfa"));
+
+    expect(response.headers.get("location")).toBe(LOGIN_URL);
+    expect(getSession).not.toHaveBeenCalled();
+  });
+
+  it("sends a non-admin's /admin/mfa to the login", async () => {
+    admin();
+    getUserById.mockResolvedValue({ id: ID, is_admin: false, truck_id: null, created_at: "" });
+    withToken({ aal: "aal1", amr: [LINK] });
+
+    expect((await proxy(request("/admin/mfa", SESSION))).headers.get("location")).toBe(LOGIN_URL);
+  });
+
+  it.each(["/admin/mfa", "/admin"])("signs an otp session out and sends its %s to the login (plan #14)", async (path) => {
+    admin();
+    withToken({ aal: "aal1", amr: [{ method: "otp", timestamp: 1 }] });
+
+    const response = await proxy(request(path, SESSION));
+
+    expect(response.headers.get("location")).toBe(LOGIN_URL);
+    expect(signOut).toHaveBeenCalledExactlyOnceWith({ scope: "local" });
+  });
+
+  it("answers /admin/mfa 503 when Auth fails, not the login", async () => {
+    getUser.mockResolvedValue({ data: { user: null }, error: new AuthRetryableFetchError("fetch failed", 0) });
+
+    expect((await proxy(request("/admin/mfa", SESSION))).status).toBe(503);
   });
 });
 

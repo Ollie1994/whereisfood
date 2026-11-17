@@ -1,12 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { AuthApiError, AuthPKCECodeVerifierMissingError, AuthRetryableFetchError } from "@supabase/supabase-js";
+import {
+  AuthApiError,
+  AuthPKCECodeVerifierMissingError,
+  AuthRetryableFetchError,
+  AuthSessionMissingError,
+} from "@supabase/supabase-js";
 import {
   callbackErrorFor,
   callbackErrorMessage,
   isTemporaryAuthError,
   loginMessage,
   loginStatusFor,
+  mfaAlert,
+  mfaCode,
+  mfaFormOff,
+  mfaKeyShown,
+  mfaMessage,
+  mfaStatusFor,
   type LoginStatus,
+  type MfaStatus,
 } from "@/lib/login";
 
 describe("loginStatusFor", () => {
@@ -109,5 +121,89 @@ describe("isTemporaryAuthError", () => {
     expect(isTemporaryAuthError(null)).toBe(false);
     expect(isTemporaryAuthError(new AuthApiError("used", 400, "validation_failed"))).toBe(false);
     expect(isTemporaryAuthError(new AuthApiError("gone", 403, "session_not_found"))).toBe(false);
+  });
+});
+
+describe("mfaStatusFor", () => {
+  it("is verified when Auth answers with no error", () => {
+    expect(mfaStatusFor(null)).toBe("verified");
+  });
+
+  // Local Auth's answer to a wrong code (the PR for IS #382).
+  it("is wrong-code on mfa_verification_failed", () => {
+    expect(mfaStatusFor({ status: 422, code: "mfa_verification_failed" })).toBe("wrong-code");
+  });
+
+  // A factor another visit to the enroll step replaced (local stack, the PR for IS #382).
+  it("is replaced on mfa_factor_not_found, so the page says to reload and add the new key", () => {
+    expect(mfaStatusFor({ status: 404, code: "mfa_factor_not_found" })).toBe("replaced");
+  });
+
+  it("is rate-limited on 429", () => {
+    expect(mfaStatusFor({ status: 429, code: "over_request_rate_limit" })).toBe("rate-limited");
+  });
+
+  // With no stored session auth-js sends only the anon key, and Auth answers 403 `bad_jwt`
+  // (`curl` of a factor's `/challenge`, the PR for IS #382).
+  it.each([
+    ["a missing session", new AuthSessionMissingError()],
+    ["the anon key alone", new AuthApiError("invalid claim: missing sub claim", 403, "bad_jwt")],
+    ["a failed refresh", new AuthApiError("Invalid Refresh Token: Refresh Token Not Found", 400, "refresh_token_not_found")],
+  ])("is expired on %s", (_, error) => {
+    expect(mfaStatusFor(error)).toBe("expired");
+  });
+
+  it("is failed on any other error", () => {
+    expect(mfaStatusFor({ status: 500, code: "unexpected_failure" })).toBe("failed");
+    expect(mfaStatusFor({ status: 422, code: "mfa_challenge_expired" })).toBe("failed");
+    expect(mfaStatusFor({})).toBe("failed");
+  });
+});
+
+describe("mfaMessage", () => {
+  it.each<MfaStatus>(["preparing", "unprepared", "wrong-code", "rate-limited", "failed", "replaced", "expired", "verified"])(
+    "has Swedish text for %s",
+    (status) => {
+      expect(mfaMessage(status)).toEqual(expect.any(String));
+    },
+  );
+
+  it.each<MfaStatus>(["ready", "verifying"])("has none for %s", (status) => {
+    expect(mfaMessage(status)).toBeNull();
+  });
+
+  it("gives every refusal its own text", () => {
+    const texts = (["unprepared", "wrong-code", "rate-limited", "failed", "replaced", "expired"] as const).map(mfaMessage);
+    expect(new Set(texts).size).toBe(texts.length);
+  });
+});
+
+describe("mfaCode", () => {
+  it.each([
+    ["123456", "123456"],
+    ["123 456", "123456"],
+    [" 012345 ", "012345"],
+  ])("reads %j as %s", (input, code) => {
+    expect(mfaCode(input)).toBe(code);
+  });
+
+  it.each(["", "12345", "1234567", "12345a", "１２３４５６"])("refuses %j", (input) => {
+    expect(mfaCode(input)).toBeNull();
+  });
+});
+
+describe("mfaAlert, mfaFormOff and mfaKeyShown", () => {
+  const all: MfaStatus[] = ["preparing", "unprepared", "ready", "verifying", "wrong-code", "rate-limited", "failed", "replaced", "expired", "verified"];
+
+  it("marks each refusal or failure, and only those, as an alert", () => {
+    expect(all.filter(mfaAlert)).toEqual(["unprepared", "wrong-code", "rate-limited", "failed", "replaced", "expired"]);
+  });
+
+  it("turns the form off while there is nothing to verify, a verify runs, or it is done", () => {
+    expect(all.filter(mfaFormOff)).toEqual(["preparing", "unprepared", "verifying", "replaced", "expired", "verified"]);
+  });
+
+  it("hides the enroll's key once the factor or the session is gone", () => {
+    expect(all.filter((status) => !mfaKeyShown(status))).toEqual(["unprepared", "replaced", "expired"]);
   });
 });

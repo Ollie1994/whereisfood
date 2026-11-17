@@ -7,9 +7,12 @@ import { supabaseAdmin } from "@/lib/supabase";
 import {
   FIXTURE_PREFIX,
   SIGN_IN_TIMEOUT,
+  accepted,
   anonClient,
   authUserIdsWhere,
   cookieHeader,
+  editSessionCookie,
+  SESSION_COOKIE,
   createFixtureAuthUser,
   fixtureEmail,
   jarClient,
@@ -26,7 +29,6 @@ import {
 // `signInByLink`.
 
 const ORIGIN = "http://127.0.0.1:3000";
-const SESSION_COOKIE = /^sb-[^=]+-auth-token(\.\d+)?$/;
 
 function request(path: string, { method = "GET", cookie = "", origin = ORIGIN as string | null } = {}) {
   const headers: Record<string, string> = { host: "127.0.0.1:3000" };
@@ -48,13 +50,6 @@ function setCookies(response: Response): Map<string, string> {
 
 function sessionCookieNames(cookies: Map<string, string>): string[] {
   return [...cookies.keys()].filter((name) => SESSION_COOKIE.test(name));
-}
-
-// Does Auth still accept this access token? `getUser` asks the server, which checks the
-// token's session still exists.
-async function accepted(accessToken: string): Promise<boolean> {
-  const { data, error } = await supabaseAdmin.auth.getUser(accessToken);
-  return !error && data.user !== null;
 }
 
 beforeAll(resetTables);
@@ -130,11 +125,11 @@ describe("GET /auth/callback", () => {
     expect(sessionCookieNames(written).filter((name) => written.get(name) !== "")).toEqual([]);
   });
 
-  it("exchanges the code, writes a session cookie Auth accepts, and lands on /admin", async () => {
+  it("exchanges the code, writes a session cookie Auth accepts, and lands on the MFA step", async () => {
     const response = await callback(request(`/auth/callback?code=${code}`, { cookie: cookieHeader(verifierJar) }));
 
     expect(response.status).toBe(303);
-    expect(response.headers.get("location")).toBe("/admin");
+    expect(response.headers.get("location")).toBe("/admin/mfa");
 
     const written = setCookies(response);
     const names = sessionCookieNames(written).filter((name) => written.get(name) !== "");
@@ -222,15 +217,10 @@ describe("POST /auth/logout", () => {
     // fails. This passed with the route's own `sb-*` deletion removed too: the library
     // clears this case itself. The errors it doesn't clear are the unit test's stubs.
     await supabaseAdmin.auth.admin.signOut(toExpire.accessToken, "global");
-    // One cookie, unchunked: the edit below decodes it whole (2,709 characters when this
-    // was written; `@supabase/ssr` chunks above 3,180).
-    const cookies = [...toExpire.jar].filter(([n]) => SESSION_COOKIE.test(n));
-    expect(cookies.map(([n]) => n)).toHaveLength(1);
-    const [name, value] = cookies[0];
-    const session = JSON.parse(Buffer.from(value.replace(/^base64-/, ""), "base64url").toString("utf8"));
-    session.expires_at = Math.floor(Date.now() / 1000) - 60;
-    toExpire.jar.set(name, `base64-${Buffer.from(JSON.stringify(session)).toString("base64url")}`);
+    const expired = editSessionCookie(toExpire.jar, (session) => {
+      session.expires_at = Math.floor(Date.now() / 1000) - 60;
+    });
 
-    await expectLoggedOut(toExpire.jar);
+    await expectLoggedOut(expired);
   });
 });

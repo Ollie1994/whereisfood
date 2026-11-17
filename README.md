@@ -373,6 +373,20 @@ Then log in at `/admin/login`. The link arrives in Mailpit, the local mail catch
 ([http://127.0.0.1:54324](http://127.0.0.1:54324)). Open it in the browser that asked
 for it: the login's code verifier is a cookie there.
 
+The link leads to `/admin/mfa`, the second factor (Phase 9 plan step 5). The first time,
+it shows a QR code: scan it with an authenticator app on your phone (Google Authenticator,
+Microsoft Authenticator or another TOTP app), or type in the key shown under it, then enter
+the six-digit code the app shows. Every later login asks for the code only. A QR code left
+unused is replaced by a new one the next time the page opens. The factor is deleted with
+the user, so after a `npx supabase db reset` the next login enrolls again; delete the
+app's old entry then.
+
+**Enroll from a computer if you can**, scanning its screen with the phone. With the phone
+alone (the key copied into the app, or a screenshot of the QR scanned there), a browser that
+reloads the tab while you are in the app shows a new key, and the entry you just added then
+gives wrong codes: add the newest key and delete the old entry, or enroll from a computer.
+A limit until #406, which explores phone-friendly enrollment (the owner, 2026-11-17).
+
 ---
 
 ## Hosted preview database

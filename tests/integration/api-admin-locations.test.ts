@@ -30,7 +30,7 @@ let base: number;
 
 beforeAll(async () => {
   await resetTables();
-  const admin = await sessionUser({ isAdmin: true });
+  const admin = await sessionUser({ isAdmin: true, aal2: true });
   cookie = cookieHeader(admin.jar);
   adminId = admin.userId;
 }, SIGN_IN_TIMEOUT);
