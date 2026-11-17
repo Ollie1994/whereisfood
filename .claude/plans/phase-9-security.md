@@ -505,7 +505,8 @@ the action link; a guessed code is a typed code, since Auth still issues and acc
 email shows. **#13's allowlist admits `magiclink` only** (the owner, 2026-11-17, IS #396).
 **The first factor is the `amr` entry that isn't an MFA method** (not `totp`): after a TOTP
 verify, `amr` holds both, and the allowlist and #4's time-box read that entry, found by its
-method, not its place: `totp` comes first (IS #381's probe: `[totp, magiclink]`). The app refuses a guessed code's session before TOTP, and the refusal
+method, not its place: the order varies between logins (IS #381's probe gave `[totp,
+magiclink]`; four of five runs of PR #404's test gave `[magiclink, totp]`). The app refuses a guessed code's session before TOTP, and the refusal
 signs that session out at Auth with `scope: "local"`, as #4's does. `mfaStepAllowed`
 applies the same allowlist to the app's enroll page; the enroll itself goes from the browser
 to Auth (`useMfa`), so it gates the page, not Auth. **A limit:** a guessed code's session

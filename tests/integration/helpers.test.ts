@@ -267,12 +267,13 @@ describe("the fixtures' sign-in", () => {
       fixture = await sessionUser({ aal2: true });
     }, SIGN_IN_TIMEOUT);
 
-    // The order IS #381's probe found, `totp` first, pinned. Phase 9 plan #14 finds the
-    // first factor by its method, not its place, so a change here changes only #14's note.
+    // Sorted: `amr`'s order varies between runs (four of five runs of this file gave
+    // `[magiclink, totp]`, one `[totp, magiclink]`, PR #404), so Phase 9 plan #14 finds the
+    // first factor by its method, never its place.
     it("reaches aal2 with totp beside the magiclink first factor", () => {
       const claims = claimsOf(fixture.accessToken);
       expect(claims.aal).toBe("aal2");
-      expect(claims.amr.map((entry) => entry.method)).toEqual(["totp", "magiclink"]);
+      expect(claims.amr.map((entry) => entry.method).sort()).toEqual(["magiclink", "totp"]);
     });
 
     // #13: one factor per user (`max_enrolled_factors = 1`), so a stolen session can't add
