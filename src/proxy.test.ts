@@ -3,6 +3,7 @@ import { AuthApiError, AuthRetryableFetchError, AuthSessionMissingError } from "
 import { unstable_doesMiddlewareMatch } from "next/experimental/testing/server";
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { LINK, TOTP, unsignedJwt } from "../tests/jwt";
 import nextConfig from "../next.config";
 
 // The proxy's matcher and its answers, with the session client and the db layer stubbed.
@@ -38,11 +39,9 @@ const LOGIN_URL = new URL("/admin/login", new NextRequest(ORIGIN).url).href;
 const MFA_URL = new URL("/admin/mfa", new NextRequest(ORIGIN).url).href;
 const ADMIN_URL = new URL("/admin", new NextRequest(ORIGIN).url).href;
 
-// The session's access token, as `getSession` hands it out: unsigned, since `getUser` is
-// stubbed. By default an `aal2` magic-link session.
-const jwt = (claims: object) => ["e30", Buffer.from(JSON.stringify(claims)).toString("base64url"), "sig"].join(".");
-const LINK = { method: "magiclink", timestamp: 1 };
-const TOTP = { method: "totp", timestamp: 2 };
+// The session's access token, as `getSession` hands it out (`tests/jwt.ts`). By default an
+// `aal2` magic-link session.
+const jwt = unsignedJwt;
 const withToken = (claims: object) =>
   getSession.mockResolvedValue({ data: { session: { access_token: jwt(claims) } }, error: null });
 

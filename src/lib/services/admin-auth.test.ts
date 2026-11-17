@@ -1,5 +1,6 @@
 import { AuthApiError, AuthRetryableFetchError, AuthSessionMissingError, AuthUnknownError } from "@supabase/supabase-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { LINK, TOTP, unsignedJwt } from "../../../tests/jwt";
 
 // `requireAdmin`'s and `mfaStepAllowed`'s outcomes, with the session client's `auth` and the
 // db layer stubbed. The integration tests (`tests/integration/admin-auth.test.ts`) run the
@@ -14,12 +15,9 @@ const ID = "00000000-0000-4000-8000-000000000001";
 const SESSION = ["sb-127-auth-token"];
 const ADMIN = { id: ID, is_admin: true, truck_id: null, created_at: "" };
 
-// A token whose payload holds `claims`. Unsigned: `getUser` is stubbed, and the real Auth's
-// check of the signature is the integration test's forged-claim case.
-const token = (claims: object) =>
-  ["e30", Buffer.from(JSON.stringify(claims)).toString("base64url"), "sig"].join(".");
-const link = { method: "magiclink", timestamp: 1 };
-const totp = { method: "totp", timestamp: 2 };
+const token = unsignedJwt;
+const link = LINK;
+const totp = TOTP;
 const AAL1 = token({ aal: "aal1", amr: [link] });
 const AAL2 = token({ aal: "aal2", amr: [link, totp] });
 
@@ -138,10 +136,11 @@ describe("requireAdmin", () => {
   it.each([
     ["answers an error", () => Promise.resolve({ error: new AuthRetryableFetchError("fetch failed", 0) })],
     ["throws", () => Promise.reject(new Error("network down"))],
-  ])("still refuses a first factor outside the allowlist when the signOut %s", async (_, signOut) => {
+  ])("answers a first factor outside the allowlist unavailable, not no-session, when the signOut %s", async (_, signOut) => {
     const stub = { ...auth({ access: token({ aal: "aal1", amr: [{ method: "otp", timestamp: 1 }] }) }), signOut: vi.fn(signOut) };
 
-    expect(await requireAdmin({ cookieNames: SESSION, auth: stub })).toEqual({ ok: false, reason: "no-session" });
+    expect(await requireAdmin({ cookieNames: SESSION, auth: stub })).toEqual({ ok: false, reason: "unavailable" });
+    expect(getUserById).not.toHaveBeenCalled();
   });
 
   const invalid: [string, unknown][] = [

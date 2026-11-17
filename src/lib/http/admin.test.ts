@@ -1,5 +1,6 @@
 import { NextResponse, NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { LINK, TOTP, unsignedJwt } from "../../../tests/jwt";
 
 // `withAdmin` and `readJson` with the real session client and `fetch` stubbed, so Auth's
 // answers are whatever a test returns, and the db layer stubbed. Auth failures the local
@@ -13,10 +14,9 @@ const { readJson, withAdmin } = await import("@/lib/http/admin");
 const ORIGIN = "http://127.0.0.1:3000";
 const ID = "00000000-0000-4000-8000-000000000001";
 
-// An access token whose payload holds `claims`, unsigned: `fetch` is stubbed, so Auth's check
-// of the signature is the integration test's. By default an `aal2` magic-link session.
-const AAL2 = { aal: "aal2", amr: [{ method: "magiclink", timestamp: 1 }, { method: "totp", timestamp: 2 }] };
-const jwt = (claims: object) => ["e30", Buffer.from(JSON.stringify(claims)).toString("base64url"), "sig"].join(".");
+// By default an `aal2` magic-link session (`tests/jwt.ts`).
+const AAL2 = { aal: "aal2", amr: [LINK, TOTP] };
+const jwt = unsignedJwt;
 
 // A session cookie in `@supabase/ssr`'s format (`base64-` and the session's JSON, base64url),
 // unexpired, so `getSession` doesn't refresh and `getUser` asks Auth's `/user`.

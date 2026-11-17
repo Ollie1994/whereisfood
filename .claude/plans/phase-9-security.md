@@ -239,7 +239,10 @@ before the closing steps (#12).
      screens at `/admin/mfa`, whose enroll first removes an unverified factor and names its
      own `WhereIsFood`. A local probe there: an unnamed enroll beside an unnamed verified
      factor was refused `mfa_factor_name_conflict`, not the slot's
-     `too_many_enrolled_mfa_factors`;
+     `too_many_enrolled_mfa_factors`. A limit (the owner, 2026-11-17, round 3 on PR #405): an
+     enroll with the phone alone gets a new key if the browser reloads the tab while the user
+     is in the authenticator app, so README's step 5 says to enroll from a computer if
+     possible; #406 explores phone-friendly enrollment, nothing decided;
    - d. none in Phase 9: the magic link stays the only first factor, and #241's code waits
      for custom SMTP or Pro (#14; #383 closed as not planned).
 6. **The session time-box** (#4): `requireAdmin` refuses a session whose sign-in is older
@@ -275,7 +278,9 @@ before the closing steps (#12).
     (`db advisors --linked`).
 13. **The 2FA audit** (Q12): every account that exists then and each one's recovery email,
     the admin's login mailbox named, recovery codes offline. No secret is recorded.
-14. **The phone checkpoint** on `dev`'s preview: the magic link, the TOTP enroll and code,
+14. **The phone checkpoint** on `dev`'s preview: the magic link, the TOTP enroll (with the
+    phone alone; if the browser reloads the tab while in the authenticator app, the enroll is
+    done on a computer instead and the reload recorded, step 5c's limit and #406) and code,
     `/admin`, an entry reaching `/map`, logout ending the other device's session, and no
     CSP block in the browser's console. Its two logins (two devices), the factor-enrolled email,
     and the factor-unenrolled one if step 5a's factor is removed first, are three or four

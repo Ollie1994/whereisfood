@@ -381,6 +381,12 @@ unused is replaced by a new one the next time the page opens. The factor is dele
 the user, so after a `npx supabase db reset` the next login enrolls again; delete the
 app's old entry then.
 
+**Enroll from a computer if you can**, scanning its screen with the phone. With the phone
+alone (the key copied into the app, or a screenshot of the QR scanned there), a browser that
+reloads the tab while you are in the app shows a new key, and the entry you just added then
+gives wrong codes: add the newest key and delete the old entry, or enroll from a computer.
+A limit until #406, which explores phone-friendly enrollment (the owner, 2026-11-17).
+
 ---
 
 ## Hosted preview database

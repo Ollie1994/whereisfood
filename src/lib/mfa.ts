@@ -1,5 +1,5 @@
 import type { GoTrueMFAApi } from "@supabase/supabase-js";
-import { isInvalidSession } from "@/lib/login";
+import { isInvalidSession } from "@/lib/auth-errors";
 
 export type EnrolledFactor = { factorId: string; qrCode: string; secret: string };
 

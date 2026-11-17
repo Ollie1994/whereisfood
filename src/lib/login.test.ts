@@ -8,7 +8,6 @@ import {
 import {
   callbackErrorFor,
   callbackErrorMessage,
-  isInvalidSession,
   isTemporaryAuthError,
   loginMessage,
   loginStatusFor,
@@ -134,6 +133,11 @@ describe("mfaStatusFor", () => {
     expect(mfaStatusFor({ status: 422, code: "mfa_verification_failed" })).toBe("wrong-code");
   });
 
+  // A factor another visit to the enroll step replaced (local stack, the PR for IS #382).
+  it("is unprepared on mfa_factor_not_found, so the page says to reload", () => {
+    expect(mfaStatusFor({ status: 404, code: "mfa_factor_not_found" })).toBe("unprepared");
+  });
+
   it("is rate-limited on 429", () => {
     expect(mfaStatusFor({ status: 429, code: "over_request_rate_limit" })).toBe("rate-limited");
   });
@@ -184,27 +188,6 @@ describe("mfaCode", () => {
 
   it.each(["", "12345", "1234567", "12345a", "１２３４５６"])("refuses %j", (input) => {
     expect(mfaCode(input)).toBeNull();
-  });
-});
-
-describe("isInvalidSession", () => {
-  it.each([
-    ["AuthSessionMissingError", new AuthSessionMissingError()],
-    ["bad_jwt", new AuthApiError("invalid JWT", 403, "bad_jwt")],
-    ["no_authorization", new AuthApiError("This endpoint requires a valid Bearer token", 401, "no_authorization")],
-    ["refresh_token_not_found", new AuthApiError("x", 400, "refresh_token_not_found")],
-  ])("is true for %s", (_, error) => {
-    expect(isInvalidSession(error)).toBe(true);
-  });
-
-  it.each([
-    ["a failed fetch", new AuthRetryableFetchError("fetch failed", 0)],
-    ["a wrong code", new AuthApiError("Invalid TOTP code entered", 422, "mfa_verification_failed")],
-    ["validation_failed", new AuthApiError("x", 400, "validation_failed")],
-    ["a 401 with no code", new AuthApiError("Invalid API key", 401, undefined)],
-    ["a plain object with the code", { code: "bad_jwt" }],
-  ])("is false for %s", (_, error) => {
-    expect(isInvalidSession(error)).toBe(false);
   });
 });
 

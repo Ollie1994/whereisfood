@@ -1,5 +1,5 @@
 import { getUserById } from "@/lib/db/users";
-import { isInvalidSession } from "@/lib/login";
+import { isInvalidSession } from "@/lib/auth-errors";
 
 // Is this request the admin's? (Phase 7 plan, #13, #14, #32; Phase 9 plan, #11, #13, #14.)
 // No HTTP knowledge: `withAdmin`, the proxy and the MFA page pass the cookie names and the
@@ -77,15 +77,18 @@ function firstFactorAllowed(claims: Claims | null): boolean {
 }
 
 // Ends this session at Auth and clears it from storage (`signOut`'s `_removeSession`, which
-// a writing cookie adapter turns into deletions). A failure is logged, not answered: the
-// caller refuses the session either way.
-async function endSession(auth: SessionAuth, why: string): Promise<void> {
+// a writing cookie adapter turns into deletions). Whether it did: auth-js 2.106.2's
+// `_signOut` answers no error for Auth's 401, 403 or 404 (a session already gone) and
+// returns any other error before `_removeSession`, so then the session may still be valid.
+async function endSession(auth: SessionAuth, why: string): Promise<boolean> {
   try {
     const { error } = await auth.signOut({ scope: "local" });
-    if (error) console.error(`[admin-auth] signOut (${why}) answered with an error:`, error);
+    if (!error) return true;
+    console.error(`[admin-auth] signOut (${why}) answered with an error:`, error);
   } catch (err) {
     console.error(`[admin-auth] signOut (${why}) threw:`, err);
   }
+  return false;
 }
 
 // `verifiedFactorId`: the user's verified factor, if any. TOTP is the only factor type
@@ -123,9 +126,10 @@ async function verify({ cookieNames, auth }: { cookieNames: readonly string[]; a
 
   const claims = claimsOf(token);
   if (!firstFactorAllowed(claims)) {
-    // Signed out at Auth, so a session the app refuses can't stay valid there (plan #14).
-    await endSession(auth, "a first factor outside the allowlist");
-    return { ok: false, reason: "no-session" };
+    // Signed out at Auth, so a session the app refuses can't stay valid there (plan #14). If
+    // that failed, "unavailable": the session isn't gone, and a later request tries again.
+    const ended = await endSession(auth, "a first factor outside the allowlist");
+    return { ok: false, reason: ended ? "no-session" : "unavailable" };
   }
 
   try {

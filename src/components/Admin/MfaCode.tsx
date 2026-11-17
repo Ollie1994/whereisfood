@@ -33,7 +33,6 @@ export default function MfaCode({
           required
           autoComplete="one-time-code"
           inputMode="numeric"
-          maxLength={7}
           value={code}
           onChange={(event) => setCode(event.target.value)}
           aria-invalid={invalid}
