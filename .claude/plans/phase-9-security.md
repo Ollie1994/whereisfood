@@ -54,6 +54,7 @@ checked against a written checklist.
 | Supabase Pro and its session timeouts (this phase builds the cover until then, #4); the custom domain, its CSP entry and HSTS; Vercel Pro | Phase 11 (the IS #373 (Phase 11) row) |
 | Passkey/WebAuthn MFA (experimental in Supabase, Appendix B); phone MFA (paid; `CLAUDE.md`'s 2FA rule excludes SMS) | not planned |
 | A log drain; paid monitoring | not planned (Q14) |
+| #241's emailed code (#14) | custom SMTP (the Owners phase) or Pro (Phase 11), whichever comes first |
 | #248, #256, #264, #308, #310 | standalone, outside any phase |
 | Truck-owner accounts and their threat model | Owners phase |
 
@@ -128,7 +129,7 @@ checked against a written checklist.
 | length limits (`MAX_*`) | validators, pure | The bounds on free text, with Swedish messages |
 | TOTP helper | tests only | An RFC 6238 code from a secret, so integration tests reach `aal2` (#9) |
 | `useLogin`, `useMfa` | hooks (browser; Auth only, through `supabaseClient`) | The email step; enroll (QR) and verify |
-| `LoginForm`, `MfaEnroll`, `MfaCode` | components (render only) | The email and code form; the QR image from a `data:` URL with the secret; the code input |
+| `LoginForm`, `MfaEnroll`, `MfaCode` | components (render only) | The email form; the QR image from a `data:` URL with the secret; the code input |
 | `proxy` | proxy | `aal2` through `requireAdmin`; the nonce CSP on `/admin` |
 | callback, logout | routes | An `aal1` session to the MFA step; logout with `scope: "global"` (#5) |
 | `cancelEntry`, `confirmEntry` | service (`locations.ts`) | Refuse an ended entry, as `editEntry` does: `cancelLocation` and `confirmLocation` filter on `ends_at`, then a read tells "ended" from "missing or cancelled"; both return an `EntryResult`, which the routes answer through the existing `entryAnswer` (#8) |
@@ -208,7 +209,9 @@ before the closing steps (#12).
      verified factor exists (auth-js has a `mfa_verified_factor_exists` code); each recovery
      route #13 names (replacing the password with the service role, deleting the factor and
      whether that ends every session, ending sessions by SQL on `auth.sessions`); MFA
-     verify's guessing limit; TOTP's digits and period. It also switches on the
+     verify's guessing limit; TOTP's digits and period; and, before step 5b ships #14's
+     allowlist, the `amr` method of the owner's own PKCE link login on the preview (#14 rests
+     on a local probe). It also switches on the
      factor-enrolled and factor-unenrolled notification emails, locally and on the preview
      (#13's detection; the owner, 2026-11-17, IS #377);
    - b. `requireAdmin` refuses below `aal2`, and admits only a session whose first factor is
@@ -246,7 +249,8 @@ before the closing steps (#12).
 11. **Monitoring** (Q14): usage, spend and 5xx alerts on Vercel and Supabase where the free
     plans allow (open decision 7), and the log retentions read and recorded.
 12. **The hosted-settings checklist** (Q21) in `README.md` (#10), each item checked on the
-    preview: sign-ups off, redirect URLs, rate limits, MFA, the password setting, secure
+    preview: sign-ups off, redirect URLs, rate limits, the email OTP length (8, which open decision 1's odds use), MFA, the password
+    setting, secure
     email change (#13), the audit log setting, Deployment Protection, Git Fork Protection,
     "Enforce SSL", unused services, network restrictions, and the hosted Security Advisor
     (`db advisors --linked`).
@@ -254,7 +258,9 @@ before the closing steps (#12).
     the admin's login mailbox named, recovery codes offline. No secret is recorded.
 14. **The phone checkpoint** on `dev`'s preview: the magic link, the TOTP enroll and code,
     `/admin`, an entry reaching `/map`, logout ending the other device's session, and no
-    CSP block in the browser's console.
+    CSP block in the browser's console. Its logins (two devices) and the factor-enrolled email
+    are planned around the preview's `email_sent` of 2 an hour (#14; IS #378 found the
+    notification counts there), across two hours if they need more.
 15. **The Phase 9 retrospective** (`.claude/process-log.md`, "How to use it"): its range
     starts at the row after the Phase 8 retrospective's range. Blocked by every other
     planned issue; its follow-ups block step 16.
@@ -264,8 +270,8 @@ before the closing steps (#12).
     link and TOTP, #14; a session ends at the time-box or a logout of any device) and the Phase 7
     row for #17, #18, #19, #20 and #33, which #8 extends to cancel and confirm, with the
     other places that state today's rule (Part 2's Product model item 3, "Status codes",
-    and Part 1's "Ändra" until it ends). It rewrites Part 2's "Admin and auth" (MFA, the
-    code, the time-box, logout), "Pre-deploy automation" (the 2FA audit's result, which the
+    and Part 1's "Ändra" until it ends). It rewrites Part 2's "Admin and auth" (MFA behind
+    the magic link, #14; the time-box, logout), "Pre-deploy automation" (the 2FA audit's result, which the
     IS #278 (Phase 9) row names and `CLAUDE.md`'s "Secrets" points to), the Phase map's
     Phase 9 row, Part 1 where it describes the login, and the README's status parts; in the
     Phase 9 row, "Admin and auth" and the "Phase 7 open decisions 1–5" row, "6-digit" goes, since
@@ -421,7 +427,7 @@ the time-box and every logout. Supabase's Free plan has no server-side block for
 hooks there are the access-token and email hooks only, as on Pro (the pricing page's "Auth
 Hooks" row: "All" from Team), so Phase 11's Pro doesn't add one either.
 
-**`requireAdmin` admits only an email login** (round 3 on PR #376, the owner's
+**`requireAdmin` admits only the magic link** (round 3 on PR #376, the owner's
 approval; an allowlist since round 4): the admin signs in only by the emailed link, so a
 session whose first factor is anything else (a password, a later OAuth link) is refused. A
 password the thief sets then gets them nothing in the app: getting back in needs the emailed
@@ -456,14 +462,23 @@ service and code of ours. **Chosen: the magic link only for Phase 9** (the owner
 2026-11-17, IS #396). #241 waits for custom SMTP or Pro, whichever comes first; until then
 the phone's Gmail app keeps #240's hint (open the link in the browser that asked for it).
 
-A probe while settling it (local stack, IS #396): GoTrue gives `amr` `magiclink` only for
-the PKCE link flow (`/auth/callback`'s code exchange); each direct verify probed gives `otp`:
+A probe while settling it (local stack, GoTrue v2.197.0, IS #396): of the flows probed, only
+the PKCE link (`/auth/callback`'s code exchange) gives `amr` `magiclink`; each direct verify
+probed gives `otp`:
 a typed code, `generate_link`'s hashed token (`verifyOtp` with `token_hash`), a plain GET of
 the action link; a guessed code is a typed code, since Auth still issues and accepts the code no
 email shows. **#13's allowlist admits `magiclink` only** (the owner, 2026-11-17, IS #396):
-a guessed code is refused before TOTP. So the test fixtures sign in through the PKCE link,
-read from Mailpit as `auth-routes.test.ts` already does, not `generate_link` +
-`verifyOtp` (#9, step 5a).
+the app refuses a guessed code's session before TOTP. **A limit:** that session is still a
+valid `aal1` session at Auth, refused by the app but not signed out, so it can call Auth
+directly (#7's own-row read; `updateUser`, which IS #378's password settings bound) until it ends; TOTP
+stands between it and `aal2`. **Before step 5b ships the allowlist**, step 5a reads the
+`amr` method of the owner's own PKCE link login on the preview; the admin was created with
+"Create new user", not an invite (README, "5. Create the admin user"), so its login is the
+link. The test fixtures sign in through the PKCE link, read from Mailpit as
+`auth-routes.test.ts` does, not `generate_link` + `verifyOtp` (#9, step 5a), with two
+cautions for #381: a second link to the same user within `max_frequency` (1 s locally) is
+refused, so a fixture waits it out; and Mailpit keeps every earlier mail, so a fixture reads
+the mail sent after its own request, not the newest one already there.
 
 ---
 
