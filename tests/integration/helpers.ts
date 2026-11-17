@@ -452,7 +452,7 @@ export function jarClient(jar: Map<string, string>): SupabaseClient<Database> {
 // Also returns the access token, to check later
 // whether Auth still accepts the session.
 //
-// ⚠ EACH CALL IS ONE SIGN-IN, under the same limit as `signedInClient()`.
+// ⚠ EACH CALL IS ONE SIGN-IN, as `signedInClient()`'s is.
 export async function sessionFor(userId: string): Promise<{
   jar: Map<string, string>;
   accessToken: string;

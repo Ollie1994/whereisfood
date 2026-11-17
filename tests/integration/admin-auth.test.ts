@@ -9,8 +9,7 @@ import { cookieHeader, createFixtureAuthUser, resetTables, sessionFor, sessionUs
 // ON DISK, not listed: a route added under `src/app/api/admin/` is covered with no edit
 // here. Each exported method is called as Next would, with a request and its params.
 //
-// Three sign-ins (`sessionUser` / `sessionFor`), under local Auth's limit (`helpers.ts`,
-// `signedInClient`).
+// Three sign-ins (`sessionUser` / `sessionFor`; `helpers.ts`, `signedInClient`).
 
 const ORIGIN = "http://127.0.0.1:3000";
 const METHODS = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"] as const;
