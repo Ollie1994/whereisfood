@@ -162,9 +162,8 @@ said otherwise: Phase 4 plan decision #14.
   counts a session as recent for 24 hours from its creation (GoTrue's `user.go`), so where
   "Require current password" is off, as locally, a stolen session under a day old can still
   set a password, which the first-factor check makes useless in the app (plan #13); and the
-  email spends the project's `email_sent` budget where that limiter runs, which anyone can
-  spend by asking for login links, and a change whose email it refuses still succeeds, the
-  email logged as unsent (GoTrue v2.197.0 `user.go`, IS #378)
+  email can be suppressed by spending the project's `email_sent` budget first (plan #13,
+  IS #378)
 
 **Secrets** (IS #176; the repo is public)
 - Never commit a `.env*` file except `.env.example`, which holds variable names only.
