@@ -1,4 +1,3 @@
-import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { mfaCode, mfaStatusFor, type MfaStatus } from "@/lib/login";
 import { enrollFactor } from "@/lib/mfa";
@@ -10,8 +9,9 @@ import { supabaseClient } from "@/lib/supabase-browser";
 // (`mfaStepAllowed`); these calls go from the browser to Auth, which the page doesn't bind
 // (plan #14's limit). The enroll step's factor comes from `enrollFactor`, the code step's
 // from the page. A verify that passes raises the session to `aal2`, which `supabaseClient`
-// writes to the cookies, and the page is replaced by `/admin`, whose request carries them.
-export function useMfa(step: MfaStep): {
+// writes to the cookies, and the browser loads `/admin` afresh: a full load, so if `/admin`
+// sent it back here the step would start over, not keep "verified" with the form off.
+export function useMfa(check: MfaStep): {
   status: MfaStatus;
   qrCode: string | null;
   secret: string | null;
@@ -20,9 +20,9 @@ export function useMfa(step: MfaStep): {
   invalid: boolean;
   submit: () => Promise<void>;
 } {
-  const router = useRouter();
-  const [status, setStatus] = useState<MfaStatus>(step.step === "code" ? "ready" : "preparing");
-  const [factorId, setFactorId] = useState<string | null>(step.step === "code" ? step.factorId : null);
+  // Read once: the page keys `MfaForm` by its factor, so a new one mounts a new hook.
+  const [status, setStatus] = useState<MfaStatus>(check.step === "code" ? "ready" : "preparing");
+  const [factorId, setFactorId] = useState<string | null>(check.step === "code" ? check.factorId : null);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [secret, setSecret] = useState<string | null>(null);
   const [code, setCodeState] = useState("");
@@ -35,11 +35,12 @@ export function useMfa(step: MfaStep): {
   // React re-renders with the new `status`.
   const verifying = useRef(false);
 
-  const enroll = step.step === "enroll";
+  const enroll = check.step === "enroll";
   useEffect(() => {
     if (!enroll || started.current) return;
     started.current = true;
     void enrollFactor(supabaseClient.auth.mfa).then((enrolled) => {
+      if (enrolled === "expired") return setStatus("expired");
       if (!enrolled) return setStatus("unprepared");
       setFactorId(enrolled.factorId);
       setQrCode(enrolled.qrCode);
@@ -71,7 +72,7 @@ export function useMfa(step: MfaStep): {
     // Still set once verified, so no second verify starts while the browser leaves.
     if (next !== "verified") verifying.current = false;
     setStatus(next);
-    if (next === "verified") router.replace("/admin");
+    if (next === "verified") window.location.replace("/admin");
   }
 
   return { status, qrCode, secret, code, setCode, invalid, submit };

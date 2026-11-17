@@ -656,8 +656,10 @@ the sequential integration suite's time down.
 11. ~~**How `requireAdmin` reads `aal` (step 5b).**~~ → **settled** (the owner, 2026-11-17,
     IS #382): the session's access token from `getSession()` (which refreshes an expiring
     one), then `getUser(token)`, which asks Auth to verify that token, then `aal` and `amr`
-    from the same token. A signed-out session's `getUser(token)` still clears its cookies, as
-    `getUser()` did (auth-js 2.106.2's `_getUser`; the PR for IS #382's logged-out test).
+    from the same token. A signed-out session's `getUser(token)` still clears it from
+    storage, as `getUser()` did (auth-js 2.106.2's `_getUser`), which the proxy's writing
+    cookie adapter turns into cookie deletions (the PR for IS #382's logged-out test);
+    `withAdmin` and the MFA page read cookies only, so theirs delete nothing.
     What was weighed: `getClaims()` verifies an asymmetric token
     locally, so a logged-out token would pass until it expires; `getUser()` asks Auth, which
     refuses it, but returns no `aal`. Leaning: `getUser()`, then the `aal` claim of the token

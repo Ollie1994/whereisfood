@@ -1,5 +1,5 @@
-import { isAuthApiError, isAuthSessionMissingError } from "@supabase/supabase-js";
 import { getUserById } from "@/lib/db/users";
+import { isInvalidSession } from "@/lib/login";
 
 // Is this request the admin's? (Phase 7 plan, #13, #14, #32; Phase 9 plan, #11, #13, #14.)
 // No HTTP knowledge: `withAdmin`, the proxy and the MFA page pass the cookie names and the
@@ -38,39 +38,6 @@ export type SessionAuth = {
   }>;
   signOut(options: { scope: "local" }): Promise<{ error: unknown }>;
 };
-
-// Auth's codes that say the session itself is bad. Seen on the local stack (PR for
-// IS #223): a malformed access token → 403 `bad_jwt`; a deleted user → 403
-// `user_not_found`; an expired session whose refresh token Auth doesn't know → 400
-// `refresh_token_not_found`. From auth-js's `ErrorCode` list (`lib/error-codes.d.ts`), not
-// seen: `refresh_token_already_used` (a reused token was still accepted 11 s later, past
-// `config.toml`'s 10 s reuse interval), `session_expired` and `user_banned`.
-//
-// Not a status range: a 4xx that isn't about the token, such as a gateway refusing the
-// anon key, would send the admin to the login (#32). Not `validation_failed`, which a
-// malformed refresh token gave, but which Auth uses for any bad request.
-//
-// A limit: a bad session answered with a code not listed here (one Auth adds later) reads
-// as "unavailable", so the browser shows the error page, not the login, and keeps its
-// cookies (the proxy carries no deletion then). `/admin/login`'s logout clears them.
-const INVALID_SESSION_CODES = new Set([
-  "bad_jwt",
-  "user_not_found",
-  "refresh_token_not_found",
-  "refresh_token_already_used",
-  "session_expired",
-  "user_banned",
-]);
-
-// A missing or invalid session, as opposed to Auth failing (#32). auth-js 2.106.2
-// (`dist/main`): `getUser` answers `AuthSessionMissingError` when storage holds no access
-// token (a cookie that isn't a session, and a signed-out session, both gave it locally),
-// and `handleError` (`lib/fetch.js`) turns Auth's `session_not_found` into one too.
-// Anything else (a failed fetch, a 5xx, a 429, another code) is "unavailable".
-function isInvalidSession(error: unknown): boolean {
-  if (isAuthSessionMissingError(error)) return true;
-  return isAuthApiError(error) && error.code !== undefined && INVALID_SESSION_CODES.has(error.code);
-}
 
 // The first factors `requireAdmin` admits: the PKCE magic link only (Phase 9 plan, #14, the
 // owner, IS #396). A directly verified code (a typed or guessed one, `generateLink`'s hashed

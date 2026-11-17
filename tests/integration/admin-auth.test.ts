@@ -269,14 +269,15 @@ describe("the first factor and the second", () => {
     expect((await proxy(get("/admin/mfa", cookieHeader(fresh.jar)))).headers.get("x-middleware-next")).toBe("1");
 
     const prepared = await enrollFactor(client.auth.mfa);
-    expect(prepared?.qrCode).toMatch(/^data:image\/svg\+xml/);
-    expect(prepared?.factorId).not.toBe(abandoned.data?.id);
+    if (!prepared || prepared === "expired") throw new Error(`enrollFactor answered ${prepared}`);
+    expect(prepared.qrCode).toMatch(/^data:image\/svg\+xml/);
+    expect(prepared.factorId).not.toBe(abandoned.data?.id);
     const { data: factors } = await client.auth.mfa.listFactors();
-    expect(factors?.all.map((factor) => factor.id)).toEqual([prepared?.factorId]);
+    expect(factors?.all.map((factor) => factor.id)).toEqual([prepared.factorId]);
 
     const { error } = await client.auth.mfa.challengeAndVerify({
-      factorId: prepared!.factorId,
-      code: totp(prepared!.secret, await authClock()),
+      factorId: prepared.factorId,
+      code: totp(prepared.secret, await authClock()),
     });
     expect(error).toBeNull();
     expect(await requireAdmin(input(fresh.jar))).toEqual({ ok: true, userId: fresh.userId });

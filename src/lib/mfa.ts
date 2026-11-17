@@ -1,4 +1,5 @@
 import type { GoTrueMFAApi } from "@supabase/supabase-js";
+import { isInvalidSession } from "@/lib/login";
 
 export type EnrolledFactor = { factorId: string; qrCode: string; secret: string };
 
@@ -12,20 +13,22 @@ export type EnrolledFactor = { factorId: string; qrCode: string; secret: string 
 // 422 `too_many_enrolled_mfa_factors`, and an `aal1` session may unenroll it (local stack,
 // IS #381 and the PR for IS #382). So each visit to the step gives a new QR code.
 //
-// `null` when Auth refused or couldn't be reached.
+// `expired` when Auth says the session is gone (`isInvalidSession`), `null` when it refused
+// otherwise or couldn't be reached.
 export async function enrollFactor(
   mfa: Pick<GoTrueMFAApi, "listFactors" | "unenroll" | "enroll">,
-): Promise<EnrolledFactor | null> {
+): Promise<EnrolledFactor | "expired" | null> {
+  const failed = (error: unknown) => (isInvalidSession(error) ? "expired" : null);
   try {
     // `all` holds unverified factors too; `totp` lists verified ones only (local stack, the
     // PR for IS #382).
     const { data: factors, error } = await mfa.listFactors();
-    if (error) return null;
+    if (error) return failed(error);
 
     for (const factor of factors.all) {
       if (factor.status !== "unverified") continue;
       const { error: unenrollError } = await mfa.unenroll({ factorId: factor.id });
-      if (unenrollError) return null;
+      if (unenrollError) return failed(unenrollError);
     }
 
     const { data, error: enrollError } = await mfa.enroll({
@@ -33,7 +36,7 @@ export async function enrollFactor(
       issuer: "WhereIsFood",
       friendlyName: "WhereIsFood",
     });
-    if (enrollError) return null;
+    if (enrollError) return failed(enrollError);
     return { factorId: data.id, qrCode: data.totp.qr_code, secret: data.totp.secret };
   } catch {
     return null;

@@ -8,10 +8,13 @@ import {
 import {
   callbackErrorFor,
   callbackErrorMessage,
+  isInvalidSession,
   isTemporaryAuthError,
   loginMessage,
   loginStatusFor,
+  mfaAlert,
   mfaCode,
+  mfaFormOff,
   mfaMessage,
   mfaStatusFor,
   type LoginStatus,
@@ -135,8 +138,14 @@ describe("mfaStatusFor", () => {
     expect(mfaStatusFor({ status: 429, code: "over_request_rate_limit" })).toBe("rate-limited");
   });
 
-  it("is expired when the session is gone", () => {
-    expect(mfaStatusFor(new AuthSessionMissingError())).toBe("expired");
+  // With no stored session auth-js sends only the anon key, and Auth answers 403 `bad_jwt`
+  // (`curl` of a factor's `/challenge`, the PR for IS #382).
+  it.each([
+    ["a missing session", new AuthSessionMissingError()],
+    ["the anon key alone", new AuthApiError("invalid claim: missing sub claim", 403, "bad_jwt")],
+    ["a failed refresh", new AuthApiError("Invalid Refresh Token: Refresh Token Not Found", 400, "refresh_token_not_found")],
+  ])("is expired on %s", (_, error) => {
+    expect(mfaStatusFor(error)).toBe("expired");
   });
 
   it("is failed on any other error", () => {
@@ -175,5 +184,38 @@ describe("mfaCode", () => {
 
   it.each(["", "12345", "1234567", "12345a", "１２３４５６"])("refuses %j", (input) => {
     expect(mfaCode(input)).toBeNull();
+  });
+});
+
+describe("isInvalidSession", () => {
+  it.each([
+    ["AuthSessionMissingError", new AuthSessionMissingError()],
+    ["bad_jwt", new AuthApiError("invalid JWT", 403, "bad_jwt")],
+    ["no_authorization", new AuthApiError("This endpoint requires a valid Bearer token", 401, "no_authorization")],
+    ["refresh_token_not_found", new AuthApiError("x", 400, "refresh_token_not_found")],
+  ])("is true for %s", (_, error) => {
+    expect(isInvalidSession(error)).toBe(true);
+  });
+
+  it.each([
+    ["a failed fetch", new AuthRetryableFetchError("fetch failed", 0)],
+    ["a wrong code", new AuthApiError("Invalid TOTP code entered", 422, "mfa_verification_failed")],
+    ["validation_failed", new AuthApiError("x", 400, "validation_failed")],
+    ["a 401 with no code", new AuthApiError("Invalid API key", 401, undefined)],
+    ["a plain object with the code", { code: "bad_jwt" }],
+  ])("is false for %s", (_, error) => {
+    expect(isInvalidSession(error)).toBe(false);
+  });
+});
+
+describe("mfaAlert and mfaFormOff", () => {
+  const all: MfaStatus[] = ["preparing", "unprepared", "ready", "verifying", "wrong-code", "rate-limited", "failed", "expired", "verified"];
+
+  it("marks each refusal or failure, and only those, as an alert", () => {
+    expect(all.filter(mfaAlert)).toEqual(["unprepared", "wrong-code", "rate-limited", "failed", "expired"]);
+  });
+
+  it("turns the form off while there is nothing to verify, a verify runs, or it is done", () => {
+    expect(all.filter(mfaFormOff)).toEqual(["preparing", "unprepared", "verifying", "expired", "verified"]);
   });
 });

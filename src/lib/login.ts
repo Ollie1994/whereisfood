@@ -1,4 +1,5 @@
 import {
+  isAuthApiError,
   isAuthPKCECodeVerifierMissingError,
   isAuthRetryableFetchError,
   isAuthSessionMissingError,
@@ -51,10 +52,49 @@ export const RESEND_NOTE = "En ny länk gör den förra ogiltig.";
 // 429, or a 5xx. `isAuthRetryableFetchError` covers a failed fetch and auth-js's
 // `NETWORK_ERROR_CODES` (502–504, 520–524, 530, `lib/fetch.js`). The inverse rule,
 // "unavailable unless the session is missing or invalid", is `requireAdmin`'s
-// (`src/lib/services/admin-auth.ts`, plan #32).
+// (`src/lib/services/admin-auth.ts`, plan #32), through `isInvalidSession` below.
 export function isTemporaryAuthError(error: { status?: number } | null): boolean {
   if (!error) return false;
   return isAuthRetryableFetchError(error) || error.status === 429 || (error.status ?? 0) >= 500;
+}
+
+// Auth's codes that say the session itself is bad. Seen on the local stack (PR for
+// IS #223): a malformed access token → 403 `bad_jwt`; a deleted user → 403
+// `user_not_found`; an expired session whose refresh token Auth doesn't know → 400
+// `refresh_token_not_found`. A request with no bearer token → 401 `no_authorization`, and
+// one with only the anon key, as auth-js 2.106.2's MFA calls send with no stored session →
+// 403 `bad_jwt` (`curl` of a factor's `/challenge`, the PR for IS #382). From auth-js's
+// `ErrorCode` list (`lib/error-codes.d.ts`), not seen: `refresh_token_already_used` (a
+// reused token was still accepted 11 s later, past `config.toml`'s 10 s reuse interval),
+// `session_expired` and `user_banned`.
+//
+// Not a status range: a 4xx that isn't about the token, such as a gateway refusing the
+// anon key, would send the admin to the login (Phase 7 plan #32). Not `validation_failed`,
+// which a malformed refresh token gave, but which Auth uses for any bad request.
+//
+// A limit: a bad session answered with a code not listed here (one Auth adds later) reads
+// as "unavailable" in `requireAdmin`, so the browser shows the error page, not the login,
+// and keeps its cookies (the proxy carries no deletion then); `/admin/login`'s logout
+// clears them. On the TOTP step it reads as "failed".
+const INVALID_SESSION_CODES = new Set([
+  "bad_jwt",
+  "no_authorization",
+  "user_not_found",
+  "refresh_token_not_found",
+  "refresh_token_already_used",
+  "session_expired",
+  "user_banned",
+]);
+
+// A missing or invalid session, as opposed to Auth failing (#32): `requireAdmin`'s
+// "no-session", the TOTP step's "expired". auth-js 2.106.2 (`dist/main`): `getUser` answers
+// `AuthSessionMissingError` when storage holds no access token (a cookie that isn't a
+// session, and a signed-out session, both gave it locally), and `handleError`
+// (`lib/fetch.js`) turns Auth's `session_not_found` into one too. Anything else (a failed
+// fetch, a 5xx, a 429, another code) isn't.
+export function isInvalidSession(error: unknown): boolean {
+  if (isAuthSessionMissingError(error)) return true;
+  return isAuthApiError(error) && error.code !== undefined && INVALID_SESSION_CODES.has(error.code);
 }
 
 // Why `/auth/callback` sends a failed login back to the login page, as its `?error=`.
@@ -113,9 +153,10 @@ export const MFA_PATH = "/admin/mfa";
 export const LOGOUT_PATH = "/auth/logout";
 export const LOGOUT_LABEL = "Logga ut";
 
-// The TOTP step's states (`useMfa`; Phase 9 plan step 5c). `preparing`: the enroll or the
-// factor read is under way; `unprepared`: it failed, so there is nothing to verify;
-// `expired`: the `aal1` session is gone, so only a new login helps.
+// The TOTP step's states (`useMfa`; Phase 9 plan step 5c). `preparing`: the enroll step's
+// enroll is under way (the code step starts `ready`, with the factor the page read);
+// `unprepared`: the enroll failed, so there is nothing to verify; `expired`: the `aal1`
+// session is gone (`isInvalidSession`), so only a new login helps.
 export type MfaStatus =
   | "preparing"
   | "unprepared"
@@ -129,16 +170,24 @@ export type MfaStatus =
 
 // What Auth answered to `challengeAndVerify`, reduced to a status. A wrong code: 422
 // `mfa_verification_failed`, "Invalid TOTP code entered" (local stack, the PR for IS #382).
-// A session that is gone: `AuthSessionMissingError`, which auth-js 2.106.2 answers with no
-// stored session (`_challenge`'s `_useSession`) and makes of Auth's `session_not_found`
-// (`lib/fetch.js`); a verify on another tab or device ends the user's `aal1` sessions (IS
-// #381's probe).
+// A session that is gone (`isInvalidSession`): a verify on another device ends the user's
+// `aal1` sessions (IS #381's probe).
 export function mfaStatusFor(error: { status?: number; code?: string } | null): MfaStatus {
   if (!error) return "verified";
-  if (isAuthSessionMissingError(error)) return "expired";
+  if (isInvalidSession(error)) return "expired";
   if (error.code === "mfa_verification_failed") return "wrong-code";
   if (error.status === 429) return "rate-limited";
   return "failed";
+}
+
+// Whether `status`'s message is an alert (a refusal or a failure), not a progress note.
+export function mfaAlert(status: MfaStatus): boolean {
+  return ["unprepared", "wrong-code", "rate-limited", "failed", "expired"].includes(status);
+}
+
+// Whether the code form takes no submit in `status`.
+export function mfaFormOff(status: MfaStatus): boolean {
+  return ["preparing", "unprepared", "verifying", "verified", "expired"].includes(status);
 }
 
 export function mfaMessage(status: MfaStatus): string | null {
@@ -181,6 +230,7 @@ export const MFA_TEXTS = {
   codeIntro: "Skriv in den sexsiffriga koden som autentiseringsappen visar för WhereIsFood.",
   codeLabel: "Kod",
   invalidCode: "Koden ska vara sex siffror.",
+  loginAgain: "Logga in",
   submit: "Bekräfta",
   submitting: "Bekräftar…",
 } as const;

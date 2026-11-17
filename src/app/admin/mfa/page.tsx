@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import MfaForm from "@/components/Admin/MfaForm";
 import { MFA_TEXTS, SESSION_CHECK_FAILED } from "@/lib/login";
-import { mfaStepAllowed } from "@/lib/services/admin-auth";
+import { mfaStepAllowed, type MfaStep } from "@/lib/services/admin-auth";
 import { createSessionClient, readOnlyCookies } from "@/lib/supabase-session";
 
 // The TOTP step (Phase 9 plan step 5c, open decision 5): the one admin page besides the
@@ -29,13 +29,15 @@ export default async function MfaPage() {
   }
 
   const enroll = check.step === "enroll";
+  const step: MfaStep = enroll ? { step: "enroll" } : { step: "code", factorId: check.factorId };
   return (
     <>
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold">{enroll ? MFA_TEXTS.enrollTitle : MFA_TEXTS.codeTitle}</h1>
         <p className="text-sm text-foreground/70">{enroll ? MFA_TEXTS.enrollIntro : MFA_TEXTS.codeIntro}</p>
       </div>
-      <MfaForm step={check} />
+      {/* Keyed by its factor, so a new step or factor mounts a new form (`useMfa` reads it once). */}
+      <MfaForm key={step.step === "code" ? step.factorId : "enroll"} check={step} />
     </>
   );
 }
