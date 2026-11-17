@@ -7,8 +7,10 @@ import type { AdminEntry } from "@/lib/services/locations";
 // and "Ställ in" while it hasn't ended: the routes refuse all three on one that has (Phase 7
 // plan #33; Phase 9 plan #8), so an ended entry says so and shows none (`hasEnded`: `ends_at`
 // at or before `now`, as the edit's check and the cancel and confirm write's filter have it).
-// `now` is the list's clock, which moves each minute. Every button waits while the form
-// saves (`locked`).
+// `now` is the list's clock, which moves each minute. A limit: that is the device's clock,
+// and the routes judge by the server's, so a device ahead hides the buttons early and one
+// behind shows them past the end, each press answered 400 until it catches up. Every button
+// waits while the form saves (`locked`).
 export default function TodayList({
   entries,
   now,

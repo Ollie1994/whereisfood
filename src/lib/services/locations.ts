@@ -180,12 +180,14 @@ export async function editEntry(id: string, patch: LocationPatch, now: Date): Pr
 // Cancel and confirm refuse an entry that has ended (Phase 9 plan #8): the db write filters
 // on `ends_at` after `now`, and when it writes nothing, a read tells why. No row: missing or
 // cancelled, 404. A row: the write's only other filter is `cancelled_at`, and nothing sets
-// it back to null, so the row the read finds wasn't cancelled at the write either: its
-// `ends_at` kept it out of the write, and it is answered as ended, with the edit's message
-// (the owner's call, IS #380). The read's `ends_at` isn't checked. A limit: an edit read
-// before the end can land after it with a later `ends_at` (#33's limit, `editEntry`'s), so
-// a cancel between the write and the read is told "har redan slutat" about an entry running
-// again (pinned in `locations.test.ts`).
+// it back to null (`db/locations.ts`'s `PATCH_KEYS` and `INSERT_KEYS` leave it out, and
+// `grep -rn "cancelled_at.*null" src` finds only filters, comments and generated types,
+// PR #401; re-check both if that changes), so the row the read finds wasn't cancelled at
+// the write either: its `ends_at` kept it out of the write, and it is answered as ended,
+// with the edit's message (the owner's call, IS #380). The read's `ends_at` isn't checked.
+// A limit: an edit read before the end can land after it with a later `ends_at` (#33's
+// limit, `editEntry`'s), so a cancel between the write and the read is told "har redan
+// slutat" about an entry running again (pinned in `locations.test.ts`).
 async function writeUnlessEnded(
   id: string,
   now: Date,
