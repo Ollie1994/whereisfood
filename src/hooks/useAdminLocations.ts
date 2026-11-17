@@ -195,7 +195,8 @@ export function useAdminLocations(): {
       setEditing((open) => (open?.id === entry.id ? null : open));
       setCancels((count) => count + 1);
     }
-    // Reloaded on a refusal too: a 404 means the entry is gone, and the list should say so.
+    // Reloaded on a refusal too: a 404 means the entry is gone, a 400 that it has ended
+    // (Phase 9 plan #8), and the list should say so.
     await readAgain(trucksFailed.current);
   }
 

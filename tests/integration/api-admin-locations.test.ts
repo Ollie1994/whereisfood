@@ -211,6 +211,17 @@ describe("POST /api/admin/locations/[id]/cancel", () => {
     expect((await readLocation(id)).cancelled_at).toBe(cancelledAt);
   });
 
+  // Phase 9 plan #8: past history can't be cancelled.
+  it("refuses an entry that has ended with 400 and leaves it", async () => {
+    const seeded = await seedLocation(truckId, window(-DAY));
+
+    const response = await call(CANCEL, "POST", seeded.id);
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "Posten har redan slutat och kan inte ändras" });
+    expect(await readLocation(seeded.id)).toEqual(seeded);
+  });
+
   it("answers a malformed id with 400", async () => {
     const response = await call(CANCEL, "POST", "nope");
 
@@ -237,6 +248,17 @@ describe("POST /api/admin/locations/[id]/confirm", () => {
     const response = await call(CONFIRM, "POST", seeded.id);
 
     expect(response.status).toBe(404);
+    expect(await readLocation(seeded.id)).toEqual(seeded);
+  });
+
+  // Phase 9 plan #8.
+  it("refuses an entry that has ended with 400 and leaves it", async () => {
+    const seeded = await seedLocation(truckId, window(-DAY));
+
+    const response = await call(CONFIRM, "POST", seeded.id);
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "Posten har redan slutat och kan inte ändras" });
     expect(await readLocation(seeded.id)).toEqual(seeded);
   });
 
