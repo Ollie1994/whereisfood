@@ -272,8 +272,9 @@ describe("the fixtures' sign-in", () => {
       expect(claims.amr.map((entry) => entry.method).sort()).toEqual(["magiclink", "totp"]);
     });
 
-    // #13: one factor per user (`max_enrolled_factors = 1`), so a stolen session can't add a
-    // second beside the admin's. A name of its own, or Auth refuses it as a name conflict first.
+    // #13: one factor per user (`max_enrolled_factors = 1`), so a stolen session can't add
+    // a second beside the admin's. A name of its own, or Auth refuses it as a name conflict
+    // first.
     it("refuses a second factor's enroll", async () => {
       const { data, error } = await jarClient(fixture.jar).auth.mfa.enroll({ factorType: "totp", friendlyName: "second" });
 

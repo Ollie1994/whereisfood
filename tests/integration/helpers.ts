@@ -424,9 +424,9 @@ export async function mailIds(email: string): Promise<string[]> {
   return messages.map((message) => message.ID);
 }
 
-// The sign-in link of the first mail to `email` that isn't in `before` and holds one. Mailpit
-// keeps every earlier mail, and the password-changed and factor emails land there too, so
-// neither the newest mail nor any mail will do (Phase 9 plan #14).
+// The sign-in link of the first mail to `email` that isn't in `before` and holds one.
+// Mailpit keeps every earlier mail, and the password-changed and factor emails land there
+// too, so neither the newest mail nor any mail will do (Phase 9 plan #14).
 export async function newLink(email: string, before: ReadonlySet<string>): Promise<string> {
   for (let attempt = 0; attempt < 40; attempt++) {
     for (const id of await mailIds(email)) {
@@ -482,9 +482,9 @@ function pkceClient(): SupabaseClient<Database> {
   });
 }
 
-// A `createFixtureUser()`, signed in by the magic link: an `authenticated` client at `aal1`
-// and the user's id. With `{ usersRow: false }`, a bare `createFixtureAuthUser()` instead: a
-// signed-in user with no `users` row, who could try to insert its own.
+// A `createFixtureUser()`, signed in by the magic link: an `authenticated` client at
+// `aal1` and the user's id. With `{ usersRow: false }`, a bare `createFixtureAuthUser()`
+// instead: a signed-in user with no `users` row, who could try to insert its own.
 //
 // ⚠ EACH CALL IS ONE SIGN-IN (`signInByLink`).
 export async function signedInClient({ usersRow = true } = {}): Promise<{
@@ -530,8 +530,8 @@ export function jarClient(jar: Map<string, string>): SupabaseClient<Database> {
 // local stack's, a fixture value (`CLAUDE.md`, "Secrets").
 const factors = new Map<string, { factorId: string; secret: string }>();
 
-// Raises `client`'s session to `aal2` with the user's factor: a challenge, then a verify with
-// the code `totp` computes now. Returns the new access token.
+// Raises `client`'s session to `aal2` with the user's factor: a challenge, then a verify
+// with the code `totp` computes now. Returns the new access token.
 async function verifyFactor(client: SupabaseClient<Database>, factor: { factorId: string; secret: string }): Promise<string> {
   const { data, error } = await client.auth.mfa.challengeAndVerify({
     factorId: factor.factorId,
@@ -552,9 +552,10 @@ async function enrollFactor(client: SupabaseClient<Database>, userId: string): P
 }
 
 // `userId`'s session as the cookies `@supabase/ssr` writes, for route tests (Phase 7
-// plan, open decision 7): `jarClient` signs in by the magic link, so the library writes its
-// own format. With `{ aal2: true }`, raised to `aal2` with the factor `sessionUser` enrolled.
-// Also returns the access token, to check later whether Auth still accepts the session.
+// plan, open decision 7): `jarClient` signs in by the magic link, so the library writes
+// its own format. With `{ aal2: true }`, raised to `aal2` with the factor `sessionUser`
+// enrolled. Also returns the access token, to check later whether Auth still accepts the
+// session.
 //
 // ⚠ EACH CALL IS ONE SIGN-IN (`signInByLink`).
 export async function sessionFor(
@@ -572,9 +573,10 @@ export async function sessionFor(
   return { jar, accessToken };
 }
 
-// A fixture user with a `users` row, `is_admin` as given, signed in by the magic link. With
-// `{ aal2: true }`, its one TOTP factor is enrolled and verified on this first session, which
-// reaches `aal2`; `sessionFor(userId, { aal2: true })` signs it in again at `aal2`.
+// A fixture user with a `users` row, `is_admin` as given, signed in by the magic link.
+// With `{ aal2: true }`, its one TOTP factor is enrolled and verified on this first
+// session, which reaches `aal2`; `sessionFor(userId, { aal2: true })` signs it in again at
+// `aal2`.
 export async function sessionUser({ isAdmin = false, aal2 = false } = {}): Promise<{
   userId: string;
   jar: Map<string, string>;

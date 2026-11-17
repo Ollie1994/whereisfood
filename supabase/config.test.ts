@@ -45,8 +45,9 @@ describe("supabase/config.toml's Auth guards", () => {
     expect(setting("auth.email.notification.password_changed", "enabled")).toBe("true");
   });
 
-  // One factor per user, so a stolen session can't add a second (Phase 9 plan #13, IS #381).
-  // `helpers.test.ts` shows Auth refusing the second; this keeps the setting in the file.
+  // One factor per user, so a stolen session can't add a second (Phase 9 plan #13, IS
+  // #381). `helpers.test.ts` shows Auth refusing the second; this keeps the setting in the
+  // file.
   it("keeps one MFA factor per user", () => {
     expect(setting("auth.mfa", "max_enrolled_factors")).toBe("1");
   });

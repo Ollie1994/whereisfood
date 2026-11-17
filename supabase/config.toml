@@ -308,8 +308,9 @@ message_service_sid = ""
 # DO NOT commit your Twilio auth token to git. Use environment variable substitution instead:
 auth_token = "env(SUPABASE_AUTH_SMS_TWILIO_AUTH_TOKEN)"
 
-# One factor per user: the admin's one TOTP factor fills it, so a stolen session can't add a
-# second beside it (Phase 9 plan #13, IS #381). TOTP, the one MFA method, enroll and verify on.
+# One factor per user: the admin's one TOTP factor fills it, so a stolen session can't add
+# a second beside it (Phase 9 plan #13, IS #381). TOTP, the one MFA method, enroll and
+# verify on.
 [auth.mfa]
 max_enrolled_factors = 1
 
