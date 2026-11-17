@@ -31,7 +31,8 @@ export const TRUCK_ERRORS = {
 // Instagram's character set and length cap, as the plan's #29 has them.
 const HANDLE = /^[a-z0-9._]{1,30}$/;
 
-// The field checks: each gives the field's value, or undefined to refuse it.
+// The field checks: each gives the field's value, or undefined to refuse it, except `name`,
+// which gives its value or the message to refuse it with.
 
 // A handle in its one stored form (#29): trimmed, a leading `@` stripped, lower-cased, and
 // empty as null, so "@StreetFoodGBG " and "streetfoodgbg" are one account and two trucks
