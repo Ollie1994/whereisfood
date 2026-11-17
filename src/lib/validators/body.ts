@@ -35,11 +35,11 @@ export function tooLong(text: string | null, max: number): boolean {
 // `updateLocation`: `22P05` for `"a\u0000b"`, `PGRST102` for `"a\ud800b"` and
 // `"a\udc00b"`; `"a\u0001b"` was stored). With the `u` flag a surrogate pair is one code
 // point, so an emoji passes and only a lone half matches `\p{Surrogate}`. Not
-// `isWellFormed`: this runs in the browser too (`admin-trucks.ts`), and Next's target is
-// "baseline widely available" as of 2025-10-01 (`modern-browserslist-target.js`), so
-// features across browsers by about April 2023; MDN's Baseline dates `isWellFormed` to
-// October 2023 and `\p{…}` to July 2020 (PR #402). Other control characters pass (IS
-// #400's non-goal).
+// `isWellFormed`: this runs in the browser too (`admin-trucks.ts`), Next's target includes
+// `firefox 111` (`modern-browserslist-target.js`), and Firefox shipped `isWellFormed` in
+// 119 (MDN's Firefox 119 release notes, bug 1850755); `\p{…}` has been in every browser
+// since July 2020 (MDN's Baseline) (PR #402). Other control characters pass (IS #400's
+// non-goal).
 const UNSTORABLE = /\u0000|\p{Surrogate}/u;
 
 export function unstorable(text: string): boolean {

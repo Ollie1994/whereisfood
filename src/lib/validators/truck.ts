@@ -45,20 +45,21 @@ function handle(value: unknown): string | null | undefined {
   return HANDLE.test(normal) ? normal : undefined;
 }
 
-// A trimmed name; blank or not a string is refused. The callers check, each with a message
-// of its own, a character the database refuses first (`unstorableName`) and the length
-// after (`MAX_NAME`).
-function name(value: unknown): string | undefined {
-  if (typeof value !== "string") return undefined;
-  return value.trim() || undefined;
+// The trimmed name, or the message to refuse it with: not a string or blank, the name's
+// own; holding a character the database refuses (`unstorable`, IS #400), "Ogiltigt namn"
+// (the owner's wording, PR #402); over `MAX_NAME`, the length's. The one check of a name,
+// so both parsers refuse alike.
+function name(value: unknown): { ok: true; name: string } | { ok: false; error: string } {
+  if (typeof value !== "string") return { ok: false, error: TRUCK_ERRORS.name };
+  if (unstorable(value)) return { ok: false, error: TRUCK_ERRORS.nameInvalid };
+  const trimmed = value.trim();
+  if (!trimmed) return { ok: false, error: TRUCK_ERRORS.name };
+  if (tooLong(trimmed, MAX_NAME)) return { ok: false, error: TRUCK_ERRORS.nameLength };
+  return { ok: true, name: trimmed };
 }
 
-// A name holding a character the database refuses (`unstorable`, IS #400): "Ogiltigt namn",
-// not the blank name's "Ange foodtruckens namn" (PR #402).
-const unstorableName = (value: unknown): boolean => typeof value === "string" && unstorable(value);
-
 // An optional text: absent, null or blank is none; not a string, or `unstorable`, is
-// refused. Its length is checked as `name`'s.
+// refused. Its length is checked by the callers (`MAX_CUISINE`, `MAX_DESCRIPTION`).
 function optionalText(value: unknown): string | null | undefined {
   if (value === undefined || value === null) return null;
   if (typeof value !== "string" || unstorable(value)) return undefined;
@@ -68,10 +69,8 @@ function optionalText(value: unknown): string | null | undefined {
 export function parseNewTruck(body: unknown): Parsed<NewTruck> {
   if (!isRecord(body)) return refuse(TRUCK_ERRORS.body);
 
-  if (unstorableName(body.name)) return refuse(TRUCK_ERRORS.nameInvalid);
   const truckName = name(body.name);
-  if (truckName === undefined) return refuse(TRUCK_ERRORS.name);
-  if (tooLong(truckName, MAX_NAME)) return refuse(TRUCK_ERRORS.nameLength);
+  if (!truckName.ok) return refuse(truckName.error);
   const instagram = handle(body.instagram_handle);
   if (instagram === undefined) return refuse(TRUCK_ERRORS.handle);
   const cuisine = optionalText(body.cuisine_type);
@@ -87,7 +86,7 @@ export function parseNewTruck(body: unknown): Parsed<NewTruck> {
   return {
     ok: true,
     value: {
-      name: truckName,
+      name: truckName.name,
       instagram_handle: instagram,
       cuisine_type: cuisine,
       description,
@@ -103,11 +102,9 @@ export function parseTruckPatch(body: unknown): Parsed<TruckPatch> {
   const patch: TruckPatch = {};
 
   if (body.name !== undefined) {
-    if (unstorableName(body.name)) return refuse(TRUCK_ERRORS.nameInvalid);
     const value = name(body.name);
-    if (value === undefined) return refuse(TRUCK_ERRORS.name);
-    if (tooLong(value, MAX_NAME)) return refuse(TRUCK_ERRORS.nameLength);
-    patch.name = value;
+    if (!value.ok) return refuse(value.error);
+    patch.name = value.name;
   }
   if (body.instagram_handle !== undefined) {
     const value = handle(body.instagram_handle);
