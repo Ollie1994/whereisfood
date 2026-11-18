@@ -724,8 +724,8 @@ the sequential integration suite's time down.
      after a login (IS #389's probe). Each row keeps the event's IP address and the account's
      email (GoTrue v2.197.0's `audit_log_entry.go`), and nothing deletes them: GoTrue's cleanup
      (`cleanup.go`) never touches the table, and the app deletes nothing. So they are an input to
-     Phase 10's privacy note and retention period, and the table grows with every Auth event on
-     Free's 0.5 GB database.
+     Phase 10's privacy note and retention period, and the table grows with each Auth event it
+     records, on Free's 0.5 GB database.
    - No account was created (#391).
 8. ~~**The rate limits' values (step 8)**, which step 12 then checks.
    The per-IP limits the login uses (`token_refresh`, `token_verifications`,
