@@ -501,11 +501,13 @@ guessed code. The swap stays possible as sabotage
   budget, which anyone who knows the admin's address can spend by asking for login links,
   at the preview's `email_sent` of 2 an hour, which step 8 kept (IS #386), and a change whose
   email the spent budget refuses still succeeds, IS #378; so a careful thief can spend it
-  first, and the emails catch only a careless one), and
+  first, and the emails catch only a careless one),
   factor-enrolled and
   factor-unenrolled emails, which Auth offers, both off by default (GoTrue v2.197.0's
   notification settings; the preview's dashboard lists both on Free, with password-changed,
-  all off, IS #377; step 5a switches the two factor emails on);
+  all off, IS #377; step 5a switches the two factor emails on); and Auth's audit log, written
+  to the database since 2026-11-18 (open decision 7), so a takeover noticed after Free's one-day
+  log retention can still be traced;
 - **recovering, in this order** (D3's routes, open decision 4; round 4 on PR #376, the
   owner's approval): secure the mailbox; replace the password with the service role's
   `updateUserById` (or SQL), since Auth may refuse a password change from `aal1` once MFA is
@@ -694,7 +696,25 @@ the sequential integration suite's time down.
    text.~~ → **settled** (the owner, 2026-11-17, IS #382): 401, since the request isn't fully
    authenticated yet, with its own text, "Ange koden från din autentiseringsapp för att
    fortsätta", where no session's is "Du är inte inloggad"; the per-route test checks each.
-7. **What Vercel Hobby and Supabase Free can alert on (step 11).**
+7. ~~**What Vercel Hobby and Supabase Free can alert on (step 11).**~~ → **settled** (IS #389,
+   read in both dashboards and their docs, 2026-11-18): neither free plan can send a usage,
+   spend or 5xx alert, so none is set, and the alerts stay Phase 10's (Q14). Until then a limit
+   shows only on the two usage pages.
+   - **Vercel Hobby:** Observability's Alerts, the project's and the team's Alerts settings and
+     Spend Management each answer "Upgrade to Pro"; the notification settings list no usage or
+     error item. The one alert is "Deployment Failures" by email, on. A branch's preview build
+     fails by design (README, "Preview deploys"), so most of those emails are expected; the
+     owner kept it as it is. The docs' "Usage limit reached" notice has no setting and wasn't
+     seen. Runtime logs keep 1 hour and Observability 12 hours (each picker's longest range not
+     marked Pro). Deployment Storage, 3.01 of 10 GB and rising since Nov 1, was the one figure
+     near its limit: #417.
+   - **Supabase Free:** the spend cap is on (Billing): past a quota a project "could become
+     unresponsive or enter read only mode", and neither Billing nor the account settings offer
+     a usage email. Observability has charts and custom reports, no alert. Logs keep 1 day
+     ("Your plan only includes up to 1 day of log retention"). "Write audit logs to the
+     database", off until then (IS #377), is on (the owner, 2026-11-18): Auth's events stay in
+     `auth.audit_log_entries` past that day, for #13's detection and recovery.
+   - No account was created (#391).
 8. ~~**The rate limits' values (step 8)**, which step 12 then checks.
    The per-IP limits the login uses (`token_refresh`, `token_verifications`,
    `sign_in_sign_ups`) are each a burst of 30,
