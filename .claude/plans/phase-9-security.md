@@ -322,8 +322,8 @@ before the closing steps (#12).
     the magic link, #14; the time-box, logout), "Pre-deploy automation" (the 2FA audit's result, which the
     IS #278 (Phase 9) row names and `CLAUDE.md`'s "Secrets" points to), the Phase map's
     Phase 9 row and its Phase 10 row's "the usage alerts are Phase 9's" (open decision 7 hands
-    them on), Pricing's "Supabase Free" item ("Phase 9 reads it": the audit-log setting, read and
-    turned on, open decision 7), Part 1 where it describes the login, the backups item's restore (it
+    them on), Pricing's "Supabase Free" item ("Phase 9 reads it": the audit-log setting, on for
+    the preview since 2026-11-18, open decision 7), Part 1 where it describes the login, the backups item's restore (it
     recreates the admin by its old id, which must get a long random password, README's "5.
     Create the admin user"), and the README's status parts; in the
     Phase 9 row, "Admin and auth" and the "Phase 7 open decisions 1–5" row, "6-digit" goes, since
@@ -509,8 +509,9 @@ guessed code. The swap stays possible as sabotage
   factor-unenrolled emails, which Auth offers, both off by default (GoTrue v2.197.0's
   notification settings; the preview's dashboard lists both on Free, with password-changed,
   all off, IS #377; step 5a switches the two factor emails on); and Auth's audit log, written
-  to the preview's database since 2026-11-18 and to production's by #390's checklist (open
-  decision 7), so a takeover noticed after Free's one-day log retention can still be traced;
+  to the preview's database since 2026-11-18 (open decision 7; #390's checklist names it for
+  production), so which Auth events happened, and when, stays readable after Free's one-day log
+  retention;
 - **recovering, in this order** (D3's routes, open decision 4; round 4 on PR #376, the
   owner's approval): secure the mailbox; replace the password with the service role's
   `updateUserById` (or SQL), since Auth may refuse a password change from `aal1` once MFA is
@@ -701,9 +702,9 @@ the sequential integration suite's time down.
    fortsätta", where no session's is "Du är inte inloggad"; the per-route test checks each.
 7. ~~**What Vercel Hobby and Supabase Free can alert on (step 11).**~~ → **settled** (IS #389,
    read in both dashboards and their docs, 2026-11-18): neither free plan offers a usage, spend
-   or 5xx alert to set, so none is set. All three pass to Phase 10 (the IS #278 (Phase 10) row,
-   Q14; the owner, 2026-11-18, for the 5xx one, which no later row named), whose plan decides how
-   they're covered on the same free plans. Until then each usage page shows how close a figure
+   or 5xx alert to set, so none is set. All three pass to Phase 10 (the usage alerts by the IS #278 (Phase 10) row, the
+   spend alerts by the scope draft, Q14; the 5xx one by the owner, 2026-11-18), whose plan decides
+   how they're covered on the same free plans. Until then each usage page shows how close a figure
    is to its limit.
    - **Vercel Hobby:** Observability's Alerts, the project's and the team's Alerts settings and
      Spend Management each answer "Upgrade to Pro"; the notification settings list no usage or
@@ -718,14 +719,19 @@ the sequential integration suite's time down.
      Billing or the account settings. Observability has charts and custom reports, no alert.
      Logs keep 1 day (the Logs picker's longest unlocked range is 24 hours; Observability's says
      "Your plan only includes up to 1 day of log retention"). On the preview, "Write audit logs
-     to the database", off until then (IS #377), is on (the owner, 2026-11-18; #390's checklist
-     carries it to production): Auth's events stay in `auth.audit_log_entries` past that day,
-     so a takeover noticed later can still be traced (#13). A row was seen written a minute
-     after a login (IS #389's probe). Each row keeps the event's IP address and the account's
-     email (GoTrue v2.197.0's `audit_log_entry.go`), and nothing deletes them: GoTrue's cleanup
-     (`cleanup.go`) never touches the table, and the app deletes nothing. So they are an input to
-     Phase 10's privacy note and retention period, and the table grows with each Auth event it
-     records, on Free's 0.5 GB database.
+     to the database", off until then (IS #377), is on (the owner, 2026-11-18); #390's checklist
+     names it, and Phase 10 applies the checklist to production. A row was seen written a minute
+     after a login (IS #389's probe). Each row in `auth.audit_log_entries` keeps the action, its
+     time and the actor's id and username (the email, or the phone if one is set), with traits
+     such as a target user's email on an admin action, and an IP address only where GoTrue passes
+     one: v2.197.0 does for the MFA actions, not for a login, a refresh or a password change
+     (`audit_log_entry.go` and its callers; on the preview, of the nine rows a logout and a
+     login wrote, only `challenge_created` and `verification_attempted` held one, IS #389). GoTrue's cleanup (`cleanup.go`) never
+     deletes from the table, and the app deletes nothing; whether the hosted platform trims it
+     is a re-read after 24 hours (IS #389, 2026-11-19). So the rows show which Auth events
+     happened, and when, after the one-day log retention, not where from (#13). They are an
+     input to Phase 10's privacy note and retention period, and the table grows with each event
+     it records, on Free's 0.5 GB database.
    - No account was created (#391).
 8. ~~**The rate limits' values (step 8)**, which step 12 then checks.
    The per-IP limits the login uses (`token_refresh`, `token_verifications`,
