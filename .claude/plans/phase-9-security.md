@@ -105,13 +105,16 @@ checked against a written checklist.
   fixtures sign in through the PKCE magic link, read from Mailpit, not a password (#14), and
   the admin login reaches `aal2`),
   and new or extended integration tests (`admin-auth.test.ts`, MFA, logout, cancel and
-  confirm); a unit test that `config.toml` keeps `secure_password_change = true` and the
-  password-changed email on (step 2, `supabase/config.test.ts`).
+  confirm, the email code's 10 digits and 15 minutes in `auth-routes.test.ts`, IS #386); a
+  unit test that `config.toml` keeps `secure_password_change = true` and the
+  password-changed email on (step 2, `supabase/config.test.ts`), and the email OTP's length
+  and life (step 8).
 - No migration: `users_select_own` stays as it is (#7).
 
 **Docs:**
 - `CLAUDE.md`: the rules this phase changes ("Admin routes" for `aal2` and the first-factor
-  check, the headers, logout, the time-box, the password setting); the bold plan line (step
+  check, the headers, logout, the time-box, the password setting, the emailed code's length
+  and life); the bold plan line (step
   0, then step 16).
 - `README.md`: the admin user's enroll step in setup ("5. Create the admin user"), and the
   hosted-settings checklist (#10).
@@ -648,8 +651,9 @@ the sequential integration suite's time down.
      interval and budget are the project's own, is the fix it waits for.
    - **The forged-cookie flood** and **TOTP guessing:** no change. The flood shows the 503
      page while it lasts and ends no session. TOTP guessing needs a first-factor session at
-     Auth, from the link or a guessed code, and the app admits only the link's (#14); its
-     hosted limit isn't probed (IS #381 found none locally).
+     Auth, from the link, a guessed code or a leaked password (the admin keeps one, #13),
+     and the app admits only the link's (#14); its hosted limit isn't probed (IS #381 found
+     none locally).
    - No CAPTCHA, so open decision 9 adds no CAPTCHA source.
 2. ~~**The time-box's length (step 6).** Leaning 12 hours. Its source: the `amr` claim's
    first-factor timestamp (#4, IS #377), which a later TOTP verify leaves as it was (IS #381's
@@ -663,7 +667,8 @@ the sequential integration suite's time down.
    found (IS #377): the preview's dashboard says "Set up custom SMTP to edit templates.
    Emails will be sent using the default templates.", custom SMTP is off there, and the
    local default magic-link email held no code; the dashboard's other routes are Pro and a
-   "Send Email hook". The preview's code is 8 digits, `config.toml`'s `otp_length` 6.
+   "Send Email hook". The preview's code is 8 digits, `config.toml`'s `otp_length` 6 (both
+   10 since IS #386, open decision 1).
 4. **The lost-phone route (D3)**, where the service-role calls (`deleteFactor`,
    `updateUserById`) may run with production's secret key, and whether the login rework
    needs an unenroll screen, from the probes in steps 1 and 5a. The recovery order is #13's.
