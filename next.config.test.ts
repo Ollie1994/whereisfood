@@ -59,7 +59,9 @@ describe("next.config.ts's headers", () => {
 // `NOT_ADMIN` and the proxy's `isAdminPagePath` must agree, or a path gets two CSPs or none:
 // the static CSP exactly where the predicate is false, on the path the proxy reads. Not
 // `/admin.rsc` or `/_next/data/<id>/admin.json`: a server hands the proxy those as `/admin`,
-// so they get both CSPs, a limit (`next.config.ts`), which this helper can't show.
+// so they get both CSPs, a limit (`next.config.ts`), which this helper can't show. Nor a
+// case variant (`/Admin/login`): the helper throws on one ("extracting params from path failed"),
+// so the proxy's side is `proxy.test.ts`'s and Vercel's the preview's (IS #414).
 describe("NOT_ADMIN and isAdminPagePath", () => {
   it.each([
     "/admin",

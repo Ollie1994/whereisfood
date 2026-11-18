@@ -476,4 +476,11 @@ describe("proxy's CSP", () => {
     expect(response.status).toBe(303);
     expect(response.headers.get("content-security-policy")).toBeNull();
   });
+
+  // A case variant, where Vercel runs the proxy and `headers()` leaves it out (IS #414).
+  it.each(["/Admin/login", "/ADMIN", "/Admin/trucks"])("puts exactly one nonce CSP on %s", async (path) => {
+    const response = await proxy(request(path));
+    expect(policies(response)).toBe(1);
+    expect(cspNonce(response.headers.get("content-security-policy"))).toBeDefined();
+  });
 });

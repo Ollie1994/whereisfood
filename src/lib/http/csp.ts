@@ -66,8 +66,14 @@ export const CSP_HEADER = "Content-Security-Policy";
 // `/_next/data/<id>/admin.json` already turned into `/admin`, so they get its CSP too: under
 // `next start` one, the proxy's, and the data form's 404, with a session, has its scripts
 // blocked (PR #411, round 3, probed).
+//
+// Any case. On Vercel the proxy also runs on `/Admin/…`, and `headers()` leaves it out
+// (`caseSensitiveRoutes` isn't honoured there): signed in, `/Admin/trucks` rendered the `/admin`
+// 404 under the admin layout with no CSP (the preview, IS #414). Under `next start` the proxy
+// doesn't run on a case variant, so `headers()`' static CSP is its one there.
 export function isAdminPagePath(pathname: string): boolean {
-  return pathname === "/admin" || pathname.startsWith("/admin/");
+  const path = pathname.toLowerCase();
+  return path === "/admin" || path.startsWith("/admin/");
 }
 
 // An absolute URL's origin; null for a relative or missing one, which `'self'` covers or

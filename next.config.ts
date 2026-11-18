@@ -49,7 +49,9 @@ const nextConfig: NextConfig = {
     // out with no CSP (`next start`, PR #411, round 1). In 16.4.5 it sets how `headers()`,
     // `redirects()` and `rewrites()` match (`filesystem.js`), and this config has only
     // `headers()`; the build also writes it into the routes manifest (`caseSensitive`), whose
-    // other readers weren't traced. Whether a Vercel deploy honours it is read on the preview.
+    // other readers weren't traced. A Vercel deploy doesn't honour it: there `headers()` left
+    // `/Admin/login` out, and the proxy ran on it, so `isAdminPagePath` ignores case (the
+    // preview, IS #414).
     caseSensitiveRoutes: true,
   },
 };
