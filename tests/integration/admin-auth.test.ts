@@ -295,10 +295,13 @@ describe("the first factor and the second", () => {
 describe("the time-box", () => {
   let old: { userId: string; jar: Map<string, string>; accessToken: string };
   let other: { jar: Map<string, string>; accessToken: string };
+  let aal1: { jar: Map<string, string>; accessToken: string };
 
   beforeAll(async () => {
     old = await sessionUser({ isAdmin: true, aal2: true });
     other = await sessionFor(old.userId, { aal2: true });
+    // After the `aal2` verifies, which end the user's `aal1` sessions (helpers' `sessionFor`).
+    aal1 = await sessionFor(old.userId);
   }, SIGN_IN_TIMEOUT);
 
   // The first factor's sign-in, in epoch milliseconds, from the token's `amr`.
@@ -329,5 +332,14 @@ describe("the time-box", () => {
     // `scope: "local"`: the same admin's other session still passes, on the time now.
     expect(await accepted(other.accessToken)).toBe(true);
     expect(await requireAdmin(input(other.jar))).toEqual({ ok: true, userId: old.userId });
+  });
+
+  // The box is in `verify`, so the MFA page's check holds it too (plan step 6, round 1 on PR #408).
+  it("refuses an aal1 session the code step at 12 hours, and signs it out at Auth", async () => {
+    expect(await mfaStepAllowed(input(aal1.jar))).toEqual({ ok: true, step: "code", factorId: expect.any(String) });
+    const now = new Date(signedIn(aal1.accessToken) + SESSION_MAX_AGE_MS);
+
+    expect(await mfaStepAllowed(input(aal1.jar, now))).toEqual({ ok: false, reason: "no-session" });
+    expect(await accepted(aal1.accessToken)).toBe(false);
   });
 });

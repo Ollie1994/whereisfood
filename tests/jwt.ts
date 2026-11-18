@@ -6,7 +6,9 @@ export function unsignedJwt(claims: object): string {
 }
 
 // When `LINK`'s session signed in, in epoch seconds: as this file loads, so a test on the
-// real clock is inside the session time-box (`admin-auth.ts`'s `SESSION_MAX_AGE_MS`).
+// real clock is inside the session time-box (`admin-auth.ts`'s `SESSION_MAX_AGE_MS`). A test
+// that fakes the clock 12 hours or more past this, as `vi.setSystemTime` would, gets `LINK`'s
+// sessions refused as no-session.
 export const SIGNED_IN = Math.floor(Date.now() / 1000);
 
 // `amr` entries as Auth writes them (`{ method, timestamp }`, IS #381).

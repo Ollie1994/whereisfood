@@ -120,9 +120,9 @@ describe("requireAdmin", () => {
 
   // Plan #14: the magic link only. A refused session is signed out at Auth, before the DB.
   it.each([
-    ["a directly verified code (otp)", token({ aal: "aal2", amr: [{ method: "otp", timestamp: 1 }, totp] })],
-    ["a password login", token({ aal: "aal2", amr: [{ method: "password", timestamp: 1 }, totp] })],
-    ["two first factors", token({ aal: "aal2", amr: [link, { method: "otp", timestamp: 1 }, totp] })],
+    ["a directly verified code (otp)", token({ aal: "aal2", amr: [{ method: "otp", timestamp: SIGNED_IN }, totp] })],
+    ["a password login", token({ aal: "aal2", amr: [{ method: "password", timestamp: SIGNED_IN }, totp] })],
+    ["two first factors", token({ aal: "aal2", amr: [link, { method: "otp", timestamp: SIGNED_IN }, totp] })],
     ["only totp", token({ aal: "aal2", amr: [totp] })],
     ["RFC 8176's plain strings", token({ aal: "aal2", amr: ["magiclink", "totp"] })],
     ["no amr claim", token({ aal: "aal2" })],
@@ -139,7 +139,7 @@ describe("requireAdmin", () => {
     ["answers an error", () => Promise.resolve({ error: new AuthRetryableFetchError("fetch failed", 0) })],
     ["throws", () => Promise.reject(new Error("network down"))],
   ])("answers a first factor outside the allowlist unavailable, not no-session, when the signOut %s", async (_, signOut) => {
-    const stub = { ...auth({ access: token({ aal: "aal1", amr: [{ method: "otp", timestamp: 1 }] }) }), signOut: vi.fn(signOut) };
+    const stub = { ...auth({ access: token({ aal: "aal1", amr: [{ method: "otp", timestamp: SIGNED_IN }] }) }), signOut: vi.fn(signOut) };
 
     expect(await requireAdmin({ now: NOW, cookieNames: SESSION, auth: stub })).toEqual({ ok: false, reason: "unavailable" });
     expect(getUserById).not.toHaveBeenCalled();
@@ -322,7 +322,7 @@ describe("mfaStepAllowed", () => {
   // The allowlist applies here too (plan #14): a guessed code's session could otherwise
   // enroll through the app's page while the one slot is free.
   it("refuses an otp session as no-session and signs it out locally", async () => {
-    const stub = auth({ access: token({ aal: "aal1", amr: [{ method: "otp", timestamp: 1 }] }), user: { id: ID, factors: [] } });
+    const stub = auth({ access: token({ aal: "aal1", amr: [{ method: "otp", timestamp: SIGNED_IN }] }), user: { id: ID, factors: [] } });
 
     expect(await mfaStepAllowed({ now: NOW, cookieNames: SESSION, auth: stub })).toEqual({ ok: false, reason: "no-session" });
     expect(stub.signOut).toHaveBeenCalledExactlyOnceWith({ scope: "local" });

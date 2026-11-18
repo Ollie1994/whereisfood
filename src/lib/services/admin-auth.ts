@@ -89,8 +89,17 @@ function allowedFirstFactor(claims: Claims | null): { method: string; timestamp:
 // Past the time-box: measured from the first factor's sign-in, never the newest `amr` entry,
 // since a later TOTP verify adds a fresh one, and the holder of a session mustn't reset the
 // bound by verifying again (#4). The first factor's entry kept its timestamp through a refresh
-// (IS #377) and a later verify (IS #381's probe). A sign-in after `now`, when Auth's clock is
-// ahead of this server's, has a negative age and is admitted.
+// (IS #377) and a later verify (IS #381's probe).
+//
+// Two limits (round 1 on PR #408):
+// - A sign-in after `now`, when Auth's clock is ahead of this server's, has a negative age and
+//   is admitted, so a skew of D makes the box 12 hours plus D. It isn't capped: a refusal past
+//   a cap would sign out every new session while the skew lasts, a lockout.
+// - Each check reads its caller's `now`. A request the proxy admits just under 12 hours can be
+//   refused by `withAdmin` or the MFA page just after. Their sign-out ends the session at Auth,
+//   but they hold `readOnlyCookies`, which can't delete cookies, so the browser keeps the dead
+//   ones until its next request through the proxy, whose `getUser(token)` clears them (the
+//   integration test's logged-out case).
 function expired(signedInSeconds: number, now: Date): boolean {
   return now.getTime() - signedInSeconds * 1000 >= SESSION_MAX_AGE_MS;
 }
