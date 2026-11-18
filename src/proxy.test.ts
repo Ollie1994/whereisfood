@@ -354,7 +354,22 @@ describe("proxy and the second factor", () => {
 
   it.each(["/admin/mfa", "/admin"])("signs an otp session out and sends its %s to the login (plan #14)", async (path) => {
     admin();
-    withToken({ aal: "aal1", amr: [{ method: "otp", timestamp: 1 }] });
+    withToken({ aal: "aal1", amr: [{ ...LINK, method: "otp" }] });
+
+    const response = await proxy(request(path, SESSION));
+
+    expect(response.headers.get("location")).toBe(LOGIN_URL);
+    expect(signOut).toHaveBeenCalledExactlyOnceWith({ scope: "local" });
+  });
+
+  // On the real clock: the proxy passes the checks the time now (plan step 6, #4).
+  const old = { ...LINK, timestamp: LINK.timestamp - 13 * 3600 };
+  it.each([
+    ["/admin", { aal: "aal2", amr: [old, TOTP] }],
+    ["/admin/mfa", { aal: "aal1", amr: [old] }],
+  ])("signs a session signed in 13 hours ago out and sends its %s to the login (the time-box)", async (path, claims) => {
+    admin();
+    withToken(claims);
 
     const response = await proxy(request(path, SESSION));
 

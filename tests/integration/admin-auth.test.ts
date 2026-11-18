@@ -4,19 +4,23 @@ import { NextResponse, NextRequest } from "next/server";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { readJson, withAdmin } from "@/lib/http/admin";
 import { enrollFactor } from "@/lib/mfa";
-import { mfaStepAllowed, requireAdmin } from "@/lib/services/admin-auth";
+import { SESSION_MAX_AGE_MS, mfaStepAllowed, requireAdmin } from "@/lib/services/admin-auth";
 import { supabaseAdmin } from "@/lib/supabase";
+import { createSessionClient, readOnlyCookies } from "@/lib/supabase-session";
 import { proxy } from "@/proxy";
+import { payloadOf } from "../jwt";
 import { totp } from "../totp";
 import {
   SIGN_IN_TIMEOUT,
   accepted,
+  anonClient,
   authClock,
   cookieHeader,
   createFixtureAuthUser,
   editSessionCookie,
   SESSION_COOKIE,
   jarClient,
+  localSql,
   resetTables,
   sessionFor,
   sessionUser,
@@ -149,15 +153,24 @@ function get(path: string, cookie: string) {
 }
 
 // `requireAdmin` and `mfaStepAllowed` on a jar's session, as `withAdmin` and the MFA page
-// call them.
-const input = (jar: Map<string, string>) => ({ cookieNames: [...jar.keys()], auth: jarClient(jar).auth });
+// call them, at `now` (by default the time now).
+const input = (jar: Map<string, string>, now = new Date()) => ({ cookieNames: [...jar.keys()], auth: jarClient(jar).auth, now });
+
+// The user's one verified factor's id, as Auth lists it.
+async function verifiedFactor(userId: string): Promise<string> {
+  const { data, error } = await supabaseAdmin.auth.admin.mfa.listFactors({ userId });
+  if (error) throw error;
+  const ids = data.factors.filter((factor) => factor.status === "verified").map((factor) => factor.id);
+  if (ids.length !== 1) throw new Error(`verifiedFactor: ${ids.length} verified factors`);
+  return ids[0];
+}
 
 // The jar's session cookie alone, with its access token's payload edited and its signature
 // kept: a claim Auth never signed (#11).
 function forged(jar: Map<string, string>, edit: (claims: Record<string, unknown>) => void): Map<string, string> {
   const edited = editSessionCookie(jar, (session) => {
-    const [header, payload, signature] = session.access_token.split(".");
-    const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    const [header, , signature] = session.access_token.split(".");
+    const claims = payloadOf(session.access_token);
     edit(claims);
     session.access_token = [header, Buffer.from(JSON.stringify(claims)).toString("base64url"), signature].join(".");
   });
@@ -246,7 +259,7 @@ describe("the first factor and the second", () => {
   });
 
   it("gives an enrolled admin's aal1 session the code step, and Auth refuses it a second factor", async () => {
-    expect(await mfaStepAllowed(input(enrolledAal1.jar))).toEqual({ ok: true, step: "code", factorId: expect.any(String) });
+    expect(await mfaStepAllowed(input(enrolledAal1.jar))).toEqual({ ok: true, step: "code", factorId: await verifiedFactor(enrolled.userId) });
 
     // Named: an unnamed one beside the fixture's unnamed factor is refused
     // `mfa_factor_name_conflict` first (local stack, the PR for IS #382).
@@ -285,5 +298,95 @@ describe("the first factor and the second", () => {
     expect(error).toBeNull();
     expect(await requireAdmin(input(fresh.jar))).toEqual({ ok: true, userId: fresh.userId });
     expect(await mfaStepAllowed(input(fresh.jar))).toEqual({ ok: false, reason: "done" });
+  });
+});
+
+// The time-box (Phase 9 plan step 6, #4), on real sessions: a session's first-factor sign-in
+// is moved back at Auth (`ageSignIn`), its token refreshed, and the check run with `now` on
+// Auth's clock (`authClock`), so a host clock ahead of the Docker VM's doesn't count into the
+// age. Moving `now` on instead would read as Auth's clock running behind, which
+// `admin-auth.ts` holds within the token's `exp`. Only the refused session is signed out at
+// Auth.
+describe("the time-box", () => {
+  let old: { userId: string; jar: Map<string, string>; accessToken: string };
+  let other: { jar: Map<string, string>; accessToken: string };
+  let aal1: { jar: Map<string, string>; accessToken: string };
+
+  beforeAll(async () => {
+    old = await sessionUser({ isAdmin: true, aal2: true });
+    other = await sessionFor(old.userId, { aal2: true });
+    // After the `aal2` verifies, which end the user's `aal1` sessions (helpers' `sessionFor`).
+    aal1 = await sessionFor(old.userId);
+  }, SIGN_IN_TIMEOUT);
+
+  // The first factor's sign-in, in epoch milliseconds, from the token's `amr`.
+  function signedIn(accessToken: string): number {
+    const { amr } = payloadOf(accessToken);
+    const link = (amr as { method: string; timestamp: number }[]).find(({ method }) => method === "magiclink");
+    if (!link) throw new Error(`signedIn: no magiclink entry in ${JSON.stringify(amr)}`);
+    return link.timestamp * 1000;
+  }
+
+  // Moves the session's magic-link sign-in `seconds` back in `auth.mfa_amr_claims`
+  // (`localSql`), then refreshes the jar's token, whose `amr` claim Auth builds from that row
+  // (the first test reads the moved timestamp back). Returns the new access token.
+  async function ageSignIn(session: { jar: Map<string, string>; accessToken: string }, seconds: number): Promise<string> {
+    const sessionId = payloadOf(session.accessToken).session_id;
+    if (typeof sessionId !== "string" || !/^[0-9a-f-]{36}$/.test(sessionId)) throw new Error("ageSignIn: no session_id");
+    const aged = localSql(
+      `with aged as (update auth.mfa_amr_claims set created_at = created_at - interval '${seconds} seconds', ` +
+        `updated_at = updated_at - interval '${seconds} seconds' where session_id = '${sessionId}' ` +
+        `and authentication_method = 'magiclink' returning 1) select count(*) from aged;`,
+    );
+    if (aged !== "1") throw new Error(`ageSignIn: ${aged} rows aged`);
+    const { data, error } = await jarClient(session.jar).auth.refreshSession();
+    if (error || !data.session) throw error ?? new Error("ageSignIn: no session after the refresh");
+    return data.session.access_token;
+  }
+
+  it("lets the session through ten minutes before 12 hours, then refuses it at 12 and signs it out at Auth, refresh token included, and no other session", async () => {
+    const fresh = signedIn(old.accessToken);
+    let token = await ageSignIn(old, SESSION_MAX_AGE_MS / 1000 - 600);
+    expect(signedIn(token)).toBe(fresh - SESSION_MAX_AGE_MS + 600_000);
+    expect(await requireAdmin(input(old.jar, new Date(await authClock())))).toEqual({ ok: true, userId: old.userId });
+
+    token = await ageSignIn({ jar: old.jar, accessToken: token }, 600);
+    const { data } = await jarClient(old.jar).auth.getSession();
+    const refreshToken = data.session?.refresh_token;
+    if (!refreshToken) throw new Error("no refresh token in the jar");
+
+    expect(await requireAdmin(input(old.jar, new Date(await authClock())))).toEqual({ ok: false, reason: "no-session" });
+
+    expect(await accepted(token)).toBe(false);
+    expect((await anonClient().auth.refreshSession({ refresh_token: refreshToken })).error).not.toBeNull();
+
+    // `scope: "local"`: the same admin's other session still passes.
+    expect(await accepted(other.accessToken)).toBe(true);
+    expect(await requireAdmin(input(other.jar, new Date(await authClock())))).toEqual({ ok: true, userId: old.userId });
+  });
+
+  // The box is in `verify`, so the MFA page's check holds it too (plan step 6), on the page's
+  // own `readOnlyCookies`, as `page.tsx` builds its client: the sign-out still ends the session
+  // at Auth, and the cookie is left (`admin-auth.ts`'s limit).
+  it("refuses an aal1 session the code step at 12 hours on read-only cookies, and signs it out at Auth", async () => {
+    const pageInput = async () => ({
+      cookieNames: [...aal1.jar.keys()],
+      auth: createSessionClient(readOnlyCookies({ getAll: () => [...aal1.jar].map(([name, value]) => ({ name, value })) })).auth,
+      now: new Date(await authClock()),
+    });
+    expect(await mfaStepAllowed(await pageInput())).toEqual({ ok: true, step: "code", factorId: await verifiedFactor(old.userId) });
+
+    const token = await ageSignIn(aal1, SESSION_MAX_AGE_MS / 1000);
+    const { data } = await jarClient(aal1.jar).auth.getSession();
+    const refreshToken = data.session?.refresh_token;
+    if (!refreshToken) throw new Error("no refresh token in the jar");
+    const before = [...aal1.jar.keys()];
+
+    expect(await mfaStepAllowed(await pageInput())).toEqual({ ok: false, reason: "no-session" });
+
+    expect(await accepted(token)).toBe(false);
+    expect((await anonClient().auth.refreshSession({ refresh_token: refreshToken })).error).not.toBeNull();
+    expect([...aal1.jar.keys()]).toEqual(before);
+    expect(before.some((name) => SESSION_COOKIE.test(name))).toBe(true);
   });
 });

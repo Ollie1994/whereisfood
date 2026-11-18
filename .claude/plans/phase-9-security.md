@@ -250,7 +250,9 @@ before the closing steps (#12).
    `scope: "local"` (that session only); if the sign-out fails, the refusal stands. A
    session never presented to the app isn't signed out, a stated limit until Phase 11 (#4);
    unit and integration tests; `CLAUDE.md` and
-   "Admin and auth" say so until Pro's timeouts replace it in Phase 11.
+   "Admin and auth" say so until Pro's timeouts replace it in Phase 11. **Settled by IS #384:**
+   12 hours (open decision 2), in `verify`, so the MFA page's `mfaStepAllowed` refuses an old
+   `aal1` session too; a failed sign-out answers unavailable, as a refused first factor's does.
 7. **Logout ends every session** (#5): `signOut({ scope: "global" })`; an integration test
    that another session's next request is refused.
 8. **The login-abuse fix** chosen from the probes of steps 1, 2 and 5a (open decision 1),
@@ -271,7 +273,9 @@ before the closing steps (#12).
 12. **The hosted-settings checklist** (Q21) in `README.md` (#10), each item checked on the
     preview: sign-ups off, redirect URLs, rate limits, the email OTP length (no email shows the
     code, #14, but a guessed one is an `aal1` session at Auth, so its length sets open
-    decision 1's odds), MFA, the password settings (secure password change, its email, and
+    decision 1's odds), MFA, the JWT expiry (a token's life, which bounds how far a clock skew
+    moves the session time-box, `admin-auth.ts`; the owner, 2026-11-18, IS #384), the
+    password settings (secure password change, its email, and
     require current password, with the admin's password set long and random, IS #378), secure email change (#13), the audit log setting, Deployment
     Protection, Git Fork Protection,
     "Enforce SSL", unused services, network restrictions, and the hosted Security Advisor
@@ -617,9 +621,13 @@ the sequential integration suite's time down.
    limiting when using secret API keys" (IS #377). The proxy's refreshes go through
    `createSessionClient`, with the anon key, so it covers the flood only if they carried a
    secret API key, which the session client doesn't hold.
-2. **The time-box's length (step 6).** Leaning 12 hours. Its source: the `amr` claim's
+2. ~~**The time-box's length (step 6).** Leaning 12 hours. Its source: the `amr` claim's
    first-factor timestamp (#4, IS #377), which a later TOTP verify leaves as it was (IS #381's
-   probe).
+   probe).~~ → **settled** (the owner, 2026-11-18, IS #384, approving the leaning): 12 hours
+   (`admin-auth.ts`'s `SESSION_MAX_AGE_MS`), from that source. A session is refused from 12
+   hours on, its age read on the server's `now` held within the token's `iat` and `exp`,
+   Auth's clock (the owner, 2026-11-18: `iat` in round 2 on PR #408, `exp` after round 3), so
+   a skew between the clocks, either way, moves the box by up to a token's life.
 3. ~~**The magic link (step 5d):** kept beside the emailed code, or the code only.~~ →
    **settled by #14** (the owner, 2026-11-17, IS #396): the magic link only. What step 1
    found (IS #377): the preview's dashboard says "Set up custom SMTP to edit templates.

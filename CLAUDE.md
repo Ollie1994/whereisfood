@@ -266,6 +266,17 @@ said otherwise: Phase 4 plan decision #14.
   first factor (the `amr` entry that isn't `totp`) isn't `magiclink` is signed out at
   Auth (`scope: "local"`) and answered as no session, or as unavailable (503) if that
   sign-out failed, so a later request tries again
+- **The session time-box, until Phase 11** (Phase 9 plan step 6, #4, open decision 2): a
+  session is refused 12 hours (`SESSION_MAX_AGE_MS`) after its first factor's sign-in, the
+  timestamp of that `amr` entry, never the newest entry, which a later TOTP verify adds. The
+  refusal is the first factor's: signed out at Auth with `scope: "local"`, answered as no
+  session, or as unavailable if the sign-out failed. `requireAdmin` and `mfaStepAllowed` take
+  the caller's `now`, and read the age on it held within the token's `iat` and `exp`, Auth's
+  clock, so a skew either way moves the box by up to a token's life (`admin-auth.ts`).
+  Their integration tests age a sign-in at Auth by SQL, not by moving `now`, which would
+  read as skew. A limit: only a session presented to the app is signed out, so a stolen
+  token used only against Supabase stays good until Phase 11's Pro session timeouts, which
+  replace this
 
 **`/api/live` (the public read path, Phase 6)**
 - An ordinary (dynamic) route, cached by Vercel's CDN through

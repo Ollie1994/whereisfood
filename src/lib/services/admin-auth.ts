@@ -49,7 +49,7 @@ const FIRST_FACTORS = new Set(["magiclink"]);
 // PR #404's test gave `[magiclink, totp]`), so the first factor is found by its method.
 const MFA_METHODS = new Set(["totp"]);
 
-type Claims = { aal: unknown; amr: unknown };
+type Claims = { aal: unknown; amr: unknown; iat?: unknown; exp?: unknown };
 
 // The payload of a token Auth has just accepted (`getUser(token)` below), so reading it
 // here reads what Auth verified, not a cookie's claim (#11). A payload this can't read
@@ -63,17 +63,70 @@ function claimsOf(token: string): Claims | null {
   }
 }
 
-// The session's first factor allowed: exactly one `amr` entry that isn't an MFA method,
-// and its method in `FIRST_FACTORS`. Entries are `{ method, timestamp }` on the local stack
-// (IS #381); RFC 8176's plain strings, which auth-js's types also allow, read as no method,
-// so they are refused, not admitted.
-function firstFactorAllowed(claims: Claims | null): boolean {
-  if (!claims || !Array.isArray(claims.amr)) return false;
-  const methods = claims.amr.map((entry: unknown) =>
-    typeof entry === "object" && entry !== null ? (entry as { method?: unknown }).method : undefined,
+// How long a session lasts, from its first factor's sign-in (Phase 9 plan step 6, #4, open
+// decision 2: 12 hours, the owner, 2026-11-18). Supabase's own session timeouts are Pro's,
+// which replace this in Phase 11.
+export const SESSION_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+
+// The session's first factor's sign-in, in epoch seconds, if the factor is allowed: exactly
+// one `amr` entry that isn't an MFA method, its method in `FIRST_FACTORS`, with a finite
+// numeric `timestamp` (`JSON.parse` gives `Infinity` for `1e400`, so `typeof` alone isn't
+// enough). Entries are `{ method, timestamp }` on the local stack (IS #381); RFC 8176's
+// plain strings, which auth-js's types also allow, read as no method, so they are refused,
+// not admitted. `null`: refused.
+function firstFactorSignIn(claims: Claims | null): number | null {
+  if (!claims || !Array.isArray(claims.amr)) return null;
+  const entries = claims.amr.map((entry: unknown) =>
+    typeof entry === "object" && entry !== null ? (entry as { method?: unknown; timestamp?: unknown }) : {},
   );
-  const first = methods.filter((method) => !(typeof method === "string" && MFA_METHODS.has(method)));
-  return first.length === 1 && typeof first[0] === "string" && FIRST_FACTORS.has(first[0]);
+  const first = entries.filter(({ method }) => !(typeof method === "string" && MFA_METHODS.has(method)));
+  if (first.length !== 1) return null;
+  const [{ method, timestamp }] = first;
+  if (typeof method !== "string" || !FIRST_FACTORS.has(method)) return null;
+  if (typeof timestamp !== "number" || !Number.isFinite(timestamp)) return null;
+  return timestamp;
+}
+
+// Past the time-box: measured from the first factor's sign-in, never the newest `amr` entry,
+// since a later TOTP verify adds a fresh one, and the holder of a session mustn't reset the
+// bound by verifying again (#4). The first factor's entry kept its timestamp through a refresh
+// (IS #377) and a later verify (IS #381's probe).
+//
+// The age is read on Auth's clock as near as this server can tell: the caller's `now`, held
+// within the token's `iat` and `exp`, both Auth's clock. `iat` is when Auth issued the token,
+// so Auth's time now is at or after it (on one Auth instance; separate instances' clocks
+// weren't read). Auth has just accepted the token (`getUser(token)`), so its time now is
+// before `exp`: its `parseJWTClaims` (`internal/api/auth.go`) builds golang-jwt v5's parser
+// with no leeway option, and v5 checks `exp` by default, though not `iat` (read on GitHub's
+// master, 2026-11-18; the claims type's own checks weren't read). With the two clocks agreed,
+// `now` is in that window and the age is exact; with Auth ahead, `now` is raised to `iat`;
+// with Auth behind, it is lowered to `exp`. A fresh login, `iat` and sign-in together, is
+// never refused. A bound that isn't a finite number is left out. The owner's calls: the
+// plan's open decision 2.
+//
+// Two limits:
+// - While the clocks disagree, the box can end up to a token's life (`exp − iat`) late (Auth
+//   ahead) or early (Auth behind). That life is the project's JWT expiry: `config.toml`'s
+//   `jwt_expiry` is 3600 s, and a hosted project's is its own Auth setting, not read here.
+//   The local stack's Docker VM clock can fall behind the host's after a sleep (`helpers.ts`'s
+//   `authClock`).
+// - Each check reads its caller's `now`. A request the proxy admits just under 12 hours can be
+//   refused by `withAdmin` or the MFA page just after. Their sign-out ends the session at Auth,
+//   but they hold `readOnlyCookies`, which can't delete cookies (the integration test of the
+//   MFA step shows the cookie left). The browser keeps the dead ones until a request through
+//   the proxy to an admin path other than the login, which the proxy lets through unchecked,
+//   clears them (`getUser(token)`, the integration test's logged-out case), or a new login's
+//   callback writes new ones.
+function expired(signedInSeconds: number, claims: Claims | null, now: Date): boolean {
+  const floor = finiteMs(claims?.iat, -Infinity);
+  const ceiling = finiteMs(claims?.exp, Infinity);
+  const authNow = Math.min(Math.max(now.getTime(), floor), ceiling);
+  return authNow - signedInSeconds * 1000 >= SESSION_MAX_AGE_MS;
+}
+
+// A claim in epoch seconds as milliseconds, or `otherwise` when it isn't a finite number.
+function finiteMs(seconds: unknown, otherwise: number): number {
+  return typeof seconds === "number" && Number.isFinite(seconds) ? seconds * 1000 : otherwise;
 }
 
 // Ends this session at Auth and clears it from storage (`signOut`'s `_removeSession`, which
@@ -95,16 +148,18 @@ async function endSession(auth: SessionAuth, why: string): Promise<boolean> {
 // `config.toml` turns on, and `max_enrolled_factors = 1` allows one.
 type Verified = { ok: true; userId: string; aal2: boolean; verifiedFactorId: string | null };
 
+// What `requireAdmin` and `mfaStepAllowed` take. `now`: the caller's clock (`CLAUDE.md`,
+// "Time"), which the time-box reads.
+export type AdminInput = { cookieNames: readonly string[]; auth: SessionAuth; now: Date };
+
 // In this order, each step only when the one before passed (`project-context.md`, "Admin
-// and auth", with Phase 9 plan step 5b's first factor and `aal2`): a session cookie, with
-// no network or DB call before it; the session's access token (`getSession`, which
-// refreshes an expiring one and writes the rotated cookies), then `getUser(token)`, which
-// asks Auth to verify that token, so a logged-out or forged one is refused (open decision
-// 11); the first factor, from that same token; then `is_admin` through the db layer. An
+// and auth", with Phase 9 plan steps 5b and 6): a session cookie, with no network or DB call
+// before it; the session's access token (`getSession`, which refreshes an expiring one and
+// writes the rotated cookies), then `getUser(token)`, which asks Auth to verify that token,
+// so a logged-out or forged one is refused (open decision 11); the first factor, from that
+// same token, and the time-box from its sign-in; then `is_admin` through the db layer. An
 // auth user with no `users` row is not an admin.
-async function verify({ cookieNames, auth }: { cookieNames: readonly string[]; auth: SessionAuth }): Promise<
-  Verified | { ok: false; reason: Refused }
-> {
+async function verify({ cookieNames, auth, now }: AdminInput): Promise<Verified | { ok: false; reason: Refused }> {
   if (!hasSessionCookie(cookieNames)) return { ok: false, reason: "no-session" };
 
   let token: string;
@@ -124,11 +179,15 @@ async function verify({ cookieNames, auth }: { cookieNames: readonly string[]; a
     return { ok: false, reason: "unavailable" };
   }
 
+  // A refused session is signed out at Auth, so it can't stay valid there (plan #14, #4).
+  // If that failed, "unavailable": the session isn't gone, and a later request tries again.
   const claims = claimsOf(token);
-  if (!firstFactorAllowed(claims)) {
-    // Signed out at Auth, so a session the app refuses can't stay valid there (plan #14). If
-    // that failed, "unavailable": the session isn't gone, and a later request tries again.
-    const ended = await endSession(auth, "a first factor outside the allowlist");
+  const signedIn = firstFactorSignIn(claims);
+  let refusedFor: string | null = null;
+  if (signedIn === null) refusedFor = "a first factor outside the allowlist";
+  else if (expired(signedIn, claims, now)) refusedFor = "a session past the time-box";
+  if (refusedFor) {
+    const ended = await endSession(auth, refusedFor);
     return { ok: false, reason: ended ? "no-session" : "unavailable" };
   }
 
@@ -149,7 +208,7 @@ async function verify({ cookieNames, auth }: { cookieNames: readonly string[]; a
 }
 
 // The admin, at `aal2` (Phase 9 plan step 5b). An `aal1` admin session is `needs-mfa`.
-export async function requireAdmin(input: { cookieNames: readonly string[]; auth: SessionAuth }): Promise<AdminCheck> {
+export async function requireAdmin(input: AdminInput): Promise<AdminCheck> {
   const check = await verify(input);
   if (!check.ok) return check;
   return check.aal2 ? { ok: true, userId: check.userId } : { ok: false, reason: "needs-mfa" };
@@ -160,7 +219,7 @@ export async function requireAdmin(input: { cookieNames: readonly string[]; auth
 // browser to Auth (`useMfa`), so a session that skips the page isn't stopped by this (plan
 // #14's limit). Auth itself refused a second enroll beside a verified factor
 // (`too_many_enrolled_mfa_factors`, `max_enrolled_factors = 1`, IS #381).
-export async function mfaStepAllowed(input: { cookieNames: readonly string[]; auth: SessionAuth }): Promise<MfaCheck> {
+export async function mfaStepAllowed(input: AdminInput): Promise<MfaCheck> {
   const check = await verify(input);
   if (!check.ok) return check;
   if (check.aal2) return { ok: false, reason: "done" };

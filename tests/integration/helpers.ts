@@ -1,4 +1,6 @@
+import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import type { CookieMethodsServer } from "@supabase/ssr";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabase";
@@ -565,6 +567,25 @@ export function jarClient(jar: Map<string, string>): SupabaseClient<Database> {
 export async function accepted(accessToken: string): Promise<boolean> {
   const { data, error } = await supabaseAdmin.auth.getUser(accessToken);
   return !error && data.user !== null;
+}
+
+// The local stack's database container, named from `config.toml`'s `project_id` as
+// `scripts/controls.mjs` names it.
+const DB_CONTAINER = (() => {
+  const config = readFileSync(new URL("../../supabase/config.toml", import.meta.url), "utf8");
+  const projectId = /^project_id\s*=\s*"([^"]+)"/m.exec(config)?.[1];
+  if (!projectId) throw new Error("no project_id in supabase/config.toml");
+  return `supabase_db_${projectId}`;
+})();
+
+// Runs `sql` as `postgres` in that container, through `psql` as `scripts/controls.mjs` does,
+// for the `auth` schema, which PostgREST doesn't serve. Returns psql's unaligned output,
+// trimmed; throws on a failed statement (`ON_ERROR_STOP`) or a failed `docker exec`.
+export function localSql(sql: string): string {
+  const args = ["exec", "-i", DB_CONTAINER, "psql", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", "postgres", "-t", "-A", "-q", "-c", sql];
+  const result = spawnSync("docker", args, { encoding: "utf8" });
+  if (result.status !== 0) throw new Error(`localSql: docker exec answered ${result.status}: ${result.stderr}`);
+  return result.stdout.trim();
 }
 
 // Each fixture's one TOTP factor, by user id: `sessionUser({ aal2: true })` enrolls it when

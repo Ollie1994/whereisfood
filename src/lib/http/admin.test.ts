@@ -116,12 +116,25 @@ describe("withAdmin", () => {
   it("answers a first factor outside the allowlist 401 no-session, after signing it out at Auth (plan #14)", async () => {
     authAnswers(userJson);
 
-    const response = await withAdmin(request({ cookie: sessionCookie({ aal: "aal2", amr: [{ method: "otp", timestamp: 1 }, { method: "totp", timestamp: 2 }] }) }), handler);
+    const response = await withAdmin(request({ cookie: sessionCookie({ aal: "aal2", amr: [{ ...LINK, method: "otp" }, TOTP] }) }), handler);
 
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual({ error: "Du är inte inloggad" });
     expect(fetchSpy.mock.calls.map(([url]) => String(url))).toContainEqual(expect.stringContaining("/auth/v1/logout?scope=local"));
     expect(getUserById).not.toHaveBeenCalled();
+  });
+
+  // On the real clock: `withAdmin` passes `requireAdmin` the time now (plan step 6, #4).
+  it("answers a session signed in 13 hours ago 401 no-session, after signing it out at Auth (the time-box)", async () => {
+    authAnswers(userJson);
+    const old = { ...LINK, timestamp: LINK.timestamp - 13 * 3600 };
+
+    const response = await withAdmin(request({ cookie: sessionCookie({ aal: "aal2", amr: [old, TOTP] }) }), handler);
+
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ error: "Du är inte inloggad" });
+    expect(fetchSpy.mock.calls.map(([url]) => String(url))).toContainEqual(expect.stringContaining("/auth/v1/logout?scope=local"));
+    expect(handler).not.toHaveBeenCalled();
   });
 
   it("answers 401 when Auth refuses the token", async () => {

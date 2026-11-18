@@ -46,6 +46,7 @@ export async function withAdmin(
     const check = await requireAdmin({
       cookieNames: request.cookies.getAll().map(({ name }) => name),
       auth: supabase.auth,
+      now: new Date(),
     });
     if (!check.ok) return adminRefusal(check.reason);
 
