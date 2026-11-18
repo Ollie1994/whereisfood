@@ -292,8 +292,8 @@ said otherwise: Phase 4 plan decision #14.
   308 with no body) carries no CSP, since Next answers it before the proxy. On the preview
   (IS #387's read, 2026-11-18), Vercel sent one CSP on `/admin.rsc` and `/_next/data/…`;
   its toolbar's `vercel.live` script, styles and iframe were refused, so the owner turned the
-  toolbar off for pre-production deploys (2026-11-18, a comment on #387; a comment on #390 asks
-  the hosted-settings checklist to name it)
+  toolbar off for pre-production deploys (2026-11-18, a comment on #387; README's hosted settings
+  checklist names it, IS #390)
 
 **API responses**
 - All errors return `{ "error": "message" }` with the correct HTTP status code

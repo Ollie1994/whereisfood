@@ -502,9 +502,12 @@ Its row stays in the preview's history.
 
 For the owner: the security settings #390 checked in the Supabase and Vercel dashboards,
 which live outside the repo, each with its value on the preview. Phase 10 applies the list
-to production (Phase 9 plan #10). Each row was read on the preview on 2026-11-18, from the
-owner's screenshots, with the results recorded on IS #390. It names settings, never keys or
-addresses (`CLAUDE.md`, Secrets).
+to production (Phase 9 plan #10). Where a value names the preview itself (the Site URL and
+Redirect URLs) or applies to its deploys (Vercel's Deployment Protection, the bypass secret,
+the Pre-Production toolbar), production's is Phase 10's to set. Each row was read on the
+preview on 2026-11-18, from the owner's screenshots, and the advisor's from the CLI run
+below, with the results recorded on IS #390. It names settings, never keys or addresses
+(`CLAUDE.md`, Secrets).
 
 **Supabase, Authentication:**
 
@@ -512,20 +515,22 @@ addresses (`CLAUDE.md`, Secrets).
 |---|---|---|
 | Sign In / Providers → Allow new users to sign up | Off | "Auth", above |
 | Sign In / Providers → Allow manual linking; Allow anonymous sign-ins | Off; Off | Unused |
+| Sign In / Providers → Confirm email | On | Kept as found |
 | Sign In / Providers → Auth Providers | Email enabled; every other provider disabled, no custom provider | The admin logs in by email alone |
 | Email provider → Secure email change | On | Both addresses confirm a change (Phase 9 plan #13) |
 | Email provider → Secure password change; Require current password when updating | On; On | `CLAUDE.md`, Supabase. Both rest on the admin having a password: the preview's was set long and random on 2026-11-17 (IS #378) |
-| Email provider → Prevent use of leaked passwords | Off | Pro only; the advisor's warning for it is accepted (last table) |
+| Email provider → Prevent use of leaked passwords | Off | Pro only; the advisor's warning for it is accepted (the advisor's table, below) |
 | Email provider → Minimum password length; Password requirements | 6; none | Kept as found (IS #378) |
 | Email provider → Email OTP expiration; Email OTP length | 900 s; 10 digits | `CLAUDE.md`, Supabase (IS #386); the same as `config.toml`'s `otp_expiry` and `otp_length` |
+| Email provider → Enable magic links and email OTP | On | The login's first factor is the magic link (Phase 9 plan #14) |
 | Emails → Security notifications | Password changed, MFA method added and MFA method removed on; the other four off | `CLAUDE.md`, Supabase (IS #378); the MFA ones, IS #381 |
-| Emails → SMTP Settings → Enable custom SMTP | Off | So every email uses Supabase's default template, which can't be edited without custom SMTP (IS #377) |
+| Emails → SMTP Settings → Enable custom SMTP | Off | So every email uses Supabase's default template, which can't be edited without custom SMTP (IS #377), and goes through the built-in sender's budget (Rate Limits: 2 emails an hour), which can be spent so the admin's link doesn't come: accepted for Phase 9 only, and Phase 10 decides it again (`CLAUDE.md`, Supabase; the Phase 9 plan's open decision 1) |
 | Multi-Factor → TOTP (App Authenticator); Maximum number of per-user MFA factors | Enabled; 1 | IS #381 |
 | Multi-Factor → Phone | Disabled | Pro only, and unused |
-| Multi-Factor → Limit duration of AAL1 sessions | On | Found on, 2026-11-18, and kept. The dashboard: "A user's session will be terminated unless they verify one of their factors within 15 minutes of initial sign in" |
+| Multi-Factor → Limit duration of AAL1 sessions | On | Found on, 2026-11-18, and kept, but not relied on: on the preview, an enrolled admin's `aal1` session still reached the code page 18 minutes after its sign-in (IS #390's PR), though the dashboard says such a session "will be terminated unless they verify one of their factors within 15 minutes" |
 | Sessions → Access token expiry time | 3600 s | A token's life, which bounds how far a clock skew moves the session time-box (`admin-auth.ts`); the same as `config.toml`'s `jwt_expiry` |
 | Sessions → Detect and revoke potentially compromised refresh tokens; Refresh token reuse interval | On; 10 s | Kept as found |
-| Sessions → Enforce single session per user; Time-box user sessions; Inactivity timeout | Off; 0; 0 | Pro only. The app's 12-hour box stands in until Phase 11 (`CLAUDE.md`, "The session time-box") |
+| Sessions → Enforce single session per user; Time-box user sessions; Inactivity timeout | Off; 0; 0 | Pro only. The app's 12-hour box stands in for the time-box until Phase 11 (`CLAUDE.md`, "The session time-box"). Nothing in the app limits how many sessions run at once; a logout ends them all (`CLAUDE.md`, "Logout ends every session") |
 | Rate Limits | Emails 2/h, SMS 30/h, token refreshes 150/5 min, token verifications 30/5 min, anonymous sign-ins 30/h, sign-ups and sign-ins 30/5 min, Web3 30/5 min, minimum interval per user 60 s | Kept, IS #386. The 60 s applies only with custom SMTP |
 | Rate Limits → Enable IP address forwarding | Off | Kept, IS #386 |
 | Attack Protection → CAPTCHA | Off | Decided against in IS #386 |
@@ -537,6 +542,7 @@ addresses (`CLAUDE.md`, Secrets).
 | Setting | Value | Why |
 |---|---|---|
 | Database → Settings → Enforce SSL on incoming connections | On | Turned on by the owner, 2026-11-18, which restarted the database. It covers Postgres and the poolers; Supabase's HTTP APIs, which the app uses, always enforce SSL (Supabase's docs, SSL Enforcement). After the restart the preview's `/api/live` answered 200 from a fresh read |
+| Database → Settings → Connection logging: Log connections; Log disconnections | Off; off | Kept as found |
 | Database → Settings → Network restrictions | None: every IP allowed | They cover Postgres and the pooler, not the HTTPS APIs the app uses: they "don't apply to HTTPS APIs such as PostgREST, Storage, and Auth" (Supabase's docs, Network Restrictions). A list of the owner's IPs would lock out the linked CLI whenever that IP changes. Phase 10 reads it again for production (the owner, 2026-11-18) |
 | Integrations → Data API | On; "Automatically expose new tables" off; Max rows 1000 | "Hosted preview database", above |
 | Realtime → Settings → Enable Realtime service | Off | Turned off by the owner, 2026-11-18: the app doesn't use Realtime, and public channels were open to anyone with the publishable key |
@@ -549,7 +555,7 @@ addresses (`CLAUDE.md`, Secrets).
 | Finding | Settled |
 |---|---|
 | WARN `auth_leaked_password_protection` | Accepted: Pro only, and the admin's password is long and random (IS #378) |
-| INFO `rls_enabled_no_policy` on `public.trucks` and `public.locations` | By design: anon and authenticated get no access to them (`CLAUDE.md`, Supabase) |
+| INFO `rls_enabled_no_policy` on `public.trucks` and `public.locations` | By design: anon and authenticated get no access to them (`CLAUDE.md`, Supabase, for anon; the grants read in "Hosted preview database", above, for both) |
 | INFO `unindexed_foreign_keys`: `locations_created_by_fkey`, `users_truck_id_fkey` | Accepted on tables this small; Phase 10 reads it again with production's data |
 
 **Vercel** (project `whereisfood`):
@@ -561,9 +567,11 @@ addresses (`CLAUDE.md`, Secrets).
 | Deployment Protection → Shareable Links; Deployment Protection Exceptions | None; none | A link or an exception would open a deployment without a Vercel login |
 | Deployment Protection → OPTIONS Allowlist; Protected Sourcemaps | Off; On | Kept as found |
 | Deployment Protection → Password Protection; Trusted IPs | Off; off | Not on Hobby: Password Protection is Pro, Trusted IPs Enterprise |
+| Deployment Protection → Trusted Sources | This project's `development` and `preview` tokens | Kept as found |
+| Team → Deployment Protection → Default Protection for New Projects; Who Can Change Protection | Vercel Authentication, Standard Protection; neither box ticked | Kept as found |
 | Team → Deployment Protection → Access Request Permissions | Anyone | Kept as found |
 | Settings → Security → Git Fork Protection | Enabled | "Preview deploys", below |
-| Settings → General → Vercel Toolbar → Pre-Production Deployments | Off | The CSP refused its script, styles and iframe (`CLAUDE.md`, Security headers; IS #387) |
+| Settings → General → Vercel Toolbar → Pre-Production Deployments; Production Deployments | Off; Default (controlled at the team level) | Pre-Production: the CSP refused its script, styles and iframe (`CLAUDE.md`, Security headers; IS #387). Production: kept as found |
 
 ---
 
