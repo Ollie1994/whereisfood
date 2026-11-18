@@ -661,8 +661,8 @@ as "Phase 7 #n", and its answered open decisions. The rules are `CLAUDE.md`'s
   says (#240); an emailed 6-digit code is IS #241. A session holds until logout (open
   decision 2); since Phase 9 plan step 6 (IS #384), for no more than 12 hours from its first
   factor's sign-in, the time-box in `CLAUDE.md`'s "API responses", until Pro's timeouts
-  replace it in Phase 11. Phase 9 adds TOTP MFA and #241's emailed code; session timeouts are Pro-only
-  and come with Pro in Phase 11; until then Phase 9 chooses the cover, Pro from the deploy
+  replace it in Phase 11.
+  Phase 9 adds TOTP MFA and #241's emailed code; session timeouts are Pro-only and come with Pro in Phase 11; until then Phase 9 chooses the cover, Pro from the deploy
   among its options (the IS #278 (Phase 9) and IS #373 (Phase 9) rows in "Decisions carried
   forward").
 - **Cookie sessions through `@supabase/ssr`** (#12). The proxy refreshes the session and
