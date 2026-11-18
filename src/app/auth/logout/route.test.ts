@@ -1,3 +1,4 @@
+import { AuthApiError, AuthRetryableFetchError } from "@supabase/supabase-js";
 import { NextRequest, type NextResponse } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -45,13 +46,17 @@ beforeEach(() => {
 
 describe("POST /auth/logout", () => {
   // A failed global sign-out lands on the login with `?error=logout`, whose text says other
-  // devices may still be signed in (`LOGOUT_FAILED_ERROR`).
+  // devices may still be signed in (`LOGOUT_FAILED_PATH`). An error that says this session is
+  // already gone (`isInvalidSession`) isn't a failure: the owner's call (IS #385).
   it.each([
-    ["no error", () => signOut.mockResolvedValue({ error: null }), "/admin/login"],
-    ["a 500 from Auth, which _signOut answers without removing the session", () =>
-      signOut.mockResolvedValue({ error: { status: 500, name: "AuthApiError", message: "boom" } }), "/admin/login?error=logout"],
-    ["a throw", () => signOut.mockRejectedValue(new Error("network down")), "/admin/login?error=logout"],
-  ])("clears every sb-* cookie and answers 303, on %s, to %s", async (_, stub, location) => {
+    ["no error", "/admin/login", () => signOut.mockResolvedValue({ error: null })],
+    ["a session already gone, its refresh refused", "/admin/login", () =>
+      signOut.mockResolvedValue({ error: new AuthApiError("Invalid Refresh Token: Refresh Token Not Found", 400, "refresh_token_not_found") })],
+    ["a 500 from Auth, which _signOut answers without removing the session", "/admin/login?error=logout", () =>
+      signOut.mockResolvedValue({ error: new AuthApiError("boom", 500, "unexpected_failure") })],
+    ["a failed fetch", "/admin/login?error=logout", () => signOut.mockResolvedValue({ error: new AuthRetryableFetchError("fetch failed", 0) })],
+    ["a throw", "/admin/login?error=logout", () => signOut.mockRejectedValue(new Error("network down"))],
+  ])("clears every sb-* cookie and answers 303, on %s, to %s", async (_, location, stub) => {
     stub();
     const response = await POST(logoutRequest());
 
@@ -97,13 +102,16 @@ describe("POST /auth/logout", () => {
 });
 
 // A client can set `X-Forwarded-Host`, and a matching `Origin` with it; the redirect must
-// not name that host (`origin.ts`, `redirectTo`).
-it("redirects to a relative path whatever X-Forwarded-Host says", async () => {
-  signOut.mockResolvedValue({ error: null });
+// not name that host (`origin.ts`, `redirectTo`), on success or on a failed sign-out.
+it.each([
+  ["a sign-out", { error: null }, "/admin/login"],
+  ["a failed sign-out", { error: new AuthApiError("boom", 500, "unexpected_failure") }, "/admin/login?error=logout"],
+])("redirects %s to a relative path whatever X-Forwarded-Host says", async (_, answer, location) => {
+  signOut.mockResolvedValue(answer);
   const response = await POST(
     logoutRequest({ origin: "https://evil.example", "x-forwarded-host": "evil.example", "x-forwarded-proto": "https" }),
   );
 
   expect(response.status).toBe(303);
-  expect(response.headers.get("location")).toBe("/admin/login");
+  expect(response.headers.get("location")).toBe(location);
 });

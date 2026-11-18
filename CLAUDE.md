@@ -279,10 +279,11 @@ said otherwise: Phase 4 plan decision #14.
   replace this
 - **Logout ends every session** (Phase 9 plan step 7, #5): `POST /auth/logout` signs out with
   `scope: "global"`, so logging out on one device ends the admin's others, then deletes every
-  `sb-*` cookie whatever Auth answered. When the sign-out answered an error or threw, it lands
-  on `/admin/login?error=logout`, whose text says other devices may still be signed in. The
+  `sb-*` cookie whatever Auth answered. When the sign-out threw, or answered an error that
+  doesn't say this session is already gone (`isInvalidSession`), it lands on
+  `/admin/login?error=logout`, whose text says other devices may still be signed in. The
   button stays "Logga ut" (the owner, IS #385). Two limits: a logout from a session Auth no
-  longer holds, its token unexpired, ends nothing else and reads as success (the route's
+  longer holds ends nothing else and reads as success, whatever its token's age (the route's
   comment); and an access token already issued outlives a logout until its `exp` against
   PostgREST, though Auth and the app refuse it (after a global logout, the old token still read
   its own `users` row through `users_select_own`, plan #7; the PR for IS #385)

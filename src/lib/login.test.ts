@@ -7,7 +7,7 @@ import {
 } from "@supabase/supabase-js";
 import {
   callbackErrorFor,
-  callbackErrorMessage,
+  loginErrorMessage,
   isTemporaryAuthError,
   loginMessage,
   loginStatusFor,
@@ -67,35 +67,35 @@ describe("loginMessage", () => {
   });
 });
 
-describe("callbackErrorMessage", () => {
+describe("loginErrorMessage", () => {
   // The owner's approved wording, whole (IS #240): a change to it is a change to this test.
   it("explains an expired or used link", () => {
-    expect(callbackErrorMessage("link")).toBe(
+    expect(loginErrorMessage("link")).toBe(
       "Inloggningslänken fungerade inte. Den kan ha gått ut eller redan använts. Be om en ny.",
     );
   });
 
   it("names both causes of a verifier that doesn't match, and sends the admin back to the usual browser (IS #240)", () => {
-    expect(callbackErrorMessage("browser")).toBe(
+    expect(loginErrorMessage("browser")).toBe(
       "Inloggningslänken fungerade inte i den här webbläsaren. Den kan ha öppnats i en annan webbläsare än den som bad om den, eller slutat gälla när en ny länk begärdes. Be om en ny i din vanliga webbläsare och öppna den där. På mobilen: kopiera den dit i stället för att trycka på den i mejlappen.",
     );
   });
 
-  // The owner's approved wording, whole (IS #385).
+  // The owner's approved wording, whole (IS #385, adjusted in round 2 on PR #409).
   it("says a failed logout may have left other devices signed in, and how to end them", () => {
-    expect(callbackErrorMessage("logout")).toBe(
-      "Utloggningen nådde inte servern, så andra enheter kan fortfarande vara inloggade. Logga in och logga ut igen.",
+    expect(loginErrorMessage("logout")).toBe(
+      "Utloggningen kunde inte slutföras, så andra enheter kan fortfarande vara inloggade. Logga in och logga ut igen.",
     );
   });
 
   it("tells an Auth failure apart from a bad link", () => {
-    expect(callbackErrorMessage("unavailable")).toMatch(/Vänta en stund och be sedan om en ny länk/);
+    expect(loginErrorMessage("unavailable")).toMatch(/Vänta en stund och be sedan om en ny länk/);
   });
 
   it("is null for no error and for anything else", () => {
-    expect(callbackErrorMessage(undefined)).toBeNull();
-    expect(callbackErrorMessage("other")).toBeNull();
-    expect(callbackErrorMessage(["link", "link"])).toBeNull();
+    expect(loginErrorMessage(undefined)).toBeNull();
+    expect(loginErrorMessage("other")).toBeNull();
+    expect(loginErrorMessage(["link", "link"])).toBeNull();
   });
 });
 

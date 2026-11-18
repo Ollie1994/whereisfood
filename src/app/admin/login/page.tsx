@@ -1,5 +1,5 @@
 import LoginForm from "@/components/Admin/LoginForm";
-import { callbackErrorMessage } from "@/lib/login";
+import { loginErrorMessage } from "@/lib/login";
 
 export default async function LoginPage({
   searchParams,
@@ -14,7 +14,7 @@ export default async function LoginPage({
       <p className="text-sm text-foreground/70">
         Vi skickar en inloggningslänk till din e-post. Öppna den i samma webbläsare.
       </p>
-      <LoginForm linkError={callbackErrorMessage(error)} />
+      <LoginForm linkError={loginErrorMessage(error)} />
     </>
   );
 }
