@@ -50,7 +50,7 @@ function wroteSession(from: NextResponse): boolean {
 // `admin-auth.ts`) can be cleared here; logging out sends no email (the owner's call, PR for
 // IS #223, round 4). That logout signs out every session of the user, the admin's other
 // devices included, when Auth answers (`/auth/logout`, Phase 9 plan #5); while Auth is
-// failing, as this page's cause often is, it can't, and the login says so (`?error=logout`).
+// failing, one of this page's causes, it can't, and the login says so (`?error=logout`).
 function unavailablePage(): NextResponse {
   const html = `<!doctype html><html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>WhereIsFood – admin</title></head><body><p role="alert">${SESSION_CHECK_FAILED}</p><form method="post" action="${LOGOUT_PATH}"><button type="submit">${LOGOUT_LABEL}</button></form></body></html>`;
   return new NextResponse(html, {
