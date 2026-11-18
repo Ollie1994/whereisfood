@@ -64,6 +64,13 @@ describe("supabase/config.toml's Auth guards", () => {
     expect(setting("auth.email", "max_frequency")).toBe('"1s"');
   });
 
+  // The emailed code no one types, which Auth still accepts: 10 digits and 15 minutes, the
+  // owner's values, with the odds they give in the plan's open decision 1 (IS #386).
+  it("keeps the email OTP at 10 digits and 15 minutes", () => {
+    expect(setting("auth.email", "otp_length")).toBe("10");
+    expect(setting("auth.email", "otp_expiry")).toBe("900");
+  });
+
   // The admin is told when a factor is added or removed, the swap #13 can only detect.
   it("keeps the factor-enrolled and factor-unenrolled emails on", () => {
     expect(setting("auth.email.notification.mfa_factor_enrolled", "enabled")).toBe("true");

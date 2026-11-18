@@ -236,10 +236,16 @@ enable_confirmations = false
 secure_password_change = true
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
 max_frequency = "1s"
-# Number of characters used in the email OTP.
-otp_length = 6
-# Number of seconds before the email OTP expires (defaults to 1 hour).
-otp_expiry = 3600
+# Number of characters used in the email OTP. 10: no email shows the login code (the magic link
+# only, Phase 9 plan #14), but Auth still issues and accepts it, so its length sets the odds
+# of guessing it (plan step 8, open decision 1, IS #386). It also sets the reauthentication
+# code, which an email does show and the user types to change a password on a session over
+# 24 hours old (`secure_password_change`): probed, "4945476733 is your verification code".
+otp_length = 10
+# Number of seconds before the email OTP expires (defaults to 1 hour). 15 minutes (IS #386).
+# The magic link's life too: the hosted dashboard's text for this setting is "Duration
+# before an email OTP / link expires" (read 2026-11-18, the owner's screenshot).
+otp_expiry = 900
 
 # Use a production-ready SMTP server
 # [auth.email.smtp]

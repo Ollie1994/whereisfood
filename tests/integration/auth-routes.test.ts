@@ -17,6 +17,7 @@ import {
   createFixtureAuthUser,
   fixtureEmail,
   jarClient,
+  localSql,
   requestLink,
   resetTables,
   sessionFor,
@@ -26,7 +27,8 @@ import {
 // `/auth/callback` and `/auth/logout` against the local stack (Phase 7 plan, step 2).
 // Each `sessionUser`/`sessionFor` is a magic-link sign-in, and the file also asks Auth
 // itself: a link once through `requestLink`, a link twice for an address with no account,
-// and a password sign-up once; why no Auth limit binds them is `helpers.ts`'s
+// a password sign-up once, three admin `generateLink`s, which send no email, and two
+// verifies of a link's hashed token; why no Auth limit binds them is `helpers.ts`'s
 // `signInByLink`.
 
 const ORIGIN = "http://127.0.0.1:3000";
@@ -71,6 +73,42 @@ describe("sign-ups are off ([auth] enable_signup = false)", () => {
 
     expect(error?.code).toBe("signup_disabled");
     expect(await authUserIdsWhere((e) => e === email)).toEqual([]);
+  });
+});
+
+// The code Auth issues with every link, which no email shows but Auth accepts (Phase 9 plan
+// #14): 10 digits and 15 minutes on the running stack, as `config.toml` sets (plan step 8,
+// IS #386). `config.test.ts` pins the file; these show the stack read both.
+describe("the email code", () => {
+  // A new fixture user's magic link, as `generateLink` makes it: no email is sent.
+  async function link(): Promise<{ userId: string; emailOtp: string; hashedToken: string }> {
+    const userId = await createFixtureAuthUser();
+    const { data, error } = await supabaseAdmin.auth.admin.generateLink({ type: "magiclink", email: fixtureEmail(userId) });
+    if (error) throw error;
+    return { userId, emailOtp: data.properties.email_otp, hashedToken: data.properties.hashed_token };
+  }
+
+  it("is 10 digits", async () => {
+    expect((await link()).emailOtp).toMatch(/^\d{10}$/);
+  });
+
+  // 15 minutes, read from `auth.users.recovery_sent_at`: of it, `confirmation_sent_at` and
+  // `email_change_sent_at`, a magic link's `generateLink` set only it (probed). It is moved
+  // back by SQL (`localSql`), and the link's hashed token verified. 600 s and 1200 s, so the
+  // time the test itself takes can't move a case across 900 s, and 3600 s still fails it.
+  it.each([
+    [600, null],
+    [1200, "otp_expired"],
+  ])("verifies a link sent %i s ago with error %s", async (age, code) => {
+    const { userId, hashedToken } = await link();
+    const aged = localSql(
+      `with aged as (update auth.users set recovery_sent_at = recovery_sent_at - interval '${age} seconds' ` +
+        `where id = '${userId}' and recovery_sent_at is not null returning 1) select count(*) from aged;`,
+    );
+    expect(aged).toBe("1");
+
+    const verified = await anonClient().auth.verifyOtp({ token_hash: hashedToken, type: "magiclink" });
+    expect(verified.error?.code ?? null).toBe(code);
   });
 });
 
