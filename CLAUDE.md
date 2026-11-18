@@ -167,8 +167,8 @@ said otherwise: Phase 4 plan decision #14.
   project's `email_sent` budget first (plan #13, IS #378)
 - **The emailed code is 10 digits and lives 15 minutes** (Phase 9 plan step 8, open decision
   1, IS #386): `config.toml`'s `otp_length` and `otp_expiry`, which `supabase/config.test.ts`
-  pins; `auth-routes.test.ts` checks the 10 digits on the running stack, and nothing there
-  checks the 15 minutes (the auth container's env showed 900). A hosted project's are the
+  pins and `auth-routes.test.ts` checks on the running stack (the 15 minutes by moving a
+  link's `recovery_sent_at` back by SQL). A hosted project's are the
   hosted-settings checklist's (#390). No email shows the code, but Auth accepts it. Spending
   the built-in email's budget so the admin's link doesn't come is accepted for Phase 9 only;
   Phase 10 decides it again before production (open decision 1)

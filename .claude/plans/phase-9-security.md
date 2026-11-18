@@ -48,7 +48,7 @@ checked against a written checklist.
 
 | Item | Where it goes |
 |---|---|
-| The production Supabase project and keys; applying the hosted-settings checklist to production; the 2FA re-check before the deploy | Phase 10 |
+| The production Supabase project and keys; applying the hosted-settings checklist to production; the 2FA re-check before the deploy; deciding again whether the email-budget lockout is accepted (open decision 1, the owner, IS #386) | Phase 10 |
 | The soft-launch gate, `/about`, the privacy note, the removal contact, the retention period, the takedown | Phase 10 (the IS #373 (Phase 10) row) |
 | CodeQL on `main`; #347; #349 | Phase 10 |
 | Supabase Pro and its session timeouts (this phase builds the cover until then, #4); the custom domain, its CSP entry and HSTS; Vercel Pro | Phase 11 (the IS #373 (Phase 11) row) |
@@ -99,8 +99,8 @@ checked against a written checklist.
 **Config and tests:**
 - `supabase/config.toml`: `[auth.mfa.totp]` enroll and verify on, `max_enrolled_factors = 1`
   (#13), `secure_password_change = true`, the password-changed notification, the
-  factor-enrolled and factor-unenrolled notifications (#13, step 5a), and whatever step 8 chooses
-  (rate limits, CAPTCHA).
+  factor-enrolled and factor-unenrolled notifications (#13, step 5a), and step 8's email OTP
+  length and life (`otp_length` 10, `otp_expiry` 900, IS #386).
 - New: a TOTP helper for the integration tests (#9), `tests/integration/helpers.ts` (the
   fixtures sign in through the PKCE magic link, read from Mailpit, not a password (#14), and
   the admin login reaches `aal2`),
@@ -264,8 +264,9 @@ before the closing steps (#12).
    built and tested, or accepted with a reason; the rate limits it sets, locally and on the
    preview (open decision 8). **Settled by IS #386** (open decisions 1 and 8, the owner,
    2026-11-18): the email code 10 digits and 15 minutes, locally (`config.toml`, pinned by
-   `config.test.ts`, and an integration test of the running stack's code) and on the preview;
-   the email-budget lockout accepted; the rate limits kept.
+   `config.test.ts`, and integration tests of the running stack's code length and life) and
+   on the preview; the email-budget lockout accepted for Phase 9, which Phase 10 decides
+   again (the Out of Scope table); the rate limits kept.
 9. **Security headers** (Q11): the static headers on every page, `/admin` included, and the
    static CSP on every page but `/admin`, in `next.config.ts`; the nonce CSP from the proxy
    on every `/admin` answer that renders a page (`/admin/login` and the 503 page included),
@@ -318,7 +319,8 @@ before the closing steps (#12).
     Phase 9 row, "Admin and auth" and the "Phase 7 open decisions 1–5" row, "6-digit" goes, since
     the code doesn't ship in Phase 9 (#14). It
     carries forward the decisions that outlive the phase (#4–#11, #13 and #14 at least, #14
-    with #241's trigger: custom SMTP or Pro, whichever comes first), leaves
+    with #241's trigger: custom SMTP or Pro, whichever comes first), with a between-phases
+    row for Phase 10 that decides the email-budget lockout again (open decision 1), leaves
     the IS #278 (Phase 10) and IS #373 (Phase 10) and (Phase 11) markers as they are, and
     sets `CLAUDE.md`'s bold line to none, naming this plan as the last one.
 
@@ -606,7 +608,7 @@ the sequential integration suite's time down.
 
 ## Open Decisions
 
-1. ~~**The login-abuse fix (step 8)**~~, after the probes of steps 1, 2 and 5a: a CAPTCHA
+1. ~~**The login-abuse fix (step 8)**, after the probes of steps 1, 2 and 5a: a CAPTCHA
    (`config.toml`'s `[auth.captcha]`: hCaptcha or Turnstile), a longer code (no one types
    it, #14; locally and on the preview), a shorter code life, a
    lockout, or accepting it. The form already shows one message for every address
@@ -630,7 +632,7 @@ the sequential integration suite's time down.
    the dashboard says that, on, it lets a client forward the end user's IP "for rate
    limiting when using secret API keys" (IS #377). The proxy's refreshes go through
    `createSessionClient`, with the anon key, so it covers the flood only if they carried a
-   secret API key, which the session client doesn't hold.
+   secret API key, which the session client doesn't hold.~~
    → **settled** (the owner, 2026-11-18, IS #386), threat by threat:
    - **Guessing the emailed code:** `otp_length` 10 and `otp_expiry` 900 s (15 minutes, the
      magic link's life too), locally and on the preview. By the model above, a burst of 30
@@ -639,7 +641,8 @@ the sequential integration suite's time down.
    - **Spending the email budget** (`email_sent` 2 an hour, per project) so the admin's link
      doesn't come: **accepted** for Phase 9, and Phase 10 decides it again before
      production (the owner, round 1 on PR #410). It needs the admin's address, which no page
-     shows, though Auth's answers confirm a guessed one (this decision's first point); it
+     shows, though Auth's answers confirm a guessed one (this decision's opening: the browser
+     sees Auth's own answers); it
      grants no access, and a session lives on to its time-box; a CAPTCHA wouldn't stop 2
      requests an hour made by hand. Custom SMTP (the Owners phase), whose per-user
      interval and budget are the project's own, is the fix it waits for.
@@ -681,20 +684,20 @@ the sequential integration suite's time down.
    authenticated yet, with its own text, "Ange koden från din autentiseringsapp för att
    fortsätta", where no session's is "Du är inte inloggad"; the per-route test checks each.
 7. **What Vercel Hobby and Supabase Free can alert on (step 11).**
-8. ~~**The rate limits' values (step 8)**~~, which step 12 then checks.
+8. ~~**The rate limits' values (step 8)**, which step 12 then checks.
    The per-IP limits the login uses (`token_refresh`, `token_verifications`,
    `sign_in_sign_ups`) are each a burst of 30,
    then a refill of the value per 5 minutes (GoTrue v2.197.0's `apilimiter.go`), and the
    local stack enforces none of them, so only the preview shows a value working (IS #377).
    The preview's values, read 2026-11-17, match `config.toml`'s: `email_sent` 2 an hour,
    `token_refresh` 150, `token_verifications` 30 and `sign_in_sign_ups` 30 per 5 minutes;
-   its "Minimum interval per user", 60 s, "Only applies when Custom SMTP is configured".
+   its "Minimum interval per user", 60 s, "Only applies when Custom SMTP is configured".~~
    → **settled** (the owner, 2026-11-18, IS #386): kept as they are, locally and on the
    preview. A lower `token_refresh` would make the forged-cookie flood easier, since the
    server's refreshes share its per-IP budget.
 9. **The CSP's exact sources (step 9)**, found by the browser checks: MapLibre's worker, the
    tiles' range requests, the basemap's glyphs and sprite, `blob:`/`data:` images, the
-   Supabase URL the login calls. No CAPTCHA: step 8 chose none (open decision 1, IS #386).
+   Supabase URL the login calls. A CAPTCHA's: none (open decision 1).
 10. ~~**TOTP's digits and period (step 5a)**, confirmed by a local enroll.~~ → **settled**
     (IS #381): the enroll URI says SHA1, 6 digits, 30 seconds.
 11. ~~**How `requireAdmin` reads `aal` (step 5b).**~~ → **settled** (the owner, 2026-11-17,

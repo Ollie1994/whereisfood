@@ -17,6 +17,7 @@ import {
   createFixtureAuthUser,
   fixtureEmail,
   jarClient,
+  localSql,
   requestLink,
   resetTables,
   sessionFor,
@@ -75,8 +76,8 @@ describe("sign-ups are off ([auth] enable_signup = false)", () => {
 });
 
 // The code Auth issues with every link, which no email shows but Auth accepts (Phase 9 plan
-// #14): 10 digits on the running stack, as `config.toml` sets (plan step 8, IS #386).
-// `config.test.ts` pins the file; this shows the stack read it.
+// #14): 10 digits and 15 minutes on the running stack, as `config.toml` sets (plan step 8,
+// IS #386). `config.test.ts` pins the file; these show the stack read both.
 describe("the email code", () => {
   it("is 10 digits", async () => {
     const userId = await createFixtureAuthUser();
@@ -84,6 +85,27 @@ describe("the email code", () => {
 
     expect(error).toBeNull();
     expect(data.properties?.email_otp).toMatch(/^\d{10}$/);
+  });
+
+  // 15 minutes, read from `auth.users.recovery_sent_at`, the one "sent at" column a magic
+  // link's `generateLink` set (probed: `confirmation_sent_at` and `email_change_sent_at` were
+  // null). It is moved back by SQL (`localSql`), and the link's hashed token verified.
+  it.each([
+    [890, null],
+    [910, "otp_expired"],
+  ])("verifies a link sent %i s ago with error %s", async (age, code) => {
+    const userId = await createFixtureAuthUser();
+    const { data, error } = await supabaseAdmin.auth.admin.generateLink({ type: "magiclink", email: fixtureEmail(userId) });
+    expect(error).toBeNull();
+    const aged = localSql(
+      `with aged as (update auth.users set recovery_sent_at = recovery_sent_at - interval '${age} seconds' ` +
+        `where id = '${userId}' and recovery_sent_at is not null returning 1) select count(*) from aged;`,
+    );
+    expect(aged).toBe("1");
+
+    if (!data.properties) throw new Error("generateLink answered no properties");
+    const verified = await anonClient().auth.verifyOtp({ token_hash: data.properties.hashed_token, type: "magiclink" });
+    expect(verified.error?.code ?? null).toBe(code);
   });
 });
 
