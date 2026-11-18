@@ -99,8 +99,9 @@ async function answerFor(request: NextRequest): Promise<NextResponse> {
   // Vercel the matcher runs this on `/Admin/…` and `/API/admin/…` (`/API/admin/trucks` took a
   // page's branch there: the preview, IS #414); under `next start` on `/admin/Login`, whose
   // lower-cased branch let it past the session check to the `/admin` 404 (PR #415, round 2).
-  // Lower-casing the whole path is safe here: the admin paths' only variable segments are ids,
-  // UUIDs that Postgres's `uuid` type prints lower-case.
+  // Lower-casing the whole path is safe here: the admin paths' variable segments are the routes'
+  // `[id]`s, UUIDs that Postgres's `uuid` type prints lower-case, and `[...missing]`, a 404
+  // whatever its case (`src/app/admin`, `src/app/api/admin`).
   const lower = pathname.toLowerCase();
   if (pathname !== lower) {
     return NextResponse.redirect(new URL(`${lower}${request.nextUrl.search}`, request.url), 308);
