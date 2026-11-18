@@ -704,19 +704,19 @@ the sequential integration suite's time down.
    fortsätta", where no session's is "Du är inte inloggad"; the per-route test checks each.
 7. ~~**What Vercel Hobby and Supabase Free can alert on (step 11).**~~ → **settled** (IS #389,
    read in both dashboards and their docs, 2026-11-18): neither free plan offers a usage, spend
-   or 5xx alert to set, so none is set. All three pass to Phase 10 (the usage alerts by the IS #278 (Phase 10) row, the
-   spend alerts by the scope draft, Q14; the 5xx one by the owner, 2026-11-18), whose plan decides
-   how they're covered on the same free plans. Until then each usage page shows how close a figure
-   is to its limit.
+   or 5xx alert to set, so none is set. All three pass to Phase 10 (the usage alerts by the IS
+   #278 (Phase 10) row, the spend alerts by the scope draft, Q14; the 5xx one by the owner,
+   2026-11-18), whose plan decides how they're covered on the same free plans. Until then each
+   usage page shows how close a figure is to its limit.
    - **Vercel Hobby:** Observability's Alerts, the project's and the team's Alerts settings and
      Spend Management each answer "Upgrade to Pro"; the notification settings list no usage item
      and no runtime-error item. The one alert is "Deployment Failures", by email and in the
-     dashboard, both on. A branch's preview build
-     fails by design (README, "Preview deploys"), so most of those emails are expected; the
-     owner kept it as it is. The docs' "Usage limit reached" notice has no setting and wasn't
-     seen. Runtime logs keep 1 hour and Observability 12 hours (each picker's longest range not
-     marked Pro or Observability Plus). Deployment Storage, 3.01 of 10 GB, up about 0.18 GB a day
-     since Nov 1, was the one figure over 10% of its limit: #417.
+     dashboard, both on. A branch's preview build fails by design (README, "Preview deploys"),
+     so most of those notices are expected; the owner kept it as it is. The docs' "Usage limit
+     reached" notice has no setting and wasn't seen. Runtime logs keep 1 hour and Observability
+     12 hours (each picker's longest range not marked Pro or Observability Plus). Deployment
+     Storage, 3.01 of 10 GB, up about 0.18 GB a day since Nov 1, was the one figure over 10% of
+     its limit: #417.
    - **Supabase Free:** the spend cap is on (Billing): past a quota a project "could become
      unresponsive or enter read only mode", and the owner found no usage-email setting in
      Billing or the account settings. Observability has charts and custom reports, no alert.
@@ -736,8 +736,8 @@ the sequential integration suite's time down.
      it is a re-read after 24 hours (IS #389, 2026-11-19). So past the logs' one day the rows show
      which Auth events happened, and when, and where from only on the rows with an IP, such as
      `verification_attempted`, which #13's factor swap includes. They are an input to Phase 10's
-     privacy note, and the table needs a retention of its own, since nothing deletes its rows; it
-     grows with each event it records, on Free's 0.5 GB database.
+     privacy note, and the table needs a retention of its own, since neither GoTrue nor the app
+     deletes its rows; it grows with each event it records, on Free's 0.5 GB database.
    - No account was created (#391).
 8. ~~**The rate limits' values (step 8)**, which step 12 then checks.
    The per-IP limits the login uses (`token_refresh`, `token_verifications`,
