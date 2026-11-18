@@ -154,7 +154,7 @@ said otherwise: Phase 4 plan decision #14.
 - **Secure password change and the password-changed email stay on** (Phase 9 plan step 2,
   IS #378): `config.toml`'s `secure_password_change = true` and
   `[auth.email.notification.password_changed]`, which `supabase/config.test.ts` pins;
-  a hosted project's are the hosted-settings checklist's (plan step 12, #390), with "Require
+  a hosted project's are README's hosted settings checklist's (plan step 12, #390), with "Require
   current password when updating", which has no `config.toml` key in the CLI (plan #13).
   **The admin keeps a password** (README, "5. Create the admin user"): GoTrue asks for the
   current password only from a user who has one, and not in a recovery session (`user.go`),
@@ -168,7 +168,7 @@ said otherwise: Phase 4 plan decision #14.
 - **The emailed code is 10 digits and lives 15 minutes** (Phase 9 plan step 8, open decision
   1, IS #386): `config.toml`'s `otp_length` and `otp_expiry`, which `supabase/config.test.ts`
   pins and `auth-routes.test.ts` checks on the running stack (the 15 minutes by moving a
-  link's `recovery_sent_at` back by SQL). A hosted project's are the hosted-settings
+  link's `recovery_sent_at` back by SQL). A hosted project's are README's hosted settings
   checklist's (#390). No email shows the login code, but Auth accepts it; the length also
   sets the reauthentication code, which is emailed and typed (`config.toml`). Spending the
   built-in email's budget so the admin's link doesn't come is accepted for Phase 9 only;

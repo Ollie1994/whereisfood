@@ -330,7 +330,8 @@ before the closing steps (#12).
     Create the admin user"), "Before the production deploy"'s advisor item (its "No hosted
     advisor run is recorded here", "so the Phase 9 checklist's run on the preview shows
     what it reports first" and "With the hosted-settings checklist Phase 9 writes": the
-    checklist and the preview's run are in README's "Hosted settings checklist", IS #390), and the README's status parts; in the
+    checklist and the preview's run are in README's "Hosted settings checklist", IS #390), and
+    the README's status parts; in the
     Phase 9 row, "Admin and auth" and the "Phase 7 open decisions 1–5" row, "6-digit" goes, since
     the code doesn't ship in Phase 9 (#14). It
     carries forward the decisions that outlive the phase (#4–#11, #13 and #14 at least, #14
