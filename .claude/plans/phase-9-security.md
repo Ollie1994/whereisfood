@@ -641,8 +641,9 @@ the sequential integration suite's time down.
      stop 2 requests an hour made by hand. Custom SMTP (the Owners phase), whose per-user
      interval and budget are the project's own, is the fix it waits for.
    - **The forged-cookie flood** and **TOTP guessing:** no change. The flood shows the 503
-     page while it lasts and ends no session; TOTP guessing needs the admin's email first,
-     and its hosted limit isn't probed (IS #381 found none locally).
+     page while it lasts and ends no session. TOTP guessing needs a first-factor session at
+     Auth, from the link or a guessed code, and the app admits only the link's (#14); its
+     hosted limit isn't probed (IS #381 found none locally).
    - No CAPTCHA, so open decision 9 adds no CAPTCHA source.
 2. ~~**The time-box's length (step 6).** Leaning 12 hours. Its source: the `amr` claim's
    first-factor timestamp (#4, IS #377), which a later TOTP verify leaves as it was (IS #381's
