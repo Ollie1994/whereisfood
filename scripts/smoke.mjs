@@ -2,12 +2,14 @@
 // scripts"; IS #286). CI's `build` job runs it against `next start` after `npm run build`.
 //
 // Requests each path in EXPECTATIONS with no session and `redirect: "manual"`, and fails
-// (exit 1) on any answer that doesn't match: a wrong status, or the wrong shape (content
-// type, JSON body, redirect target). It waits for the server to answer first.
+// (exit 1) on any answer that doesn't match: a wrong status, the wrong shape (content
+// type, JSON body, redirect target), or the wrong security headers (`checkHeaders`, Phase 9
+// plan step 9, IS #387). It waits for the server to answer first.
 //
 // What it can't see: whether the map renders (the browser check stays manual, CLAUDE.md
-// "Green gates don't show the map renders"), headers (Phase 9 adds them here), paths not
-// listed, and anything behind a session.
+// "Green gates don't show the map renders"), whether a CSP blocks something a page needs
+// (the browser checks' console), the CSPs' sources, paths not listed, and anything behind a
+// session.
 
 import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
@@ -17,13 +19,60 @@ import { resolve } from "node:path";
 //   bare array (CLAUDE.md, "`/api/live`").
 // - `/admin` is redirected by the proxy with 303 to `/admin/login` (src/proxy.ts), and
 //   `/api/admin/*` answers 401 `{ error }` before any Auth or database call.
+// - `csp`: "static" for `next.config.ts`'s, "nonce" for the proxy's on `/admin`
+//   (`src/lib/http/csp.ts`).
 export const EXPECTATIONS = [
-  { path: "/map", status: 200, shape: "html" },
-  { path: "/api/live", status: 200, shape: "entries" },
-  { path: "/admin/login", status: 200, shape: "html" },
-  { path: "/admin", status: 303, shape: "redirect", location: "/admin/login" },
-  { path: "/api/admin/trucks", status: 401, shape: "error" },
+  { path: "/map", status: 200, shape: "html", csp: "static" },
+  { path: "/api/live", status: 200, shape: "entries", csp: "static" },
+  { path: "/admin/login", status: 200, shape: "html", csp: "nonce" },
+  { path: "/admin", status: 303, shape: "redirect", location: "/admin/login", csp: "nonce" },
+  { path: "/api/admin/trucks", status: 401, shape: "error", csp: "static" },
 ];
+
+// The headers every answer carries (`next.config.ts`), written out here rather than
+// imported from `csp.ts`, so a header dropped there fails this check.
+export const STATIC_HEADERS = {
+  "x-content-type-options": "nosniff",
+  "referrer-policy": "strict-origin-when-cross-origin",
+  "x-frame-options": "DENY",
+  "cross-origin-opener-policy": "same-origin",
+  "permissions-policy": "camera=(), microphone=(), payment=(), usb=(), geolocation=(self)",
+};
+
+// Pure. `response` is { headers, body }: `headers` a `Headers`, `body` the text read. The
+// static headers, no `X-Powered-By`, and exactly one CSP of the expected kind, with
+// `frame-ancestors 'none'`. A "nonce" page's HTML must carry that nonce on every script,
+// which only a render per request can (the CSP would block the rest). `Headers` joins two
+// values with ", ", which no CSP here holds, so a second policy is a second `default-src`.
+export function checkHeaders(expectation, response) {
+  const problems = [];
+  const { headers } = response;
+  for (const [name, value] of Object.entries(STATIC_HEADERS)) {
+    const got = headers.get(name);
+    if (got !== value) problems.push(`${name} ${got === null ? "missing" : `"${got}"`}, expected "${value}"`);
+  }
+  if (headers.get("x-powered-by") !== null) problems.push(`x-powered-by "${headers.get("x-powered-by")}", expected none`);
+
+  const csp = headers.get("content-security-policy");
+  const count = csp?.match(/default-src/g)?.length ?? 0;
+  if (count !== 1) {
+    problems.push(`${count} CSPs, expected 1`);
+    return problems;
+  }
+  if (!/frame-ancestors 'none'(;|$)/.test(csp)) problems.push("CSP without frame-ancestors 'none'");
+  const nonce = /'nonce-([^']+)'/.exec(csp)?.[1];
+  if (expectation.csp === "static" && nonce !== undefined) problems.push("a nonce CSP, expected the static one");
+  if (expectation.csp === "nonce") {
+    if (nonce === undefined) problems.push("the static CSP, expected a nonce one");
+    else if (expectation.shape === "html") {
+      const scripts = response.body.match(/<script\b[^>]*>/g) ?? [];
+      if (scripts.length === 0) problems.push("no <script> in the page");
+      const bare = scripts.filter((tag) => !tag.includes(`nonce="${nonce}"`));
+      if (bare.length > 0) problems.push(`${bare.length} of ${scripts.length} scripts without the CSP's nonce`);
+    }
+  }
+  return problems;
+}
 
 // A JSON value is an object here only if it's a plain object, not an array or null.
 function isObject(value) {
@@ -110,6 +159,8 @@ async function read(baseUrl, path) {
     location: res.headers.get("location"),
     json,
     origin: new URL(baseUrl).origin,
+    headers: res.headers,
+    body: text,
   };
 }
 
@@ -137,7 +188,8 @@ export async function main(baseUrl) {
   for (const expectation of EXPECTATIONS) {
     let problems;
     try {
-      problems = checkResponse(expectation, await read(baseUrl, expectation.path));
+      const response = await read(baseUrl, expectation.path);
+      problems = [...checkResponse(expectation, response), ...checkHeaders(expectation, response)];
     } catch (err) {
       problems = [`no answer: ${reason(err)}`];
     }

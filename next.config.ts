@@ -1,6 +1,23 @@
 import type { NextConfig } from "next";
+import { CSP_HEADER, STATIC_HEADERS, buildStaticCsp } from "./src/lib/http/csp";
+
+// Every path but `/admin` and `/admin/…`, whose CSP is the proxy's nonce one, so each
+// answer there carries exactly one (`csp.ts`; `next.config.test.ts` reads which paths match).
+const NOT_ADMIN = "/((?!admin$|admin/).*)";
 
 const nextConfig: NextConfig = {
+  // No `X-Powered-By: Next.js` on any answer.
+  poweredByHeader: false,
+  async headers() {
+    const env = {
+      tilesUrl: process.env.NEXT_PUBLIC_PMTILES_URL,
+      dev: process.env.NODE_ENV === "development",
+    };
+    return [
+      { source: "/:path*", headers: [...STATIC_HEADERS] },
+      { source: NOT_ADMIN, headers: [{ key: CSP_HEADER, value: buildStaticCsp(env) }] },
+    ];
+  },
   // When `next dev` detects an AI coding agent, it writes a managed "agent rules" block
   // and re-adds it on every such run. 16.3 wrote it into AGENTS.md, or into CLAUDE.md
   // when AGENTS.md was missing (PR #135). 16.4.3's generator writes only AGENTS.md

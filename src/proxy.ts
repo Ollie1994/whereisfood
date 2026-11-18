@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { adminRefusal } from "@/lib/http/admin";
+import { CSP_HEADER, buildAdminCsp } from "@/lib/http/csp";
 import { foreignOriginRefusal, isSameOrigin, isWrite } from "@/lib/http/origin";
 import { LOGOUT_LABEL, LOGOUT_PATH, MFA_PATH, SESSION_CHECK_FAILED } from "@/lib/login";
 import { hasSessionCookie, mfaStepAllowed, requireAdmin } from "@/lib/services/admin-auth";
@@ -59,10 +60,40 @@ function unavailablePage(): NextResponse {
   });
 }
 
+// A nonce per page request: 16 random bytes, base64 (Next's guide uses a UUID's text).
+function createNonce(): string {
+  return btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))));
+}
+
+// Every `/admin` page answer gets the nonce CSP (Phase 9 plan step 9, IS #387): on the
+// request, where Next reads the nonce and puts it on the scripts it renders, and on the
+// answer, set once over whatever `answerFor` returned, so the login, a redirect, the 503 page
+// and the throw's page each carry exactly one. `next.config.ts` gives `/admin` no CSP of its
+// own. The routes answer JSON and get none here.
+//
+// The request's copy is what Next's guide sets, and what `proxy.test.ts` checks reaches the
+// render. Under `next start` it alone isn't needed: Next 16.4.5's router also copies each
+// header of a forwarded answer onto the request (`resolve-routes.js`), so a build whose login
+// returned `NextResponse.next()` without it still put the nonce on every script, and the
+// answer's CSP replaced a static one configured for `/admin` (IS #387's PR, probed). How a
+// Vercel deploy handles it wasn't read, so neither is relied on.
 export async function proxy(request: NextRequest) {
+  if (request.nextUrl.pathname.startsWith("/api/")) return answerFor(request, true);
+  const csp = buildAdminCsp(createNonce(), {
+    tilesUrl: process.env.NEXT_PUBLIC_PMTILES_URL,
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    dev: process.env.NODE_ENV === "development",
+  });
+  request.headers.set(CSP_HEADER, csp);
+  const answer = await answerFor(request, false);
+  answer.headers.set(CSP_HEADER, csp);
+  return answer;
+}
+
+async function answerFor(request: NextRequest, isApi: boolean): Promise<NextResponse> {
   const { pathname } = request.nextUrl;
-  const isApi = pathname.startsWith("/api/");
-  if (pathname === LOGIN) return NextResponse.next();
+  // With `request`, so the nonce CSP reaches the login's render.
+  if (pathname === LOGIN) return NextResponse.next({ request });
 
   try {
     // A write from another origin is refused before any Auth or database call, as

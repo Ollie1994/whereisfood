@@ -399,3 +399,75 @@ describe("proxy on a throw", () => {
     expect(response.headers.get("cache-control")).toBe("no-store");
   });
 });
+
+// The nonce CSP (Phase 9 plan step 9, IS #387). `next.config.ts` gives `/admin` none
+// (`next.config.test.ts`), so the proxy's is each page answer's only one. A forwarded answer
+// carries the request's headers for the render as `x-middleware-request-<name>`
+// (`NextResponse.next({ request })`), which is where Next reads the nonce from.
+describe("proxy's CSP", () => {
+  const admin = () => {
+    getUser.mockResolvedValue({ data: { user: { id: ID, factors: [] } }, error: null });
+    getUserById.mockResolvedValue({ id: ID, is_admin: true, truck_id: null, created_at: "" });
+  };
+  const authDown = () =>
+    getUser.mockResolvedValue({ data: { user: null }, error: new AuthRetryableFetchError("fetch failed", 0) });
+  const throwing = (path: string) => {
+    const broken = request(path, SESSION);
+    vi.spyOn(broken.cookies, "getAll").mockImplementation(() => {
+      throw new Error("cookies unreadable");
+    });
+    return broken;
+  };
+
+  // The CSP on the answer, as one string: `Headers` joins two values with ", ", which no
+  // CSP here holds (`csp.ts`), so a second policy shows as a second `default-src`.
+  const policies = (response: Response) => {
+    const csp = response.headers.get("content-security-policy") ?? "";
+    return csp.match(/default-src/g)?.length ?? 0;
+  };
+  const nonceOf = (csp: string | null) => /'nonce-([^']+)'/.exec(csp ?? "")?.[1];
+
+  it.each([
+    ["/admin/login, returned early", () => request("/admin/login"), 200],
+    ["a forwarded /admin", () => (admin(), request("/admin", SESSION)), 200],
+    ["a forwarded /admin/trucks", () => (admin(), request("/admin/trucks", SESSION)), 200],
+    ["an aal1 admin's forwarded /admin/mfa", () => (admin(), withToken({ aal: "aal1", amr: [LINK] }), request("/admin/mfa", SESSION)), 200],
+    ["the login redirect", () => request("/admin"), 303],
+    ["the 503 page", () => (authDown(), request("/admin", SESSION)), 503],
+    ["the throw's 503 page", () => throwing("/admin"), 503],
+  ] as const)("puts exactly one nonce CSP on %s", async (_, make, status) => {
+    const response = await proxy(make());
+
+    expect(response.status).toBe(status);
+    expect(policies(response)).toBe(1);
+    const csp = response.headers.get("content-security-policy");
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(nonceOf(csp)).toMatch(/^[A-Za-z0-9+/]{22}==$/);
+  });
+
+  it.each([
+    ["/admin/login", () => request("/admin/login")],
+    ["/admin", () => (admin(), request("/admin", SESSION))],
+    ["/admin/mfa", () => (admin(), withToken({ aal: "aal1", amr: [LINK] }), request("/admin/mfa", SESSION))],
+  ] as const)("hands %s's render the answer's CSP, the same nonce", async (_, make) => {
+    const response = await proxy(make());
+
+    expect(forwarded(response)).toBe(true);
+    const csp = response.headers.get("content-security-policy");
+    expect(response.headers.get("x-middleware-request-content-security-policy")).toBe(csp);
+  });
+
+  it("makes a new nonce for each request", async () => {
+    const first = nonceOf((await proxy(request("/admin/login"))).headers.get("content-security-policy"));
+    const second = nonceOf((await proxy(request("/admin/login"))).headers.get("content-security-policy"));
+    expect(first).toBeDefined();
+    expect(first).not.toBe(second);
+  });
+
+  it.each([
+    ["a refusal", () => request("/api/admin/trucks")],
+    ["a throw", () => throwing("/api/admin/trucks")],
+  ] as const)("puts none on an admin route's JSON, %s", async (_, make) => {
+    expect((await proxy(make())).headers.get("content-security-policy")).toBeNull();
+  });
+});

@@ -277,7 +277,9 @@ before the closing steps (#12).
    `smoke.mjs` for what it reaches without a session; browser checks of `/map`, the login,
    `/admin` with a session, `/admin/trucks` and the place picker, reading the response
    headers; `/api/live` re-checked MISS → HIT → STALE on the preview. The public pages'
-   cookie limit is recorded as accepted (#6).
+   cookie limit is recorded as accepted (#6). **Built by IS #387**: `src/lib/http/csp.ts`,
+   `next.config.ts`'s `headers()`, the proxy's nonce CSP, `connection()` in the admin layout,
+   `smoke.mjs`'s `checkHeaders`; the sources are open decision 9's.
 10. **One ZAP baseline scan** by hand, locally against `next start` or on the preview
     (Q33); each finding settled.
 11. **Monitoring** (Q14): usage, spend and 5xx alerts on Vercel and Supabase where the free
@@ -397,7 +399,9 @@ Options: httpOnly cookies (MFA and the code steps move to server routes), a stri
 on every page (the proxy on `/map`, reopening Phase 7 #10, #28), Next's experimental SRI hash
 CSP, or accepting it. **Accepted** (the owner, 2026-11-16): no public page puts user input
 into HTML (React escapes the trucks' text; Appendix C), so an injection there is unlikely.
-Recorded as a limit; the Owners phase, which adds user-written content, reopens it.
+Recorded as a limit; the Owners phase, which adds user-written content, reopens it. As built
+(IS #387): the public pages' static CSP admits inline scripts (`'unsafe-inline'`), since a
+page built at build time carries no nonce; it still names every host a script may come from.
 
 ### #7 — `users_select_own` under `aal1` is accepted
 
@@ -700,9 +704,17 @@ the sequential integration suite's time down.
    → **settled** (the owner, 2026-11-18, IS #386): kept as they are, locally and on the
    preview. A lower `token_refresh` would make the forged-cookie flood easier, since the
    server's refreshes share its per-IP budget.
-9. **The CSP's exact sources (step 9)**, found by the browser checks: MapLibre's worker, the
+9. ~~**The CSP's exact sources (step 9)**, found by the browser checks: MapLibre's worker, the
    tiles' range requests, the basemap's glyphs and sprite, `blob:`/`data:` images, the
-   Supabase URL the login calls. A CAPTCHA's: none (open decision 1).
+   Supabase URL the login calls. A CAPTCHA's: none (open decision 1).~~ → **settled** (IS
+   #387): `csp.ts`'s lists. Both CSPs: `'self'`, `data:` and `blob:` images and the basemap's
+   assets host, `worker-src 'self'`, `connect-src` to the tiles' origin and that host;
+   `/admin`'s adds the Supabase URL to `connect-src`, admits scripts and styles by nonce with
+   `'strict-dynamic'`, and has `base-uri 'none'`. The owner's browser checks (2026-11-18,
+   `next start` on the local stack, at phone width) saw no CSP violation on `/map`, the login,
+   `/admin`, `/admin/trucks`, the place picker and logout. Locally the tiles URL is relative,
+   so the R2 origin is first seen on the preview (`/api/live`'s re-check after merge, and the
+   phone checkpoint, step 14).
 10. ~~**TOTP's digits and period (step 5a)**, confirmed by a local enroll.~~ → **settled**
     (IS #381): the enroll URI says SHA1, 6 digits, 30 seconds.
 11. ~~**How `requireAdmin` reads `aal` (step 5b).**~~ → **settled** (the owner, 2026-11-17,

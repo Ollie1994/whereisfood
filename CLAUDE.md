@@ -256,6 +256,21 @@ said otherwise: Phase 4 plan decision #14.
 - The proxy is a first filter, not the only check: every admin route checks again
   through `withAdmin` (API responses, below)
 
+**Security headers** (Phase 9 plan step 9, open decision 9, IS #387)
+- `next.config.ts`'s `headers()` gives every path the static headers (`csp.ts`'s
+  `STATIC_HEADERS`) and every path but `/admin` and `/admin/…` the static CSP. The proxy gives
+  every `/admin` page answer the nonce CSP, a new nonce per request, set on the request (where
+  Next reads it) and on the answer, so each carries exactly one. No `X-Powered-By`
+- **Every page under `/admin` renders per request** (`connection()` in the admin layout): a
+  page built at build time carries no nonce, and the CSP blocks all its scripts. The build's
+  route table shows each `/admin` page as `ƒ`; nothing in CI checks it
+- A new host a page loads from or calls (a script, an API, tiles) goes into `csp.ts`, then a
+  browser check reads the console for violations. `smoke.mjs` checks the headers on what it
+  reaches without a session; `next.config.test.ts` which paths get which; `proxy.test.ts` the
+  nonce CSP's answers
+- Limits: the public pages' CSP admits inline scripts (plan #6); no HSTS until the custom
+  domain (Phase 11)
+
 **API responses**
 - All errors return `{ "error": "message" }` with the correct HTTP status code
 - Never expose stack traces or internal errors to the client
