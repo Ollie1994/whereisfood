@@ -78,24 +78,40 @@ export function callbackErrorFor(error: { status?: number; code?: string }): Cal
   return "link";
 }
 
-// The text for each `?error=` the callback sends (`callbackErrorFor`).
-export function callbackErrorMessage(error: string | string[] | undefined): string | null {
-  if (error === "link") {
-    return "Inloggningslänken fungerade inte. Den kan ha gått ut eller redan använts. Be om en ny.";
-  }
+// `/auth/logout`'s `?error=` when its global sign-out failed: this device's cookies are gone,
+// but Auth may not have ended the user's other sessions (Phase 9 plan, #5).
+export const LOGOUT_FAILED_ERROR = "logout";
+export const LOGOUT_FAILED_PATH = `/admin/login?error=${LOGOUT_FAILED_ERROR}` as const;
+
+// Every `?error=` the login page reads: the callback's and the logout's. The table below is
+// keyed by it, so a value added to either has no text until one is written (`tsc`).
+export type LoginError = CallbackError | typeof LOGOUT_FAILED_ERROR;
+
+const LOGIN_ERROR_TEXT: Record<LoginError, string> = {
+  link: "Inloggningslänken fungerade inte. Den kan ha gått ut eller redan använts. Be om en ny.",
   // Shown in the browser the link opened in, which may be the wrong one, so it sends the
   // admin back to their usual browser for the new link (IS #240). A new link, not the same
   // one: `/verify` uses a link up on its first visit (the `unavailable` text's comment).
-  if (error === "browser") {
-    return "Inloggningslänken fungerade inte i den här webbläsaren. Den kan ha öppnats i en annan webbläsare än den som bad om den, eller slutat gälla när en ny länk begärdes. Be om en ny i din vanliga webbläsare och öppna den där. På mobilen: kopiera den dit i stället för att trycka på den i mejlappen.";
-  }
+  browser:
+    "Inloggningslänken fungerade inte i den här webbläsaren. Den kan ha öppnats i en annan webbläsare än den som bad om den, eller slutat gälla när en ny länk begärdes. Be om en ny i din vanliga webbläsare och öppna den där. På mobilen: kopiera den dit i stället för att trycka på den i mejlappen.",
   // Not "open the same link again": Auth's `/verify` uses a link up on its first visit
   // (local stack: a second visit to the same link answered `?error=access_denied`,
   // "Email link is invalid or has expired", PR #236 round 5).
-  if (error === "unavailable") {
-    return "Inloggningen gick inte att slutföra just nu. Vänta en stund och be sedan om en ny länk.";
-  }
-  return null;
+  unavailable: "Inloggningen gick inte att slutföra just nu. Vänta en stund och be sedan om en ny länk.",
+  // The owner's wording (2026-11-18, IS #385). A fresh login's logout signs out again with
+  // `scope: "global"`.
+  logout:
+    "Utloggningen kunde inte slutföras, så andra enheter kan fortfarande vara inloggade. Logga in och logga ut igen.",
+};
+
+// Is this `?error=` value one the login page has a text for?
+export function isLoginError(error: unknown): error is LoginError {
+  return typeof error === "string" && Object.hasOwn(LOGIN_ERROR_TEXT, error);
+}
+
+// The text for a `?error=` value, or `null` for none or one this page doesn't know.
+export function loginErrorMessage(error: string | string[] | undefined): string | null {
+  return isLoginError(error) ? LOGIN_ERROR_TEXT[error] : null;
 }
 
 // `/admin` when Auth couldn't say whether the session is valid.

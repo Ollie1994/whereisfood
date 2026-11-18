@@ -277,6 +277,16 @@ said otherwise: Phase 4 plan decision #14.
   read as skew. A limit: only a session presented to the app is signed out, so a stolen
   token used only against Supabase stays good until Phase 11's Pro session timeouts, which
   replace this
+- **Logout ends every session** (Phase 9 plan step 7, #5): `POST /auth/logout` signs out with
+  `scope: "global"`, so logging out on one device ends the admin's others, then deletes every
+  `sb-*` cookie whatever Auth answered. When the sign-out threw, or answered an error that
+  doesn't say this session is already gone (`isInvalidSession`), it lands on
+  `/admin/login?error=logout`, whose text says other devices may still be signed in. The
+  button stays "Logga ut" (the owner, IS #385). Its limits on a dead session's logout and
+  the warning's reach are the route's comment's. Another: an access token already issued
+  outlives a logout until its `exp` against PostgREST, though Auth and the app refuse it
+  (after a global logout, the old token still read its own `users` row through
+  `users_select_own`, plan #7; the PR for IS #385)
 
 **`/api/live` (the public read path, Phase 6)**
 - An ordinary (dynamic) route, cached by Vercel's CDN through

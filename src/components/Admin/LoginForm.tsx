@@ -3,7 +3,13 @@
 import { useLogin } from "@/hooks/useLogin";
 import { RESEND_NOTE, loginMessage } from "@/lib/login";
 
-export default function LoginForm({ linkError }: { linkError: string | null }) {
+export default function LoginForm({
+  linkError,
+  logoutWarning,
+}: {
+  linkError: string | null;
+  logoutWarning: string | null;
+}) {
   const { email, setEmail, status, attempted, submit, resend } = useLogin();
   const sending = status === "sending";
   const sent = status === "sent";
@@ -22,6 +28,12 @@ export default function LoginForm({ linkError }: { linkError: string | null }) {
         void submit();
       }}
     >
+      {logoutWarning && (
+        <p role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-800">
+          {logoutWarning}
+        </p>
+      )}
+
       {linkError && !attempted && (
         <p role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-800">
           {linkError}

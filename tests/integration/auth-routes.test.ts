@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { NextRequest } from "next/server";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { GET as callback } from "@/app/auth/callback/route";
+import { GET as trucks } from "@/app/api/admin/trucks/route";
 import { POST as logout } from "@/app/auth/logout/route";
 import { supabaseAdmin } from "@/lib/supabase";
 import {
@@ -163,20 +164,21 @@ describe("GET /auth/callback", () => {
 });
 
 describe("POST /auth/logout", () => {
-  // Signed in once for the block: the admin on two devices, a non-admin, and a session
-  // to expire.
-  let phone: { jar: Map<string, string>; accessToken: string };
-  let laptop: { jar: Map<string, string>; accessToken: string };
+  // Signed in once for the block: an admin at `aal2`, a session that works in the app, which
+  // a forged logout would target; a non-admin; and a session to expire. The global logout's
+  // describe signs in its own, since it ends every session of its user.
+  let admin: { jar: Map<string, string>; accessToken: string };
   let nonAdmin: { jar: Map<string, string> };
   let toExpire: { jar: Map<string, string>; accessToken: string };
 
   beforeAll(async () => {
-    const admin = await sessionUser({ isAdmin: true });
-    phone = admin;
-    laptop = await sessionFor(admin.userId);
+    admin = await sessionUser({ isAdmin: true, aal2: true });
     nonAdmin = await sessionUser();
     toExpire = await sessionUser();
   }, SIGN_IN_TIMEOUT);
+
+  // An admin request on the jar's session, as the browser's next one would be.
+  const adminRequest = (jar: Map<string, string>) => trucks(request("/api/admin/trucks", { cookie: cookieHeader(jar) }));
 
   async function expectLoggedOut(jar: Map<string, string>) {
     const response = await logout(request("/auth/logout", { method: "POST", cookie: cookieHeader(jar) }));
@@ -194,28 +196,48 @@ describe("POST /auth/logout", () => {
     ["a foreign Origin", "https://evil.example"],
     ["no Origin", null],
   ])("refuses %s with 403 on an admin session, writes no cookie, and the session stays", async (_, origin) => {
-    const response = await logout(request("/auth/logout", { method: "POST", cookie: cookieHeader(phone.jar), origin }));
+    const response = await logout(request("/auth/logout", { method: "POST", cookie: cookieHeader(admin.jar), origin }));
 
     expect(response.status).toBe(403);
     expect(response.headers.getSetCookie()).toEqual([]);
-    expect(await accepted(phone.accessToken)).toBe(true);
+    expect(await accepted(admin.accessToken)).toBe(true);
   });
 
-  it("clears an admin's session cookies and ends that session only, not the admin's other device", async () => {
-    await expectLoggedOut(laptop.jar);
+  // `scope: "global"` (Phase 9 plan, #5): every session of the user ends, and no other
+  // user's (the block's `admin`, whom no test here logs out).
+  describe("a global logout", () => {
+    let phone: { userId: string; jar: Map<string, string>; accessToken: string };
+    let laptop: { jar: Map<string, string>; accessToken: string };
 
-    expect(await accepted(laptop.accessToken)).toBe(false);
-    expect(await accepted(phone.accessToken)).toBe(true);
+    beforeAll(async () => {
+      phone = await sessionUser({ isAdmin: true, aal2: true });
+      laptop = await sessionFor(phone.userId, { aal2: true });
+    }, SIGN_IN_TIMEOUT);
+
+    it("clears an admin's session cookies and ends every session of the admin, the other device's next request refused", async () => {
+      expect((await adminRequest(phone.jar)).status).toBe(200);
+      expect((await adminRequest(laptop.jar)).status).toBe(200);
+
+      await expectLoggedOut(laptop.jar);
+
+      expect(await accepted(laptop.accessToken)).toBe(false);
+      expect(await accepted(phone.accessToken)).toBe(false);
+      const next = await adminRequest(phone.jar);
+      expect(next.status).toBe(401);
+      expect(await next.json()).toEqual({ error: "Du är inte inloggad" });
+      expect(await accepted(admin.accessToken)).toBe(true);
+    });
   });
 
   it("clears a non-admin's session cookies", async () => {
     await expectLoggedOut(nonAdmin.jar);
   });
 
-  it("clears an expired session's cookies when its refresh fails", async () => {
+  it("clears an expired session's cookies when its refresh fails, as a plain logout", async () => {
     // Revoked on the server, and past its expiry in the cookie, so the client's refresh
     // fails. This passed with the route's own `sb-*` deletion removed too: the library
-    // clears this case itself. The errors it doesn't clear are the unit test's stubs.
+    // clears this case itself. The errors it doesn't clear are the unit test's stubs. The
+    // refused refresh says the session is already gone (`isInvalidSession`), so no warning.
     await supabaseAdmin.auth.admin.signOut(toExpire.accessToken, "global");
     const expired = editSessionCookie(toExpire.jar, (session) => {
       session.expires_at = Math.floor(Date.now() / 1000) - 60;
