@@ -49,7 +49,8 @@ checked against a written checklist.
 | Item | Where it goes |
 |---|---|
 | The production Supabase project and keys; applying the hosted-settings checklist to production; the 2FA re-check before the deploy; deciding again whether the email-budget lockout is accepted (open decision 1, the owner, IS #386) | Phase 10 |
-| The soft-launch gate, `/about`, the privacy note, the removal contact, the retention period, the takedown | Phase 10 (the IS #373 (Phase 10) row) |
+| The soft-launch gate, `/about`, the privacy note, the removal contact, the retention period, the takedown | Phase 10 (the IS #373 (Phase 10) row); Auth's audit log is an input to the privacy note, and needs a retention of its own (open decision 7) |
+| Usage, spend and 5xx alerts, which neither free plan offers to set | Phase 10 (open decision 7) |
 | CodeQL on `main`; #347; #349 | Phase 10 |
 | Supabase Pro and its session timeouts (this phase builds the cover until then, #4); the custom domain, its CSP entry and HSTS; Vercel Pro | Phase 11 (the IS #373 (Phase 11) row) |
 | Passkey/WebAuthn MFA (experimental in Supabase, Appendix B); phone MFA (paid; `CLAUDE.md`'s 2FA rule excludes SMS) | not planned |
@@ -320,7 +321,11 @@ before the closing steps (#12).
     and Part 1's "Ändra" until it ends). It rewrites Part 2's "Admin and auth" (MFA behind
     the magic link, #14; the time-box, logout), "Pre-deploy automation" (the 2FA audit's result, which the
     IS #278 (Phase 9) row names and `CLAUDE.md`'s "Secrets" points to), the Phase map's
-    Phase 9 row, Part 1 where it describes the login, the backups item's restore (it
+    Phase 9 row and its Phase 10 row ("the usage alerts are Phase 9's": open decision 7 hands
+    them on; and Auth's audit log as an input to the privacy note, with a retention of its own),
+    Pricing's "Supabase Free" item and the IS #373 (Phase 9) row's "Phase 9 reads which is on"
+    (the audit-log setting, on for the preview since 2026-11-18, and what the table keeps, as
+    open decision 7 records it), Part 1 where it describes the login, the backups item's restore (it
     recreates the admin by its old id, which must get a long random password, README's "5.
     Create the admin user"), and the README's status parts; in the
     Phase 9 row, "Admin and auth" and the "Phase 7 open decisions 1–5" row, "6-digit" goes, since
@@ -501,11 +506,14 @@ guessed code. The swap stays possible as sabotage
   budget, which anyone who knows the admin's address can spend by asking for login links,
   at the preview's `email_sent` of 2 an hour, which step 8 kept (IS #386), and a change whose
   email the spent budget refuses still succeeds, IS #378; so a careful thief can spend it
-  first, and the emails catch only a careless one), and
+  first, and the emails catch only a careless one),
   factor-enrolled and
   factor-unenrolled emails, which Auth offers, both off by default (GoTrue v2.197.0's
   notification settings; the preview's dashboard lists both on Free, with password-changed,
-  all off, IS #377; step 5a switches the two factor emails on);
+  all off, IS #377; step 5a switches the two factor emails on); and Auth's audit log, written
+  to the preview's database since 2026-11-18 (open decision 7; #390's checklist names it for
+  production), so which Auth events happened, and when, outlives Free's one-day log retention
+  unless the hosted platform trims the table (open decision 7's re-read, IS #419);
 - **recovering, in this order** (D3's routes, open decision 4; round 4 on PR #376, the
   owner's approval): secure the mailbox; replace the password with the service role's
   `updateUserById` (or SQL), since Auth may refuse a password change from `aal1` once MFA is
@@ -694,7 +702,43 @@ the sequential integration suite's time down.
    text.~~ → **settled** (the owner, 2026-11-17, IS #382): 401, since the request isn't fully
    authenticated yet, with its own text, "Ange koden från din autentiseringsapp för att
    fortsätta", where no session's is "Du är inte inloggad"; the per-route test checks each.
-7. **What Vercel Hobby and Supabase Free can alert on (step 11).**
+7. ~~**What Vercel Hobby and Supabase Free can alert on (step 11).**~~ → **settled** (IS #389,
+   read in both dashboards and their docs, 2026-11-18): neither free plan offers a usage, spend
+   or 5xx alert to set, so none is set. All three pass to Phase 10 (the usage alerts by the IS
+   #278 (Phase 10) row, the spend alerts by the scope draft, Q14; the 5xx one by the owner,
+   2026-11-18), whose plan decides how they're covered on the same free plans. Until then each
+   usage page shows how close a figure is to its limit.
+   - **Vercel Hobby:** Observability's Alerts, the project's and the team's Alerts settings and
+     Spend Management each answer "Upgrade to Pro"; the notification settings list no usage item
+     and no runtime-error item. The one alert is "Deployment Failures", by email and in the
+     dashboard, both on. A branch's preview build fails by design (README, "Preview deploys"),
+     so most of those notices are expected; the owner kept it as it is. The docs' "Usage limit
+     reached" notice has no setting and wasn't seen. Runtime logs keep 1 hour and Observability
+     12 hours (each picker's longest range not marked Pro or Observability Plus). Deployment
+     Storage, 3.01 of 10 GB, up about 0.18 GB a day since Nov 1, was the one figure over 10% of
+     its limit: #417.
+   - **Supabase Free:** the spend cap is on (Billing): past a quota a project "could become
+     unresponsive or enter read only mode", and the owner found no usage-email setting in
+     Billing or the account settings. Observability has charts and custom reports, no alert.
+     Logs keep 1 day (the Logs picker's longest unlocked range is 24 hours; Observability's says
+     "Your plan only includes up to 1 day of log retention"). On the preview, "Write audit logs
+     to the database", off until then (IS #377), is on (the owner, 2026-11-18); #390's checklist
+     names it, and Phase 10 applies the checklist to production. The newest row was written at
+     the owner's login (17:03:25 UTC) and read a minute later (IS #389's probe). Each row in
+     `auth.audit_log_entries` keeps its time and the payload GoTrue v2.197.0 builds
+     (`audit_log_entry.go`): the action and its log type, the actor's id, username (the email, or
+     the phone if one is set), name (if the user has a `full_name`) and whether by SSO, with traits
+     such as a target user's email on an admin action; and an IP address only where GoTrue's
+     caller passes one. On the preview, of the nine rows a logout and a login wrote, only
+     `challenge_created` and `verification_attempted` held an IP; the login, logout, token refresh
+     and revoke and the recovery request held none (IS #389). GoTrue's cleanup (`cleanup.go`)
+     never deletes from the table, and the app deletes nothing; whether the hosted platform trims
+     it is a re-read after 24 hours (IS #419, 2026-11-19). So past the logs' one day the rows show
+     which Auth events happened, and when, and where from only on the rows with an IP, such as
+     `verification_attempted`, which #13's factor swap includes. They are an input to Phase 10's
+     privacy note, and the table needs a retention of its own, since neither GoTrue nor the app
+     deletes its rows; it grows with each event it records, on Free's 0.5 GB database.
+   - No account was created (#391).
 8. ~~**The rate limits' values (step 8)**, which step 12 then checks.
    The per-IP limits the login uses (`token_refresh`, `token_verifications`,
    `sign_in_sign_ups`) are each a burst of 30,
