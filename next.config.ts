@@ -8,10 +8,11 @@ import { CSP_HEADER, STATIC_HEADERS, buildStaticCsp, cspEnv } from "./src/lib/ht
 // Case variants (`/Admin/…`) differ by host: under `next start` this and the proxy's matcher
 // match by exact case (`caseSensitiveRoutes` below), so the proxy doesn't run on them and this
 // gives them the static CSP; on Vercel both ignore case, so this leaves them out and the proxy
-// gives them the nonce one (`isAdminPagePath` ignores case, IS #414). The forms a
-// server turns into `/admin` before the proxy runs, `/admin.rsc` and `/_next/data/<id>/…`, get
-// both CSPs; under `next start` they carried one, the proxy's (`isAdminPagePath`'s comment). A
-// host that kept both would send the two, whose intersection is stricter than either.
+// sends them to their lower-case path (308) with the nonce CSP (`isAdminPagePath` ignores case;
+// IS #414, PR #415). The forms a server turns into `/admin` before the proxy runs, `/admin.rsc`
+// and `/_next/data/<id>/…`, get both CSPs; under `next start` they carried one, the proxy's
+// (`isAdminPagePath`'s comment). A host that kept both would send the two, whose intersection
+// is stricter than either.
 const NOT_ADMIN = "/((?!admin$|admin/).*)";
 
 const nextConfig: NextConfig = {

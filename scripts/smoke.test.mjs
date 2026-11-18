@@ -52,6 +52,13 @@ const CASES = [
     wrongStatus: { status: 200, contentType: HTML },
     wrongShape: { status: 404, contentType: JSON_TYPE, json: {} },
   },
+  {
+    path: "/admin/Login",
+    right: { status: 308, location: "/admin/login", origin: "http://127.0.0.1:3000" },
+    // Let through to the `/admin` 404, past the session check (PR #415, round 2).
+    wrongStatus: { status: 404, contentType: HTML, origin: "http://127.0.0.1:3000" },
+    wrongShape: { status: 308, location: "/admin/Login", origin: "http://127.0.0.1:3000" },
+  },
   ...["/admin.json", "/%61dmin/login"].map((path) => ({
     path,
     right: { status: 303, location: "/admin/login", origin: "http://127.0.0.1:3000" },

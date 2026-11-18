@@ -264,9 +264,10 @@ said otherwise: Phase 4 plan decision #14.
   reads it) and on the answer, so each carries exactly one. No `X-Powered-By`.
   Case variants (`/Admin/…`): under `next start` the proxy doesn't run on them and
   `experimental.caseSensitiveRoutes` gives them the static CSP; on Vercel, which ignores that
-  flag, the proxy runs on them and `isAdminPagePath`, which ignores case, gives them the nonce
-  one, and its branches (route or page, the login, the MFA step) read the path lower-cased too
-  (the preview, IS #414)
+  flag, the proxy runs on them. Wherever the proxy runs on a path that isn't lower-case
+  (`/Admin/…`, `/API/admin/…`, `/admin/Login`), it sends it to its lower-case path (308)
+  before any branch, with the nonce CSP where `isAdminPagePath` (which ignores case) holds, so
+  the branches, the router and `headers()` see one form of the path (IS #414, PR #415)
 - **Every page under `/admin` renders per request** (`connection()` in the admin layout), its
   404 included (`admin/[...missing]`, under that layout): a page built at build time carries
   no nonce, so the CSP blocks its scripts (Next's CSP guide). Its 404 and error pages are

@@ -484,41 +484,55 @@ describe("proxy's CSP", () => {
     expect(cspNonce(response.headers.get("content-security-policy"))).toBeDefined();
   });
 
-  // What the preview showed broken: an admin's `/Admin/trucks` forwarded to the render.
-  it("hands a signed-in /Admin/trucks's render the answer's CSP, the same nonce", async () => {
+  // What the preview showed broken: an admin's `/Admin/trucks`, now sent to `/admin/trucks`
+  // with the nonce CSP rather than rendered as the `/admin` 404 with none.
+  it("sends a signed-in /Admin/trucks to /admin/trucks with 308 and one nonce CSP, unforwarded", async () => {
     admin();
     const response = await proxy(request("/Admin/trucks", SESSION));
 
-    expect(forwarded(response)).toBe(true);
+    expect(response.status).toBe(308);
+    expect(response.headers.get("location")).toBe(new URL("/admin/trucks", new NextRequest(ORIGIN).url).href);
+    expect(forwarded(response)).toBe(false);
     expect(policies(response)).toBe(1);
-    expect(response.headers.get("x-middleware-request-content-security-policy")).toBe(
-      response.headers.get("content-security-policy"),
-    );
   });
 });
 
-// A case variant takes its lower-case form's branch, as on Vercel, where the matcher runs the
-// proxy on it (IS #414).
+// A case variant goes to its lower-case path before any branch (IS #414; PR #415, round 2):
+// on Vercel the matcher runs the proxy on `/Admin/…` and `/API/admin/…`, under `next start`
+// on `/admin/Login`. No branch or Auth call sees the variant.
 describe("proxy on a case variant", () => {
-  it("lets /Admin/login through as the login, with no Auth call", async () => {
-    const response = await proxy(request("/Admin/login"));
+  const to = (path: string) => new URL(path, new NextRequest(ORIGIN).url).href;
 
-    expect(forwarded(response)).toBe(true);
+  it.each([
+    ["/admin/Login", "/admin/login"],
+    ["/admin/MFA", "/admin/mfa"],
+    ["/ADMIN", "/admin"],
+    ["/API/admin/trucks", "/api/admin/trucks"],
+  ])("sends %s to %s with 308, with no Auth call", async (path, lower) => {
+    const response = await proxy(request(path, SESSION));
+
+    expect(response.status).toBe(308);
+    expect(response.headers.get("location")).toBe(to(lower));
     expect(getUser).not.toHaveBeenCalled();
+    expect(getSession).not.toHaveBeenCalled();
   });
 
-  it("answers /API/admin/trucks as a route: 401 { error } with no session", async () => {
-    const response = await proxy(request("/API/admin/trucks"));
-
-    expect(response.status).toBe(401);
-    expect(await response.json()).toEqual({ error: expect.any(String) });
+  it("keeps the query string", async () => {
+    const response = await proxy(request("/API/admin/places?truckId=x"));
+    expect(response.headers.get("location")).toBe(to("/api/admin/places?truckId=x"));
   });
 
-  it("refuses a foreign write to /API/admin/trucks with 403, before any Auth call (#16)", async () => {
+  // 308 keeps a write's method and body; the lower-case path then refuses a foreign one (#16).
+  it("sends a write on a case variant on with 308, before the origin check", async () => {
     const headers = { host: "127.0.0.1:3000", cookie: SESSION, origin: "https://evil.example" };
     const response = await proxy(new NextRequest(`${ORIGIN}/API/admin/trucks`, { method: "POST", headers, body: "{}" }));
 
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(308);
     expect(getUser).not.toHaveBeenCalled();
+  });
+
+  it("leaves an encoded path as it is (lower-casing changes nothing): /%41dmin/login", async () => {
+    const response = await proxy(request("/%41dmin/login"));
+    expect(response.status).toBe(303);
   });
 });

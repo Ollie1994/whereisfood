@@ -81,8 +81,9 @@ function createNonce(): string {
 // answer's CSP replaced a static one configured for `/admin` (IS #387's PR, probed). How a
 // Vercel deploy handles it wasn't read, so neither is relied on.
 export async function proxy(request: NextRequest) {
-  // The same path `answerFor` reads. Raw for `/admin.json` and `/%61dmin/…`, as `headers()`
-  // reads it; `/admin` for the forms a server has already turned into it (`isAdminPagePath`).
+  // Raw for `/admin.json` and `/%61dmin/…`, as `headers()` reads it; `/admin` for the forms a
+  // server has already turned into it (`isAdminPagePath`, which ignores case, so a case
+  // variant's redirect below carries the nonce CSP).
   if (!isAdminPagePath(request.nextUrl.pathname)) return answerFor(request);
   const csp = buildAdminCsp(createNonce(), cspEnv());
   request.headers.set(CSP_HEADER, csp);
@@ -92,10 +93,18 @@ export async function proxy(request: NextRequest) {
 }
 
 async function answerFor(request: NextRequest): Promise<NextResponse> {
-  // Lower-cased, as `isAdminPagePath` reads it: on Vercel the matcher also runs this on
-  // `/Admin/…` and `/API/admin/…`, which then took another branch than their lower-case form
-  // (`/API/admin/trucks` answered a page's 303, not a route's 401: the preview, IS #414).
-  const pathname = request.nextUrl.pathname.toLowerCase();
+  const { pathname } = request.nextUrl;
+  // A case variant goes to its lower-case path first (308, which keeps a write's method and
+  // body), so the branches below, the router and `headers()` all see one form of the path. On
+  // Vercel the matcher runs this on `/Admin/…` and `/API/admin/…` (`/API/admin/trucks` took a
+  // page's branch there: the preview, IS #414); under `next start` on `/admin/Login`, whose
+  // lower-cased branch let it past the session check to the `/admin` 404 (PR #415, round 2).
+  // Lower-casing the whole path is safe here: the admin paths' only variable segments are ids,
+  // UUIDs that Postgres's `uuid` type prints lower-case.
+  const lower = pathname.toLowerCase();
+  if (pathname !== lower) {
+    return NextResponse.redirect(new URL(`${lower}${request.nextUrl.search}`, request.url), 308);
+  }
   const isApi = pathname.startsWith("/api/");
   // With `request`, so the nonce CSP reaches the login's render.
   if (pathname === LOGIN) return NextResponse.next({ request });
