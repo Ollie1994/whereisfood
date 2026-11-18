@@ -506,9 +506,17 @@ describe("proxy on a case variant", () => {
     redirected(await proxy(request("/API/admin/places?truckId=x")), "/api/admin/places?truckId=x");
   });
 
-  // 308 keeps a write's method and body; the lower-case path then refuses a foreign one (#16).
-  it("sends a foreign write on a case variant to the lower-case path, before the origin check", async () => {
+  // A foreign write is refused at once, as on the lower-case path, not redirected first (#16).
+  it("refuses a foreign write on a case variant with 403, before the redirect and any Auth call", async () => {
     const headers = { host: "127.0.0.1:3000", cookie: SESSION, origin: "https://evil.example" };
+    const response = await proxy(new NextRequest(`${ORIGIN}/API/admin/trucks`, { method: "POST", headers, body: "{}" }));
+    expect(response.status).toBe(403);
+    expect(response.headers.get("location")).toBeNull();
+    expect(getUser).not.toHaveBeenCalled();
+  });
+
+  it("sends a same-origin write on a case variant on with 308, which keeps its method", async () => {
+    const headers = { host: "127.0.0.1:3000", cookie: SESSION, origin: ORIGIN };
     const response = await proxy(new NextRequest(`${ORIGIN}/API/admin/trucks`, { method: "POST", headers, body: "{}" }));
     redirected(response, "/api/admin/trucks");
   });

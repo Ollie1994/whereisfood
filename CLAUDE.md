@@ -270,8 +270,10 @@ said otherwise: Phase 4 plan decision #14.
   `no-store`, `%XX` escapes kept) before the CSP or any branch, so those, the router and
   `headers()` see one form of the path. The redirect is bodiless and sets no CSP itself: on
   `/admin/…` it carries none, like Next's trailing-slash 308 below; on `/api/admin/…`,
-  `headers()`' static one (IS #414, PR #415). A case variant of a form a server rewrites first
-  (`/Admin.rsc`) is sent to its page path (`proxy.ts`)
+  `headers()`' static one (smoke's `/api/admin/Trucks` under `next start`; on Vercel a proxy
+  answer on `/API/admin/trucks` carried it too, IS #414; PR #415). A write from another origin
+  on a case variant is refused with 403 first, as on its lower-case path. A case variant of a
+  form a server rewrites first (`/Admin.rsc`) is sent to its page path (`proxy.ts`)
 - **Every page under `/admin` renders per request** (`connection()` in the admin layout), its
   404 included (`admin/[...missing]`, under that layout): a page built at build time carries
   no nonce, so the CSP blocks its scripts (Next's CSP guide). Its 404 and error pages are

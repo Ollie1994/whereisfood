@@ -86,23 +86,27 @@ function lowerCasePath(pathname: string): string {
 // returned `NextResponse.next()` without it still put the nonce on every script, and the
 // answer's CSP replaced a static one configured for `/admin` (IS #387's PR, probed). How a
 // Vercel deploy handles it wasn't read, so neither is relied on.
-
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   // A path that isn't lower-case goes to its lower-case form first, before the CSP or any
   // branch, so those, the router and `headers()` all see one form of it. On Vercel the matcher
   // runs this on `/Admin/…`, which `headers()` leaves out there, and `/API/admin/…` (the preview,
-  // IS #414); under `next start` on `/admin/Login`. 308 keeps a write's method and body, which
-  // the lower-case path then checks (#16); `no-store`, as every admin route answer has, so no
-  // cache keeps the redirect. Bodiless, like Next's own trailing-slash 308, so it carries no
+  // IS #414); under `next start` on `/admin/Login`. A write from another origin is refused
+  // first, with the one 403 the lower-case path would give it (#16); any other write keeps its
+  // method and body through the 308. `no-store`, as every admin route answer has, so no cache
+  // keeps the redirect. Bodiless, like Next's own trailing-slash 308, so it carries no
   // CSP. The admin paths' variable segments are the routes' `[id]`s, UUIDs that Postgres's
   // `uuid` type prints lower-case, and `[...missing]`, a 404 whatever its case.
   // A limit: a case variant of a form a server rewrites before this runs (`/Admin.rsc`,
   // `/_next/data/<id>/Admin/….json`) arrives as its page path, so it is sent to that page,
   // not to the RSC or data answer. The app links only lower-case paths, so its own RSC and
-  // data requests aren't case variants.
+  // data requests aren't case variants. Both hosts read so far hand this `/_next/data/<id>/…`
+  // already turned into its page path (`/admin`, PR #411 round 3; the preview, IS #387), so a
+  // build id's mixed case never reaches the lower-casing; a host that passed it raw would see
+  // its data request redirected to a build id that doesn't exist.
   const lower = lowerCasePath(pathname);
   if (pathname !== lower) {
+    if (lower.startsWith("/api/") && isWrite(request.method) && !isSameOrigin(request)) return foreignOriginRefusal();
     const to = NextResponse.redirect(new URL(`${lower}${request.nextUrl.search}`, request.url), 308);
     to.headers.set("Cache-Control", "no-store");
     return to;

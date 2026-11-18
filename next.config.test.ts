@@ -63,6 +63,11 @@ describe("next.config.ts's headers", () => {
 // case variant (`/Admin/login`): the helper throws on one ("extracting params from path failed"),
 // so the proxy's side is `proxy.test.ts`'s and Vercel's the preview's (IS #414).
 describe("NOT_ADMIN and isAdminPagePath", () => {
+  // The helper's throw on a case variant, which keeps case variants out of the list below.
+  it("can't be read on a case variant: the helper throws", async () => {
+    await expect(answer("/Admin/login")).rejects.toThrow("extracting params from path failed");
+  });
+
   it.each([
     "/admin",
     "/admin/",
