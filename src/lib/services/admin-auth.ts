@@ -68,12 +68,13 @@ function claimsOf(token: string): Claims | null {
 // which replace this in Phase 11.
 export const SESSION_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 
-// The session's first factor, if allowed: exactly one `amr` entry that isn't an MFA method,
-// its method in `FIRST_FACTORS`, with a numeric `timestamp` (its sign-in, in epoch
-// seconds). Entries are `{ method, timestamp }` on the local stack (IS #381); RFC 8176's
+// The session's first factor's sign-in, in epoch seconds, if the factor is allowed: exactly
+// one `amr` entry that isn't an MFA method, its method in `FIRST_FACTORS`, with a finite
+// numeric `timestamp` (`JSON.parse` gives `Infinity` for `1e400`, so `typeof` alone isn't
+// enough). Entries are `{ method, timestamp }` on the local stack (IS #381); RFC 8176's
 // plain strings, which auth-js's types also allow, read as no method, so they are refused,
 // not admitted. `null`: refused.
-function allowedFirstFactor(claims: Claims | null): { method: string; timestamp: number } | null {
+function firstFactorSignIn(claims: Claims | null): number | null {
   if (!claims || !Array.isArray(claims.amr)) return null;
   const entries = claims.amr.map((entry: unknown) =>
     typeof entry === "object" && entry !== null ? (entry as { method?: unknown; timestamp?: unknown }) : {},
@@ -83,7 +84,7 @@ function allowedFirstFactor(claims: Claims | null): { method: string; timestamp:
   const [{ method, timestamp }] = first;
   if (typeof method !== "string" || !FIRST_FACTORS.has(method)) return null;
   if (typeof timestamp !== "number" || !Number.isFinite(timestamp)) return null;
-  return { method, timestamp };
+  return timestamp;
 }
 
 // Past the time-box: measured from the first factor's sign-in, never the newest `amr` entry,
@@ -95,20 +96,23 @@ function allowedFirstFactor(claims: Claims | null): { method: string; timestamp:
 // (Auth's clock when it issued the token, which Auth has just verified). When Auth's clock
 // runs ahead of this server's, the age is then Auth's, so the skew doesn't lengthen the box;
 // a fresh session's `iat` is at or after its sign-in on the same clock, so its age starts
-// near zero. A token without a numeric `iat` is read on `now` alone. (Round 2 on PR #408,
-// the owner's call; round 1 had left the skew as a limit.)
+// near zero. A token without a finite numeric `iat` is read on `now` alone. The owner's
+// call: the plan's open decision 2.
 //
-// Two limits:
+// Three limits:
 // - While Auth runs ahead, the age is read at the token's issue, not at Auth's time now, so a
 //   session can pass the 12 hours by up to its token's age: `getSession` refreshes a token
 //   that is about to expire, and `config.toml`'s `jwt_expiry` is 3600 s.
+// - While Auth runs behind by D, the sign-in is D behind `now` and `iat` doesn't help, so the
+//   box is D shorter; at D of 12 hours, every new login is refused at once. The local stack's
+//   Docker VM clock can fall behind the host's after a sleep (`helpers.ts`'s `authClock`).
 // - Each check reads its caller's `now`. A request the proxy admits just under 12 hours can be
 //   refused by `withAdmin` or the MFA page just after. Their sign-out ends the session at Auth,
 //   but they hold `readOnlyCookies`, which can't delete cookies (the integration test of the
 //   MFA step shows the cookie left). The browser keeps the dead ones until a request through
 //   the proxy to an admin path other than the login, which the proxy lets through unchecked,
 //   clears them (`getUser(token)`, the integration test's logged-out case), or a new login's
-//   callback writes new ones (round 1 on PR #408; round 2 named the login).
+//   callback writes new ones.
 function expired(signedInSeconds: number, issuedAt: unknown, now: Date): boolean {
   const authNow = typeof issuedAt === "number" && Number.isFinite(issuedAt) ? issuedAt * 1000 : -Infinity;
   return Math.max(now.getTime(), authNow) - signedInSeconds * 1000 >= SESSION_MAX_AGE_MS;
@@ -167,12 +171,10 @@ async function verify({ cookieNames, auth, now }: AdminInput): Promise<Verified 
   // A refused session is signed out at Auth, so it can't stay valid there (plan #14, #4).
   // If that failed, "unavailable": the session isn't gone, and a later request tries again.
   const claims = claimsOf(token);
-  const firstFactor = allowedFirstFactor(claims);
-  const refusedFor = !firstFactor
-    ? "a first factor outside the allowlist"
-    : expired(firstFactor.timestamp, claims?.iat, now)
-      ? "a session past the time-box"
-      : null;
+  const signedIn = firstFactorSignIn(claims);
+  let refusedFor: string | null = null;
+  if (signedIn === null) refusedFor = "a first factor outside the allowlist";
+  else if (expired(signedIn, claims?.iat, now)) refusedFor = "a session past the time-box";
   if (refusedFor) {
     const ended = await endSession(auth, refusedFor);
     return { ok: false, reason: ended ? "no-session" : "unavailable" };

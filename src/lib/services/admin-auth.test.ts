@@ -236,16 +236,23 @@ describe("requireAdmin", () => {
       expect(await requireAdmin({ now, cookieNames: SESSION, auth: stub })).toEqual({ ok: true, userId: ID });
     });
 
-    // Round 2 on PR #408 (the owner's call): Auth's clock ahead of this server's doesn't
-    // lengthen the box, since the token's `iat` is Auth's clock.
-    it.each([
-      ["a second under 12 hours", SESSION_MAX_AGE_MS / 1000 - 1, { ok: true, userId: ID }],
-      ["at 12 hours", SESSION_MAX_AGE_MS / 1000, { ok: false, reason: "no-session" }],
-    ])("reads the age on iat when it is ahead of now: %s on iat, now a day behind", async (_, iatAge, expected) => {
-      const stub = auth({ access: token({ aal: "aal2", amr: [link, totp], iat: SIGNED_IN + iatAge }) });
+    // Auth's clock ahead of this server's doesn't lengthen the box: the token's `iat` is Auth's
+    // clock (the plan's open decision 2).
+    it("reads the age on iat when it is ahead of now: a second under 12 hours on iat passes, now a day behind", async () => {
+      const stub = auth({ access: token({ aal: "aal2", amr: [link, totp], iat: SIGNED_IN + SESSION_MAX_AGE_MS / 1000 - 1 }) });
       const now = new Date(SIGNED_IN_MS - 24 * HOUR);
 
-      expect(await requireAdmin({ now, cookieNames: SESSION, auth: stub })).toEqual(expected);
+      expect(await requireAdmin({ now, cookieNames: SESSION, auth: stub })).toEqual({ ok: true, userId: ID });
+      expect(stub.signOut).not.toHaveBeenCalled();
+    });
+
+    it("reads the age on iat when it is ahead of now: 12 hours on iat is refused and signed out before the DB, now a day behind", async () => {
+      const stub = auth({ access: token({ aal: "aal2", amr: [link, totp], iat: SIGNED_IN + SESSION_MAX_AGE_MS / 1000 }) });
+      const now = new Date(SIGNED_IN_MS - 24 * HOUR);
+
+      expect(await requireAdmin({ now, cookieNames: SESSION, auth: stub })).toEqual({ ok: false, reason: "no-session" });
+      expect(stub.signOut).toHaveBeenCalledExactlyOnceWith({ scope: "local" });
+      expect(getUserById).not.toHaveBeenCalled();
     });
 
     it("reads the age on now when iat is behind it", async () => {
@@ -254,12 +261,17 @@ describe("requireAdmin", () => {
       expect(await requireAdmin({ now, cookieNames: SESSION, auth: stub })).toEqual({ ok: false, reason: "no-session" });
     });
 
+    // On `now` alone: admitted just under 12 hours on `now`, refused at 12. The string `iat`,
+    // 13 hours on, would refuse the first if it were read as a number.
     it.each([
       ["no iat", {}],
       ["a string iat", { iat: String(SIGNED_IN + 13 * 3600) }],
     ])("reads a token with %s on now alone", async (_, iat) => {
-      const stub = auth({ access: token({ aal: "aal2", amr: [link, totp], ...iat }) });
-      expect(await requireAdmin({ now: NOW, cookieNames: SESSION, auth: stub })).toEqual({ ok: true, userId: ID });
+      const access = token({ aal: "aal2", amr: [link, totp], ...iat });
+      const at = (ms: number) => ({ now: new Date(SIGNED_IN_MS + ms), cookieNames: SESSION, auth: auth({ access }) });
+
+      expect(await requireAdmin(at(SESSION_MAX_AGE_MS - 1))).toEqual({ ok: true, userId: ID });
+      expect(await requireAdmin(at(SESSION_MAX_AGE_MS))).toEqual({ ok: false, reason: "no-session" });
     });
 
     it.each([
@@ -310,14 +322,6 @@ describe("requireAdmin", () => {
       expect(await requireAdmin({ now, cookieNames: SESSION, auth: stub })).toEqual({ ok: false, reason: "unavailable" });
       expect(getUserById).not.toHaveBeenCalled();
     });
-
-    it("refuses an aal1 session past the box at the MFA step, and signs it out", async () => {
-      const stub = auth({ access: AAL1, user: { id: ID, factors: [] } });
-      const now = new Date(SIGNED_IN_MS + 13 * HOUR);
-
-      expect(await mfaStepAllowed({ now, cookieNames: SESSION, auth: stub })).toEqual({ ok: false, reason: "no-session" });
-      expect(stub.signOut).toHaveBeenCalledExactlyOnceWith({ scope: "local" });
-    });
   });
 
   it("reads a throw from getUserById as unavailable", async () => {
@@ -360,6 +364,15 @@ describe("mfaStepAllowed", () => {
     ["Auth failing", { now: NOW, cookieNames: SESSION, auth: auth({ userError: new AuthRetryableFetchError("fetch failed", 0) }) }, "unavailable"],
   ])("refuses %s as %s", async (_, input, reason) => {
     expect(await mfaStepAllowed(input)).toEqual({ ok: false, reason });
+  });
+
+  // The time-box is in `verify`, so it holds here too (plan step 6).
+  it("refuses an aal1 session past the time-box, and signs it out", async () => {
+    const stub = auth({ access: AAL1, user: { id: ID, factors: [] } });
+    const now = new Date(SIGNED_IN_MS + 13 * HOUR);
+
+    expect(await mfaStepAllowed({ now, cookieNames: SESSION, auth: stub })).toEqual({ ok: false, reason: "no-session" });
+    expect(stub.signOut).toHaveBeenCalledExactlyOnceWith({ scope: "local" });
   });
 
   it("refuses a non-admin's aal1 session as not-admin", async () => {

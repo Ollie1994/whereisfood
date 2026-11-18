@@ -272,9 +272,10 @@ said otherwise: Phase 4 plan decision #14.
   refusal is the first factor's: signed out at Auth with `scope: "local"`, answered as no
   session, or as unavailable if the sign-out failed. `requireAdmin` and `mfaStepAllowed` take
   the caller's `now`, and read the age on the later of it and the token's `iat`, so Auth's
-  clock running ahead doesn't lengthen the box (round 2 on PR #408). A limit: only a session
-  presented to the app is signed out, so a stolen token used only against Supabase stays
-  good until Phase 11's Pro session timeouts, which replace this
+  clock running ahead doesn't lengthen the box; one running behind shortens it by the lag
+  (`admin-auth.ts` states both limits). A limit: only a session presented to the app is
+  signed out, so a stolen token used only against Supabase stays good until Phase 11's Pro
+  session timeouts, which replace this
 
 **`/api/live` (the public read path, Phase 6)**
 - An ordinary (dynamic) route, cached by Vercel's CDN through

@@ -1,5 +1,6 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { supabaseAdmin } from "@/lib/supabase";
+import { payloadOf } from "../jwt";
 import {
   AUTH_PAGE,
   FIXTURE_PREFIX,
@@ -248,7 +249,7 @@ describe("resetTables and fixture auth users", () => {
 // The fixtures' sign-in (Phase 9 plan step 5a, #9, #13, #14; IS #381). Claims are read from
 // the access token Auth issued: the payload's JSON, which these tests only read.
 function claimsOf(accessToken: string): { aal: string; amr: { method: string; timestamp: number }[] } {
-  return JSON.parse(Buffer.from(accessToken.split(".")[1], "base64url").toString("utf8"));
+  return payloadOf(accessToken) as ReturnType<typeof claimsOf>;
 }
 
 describe("the fixtures' sign-in", () => {

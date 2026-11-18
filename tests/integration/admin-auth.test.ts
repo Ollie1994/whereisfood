@@ -8,6 +8,7 @@ import { SESSION_MAX_AGE_MS, mfaStepAllowed, requireAdmin } from "@/lib/services
 import { supabaseAdmin } from "@/lib/supabase";
 import { createSessionClient, readOnlyCookies } from "@/lib/supabase-session";
 import { proxy } from "@/proxy";
+import { payloadOf } from "../jwt";
 import { totp } from "../totp";
 import {
   SIGN_IN_TIMEOUT,
@@ -167,8 +168,8 @@ async function verifiedFactor(userId: string): Promise<string> {
 // kept: a claim Auth never signed (#11).
 function forged(jar: Map<string, string>, edit: (claims: Record<string, unknown>) => void): Map<string, string> {
   const edited = editSessionCookie(jar, (session) => {
-    const [header, payload, signature] = session.access_token.split(".");
-    const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    const [header, , signature] = session.access_token.split(".");
+    const claims = payloadOf(session.access_token);
     edit(claims);
     session.access_token = [header, Buffer.from(JSON.stringify(claims)).toString("base64url"), signature].join(".");
   });
@@ -316,7 +317,7 @@ describe("the time-box", () => {
 
   // The first factor's sign-in, in epoch milliseconds, from the token's `amr`.
   function signedIn(accessToken: string): number {
-    const { amr } = JSON.parse(Buffer.from(accessToken.split(".")[1], "base64url").toString("utf8"));
+    const { amr } = payloadOf(accessToken);
     const link = (amr as { method: string; timestamp: number }[]).find(({ method }) => method === "magiclink");
     if (!link) throw new Error(`signedIn: no magiclink entry in ${JSON.stringify(amr)}`);
     return link.timestamp * 1000;
@@ -344,9 +345,9 @@ describe("the time-box", () => {
     expect(await requireAdmin(input(other.jar))).toEqual({ ok: true, userId: old.userId });
   });
 
-  // The box is in `verify`, so the MFA page's check holds it too (plan step 6, round 1 on PR
-  // #408). On the page's own `readOnlyCookies`, as `page.tsx` builds its client (round 2): the
-  // sign-out still ends the session at Auth, and the cookie is left (`admin-auth.ts`'s limit).
+  // The box is in `verify`, so the MFA page's check holds it too (plan step 6), on the page's
+  // own `readOnlyCookies`, as `page.tsx` builds its client: the sign-out still ends the session
+  // at Auth, and the cookie is left (`admin-auth.ts`'s limit).
   it("refuses an aal1 session the code step at 12 hours on read-only cookies, and signs it out at Auth", async () => {
     const pageInput = (now: Date) => ({
       cookieNames: [...aal1.jar.keys()],
