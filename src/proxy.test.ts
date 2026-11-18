@@ -479,8 +479,9 @@ describe("proxy's CSP", () => {
 });
 
 // A path that isn't lower-case goes to its lower-case form (308, `no-store`, no CSP: bodiless)
-// before the CSP or any branch, and with no Auth call. On Vercel the matcher runs the proxy on
-// `/Admin/…` and `/API/admin/…`, under `next start` on `/admin/Login` (IS #414).
+// before the CSP or any branch, and with no Auth call; a write from another origin is refused
+// with 403 first. On Vercel the matcher runs the proxy on `/Admin/…` and `/API/admin/…`, under
+// `next start` on `/admin/Login` (IS #414).
 describe("proxy on a case variant", () => {
   const to = (path: string) => new URL(path, new NextRequest(ORIGIN).url).href;
   const redirected = (response: Response, lower: string) => {
