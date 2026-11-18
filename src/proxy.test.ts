@@ -354,7 +354,7 @@ describe("proxy and the second factor", () => {
 
   it.each(["/admin/mfa", "/admin"])("signs an otp session out and sends its %s to the login (plan #14)", async (path) => {
     admin();
-    withToken({ aal: "aal1", amr: [{ method: "otp", timestamp: LINK.timestamp }] });
+    withToken({ aal: "aal1", amr: [{ ...LINK, method: "otp" }] });
 
     const response = await proxy(request(path, SESSION));
 

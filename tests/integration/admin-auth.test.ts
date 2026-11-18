@@ -6,6 +6,7 @@ import { readJson, withAdmin } from "@/lib/http/admin";
 import { enrollFactor } from "@/lib/mfa";
 import { SESSION_MAX_AGE_MS, mfaStepAllowed, requireAdmin } from "@/lib/services/admin-auth";
 import { supabaseAdmin } from "@/lib/supabase";
+import { createSessionClient, readOnlyCookies } from "@/lib/supabase-session";
 import { proxy } from "@/proxy";
 import { totp } from "../totp";
 import {
@@ -153,6 +154,15 @@ function get(path: string, cookie: string) {
 // call them, at `now` (by default the time now).
 const input = (jar: Map<string, string>, now = new Date()) => ({ cookieNames: [...jar.keys()], auth: jarClient(jar).auth, now });
 
+// The user's one verified factor's id, as Auth lists it.
+async function verifiedFactor(userId: string): Promise<string> {
+  const { data, error } = await supabaseAdmin.auth.admin.mfa.listFactors({ userId });
+  if (error) throw error;
+  const ids = data.factors.filter((factor) => factor.status === "verified").map((factor) => factor.id);
+  if (ids.length !== 1) throw new Error(`verifiedFactor: ${ids.length} verified factors`);
+  return ids[0];
+}
+
 // The jar's session cookie alone, with its access token's payload edited and its signature
 // kept: a claim Auth never signed (#11).
 function forged(jar: Map<string, string>, edit: (claims: Record<string, unknown>) => void): Map<string, string> {
@@ -247,7 +257,7 @@ describe("the first factor and the second", () => {
   });
 
   it("gives an enrolled admin's aal1 session the code step, and Auth refuses it a second factor", async () => {
-    expect(await mfaStepAllowed(input(enrolledAal1.jar))).toEqual({ ok: true, step: "code", factorId: expect.any(String) });
+    expect(await mfaStepAllowed(input(enrolledAal1.jar))).toEqual({ ok: true, step: "code", factorId: await verifiedFactor(enrolled.userId) });
 
     // Named: an unnamed one beside the fixture's unnamed factor is refused
     // `mfa_factor_name_conflict` first (local stack, the PR for IS #382).
@@ -334,12 +344,29 @@ describe("the time-box", () => {
     expect(await requireAdmin(input(other.jar))).toEqual({ ok: true, userId: old.userId });
   });
 
-  // The box is in `verify`, so the MFA page's check holds it too (plan step 6, round 1 on PR #408).
-  it("refuses an aal1 session the code step at 12 hours, and signs it out at Auth", async () => {
-    expect(await mfaStepAllowed(input(aal1.jar))).toEqual({ ok: true, step: "code", factorId: expect.any(String) });
-    const now = new Date(signedIn(aal1.accessToken) + SESSION_MAX_AGE_MS);
+  // The box is in `verify`, so the MFA page's check holds it too (plan step 6, round 1 on PR
+  // #408). On the page's own `readOnlyCookies`, as `page.tsx` builds its client (round 2): the
+  // sign-out still ends the session at Auth, and the cookie is left (`admin-auth.ts`'s limit).
+  it("refuses an aal1 session the code step at 12 hours on read-only cookies, and signs it out at Auth", async () => {
+    const pageInput = (now: Date) => ({
+      cookieNames: [...aal1.jar.keys()],
+      auth: createSessionClient(readOnlyCookies({ getAll: () => [...aal1.jar].map(([name, value]) => ({ name, value })) })).auth,
+      now,
+    });
+    const { data } = await jarClient(aal1.jar).auth.getSession();
+    const refreshToken = data.session?.refresh_token;
+    if (!refreshToken) throw new Error("no refresh token in the jar");
+    const before = [...aal1.jar.keys()];
 
-    expect(await mfaStepAllowed(input(aal1.jar, now))).toEqual({ ok: false, reason: "no-session" });
+    expect(await mfaStepAllowed(pageInput(new Date()))).toEqual({ ok: true, step: "code", factorId: await verifiedFactor(old.userId) });
+    expect(await mfaStepAllowed(pageInput(new Date(signedIn(aal1.accessToken) + SESSION_MAX_AGE_MS)))).toEqual({
+      ok: false,
+      reason: "no-session",
+    });
+
     expect(await accepted(aal1.accessToken)).toBe(false);
+    expect((await anonClient().auth.refreshSession({ refresh_token: refreshToken })).error).not.toBeNull();
+    expect([...aal1.jar.keys()]).toEqual(before);
+    expect(before.some((name) => SESSION_COOKIE.test(name))).toBe(true);
   });
 });

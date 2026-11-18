@@ -623,7 +623,9 @@ the sequential integration suite's time down.
    first-factor timestamp (#4, IS #377), which a later TOTP verify leaves as it was (IS #381's
    probe).~~ → **settled** (the owner, 2026-11-18, IS #384, approving the leaning): 12 hours
    (`admin-auth.ts`'s `SESSION_MAX_AGE_MS`), from that source. A session is refused from 12
-   hours on, and one whose sign-in is after the server's `now` (Auth's clock ahead) is admitted.
+   hours on, its age read on the later of the server's `now` and the token's `iat`, Auth's
+   clock (the owner, 2026-11-18, round 2 on PR #408), so Auth's clock running ahead doesn't
+   lengthen the box.
 3. ~~**The magic link (step 5d):** kept beside the emailed code, or the code only.~~ →
    **settled by #14** (the owner, 2026-11-17, IS #396): the magic link only. What step 1
    found (IS #377): the preview's dashboard says "Set up custom SMTP to edit templates.

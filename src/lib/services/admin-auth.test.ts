@@ -120,9 +120,9 @@ describe("requireAdmin", () => {
 
   // Plan #14: the magic link only. A refused session is signed out at Auth, before the DB.
   it.each([
-    ["a directly verified code (otp)", token({ aal: "aal2", amr: [{ method: "otp", timestamp: SIGNED_IN }, totp] })],
-    ["a password login", token({ aal: "aal2", amr: [{ method: "password", timestamp: SIGNED_IN }, totp] })],
-    ["two first factors", token({ aal: "aal2", amr: [link, { method: "otp", timestamp: SIGNED_IN }, totp] })],
+    ["a directly verified code (otp)", token({ aal: "aal2", amr: [{ ...link, method: "otp" }, totp] })],
+    ["a password login", token({ aal: "aal2", amr: [{ ...link, method: "password" }, totp] })],
+    ["two first factors", token({ aal: "aal2", amr: [link, { ...link, method: "otp" }, totp] })],
     ["only totp", token({ aal: "aal2", amr: [totp] })],
     ["RFC 8176's plain strings", token({ aal: "aal2", amr: ["magiclink", "totp"] })],
     ["no amr claim", token({ aal: "aal2" })],
@@ -139,7 +139,7 @@ describe("requireAdmin", () => {
     ["answers an error", () => Promise.resolve({ error: new AuthRetryableFetchError("fetch failed", 0) })],
     ["throws", () => Promise.reject(new Error("network down"))],
   ])("answers a first factor outside the allowlist unavailable, not no-session, when the signOut %s", async (_, signOut) => {
-    const stub = { ...auth({ access: token({ aal: "aal1", amr: [{ method: "otp", timestamp: SIGNED_IN }] }) }), signOut: vi.fn(signOut) };
+    const stub = { ...auth({ access: token({ aal: "aal1", amr: [{ ...link, method: "otp" }] }) }), signOut: vi.fn(signOut) };
 
     expect(await requireAdmin({ now: NOW, cookieNames: SESSION, auth: stub })).toEqual({ ok: false, reason: "unavailable" });
     expect(getUserById).not.toHaveBeenCalled();
@@ -230,9 +230,36 @@ describe("requireAdmin", () => {
       expect(stub.signOut).not.toHaveBeenCalled();
     });
 
-    it("lets a session through whose sign-in is after now (Auth's clock ahead)", async () => {
+    it("lets a fresh session through while Auth's clock is ahead (its iat at the sign-in, now an hour behind)", async () => {
+      const stub = auth({ access: token({ aal: "aal2", amr: [link, totp], iat: SIGNED_IN }) });
       const now = new Date(SIGNED_IN_MS - HOUR);
-      expect(await requireAdmin({ now, cookieNames: SESSION, auth: auth() })).toEqual({ ok: true, userId: ID });
+      expect(await requireAdmin({ now, cookieNames: SESSION, auth: stub })).toEqual({ ok: true, userId: ID });
+    });
+
+    // Round 2 on PR #408 (the owner's call): Auth's clock ahead of this server's doesn't
+    // lengthen the box, since the token's `iat` is Auth's clock.
+    it.each([
+      ["a second under 12 hours", SESSION_MAX_AGE_MS / 1000 - 1, { ok: true, userId: ID }],
+      ["at 12 hours", SESSION_MAX_AGE_MS / 1000, { ok: false, reason: "no-session" }],
+    ])("reads the age on iat when it is ahead of now: %s on iat, now a day behind", async (_, iatAge, expected) => {
+      const stub = auth({ access: token({ aal: "aal2", amr: [link, totp], iat: SIGNED_IN + iatAge }) });
+      const now = new Date(SIGNED_IN_MS - 24 * HOUR);
+
+      expect(await requireAdmin({ now, cookieNames: SESSION, auth: stub })).toEqual(expected);
+    });
+
+    it("reads the age on now when iat is behind it", async () => {
+      const stub = auth({ access: token({ aal: "aal2", amr: [link, totp], iat: SIGNED_IN }) });
+      const now = new Date(SIGNED_IN_MS + SESSION_MAX_AGE_MS);
+      expect(await requireAdmin({ now, cookieNames: SESSION, auth: stub })).toEqual({ ok: false, reason: "no-session" });
+    });
+
+    it.each([
+      ["no iat", {}],
+      ["a string iat", { iat: String(SIGNED_IN + 13 * 3600) }],
+    ])("reads a token with %s on now alone", async (_, iat) => {
+      const stub = auth({ access: token({ aal: "aal2", amr: [link, totp], ...iat }) });
+      expect(await requireAdmin({ now: NOW, cookieNames: SESSION, auth: stub })).toEqual({ ok: true, userId: ID });
     });
 
     it.each([
@@ -322,7 +349,7 @@ describe("mfaStepAllowed", () => {
   // The allowlist applies here too (plan #14): a guessed code's session could otherwise
   // enroll through the app's page while the one slot is free.
   it("refuses an otp session as no-session and signs it out locally", async () => {
-    const stub = auth({ access: token({ aal: "aal1", amr: [{ method: "otp", timestamp: SIGNED_IN }] }), user: { id: ID, factors: [] } });
+    const stub = auth({ access: token({ aal: "aal1", amr: [{ ...link, method: "otp" }] }), user: { id: ID, factors: [] } });
 
     expect(await mfaStepAllowed({ now: NOW, cookieNames: SESSION, auth: stub })).toEqual({ ok: false, reason: "no-session" });
     expect(stub.signOut).toHaveBeenCalledExactlyOnceWith({ scope: "local" });

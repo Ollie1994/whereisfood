@@ -271,7 +271,8 @@ said otherwise: Phase 4 plan decision #14.
   timestamp of that `amr` entry, never the newest entry, which a later TOTP verify adds. The
   refusal is the first factor's: signed out at Auth with `scope: "local"`, answered as no
   session, or as unavailable if the sign-out failed. `requireAdmin` and `mfaStepAllowed` take
-  the caller's `now`. A limit: only a session presented to the app is signed out, so a stolen
+  the caller's `now`, and read the age on the later of it and the token's `iat`, so Auth's
+  clock running ahead doesn't lengthen the box (round 2 on PR #408). A limit: only a session presented to the app is signed out, so a stolen
   token used only against Supabase stays good until Phase 11's Pro session timeouts, which
   replace this
 

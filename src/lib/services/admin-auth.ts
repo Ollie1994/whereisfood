@@ -49,7 +49,7 @@ const FIRST_FACTORS = new Set(["magiclink"]);
 // PR #404's test gave `[magiclink, totp]`), so the first factor is found by its method.
 const MFA_METHODS = new Set(["totp"]);
 
-type Claims = { aal: unknown; amr: unknown };
+type Claims = { aal: unknown; amr: unknown; iat?: unknown };
 
 // The payload of a token Auth has just accepted (`getUser(token)` below), so reading it
 // here reads what Auth verified, not a cookie's claim (#11). A payload this can't read
@@ -91,17 +91,27 @@ function allowedFirstFactor(claims: Claims | null): { method: string; timestamp:
 // bound by verifying again (#4). The first factor's entry kept its timestamp through a refresh
 // (IS #377) and a later verify (IS #381's probe).
 //
-// Two limits (round 1 on PR #408):
-// - A sign-in after `now`, when Auth's clock is ahead of this server's, has a negative age and
-//   is admitted, so a skew of D makes the box 12 hours plus D. It isn't capped (why: that
-//   round's record in the PR).
+// The age is read on the later of two clocks: the caller's `now`, and the token's `iat`
+// (Auth's clock when it issued the token, which Auth has just verified). When Auth's clock
+// runs ahead of this server's, the age is then Auth's, so the skew doesn't lengthen the box;
+// a fresh session's `iat` is at or after its sign-in on the same clock, so its age starts
+// near zero. A token without a numeric `iat` is read on `now` alone. (Round 2 on PR #408, the owner's call; round 1 had left the skew as
+// a limit.)
+//
+// Two limits:
+// - While Auth runs ahead, the age is read at the token's issue, not at Auth's time now, so a
+//   session can pass the 12 hours by up to its token's age: `getSession` refreshes a token
+//   that is about to expire, and `config.toml`'s `jwt_expiry` is 3600 s.
 // - Each check reads its caller's `now`. A request the proxy admits just under 12 hours can be
 //   refused by `withAdmin` or the MFA page just after. Their sign-out ends the session at Auth,
-//   but they hold `readOnlyCookies`, which can't delete cookies, so the browser keeps the dead
-//   ones until its next request through the proxy, whose `getUser(token)` clears them (the
-//   integration test's logged-out case).
-function expired(signedInSeconds: number, now: Date): boolean {
-  return now.getTime() - signedInSeconds * 1000 >= SESSION_MAX_AGE_MS;
+//   but they hold `readOnlyCookies`, which can't delete cookies (the integration test of the
+//   MFA step shows the cookie left). The browser keeps the dead ones until a request through
+//   the proxy to an admin path other than the login, which the proxy lets through unchecked,
+//   clears them (`getUser(token)`, the integration test's logged-out case), or a new login's
+//   callback writes new ones (round 1 on PR #408; round 2 named the login).
+function expired(signedInSeconds: number, issuedAt: unknown, now: Date): boolean {
+  const authNow = typeof issuedAt === "number" && Number.isFinite(issuedAt) ? issuedAt * 1000 : -Infinity;
+  return Math.max(now.getTime(), authNow) - signedInSeconds * 1000 >= SESSION_MAX_AGE_MS;
 }
 
 // Ends this session at Auth and clears it from storage (`signOut`'s `_removeSession`, which
@@ -160,7 +170,7 @@ async function verify({ cookieNames, auth, now }: AdminInput): Promise<Verified 
   const firstFactor = allowedFirstFactor(claims);
   const refusedFor = !firstFactor
     ? "a first factor outside the allowlist"
-    : expired(firstFactor.timestamp, now)
+    : expired(firstFactor.timestamp, claims?.iat, now)
       ? "a session past the time-box"
       : null;
   if (refusedFor) {

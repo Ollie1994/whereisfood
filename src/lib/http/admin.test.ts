@@ -116,7 +116,7 @@ describe("withAdmin", () => {
   it("answers a first factor outside the allowlist 401 no-session, after signing it out at Auth (plan #14)", async () => {
     authAnswers(userJson);
 
-    const response = await withAdmin(request({ cookie: sessionCookie({ aal: "aal2", amr: [{ method: "otp", timestamp: LINK.timestamp }, TOTP] }) }), handler);
+    const response = await withAdmin(request({ cookie: sessionCookie({ aal: "aal2", amr: [{ ...LINK, method: "otp" }, TOTP] }) }), handler);
 
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual({ error: "Du är inte inloggad" });
