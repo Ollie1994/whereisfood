@@ -517,6 +517,7 @@ describe("proxy on a case variant", () => {
   // letter beside an escape is lower-cased with the escape kept.
   it("keeps %XX escapes as they are", async () => {
     expect((await proxy(request("/admin/%C3%A9"))).status).toBe(303);
+    expect((await proxy(request("/admin/%c3%A9"))).status).toBe(303);
     redirected(await proxy(request("/Admin/%C3%A9")), "/admin/%C3%A9");
   });
 

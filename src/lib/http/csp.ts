@@ -59,7 +59,8 @@ export const STATIC_HEADERS: ReadonlyArray<{ key: string; value: string }> = [
 export const CSP_HEADER = "Content-Security-Policy";
 
 // Is `pathname` one the nonce CSP is for: `/admin` or `/admin/…`, the paths `next.config.ts`'s
-// `NOT_ADMIN` leaves out (`next.config.test.ts` checks the two agree). By exact case, as
+// `NOT_ADMIN` leaves out (`next.config.test.ts` checks the two agree on the paths it lists, not
+// on case variants or the forms a server rewrites, its comment says why). By exact case, as
 // `NOT_ADMIN` matches under `next start`: the proxy sends a path that isn't lower-case to its
 // lower-case form before it reads this (`proxy.ts`, IS #414). The proxy passes its
 // `nextUrl.pathname`. It also runs on forms its matcher adds or decodes, which `NOT_ADMIN` gives

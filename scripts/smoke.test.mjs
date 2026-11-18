@@ -59,6 +59,13 @@ const CASES = [
     wrongStatus: { status: 404, contentType: HTML, origin: "http://127.0.0.1:3000" },
     wrongShape: { status: 308, location: "/admin/Login", origin: "http://127.0.0.1:3000" },
   },
+  {
+    path: "/api/admin/Trucks",
+    right: { status: 308, location: "/api/admin/trucks", origin: "http://127.0.0.1:3000" },
+    // The route served on its case variant.
+    wrongStatus: { status: 401, contentType: JSON_TYPE, json: { error: "x" }, origin: "http://127.0.0.1:3000" },
+    wrongShape: { status: 308, location: "/api/admin/Trucks", origin: "http://127.0.0.1:3000" },
+  },
   ...["/admin.json", "/%61dmin/login"].map((path) => ({
     path,
     right: { status: 303, location: "/admin/login", origin: "http://127.0.0.1:3000" },
@@ -164,10 +171,16 @@ describe("checkHeaders", () => {
     expect(checkHeaders(byPath("/map"), answer(STATIC_CSP, { "x-powered-by": "Next.js" }))).toEqual(['x-powered-by "Next.js", expected none']);
   });
 
-  // The proxy's bodiless case redirect carries none (IS #414).
-  it("passes the case redirect with no CSP, and fails it with one", () => {
-    expect(checkHeaders(byPath("/admin/Login"), answer(null))).toEqual([]);
-    expect(checkHeaders(byPath("/admin/Login"), answer(nonceCsp("abc")))).toEqual(["1 CSPs, expected none"]);
+  // The proxy's bodiless case redirect carries none on `/admin/…`, and `no-store` (IS #414).
+  it("passes the case redirect with no CSP and no-store, and fails it with a CSP or without no-store", () => {
+    const NO_STORE = { "cache-control": "no-store" };
+    expect(checkHeaders(byPath("/admin/Login"), answer(null, NO_STORE))).toEqual([]);
+    expect(checkHeaders(byPath("/admin/Login"), answer(nonceCsp("abc"), NO_STORE))).toEqual(["1 CSPs, expected none"]);
+    expect(checkHeaders(byPath("/admin/Login"), answer(null))).toEqual(['cache-control "", expected no-store']);
+    expect(checkHeaders(byPath("/api/admin/Trucks"), answer(STATIC_CSP, NO_STORE))).toEqual([]);
+    expect(checkHeaders(byPath("/api/admin/Trucks"), answer(STATIC_CSP, { "cache-control": "public" }))).toEqual([
+      'cache-control "public", expected no-store',
+    ]);
   });
 
   it("fails no CSP, and two", () => {

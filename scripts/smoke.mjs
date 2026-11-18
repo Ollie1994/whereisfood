@@ -20,7 +20,8 @@ import { resolve } from "node:path";
 // - `/admin` is redirected by the proxy with 303 to `/admin/login` (src/proxy.ts), and
 //   `/api/admin/*` answers 401 `{ error }` before any Auth or database call.
 // - `csp`: "static" for `next.config.ts`'s, "nonce" for the proxy's on `/admin`
-//   (`src/lib/http/csp.ts`), "none" for the proxy's bodiless case redirect.
+//   (`src/lib/http/csp.ts`), "none" for the proxy's bodiless case redirect on `/admin/…`.
+// - `noStore`: `Cache-Control` must hold `no-store` (the proxy's case redirect, `src/proxy.ts`).
 export const EXPECTATIONS = [
   { path: "/map", status: 200, shape: "html", csp: "static" },
   { path: "/api/live", status: 200, shape: "entries", csp: "static" },
@@ -39,7 +40,9 @@ export const EXPECTATIONS = [
   { path: "/%61dmin/login", status: 303, shape: "redirect", location: "/admin/login", csp: "static" },
   // A case variant `next start`'s matcher runs the proxy on: sent to its lower-case path (308)
   // before any branch, bodiless, so with no CSP (`src/proxy.ts`, IS #414).
-  { path: "/admin/Login", status: 308, shape: "redirect", location: "/admin/login", csp: "none" },
+  { path: "/admin/Login", status: 308, shape: "redirect", location: "/admin/login", csp: "none", noStore: true },
+  // An admin route's case variant: the same 308, which `headers()` gives the static CSP.
+  { path: "/api/admin/Trucks", status: 308, shape: "redirect", location: "/api/admin/trucks", csp: "static", noStore: true },
 ];
 
 // The headers every answer carries (`next.config.ts`), written out here rather than
@@ -77,6 +80,9 @@ export function checkHeaders(expectation, response) {
   }
   if (headers.get("x-powered-by") !== null) problems.push(`x-powered-by "${headers.get("x-powered-by")}", expected none`);
 
+  if (expectation.noStore && !(headers.get("cache-control") ?? "").includes("no-store")) {
+    problems.push(`cache-control "${headers.get("cache-control") ?? ""}", expected no-store`);
+  }
   const csp = headers.get("content-security-policy");
   const count = policyCount(csp);
   if (expectation.csp === "none") {

@@ -65,6 +65,12 @@ function createNonce(): string {
   return btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))));
 }
 
+// The path with its letters lower-cased and its `%XX` escapes kept as they are: an escape's hex
+// digits aren't a case variant (`encodeURIComponent` writes them upper-case).
+function lowerCasePath(pathname: string): string {
+  return pathname.replace(/%[0-9A-Fa-f]{2}|[A-Z]+/g, (m) => (m[0] === "%" ? m : m.toLowerCase()));
+}
+
 // Every answer on `/admin` or `/admin/…` (`isAdminPagePath`) gets the nonce CSP (Phase 9 plan
 // step 9, IS #387): on the request, where Next reads the nonce and puts it on the scripts it
 // renders, and on the answer, set once over whatever `answerFor` returned, so the login, a
@@ -80,11 +86,6 @@ function createNonce(): string {
 // returned `NextResponse.next()` without it still put the nonce on every script, and the
 // answer's CSP replaced a static one configured for `/admin` (IS #387's PR, probed). How a
 // Vercel deploy handles it wasn't read, so neither is relied on.
-// The path with its letters lower-cased and its `%XX` escapes kept as they are: an escape's hex
-// digits aren't a case variant (`encodeURIComponent` writes them upper-case).
-function lowerCasePath(pathname: string): string {
-  return pathname.replace(/%[0-9A-Fa-f]{2}|[A-Z]+/g, (m) => (m[0] === "%" ? m : m.toLowerCase()));
-}
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -96,6 +97,10 @@ export async function proxy(request: NextRequest) {
   // cache keeps the redirect. Bodiless, like Next's own trailing-slash 308, so it carries no
   // CSP. The admin paths' variable segments are the routes' `[id]`s, UUIDs that Postgres's
   // `uuid` type prints lower-case, and `[...missing]`, a 404 whatever its case.
+  // A limit: a case variant of a form a server rewrites before this runs (`/Admin.rsc`,
+  // `/_next/data/<id>/Admin/….json`) arrives as its page path, so it is sent to that page,
+  // not to the RSC or data answer. The app links only lower-case paths, so its own RSC and
+  // data requests aren't case variants.
   const lower = lowerCasePath(pathname);
   if (pathname !== lower) {
     const to = NextResponse.redirect(new URL(`${lower}${request.nextUrl.search}`, request.url), 308);
