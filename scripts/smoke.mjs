@@ -27,6 +27,9 @@ export const EXPECTATIONS = [
   { path: "/admin/login", status: 200, shape: "html", csp: "nonce" },
   { path: "/admin", status: 303, shape: "redirect", location: "/admin/login", csp: "nonce" },
   { path: "/api/admin/trucks", status: 401, shape: "error", csp: "static" },
+  // A case variant of `/admin/login`: a 404 the proxy doesn't run on, so it needs the static
+  // CSP, which only `next.config.ts`'s `caseSensitiveRoutes` gives it (PR #411, round 1).
+  { path: "/Admin/login", status: 404, shape: "html", csp: "static" },
 ];
 
 // The headers every answer carries (`next.config.ts`), written out here rather than
@@ -39,11 +42,22 @@ export const STATIC_HEADERS = {
   "permissions-policy": "camera=(), microphone=(), payment=(), usb=(), geolocation=(self)",
 };
 
+// How many policies a `Content-Security-Policy` value holds (0 for none). `Headers` joins two
+// values with ", ", which no CSP here holds (`src/lib/http/csp.ts`), so a second policy is a
+// second `default-src`. Also `src/proxy.test.ts`'s.
+export function policyCount(csp) {
+  return csp?.match(/default-src/g)?.length ?? 0;
+}
+
+// The nonce a CSP admits scripts by, or undefined. Also `src/proxy.test.ts`'s.
+export function cspNonce(csp) {
+  return /'nonce-([^']+)'/.exec(csp ?? "")?.[1];
+}
+
 // Pure. `response` is { headers, body }: `headers` a `Headers`, `body` the text read. The
 // static headers, no `X-Powered-By`, and exactly one CSP of the expected kind, with
 // `frame-ancestors 'none'`. A "nonce" page's HTML must carry that nonce on every script,
-// which only a render per request can (the CSP would block the rest). `Headers` joins two
-// values with ", ", which no CSP here holds, so a second policy is a second `default-src`.
+// which only a render per request can (the CSP would block the rest).
 export function checkHeaders(expectation, response) {
   const problems = [];
   const { headers } = response;
@@ -54,13 +68,13 @@ export function checkHeaders(expectation, response) {
   if (headers.get("x-powered-by") !== null) problems.push(`x-powered-by "${headers.get("x-powered-by")}", expected none`);
 
   const csp = headers.get("content-security-policy");
-  const count = csp?.match(/default-src/g)?.length ?? 0;
+  const count = policyCount(csp);
   if (count !== 1) {
     problems.push(`${count} CSPs, expected 1`);
     return problems;
   }
   if (!/frame-ancestors 'none'(;|$)/.test(csp)) problems.push("CSP without frame-ancestors 'none'");
-  const nonce = /'nonce-([^']+)'/.exec(csp)?.[1];
+  const nonce = cspNonce(csp);
   if (expectation.csp === "static" && nonce !== undefined) problems.push("a nonce CSP, expected the static one");
   if (expectation.csp === "nonce") {
     if (nonce === undefined) problems.push("the static CSP, expected a nonce one");

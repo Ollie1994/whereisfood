@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { adminRefusal } from "@/lib/http/admin";
-import { CSP_HEADER, buildAdminCsp } from "@/lib/http/csp";
+import { CSP_HEADER, buildAdminCsp, cspEnv } from "@/lib/http/csp";
 import { foreignOriginRefusal, isSameOrigin, isWrite } from "@/lib/http/origin";
 import { LOGOUT_LABEL, LOGOUT_PATH, MFA_PATH, SESSION_CHECK_FAILED } from "@/lib/login";
 import { hasSessionCookie, mfaStepAllowed, requireAdmin } from "@/lib/services/admin-auth";
@@ -78,20 +78,19 @@ function createNonce(): string {
 // answer's CSP replaced a static one configured for `/admin` (IS #387's PR, probed). How a
 // Vercel deploy handles it wasn't read, so neither is relied on.
 export async function proxy(request: NextRequest) {
-  if (request.nextUrl.pathname.startsWith("/api/")) return answerFor(request, true);
-  const csp = buildAdminCsp(createNonce(), {
-    tilesUrl: process.env.NEXT_PUBLIC_PMTILES_URL,
-    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    dev: process.env.NODE_ENV === "development",
-  });
+  if (isApiPath(request.nextUrl.pathname)) return answerFor(request);
+  const csp = buildAdminCsp(createNonce(), cspEnv());
   request.headers.set(CSP_HEADER, csp);
-  const answer = await answerFor(request, false);
+  const answer = await answerFor(request);
   answer.headers.set(CSP_HEADER, csp);
   return answer;
 }
 
-async function answerFor(request: NextRequest, isApi: boolean): Promise<NextResponse> {
+const isApiPath = (pathname: string) => pathname.startsWith("/api/");
+
+async function answerFor(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl;
+  const isApi = isApiPath(pathname);
   // With `request`, so the nonce CSP reaches the login's render.
   if (pathname === LOGIN) return NextResponse.next({ request });
 

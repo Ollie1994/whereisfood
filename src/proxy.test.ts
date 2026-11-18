@@ -5,6 +5,7 @@ import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LINK, TOTP, unsignedJwt as jwt } from "../tests/jwt";
 import nextConfig from "../next.config";
+import { cspNonce, policyCount } from "../scripts/smoke.mjs";
 
 // The proxy's matcher and its answers, with the session client and the db layer stubbed.
 // Real sessions: `tests/integration/admin-auth.test.ts`.
@@ -419,13 +420,9 @@ describe("proxy's CSP", () => {
     return broken;
   };
 
-  // The CSP on the answer, as one string: `Headers` joins two values with ", ", which no
-  // CSP here holds (`csp.ts`), so a second policy shows as a second `default-src`.
-  const policies = (response: Response) => {
-    const csp = response.headers.get("content-security-policy") ?? "";
-    return csp.match(/default-src/g)?.length ?? 0;
-  };
-  const nonceOf = (csp: string | null) => /'nonce-([^']+)'/.exec(csp ?? "")?.[1];
+  // `smoke.mjs`'s readers of a CSP value: its policy count, and its nonce.
+  const policies = (response: Response) => policyCount(response.headers.get("content-security-policy"));
+  const nonceOf = (csp: string | null) => cspNonce(csp);
 
   it.each([
     ["/admin/login, returned early", () => request("/admin/login"), 200],

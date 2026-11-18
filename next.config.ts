@@ -1,21 +1,18 @@
 import type { NextConfig } from "next";
-import { CSP_HEADER, STATIC_HEADERS, buildStaticCsp } from "./src/lib/http/csp";
+import { CSP_HEADER, STATIC_HEADERS, buildStaticCsp, cspEnv } from "./src/lib/http/csp";
 
 // Every path but `/admin` and `/admin/…`, whose CSP is the proxy's nonce one, so each
 // answer there carries exactly one (`csp.ts`; `next.config.test.ts` reads which paths match).
+// Matched by exact case (`caseSensitiveRoutes` below), as the proxy's matcher is.
 const NOT_ADMIN = "/((?!admin$|admin/).*)";
 
 const nextConfig: NextConfig = {
   // No `X-Powered-By: Next.js` on any answer.
   poweredByHeader: false,
   async headers() {
-    const env = {
-      tilesUrl: process.env.NEXT_PUBLIC_PMTILES_URL,
-      dev: process.env.NODE_ENV === "development",
-    };
     return [
       { source: "/:path*", headers: [...STATIC_HEADERS] },
-      { source: NOT_ADMIN, headers: [{ key: CSP_HEADER, value: buildStaticCsp(env) }] },
+      { source: NOT_ADMIN, headers: [{ key: CSP_HEADER, value: buildStaticCsp(cspEnv()) }] },
     ];
   },
   // When `next dev` detects an AI coding agent, it writes a managed "agent rules" block
@@ -41,6 +38,14 @@ const nextConfig: NextConfig = {
     // code; advisories reach the owner through Dependabot alerts and `npm audit`, and
     // Next upgrades stay deliberate, each with a browser check. Owner's call, PR #179.
     agentUpgrade: false,
+    // `headers()`' sources match by exact case, as the proxy's matcher does. Without it Next
+    // matched them ignoring case (`filesystem.js`'s `buildCustomRoute`), so `NOT_ADMIN` also
+    // left out `/Admin/login` and `/ADMIN`, which the proxy doesn't run on: their 404s went
+    // out with no CSP (`next start`, PR #411, round 1). It reaches only `headers()`,
+    // `redirects()` and `rewrites()`, and this config has only `headers()`. The build writes
+    // it into the routes manifest (`caseSensitive`); whether a Vercel deploy honours it is
+    // read on the preview.
+    caseSensitiveRoutes: true,
   },
 };
 

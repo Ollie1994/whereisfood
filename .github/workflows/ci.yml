@@ -262,7 +262,7 @@ jobs:
       - run: npx supabase start -x "$SUPABASE_EXCLUDE"
       - run: npx supabase status -o env | node scripts/write-env-local.mjs
       - run: npm run build
-      # `next start` serves the build; smoke.mjs checks five paths at the URL from the
+      # `next start` serves the build; smoke.mjs checks its paths at the URL from the
       # server's own `Local:` line, once it has printed `Ready in` (CLAUDE.md, "Browser
       # checks: confirm which server answered"). A `next start` that can't bind prints
       # neither: with port 3000 already taken it printed `EADDRINUSE` and exited, and the

@@ -9,7 +9,19 @@ const answer = (path: string) =>
   unstable_getResponseFromNextConfig({ url: `http://127.0.0.1:3000${path}`, nextConfig });
 
 describe("next.config.ts's headers", () => {
-  const every = ["/", "/map", "/api/live", "/auth/callback", "/admin", "/admin/", "/admin/login", "/admin/trucks", "/maplibre/6.11.2/maplibre-gl-worker.mjs"];
+  const every = [
+    "/",
+    "/map",
+    "/api/live",
+    "/api/admin/trucks",
+    "/auth/callback",
+    "/admin",
+    "/admin/",
+    "/admin/login",
+    "/admin/mfa",
+    "/admin/trucks",
+    "/maplibre/6.11.2/maplibre-gl-worker.mjs",
+  ];
 
   it.each(every)("gives %s every static header", async (path) => {
     const headers = (await answer(path)).headers;
@@ -22,8 +34,19 @@ describe("next.config.ts's headers", () => {
   });
 
   // The proxy sets none on these: its matcher leaves out all but `/api/admin/…`, whose JSON
-  // it answers without one (`proxy.test.ts`). So this is their only CSP.
-  it.each(["/", "/map", "/api/live", "/api/admin/trucks", "/auth/callback", "/administrator", "/maplibre/6.11.2/maplibre-gl-worker.mjs"])(
+  // it answers without one (`proxy.test.ts`). So this is their only CSP. Not here: a case
+  // variant such as `/Admin/login`, which `caseSensitiveRoutes` gives the static CSP. Next's
+  // helper builds each route without that flag (`config-testing-utils.js`), so `smoke.mjs`
+  // reads it served.
+  it.each([
+    "/",
+    "/map",
+    "/api/live",
+    "/api/admin/trucks",
+    "/auth/callback",
+    "/administrator",
+    "/maplibre/6.11.2/maplibre-gl-worker.mjs",
+  ])(
     "gives %s the static CSP",
     async (path) => {
       const csp = (await answer(path)).headers.get("content-security-policy");

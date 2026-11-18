@@ -260,10 +260,14 @@ said otherwise: Phase 4 plan decision #14.
 - `next.config.ts`'s `headers()` gives every path the static headers (`csp.ts`'s
   `STATIC_HEADERS`) and every path but `/admin` and `/admin/…` the static CSP. The proxy gives
   every `/admin` page answer the nonce CSP, a new nonce per request, set on the request (where
-  Next reads it) and on the answer, so each carries exactly one. No `X-Powered-By`
-- **Every page under `/admin` renders per request** (`connection()` in the admin layout): a
-  page built at build time carries no nonce, so the CSP blocks its scripts (Next's CSP
-  guide). The build's route table shows each `/admin` page as `ƒ`; nothing in CI checks it
+  Next reads it) and on the answer, so each carries exactly one. No `X-Powered-By`.
+  `experimental.caseSensitiveRoutes` keeps `headers()` matching by exact case, as the proxy's
+  matcher does, so a case variant (`/Admin/login`, a 404) still gets the static CSP
+- **Every page under `/admin` renders per request** (`connection()` in the admin layout), its
+  404 included (`admin/[...missing]`, under that layout): a page built at build time carries
+  no nonce, so the CSP blocks its scripts (Next's CSP guide). The build's route table shows
+  each `/admin` page as `ƒ`. In CI only `/admin/login`'s is checked (smoke's nonce check); the
+  others, behind a session, are the route table's and the browser checks'
 - A new host a page loads from or calls (a script, an API, tiles) goes into `csp.ts`, then a
   browser check reads the console for violations. `smoke.mjs` checks the headers on what it
   reaches without a session; `next.config.test.ts` which paths get which; `proxy.test.ts` the

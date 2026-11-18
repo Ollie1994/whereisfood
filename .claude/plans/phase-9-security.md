@@ -278,8 +278,9 @@ before the closing steps (#12).
    `/admin` with a session, `/admin/trucks` and the place picker, reading the response
    headers; `/api/live` re-checked MISS → HIT → STALE on the preview. The public pages'
    cookie limit is recorded as accepted (#6). **Built by IS #387**: `src/lib/http/csp.ts`,
-   `next.config.ts`'s `headers()`, the proxy's nonce CSP, `connection()` in the admin layout,
-   `smoke.mjs`'s `checkHeaders`; the sources are open decision 9's.
+   `next.config.ts`'s `headers()` (matched by exact case, `caseSensitiveRoutes`), the proxy's
+   nonce CSP, `connection()` in the admin layout and the `/admin` 404 under it
+   (`admin/[...missing]`), `smoke.mjs`'s `checkHeaders`; the sources are open decision 9's.
 10. **One ZAP baseline scan** by hand, locally against `next start` or on the preview
     (Q33); each finding settled.
 11. **Monitoring** (Q14): usage, spend and 5xx alerts on Vercel and Supabase where the free

@@ -45,10 +45,17 @@ const CASES = [
     wrongStatus: { status: 200, contentType: JSON_TYPE, json: { trucks: [] } },
     wrongShape: { status: 401, contentType: JSON_TYPE, json: { message: "x" } },
   },
+  {
+    path: "/Admin/login",
+    right: { status: 404, contentType: HTML },
+    // The login served for a case variant.
+    wrongStatus: { status: 200, contentType: HTML },
+    wrongShape: { status: 404, contentType: JSON_TYPE, json: {} },
+  },
 ];
 
 describe("EXPECTATIONS", () => {
-  it("covers exactly the five paths the tests below check", () => {
+  it("covers exactly the paths the tests below check", () => {
     expect(EXPECTATIONS.map((e) => e.path).sort()).toEqual(CASES.map((c) => c.path).sort());
   });
   it("names each path's CSP: the proxy's nonce one under /admin, the static one elsewhere", () => {

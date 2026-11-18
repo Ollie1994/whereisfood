@@ -4,9 +4,10 @@
 // the request (where Next reads the nonce to put it on its scripts, `content-security-policy.md`
 // in `node_modules/next/dist/docs`) and on the answer.
 //
-// Pure: the caller passes the environment. `next.config.ts` reads it at build time and the
-// proxy's `NEXT_PUBLIC_*` reads are inlined at build time, so both CSPs name the origins the
-// build was made with.
+// The builders are pure: the caller passes the environment, which both callers read through
+// `cspEnv()`, so the two CSPs name the same tiles origin. `next.config.ts` calls it at build
+// time and the proxy's bundle has its `NEXT_PUBLIC_*` reads inlined at build time, so both
+// CSPs name the origins the build was made with.
 //
 // The sources, from what the pages load (the plan's open decision 9 records the browser
 // checks that ran with them):
@@ -35,6 +36,15 @@ export type CspEnv = {
   // (Next's guide, "Development vs Production Considerations").
   dev: boolean;
 };
+
+// The environment both CSPs are built from (`next.config.ts`, `src/proxy.ts`).
+export function cspEnv(): CspEnv {
+  return {
+    tilesUrl: process.env.NEXT_PUBLIC_PMTILES_URL,
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    dev: process.env.NODE_ENV === "development",
+  };
+}
 
 // Every path, `/admin` included. HSTS is Phase 11's (the custom domain). `geolocation=(self)`:
 // the place picker asks for the admin's position (`useGeolocation.ts`).
