@@ -165,6 +165,12 @@ said otherwise: Phase 4 plan decision #14.
   where the thief knows the current one (a leaked password), which the first-factor check
   makes useless in the app (plan #13); and the email can be suppressed by spending the
   project's `email_sent` budget first (plan #13, IS #378)
+- **The emailed code is 10 digits and lives 15 minutes** (Phase 9 plan step 8, open decision
+  1, IS #386): `config.toml`'s `otp_length` and `otp_expiry`, which `supabase/config.test.ts`
+  pins and `auth-routes.test.ts` checks on the running stack; a hosted project's are the
+  hosted-settings checklist's (#390). No email shows the code, but Auth accepts it. Spending
+  the built-in email's budget so the admin's link doesn't come is accepted until custom SMTP
+  (open decision 1)
 
 **Secrets** (IS #176; the repo is public)
 - Never commit a `.env*` file except `.env.example`, which holds variable names only.

@@ -262,7 +262,10 @@ before the closing steps (#12).
    `CLAUDE.md` states as the limit.
 8. **The login-abuse fix** chosen from the probes of steps 1, 2 and 5a (open decision 1),
    built and tested, or accepted with a reason; the rate limits it sets, locally and on the
-   preview (open decision 8).
+   preview (open decision 8). **Settled by IS #386** (open decisions 1 and 8, the owner,
+   2026-11-18): the email code 10 digits and 15 minutes, locally (`config.toml`, pinned by
+   `config.test.ts`, and an integration test of the running stack's code) and on the preview;
+   the email-budget lockout accepted; the rate limits kept.
 9. **Security headers** (Q11): the static headers on every page, `/admin` included, and the
    static CSP on every page but `/admin`, in `next.config.ts`; the nonce CSP from the proxy
    on every `/admin` answer that renders a page (`/admin/login` and the 503 page included),
@@ -276,9 +279,10 @@ before the closing steps (#12).
 11. **Monitoring** (Q14): usage, spend and 5xx alerts on Vercel and Supabase where the free
     plans allow (open decision 7), and the log retentions read and recorded.
 12. **The hosted-settings checklist** (Q21) in `README.md` (#10), each item checked on the
-    preview: sign-ups off, redirect URLs, rate limits, the email OTP length (no email shows the
-    code, #14, but a guessed one is an `aal1` session at Auth, so its length sets open
-    decision 1's odds), MFA, the JWT expiry (a token's life, which bounds how far a clock skew
+    preview: sign-ups off, redirect URLs, rate limits, the email OTP length and life (no
+    email shows the code, #14, but a guessed one is an `aal1` session at Auth, so they set
+    open decision 1's odds: 10 digits and 900 s, IS #386), MFA,
+    the JWT expiry (a token's life, which bounds how far a clock skew
     moves the session time-box, `admin-auth.ts`; the owner, 2026-11-18, IS #384), the
     password settings (secure password change, its email, and
     require current password, with the admin's password set long and random, IS #378), secure email change (#13), the audit log setting, Deployment
@@ -626,6 +630,20 @@ the sequential integration suite's time down.
    limiting when using secret API keys" (IS #377). The proxy's refreshes go through
    `createSessionClient`, with the anon key, so it covers the flood only if they carried a
    secret API key, which the session client doesn't hold.
+   → **settled** (the owner, 2026-11-18, IS #386), threat by threat:
+   - **Guessing the emailed code:** `otp_length` 10 and `otp_expiry` 900 s (15 minutes, the
+     magic link's life too), locally and on the preview. By the model above, a burst of 30
+     and 0.1 a second over 900 s is about 120 guesses per IP per code, 1 in 83 million at 10
+     digits; a guess still gives only an `otp` session, which `requireAdmin` refuses.
+   - **Spending the email budget** (`email_sent` 2 an hour, per project) so the admin's link
+     doesn't come: **accepted** for Phase 9. It needs the admin's address, which no page
+     shows; it grants no access, and a session lives on to its time-box; a CAPTCHA wouldn't
+     stop 2 requests an hour made by hand. Custom SMTP (the Owners phase), whose per-user
+     interval and budget are the project's own, is the fix it waits for.
+   - **The forged-cookie flood** and **TOTP guessing:** no change. The flood shows the 503
+     page while it lasts and ends no session; TOTP guessing needs the admin's email first,
+     and its hosted limit isn't probed (IS #381 found none locally).
+   - No CAPTCHA, so open decision 9 adds no CAPTCHA source.
 2. ~~**The time-box's length (step 6).** Leaning 12 hours. Its source: the `amr` claim's
    first-factor timestamp (#4, IS #377), which a later TOTP verify leaves as it was (IS #381's
    probe).~~ → **settled** (the owner, 2026-11-18, IS #384, approving the leaning): 12 hours
@@ -666,6 +684,9 @@ the sequential integration suite's time down.
    The preview's values, read 2026-11-17, match `config.toml`'s: `email_sent` 2 an hour,
    `token_refresh` 150, `token_verifications` 30 and `sign_in_sign_ups` 30 per 5 minutes;
    its "Minimum interval per user", 60 s, "Only applies when Custom SMTP is configured".
+   → **settled** (the owner, 2026-11-18, IS #386): kept as they are, locally and on the
+   preview. A lower `token_refresh` would make the forged-cookie flood easier, since the
+   server's refreshes share its per-IP budget.
 9. **The CSP's exact sources (step 9)**, found by the browser checks: MapLibre's worker, the
    tiles' range requests, the basemap's glyphs and sprite, `blob:`/`data:` images, the
    Supabase URL the login calls, and the CAPTCHA's script and frame if step 8 chooses one.

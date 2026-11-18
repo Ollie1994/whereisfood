@@ -74,6 +74,19 @@ describe("sign-ups are off ([auth] enable_signup = false)", () => {
   });
 });
 
+// The code Auth issues with every link, which no email shows but Auth accepts (Phase 9 plan
+// #14): 10 digits on the running stack, as `config.toml` sets (plan step 8, IS #386).
+// `config.test.ts` pins the file; this shows the stack read it.
+describe("the email code", () => {
+  it("is 10 digits", async () => {
+    const userId = await createFixtureAuthUser();
+    const { data, error } = await supabaseAdmin.auth.admin.generateLink({ type: "magiclink", email: fixtureEmail(userId) });
+
+    expect(error).toBeNull();
+    expect(data.properties?.email_otp).toMatch(/^\d{10}$/);
+  });
+});
+
 describe("GET /auth/callback", () => {
   let userId: string;
   let code: string;
