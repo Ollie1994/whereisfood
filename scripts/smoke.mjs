@@ -20,7 +20,7 @@ import { resolve } from "node:path";
 // - `/admin` is redirected by the proxy with 303 to `/admin/login` (src/proxy.ts), and
 //   `/api/admin/*` answers 401 `{ error }` before any Auth or database call.
 // - `csp`: "static" for `next.config.ts`'s, "nonce" for the proxy's on `/admin`
-//   (`src/lib/http/csp.ts`).
+//   (`src/lib/http/csp.ts`), "none" for the proxy's bodiless case redirect.
 export const EXPECTATIONS = [
   { path: "/map", status: 200, shape: "html", csp: "static" },
   { path: "/api/live", status: 200, shape: "entries", csp: "static" },
@@ -29,17 +29,17 @@ export const EXPECTATIONS = [
   { path: "/api/admin/trucks", status: 401, shape: "error", csp: "static" },
   // A case variant of `/admin/login`: a 404 the proxy doesn't run on under `next start`, so it
   // needs the static CSP, which only `next.config.ts`'s `caseSensitiveRoutes` gives it (PR #411,
-  // round 1). On Vercel the proxy runs there and sends it to `/admin/login` (308) with the nonce
-  // CSP (IS #414, PR #415), so run against a Vercel deploy this path expects the wrong answer:
-  // these are `next start`'s.
+  // round 1). On Vercel the proxy runs there and sends it to `/admin/login` (a bodiless 308; IS
+  // #414), so run against a Vercel deploy this path expects the wrong answer: these are
+  // `next start`'s.
   { path: "/Admin/login", status: 404, shape: "html", csp: "static" },
   // Forms the proxy runs on but sets no CSP for (`isAdminPagePath`), so they rest on
   // `headers()`' static one (PR #411, rounds 3 and 4).
   { path: "/admin.json", status: 303, shape: "redirect", location: "/admin/login", csp: "static" },
   { path: "/%61dmin/login", status: 303, shape: "redirect", location: "/admin/login", csp: "static" },
-  // A case variant `next start`'s matcher runs the proxy on: sent to its lower-case path before
-  // any branch, not past the session check (PR #415, round 2).
-  { path: "/admin/Login", status: 308, shape: "redirect", location: "/admin/login", csp: "nonce" },
+  // A case variant `next start`'s matcher runs the proxy on: sent to its lower-case path (308)
+  // before any branch, bodiless, so with no CSP (`src/proxy.ts`, IS #414).
+  { path: "/admin/Login", status: 308, shape: "redirect", location: "/admin/login", csp: "none" },
 ];
 
 // The headers every answer carries (`next.config.ts`), written out here rather than
@@ -79,6 +79,10 @@ export function checkHeaders(expectation, response) {
 
   const csp = headers.get("content-security-policy");
   const count = policyCount(csp);
+  if (expectation.csp === "none") {
+    if (count !== 0) problems.push(`${count} CSPs, expected none`);
+    return problems;
+  }
   if (count !== 1) {
     problems.push(`${count} CSPs, expected 1`);
     return problems;

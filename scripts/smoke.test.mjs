@@ -55,7 +55,7 @@ const CASES = [
   {
     path: "/admin/Login",
     right: { status: 308, location: "/admin/login", origin: "http://127.0.0.1:3000" },
-    // Let through to the `/admin` 404, past the session check (PR #415, round 2).
+    // Let through to the `/admin` 404 rather than sent to the login's lower-case path.
     wrongStatus: { status: 404, contentType: HTML, origin: "http://127.0.0.1:3000" },
     wrongShape: { status: 308, location: "/admin/Login", origin: "http://127.0.0.1:3000" },
   },
@@ -72,9 +72,13 @@ describe("EXPECTATIONS", () => {
   it("covers exactly the paths the tests below check", () => {
     expect(EXPECTATIONS.map((e) => e.path).sort()).toEqual(CASES.map((c) => c.path).sort());
   });
-  // By exact case, as `next start` matches (`smoke.mjs`'s `/Admin/login`), not `isAdminPagePath`.
-  it("names each path's CSP: the proxy's nonce one under /admin, the static one elsewhere", () => {
-    for (const { path, csp } of EXPECTATIONS) expect(csp, path).toBe(/^\/admin(\/|$)/.test(path) ? "nonce" : "static");
+  // By exact case, as `next start` matches: the proxy runs on `/admin/…` (a case variant there is
+  // its bodiless redirect), not on `/Admin/…` (`next.config.ts`'s static CSP).
+  it("names each path's CSP: none on the proxy's case redirect, its nonce one under /admin, the static one elsewhere", () => {
+    for (const { path, csp } of EXPECTATIONS) {
+      const kind = !/^\/admin(\/|$)/.test(path) ? "static" : path === path.toLowerCase() ? "nonce" : "none";
+      expect(csp, path).toBe(kind);
+    }
   });
 });
 
@@ -158,6 +162,12 @@ describe("checkHeaders", () => {
   it("fails a wrong value and an X-Powered-By", () => {
     expect(checkHeaders(byPath("/map"), answer(STATIC_CSP, { "x-frame-options": "SAMEORIGIN" }))).toHaveLength(1);
     expect(checkHeaders(byPath("/map"), answer(STATIC_CSP, { "x-powered-by": "Next.js" }))).toEqual(['x-powered-by "Next.js", expected none']);
+  });
+
+  // The proxy's bodiless case redirect carries none (IS #414).
+  it("passes the case redirect with no CSP, and fails it with one", () => {
+    expect(checkHeaders(byPath("/admin/Login"), answer(null))).toEqual([]);
+    expect(checkHeaders(byPath("/admin/Login"), answer(nonceCsp("abc")))).toEqual(["1 CSPs, expected none"]);
   });
 
   it("fails no CSP, and two", () => {

@@ -476,63 +476,51 @@ describe("proxy's CSP", () => {
     expect(response.status).toBe(303);
     expect(response.headers.get("content-security-policy")).toBeNull();
   });
-
-  // A case variant, where Vercel runs the proxy and `headers()` leaves it out (IS #414).
-  it.each(["/Admin/login", "/ADMIN", "/Admin/trucks"])("puts exactly one nonce CSP on %s", async (path) => {
-    const response = await proxy(request(path));
-    expect(policies(response)).toBe(1);
-    expect(cspNonce(response.headers.get("content-security-policy"))).toBeDefined();
-  });
-
-  // What the preview showed broken: an admin's `/Admin/trucks`, now sent to `/admin/trucks`
-  // with the nonce CSP rather than rendered as the `/admin` 404 with none.
-  it("sends a signed-in /Admin/trucks to /admin/trucks with 308 and one nonce CSP, unforwarded", async () => {
-    admin();
-    const response = await proxy(request("/Admin/trucks", SESSION));
-
-    expect(response.status).toBe(308);
-    expect(response.headers.get("location")).toBe(new URL("/admin/trucks", new NextRequest(ORIGIN).url).href);
-    expect(forwarded(response)).toBe(false);
-    expect(policies(response)).toBe(1);
-  });
 });
 
-// A case variant goes to its lower-case path before any branch (IS #414; PR #415, round 2):
-// on Vercel the matcher runs the proxy on `/Admin/…` and `/API/admin/…`, under `next start`
-// on `/admin/Login`. No branch or Auth call sees the variant.
+// A path that isn't lower-case goes to its lower-case form (308, `no-store`, no CSP: bodiless)
+// before the CSP or any branch, and with no Auth call. On Vercel the matcher runs the proxy on
+// `/Admin/…` and `/API/admin/…`, under `next start` on `/admin/Login` (IS #414).
 describe("proxy on a case variant", () => {
   const to = (path: string) => new URL(path, new NextRequest(ORIGIN).url).href;
+  const redirected = (response: Response, lower: string) => {
+    expect(response.status).toBe(308);
+    expect(response.headers.get("location")).toBe(to(lower));
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.get("content-security-policy")).toBeNull();
+    expect(getSession).not.toHaveBeenCalled();
+    expect(getUser).not.toHaveBeenCalled();
+  };
 
   it.each([
     ["/admin/Login", "/admin/login"],
     ["/admin/MFA", "/admin/mfa"],
     ["/ADMIN", "/admin"],
+    ["/Admin/trucks", "/admin/trucks"],
     ["/API/admin/trucks", "/api/admin/trucks"],
-  ])("sends %s to %s with 308, with no Auth call", async (path, lower) => {
-    const response = await proxy(request(path, SESSION));
-
-    expect(response.status).toBe(308);
-    expect(response.headers.get("location")).toBe(to(lower));
-    expect(getUser).not.toHaveBeenCalled();
-    expect(getSession).not.toHaveBeenCalled();
+  ])("sends %s to %s, with a session cookie and no Auth call", async (path, lower) => {
+    redirected(await proxy(request(path, SESSION)), lower);
   });
 
   it("keeps the query string", async () => {
-    const response = await proxy(request("/API/admin/places?truckId=x"));
-    expect(response.headers.get("location")).toBe(to("/api/admin/places?truckId=x"));
+    redirected(await proxy(request("/API/admin/places?truckId=x")), "/api/admin/places?truckId=x");
   });
 
   // 308 keeps a write's method and body; the lower-case path then refuses a foreign one (#16).
-  it("sends a write on a case variant on with 308, before the origin check", async () => {
+  it("sends a foreign write on a case variant to the lower-case path, before the origin check", async () => {
     const headers = { host: "127.0.0.1:3000", cookie: SESSION, origin: "https://evil.example" };
     const response = await proxy(new NextRequest(`${ORIGIN}/API/admin/trucks`, { method: "POST", headers, body: "{}" }));
-
-    expect(response.status).toBe(308);
-    expect(getUser).not.toHaveBeenCalled();
+    redirected(response, "/api/admin/trucks");
   });
 
-  it("leaves an encoded path as it is (lower-casing changes nothing): /%41dmin/login", async () => {
-    const response = await proxy(request("/%41dmin/login"));
-    expect(response.status).toBe(303);
+  // An escape's hex digits aren't a case variant: `/admin/%C3%A9` is left as it is, and a
+  // letter beside an escape is lower-cased with the escape kept.
+  it("keeps %XX escapes as they are", async () => {
+    expect((await proxy(request("/admin/%C3%A9"))).status).toBe(303);
+    redirected(await proxy(request("/Admin/%C3%A9")), "/admin/%C3%A9");
+  });
+
+  it("leaves an encoded letter as it is: /%41dmin/login", async () => {
+    expect((await proxy(request("/%41dmin/login"))).status).toBe(303);
   });
 });

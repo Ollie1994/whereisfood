@@ -265,9 +265,10 @@ said otherwise: Phase 4 plan decision #14.
   Case variants (`/Admin/…`): under `next start` the proxy doesn't run on them and
   `experimental.caseSensitiveRoutes` gives them the static CSP; on Vercel, which ignores that
   flag, the proxy runs on them. Wherever the proxy runs on a path that isn't lower-case
-  (`/Admin/…`, `/API/admin/…`, `/admin/Login`), it sends it to its lower-case path (308)
-  before any branch, with the nonce CSP where `isAdminPagePath` (which ignores case) holds, so
-  the branches, the router and `headers()` see one form of the path (IS #414, PR #415)
+  (`/Admin/…`, `/API/admin/…`, `/admin/Login`), it sends it to its lower-case path (308,
+  `no-store`, `%XX` escapes kept) before the CSP or any branch, so those, the router and
+  `headers()` see one form of the path; the redirect is bodiless and carries no CSP, like Next's
+  trailing-slash 308 below (IS #414, PR #415)
 - **Every page under `/admin` renders per request** (`connection()` in the admin layout), its
   404 included (`admin/[...missing]`, under that layout): a page built at build time carries
   no nonce, so the CSP blocks its scripts (Next's CSP guide). Its 404 and error pages are
@@ -285,8 +286,9 @@ said otherwise: Phase 4 plan decision #14.
   (`next.config.ts`, `isAdminPagePath`); Next's own trailing-slash redirect (`/admin/login/`, a
   308 with no body) carries no CSP, since Next answers it before the proxy. On the preview
   (IS #387's read, 2026-11-18), Vercel sent one CSP on `/admin.rsc` and `/_next/data/…`;
-  its toolbar's `vercel.live` script, styles and iframe were refused, so the toolbar is off
-  for pre-production deploys (the hosted-settings checklist, #390)
+  its toolbar's `vercel.live` script, styles and iframe were refused, so the owner turned the
+  toolbar off for pre-production deploys (2026-11-18, a comment on #387; a comment on #390 asks
+  the hosted-settings checklist to name it)
 
 **API responses**
 - All errors return `{ "error": "message" }` with the correct HTTP status code

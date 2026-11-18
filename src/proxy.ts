@@ -80,11 +80,31 @@ function createNonce(): string {
 // returned `NextResponse.next()` without it still put the nonce on every script, and the
 // answer's CSP replaced a static one configured for `/admin` (IS #387's PR, probed). How a
 // Vercel deploy handles it wasn't read, so neither is relied on.
+// The path with its letters lower-cased and its `%XX` escapes kept as they are: an escape's hex
+// digits aren't a case variant (`encodeURIComponent` writes them upper-case).
+function lowerCasePath(pathname: string): string {
+  return pathname.replace(/%[0-9A-Fa-f]{2}|[A-Z]+/g, (m) => (m[0] === "%" ? m : m.toLowerCase()));
+}
+
 export async function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  // A path that isn't lower-case goes to its lower-case form first, before the CSP or any
+  // branch, so those, the router and `headers()` all see one form of it. On Vercel the matcher
+  // runs this on `/Admin/…`, which `headers()` leaves out there, and `/API/admin/…` (the preview,
+  // IS #414); under `next start` on `/admin/Login`. 308 keeps a write's method and body, which
+  // the lower-case path then checks (#16); `no-store`, as every admin route answer has, so no
+  // cache keeps the redirect. Bodiless, like Next's own trailing-slash 308, so it carries no
+  // CSP. The admin paths' variable segments are the routes' `[id]`s, UUIDs that Postgres's
+  // `uuid` type prints lower-case, and `[...missing]`, a 404 whatever its case.
+  const lower = lowerCasePath(pathname);
+  if (pathname !== lower) {
+    const to = NextResponse.redirect(new URL(`${lower}${request.nextUrl.search}`, request.url), 308);
+    to.headers.set("Cache-Control", "no-store");
+    return to;
+  }
   // Raw for `/admin.json` and `/%61dmin/…`, as `headers()` reads it; `/admin` for the forms a
-  // server has already turned into it (`isAdminPagePath`, which ignores case, so a case
-  // variant's redirect below carries the nonce CSP).
-  if (!isAdminPagePath(request.nextUrl.pathname)) return answerFor(request);
+  // server has already turned into it (`isAdminPagePath`).
+  if (!isAdminPagePath(pathname)) return answerFor(request);
   const csp = buildAdminCsp(createNonce(), cspEnv());
   request.headers.set(CSP_HEADER, csp);
   const answer = await answerFor(request);
@@ -94,18 +114,6 @@ export async function proxy(request: NextRequest) {
 
 async function answerFor(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl;
-  // A case variant goes to its lower-case path first (308, which keeps a write's method and
-  // body), so the branches below, the router and `headers()` all see one form of the path. On
-  // Vercel the matcher runs this on `/Admin/…` and `/API/admin/…` (`/API/admin/trucks` took a
-  // page's branch there: the preview, IS #414); under `next start` on `/admin/Login`, whose
-  // lower-cased branch let it past the session check to the `/admin` 404 (PR #415, round 2).
-  // Lower-casing the whole path is safe here: the admin paths' variable segments are the routes'
-  // `[id]`s, UUIDs that Postgres's `uuid` type prints lower-case, and `[...missing]`, a 404
-  // whatever its case (`src/app/admin`, `src/app/api/admin`).
-  const lower = pathname.toLowerCase();
-  if (pathname !== lower) {
-    return NextResponse.redirect(new URL(`${lower}${request.nextUrl.search}`, request.url), 308);
-  }
   const isApi = pathname.startsWith("/api/");
   // With `request`, so the nonce CSP reaches the login's render.
   if (pathname === LOGIN) return NextResponse.next({ request });

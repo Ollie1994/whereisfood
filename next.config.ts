@@ -8,7 +8,7 @@ import { CSP_HEADER, STATIC_HEADERS, buildStaticCsp, cspEnv } from "./src/lib/ht
 // Case variants (`/Admin/…`) differ by host: under `next start` this and the proxy's matcher
 // match by exact case (`caseSensitiveRoutes` below), so the proxy doesn't run on them and this
 // gives them the static CSP; on Vercel both ignore case, so this leaves them out and the proxy
-// sends them to their lower-case path (308) with the nonce CSP (`isAdminPagePath` ignores case;
+// sends them to their lower-case path (a bodiless 308, before it reads `isAdminPagePath`;
 // IS #414, PR #415). The forms a server turns into `/admin` before the proxy runs, `/admin.rsc`
 // and `/_next/data/<id>/…`, get both CSPs; under `next start` they carried one, the proxy's
 // (`isAdminPagePath`'s comment). A host that kept both would send the two, whose intersection
@@ -48,15 +48,15 @@ const nextConfig: NextConfig = {
     // Next upgrades stay deliberate, each with a browser check. Owner's call, PR #179.
     agentUpgrade: false,
     // Under `next start`, `headers()`' sources match by exact case, as the proxy's matcher does
-    // (on Vercel neither does: below). Without it Next
-    // matched them ignoring case (`filesystem.js`'s `buildCustomRoute`), so `NOT_ADMIN` also
-    // left out `/Admin/login` and `/ADMIN`, which the proxy doesn't run on: their 404s went
-    // out with no CSP (`next start`, PR #411, round 1). In 16.4.5 it sets how `headers()`,
+    // (on Vercel neither does: below). Without it Next matched them ignoring case
+    // (`filesystem.js`'s `buildCustomRoute`), so `NOT_ADMIN` also left out `/Admin/login` and
+    // `/ADMIN`, which the proxy doesn't run on: their 404s went out with no CSP (`next start`,
+    // PR #411, round 1). In 16.4.5 it sets how `headers()`,
     // `redirects()` and `rewrites()` match (`filesystem.js`), and this config has only
     // `headers()`; the build also writes it into the routes manifest (`caseSensitive`), whose
     // other readers weren't traced. A Vercel deploy doesn't honour it: there `headers()` left
-    // `/Admin/login` out, and the proxy ran on it, so `isAdminPagePath` ignores case (the
-    // preview, IS #414).
+    // `/Admin/login` out, and the proxy ran on it, so the proxy sends a case variant to its
+    // lower-case path first (the preview, IS #414).
     caseSensitiveRoutes: true,
   },
 };

@@ -59,24 +59,17 @@ export const STATIC_HEADERS: ReadonlyArray<{ key: string; value: string }> = [
 export const CSP_HEADER = "Content-Security-Policy";
 
 // Is `pathname` one the nonce CSP is for: `/admin` or `/admin/…`, the paths `next.config.ts`'s
-// `NOT_ADMIN` leaves out (`next.config.test.ts` checks the two agree on lower-case paths; on a
-// case variant `/Admin/…` they differ under `next start`, where the proxy doesn't run on it,
-// and smoke's `/Admin/login` reads one CSP there, the static one). The proxy passes its
+// `NOT_ADMIN` leaves out (`next.config.test.ts` checks the two agree). By exact case, as
+// `NOT_ADMIN` matches under `next start`: the proxy sends a path that isn't lower-case to its
+// lower-case form before it reads this (`proxy.ts`, IS #414). The proxy passes its
 // `nextUrl.pathname`. It also runs on forms its matcher adds or decodes, which `NOT_ADMIN` gives
 // the static CSP. On `/admin.json` and `/%61dmin/login` (a 404: Next routes the raw path) the
 // proxy then sets none, and the 404 renders. On Vercel `/%41dmin/login` did the same (one static
-// CSP, IS #414). Next hands the proxy `/admin.rsc` and
-// `/_next/data/<id>/admin.json` already turned into `/admin`, so they get its CSP too: under
-// `next start` one, the proxy's, and the data form's 404, with a session, has its scripts
-// blocked (PR #411, round 3, probed).
-//
-// Any case. On Vercel the proxy also runs on `/Admin/…`, and `headers()` leaves it out
-// (`caseSensitiveRoutes` isn't honoured there): signed in, `/Admin/trucks` rendered the `/admin`
-// 404 under the admin layout with no CSP (the preview, IS #414). Under `next start` the proxy
-// doesn't run on a case variant, so `headers()`' static CSP is its one there.
+// CSP, IS #414). Next hands the proxy `/admin.rsc` and `/_next/data/<id>/admin.json` already
+// turned into `/admin`, so they get its CSP too: under `next start` one, the proxy's, and the
+// data form's 404, with a session, has its scripts blocked (PR #411, round 3, probed).
 export function isAdminPagePath(pathname: string): boolean {
-  const path = pathname.toLowerCase();
-  return path === "/admin" || path.startsWith("/admin/");
+  return pathname === "/admin" || pathname.startsWith("/admin/");
 }
 
 // An absolute URL's origin; null for a relative or missing one, which `'self'` covers or

@@ -83,14 +83,13 @@ describe("buildStaticCsp", () => {
 });
 
 describe("isAdminPagePath", () => {
-  // A case variant too, which Vercel's proxy matches (IS #414).
-  it.each(["/admin", "/admin/", "/admin/login", "/admin/trucks/x", "/Admin/login", "/ADMIN", "/Admin/trucks"])(
-    "is true for %s",
-    (path) => expect(isAdminPagePath(path)).toBe(true),
-  );
+  it.each(["/admin", "/admin/", "/admin/login", "/admin/trucks/x"])("is true for %s", (path) => {
+    expect(isAdminPagePath(path)).toBe(true);
+  });
 
-  // The forms Next's proxy matcher adds, and paths that only start like it.
-  it.each(["/admin.json", "/admin.rsc", "/_next/data/x/admin.json", "/administrator", "/Administrator", "/api/admin/trucks", "/map", "/%61dmin/login"])(
+  // The forms Next's proxy matcher adds, paths that only start like it, and case variants, which
+  // the proxy sends to their lower-case path before it reads this (IS #414).
+  it.each(["/admin.json", "/admin.rsc", "/_next/data/x/admin.json", "/administrator", "/Admin/login", "/ADMIN", "/api/admin/trucks", "/map", "/%61dmin/login"])(
     "is false for %s",
     (path) => expect(isAdminPagePath(path)).toBe(false),
   );

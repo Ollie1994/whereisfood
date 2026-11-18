@@ -35,9 +35,9 @@ describe("next.config.ts's headers", () => {
 
   // The proxy sets none on these: its matcher leaves out all but `/api/admin/…`, whose JSON
   // it answers without one (`proxy.test.ts`). So this is their only CSP. Not here: a case
-  // variant such as `/Admin/login`, which `caseSensitiveRoutes` gives the static CSP. Next's
-  // helper builds each route without that flag (`config-testing-utils.js`), so `smoke.mjs`
-  // reads it served.
+  // variant such as `/Admin/login`, which `caseSensitiveRoutes` gives the static CSP under
+  // `next start`: Next's helper throws on one (the agreement test below), so `smoke.mjs` reads
+  // it served.
   it.each([
     "/",
     "/map",
