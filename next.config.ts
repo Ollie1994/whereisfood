@@ -3,8 +3,8 @@ import { CSP_HEADER, STATIC_HEADERS, buildStaticCsp, cspEnv } from "./src/lib/ht
 
 // Every path but `/admin` and `/admin/…`, whose CSP is the proxy's nonce one, so each
 // answer there carries exactly one (`csp.ts`; `next.config.test.ts` reads which paths match).
-// The proxy sets its CSP exactly where `csp.ts`'s `isAdminPagePath` holds on the raw path, so
-// the two must agree; `next.config.test.ts` checks them on the forms the proxy's matcher adds.
+// The proxy sets its CSP exactly where `csp.ts`'s `isAdminPagePath` holds on the path it reads,
+// so the two must agree; `next.config.test.ts` checks them on the forms the proxy's matcher adds.
 // Matched by exact case (`caseSensitiveRoutes` below), as the proxy's matcher is. The forms a
 // server turns into `/admin` before the proxy runs, `/admin.rsc` and `/_next/data/<id>/…`, get
 // both CSPs; under `next start` they carried one, the proxy's (`isAdminPagePath`'s comment). A

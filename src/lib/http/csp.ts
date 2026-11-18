@@ -59,9 +59,9 @@ export const STATIC_HEADERS: ReadonlyArray<{ key: string; value: string }> = [
 export const CSP_HEADER = "Content-Security-Policy";
 
 // Is `pathname` one the nonce CSP is for: `/admin` or `/admin/…`, the paths `next.config.ts`'s
-// `NOT_ADMIN` leaves out (`next.config.test.ts` checks the two agree). Read raw, as `headers()`
-// reads it. The proxy also runs on forms its matcher adds or decodes, which `NOT_ADMIN` gives the
-// static CSP. On `/admin.json` and `/%61dmin/login` (a 404: Next routes the raw path) the proxy
+// `NOT_ADMIN` leaves out (`next.config.test.ts` checks the two agree). The proxy passes its
+// `nextUrl.pathname`. It also runs on forms its matcher adds or decodes, which `NOT_ADMIN` gives
+// the static CSP. On `/admin.json` and `/%61dmin/login` (a 404: Next routes the raw path) the proxy
 // then sets none, and the 404 renders. Next hands the proxy `/admin.rsc` and
 // `/_next/data/<id>/admin.json` already turned into `/admin`, so they get its CSP too: under
 // `next start` one, the proxy's, and the data form's 404, with a session, has its scripts

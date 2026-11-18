@@ -70,7 +70,9 @@ function createNonce(): string {
 // renders, and on the answer, set once over whatever `answerFor` returned, so the login, a
 // redirect, the 503 page and the throw's page each carry exactly one. `next.config.ts` gives
 // those paths no CSP of its own, and gives the rest the proxy runs on its static one: the
-// routes' JSON, and the forms Next's matcher adds (`/admin.json`), which get none here.
+// routes' JSON, and the forms Next's matcher adds (`/admin.json`), which get none here. Not
+// exactly one on `/admin.rsc` and `/_next/data/<id>/admin.json`: a server hands them here as
+// `/admin`, and `headers()` reads them raw, so they get both (`isAdminPagePath`, `CLAUDE.md`).
 //
 // The request's copy is what Next's guide sets, and what `proxy.test.ts` checks reaches the
 // render. Under `next start` it alone isn't needed: Next 16.4.5's router also copies each
@@ -79,9 +81,9 @@ function createNonce(): string {
 // answer's CSP replaced a static one configured for `/admin` (IS #387's PR, probed). How a
 // Vercel deploy handles it wasn't read, so neither is relied on.
 export async function proxy(request: NextRequest) {
-  // The path as `request.url` has it, raw, as `headers()` reads it (`isAdminPagePath` says
-  // which forms a server has already turned into `/admin`).
-  if (!isAdminPagePath(new URL(request.url).pathname)) return answerFor(request);
+  // The same path `answerFor` reads. Raw for `/admin.json` and `/%61dmin/…`, as `headers()`
+  // reads it; `/admin` for the forms a server has already turned into it (`isAdminPagePath`).
+  if (!isAdminPagePath(request.nextUrl.pathname)) return answerFor(request);
   const csp = buildAdminCsp(createNonce(), cspEnv());
   request.headers.set(CSP_HEADER, csp);
   const answer = await answerFor(request);

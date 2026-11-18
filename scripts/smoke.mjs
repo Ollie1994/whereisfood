@@ -30,6 +30,10 @@ export const EXPECTATIONS = [
   // A case variant of `/admin/login`: a 404 the proxy doesn't run on, so it needs the static
   // CSP, which only `next.config.ts`'s `caseSensitiveRoutes` gives it (PR #411, round 1).
   { path: "/Admin/login", status: 404, shape: "html", csp: "static" },
+  // Forms the proxy runs on but sets no CSP for (`isAdminPagePath`), so they rest on
+  // `headers()`' static one (PR #411, rounds 3 and 4).
+  { path: "/admin.json", status: 303, shape: "redirect", location: "/admin/login", csp: "static" },
+  { path: "/%61dmin/login", status: 303, shape: "redirect", location: "/admin/login", csp: "static" },
 ];
 
 // The headers every answer carries (`next.config.ts`), written out here rather than

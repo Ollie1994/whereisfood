@@ -477,4 +477,3 @@ describe("proxy's CSP", () => {
     expect(response.headers.get("content-security-policy")).toBeNull();
   });
 });
-

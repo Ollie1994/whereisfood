@@ -52,6 +52,13 @@ const CASES = [
     wrongStatus: { status: 200, contentType: HTML },
     wrongShape: { status: 404, contentType: JSON_TYPE, json: {} },
   },
+  ...["/admin.json", "/%61dmin/login"].map((path) => ({
+    path,
+    right: { status: 303, location: "/admin/login", origin: "http://127.0.0.1:3000" },
+    // Served with no session: the proxy not guarding it.
+    wrongStatus: { status: 200, contentType: HTML, origin: "http://127.0.0.1:3000" },
+    wrongShape: { status: 303, location: "/map", origin: "http://127.0.0.1:3000" },
+  })),
 ];
 
 describe("EXPECTATIONS", () => {
@@ -131,6 +138,7 @@ describe("checkHeaders", () => {
     expect(checkHeaders(byPath("/admin/login"), answer(nonceCsp("abc"), {}, PAGE))).toEqual([]);
     expect(checkHeaders(byPath("/admin"), answer(nonceCsp("abc")))).toEqual([]);
     expect(checkHeaders(byPath("/Admin/login"), answer(STATIC_CSP, {}, "<script>x</script>"))).toEqual([]);
+    expect(checkHeaders(byPath("/admin.json"), answer(STATIC_CSP))).toEqual([]);
   });
 
   it.each(Object.keys(STATIC_HEADERS))("fails a missing %s", (name) => {
