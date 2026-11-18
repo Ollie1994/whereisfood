@@ -56,7 +56,7 @@ describe("POST /auth/logout", () => {
     expect(response.status).toBe(303);
     expect(response.headers.get("location")).toBe("/admin/login");
     expect(cleared(response).sort()).toEqual(["sb-127-auth-token", "sb-127-auth-token-code-verifier"]);
-    expect(signOut).toHaveBeenCalledWith({ scope: "local" });
+    expect(signOut).toHaveBeenCalledWith({ scope: "global" });
   });
 
   it("also clears a cookie a refresh wrote under a new name before Auth failed", async () => {

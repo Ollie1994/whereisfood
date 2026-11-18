@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { NextRequest } from "next/server";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { GET as callback } from "@/app/auth/callback/route";
+import { GET as trucks } from "@/app/api/admin/trucks/route";
 import { POST as logout } from "@/app/auth/logout/route";
 import { supabaseAdmin } from "@/lib/supabase";
 import {
@@ -163,20 +164,23 @@ describe("GET /auth/callback", () => {
 });
 
 describe("POST /auth/logout", () => {
-  // Signed in once for the block: the admin on two devices, a non-admin, and a session
-  // to expire.
+  // Signed in once for the block: the admin on two devices, both at `aal2`, a non-admin,
+  // and a session to expire.
   let phone: { jar: Map<string, string>; accessToken: string };
   let laptop: { jar: Map<string, string>; accessToken: string };
-  let nonAdmin: { jar: Map<string, string> };
+  let nonAdmin: { jar: Map<string, string>; accessToken: string };
   let toExpire: { jar: Map<string, string>; accessToken: string };
 
   beforeAll(async () => {
-    const admin = await sessionUser({ isAdmin: true });
+    const admin = await sessionUser({ isAdmin: true, aal2: true });
     phone = admin;
-    laptop = await sessionFor(admin.userId);
+    laptop = await sessionFor(admin.userId, { aal2: true });
     nonAdmin = await sessionUser();
     toExpire = await sessionUser();
   }, SIGN_IN_TIMEOUT);
+
+  // An admin request on the jar's session, as the browser's next one would be.
+  const adminRequest = (jar: Map<string, string>) => trucks(request("/api/admin/trucks", { cookie: cookieHeader(jar) }));
 
   async function expectLoggedOut(jar: Map<string, string>) {
     const response = await logout(request("/auth/logout", { method: "POST", cookie: cookieHeader(jar) }));
@@ -201,11 +205,20 @@ describe("POST /auth/logout", () => {
     expect(await accepted(phone.accessToken)).toBe(true);
   });
 
-  it("clears an admin's session cookies and ends that session only, not the admin's other device", async () => {
+  // `scope: "global"` (Phase 9 plan, #5): every session of the user ends, and no other
+  // user's.
+  it("clears an admin's session cookies and ends every session of the admin, the other device's next request refused", async () => {
+    expect((await adminRequest(phone.jar)).status).toBe(200);
+    expect((await adminRequest(laptop.jar)).status).toBe(200);
+
     await expectLoggedOut(laptop.jar);
 
     expect(await accepted(laptop.accessToken)).toBe(false);
-    expect(await accepted(phone.accessToken)).toBe(true);
+    expect(await accepted(phone.accessToken)).toBe(false);
+    const next = await adminRequest(phone.jar);
+    expect(next.status).toBe(401);
+    expect(await next.json()).toEqual({ error: "Du är inte inloggad" });
+    expect(await accepted(nonAdmin.accessToken)).toBe(true);
   });
 
   it("clears a non-admin's session cookies", async () => {

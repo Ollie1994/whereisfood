@@ -3,11 +3,12 @@ import { withErrorHandling } from "@/lib/http/handler";
 import { foreignOriginRefusal, isSameOrigin, redirectTo } from "@/lib/http/origin";
 import { createSessionClient, writingCookies } from "@/lib/supabase-session";
 
-// Ends this device's session: `LogoutButton`'s form POST. No admin check, so a
-// non-admin or an expired session can clear its cookies too (Phase 7 plan, #28).
+// Ends every session of the signed-in user: `LogoutButton`'s form POST. No admin check, so
+// a non-admin or an expired session can clear its cookies too (Phase 7 plan, #28).
 //
-// `scope: 'local'` ends only this session, not the admin's other devices (#28). Then
-// every `sb-*` cookie is deleted here whatever Auth answered: `_signOut`
+// `scope: "global"`: logging out on one device logs out the others too, so a session
+// someone made separately dies with any logout (Phase 9 plan, #5; it was `local` from
+// Phase 7's #28). Then every `sb-*` cookie is deleted here whatever Auth answered: `_signOut`
 // (`@supabase/auth-js` 2.106.2, `dist/main`) returns without removing the session on a
 // session error, and on an Auth error other than 401, 403 or 404. Its test stubs both.
 //
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest) {
     // `createSessionClient` says, not a logout that never reached Auth.
     const supabase = createSessionClient(writingCookies(request, response));
     try {
-      const { error } = await supabase.auth.signOut({ scope: "local" });
+      const { error } = await supabase.auth.signOut({ scope: "global" });
       if (error) console.error("[auth/logout] signOut answered with an error:", error);
     } catch (err) {
       console.error("[auth/logout] signOut threw:", err);
