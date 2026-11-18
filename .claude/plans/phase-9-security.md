@@ -327,7 +327,9 @@ before the closing steps (#12).
     (the audit-log setting, on for the preview since 2026-11-18, and what the table keeps, as
     open decision 7 records it), Part 1 where it describes the login, the backups item's restore (it
     recreates the admin by its old id, which must get a long random password, README's "5.
-    Create the admin user"), and the README's status parts; in the
+    Create the admin user"), "Before the production deploy"'s advisor item ("No hosted
+    advisor run is recorded here": the preview's is, in README's "Hosted settings
+    checklist", IS #390), and the README's status parts; in the
     Phase 9 row, "Admin and auth" and the "Phase 7 open decisions 1–5" row, "6-digit" goes, since
     the code doesn't ship in Phase 9 (#14). It
     carries forward the decisions that outlive the phase (#4–#11, #13 and #14 at least, #14
