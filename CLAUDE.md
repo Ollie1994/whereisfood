@@ -278,10 +278,10 @@ said otherwise: Phase 4 plan decision #14.
 - Limits: the public pages' CSP admits inline scripts (plan #6); no HSTS until the custom
   domain (Phase 11); `/admin.rsc` and `/_next/data/<id>/admin.json`, which a server turns into
   `/admin` before the proxy, get both CSPs, of which `next start` sent only the proxy's
-  (`next.config.ts`, `isAdminPagePath`); Next's own
-  trailing-slash redirect (`/admin/login/`, a 308 with no body) carries no CSP, since Next
-  answers it before the proxy; whether a Vercel deploy honours `caseSensitiveRoutes`, sends
-  one CSP on those forms, and injects a toolbar script both CSPs refuse is read on the preview
+  (`next.config.ts`, `isAdminPagePath`); Next's own trailing-slash redirect (`/admin/login/`, a
+  308 with no body) carries no CSP, since Next answers it before the proxy; whether a Vercel
+  deploy honours `caseSensitiveRoutes`, sends one CSP on those forms, and injects a toolbar
+  script both CSPs refuse is read on the preview
 
 **API responses**
 - All errors return `{ "error": "message" }` with the correct HTTP status code
