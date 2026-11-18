@@ -95,8 +95,8 @@ function allowedFirstFactor(claims: Claims | null): { method: string; timestamp:
 // (Auth's clock when it issued the token, which Auth has just verified). When Auth's clock
 // runs ahead of this server's, the age is then Auth's, so the skew doesn't lengthen the box;
 // a fresh session's `iat` is at or after its sign-in on the same clock, so its age starts
-// near zero. A token without a numeric `iat` is read on `now` alone. (Round 2 on PR #408, the owner's call; round 1 had left the skew as
-// a limit.)
+// near zero. A token without a numeric `iat` is read on `now` alone. (Round 2 on PR #408,
+// the owner's call; round 1 had left the skew as a limit.)
 //
 // Two limits:
 // - While Auth runs ahead, the age is read at the token's issue, not at Auth's time now, so a
