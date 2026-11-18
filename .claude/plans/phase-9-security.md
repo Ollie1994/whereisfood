@@ -254,7 +254,9 @@ before the closing steps (#12).
    12 hours (open decision 2), in `verify`, so the MFA page's `mfaStepAllowed` refuses an old
    `aal1` session too; a failed sign-out answers unavailable, as a refused first factor's does.
 7. **Logout ends every session** (#5): `signOut({ scope: "global" })`; an integration test
-   that another session's next request is refused.
+   that another session's next request is refused. **Settled by IS #385:** the button stays
+   "Logga ut" (the owner, 2026-11-18). An access token already issued still reads PostgREST
+   until its `exp` (probed), which `CLAUDE.md` states as the limit.
 8. **The login-abuse fix** chosen from the probes of steps 1, 2 and 5a (open decision 1),
    built and tested, or accepted with a reason; the rate limits it sets, locally and on the
    preview (open decision 8).
