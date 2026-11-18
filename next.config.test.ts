@@ -21,7 +21,8 @@ describe("next.config.ts's headers", () => {
     expect((await answer(path)).headers.get("content-security-policy")).toBeNull();
   });
 
-  // The proxy's matcher leaves these out (`proxy.test.ts`), so this is their only CSP.
+  // The proxy sets none on these: its matcher leaves out all but `/api/admin/…`, whose JSON
+  // it answers without one (`proxy.test.ts`). So this is their only CSP.
   it.each(["/", "/map", "/api/live", "/api/admin/trucks", "/auth/callback", "/administrator", "/maplibre/6.11.2/maplibre-gl-worker.mjs"])(
     "gives %s the static CSP",
     async (path) => {

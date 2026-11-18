@@ -8,8 +8,8 @@
 // proxy's `NEXT_PUBLIC_*` reads are inlined at build time, so both CSPs name the origins the
 // build was made with.
 //
-// The sources, from what the pages load (open decision 9's browser checks name what each
-// one was seen to need):
+// The sources, from what the pages load (the plan's open decision 9 records the browser
+// checks that ran with them):
 // - the tiles: `NEXT_PUBLIC_PMTILES_URL`, fetched with range requests (`map-setup.ts`'s
 //   `pmtiles://` protocol). Relative locally (`/gothenburg.pmtiles`, so `'self'`), an R2
 //   URL on deploys;

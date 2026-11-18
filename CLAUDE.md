@@ -262,8 +262,8 @@ said otherwise: Phase 4 plan decision #14.
   every `/admin` page answer the nonce CSP, a new nonce per request, set on the request (where
   Next reads it) and on the answer, so each carries exactly one. No `X-Powered-By`
 - **Every page under `/admin` renders per request** (`connection()` in the admin layout): a
-  page built at build time carries no nonce, and the CSP blocks all its scripts. The build's
-  route table shows each `/admin` page as `ƒ`; nothing in CI checks it
+  page built at build time carries no nonce, so the CSP blocks its scripts (Next's CSP
+  guide). The build's route table shows each `/admin` page as `ƒ`; nothing in CI checks it
 - A new host a page loads from or calls (a script, an API, tiles) goes into `csp.ts`, then a
   browser check reads the console for violations. `smoke.mjs` checks the headers on what it
   reaches without a session; `next.config.test.ts` which paths get which; `proxy.test.ts` the
