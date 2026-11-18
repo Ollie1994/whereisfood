@@ -42,21 +42,27 @@ function cleared(response: Response): string[] {
 beforeEach(() => {
   signOut.mockReset();
   vi.spyOn(console, "error").mockImplementation(() => {});
+  vi.spyOn(console, "warn").mockImplementation(() => {});
+  vi.mocked(console.error).mockClear();
+  vi.mocked(console.warn).mockClear();
 });
 
 describe("POST /auth/logout", () => {
   // A failed global sign-out lands on the login with `?error=logout`, whose text says other
   // devices may still be signed in (`LOGOUT_FAILED_PATH`). An error that says this session is
   // already gone (`isInvalidSession`) isn't a failure: the owner's call (IS #385).
+  // Each outcome's redirect, and what it logs: a failure one error, a session already gone
+  // one warning (the server's trace of a logout that ended no other session), none else.
   it.each([
-    ["no error", "/admin/login", () => signOut.mockResolvedValue({ error: null })],
-    ["a session already gone, its refresh refused", "/admin/login", () =>
+    ["no error", "/admin/login", { errors: 0, warnings: 0 }, () => signOut.mockResolvedValue({ error: null })],
+    ["a session already gone, its refresh refused", "/admin/login", { errors: 0, warnings: 1 }, () =>
       signOut.mockResolvedValue({ error: new AuthApiError("Invalid Refresh Token: Refresh Token Not Found", 400, "refresh_token_not_found") })],
-    ["a 500 from Auth, which _signOut answers without removing the session", "/admin/login?error=logout", () =>
+    ["a 500 from Auth, which _signOut answers without removing the session", "/admin/login?error=logout", { errors: 1, warnings: 0 }, () =>
       signOut.mockResolvedValue({ error: new AuthApiError("boom", 500, "unexpected_failure") })],
-    ["a failed fetch", "/admin/login?error=logout", () => signOut.mockResolvedValue({ error: new AuthRetryableFetchError("fetch failed", 0) })],
-    ["a throw", "/admin/login?error=logout", () => signOut.mockRejectedValue(new Error("network down"))],
-  ])("clears every sb-* cookie and answers 303, on %s, to %s", async (_, location, stub) => {
+    ["a failed fetch", "/admin/login?error=logout", { errors: 1, warnings: 0 }, () =>
+      signOut.mockResolvedValue({ error: new AuthRetryableFetchError("fetch failed", 0) })],
+    ["a throw", "/admin/login?error=logout", { errors: 1, warnings: 0 }, () => signOut.mockRejectedValue(new Error("network down"))],
+  ])("clears every sb-* cookie and answers 303, on %s, to %s, logging %o", async (_, location, logged, stub) => {
     stub();
     const response = await POST(logoutRequest());
 
@@ -64,16 +70,8 @@ describe("POST /auth/logout", () => {
     expect(response.headers.get("location")).toBe(location);
     expect(cleared(response).sort()).toEqual(["sb-127-auth-token", "sb-127-auth-token-code-verifier"]);
     expect(signOut).toHaveBeenCalledExactlyOnceWith({ scope: "global" });
-  });
-
-  it.each([
-    ["a session already gone", 0, new AuthApiError("Invalid Refresh Token: Refresh Token Not Found", 400, "refresh_token_not_found")],
-    ["a 500 from Auth", 1, new AuthApiError("boom", 500, "unexpected_failure")],
-  ])("logs %s as an error %i times", async (_, times, error) => {
-    signOut.mockResolvedValue({ error });
-    vi.mocked(console.error).mockClear();
-    await POST(logoutRequest());
-    expect(console.error).toHaveBeenCalledTimes(times);
+    expect(console.error).toHaveBeenCalledTimes(logged.errors);
+    expect(console.warn).toHaveBeenCalledTimes(logged.warnings);
   });
 
   it("also clears a cookie a refresh wrote under a new name before Auth failed", async () => {

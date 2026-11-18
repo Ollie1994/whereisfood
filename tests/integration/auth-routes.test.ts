@@ -164,14 +164,15 @@ describe("GET /auth/callback", () => {
 });
 
 describe("POST /auth/logout", () => {
-  // Signed in once for the block: an admin, a non-admin, and a session to expire. The
-  // global logout's describe signs in its own, since it ends every session of its user.
+  // Signed in once for the block: an admin at `aal2`, a session that works in the app, which
+  // a forged logout would target; a non-admin; and a session to expire. The global logout's
+  // describe signs in its own, since it ends every session of its user.
   let admin: { jar: Map<string, string>; accessToken: string };
   let nonAdmin: { jar: Map<string, string> };
   let toExpire: { jar: Map<string, string>; accessToken: string };
 
   beforeAll(async () => {
-    admin = await sessionUser({ isAdmin: true });
+    admin = await sessionUser({ isAdmin: true, aal2: true });
     nonAdmin = await sessionUser();
     toExpire = await sessionUser();
   }, SIGN_IN_TIMEOUT);

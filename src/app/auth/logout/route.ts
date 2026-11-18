@@ -25,8 +25,9 @@ import { createSessionClient, writingCookies } from "@/lib/supabase-session";
 //   (the time-box, a first factor outside the allowlist) or after a failed logout, whose
 //   cookies are gone, lands on the plain login. The failed logout's warning says to log in
 //   and out again, not to press it.
-// - That warning stays on the login page while the admin logs in again (`LoginForm`'s
-//   `logoutWarning`), but nothing repeats it once the login is done (the owner, IS #385).
+// - That warning lives in `?error=logout`. It stays on the login page after a link is sent
+//   (`LoginForm`'s `logoutWarning`), but a failed link replaces it (`/auth/callback`'s own
+//   `?error=`), and nothing repeats it once the login is done (the owner, IS #385).
 //
 // 303, not 307 (`NextResponse.redirect`'s default): the browser follows a 303 with a GET,
 // and a 307 would re-POST to the login page (#28).
@@ -42,8 +43,11 @@ export async function POST(request: NextRequest) {
     let failed = false;
     try {
       const { error } = await supabase.auth.signOut({ scope: "global" });
-      // A session already gone is a plain logout, not logged as an error.
-      if (error && !isInvalidSession(error)) {
+      // A session already gone is a plain logout, logged as a warning, not an error: the
+      // server's one trace of a logout that ended no other session (the first limit).
+      if (error && isInvalidSession(error)) {
+        console.warn("[auth/logout] signOut found the session already gone:", error);
+      } else if (error) {
         failed = true;
         console.error("[auth/logout] signOut answered with an error:", error);
       }

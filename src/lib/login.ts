@@ -104,11 +104,14 @@ const LOGIN_ERROR_TEXT: Record<LoginError, string> = {
     "Utloggningen kunde inte slutföras, så andra enheter kan fortfarande vara inloggade. Logga in och logga ut igen.",
 };
 
+// Is this `?error=` value one the login page has a text for?
+export function isLoginError(error: unknown): error is LoginError {
+  return typeof error === "string" && Object.hasOwn(LOGIN_ERROR_TEXT, error);
+}
+
 // The text for a `?error=` value, or `null` for none or one this page doesn't know.
 export function loginErrorMessage(error: string | string[] | undefined): string | null {
-  return typeof error === "string" && Object.hasOwn(LOGIN_ERROR_TEXT, error)
-    ? LOGIN_ERROR_TEXT[error as LoginError]
-    : null;
+  return isLoginError(error) ? LOGIN_ERROR_TEXT[error] : null;
 }
 
 // `/admin` when Auth couldn't say whether the session is valid.
