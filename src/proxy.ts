@@ -65,6 +65,12 @@ function createNonce(): string {
   return btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))));
 }
 
+// The path with its letters lower-cased and its `%XX` escapes kept as they are: an escape's hex
+// digits aren't a case variant (`encodeURIComponent` writes them upper-case).
+function lowerCasePath(pathname: string): string {
+  return pathname.replace(/%[0-9A-Fa-f]{2}|[A-Z]+/g, (m) => (m[0] === "%" ? m : m.toLowerCase()));
+}
+
 // Every answer on `/admin` or `/admin/…` (`isAdminPagePath`) gets the nonce CSP (Phase 9 plan
 // step 9, IS #387): on the request, where Next reads the nonce and puts it on the scripts it
 // renders, and on the answer, set once over whatever `answerFor` returned, so the login, a
@@ -81,9 +87,33 @@ function createNonce(): string {
 // answer's CSP replaced a static one configured for `/admin` (IS #387's PR, probed). How a
 // Vercel deploy handles it wasn't read, so neither is relied on.
 export async function proxy(request: NextRequest) {
-  // The same path `answerFor` reads. Raw for `/admin.json` and `/%61dmin/…`, as `headers()`
-  // reads it; `/admin` for the forms a server has already turned into it (`isAdminPagePath`).
-  if (!isAdminPagePath(request.nextUrl.pathname)) return answerFor(request);
+  const { pathname } = request.nextUrl;
+  // A path that isn't lower-case goes to its lower-case form first, before the CSP or any
+  // branch, so those, the router and `headers()` all see one form of it. On Vercel the matcher
+  // runs this on `/Admin/…`, which `headers()` leaves out there, and `/API/admin/…` (the preview,
+  // IS #414); under `next start` on `/admin/Login`. A write from another origin is refused
+  // first, with the one 403 the lower-case path would give it (#16); any other write keeps its
+  // method and body through the 308. `no-store`, as every admin route answer has, so no cache
+  // keeps the redirect. Bodiless, like Next's own trailing-slash 308, so it carries no
+  // CSP. The admin paths' variable segments are the routes' `[id]`s, UUIDs that Postgres's
+  // `uuid` type prints lower-case, and `[...missing]`, a 404 whatever its case.
+  // A limit: a case variant of a form a server rewrites before this runs (`/Admin.rsc`,
+  // `/_next/data/<id>/Admin/….json`) arrives as its page path, so it is sent to that page,
+  // not to the RSC or data answer. The app links only lower-case paths, so its own RSC and
+  // data requests aren't case variants. Both hosts read so far hand this `/_next/data/<id>/…`
+  // already turned into its page path (`/admin`, PR #411 round 3; the preview, IS #387), so a
+  // build id's mixed case never reaches the lower-casing; a host that passed it raw would see
+  // its data request redirected to a build id that doesn't exist.
+  const lower = lowerCasePath(pathname);
+  if (pathname !== lower) {
+    if (lower.startsWith("/api/") && isWrite(request.method) && !isSameOrigin(request)) return foreignOriginRefusal();
+    const to = NextResponse.redirect(new URL(`${lower}${request.nextUrl.search}`, request.url), 308);
+    to.headers.set("Cache-Control", "no-store");
+    return to;
+  }
+  // Raw for `/admin.json` and `/%61dmin/…`, as `headers()` reads it; `/admin` for the forms a
+  // server has already turned into it (`isAdminPagePath`).
+  if (!isAdminPagePath(pathname)) return answerFor(request);
   const csp = buildAdminCsp(createNonce(), cspEnv());
   request.headers.set(CSP_HEADER, csp);
   const answer = await answerFor(request);

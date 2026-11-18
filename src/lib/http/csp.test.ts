@@ -87,8 +87,9 @@ describe("isAdminPagePath", () => {
     expect(isAdminPagePath(path)).toBe(true);
   });
 
-  // The forms Next's proxy matcher adds, and paths that only start like it.
-  it.each(["/admin.json", "/admin.rsc", "/_next/data/x/admin.json", "/administrator", "/Admin/login", "/api/admin/trucks", "/map", "/%61dmin/login"])(
+  // The forms Next's proxy matcher adds, paths that only start like it, and case variants, which
+  // the proxy sends to their lower-case path before it reads this (IS #414).
+  it.each(["/admin.json", "/admin.rsc", "/_next/data/x/admin.json", "/administrator", "/Admin/login", "/ADMIN", "/api/admin/trucks", "/map", "/%61dmin/login"])(
     "is false for %s",
     (path) => expect(isAdminPagePath(path)).toBe(false),
   );

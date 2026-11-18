@@ -52,6 +52,20 @@ const CASES = [
     wrongStatus: { status: 200, contentType: HTML },
     wrongShape: { status: 404, contentType: JSON_TYPE, json: {} },
   },
+  {
+    path: "/admin/Login",
+    right: { status: 308, location: "/admin/login", origin: "http://127.0.0.1:3000" },
+    // Let through to the `/admin` 404 rather than sent to the login's lower-case path.
+    wrongStatus: { status: 404, contentType: HTML, origin: "http://127.0.0.1:3000" },
+    wrongShape: { status: 308, location: "/admin/Login", origin: "http://127.0.0.1:3000" },
+  },
+  {
+    path: "/api/admin/Trucks",
+    right: { status: 308, location: "/api/admin/trucks", origin: "http://127.0.0.1:3000" },
+    // The route served on its case variant.
+    wrongStatus: { status: 401, contentType: JSON_TYPE, json: { error: "x" }, origin: "http://127.0.0.1:3000" },
+    wrongShape: { status: 308, location: "/api/admin/Trucks", origin: "http://127.0.0.1:3000" },
+  },
   ...["/admin.json", "/%61dmin/login"].map((path) => ({
     path,
     right: { status: 303, location: "/admin/login", origin: "http://127.0.0.1:3000" },
@@ -65,8 +79,13 @@ describe("EXPECTATIONS", () => {
   it("covers exactly the paths the tests below check", () => {
     expect(EXPECTATIONS.map((e) => e.path).sort()).toEqual(CASES.map((c) => c.path).sort());
   });
-  it("names each path's CSP: the proxy's nonce one under /admin, the static one elsewhere", () => {
-    for (const { path, csp } of EXPECTATIONS) expect(csp, path).toBe(/^\/admin(\/|$)/.test(path) ? "nonce" : "static");
+  // By exact case, as `next start` matches: the proxy runs on `/admin/…` (a case variant there is
+  // its bodiless redirect), not on `/Admin/…` (`next.config.ts`'s static CSP).
+  it("names each path's CSP: none on the proxy's case redirect, its nonce one under /admin, the static one elsewhere", () => {
+    for (const { path, csp } of EXPECTATIONS) {
+      const kind = !/^\/admin(\/|$)/.test(path) ? "static" : path === path.toLowerCase() ? "nonce" : "none";
+      expect(csp, path).toBe(kind);
+    }
   });
 });
 
@@ -150,6 +169,18 @@ describe("checkHeaders", () => {
   it("fails a wrong value and an X-Powered-By", () => {
     expect(checkHeaders(byPath("/map"), answer(STATIC_CSP, { "x-frame-options": "SAMEORIGIN" }))).toHaveLength(1);
     expect(checkHeaders(byPath("/map"), answer(STATIC_CSP, { "x-powered-by": "Next.js" }))).toEqual(['x-powered-by "Next.js", expected none']);
+  });
+
+  // The proxy's bodiless case redirect carries none on `/admin/…`, and `no-store` (IS #414).
+  it("passes the case redirect with no CSP and no-store, and fails it with a CSP or without no-store", () => {
+    const NO_STORE = { "cache-control": "no-store" };
+    expect(checkHeaders(byPath("/admin/Login"), answer(null, NO_STORE))).toEqual([]);
+    expect(checkHeaders(byPath("/admin/Login"), answer(nonceCsp("abc"), NO_STORE))).toEqual(["1 CSPs, expected none"]);
+    expect(checkHeaders(byPath("/admin/Login"), answer(null))).toEqual(['cache-control "", expected no-store']);
+    expect(checkHeaders(byPath("/api/admin/Trucks"), answer(STATIC_CSP, NO_STORE))).toEqual([]);
+    expect(checkHeaders(byPath("/api/admin/Trucks"), answer(STATIC_CSP, { "cache-control": "public" }))).toEqual([
+      'cache-control "public", expected no-store',
+    ]);
   });
 
   it("fails no CSP, and two", () => {

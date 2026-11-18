@@ -35,9 +35,9 @@ describe("next.config.ts's headers", () => {
 
   // The proxy sets none on these: its matcher leaves out all but `/api/admin/…`, whose JSON
   // it answers without one (`proxy.test.ts`). So this is their only CSP. Not here: a case
-  // variant such as `/Admin/login`, which `caseSensitiveRoutes` gives the static CSP. Next's
-  // helper builds each route without that flag (`config-testing-utils.js`), so `smoke.mjs`
-  // reads it served.
+  // variant such as `/Admin/login`, which `caseSensitiveRoutes` gives the static CSP under
+  // `next start`: Next's helper throws on one (the agreement test below), so `smoke.mjs` reads
+  // it served.
   it.each([
     "/",
     "/map",
@@ -59,8 +59,15 @@ describe("next.config.ts's headers", () => {
 // `NOT_ADMIN` and the proxy's `isAdminPagePath` must agree, or a path gets two CSPs or none:
 // the static CSP exactly where the predicate is false, on the path the proxy reads. Not
 // `/admin.rsc` or `/_next/data/<id>/admin.json`: a server hands the proxy those as `/admin`,
-// so they get both CSPs, a limit (`next.config.ts`), which this helper can't show.
+// so they get both CSPs, a limit (`next.config.ts`), which this helper can't show. Nor a
+// case variant (`/Admin/login`): the helper throws on one ("extracting params from path failed"),
+// so the proxy's side is `proxy.test.ts`'s and Vercel's the preview's (IS #414).
 describe("NOT_ADMIN and isAdminPagePath", () => {
+  // The helper's throw on a case variant, which keeps case variants out of the list below.
+  it("can't be read on a case variant: the helper throws", async () => {
+    await expect(answer("/Admin/login")).rejects.toThrow("extracting params from path failed");
+  });
+
   it.each([
     "/admin",
     "/admin/",

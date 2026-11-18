@@ -261,9 +261,19 @@ said otherwise: Phase 4 plan decision #14.
   `STATIC_HEADERS`) and every path but `/admin` and `/admin/…` the static CSP. The proxy gives
   every answer on those paths (`csp.ts`'s `isAdminPagePath`, which `next.config.test.ts` checks
   against `headers()`) the nonce CSP, a new nonce per request, set on the request (where Next
-  reads it) and on the answer, so each carries exactly one. No `X-Powered-By`.
-  `experimental.caseSensitiveRoutes` keeps `headers()` matching by exact case, as the proxy's
-  matcher does, so a case variant (`/Admin/login`, a 404) still gets the static CSP
+  reads it) and on the answer, so each carries exactly one, but the case redirect below. No
+  `X-Powered-By`.
+  Case variants (`/Admin/…`): under `next start` the proxy doesn't run on them and
+  `experimental.caseSensitiveRoutes` gives them the static CSP; on Vercel, which ignores that
+  flag, the proxy runs on them. Wherever the proxy runs on a path that isn't lower-case
+  (`/Admin/…`, `/API/admin/…`, `/admin/Login`), it sends it to its lower-case path (308,
+  `no-store`, `%XX` escapes kept) before the CSP or any branch, so those, the router and
+  `headers()` see one form of the path. The redirect is bodiless and sets no CSP itself: on
+  `/admin/…` it carries none, like Next's trailing-slash 308 below; on `/api/admin/…`,
+  `headers()`' static one (smoke's `/api/admin/Trucks` under `next start`; on Vercel a proxy
+  answer on `/API/admin/trucks` carried it too, IS #414; PR #415). A write from another origin
+  on a case variant is refused with 403 first, as on its lower-case path. A case variant of a
+  form a server rewrites first (`/Admin.rsc`) is sent to its page path (`proxy.ts`)
 - **Every page under `/admin` renders per request** (`connection()` in the admin layout), its
   404 included (`admin/[...missing]`, under that layout): a page built at build time carries
   no nonce, so the CSP blocks its scripts (Next's CSP guide). Its 404 and error pages are
@@ -279,9 +289,11 @@ said otherwise: Phase 4 plan decision #14.
   domain (Phase 11); `/admin.rsc` and `/_next/data/<id>/admin.json`, which a server turns into
   `/admin` before the proxy, get both CSPs, of which `next start` sent only the proxy's
   (`next.config.ts`, `isAdminPagePath`); Next's own trailing-slash redirect (`/admin/login/`, a
-  308 with no body) carries no CSP, since Next answers it before the proxy; whether a Vercel
-  deploy honours `caseSensitiveRoutes`, sends one CSP on those forms, and injects a toolbar
-  script both CSPs refuse is read on the preview
+  308 with no body) carries no CSP, since Next answers it before the proxy. On the preview
+  (IS #387's read, 2026-11-18), Vercel sent one CSP on `/admin.rsc` and `/_next/data/…`;
+  its toolbar's `vercel.live` script, styles and iframe were refused, so the owner turned the
+  toolbar off for pre-production deploys (2026-11-18, a comment on #387; a comment on #390 asks
+  the hosted-settings checklist to name it)
 
 **API responses**
 - All errors return `{ "error": "message" }` with the correct HTTP status code

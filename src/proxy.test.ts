@@ -477,3 +477,60 @@ describe("proxy's CSP", () => {
     expect(response.headers.get("content-security-policy")).toBeNull();
   });
 });
+
+// A path that isn't lower-case goes to its lower-case form (308, `no-store`, no CSP: bodiless)
+// before the CSP or any branch, and with no Auth call; a write from another origin is refused
+// with 403 first. On Vercel the matcher runs the proxy on `/Admin/…` and `/API/admin/…`, under
+// `next start` on `/admin/Login` (IS #414).
+describe("proxy on a case variant", () => {
+  const to = (path: string) => new URL(path, new NextRequest(ORIGIN).url).href;
+  const redirected = (response: Response, lower: string) => {
+    expect(response.status).toBe(308);
+    expect(response.headers.get("location")).toBe(to(lower));
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.get("content-security-policy")).toBeNull();
+    expect(getSession).not.toHaveBeenCalled();
+    expect(getUser).not.toHaveBeenCalled();
+  };
+
+  it.each([
+    ["/admin/Login", "/admin/login"],
+    ["/admin/MFA", "/admin/mfa"],
+    ["/ADMIN", "/admin"],
+    ["/Admin/trucks", "/admin/trucks"],
+    ["/API/admin/trucks", "/api/admin/trucks"],
+  ])("sends %s to %s, with a session cookie and no Auth call", async (path, lower) => {
+    redirected(await proxy(request(path, SESSION)), lower);
+  });
+
+  it("keeps the query string", async () => {
+    redirected(await proxy(request("/API/admin/places?truckId=x")), "/api/admin/places?truckId=x");
+  });
+
+  // A foreign write is refused at once, as on the lower-case path, not redirected first (#16).
+  it("refuses a foreign write on a case variant with 403, before the redirect and any Auth call", async () => {
+    const headers = { host: "127.0.0.1:3000", cookie: SESSION, origin: "https://evil.example" };
+    const response = await proxy(new NextRequest(`${ORIGIN}/API/admin/trucks`, { method: "POST", headers, body: "{}" }));
+    expect(response.status).toBe(403);
+    expect(response.headers.get("location")).toBeNull();
+    expect(getUser).not.toHaveBeenCalled();
+  });
+
+  it("sends a same-origin write on a case variant on with 308, which keeps its method", async () => {
+    const headers = { host: "127.0.0.1:3000", cookie: SESSION, origin: ORIGIN };
+    const response = await proxy(new NextRequest(`${ORIGIN}/API/admin/trucks`, { method: "POST", headers, body: "{}" }));
+    redirected(response, "/api/admin/trucks");
+  });
+
+  // An escape's hex digits aren't a case variant: `/admin/%C3%A9` is left as it is, and a
+  // letter beside an escape is lower-cased with the escape kept.
+  it("keeps %XX escapes as they are", async () => {
+    expect((await proxy(request("/admin/%C3%A9"))).status).toBe(303);
+    expect((await proxy(request("/admin/%c3%A9"))).status).toBe(303);
+    redirected(await proxy(request("/Admin/%C3%A9")), "/admin/%C3%A9");
+  });
+
+  it("leaves an encoded letter as it is: /%41dmin/login", async () => {
+    expect((await proxy(request("/%41dmin/login"))).status).toBe(303);
+  });
+});

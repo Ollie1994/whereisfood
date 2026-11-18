@@ -59,13 +59,16 @@ export const STATIC_HEADERS: ReadonlyArray<{ key: string; value: string }> = [
 export const CSP_HEADER = "Content-Security-Policy";
 
 // Is `pathname` one the nonce CSP is for: `/admin` or `/admin/…`, the paths `next.config.ts`'s
-// `NOT_ADMIN` leaves out (`next.config.test.ts` checks the two agree). The proxy passes its
+// `NOT_ADMIN` leaves out (`next.config.test.ts` checks the two agree on the paths it lists, not
+// on case variants or the forms a server rewrites, its comment says why). By exact case, as
+// `NOT_ADMIN` matches under `next start`: the proxy sends a path that isn't lower-case to its
+// lower-case form before it reads this (`proxy.ts`, IS #414). The proxy passes its
 // `nextUrl.pathname`. It also runs on forms its matcher adds or decodes, which `NOT_ADMIN` gives
-// the static CSP. On `/admin.json` and `/%61dmin/login` (a 404: Next routes the raw path) the proxy
-// then sets none, and the 404 renders. Next hands the proxy `/admin.rsc` and
-// `/_next/data/<id>/admin.json` already turned into `/admin`, so they get its CSP too: under
-// `next start` one, the proxy's, and the data form's 404, with a session, has its scripts
-// blocked (PR #411, round 3, probed).
+// the static CSP. On `/admin.json` and `/%61dmin/login` (a 404: Next routes the raw path) the
+// proxy then sets none, and the 404 renders. On Vercel `/%41dmin/login` did the same (one static
+// CSP, IS #414). Next hands the proxy `/admin.rsc` and `/_next/data/<id>/admin.json` already
+// turned into `/admin`, so they get its CSP too: under `next start` one, the proxy's, and the
+// data form's 404, with a session, has its scripts blocked (PR #411, round 3, probed).
 export function isAdminPagePath(pathname: string): boolean {
   return pathname === "/admin" || pathname.startsWith("/admin/");
 }
