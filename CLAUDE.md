@@ -259,8 +259,9 @@ said otherwise: Phase 4 plan decision #14.
 **Security headers** (Phase 9 plan step 9, open decision 9, IS #387)
 - `next.config.ts`'s `headers()` gives every path the static headers (`csp.ts`'s
   `STATIC_HEADERS`) and every path but `/admin` and `/admin/…` the static CSP. The proxy gives
-  every `/admin` page answer the nonce CSP, a new nonce per request, set on the request (where
-  Next reads it) and on the answer, so each carries exactly one. No `X-Powered-By`.
+  every answer on those paths (`csp.ts`'s `isAdminPagePath`, which `next.config.test.ts` checks
+  against `headers()`) the nonce CSP, a new nonce per request, set on the request (where Next
+  reads it) and on the answer, so each carries exactly one. No `X-Powered-By`.
   `experimental.caseSensitiveRoutes` keeps `headers()` matching by exact case, as the proxy's
   matcher does, so a case variant (`/Admin/login`, a 404) still gets the static CSP
 - **Every page under `/admin` renders per request** (`connection()` in the admin layout), its
@@ -275,9 +276,12 @@ said otherwise: Phase 4 plan decision #14.
   reaches without a session; `next.config.test.ts` which paths get which; `proxy.test.ts` the
   nonce CSP's answers
 - Limits: the public pages' CSP admits inline scripts (plan #6); no HSTS until the custom
-  domain (Phase 11); an encoded `/admin` path (`/%61dmin/…`) gets both CSPs from Next's two
-  matchers, of which `next start` sent only the proxy's (`next.config.ts`); whether a Vercel
-  deploy honours `caseSensitiveRoutes` and sends one CSP there is read on the preview
+  domain (Phase 11); `/admin.rsc` and `/_next/data/<id>/admin.json`, which a server turns into
+  `/admin` before the proxy, get both CSPs, of which `next start` sent only the proxy's
+  (`next.config.ts`, `isAdminPagePath`); Next's own
+  trailing-slash redirect (`/admin/login/`, a 308 with no body) carries no CSP, since Next
+  answers it before the proxy; whether a Vercel deploy honours `caseSensitiveRoutes`, sends
+  one CSP on those forms, and injects a toolbar script both CSPs refuse is read on the preview
 
 **API responses**
 - All errors return `{ "error": "message" }` with the correct HTTP status code

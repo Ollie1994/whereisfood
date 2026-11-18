@@ -466,4 +466,15 @@ describe("proxy's CSP", () => {
   ] as const)("puts none on an admin route's JSON, %s", async (_, make) => {
     expect((await proxy(make())).headers.get("content-security-policy")).toBeNull();
   });
+
+  // Forms the proxy's matcher adds or decodes get `next.config.ts`'s static CSP, not this one
+  // (`isAdminPagePath`); they're refused all the same. Not `/admin.rsc` or `/_next/data/…`:
+  // a server hands the proxy those already turned into `/admin`, which a `NextRequest` here
+  // doesn't (`csp.ts`).
+  it.each(["/admin.json", "/%61dmin/login"])("puts none on %s, and still refuses it", async (path) => {
+    const response = await proxy(request(path));
+    expect(response.status).toBe(303);
+    expect(response.headers.get("content-security-policy")).toBeNull();
+  });
 });
+

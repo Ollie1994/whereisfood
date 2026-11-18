@@ -3,11 +3,12 @@ import { CSP_HEADER, STATIC_HEADERS, buildStaticCsp, cspEnv } from "./src/lib/ht
 
 // Every path but `/admin` and `/admin/…`, whose CSP is the proxy's nonce one, so each
 // answer there carries exactly one (`csp.ts`; `next.config.test.ts` reads which paths match).
-// Matched by exact case (`caseSensitiveRoutes` below), as the proxy's matcher is. Not by the
-// same path, though: the proxy also tries the decoded one, so `/%61dmin/login` reaches it and
-// `headers()` too. Under `next start` that answer carried one CSP, the proxy's (a 303 to the
-// login, PR #411, round 2); a host that kept both would send the two, whose intersection is
-// stricter than either.
+// The proxy sets its CSP exactly where `csp.ts`'s `isAdminPagePath` holds on the raw path, so
+// the two must agree; `next.config.test.ts` checks them on the forms the proxy's matcher adds.
+// Matched by exact case (`caseSensitiveRoutes` below), as the proxy's matcher is. The forms a
+// server turns into `/admin` before the proxy runs, `/admin.rsc` and `/_next/data/<id>/…`, get
+// both CSPs; under `next start` they carried one, the proxy's (`isAdminPagePath`'s comment). A
+// host that kept both would send the two, whose intersection is stricter than either.
 const NOT_ADMIN = "/((?!admin$|admin/).*)";
 
 const nextConfig: NextConfig = {

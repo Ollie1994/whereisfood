@@ -1,7 +1,7 @@
 import { unstable_getResponseFromNextConfig } from "next/experimental/testing/server";
 import { describe, expect, it } from "vitest";
 import nextConfig from "./next.config";
-import { STATIC_HEADERS } from "./src/lib/http/csp";
+import { STATIC_HEADERS, isAdminPagePath } from "./src/lib/http/csp";
 
 // Which paths `next.config.ts`'s `headers()` gives what (IS #387), through Next's own
 // matching of each `source`. The served answers: `scripts/smoke.mjs`.
@@ -54,4 +54,26 @@ describe("next.config.ts's headers", () => {
       expect(csp).not.toContain("'nonce-");
     },
   );
+});
+
+// `NOT_ADMIN` and the proxy's `isAdminPagePath` must agree, or a path gets two CSPs or none:
+// the static CSP exactly where the predicate is false, both reading the raw path. (A server
+// turns `/admin.rsc` and `/_next/data/…` into `/admin` before the proxy: `next.config.ts`.)
+describe("NOT_ADMIN and isAdminPagePath", () => {
+  it.each([
+    "/admin",
+    "/admin/",
+    "/admin/login",
+    "/admin/trucks/x",
+    "/admin.json",
+    "/admin.rsc",
+    "/_next/data/x/admin.json",
+    "/%61dmin/login",
+    "/administrator",
+    "/api/admin/trucks",
+    "/map",
+  ])("agree on %s", async (path) => {
+    const hasStatic = (await answer(path)).headers.get("content-security-policy") !== null;
+    expect(hasStatic).toBe(!isAdminPagePath(path));
+  });
 });

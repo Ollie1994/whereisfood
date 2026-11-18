@@ -130,6 +130,7 @@ describe("checkHeaders", () => {
     expect(checkHeaders(byPath("/api/admin/trucks"), answer(STATIC_CSP))).toEqual([]);
     expect(checkHeaders(byPath("/admin/login"), answer(nonceCsp("abc"), {}, PAGE))).toEqual([]);
     expect(checkHeaders(byPath("/admin"), answer(nonceCsp("abc")))).toEqual([]);
+    expect(checkHeaders(byPath("/Admin/login"), answer(STATIC_CSP, {}, "<script>x</script>"))).toEqual([]);
   });
 
   it.each(Object.keys(STATIC_HEADERS))("fails a missing %s", (name) => {

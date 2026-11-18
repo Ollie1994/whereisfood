@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BASEMAP_ASSETS, buildAdminCsp, buildStaticCsp, type CspEnv } from "./csp";
+import { BASEMAP_ASSETS, buildAdminCsp, buildStaticCsp, isAdminPagePath, type CspEnv } from "./csp";
 
 // A CSP as a map of directive → sources, so a test reads one directive whole.
 function directives(csp: string): Map<string, string[]> {
@@ -80,4 +80,16 @@ describe("buildStaticCsp", () => {
   it("adds eval only under next dev", () => {
     expect(directives(buildStaticCsp({ ...PROD, dev: true })).get("script-src")).toContain("'unsafe-eval'");
   });
+});
+
+describe("isAdminPagePath", () => {
+  it.each(["/admin", "/admin/", "/admin/login", "/admin/trucks/x"])("is true for %s", (path) => {
+    expect(isAdminPagePath(path)).toBe(true);
+  });
+
+  // The forms Next's proxy matcher adds, and paths that only start like it.
+  it.each(["/admin.json", "/admin.rsc", "/_next/data/x/admin.json", "/administrator", "/Admin/login", "/api/admin/trucks", "/map", "/%61dmin/login"])(
+    "is false for %s",
+    (path) => expect(isAdminPagePath(path)).toBe(false),
+  );
 });

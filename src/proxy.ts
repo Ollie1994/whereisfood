@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { adminRefusal } from "@/lib/http/admin";
-import { CSP_HEADER, buildAdminCsp, cspEnv } from "@/lib/http/csp";
+import { CSP_HEADER, buildAdminCsp, cspEnv, isAdminPagePath } from "@/lib/http/csp";
 import { foreignOriginRefusal, isSameOrigin, isWrite } from "@/lib/http/origin";
 import { LOGOUT_LABEL, LOGOUT_PATH, MFA_PATH, SESSION_CHECK_FAILED } from "@/lib/login";
 import { hasSessionCookie, mfaStepAllowed, requireAdmin } from "@/lib/services/admin-auth";
@@ -65,11 +65,12 @@ function createNonce(): string {
   return btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))));
 }
 
-// Every `/admin` page answer gets the nonce CSP (Phase 9 plan step 9, IS #387): on the
-// request, where Next reads the nonce and puts it on the scripts it renders, and on the
-// answer, set once over whatever `answerFor` returned, so the login, a redirect, the 503 page
-// and the throw's page each carry exactly one. `next.config.ts` gives `/admin` no CSP of its
-// own. The routes answer JSON and get none here.
+// Every answer on `/admin` or `/admin/…` (`isAdminPagePath`) gets the nonce CSP (Phase 9 plan
+// step 9, IS #387): on the request, where Next reads the nonce and puts it on the scripts it
+// renders, and on the answer, set once over whatever `answerFor` returned, so the login, a
+// redirect, the 503 page and the throw's page each carry exactly one. `next.config.ts` gives
+// those paths no CSP of its own, and gives the rest the proxy runs on its static one: the
+// routes' JSON, and the forms Next's matcher adds (`/admin.json`), which get none here.
 //
 // The request's copy is what Next's guide sets, and what `proxy.test.ts` checks reaches the
 // render. Under `next start` it alone isn't needed: Next 16.4.5's router also copies each
@@ -78,7 +79,9 @@ function createNonce(): string {
 // answer's CSP replaced a static one configured for `/admin` (IS #387's PR, probed). How a
 // Vercel deploy handles it wasn't read, so neither is relied on.
 export async function proxy(request: NextRequest) {
-  if (isApiPath(request.nextUrl.pathname)) return answerFor(request);
+  // The path as `request.url` has it, raw, as `headers()` reads it (`isAdminPagePath` says
+  // which forms a server has already turned into `/admin`).
+  if (!isAdminPagePath(new URL(request.url).pathname)) return answerFor(request);
   const csp = buildAdminCsp(createNonce(), cspEnv());
   request.headers.set(CSP_HEADER, csp);
   const answer = await answerFor(request);
@@ -86,11 +89,9 @@ export async function proxy(request: NextRequest) {
   return answer;
 }
 
-const isApiPath = (pathname: string) => pathname.startsWith("/api/");
-
 async function answerFor(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl;
-  const isApi = isApiPath(pathname);
+  const isApi = pathname.startsWith("/api/");
   // With `request`, so the nonce CSP reaches the login's render.
   if (pathname === LOGIN) return NextResponse.next({ request });
 
