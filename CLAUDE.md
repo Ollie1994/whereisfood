@@ -256,6 +256,33 @@ said otherwise: Phase 4 plan decision #14.
 - The proxy is a first filter, not the only check: every admin route checks again
   through `withAdmin` (API responses, below)
 
+**Security headers** (Phase 9 plan step 9, open decision 9, IS #387)
+- `next.config.ts`'s `headers()` gives every path the static headers (`csp.ts`'s
+  `STATIC_HEADERS`) and every path but `/admin` and `/admin/…` the static CSP. The proxy gives
+  every answer on those paths (`csp.ts`'s `isAdminPagePath`, which `next.config.test.ts` checks
+  against `headers()`) the nonce CSP, a new nonce per request, set on the request (where Next
+  reads it) and on the answer, so each carries exactly one. No `X-Powered-By`.
+  `experimental.caseSensitiveRoutes` keeps `headers()` matching by exact case, as the proxy's
+  matcher does, so a case variant (`/Admin/login`, a 404) still gets the static CSP
+- **Every page under `/admin` renders per request** (`connection()` in the admin layout), its
+  404 included (`admin/[...missing]`, under that layout): a page built at build time carries
+  no nonce, so the CSP blocks its scripts (Next's CSP guide). Its 404 and error pages are
+  its own (`admin/not-found.tsx`, `admin/error.tsx`), styled by classes: Next's built-in
+  ones apply inline styles, which the CSP blocks. The build's route table shows each `/admin`
+  page as `ƒ`. In CI only `/admin/login`'s is checked (smoke's nonce check); the others,
+  behind a session, are the route table's and the browser checks'
+- A new host a page loads from or calls (a script, an API, tiles) goes into `csp.ts`, then a
+  browser check reads the console for violations. `smoke.mjs` checks the headers on what it
+  reaches without a session; `next.config.test.ts` which paths get which; `proxy.test.ts` the
+  nonce CSP's answers
+- Limits: the public pages' CSP admits inline scripts (plan #6); no HSTS until the custom
+  domain (Phase 11); `/admin.rsc` and `/_next/data/<id>/admin.json`, which a server turns into
+  `/admin` before the proxy, get both CSPs, of which `next start` sent only the proxy's
+  (`next.config.ts`, `isAdminPagePath`); Next's own trailing-slash redirect (`/admin/login/`, a
+  308 with no body) carries no CSP, since Next answers it before the proxy; whether a Vercel
+  deploy honours `caseSensitiveRoutes`, sends one CSP on those forms, and injects a toolbar
+  script both CSPs refuse is read on the preview
+
 **API responses**
 - All errors return `{ "error": "message" }` with the correct HTTP status code
 - Never expose stack traces or internal errors to the client

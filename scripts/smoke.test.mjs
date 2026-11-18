@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EXPECTATIONS, checkResponse } from "./smoke.mjs";
+import { EXPECTATIONS, STATIC_HEADERS, checkHeaders, checkResponse } from "./smoke.mjs";
 
 const byPath = (path) => {
   const expectation = EXPECTATIONS.find((e) => e.path === path);
@@ -45,11 +45,28 @@ const CASES = [
     wrongStatus: { status: 200, contentType: JSON_TYPE, json: { trucks: [] } },
     wrongShape: { status: 401, contentType: JSON_TYPE, json: { message: "x" } },
   },
+  {
+    path: "/Admin/login",
+    right: { status: 404, contentType: HTML },
+    // The login served for a case variant.
+    wrongStatus: { status: 200, contentType: HTML },
+    wrongShape: { status: 404, contentType: JSON_TYPE, json: {} },
+  },
+  ...["/admin.json", "/%61dmin/login"].map((path) => ({
+    path,
+    right: { status: 303, location: "/admin/login", origin: "http://127.0.0.1:3000" },
+    // Served with no session: the proxy not guarding it.
+    wrongStatus: { status: 200, contentType: HTML, origin: "http://127.0.0.1:3000" },
+    wrongShape: { status: 303, location: "/map", origin: "http://127.0.0.1:3000" },
+  })),
 ];
 
 describe("EXPECTATIONS", () => {
-  it("covers exactly the five paths the tests below check", () => {
+  it("covers exactly the paths the tests below check", () => {
     expect(EXPECTATIONS.map((e) => e.path).sort()).toEqual(CASES.map((c) => c.path).sort());
+  });
+  it("names each path's CSP: the proxy's nonce one under /admin, the static one elsewhere", () => {
+    for (const { path, csp } of EXPECTATIONS) expect(csp, path).toBe(/^\/admin(\/|$)/.test(path) ? "nonce" : "static");
   });
 });
 
@@ -99,5 +116,70 @@ describe("checkResponse details", () => {
   });
   it("fails a body that isn't JSON", () => {
     expect(checkResponse(byPath("/api/live"), { status: 200, contentType: JSON_TYPE, json: undefined })).toHaveLength(1);
+  });
+});
+
+// `checkHeaders` (IS #387): the static headers, one CSP of the path's kind, and on a nonce
+// page every script carrying the CSP's nonce.
+describe("checkHeaders", () => {
+  const STATIC_CSP = "default-src 'self'; script-src 'self' 'unsafe-inline'; frame-ancestors 'none'";
+  const nonceCsp = (nonce) => `default-src 'self'; script-src 'self' 'nonce-${nonce}' 'strict-dynamic'; frame-ancestors 'none'`;
+  const PAGE = '<script nonce="abc" src="/a.js"></script><script nonce="abc">x</script>';
+  const answer = (csp, extra = {}, body = "") => {
+    const headers = new Headers({ ...STATIC_HEADERS, ...extra });
+    if (csp !== null) headers.set("content-security-policy", csp);
+    return { headers, body };
+  };
+
+  it("passes each path's right headers", () => {
+    expect(checkHeaders(byPath("/map"), answer(STATIC_CSP))).toEqual([]);
+    expect(checkHeaders(byPath("/api/live"), answer(STATIC_CSP))).toEqual([]);
+    expect(checkHeaders(byPath("/api/admin/trucks"), answer(STATIC_CSP))).toEqual([]);
+    expect(checkHeaders(byPath("/admin/login"), answer(nonceCsp("abc"), {}, PAGE))).toEqual([]);
+    expect(checkHeaders(byPath("/admin"), answer(nonceCsp("abc")))).toEqual([]);
+    expect(checkHeaders(byPath("/Admin/login"), answer(STATIC_CSP, {}, "<script>x</script>"))).toEqual([]);
+    expect(checkHeaders(byPath("/admin.json"), answer(STATIC_CSP))).toEqual([]);
+  });
+
+  it.each(Object.keys(STATIC_HEADERS))("fails a missing %s", (name) => {
+    const response = answer(STATIC_CSP);
+    response.headers.delete(name);
+    expect(checkHeaders(byPath("/map"), response)).toEqual([`${name} missing, expected "${STATIC_HEADERS[name]}"`]);
+  });
+
+  it("fails a wrong value and an X-Powered-By", () => {
+    expect(checkHeaders(byPath("/map"), answer(STATIC_CSP, { "x-frame-options": "SAMEORIGIN" }))).toHaveLength(1);
+    expect(checkHeaders(byPath("/map"), answer(STATIC_CSP, { "x-powered-by": "Next.js" }))).toEqual(['x-powered-by "Next.js", expected none']);
+  });
+
+  it("fails no CSP, and two", () => {
+    expect(checkHeaders(byPath("/map"), answer(null))).toEqual(["0 CSPs, expected 1"]);
+    const two = answer(STATIC_CSP);
+    two.headers.append("content-security-policy", nonceCsp("abc"));
+    expect(checkHeaders(byPath("/admin/login"), two)).toEqual(["2 CSPs, expected 1"]);
+  });
+
+  it("fails a CSP without frame-ancestors 'none'", () => {
+    expect(checkHeaders(byPath("/map"), answer("default-src 'self'; frame-ancestors 'self'"))).toEqual([
+      "CSP without frame-ancestors 'none'",
+    ]);
+  });
+
+  it("fails the wrong kind of CSP", () => {
+    expect(checkHeaders(byPath("/map"), answer(nonceCsp("abc")))).toEqual(["a nonce CSP, expected the static one"]);
+    expect(checkHeaders(byPath("/admin"), answer(STATIC_CSP))).toEqual(["the static CSP, expected a nonce one"]);
+  });
+
+  // A page built at build time: Next's scripts carry no nonce, or another request's.
+  it("fails a nonce page whose scripts lack the CSP's nonce, or that has none", () => {
+    const login = byPath("/admin/login");
+    expect(checkHeaders(login, answer(nonceCsp("xyz"), {}, PAGE))).toEqual(["2 of 2 scripts without the CSP's nonce"]);
+    expect(checkHeaders(login, answer(nonceCsp("abc"), {}, PAGE + "<script>y</script>"))).toEqual([
+      "1 of 3 scripts without the CSP's nonce",
+    ]);
+    expect(checkHeaders(login, answer(nonceCsp("abc"), {}, "<p>x</p>"))).toEqual(["no <script> in the page"]);
+    expect(checkHeaders(login, answer(nonceCsp("abc"), {}, PAGE + "<SCRIPT src=/x.js></SCRIPT>"))).toEqual([
+      "1 of 3 scripts without the CSP's nonce",
+    ]);
   });
 });

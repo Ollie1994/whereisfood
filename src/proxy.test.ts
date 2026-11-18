@@ -5,6 +5,7 @@ import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LINK, TOTP, unsignedJwt as jwt } from "../tests/jwt";
 import nextConfig from "../next.config";
+import { cspNonce, policyCount } from "../scripts/smoke.mjs";
 
 // The proxy's matcher and its answers, with the session client and the db layer stubbed.
 // Real sessions: `tests/integration/admin-auth.test.ts`.
@@ -397,5 +398,82 @@ describe("proxy on a throw", () => {
     expect(response.status).toBe(500);
     expect(await response.json()).toEqual({ error: "Internal server error" });
     expect(response.headers.get("cache-control")).toBe("no-store");
+  });
+});
+
+// The nonce CSP (Phase 9 plan step 9, IS #387). `next.config.ts` gives `/admin` none
+// (`next.config.test.ts`), so the proxy's is each page answer's only one. A forwarded answer
+// carries the request's headers for the render as `x-middleware-request-<name>`
+// (`NextResponse.next({ request })`), which is where Next reads the nonce from.
+describe("proxy's CSP", () => {
+  const admin = () => {
+    getUser.mockResolvedValue({ data: { user: { id: ID, factors: [] } }, error: null });
+    getUserById.mockResolvedValue({ id: ID, is_admin: true, truck_id: null, created_at: "" });
+  };
+  const authDown = () =>
+    getUser.mockResolvedValue({ data: { user: null }, error: new AuthRetryableFetchError("fetch failed", 0) });
+  const throwing = (path: string) => {
+    const broken = request(path, SESSION);
+    vi.spyOn(broken.cookies, "getAll").mockImplementation(() => {
+      throw new Error("cookies unreadable");
+    });
+    return broken;
+  };
+
+  // `smoke.mjs`'s readers of a CSP value (`policyCount`, `cspNonce`).
+  const policies = (response: Response) => policyCount(response.headers.get("content-security-policy"));
+
+  it.each([
+    ["/admin/login, returned early", () => request("/admin/login"), 200],
+    ["a forwarded /admin", () => (admin(), request("/admin", SESSION)), 200],
+    ["a forwarded /admin/trucks", () => (admin(), request("/admin/trucks", SESSION)), 200],
+    ["an aal1 admin's forwarded /admin/mfa", () => (admin(), withToken({ aal: "aal1", amr: [LINK] }), request("/admin/mfa", SESSION)), 200],
+    ["the login redirect", () => request("/admin"), 303],
+    ["the 503 page", () => (authDown(), request("/admin", SESSION)), 503],
+    ["the throw's 503 page", () => throwing("/admin"), 503],
+  ] as const)("puts exactly one nonce CSP on %s", async (_, make, status) => {
+    const response = await proxy(make());
+
+    expect(response.status).toBe(status);
+    expect(policies(response)).toBe(1);
+    const csp = response.headers.get("content-security-policy");
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(cspNonce(csp)).toMatch(/^[A-Za-z0-9+/]{22}==$/);
+  });
+
+  it.each([
+    ["/admin/login", () => request("/admin/login")],
+    ["/admin", () => (admin(), request("/admin", SESSION))],
+    ["/admin/mfa", () => (admin(), withToken({ aal: "aal1", amr: [LINK] }), request("/admin/mfa", SESSION))],
+  ] as const)("hands %s's render the answer's CSP, the same nonce", async (_, make) => {
+    const response = await proxy(make());
+
+    expect(forwarded(response)).toBe(true);
+    const csp = response.headers.get("content-security-policy");
+    expect(response.headers.get("x-middleware-request-content-security-policy")).toBe(csp);
+  });
+
+  it("makes a new nonce for each request", async () => {
+    const first = cspNonce((await proxy(request("/admin/login"))).headers.get("content-security-policy"));
+    const second = cspNonce((await proxy(request("/admin/login"))).headers.get("content-security-policy"));
+    expect(first).toBeDefined();
+    expect(first).not.toBe(second);
+  });
+
+  it.each([
+    ["a refusal", () => request("/api/admin/trucks")],
+    ["a throw", () => throwing("/api/admin/trucks")],
+  ] as const)("puts none on an admin route's JSON, %s", async (_, make) => {
+    expect((await proxy(make())).headers.get("content-security-policy")).toBeNull();
+  });
+
+  // Forms the proxy's matcher adds or decodes get `next.config.ts`'s static CSP, not this one
+  // (`isAdminPagePath`); they're refused all the same. Not `/admin.rsc` or `/_next/data/…`:
+  // a server hands the proxy those already turned into `/admin`, which a `NextRequest` here
+  // doesn't (`csp.ts`).
+  it.each(["/admin.json", "/%61dmin/login"])("puts none on %s, and still refuses it", async (path) => {
+    const response = await proxy(request(path));
+    expect(response.status).toBe(303);
+    expect(response.headers.get("content-security-policy")).toBeNull();
   });
 });

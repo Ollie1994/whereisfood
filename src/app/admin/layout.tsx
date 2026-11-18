@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import AdminNav from "@/components/Admin/AdminNav";
 import LogoutButton from "@/components/Admin/LogoutButton";
 
@@ -14,7 +15,12 @@ export const metadata: Metadata = {
 // `globals.css`'s colours do, so it draws the date and time pickers' icons light on dark;
 // without it they were dark on the dark page (the owner's browser check).
 // Here, not in `globals.css`, so the public map is unchanged.
-export default function AdminLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+//
+// `connection()` renders every page under `/admin` per request, so Next can put the proxy's
+// nonce on its scripts; a page built at build time would carry none, and the nonce CSP would
+// block them all (Next's CSP guide, "Forcing dynamic rendering"; Phase 9 plan step 9).
+export default async function AdminLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  await connection();
   return (
     <div className="mx-auto flex w-full max-w-md flex-1 flex-col gap-6 px-4 py-6 scheme-light-dark">
       <header className="flex flex-col gap-3">
