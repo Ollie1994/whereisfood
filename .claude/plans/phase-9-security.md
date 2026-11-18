@@ -698,8 +698,8 @@ the sequential integration suite's time down.
    fortsätta", where no session's is "Du är inte inloggad"; the per-route test checks each.
 7. ~~**What Vercel Hobby and Supabase Free can alert on (step 11).**~~ → **settled** (IS #389,
    read in both dashboards and their docs, 2026-11-18): neither free plan can send a usage,
-   spend or 5xx alert, so none is set, and the alerts stay Phase 10's (Q14). Until then a limit
-   shows only on the two usage pages.
+   spend or 5xx alert, so none is set, and the alerts stay Phase 10's (Q14). Until then each
+   usage page shows how close a figure is to its limit.
    - **Vercel Hobby:** Observability's Alerts, the project's and the team's Alerts settings and
      Spend Management each answer "Upgrade to Pro"; the notification settings list no usage or
      error item. The one alert is "Deployment Failures" by email, on. A branch's preview build
@@ -709,8 +709,8 @@ the sequential integration suite's time down.
      marked Pro). Deployment Storage, 3.01 of 10 GB and rising since Nov 1, was the one figure
      near its limit: #417.
    - **Supabase Free:** the spend cap is on (Billing): past a quota a project "could become
-     unresponsive or enter read only mode", and neither Billing nor the account settings offer
-     a usage email. Observability has charts and custom reports, no alert. Logs keep 1 day
+     unresponsive or enter read only mode", and the owner found no usage-email setting in
+     Billing or the account settings. Observability has charts and custom reports, no alert. Logs keep 1 day
      ("Your plan only includes up to 1 day of log retention"). "Write audit logs to the
      database", off until then (IS #377), is on (the owner, 2026-11-18): Auth's events stay in
      `auth.audit_log_entries` past that day, for #13's detection and recovery.
