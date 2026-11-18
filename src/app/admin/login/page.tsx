@@ -8,8 +8,8 @@ export default async function LoginPage({
 }) {
   const { error } = await searchParams;
   const text = loginErrorMessage(error);
-  // A failed logout's warning stays while the admin logs in again, as its text asks (the
-  // owner, IS #385); a link error hides once a new link is asked for.
+  // A failed logout's warning stays after a link is sent, since its text asks for a new login
+  // (the owner, IS #385); a link error hides then. Its reach: `/auth/logout`'s limits.
   const logoutFailed = error === LOGOUT_FAILED_ERROR;
 
   return (
