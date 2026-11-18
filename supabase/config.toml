@@ -236,7 +236,7 @@ enable_confirmations = false
 secure_password_change = true
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
 max_frequency = "1s"
-# Number of characters used in the email OTP. 10: no email shows the code (the magic link
+# Number of characters used in the email OTP. 10: no email shows the login code (the magic link
 # only, Phase 9 plan #14), but Auth still issues and accepts it, so its length sets the odds
 # of guessing it (plan step 8, open decision 1, IS #386). It also sets the reauthentication
 # code, which an email does show and the user types to change a password on a session over
