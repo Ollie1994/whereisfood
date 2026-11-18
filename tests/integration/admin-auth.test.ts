@@ -4,13 +4,14 @@ import { NextResponse, NextRequest } from "next/server";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { readJson, withAdmin } from "@/lib/http/admin";
 import { enrollFactor } from "@/lib/mfa";
-import { mfaStepAllowed, requireAdmin } from "@/lib/services/admin-auth";
+import { SESSION_MAX_AGE_MS, mfaStepAllowed, requireAdmin } from "@/lib/services/admin-auth";
 import { supabaseAdmin } from "@/lib/supabase";
 import { proxy } from "@/proxy";
 import { totp } from "../totp";
 import {
   SIGN_IN_TIMEOUT,
   accepted,
+  anonClient,
   authClock,
   cookieHeader,
   createFixtureAuthUser,
@@ -149,8 +150,8 @@ function get(path: string, cookie: string) {
 }
 
 // `requireAdmin` and `mfaStepAllowed` on a jar's session, as `withAdmin` and the MFA page
-// call them.
-const input = (jar: Map<string, string>) => ({ cookieNames: [...jar.keys()], auth: jarClient(jar).auth });
+// call them, at `now` (by default the time now).
+const input = (jar: Map<string, string>, now = new Date()) => ({ cookieNames: [...jar.keys()], auth: jarClient(jar).auth, now });
 
 // The jar's session cookie alone, with its access token's payload edited and its signature
 // kept: a claim Auth never signed (#11).
@@ -285,5 +286,48 @@ describe("the first factor and the second", () => {
     expect(error).toBeNull();
     expect(await requireAdmin(input(fresh.jar))).toEqual({ ok: true, userId: fresh.userId });
     expect(await mfaStepAllowed(input(fresh.jar))).toEqual({ ok: false, reason: "done" });
+  });
+});
+
+// The time-box (Phase 9 plan step 6, #4), on real sessions: a session is refused 12 hours
+// after its first factor's sign-in, read from the token Auth verified, and only that session
+// is signed out at Auth. The clock is passed in, so `now` stands 12 hours on.
+describe("the time-box", () => {
+  let old: { userId: string; jar: Map<string, string>; accessToken: string };
+  let other: { jar: Map<string, string>; accessToken: string };
+
+  beforeAll(async () => {
+    old = await sessionUser({ isAdmin: true, aal2: true });
+    other = await sessionFor(old.userId, { aal2: true });
+  }, SIGN_IN_TIMEOUT);
+
+  // The first factor's sign-in, in epoch milliseconds, from the token's `amr`.
+  function signedIn(accessToken: string): number {
+    const { amr } = JSON.parse(Buffer.from(accessToken.split(".")[1], "base64url").toString("utf8"));
+    const link = (amr as { method: string; timestamp: number }[]).find(({ method }) => method === "magiclink");
+    if (!link) throw new Error(`signedIn: no magiclink entry in ${JSON.stringify(amr)}`);
+    return link.timestamp * 1000;
+  }
+
+  it("lets the session through a second before 12 hours", async () => {
+    const now = new Date(signedIn(old.accessToken) + SESSION_MAX_AGE_MS - 1000);
+    expect(await requireAdmin(input(old.jar, now))).toEqual({ ok: true, userId: old.userId });
+  });
+
+  it("refuses it at 12 hours and signs it out at Auth, refresh token included, and no other session", async () => {
+    const { data } = await jarClient(old.jar).auth.getSession();
+    const refreshToken = data.session?.refresh_token;
+    if (!refreshToken) throw new Error("no refresh token in the jar");
+    const now = new Date(signedIn(old.accessToken) + SESSION_MAX_AGE_MS);
+
+    expect(await requireAdmin(input(old.jar, now))).toEqual({ ok: false, reason: "no-session" });
+
+    expect(await accepted(old.accessToken)).toBe(false);
+    const refreshed = await anonClient().auth.refreshSession({ refresh_token: refreshToken });
+    expect(refreshed.error).not.toBeNull();
+
+    // `scope: "local"`: the same admin's other session still passes, on the time now.
+    expect(await accepted(other.accessToken)).toBe(true);
+    expect(await requireAdmin(input(other.jar))).toEqual({ ok: true, userId: old.userId });
   });
 });

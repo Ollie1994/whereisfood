@@ -63,17 +63,36 @@ function claimsOf(token: string): Claims | null {
   }
 }
 
-// The session's first factor allowed: exactly one `amr` entry that isn't an MFA method,
-// and its method in `FIRST_FACTORS`. Entries are `{ method, timestamp }` on the local stack
-// (IS #381); RFC 8176's plain strings, which auth-js's types also allow, read as no method,
-// so they are refused, not admitted.
-function firstFactorAllowed(claims: Claims | null): boolean {
-  if (!claims || !Array.isArray(claims.amr)) return false;
-  const methods = claims.amr.map((entry: unknown) =>
-    typeof entry === "object" && entry !== null ? (entry as { method?: unknown }).method : undefined,
+// How long a session lasts, from its first factor's sign-in (Phase 9 plan step 6, #4, open
+// decision 2: 12 hours, the owner, 2026-11-18). Supabase's own session timeouts are Pro's,
+// which replace this in Phase 11.
+export const SESSION_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+
+// The session's first factor, if allowed: exactly one `amr` entry that isn't an MFA method,
+// its method in `FIRST_FACTORS`, with a numeric `timestamp` (its sign-in, in epoch
+// seconds). Entries are `{ method, timestamp }` on the local stack (IS #381); RFC 8176's
+// plain strings, which auth-js's types also allow, read as no method, so they are refused,
+// not admitted. `null`: refused.
+function allowedFirstFactor(claims: Claims | null): { method: string; timestamp: number } | null {
+  if (!claims || !Array.isArray(claims.amr)) return null;
+  const entries = claims.amr.map((entry: unknown) =>
+    typeof entry === "object" && entry !== null ? (entry as { method?: unknown; timestamp?: unknown }) : {},
   );
-  const first = methods.filter((method) => !(typeof method === "string" && MFA_METHODS.has(method)));
-  return first.length === 1 && typeof first[0] === "string" && FIRST_FACTORS.has(first[0]);
+  const first = entries.filter(({ method }) => !(typeof method === "string" && MFA_METHODS.has(method)));
+  if (first.length !== 1) return null;
+  const [{ method, timestamp }] = first;
+  if (typeof method !== "string" || !FIRST_FACTORS.has(method)) return null;
+  if (typeof timestamp !== "number" || !Number.isFinite(timestamp)) return null;
+  return { method, timestamp };
+}
+
+// Past the time-box: measured from the first factor's sign-in, never the newest `amr` entry,
+// since a later TOTP verify adds a fresh one, and the holder of a session mustn't reset the
+// bound by verifying again (#4). The first factor's entry kept its timestamp through a refresh
+// (IS #377) and a later verify (IS #381's probe). A sign-in after `now`, when Auth's clock is
+// ahead of this server's, has a negative age and is admitted.
+function expired(signedInSeconds: number, now: Date): boolean {
+  return now.getTime() - signedInSeconds * 1000 >= SESSION_MAX_AGE_MS;
 }
 
 // Ends this session at Auth and clears it from storage (`signOut`'s `_removeSession`, which
@@ -95,16 +114,18 @@ async function endSession(auth: SessionAuth, why: string): Promise<boolean> {
 // `config.toml` turns on, and `max_enrolled_factors = 1` allows one.
 type Verified = { ok: true; userId: string; aal2: boolean; verifiedFactorId: string | null };
 
+// What `requireAdmin` and `mfaStepAllowed` take. `now`: the caller's clock (`CLAUDE.md`,
+// "Time"), which the time-box reads.
+export type AdminInput = { cookieNames: readonly string[]; auth: SessionAuth; now: Date };
+
 // In this order, each step only when the one before passed (`project-context.md`, "Admin
-// and auth", with Phase 9 plan step 5b's first factor and `aal2`): a session cookie, with
-// no network or DB call before it; the session's access token (`getSession`, which
-// refreshes an expiring one and writes the rotated cookies), then `getUser(token)`, which
-// asks Auth to verify that token, so a logged-out or forged one is refused (open decision
-// 11); the first factor, from that same token; then `is_admin` through the db layer. An
+// and auth", with Phase 9 plan steps 5b and 6): a session cookie, with no network or DB call
+// before it; the session's access token (`getSession`, which refreshes an expiring one and
+// writes the rotated cookies), then `getUser(token)`, which asks Auth to verify that token,
+// so a logged-out or forged one is refused (open decision 11); the first factor, from that
+// same token, and the time-box from its sign-in; then `is_admin` through the db layer. An
 // auth user with no `users` row is not an admin.
-async function verify({ cookieNames, auth }: { cookieNames: readonly string[]; auth: SessionAuth }): Promise<
-  Verified | { ok: false; reason: Refused }
-> {
+async function verify({ cookieNames, auth, now }: AdminInput): Promise<Verified | { ok: false; reason: Refused }> {
   if (!hasSessionCookie(cookieNames)) return { ok: false, reason: "no-session" };
 
   let token: string;
@@ -124,11 +145,17 @@ async function verify({ cookieNames, auth }: { cookieNames: readonly string[]; a
     return { ok: false, reason: "unavailable" };
   }
 
+  // A refused session is signed out at Auth, so it can't stay valid there (plan #14, #4).
+  // If that failed, "unavailable": the session isn't gone, and a later request tries again.
   const claims = claimsOf(token);
-  if (!firstFactorAllowed(claims)) {
-    // Signed out at Auth, so a session the app refuses can't stay valid there (plan #14). If
-    // that failed, "unavailable": the session isn't gone, and a later request tries again.
-    const ended = await endSession(auth, "a first factor outside the allowlist");
+  const firstFactor = allowedFirstFactor(claims);
+  const refusedFor = !firstFactor
+    ? "a first factor outside the allowlist"
+    : expired(firstFactor.timestamp, now)
+      ? "a session past the time-box"
+      : null;
+  if (refusedFor) {
+    const ended = await endSession(auth, refusedFor);
     return { ok: false, reason: ended ? "no-session" : "unavailable" };
   }
 
@@ -149,7 +176,7 @@ async function verify({ cookieNames, auth }: { cookieNames: readonly string[]; a
 }
 
 // The admin, at `aal2` (Phase 9 plan step 5b). An `aal1` admin session is `needs-mfa`.
-export async function requireAdmin(input: { cookieNames: readonly string[]; auth: SessionAuth }): Promise<AdminCheck> {
+export async function requireAdmin(input: AdminInput): Promise<AdminCheck> {
   const check = await verify(input);
   if (!check.ok) return check;
   return check.aal2 ? { ok: true, userId: check.userId } : { ok: false, reason: "needs-mfa" };
@@ -160,7 +187,7 @@ export async function requireAdmin(input: { cookieNames: readonly string[]; auth
 // browser to Auth (`useMfa`), so a session that skips the page isn't stopped by this (plan
 // #14's limit). Auth itself refused a second enroll beside a verified factor
 // (`too_many_enrolled_mfa_factors`, `max_enrolled_factors = 1`, IS #381).
-export async function mfaStepAllowed(input: { cookieNames: readonly string[]; auth: SessionAuth }): Promise<MfaCheck> {
+export async function mfaStepAllowed(input: AdminInput): Promise<MfaCheck> {
   const check = await verify(input);
   if (!check.ok) return check;
   if (check.aal2) return { ok: false, reason: "done" };

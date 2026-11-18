@@ -12,7 +12,11 @@ import { createSessionClient, readOnlyCookies } from "@/lib/supabase-session";
 export default async function MfaPage() {
   const store = await cookies();
   const supabase = createSessionClient(readOnlyCookies(store));
-  const check = await mfaStepAllowed({ cookieNames: store.getAll().map(({ name }) => name), auth: supabase.auth });
+  const check = await mfaStepAllowed({
+    cookieNames: store.getAll().map(({ name }) => name),
+    auth: supabase.auth,
+    now: new Date(),
+  });
 
   if (!check.ok) {
     if (check.reason === "done") redirect("/admin");
