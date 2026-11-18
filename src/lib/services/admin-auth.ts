@@ -49,7 +49,7 @@ const FIRST_FACTORS = new Set(["magiclink"]);
 // PR #404's test gave `[magiclink, totp]`), so the first factor is found by its method.
 const MFA_METHODS = new Set(["totp"]);
 
-type Claims = { aal: unknown; amr: unknown; iat?: unknown };
+type Claims = { aal: unknown; amr: unknown; iat?: unknown; exp?: unknown };
 
 // The payload of a token Auth has just accepted (`getUser(token)` below), so reading it
 // here reads what Auth verified, not a cookie's claim (#11). A payload this can't read
@@ -92,20 +92,21 @@ function firstFactorSignIn(claims: Claims | null): number | null {
 // bound by verifying again (#4). The first factor's entry kept its timestamp through a refresh
 // (IS #377) and a later verify (IS #381's probe).
 //
-// The age is read on the later of two clocks: the caller's `now`, and the token's `iat`
-// (Auth's clock when it issued the token, which Auth has just verified). When Auth's clock
-// runs ahead of this server's, the age is then Auth's, so the skew doesn't lengthen the box;
-// a fresh session's `iat` is at or after its sign-in on the same clock, so its age starts
-// near zero. A token without a finite numeric `iat` is read on `now` alone. The owner's
-// call: the plan's open decision 2.
+// The age is read on Auth's clock as near as this server can tell: the caller's `now`, held
+// within the token's `iat` and `exp`, both Auth's clock. Auth has just accepted the token
+// (`getUser(token)`), so its time now lies in that window: its `parseJWTClaims`
+// (`internal/api/auth.go`) builds golang-jwt v5's parser with no leeway option, and v5
+// checks `exp` by default (read on GitHub's master, 2026-11-18; the claims type's own checks
+// weren't read). So with the two clocks agreed, the age is `now`'s, exact; with Auth ahead,
+// `now` is raised to `iat`; with Auth behind, it is lowered to `exp`. Either way a skew moves
+// the age by less than the token's life (`config.toml`'s `jwt_expiry`, 3600 s), and a fresh
+// login, `iat` and sign-in together, is never refused. A bound that isn't a finite number is
+// left out. The owner's calls: the plan's open decision 2.
 //
-// Three limits:
-// - While Auth runs ahead, the age is read at the token's issue, not at Auth's time now, so a
-//   session can pass the 12 hours by up to its token's age: `getSession` refreshes a token
-//   that is about to expire, and `config.toml`'s `jwt_expiry` is 3600 s.
-// - While Auth runs behind by D, the sign-in is D behind `now` and `iat` doesn't help, so the
-//   box is D shorter; at D of 12 hours, every new login is refused at once. The local stack's
-//   Docker VM clock can fall behind the host's after a sleep (`helpers.ts`'s `authClock`).
+// Two limits:
+// - While the clocks disagree, the box can end up to a token's life late (Auth ahead) or
+//   early (Auth behind). The local stack's Docker VM clock can fall behind the host's after a
+//   sleep (`helpers.ts`'s `authClock`).
 // - Each check reads its caller's `now`. A request the proxy admits just under 12 hours can be
 //   refused by `withAdmin` or the MFA page just after. Their sign-out ends the session at Auth,
 //   but they hold `readOnlyCookies`, which can't delete cookies (the integration test of the
@@ -113,9 +114,11 @@ function firstFactorSignIn(claims: Claims | null): number | null {
 //   the proxy to an admin path other than the login, which the proxy lets through unchecked,
 //   clears them (`getUser(token)`, the integration test's logged-out case), or a new login's
 //   callback writes new ones.
-function expired(signedInSeconds: number, issuedAt: unknown, now: Date): boolean {
-  const authNow = typeof issuedAt === "number" && Number.isFinite(issuedAt) ? issuedAt * 1000 : -Infinity;
-  return Math.max(now.getTime(), authNow) - signedInSeconds * 1000 >= SESSION_MAX_AGE_MS;
+function expired(signedInSeconds: number, claims: Claims | null, now: Date): boolean {
+  const ms = (seconds: unknown, otherwise: number) =>
+    typeof seconds === "number" && Number.isFinite(seconds) ? seconds * 1000 : otherwise;
+  const authNow = Math.min(Math.max(now.getTime(), ms(claims?.iat, -Infinity)), ms(claims?.exp, Infinity));
+  return authNow - signedInSeconds * 1000 >= SESSION_MAX_AGE_MS;
 }
 
 // Ends this session at Auth and clears it from storage (`signOut`'s `_removeSession`, which
@@ -174,7 +177,7 @@ async function verify({ cookieNames, auth, now }: AdminInput): Promise<Verified 
   const signedIn = firstFactorSignIn(claims);
   let refusedFor: string | null = null;
   if (signedIn === null) refusedFor = "a first factor outside the allowlist";
-  else if (expired(signedIn, claims?.iat, now)) refusedFor = "a session past the time-box";
+  else if (expired(signedIn, claims, now)) refusedFor = "a session past the time-box";
   if (refusedFor) {
     const ended = await endSession(auth, refusedFor);
     return { ok: false, reason: ended ? "no-session" : "unavailable" };

@@ -261,6 +261,32 @@ describe("requireAdmin", () => {
       expect(await requireAdmin({ now, cookieNames: SESSION, auth: stub })).toEqual({ ok: false, reason: "no-session" });
     });
 
+    // Auth's clock behind this server's: `now` is held at the token's `exp`.
+    it("lets a fresh login through while Auth's clock is 13 hours behind (iat at the sign-in, exp an hour on)", async () => {
+      const stub = auth({ access: token({ aal: "aal2", amr: [link, totp], iat: SIGNED_IN, exp: SIGNED_IN + 3600 }) });
+      const now = new Date(SIGNED_IN_MS + 13 * HOUR);
+
+      expect(await requireAdmin({ now, cookieNames: SESSION, auth: stub })).toEqual({ ok: true, userId: ID });
+      expect(stub.signOut).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["a second under 12 hours", SESSION_MAX_AGE_MS / 1000 - 1, { ok: true, userId: ID }],
+      ["12 hours", SESSION_MAX_AGE_MS / 1000, { ok: false, reason: "no-session" }],
+    ])("reads the age on exp when it is behind now: exp %s on, now a day on", async (_, expAge, expected) => {
+      const stub = auth({ access: token({ aal: "aal2", amr: [link, totp], iat: SIGNED_IN + expAge - 3600, exp: SIGNED_IN + expAge }) });
+      const now = new Date(SIGNED_IN_MS + 24 * HOUR);
+
+      expect(await requireAdmin({ now, cookieNames: SESSION, auth: stub })).toEqual(expected);
+      expect(stub.signOut).toHaveBeenCalledTimes(expected.ok ? 0 : 1);
+    });
+
+    it("leaves out a string exp", async () => {
+      const stub = auth({ access: token({ aal: "aal2", amr: [link, totp], iat: SIGNED_IN, exp: String(SIGNED_IN + 3600) }) });
+      const now = new Date(SIGNED_IN_MS + SESSION_MAX_AGE_MS);
+      expect(await requireAdmin({ now, cookieNames: SESSION, auth: stub })).toEqual({ ok: false, reason: "no-session" });
+    });
+
     // On `now` alone: admitted just under 12 hours on `now`, refused at 12. The string `iat`,
     // 13 hours on, would refuse the first if it were read as a number.
     it.each([
