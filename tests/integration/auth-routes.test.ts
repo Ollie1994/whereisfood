@@ -26,8 +26,8 @@ import {
 // `/auth/callback` and `/auth/logout` against the local stack (Phase 7 plan, step 2).
 // Each `sessionUser`/`sessionFor` is a magic-link sign-in, and the file also asks Auth
 // itself: a link once through `requestLink`, a link twice for an address with no account,
-// and a password sign-up once; why no Auth limit binds them is `helpers.ts`'s
-// `signInByLink`.
+// a password sign-up once, and one admin `generateLink`, which sends no email; why no Auth
+// limit binds them is `helpers.ts`'s `signInByLink`.
 
 const ORIGIN = "http://127.0.0.1:3000";
 

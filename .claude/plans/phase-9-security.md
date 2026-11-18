@@ -290,7 +290,8 @@ before the closing steps (#12).
     "Enforce SSL", unused services, network restrictions, and the hosted Security Advisor
     (`db advisors --linked`).
 13. **The 2FA audit** (Q12): every account that exists then and each one's recovery email,
-    the admin's login mailbox named, recovery codes offline. No secret is recorded.
+    the admin's login mailbox named by its role and provider, never its address (the repo and
+    its issues are public; the owner, IS #386), recovery codes offline. No secret is recorded.
 14. **The phone checkpoint** on `dev`'s preview: the magic link, the TOTP enroll (with the
     phone alone; if the browser reloads the tab while in the authenticator app, the enroll is
     done on a computer instead and the reload recorded, step 5c's limit and #406) and code,
@@ -487,7 +488,7 @@ guessed code. The swap stays possible as sabotage
   does (README, "5. Create the admin user"), and not in a password-recovery session;
 - **detecting it:** the password-changed email (step 2; it spends the preview's `email_sent`
   budget, which anyone who knows the admin's address can spend by asking for login links,
-  at the preview's `email_sent` of 2 an hour until step 8 changes it, and a change whose
+  at the preview's `email_sent` of 2 an hour, which step 8 kept (IS #386), and a change whose
   email the spent budget refuses still succeeds, IS #378; so a careful thief can spend it
   first, and the emails catch only a careless one), and
   factor-enrolled and
@@ -605,7 +606,7 @@ the sequential integration suite's time down.
 
 ## Open Decisions
 
-1. **The login-abuse fix (step 8)**, after the probes of steps 1, 2 and 5a: a CAPTCHA
+1. ~~**The login-abuse fix (step 8)**~~, after the probes of steps 1, 2 and 5a: a CAPTCHA
    (`config.toml`'s `[auth.captcha]`: hCaptcha or Turnstile), a longer code (no one types
    it, #14; locally and on the preview), a shorter code life, a
    lockout, or accepting it. The form already shows one message for every address
@@ -636,9 +637,11 @@ the sequential integration suite's time down.
      and 0.1 a second over 900 s is about 120 guesses per IP per code, 1 in 83 million at 10
      digits; a guess still gives only an `otp` session, which `requireAdmin` refuses.
    - **Spending the email budget** (`email_sent` 2 an hour, per project) so the admin's link
-     doesn't come: **accepted** for Phase 9. It needs the admin's address, which no page
-     shows; it grants no access, and a session lives on to its time-box; a CAPTCHA wouldn't
-     stop 2 requests an hour made by hand. Custom SMTP (the Owners phase), whose per-user
+     doesn't come: **accepted** for Phase 9, and Phase 10 decides it again before
+     production (the owner, round 1 on PR #410). It needs the admin's address, which no page
+     shows, though Auth's answers confirm a guessed one (this decision's first point); it
+     grants no access, and a session lives on to its time-box; a CAPTCHA wouldn't stop 2
+     requests an hour made by hand. Custom SMTP (the Owners phase), whose per-user
      interval and budget are the project's own, is the fix it waits for.
    - **The forged-cookie flood** and **TOTP guessing:** no change. The flood shows the 503
      page while it lasts and ends no session. TOTP guessing needs a first-factor session at
@@ -678,8 +681,9 @@ the sequential integration suite's time down.
    authenticated yet, with its own text, "Ange koden från din autentiseringsapp för att
    fortsätta", where no session's is "Du är inte inloggad"; the per-route test checks each.
 7. **What Vercel Hobby and Supabase Free can alert on (step 11).**
-8. **The rate limits' values (step 8)**, which step 12 then checks. The per-IP limits the login
-   uses (`token_refresh`, `token_verifications`, `sign_in_sign_ups`) are each a burst of 30,
+8. ~~**The rate limits' values (step 8)**~~, which step 12 then checks.
+   The per-IP limits the login uses (`token_refresh`, `token_verifications`,
+   `sign_in_sign_ups`) are each a burst of 30,
    then a refill of the value per 5 minutes (GoTrue v2.197.0's `apilimiter.go`), and the
    local stack enforces none of them, so only the preview shows a value working (IS #377).
    The preview's values, read 2026-11-17, match `config.toml`'s: `email_sent` 2 an hour,
@@ -690,7 +694,7 @@ the sequential integration suite's time down.
    server's refreshes share its per-IP budget.
 9. **The CSP's exact sources (step 9)**, found by the browser checks: MapLibre's worker, the
    tiles' range requests, the basemap's glyphs and sprite, `blob:`/`data:` images, the
-   Supabase URL the login calls, and the CAPTCHA's script and frame if step 8 chooses one.
+   Supabase URL the login calls. No CAPTCHA: step 8 chose none (open decision 1, IS #386).
 10. ~~**TOTP's digits and period (step 5a)**, confirmed by a local enroll.~~ → **settled**
     (IS #381): the enroll URI says SHA1, 6 digits, 30 seconds.
 11. ~~**How `requireAdmin` reads `aal` (step 5b).**~~ → **settled** (the owner, 2026-11-17,
