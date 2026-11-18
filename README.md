@@ -502,12 +502,12 @@ Its row stays in the preview's history.
 
 For the owner: the security settings #390 checked in the Supabase and Vercel dashboards,
 which live outside the repo, each with its value on the preview. Phase 10 applies the list
-to production (Phase 9 plan #10). Where a value names the preview itself (the Site URL and
-Redirect URLs) or applies to its deploys (Vercel's Deployment Protection, the bypass secret,
-the Pre-Production toolbar), production's is Phase 10's to set. Each row was read on the
-preview on 2026-11-18, from the owner's screenshots, and the advisor's from the CLI run
-below, with the results recorded on IS #390. It names settings, never keys or addresses
-(`CLAUDE.md`, Secrets).
+to production (Phase 9 plan #10). The Supabase rows are the preview project's: production's
+own project gets them in Phase 10, with its own Site URL and Redirect URLs. The Vercel rows
+are the `whereisfood` project's, which its production deploys share. Each row was read on
+2026-11-18 from the owner's screenshots, except the advisor's table (CLI runs, below) and two
+probes (the Enforce SSL and AAL1 rows), with the results recorded on IS #390. It names
+settings, never keys or addresses (`CLAUDE.md`, Secrets).
 
 **Supabase, Authentication:**
 
@@ -522,15 +522,15 @@ below, with the results recorded on IS #390. It names settings, never keys or ad
 | Email provider → Prevent use of leaked passwords | Off | Pro only; the advisor's warning for it is accepted (the advisor's table, below) |
 | Email provider → Minimum password length; Password requirements | 6; none | Kept as found (IS #378) |
 | Email provider → Email OTP expiration; Email OTP length | 900 s; 10 digits | `CLAUDE.md`, Supabase (IS #386); the same as `config.toml`'s `otp_expiry` and `otp_length` |
-| Email provider → Enable magic links and email OTP | On | The login's first factor is the magic link (Phase 9 plan #14) |
+| Email provider → Enable magic links and email OTP | On | The login's first factor is the magic link (Phase 9 plan #14). The same switch keeps the emailed code, which Auth accepts though no email shows it (plan #14): the OTP rows above set its odds |
 | Emails → Security notifications | Password changed, MFA method added and MFA method removed on; the other four off | `CLAUDE.md`, Supabase (IS #378); the MFA ones, IS #381 |
 | Emails → SMTP Settings → Enable custom SMTP | Off | So every email uses Supabase's default template, which can't be edited without custom SMTP (IS #377), and goes through the built-in sender's budget (Rate Limits: 2 emails an hour), which can be spent so the admin's link doesn't come: accepted for Phase 9 only, and Phase 10 decides it again (`CLAUDE.md`, Supabase; the Phase 9 plan's open decision 1) |
 | Multi-Factor → TOTP (App Authenticator); Maximum number of per-user MFA factors | Enabled; 1 | IS #381 |
 | Multi-Factor → Phone | Disabled | Pro only, and unused |
-| Multi-Factor → Limit duration of AAL1 sessions | On | Found on, 2026-11-18, and kept, but not relied on: on the preview, an enrolled admin's `aal1` session still reached the code page 18 minutes after its sign-in (IS #390's PR), though the dashboard says such a session "will be terminated unless they verify one of their factors within 15 minutes" |
+| Multi-Factor → Limit duration of AAL1 sessions | On | Found on, 2026-11-18, and kept, but not relied on: on the preview, an enrolled admin's `aal1` session still reached the code page 16 to 18 minutes after its sign-in (a clock read in whole minutes; IS #390's PR), though the dashboard says such a session "will be terminated unless they verify one of their factors within 15 minutes" |
 | Sessions → Access token expiry time | 3600 s | A token's life, which bounds how far a clock skew moves the session time-box (`admin-auth.ts`); the same as `config.toml`'s `jwt_expiry` |
 | Sessions → Detect and revoke potentially compromised refresh tokens; Refresh token reuse interval | On; 10 s | Kept as found |
-| Sessions → Enforce single session per user; Time-box user sessions; Inactivity timeout | Off; 0; 0 | Pro only. The app's 12-hour box stands in for the time-box until Phase 11 (`CLAUDE.md`, "The session time-box"). Nothing in the app limits how many sessions run at once; a logout ends them all (`CLAUDE.md`, "Logout ends every session") |
+| Sessions → Enforce single session per user; Time-box user sessions; Inactivity timeout | Off; 0; 0 | Pro only. The app's 12-hour box stands in for the time-box until Phase 11 (`CLAUDE.md`, "The session time-box"). Nothing in the app limits how many sessions run at once; a logout ends them all, within the limits `CLAUDE.md`'s "Logout ends every session" names |
 | Rate Limits | Emails 2/h, SMS 30/h, token refreshes 150/5 min, token verifications 30/5 min, anonymous sign-ins 30/h, sign-ups and sign-ins 30/5 min, Web3 30/5 min, minimum interval per user 60 s | Kept, IS #386. The 60 s applies only with custom SMTP |
 | Rate Limits → Enable IP address forwarding | Off | Kept, IS #386 |
 | Attack Protection → CAPTCHA | Off | Decided against in IS #386 |
@@ -555,7 +555,7 @@ below, with the results recorded on IS #390. It names settings, never keys or ad
 | Finding | Settled |
 |---|---|
 | WARN `auth_leaked_password_protection` | Accepted: Pro only, and the admin's password is long and random (IS #378) |
-| INFO `rls_enabled_no_policy` on `public.trucks` and `public.locations` | By design: anon and authenticated get no access to them (`CLAUDE.md`, Supabase, for anon; the grants read in "Hosted preview database", above, for both) |
+| INFO `rls_enabled_no_policy` on `public.trucks` and `public.locations` | By design: anon and authenticated hold no grant on them (`role_table_grants` on the preview, 2026-11-18: only `authenticated`'s `SELECT` on `users`); for anon it is `CLAUDE.md`'s rule (Supabase) |
 | INFO `unindexed_foreign_keys`: `locations_created_by_fkey`, `users_truck_id_fkey` | Accepted on tables this small; Phase 10 reads it again with production's data |
 
 **Vercel** (project `whereisfood`):
@@ -567,7 +567,7 @@ below, with the results recorded on IS #390. It names settings, never keys or ad
 | Deployment Protection → Shareable Links; Deployment Protection Exceptions | None; none | A link or an exception would open a deployment without a Vercel login |
 | Deployment Protection → OPTIONS Allowlist; Protected Sourcemaps | Off; On | Kept as found |
 | Deployment Protection → Password Protection; Trusted IPs | Off; off | Not on Hobby: Password Protection is Pro, Trusted IPs Enterprise |
-| Deployment Protection → Trusted Sources | This project's `development` and `preview` tokens | Kept as found |
+| Deployment Protection → Trusted Sources | This project: all its tokens reach their own environment, and its `development` tokens reach `preview` | Kept as found |
 | Team → Deployment Protection → Default Protection for New Projects; Who Can Change Protection | Vercel Authentication, Standard Protection; neither box ticked | Kept as found |
 | Team → Deployment Protection → Access Request Permissions | Anyone | Kept as found |
 | Settings → Security → Git Fork Protection | Enabled | "Preview deploys", below |
