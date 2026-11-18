@@ -273,7 +273,9 @@ before the closing steps (#12).
 12. **The hosted-settings checklist** (Q21) in `README.md` (#10), each item checked on the
     preview: sign-ups off, redirect URLs, rate limits, the email OTP length (no email shows the
     code, #14, but a guessed one is an `aal1` session at Auth, so its length sets open
-    decision 1's odds), MFA, the password settings (secure password change, its email, and
+    decision 1's odds), MFA, the JWT expiry (a token's life, which bounds how far a clock skew
+    moves the session time-box, `admin-auth.ts`; the owner, 2026-11-18, IS #384), the
+    password settings (secure password change, its email, and
     require current password, with the admin's password set long and random, IS #378), secure email change (#13), the audit log setting, Deployment
     Protection, Git Fork Protection,
     "Enforce SSL", unused services, network restrictions, and the hosted Security Advisor
