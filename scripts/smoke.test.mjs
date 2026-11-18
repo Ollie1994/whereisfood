@@ -162,5 +162,8 @@ describe("checkHeaders", () => {
       "1 of 3 scripts without the CSP's nonce",
     ]);
     expect(checkHeaders(login, answer(nonceCsp("abc"), {}, "<p>x</p>"))).toEqual(["no <script> in the page"]);
+    expect(checkHeaders(login, answer(nonceCsp("abc"), {}, PAGE + "<SCRIPT src=/x.js></SCRIPT>"))).toEqual([
+      "1 of 3 scripts without the CSP's nonce",
+    ]);
   });
 });

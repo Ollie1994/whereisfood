@@ -65,7 +65,8 @@ export function checkHeaders(expectation, response) {
   if (expectation.csp === "nonce") {
     if (nonce === undefined) problems.push("the static CSP, expected a nonce one");
     else if (expectation.shape === "html") {
-      const scripts = response.body.match(/<script\b[^>]*>/g) ?? [];
+      // Any case: HTML tag names are case-insensitive (CodeQL `js/bad-tag-filter`, PR #411).
+      const scripts = response.body.match(/<script\b[^>]*>/gi) ?? [];
       if (scripts.length === 0) problems.push("no <script> in the page");
       const bare = scripts.filter((tag) => !tag.includes(`nonce="${nonce}"`));
       if (bare.length > 0) problems.push(`${bare.length} of ${scripts.length} scripts without the CSP's nonce`);
