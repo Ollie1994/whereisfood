@@ -65,6 +65,7 @@ describe("EXPECTATIONS", () => {
   it("covers exactly the paths the tests below check", () => {
     expect(EXPECTATIONS.map((e) => e.path).sort()).toEqual(CASES.map((c) => c.path).sort());
   });
+  // By exact case, as `next start` matches (`smoke.mjs`'s `/Admin/login`), not `isAdminPagePath`.
   it("names each path's CSP: the proxy's nonce one under /admin, the static one elsewhere", () => {
     for (const { path, csp } of EXPECTATIONS) expect(csp, path).toBe(/^\/admin(\/|$)/.test(path) ? "nonce" : "static");
   });

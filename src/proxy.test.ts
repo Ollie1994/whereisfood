@@ -483,4 +483,42 @@ describe("proxy's CSP", () => {
     expect(policies(response)).toBe(1);
     expect(cspNonce(response.headers.get("content-security-policy"))).toBeDefined();
   });
+
+  // What the preview showed broken: an admin's `/Admin/trucks` forwarded to the render.
+  it("hands a signed-in /Admin/trucks's render the answer's CSP, the same nonce", async () => {
+    admin();
+    const response = await proxy(request("/Admin/trucks", SESSION));
+
+    expect(forwarded(response)).toBe(true);
+    expect(policies(response)).toBe(1);
+    expect(response.headers.get("x-middleware-request-content-security-policy")).toBe(
+      response.headers.get("content-security-policy"),
+    );
+  });
+});
+
+// A case variant takes its lower-case form's branch, as on Vercel, where the matcher runs the
+// proxy on it (IS #414).
+describe("proxy on a case variant", () => {
+  it("lets /Admin/login through as the login, with no Auth call", async () => {
+    const response = await proxy(request("/Admin/login"));
+
+    expect(forwarded(response)).toBe(true);
+    expect(getUser).not.toHaveBeenCalled();
+  });
+
+  it("answers /API/admin/trucks as a route: 401 { error } with no session", async () => {
+    const response = await proxy(request("/API/admin/trucks"));
+
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ error: expect.any(String) });
+  });
+
+  it("refuses a foreign write to /API/admin/trucks with 403, before any Auth call (#16)", async () => {
+    const headers = { host: "127.0.0.1:3000", cookie: SESSION, origin: "https://evil.example" };
+    const response = await proxy(new NextRequest(`${ORIGIN}/API/admin/trucks`, { method: "POST", headers, body: "{}" }));
+
+    expect(response.status).toBe(403);
+    expect(getUser).not.toHaveBeenCalled();
+  });
 });

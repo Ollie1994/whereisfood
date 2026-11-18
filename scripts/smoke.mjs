@@ -29,7 +29,8 @@ export const EXPECTATIONS = [
   { path: "/api/admin/trucks", status: 401, shape: "error", csp: "static" },
   // A case variant of `/admin/login`: a 404 the proxy doesn't run on under `next start`, so it
   // needs the static CSP, which only `next.config.ts`'s `caseSensitiveRoutes` gives it (PR #411,
-  // round 1). On Vercel the proxy runs there and gives it the nonce CSP instead (IS #414).
+  // round 1). On Vercel the proxy runs there and gives it the nonce CSP instead (IS #414), so
+  // run against a Vercel deploy this path expects the wrong kind: these are `next start`'s.
   { path: "/Admin/login", status: 404, shape: "html", csp: "static" },
   // Forms the proxy runs on but sets no CSP for (`isAdminPagePath`), so they rest on
   // `headers()`' static one (PR #411, rounds 3 and 4).

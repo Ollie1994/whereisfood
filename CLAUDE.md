@@ -265,7 +265,8 @@ said otherwise: Phase 4 plan decision #14.
   Case variants (`/Admin/…`): under `next start` the proxy doesn't run on them and
   `experimental.caseSensitiveRoutes` gives them the static CSP; on Vercel, which ignores that
   flag, the proxy runs on them and `isAdminPagePath`, which ignores case, gives them the nonce
-  one (the preview, IS #414)
+  one, and its branches (route or page, the login, the MFA step) read the path lower-cased too
+  (the preview, IS #414)
 - **Every page under `/admin` renders per request** (`connection()` in the admin layout), its
   404 included (`admin/[...missing]`, under that layout): a page built at build time carries
   no nonce, so the CSP blocks its scripts (Next's CSP guide). Its 404 and error pages are

@@ -5,7 +5,10 @@ import { CSP_HEADER, STATIC_HEADERS, buildStaticCsp, cspEnv } from "./src/lib/ht
 // answer there carries exactly one (`csp.ts`; `next.config.test.ts` reads which paths match).
 // The proxy sets its CSP exactly where `csp.ts`'s `isAdminPagePath` holds on the path it reads,
 // so the two must agree; `next.config.test.ts` checks them on the forms the proxy's matcher adds.
-// Matched by exact case (`caseSensitiveRoutes` below), as the proxy's matcher is. The forms a
+// Case variants (`/Admin/…`) differ by host: under `next start` this and the proxy's matcher
+// match by exact case (`caseSensitiveRoutes` below), so the proxy doesn't run on them and this
+// gives them the static CSP; on Vercel both ignore case, so this leaves them out and the proxy
+// gives them the nonce one (`isAdminPagePath` ignores case, IS #414). The forms a
 // server turns into `/admin` before the proxy runs, `/admin.rsc` and `/_next/data/<id>/…`, get
 // both CSPs; under `next start` they carried one, the proxy's (`isAdminPagePath`'s comment). A
 // host that kept both would send the two, whose intersection is stricter than either.
@@ -43,7 +46,8 @@ const nextConfig: NextConfig = {
     // code; advisories reach the owner through Dependabot alerts and `npm audit`, and
     // Next upgrades stay deliberate, each with a browser check. Owner's call, PR #179.
     agentUpgrade: false,
-    // `headers()`' sources match by exact case, as the proxy's matcher does. Without it Next
+    // Under `next start`, `headers()`' sources match by exact case, as the proxy's matcher does
+    // (on Vercel neither does: below). Without it Next
     // matched them ignoring case (`filesystem.js`'s `buildCustomRoute`), so `NOT_ADMIN` also
     // left out `/Admin/login` and `/ADMIN`, which the proxy doesn't run on: their 404s went
     // out with no CSP (`next start`, PR #411, round 1). In 16.4.5 it sets how `headers()`,

@@ -92,7 +92,10 @@ export async function proxy(request: NextRequest) {
 }
 
 async function answerFor(request: NextRequest): Promise<NextResponse> {
-  const { pathname } = request.nextUrl;
+  // Lower-cased, as `isAdminPagePath` reads it: on Vercel the matcher also runs this on
+  // `/Admin/…` and `/API/admin/…`, which then took another branch than their lower-case form
+  // (`/API/admin/trucks` answered a page's 303, not a route's 401: the preview, IS #414).
+  const pathname = request.nextUrl.pathname.toLowerCase();
   const isApi = pathname.startsWith("/api/");
   // With `request`, so the nonce CSP reaches the login's render.
   if (pathname === LOGIN) return NextResponse.next({ request });
