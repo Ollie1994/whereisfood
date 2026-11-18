@@ -1,6 +1,5 @@
-import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { globSync, readFileSync } from "node:fs";
+import { globSync } from "node:fs";
 import { NextResponse, NextRequest } from "next/server";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { readJson, withAdmin } from "@/lib/http/admin";
@@ -21,6 +20,7 @@ import {
   editSessionCookie,
   SESSION_COOKIE,
   jarClient,
+  localSql,
   resetTables,
   sessionFor,
   sessionUser,
@@ -35,13 +35,6 @@ import {
 // or describe).
 
 const ORIGIN = "http://127.0.0.1:3000";
-
-// The local stack's database container, named from `config.toml`'s `project_id` as
-// `scripts/controls.mjs` names it.
-const PROJECT_ID = /^project_id\s*=\s*"([^"]+)"/m.exec(readFileSync("supabase/config.toml", "utf8"))?.[1];
-if (!PROJECT_ID) throw new Error("no project_id in supabase/config.toml");
-const DB_CONTAINER = `supabase_db_${PROJECT_ID}`;
-
 const METHODS = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"] as const;
 
 type Handler = (request: NextRequest, context: { params: Promise<Record<string, string>> }) => Promise<Response>;
@@ -308,11 +301,12 @@ describe("the first factor and the second", () => {
   });
 });
 
-// The time-box (Phase 9 plan step 6, #4), on real sessions and the real clock: a session's
-// first-factor sign-in is moved back at Auth (`ageSignIn`), its token refreshed, and the check
-// run on the time now. Moving `now` on instead would read as Auth's clock running behind,
-// which `admin-auth.ts` holds within the token's `exp`. Only the refused session is signed out
-// at Auth.
+// The time-box (Phase 9 plan step 6, #4), on real sessions: a session's first-factor sign-in
+// is moved back at Auth (`ageSignIn`), its token refreshed, and the check run with `now` on
+// Auth's clock (`authClock`), so a host clock ahead of the Docker VM's doesn't count into the
+// age. Moving `now` on instead would read as Auth's clock running behind, which
+// `admin-auth.ts` holds within the token's `exp`. Only the refused session is signed out at
+// Auth.
 describe("the time-box", () => {
   let old: { userId: string; jar: Map<string, string>; accessToken: string };
   let other: { jar: Map<string, string>; accessToken: string };
@@ -333,19 +327,18 @@ describe("the time-box", () => {
     return link.timestamp * 1000;
   }
 
-  // Moves the session's magic-link sign-in `seconds` back in `auth.mfa_amr_claims`, through
-  // the local stack's database container as `scripts/controls.mjs` reaches it, then refreshes
-  // the jar's token, which Auth builds the `amr` claim from that row for. Returns the new
-  // access token.
+  // Moves the session's magic-link sign-in `seconds` back in `auth.mfa_amr_claims`
+  // (`localSql`), then refreshes the jar's token, whose `amr` claim Auth builds from that row
+  // (the first test reads the moved timestamp back). Returns the new access token.
   async function ageSignIn(session: { jar: Map<string, string>; accessToken: string }, seconds: number): Promise<string> {
     const sessionId = payloadOf(session.accessToken).session_id;
     if (typeof sessionId !== "string" || !/^[0-9a-f-]{36}$/.test(sessionId)) throw new Error("ageSignIn: no session_id");
-    const sql =
+    const aged = localSql(
       `with aged as (update auth.mfa_amr_claims set created_at = created_at - interval '${seconds} seconds', ` +
-      `updated_at = updated_at - interval '${seconds} seconds' where session_id = '${sessionId}' ` +
-      `and authentication_method = 'magiclink' returning 1) select count(*) from aged;`;
-    const result = spawnSync("docker", ["exec", "-i", DB_CONTAINER, "psql", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", "postgres", "-t", "-A", "-q", "-c", sql], { encoding: "utf8" });
-    if (result.status !== 0 || result.stdout.trim() !== "1") throw new Error(`ageSignIn: psql answered ${result.status}: ${result.stdout}${result.stderr}`);
+        `updated_at = updated_at - interval '${seconds} seconds' where session_id = '${sessionId}' ` +
+        `and authentication_method = 'magiclink' returning 1) select count(*) from aged;`,
+    );
+    if (aged !== "1") throw new Error(`ageSignIn: ${aged} rows aged`);
     const { data, error } = await jarClient(session.jar).auth.refreshSession();
     if (error || !data.session) throw error ?? new Error("ageSignIn: no session after the refresh");
     return data.session.access_token;
@@ -355,33 +348,33 @@ describe("the time-box", () => {
     const fresh = signedIn(old.accessToken);
     let token = await ageSignIn(old, SESSION_MAX_AGE_MS / 1000 - 600);
     expect(signedIn(token)).toBe(fresh - SESSION_MAX_AGE_MS + 600_000);
-    expect(await requireAdmin(input(old.jar))).toEqual({ ok: true, userId: old.userId });
+    expect(await requireAdmin(input(old.jar, new Date(await authClock())))).toEqual({ ok: true, userId: old.userId });
 
     token = await ageSignIn({ jar: old.jar, accessToken: token }, 600);
     const { data } = await jarClient(old.jar).auth.getSession();
     const refreshToken = data.session?.refresh_token;
     if (!refreshToken) throw new Error("no refresh token in the jar");
 
-    expect(await requireAdmin(input(old.jar))).toEqual({ ok: false, reason: "no-session" });
+    expect(await requireAdmin(input(old.jar, new Date(await authClock())))).toEqual({ ok: false, reason: "no-session" });
 
     expect(await accepted(token)).toBe(false);
     expect((await anonClient().auth.refreshSession({ refresh_token: refreshToken })).error).not.toBeNull();
 
     // `scope: "local"`: the same admin's other session still passes.
     expect(await accepted(other.accessToken)).toBe(true);
-    expect(await requireAdmin(input(other.jar))).toEqual({ ok: true, userId: old.userId });
+    expect(await requireAdmin(input(other.jar, new Date(await authClock())))).toEqual({ ok: true, userId: old.userId });
   });
 
   // The box is in `verify`, so the MFA page's check holds it too (plan step 6), on the page's
   // own `readOnlyCookies`, as `page.tsx` builds its client: the sign-out still ends the session
   // at Auth, and the cookie is left (`admin-auth.ts`'s limit).
   it("refuses an aal1 session the code step at 12 hours on read-only cookies, and signs it out at Auth", async () => {
-    const pageInput = () => ({
+    const pageInput = async () => ({
       cookieNames: [...aal1.jar.keys()],
       auth: createSessionClient(readOnlyCookies({ getAll: () => [...aal1.jar].map(([name, value]) => ({ name, value })) })).auth,
-      now: new Date(),
+      now: new Date(await authClock()),
     });
-    expect(await mfaStepAllowed(pageInput())).toEqual({ ok: true, step: "code", factorId: await verifiedFactor(old.userId) });
+    expect(await mfaStepAllowed(await pageInput())).toEqual({ ok: true, step: "code", factorId: await verifiedFactor(old.userId) });
 
     const token = await ageSignIn(aal1, SESSION_MAX_AGE_MS / 1000);
     const { data } = await jarClient(aal1.jar).auth.getSession();
@@ -389,7 +382,7 @@ describe("the time-box", () => {
     if (!refreshToken) throw new Error("no refresh token in the jar");
     const before = [...aal1.jar.keys()];
 
-    expect(await mfaStepAllowed(pageInput())).toEqual({ ok: false, reason: "no-session" });
+    expect(await mfaStepAllowed(await pageInput())).toEqual({ ok: false, reason: "no-session" });
 
     expect(await accepted(token)).toBe(false);
     expect((await anonClient().auth.refreshSession({ refresh_token: refreshToken })).error).not.toBeNull();

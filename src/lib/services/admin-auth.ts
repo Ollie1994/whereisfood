@@ -93,20 +93,23 @@ function firstFactorSignIn(claims: Claims | null): number | null {
 // (IS #377) and a later verify (IS #381's probe).
 //
 // The age is read on Auth's clock as near as this server can tell: the caller's `now`, held
-// within the token's `iat` and `exp`, both Auth's clock. Auth has just accepted the token
-// (`getUser(token)`), so its time now lies in that window: its `parseJWTClaims`
-// (`internal/api/auth.go`) builds golang-jwt v5's parser with no leeway option, and v5
-// checks `exp` by default (read on GitHub's master, 2026-11-18; the claims type's own checks
-// weren't read). So with the two clocks agreed, the age is `now`'s, exact; with Auth ahead,
-// `now` is raised to `iat`; with Auth behind, it is lowered to `exp`. Either way a skew moves
-// the age by less than the token's life (`config.toml`'s `jwt_expiry`, 3600 s), and a fresh
-// login, `iat` and sign-in together, is never refused. A bound that isn't a finite number is
-// left out. The owner's calls: the plan's open decision 2.
+// within the token's `iat` and `exp`, both Auth's clock. `iat` is when Auth issued the token,
+// so Auth's time now is at or after it (on one Auth instance; separate instances' clocks
+// weren't read). Auth has just accepted the token (`getUser(token)`), so its time now is
+// before `exp`: its `parseJWTClaims` (`internal/api/auth.go`) builds golang-jwt v5's parser
+// with no leeway option, and v5 checks `exp` by default, though not `iat` (read on GitHub's
+// master, 2026-11-18; the claims type's own checks weren't read). With the two clocks agreed,
+// `now` is in that window and the age is exact; with Auth ahead, `now` is raised to `iat`;
+// with Auth behind, it is lowered to `exp`. A fresh login, `iat` and sign-in together, is
+// never refused. A bound that isn't a finite number is left out. The owner's calls: the
+// plan's open decision 2.
 //
 // Two limits:
-// - While the clocks disagree, the box can end up to a token's life late (Auth ahead) or
-//   early (Auth behind). The local stack's Docker VM clock can fall behind the host's after a
-//   sleep (`helpers.ts`'s `authClock`).
+// - While the clocks disagree, the box can end up to a token's life (`exp − iat`) late (Auth
+//   ahead) or early (Auth behind). That life is the project's JWT expiry: `config.toml`'s
+//   `jwt_expiry` is 3600 s, and a hosted project's is its own Auth setting, not read here.
+//   The local stack's Docker VM clock can fall behind the host's after a sleep (`helpers.ts`'s
+//   `authClock`).
 // - Each check reads its caller's `now`. A request the proxy admits just under 12 hours can be
 //   refused by `withAdmin` or the MFA page just after. Their sign-out ends the session at Auth,
 //   but they hold `readOnlyCookies`, which can't delete cookies (the integration test of the
@@ -115,10 +118,15 @@ function firstFactorSignIn(claims: Claims | null): number | null {
 //   clears them (`getUser(token)`, the integration test's logged-out case), or a new login's
 //   callback writes new ones.
 function expired(signedInSeconds: number, claims: Claims | null, now: Date): boolean {
-  const ms = (seconds: unknown, otherwise: number) =>
-    typeof seconds === "number" && Number.isFinite(seconds) ? seconds * 1000 : otherwise;
-  const authNow = Math.min(Math.max(now.getTime(), ms(claims?.iat, -Infinity)), ms(claims?.exp, Infinity));
+  const floor = finiteMs(claims?.iat, -Infinity);
+  const ceiling = finiteMs(claims?.exp, Infinity);
+  const authNow = Math.min(Math.max(now.getTime(), floor), ceiling);
   return authNow - signedInSeconds * 1000 >= SESSION_MAX_AGE_MS;
+}
+
+// A claim in epoch seconds as milliseconds, or `otherwise` when it isn't a finite number.
+function finiteMs(seconds: unknown, otherwise: number): number {
+  return typeof seconds === "number" && Number.isFinite(seconds) ? seconds * 1000 : otherwise;
 }
 
 // Ends this session at Auth and clears it from storage (`signOut`'s `_removeSession`, which

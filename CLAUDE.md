@@ -272,7 +272,7 @@ said otherwise: Phase 4 plan decision #14.
   refusal is the first factor's: signed out at Auth with `scope: "local"`, answered as no
   session, or as unavailable if the sign-out failed. `requireAdmin` and `mfaStepAllowed` take
   the caller's `now`, and read the age on it held within the token's `iat` and `exp`, Auth's
-  clock, so a skew either way moves the box by less than a token's life (`admin-auth.ts`).
+  clock, so a skew either way moves the box by up to a token's life (`admin-auth.ts`).
   Their integration tests age a sign-in at Auth by SQL, not by moving `now`, which would
   read as skew. A limit: only a session presented to the app is signed out, so a stolen
   token used only against Supabase stays good until Phase 11's Pro session timeouts, which
