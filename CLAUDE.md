@@ -273,7 +273,9 @@ said otherwise: Phase 4 plan decision #14.
   reaches without a session; `next.config.test.ts` which paths get which; `proxy.test.ts` the
   nonce CSP's answers
 - Limits: the public pages' CSP admits inline scripts (plan #6); no HSTS until the custom
-  domain (Phase 11)
+  domain (Phase 11); an encoded `/admin` path (`/%61dmin/…`) gets both CSPs from Next's two
+  matchers, of which `next start` sent only the proxy's (`next.config.ts`); whether a Vercel
+  deploy honours `caseSensitiveRoutes` and sends one CSP there is read on the preview
 
 **API responses**
 - All errors return `{ "error": "message" }` with the correct HTTP status code

@@ -420,9 +420,8 @@ describe("proxy's CSP", () => {
     return broken;
   };
 
-  // `smoke.mjs`'s readers of a CSP value: its policy count, and its nonce.
+  // `smoke.mjs`'s readers of a CSP value (`policyCount`, `cspNonce`).
   const policies = (response: Response) => policyCount(response.headers.get("content-security-policy"));
-  const nonceOf = (csp: string | null) => cspNonce(csp);
 
   it.each([
     ["/admin/login, returned early", () => request("/admin/login"), 200],
@@ -439,7 +438,7 @@ describe("proxy's CSP", () => {
     expect(policies(response)).toBe(1);
     const csp = response.headers.get("content-security-policy");
     expect(csp).toContain("frame-ancestors 'none'");
-    expect(nonceOf(csp)).toMatch(/^[A-Za-z0-9+/]{22}==$/);
+    expect(cspNonce(csp)).toMatch(/^[A-Za-z0-9+/]{22}==$/);
   });
 
   it.each([
@@ -455,8 +454,8 @@ describe("proxy's CSP", () => {
   });
 
   it("makes a new nonce for each request", async () => {
-    const first = nonceOf((await proxy(request("/admin/login"))).headers.get("content-security-policy"));
-    const second = nonceOf((await proxy(request("/admin/login"))).headers.get("content-security-policy"));
+    const first = cspNonce((await proxy(request("/admin/login"))).headers.get("content-security-policy"));
+    const second = cspNonce((await proxy(request("/admin/login"))).headers.get("content-security-policy"));
     expect(first).toBeDefined();
     expect(first).not.toBe(second);
   });
