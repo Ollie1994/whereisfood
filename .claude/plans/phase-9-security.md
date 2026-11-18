@@ -255,7 +255,9 @@ before the closing steps (#12).
    `aal1` session too; a failed sign-out answers unavailable, as a refused first factor's does.
 7. **Logout ends every session** (#5): `signOut({ scope: "global" })`; an integration test
    that another session's next request is refused. **Settled by IS #385:** the button stays
-   "Logga ut" (the owner, 2026-11-18). An access token already issued still reads PostgREST
+   "Logga ut" (the owner, 2026-11-18). A sign-out that answered an error or threw lands on
+   `/admin/login?error=logout`, whose text, the owner's (round 1 on PR #409), says other
+   devices may still be signed in. An access token already issued still reads PostgREST
    until its `exp` (probed), which `CLAUDE.md` states as the limit.
 8. **The login-abuse fix** chosen from the probes of steps 1, 2 and 5a (open decision 1),
    built and tested, or accepted with a reason; the rate limits it sets, locally and on the

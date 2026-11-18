@@ -44,19 +44,21 @@ beforeEach(() => {
 });
 
 describe("POST /auth/logout", () => {
+  // A failed global sign-out lands on the login with `?error=logout`, whose text says other
+  // devices may still be signed in (`LOGOUT_FAILED_ERROR`).
   it.each([
-    ["no error", () => signOut.mockResolvedValue({ error: null })],
+    ["no error", () => signOut.mockResolvedValue({ error: null }), "/admin/login"],
     ["a 500 from Auth, which _signOut answers without removing the session", () =>
-      signOut.mockResolvedValue({ error: { status: 500, name: "AuthApiError", message: "boom" } })],
-    ["a throw", () => signOut.mockRejectedValue(new Error("network down"))],
-  ])("clears every sb-* cookie and answers 303 to the login, on %s", async (_, stub) => {
+      signOut.mockResolvedValue({ error: { status: 500, name: "AuthApiError", message: "boom" } }), "/admin/login?error=logout"],
+    ["a throw", () => signOut.mockRejectedValue(new Error("network down")), "/admin/login?error=logout"],
+  ])("clears every sb-* cookie and answers 303, on %s, to %s", async (_, stub, location) => {
     stub();
     const response = await POST(logoutRequest());
 
     expect(response.status).toBe(303);
-    expect(response.headers.get("location")).toBe("/admin/login");
+    expect(response.headers.get("location")).toBe(location);
     expect(cleared(response).sort()).toEqual(["sb-127-auth-token", "sb-127-auth-token-code-verifier"]);
-    expect(signOut).toHaveBeenCalledWith({ scope: "global" });
+    expect(signOut).toHaveBeenCalledExactlyOnceWith({ scope: "global" });
   });
 
   it("also clears a cookie a refresh wrote under a new name before Auth failed", async () => {

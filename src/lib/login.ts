@@ -78,8 +78,18 @@ export function callbackErrorFor(error: { status?: number; code?: string }): Cal
   return "link";
 }
 
-// The text for each `?error=` the callback sends (`callbackErrorFor`).
+// `/auth/logout`'s `?error=` when its global sign-out answered an error or threw: this
+// device's cookies are gone, but Auth may not have ended the user's other sessions (Phase 9
+// plan, #5).
+export const LOGOUT_FAILED_ERROR = "logout";
+
+// The text for each `?error=` the callback sends (`callbackErrorFor`), and the logout's.
 export function callbackErrorMessage(error: string | string[] | undefined): string | null {
+  // The owner's wording (2026-11-18, IS #385). A fresh login's logout signs out again with
+  // `scope: "global"`, which ends every session of the user.
+  if (error === LOGOUT_FAILED_ERROR) {
+    return "Utloggningen nådde inte servern, så andra enheter kan fortfarande vara inloggade. Logga in och logga ut igen.";
+  }
   if (error === "link") {
     return "Inloggningslänken fungerade inte. Den kan ha gått ut eller redan använts. Be om en ny.";
   }

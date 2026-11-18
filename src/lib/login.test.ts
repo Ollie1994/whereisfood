@@ -81,6 +81,13 @@ describe("callbackErrorMessage", () => {
     );
   });
 
+  // The owner's approved wording, whole (IS #385).
+  it("says a failed logout may have left other devices signed in, and how to end them", () => {
+    expect(callbackErrorMessage("logout")).toBe(
+      "Utloggningen nådde inte servern, så andra enheter kan fortfarande vara inloggade. Logga in och logga ut igen.",
+    );
+  });
+
   it("tells an Auth failure apart from a bad link", () => {
     expect(callbackErrorMessage("unavailable")).toMatch(/Vänta en stund och be sedan om en ny länk/);
   });
