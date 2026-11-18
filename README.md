@@ -500,11 +500,11 @@ Its row stays in the preview's history.
 
 ## Hosted settings checklist
 
-For the owner: the settings that live in the Supabase and Vercel dashboards, not in the
-repo, each with its value on the preview. Phase 10 applies the list to production (Phase 9
-plan #10). Each row was read on the preview on 2026-11-18, from the owner's screenshots,
-with the results recorded on IS #390. It names settings, never keys or addresses
-(`CLAUDE.md`, Secrets).
+For the owner: the security settings #390 checked in the Supabase and Vercel dashboards,
+which live outside the repo, each with its value on the preview. Phase 10 applies the list
+to production (Phase 9 plan #10). Each row was read on the preview on 2026-11-18, from the
+owner's screenshots, with the results recorded on IS #390. It names settings, never keys or
+addresses (`CLAUDE.md`, Secrets).
 
 **Supabase, Authentication:**
 
