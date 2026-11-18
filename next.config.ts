@@ -41,10 +41,10 @@ const nextConfig: NextConfig = {
     // `headers()`' sources match by exact case, as the proxy's matcher does. Without it Next
     // matched them ignoring case (`filesystem.js`'s `buildCustomRoute`), so `NOT_ADMIN` also
     // left out `/Admin/login` and `/ADMIN`, which the proxy doesn't run on: their 404s went
-    // out with no CSP (`next start`, PR #411, round 1). It reaches only `headers()`,
-    // `redirects()` and `rewrites()`, and this config has only `headers()`. The build writes
-    // it into the routes manifest (`caseSensitive`); whether a Vercel deploy honours it is
-    // read on the preview.
+    // out with no CSP (`next start`, PR #411, round 1). In 16.4.5 it sets how `headers()`,
+    // `redirects()` and `rewrites()` match (`filesystem.js`), and this config has only
+    // `headers()`; the build also writes it into the routes manifest (`caseSensitive`), whose
+    // other readers weren't traced. Whether a Vercel deploy honours it is read on the preview.
     caseSensitiveRoutes: true,
   },
 };
