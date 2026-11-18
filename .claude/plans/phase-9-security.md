@@ -250,7 +250,9 @@ before the closing steps (#12).
    `scope: "local"` (that session only); if the sign-out fails, the refusal stands. A
    session never presented to the app isn't signed out, a stated limit until Phase 11 (#4);
    unit and integration tests; `CLAUDE.md` and
-   "Admin and auth" say so until Pro's timeouts replace it in Phase 11.
+   "Admin and auth" say so until Pro's timeouts replace it in Phase 11. **Settled by IS #384:**
+   12 hours (open decision 2), in `verify`, so the MFA page's `mfaStepAllowed` refuses an old
+   `aal1` session too; a failed sign-out answers unavailable, as a refused first factor's does.
 7. **Logout ends every session** (#5): `signOut({ scope: "global" })`; an integration test
    that another session's next request is refused.
 8. **The login-abuse fix** chosen from the probes of steps 1, 2 and 5a (open decision 1),
@@ -617,9 +619,11 @@ the sequential integration suite's time down.
    limiting when using secret API keys" (IS #377). The proxy's refreshes go through
    `createSessionClient`, with the anon key, so it covers the flood only if they carried a
    secret API key, which the session client doesn't hold.
-2. **The time-box's length (step 6).** Leaning 12 hours. Its source: the `amr` claim's
+2. ~~**The time-box's length (step 6).** Leaning 12 hours. Its source: the `amr` claim's
    first-factor timestamp (#4, IS #377), which a later TOTP verify leaves as it was (IS #381's
-   probe).
+   probe).~~ → **settled** (the owner, 2026-11-18, IS #384, approving the leaning): 12 hours
+   (`admin-auth.ts`'s `SESSION_MAX_AGE_MS`), from that source. A session is refused from 12
+   hours on, and one whose sign-in is after the server's `now` (Auth's clock ahead) is admitted.
 3. ~~**The magic link (step 5d):** kept beside the emailed code, or the code only.~~ →
    **settled by #14** (the owner, 2026-11-17, IS #396): the magic link only. What step 1
    found (IS #377): the preview's dashboard says "Set up custom SMTP to edit templates.

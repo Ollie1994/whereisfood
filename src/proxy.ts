@@ -46,8 +46,8 @@ function wroteSession(from: NextResponse): boolean {
 // A page's answer when the session can't be checked: Swedish text, not the login, which
 // would send the admin to spend one of the built-in email's few links an hour (#32). With
 // `LogoutButton`'s form, so a session stuck as "unavailable" (`isInvalidSession`'s limit, or
-// a refused first factor whose sign-out keeps failing, `admin-auth.ts`) can
-// be cleared here; logging out sends no email (the owner's call, PR for IS #223, round 4).
+// a refused first factor or a session past the time-box whose sign-out keeps failing,
+// `admin-auth.ts`) can be cleared here; logging out sends no email (the owner's call, PR for IS #223, round 4).
 function unavailablePage(): NextResponse {
   const html = `<!doctype html><html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>WhereIsFood – admin</title></head><body><p role="alert">${SESSION_CHECK_FAILED}</p><form method="post" action="${LOGOUT_PATH}"><button type="submit">${LOGOUT_LABEL}</button></form></body></html>`;
   return new NextResponse(html, {
