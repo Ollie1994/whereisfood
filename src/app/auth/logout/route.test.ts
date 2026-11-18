@@ -66,6 +66,16 @@ describe("POST /auth/logout", () => {
     expect(signOut).toHaveBeenCalledExactlyOnceWith({ scope: "global" });
   });
 
+  it.each([
+    ["a session already gone", 0, new AuthApiError("Invalid Refresh Token: Refresh Token Not Found", 400, "refresh_token_not_found")],
+    ["a 500 from Auth", 1, new AuthApiError("boom", 500, "unexpected_failure")],
+  ])("logs %s as an error %i times", async (_, times, error) => {
+    signOut.mockResolvedValue({ error });
+    vi.mocked(console.error).mockClear();
+    await POST(logoutRequest());
+    expect(console.error).toHaveBeenCalledTimes(times);
+  });
+
   it("also clears a cookie a refresh wrote under a new name before Auth failed", async () => {
     signOut.mockImplementation(async () => {
       adapted?.request.cookies.set("sb-127-auth-token.0", "base64-refreshed");

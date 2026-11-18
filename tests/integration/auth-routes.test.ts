@@ -171,7 +171,7 @@ describe("POST /auth/logout", () => {
   let toExpire: { jar: Map<string, string>; accessToken: string };
 
   beforeAll(async () => {
-    admin = await sessionUser({ isAdmin: true, aal2: true });
+    admin = await sessionUser({ isAdmin: true });
     nonAdmin = await sessionUser();
     toExpire = await sessionUser();
   }, SIGN_IN_TIMEOUT);
@@ -179,11 +179,11 @@ describe("POST /auth/logout", () => {
   // An admin request on the jar's session, as the browser's next one would be.
   const adminRequest = (jar: Map<string, string>) => trucks(request("/api/admin/trucks", { cookie: cookieHeader(jar) }));
 
-  async function expectLoggedOut(jar: Map<string, string>, location = "/admin/login") {
+  async function expectLoggedOut(jar: Map<string, string>) {
     const response = await logout(request("/auth/logout", { method: "POST", cookie: cookieHeader(jar) }));
 
     expect(response.status).toBe(303);
-    expect(response.headers.get("location")).toBe(location);
+    expect(response.headers.get("location")).toBe("/admin/login");
 
     const written = setCookies(response);
     const sent = [...jar.keys()].filter((name) => SESSION_COOKIE.test(name));

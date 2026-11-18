@@ -282,11 +282,13 @@ said otherwise: Phase 4 plan decision #14.
   `sb-*` cookie whatever Auth answered. When the sign-out threw, or answered an error that
   doesn't say this session is already gone (`isInvalidSession`), it lands on
   `/admin/login?error=logout`, whose text says other devices may still be signed in. The
-  button stays "Logga ut" (the owner, IS #385). Two limits: a logout from a session Auth no
-  longer holds ends nothing else and reads as success, whatever its token's age (the route's
-  comment); and an access token already issued outlives a logout until its `exp` against
-  PostgREST, though Auth and the app refuse it (after a global logout, the old token still read
-  its own `users` row through `users_select_own`, plan #7; the PR for IS #385)
+  button stays "Logga ut" (the owner, IS #385). Limits: a logout from a session Auth no
+  longer holds, or from none, ends nothing else and reads as success, whatever its token's
+  age, so the login's own "Logga ut" after a failed logout clears the warning; the warning
+  stays while the admin logs in again, but not after (the route's comment); and an access
+  token already issued outlives a logout until its `exp` against PostgREST, though Auth and
+  the app refuse it (after a global logout, the old token still read its own `users` row
+  through `users_select_own`, plan #7; the PR for IS #385)
 
 **`/api/live` (the public read path, Phase 6)**
 - An ordinary (dynamic) route, cached by Vercel's CDN through

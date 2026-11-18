@@ -16,12 +16,17 @@ import { createSessionClient, writingCookies } from "@/lib/supabase-session";
 // that doesn't say the session is gone (`isInvalidSession`), the login says other devices may
 // still be signed in (`LOGOUT_FAILED_PATH`; the owner's call, IS #385).
 //
-// A limit: a logout from a session Auth no longer holds ends no other session and reads as
-// success. `_signOut` makes no call with no session and answers no error for `/logout`'s 401,
-// 403 or 404; a refresh that fails on the dead session (`refresh_token_not_found`) is an
-// `isInvalidSession` error, read the same way. A session the app refused (the time-box, a
-// first factor outside the allowlist) is signed out and sent to the login, where no logout
-// button shows.
+// Limits:
+// - A logout from a session Auth no longer holds, or from no session, ends no other session
+//   and reads as success. `_signOut` makes no call with no session and answers no error for
+//   `/logout`'s 401, 403 or 404; a refresh that fails on the dead session
+//   (`refresh_token_not_found`) is an `isInvalidSession` error, read the same way. The login
+//   shows "Logga ut" too (`admin/layout.tsx`), so pressing it there after a refused session
+//   (the time-box, a first factor outside the allowlist) or after a failed logout, whose
+//   cookies are gone, lands on the plain login. The failed logout's warning says to log in
+//   and out again, not to press it.
+// - That warning stays on the login page while the admin logs in again (`LoginForm`'s
+//   `logoutWarning`), but nothing repeats it once the login is done (the owner, IS #385).
 //
 // 303, not 307 (`NextResponse.redirect`'s default): the browser follows a 303 with a GET,
 // and a 307 would re-POST to the login page (#28).
@@ -37,8 +42,9 @@ export async function POST(request: NextRequest) {
     let failed = false;
     try {
       const { error } = await supabase.auth.signOut({ scope: "global" });
-      if (error) {
-        failed = !isInvalidSession(error);
+      // A session already gone is a plain logout, not logged as an error.
+      if (error && !isInvalidSession(error)) {
+        failed = true;
         console.error("[auth/logout] signOut answered with an error:", error);
       }
     } catch (err) {

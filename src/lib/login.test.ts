@@ -81,7 +81,7 @@ describe("loginErrorMessage", () => {
     );
   });
 
-  // The owner's approved wording, whole (IS #385, adjusted in round 2 on PR #409).
+  // The owner's approved wording, whole (IS #385).
   it("says a failed logout may have left other devices signed in, and how to end them", () => {
     expect(loginErrorMessage("logout")).toBe(
       "Utloggningen kunde inte slutföras, så andra enheter kan fortfarande vara inloggade. Logga in och logga ut igen.",
