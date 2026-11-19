@@ -6,9 +6,12 @@
 //
 // Only Git's attributes excuse a file: one marked `-text` (or `binary`, or the legacy `-crlf`),
 // read through `git ls-files --format`'s `%(eolattr)`, which prints `-text` for each and for
-// `-text eol=lf`. Mark a file `-text`: `binary` also sets `-diff`, and the pre-commit Gitleaks
-// hook then saw only "Binary files … differ" and missed a made-up token in the file, which it
-// caught under `-text` (probed on PR #433; CI's scan, with `--text`, reads both). `%(eolattr)`
+// `-text eol=lf`. Mark a file `-text` (the owner's call, PR #433). For a file with no NUL byte,
+// `binary`'s `-diff` made the pre-commit Gitleaks hook see only "Binary files … differ" and miss
+// a made-up token, which it caught under `-text`, though Git then merges such a file as text,
+// writing conflict markers into it. A file with a NUL (every `.ico`) the hook doesn't read under
+// either mark: Git decides binary from the content (all probed on PR #433). CI's scan, with
+// `--text`, reads both. `%(eolattr)`
 // reads every attributes source Git does: a nested `.gitattributes`, an unstaged edit to one,
 // `$GIT_DIR/info/attributes` and the user's `core.attributesFile` (probed on PR #433). CI's
 // checkout has only the tracked `.gitattributes` files, so a mark made only in a local source
@@ -68,8 +71,8 @@ export function decode(buf) {
 }
 
 /** `git ls-files -z --format='%(objectmode) %(eolattr)%x09%(path)'` output as
- * { path, mode, binary }, `binary` when `.gitattributes` marks the path `-text` (`binary`
- * included), each path once (a merge conflict lists one per stage). */
+ * { path, mode, binary }, `binary` when Git's attributes, from any source, mark the path
+ * `-text` (`binary` and `-crlf` included), each path once (a merge conflict lists one per stage). */
 export function parseLsFiles(out) {
   const seen = new Map();
   for (const rec of out.split(NUL).filter(Boolean)) {
@@ -111,11 +114,11 @@ export function scanEntries(files, allowed) {
     } catch {
       // Not UTF-8: excused only if marked, below.
     }
-    // Only a -text mark excuses a file. One that isn't empty and reads as text with nothing
-    // refused in it is named: a text file marked by mistake.
+    // Only a -text mark excuses a file. One that reads as text with nothing refused in it, and
+    // something besides an opening byte-order mark, is named: a text file marked by mistake.
     if (binary) {
-      if (buf.length > 0 && text !== null && scanText(text).length === 0) found.push(`${path}: marked -text in .gitattributes, but reads as text`);
-      skipped.set(path, "is marked binary");
+      if (text !== null && text.slice(text.codePointAt(0) === BOM ? 1 : 0) !== "" && scanText(text).length === 0) found.push(`${path}: marked -text in Git's attributes, but reads as text`);
+      skipped.set(path, "is marked -text");
       continue;
     }
     if (text === null) {
@@ -239,18 +242,19 @@ describe("scanEntries", () => {
     expect(scanEntries([file("nul.md", `a${NUL}b`)], new Map()).found).toEqual(["nul.md:1:2: U+0000"]);
   });
   it("names a marked file that reads as text with nothing refused, and skips one that holds a refused character", () => {
-    expect(scanEntries([file("t.md", "plain text", { binary: true })], new Map())).toEqual({ scanned: 0, found: ["t.md: marked -text in .gitattributes, but reads as text"] });
+    expect(scanEntries([file("t.md", "plain text", { binary: true })], new Map())).toEqual({ scanned: 0, found: ["t.md: marked -text in Git's attributes, but reads as text"] });
     expect(scanEntries([file("t.md", `x${cps(0x00a0)}`, { binary: true })], new Map())).toEqual({ scanned: 0, found: [] });
   });
-  it("doesn't name an empty marked file", () => {
+  it("doesn't name a marked file that is empty, or holds only a byte-order mark", () => {
     expect(scanEntries([file("e.ico", "", { binary: true })], new Map())).toEqual({ scanned: 0, found: [] });
+    expect(scanEntries([file("m.ico", cps(BOM), { binary: true })], new Map())).toEqual({ scanned: 0, found: [] });
   });
   it("fails an allowlist entry that is stale, unscanned, untracked or has no reason, naming which", () => {
     expect(scanEntries([file("a.md", "x")], allow("a.md", [0xa0])).found).toEqual(["a.md: allowed U+00A0, but the file no longer holds it (a stale entry)"]);
     expect(scanEntries([file("a.md", null)], allow("a.md", [0xa0])).found).toEqual(["a.md: on the allowlist, but it isn't a regular file here, so it wasn't scanned"]);
     expect(scanEntries([file("a.md", "x")], allow("b.md", [0xa0])).found).toEqual(["b.md: on the allowlist, but not a tracked file"]);
     expect(scanEntries([file("a.md", `x${cps(0x00a0)}`)], allow("a.md", [0xa0], "")).found).toEqual(["a.md: on the allowlist with no reason"]);
-    expect(scanEntries([file("a.md", `x${cps(0x00a0)}`, { binary: true })], allow("a.md", [0xa0])).found).toEqual(["a.md: on the allowlist, but it is marked binary, so it wasn't scanned"]);
+    expect(scanEntries([file("a.md", `x${cps(0x00a0)}`, { binary: true })], allow("a.md", [0xa0])).found).toEqual(["a.md: on the allowlist, but it is marked -text, so it wasn't scanned"]);
   });
   it("reports invalid UTF-8 once", () => {
     const bad = { path: "b.md", mode: "100644", binary: false, buf: Buffer.from([0x61, 0xa0]) };
