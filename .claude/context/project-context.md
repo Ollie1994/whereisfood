@@ -17,8 +17,8 @@ has three parts:
    are we building", never as a description of the code. The exceptions are the
    sections marked "built in Phase 5", for what they say about the **schema** (Part 1's
    "Database" says it matches them), "Read path", marked "built in Phase 6", "Admin
-   and auth", marked "built in Phases 7 and 9", "Pre-deploy automation"'s "Built in Phase 8", and
-   the Product model's launch items where they cite a Phase 7 plan decision.
+   and auth", marked "built in Phases 7 and 9", "Pre-deploy automation"'s "Built in
+   Phase 8", and the Product model's launch items where they cite a Phase 7 plan decision.
 3. **Standing rules** — conventions that hold in both.
 
 The current phase plan wins over this file. This file is reconciled with reality at
@@ -87,9 +87,11 @@ save-triggered cache purges, grey markers) without a concrete problem that needs
   (its start, a marker update) shows a Swedish error page, `src/app/map/error.tsx`, whose
   header names what it doesn't catch (IS #306). A path no page matches gets a Swedish 404
   (`src/app/not-found.tsx`), and an error that `/map`'s and `/admin`'s own error pages don't
-  catch, one in the admin layout included, a Swedish error page (`src/app/error.tsx`); each
-  error page focuses its heading or message for a screen reader,
-  and each error and 404 page has its own title (IS #413, #438).
+  catch, one in the admin layout included, a Swedish error page (`src/app/error.tsx`); one in
+  the root layout, or while that page renders, reaches Next's built-in screen (no
+  `global-error.tsx`; `CLAUDE.md`, "Security headers"). Each error page focuses its heading
+  or message for a screen reader, and each error and 404 page has its own title (IS #413,
+  #438).
 - **Markers come from `GET /api/live`**, the one public API route: route → `getLiveMap`
   (`src/lib/services/live.ts`) → the db layer. Part 2's "Read path" (built in Phase 6)
   describes it, server and client: the markers, the popup, polling and failure.
@@ -111,7 +113,7 @@ save-triggered cache purges, grey markers) without a concrete problem that needs
   `/api/admin/:path*`, letting `/admin/login` through and an `aal1` admin session to
   `/admin/mfa` alone (`CLAUDE.md`, "proxy.ts"), and gives every `/admin` page a nonce CSP.
 - **Security headers** (Phase 9): every path gets `next.config.ts`'s static headers, and
-  every path but `/admin` a static CSP; `src/lib/http/csp.ts` holds both CSPs (`CLAUDE.md`,
+  every path but `/admin` and `/admin/…` a static CSP; `src/lib/http/csp.ts` holds both CSPs (`CLAUDE.md`,
   "Security headers").
 - **CI** (Phase 8): GitHub Actions runs `.github/workflows/ci.yml` on every PR into `dev` or
   `main`, and `codeql.yml` on those PRs and on pushes to both. Each branch's ruleset requires
@@ -288,7 +290,8 @@ before the app uses it: below `MAX_ROWS`, a `listRecentLocationsForTruck` call w
 | `scripts/process-log.sh` | `add` and `check` for the process log (`CLAUDE.md`, "Process Log") | every log row |
 | `scripts/post-body.mjs` | posts issue and PR text from a file, refusing invisible characters and the escapes GitHub rewrites, and reads it back; with `--rounds`, checks a PR body's round sections against the log (+ test; IS #403, the Phase 9 retrospective's new action) | every issue and PR body (`CLAUDE.md`, "Doc changes") |
 | `scripts/tracked-text.test.mjs` | fails on a tracked file holding a character `post-body.mjs` refuses, unless `.gitattributes` marks it `-text` (IS #430, #432) | the `unit` project (`CLAUDE.md`, "Testing") |
-| `tests/totp.ts` | an RFC 6238 TOTP function on Node's `crypto`, for the tests' `aal2` sessions (+ test against the RFC's vectors; Phase 9 plan #9) | the integration tests' admin fixtures (`helpers.ts`) |
+| `tests/totp.ts` | an RFC 6238 TOTP function on Node's `crypto`, for the tests' `aal2` sessions (+ test against the RFC's vectors; Phase 9 plan #9) | the integration tests (`helpers.ts`'s admin fixtures, `admin-auth.test.ts`'s time-box cases) |
+| `tests/jwt.ts` | `unsignedJwt` and `SIGNED_IN`: an access token with the claims a test needs, for unit tests that stub Auth (Phase 9) | `proxy.test.ts`, `http/admin.test.ts`, `services/admin-auth.test.ts`; `admin-auth.test.ts` and `helpers.test.ts` (integration) |
 
 ## Folder structure
 
@@ -359,6 +362,7 @@ public/                           ← gothenburg.pmtiles (development; deploys r
                                     core.hooksPath, by hand)
 next.config.ts                    ← (+ test: which paths get which CSP, IS #387)
 SECURITY.md, .gitleaks.toml       ← how to report a vulnerability; Gitleaks' config
+.gitattributes                    ← the files marked `-text`, which tracked-text.test.mjs skips
 ```
 
 ## Environment
@@ -705,13 +709,14 @@ phase; issues are cited as "IS #n". The rules are `CLAUDE.md`'s ("Supabase", "pr
 - **Three clients** (Phase 7 #27): `supabase.ts` (`supabaseAdmin`, server only, behind
   `server-only`), `supabase-browser.ts` (`createBrowserClient`, for Auth only) and
   `supabase-session.ts` (the cookie-session clients for the proxy, the routes, the
-  `/admin` page, the callback and logout).
+  `/admin` and `/admin/mfa` pages, the callback and logout).
 - **The check.** `admin-auth.ts`'s `verify`, which `requireAdmin` and `mfaStepAllowed`
   share, runs in this order: no session cookie → reject before any network or DB call; then
   the session's access token, verified by Auth (`getUser(token)`), whose `aal` and `amr` it
   reads (Phase 9 #11, Phase 9 open decision 11); a first factor other than `magiclink`, or
   one past the time-box, is signed out at Auth with `scope: "local"` and answered as no
-  session; then `users.is_admin`, read through the db layer (`getUserById`, Phase 7 #14).
+  session, or as unavailable if that sign-out failed, so a later request tries again; then
+  `users.is_admin`, read through the db layer (`getUserById`, Phase 7 #14).
   `requireAdmin` then admits only `aal2`: an admin route answers an `aal1` admin session 401
   with its own text (Phase 9 open decision 6), and the proxy sends it to `/admin/mfa`, which
   `mfaStepAllowed` lets through (Phase 9 open decision 5). An Auth or database failure is
@@ -743,8 +748,9 @@ phase; issues are cited as "IS #n". The rules are `CLAUDE.md`'s ("Supabase", "pr
 Planned by the owner on 2026-10-24 (IS #176) as **one piece of work, designed together,
 before the first production deploy**. Since IS #265 and IS #278 (Phase 8 plan #1), Phase 8
 built what was "To build" ("Built in Phase 8", below), Phase 9 did the first 2FA audit
-(IS #391), and Phase 10 runs the rest of "Before the production deploy". Since Phase 8, CI is the gate:
-`CLAUDE.md` "Testing" says which checks the rulesets require and what they can't see.
+(IS #391), and Phase 10 runs the rest of "Before the production deploy". Since Phase 8, CI
+is the gate: `CLAUDE.md` "Testing" says which checks the rulesets require and what they
+can't see.
 
 **Already on** (repository and account settings, the owner, 2026-10-24, unless dated):
 - **GitHub Secret Protection and push protection** on the repository, and push
@@ -822,9 +828,9 @@ owner, 2026-11-16; `gh api repos/{owner}/{repo}/rulesets/<id>` reads them back).
 - **Check every account against `CLAUDE.md`'s two-factor rule** ("Secrets"), the
   owner's GitHub included, each account's recovery email, and a registrar once there
   is one, and keep the recovery codes offline. Phase 9 audited every account that
-  existed then (IS #391, "Already on" above); Phase 10 checks again before its deploy. Phase 8 kept no new account: the owner deleted the SonarQube Cloud trial account
-  and organization (#295), and #349's re-scan creates one again, with two-factor at
-  creation.
+  existed then (IS #391, "Already on" above); Phase 10 checks again before its deploy.
+  Phase 8 kept no new account: the owner deleted the SonarQube Cloud trial account and
+  organization (#295), and #349's re-scan creates one again, with two-factor at creation.
 - **Run the production project's hosted Security Advisor** (`db advisors --linked --type
   security`, or the dashboard) before the deploy: no ERROR, and every WARN fixed or
   recorded as accepted with a reason; INFO read (the owner's call, round 3 on PR #281).
@@ -879,22 +885,22 @@ where secrets live meanwhile are `CLAUDE.md`'s ("Secrets").
   since Phase 6, on `r2.dev` with a preview pattern (`README.md`, "Get the map tiles").
   Skip the Protomaps Worker.
 - **Supabase Free:** 500 MB database, 5 GB egress, no backups, no session timeouts, Auth
-  audit logs kept 24 hours in its logs (the `auth.audit_log_entries` table keeps them
-  while "Write audit logs to the database" is on: on for the preview since 2026-11-18, and
-  named in README's hosted-settings checklist for production; what the table keeps, and
-  that it needs a retention of its own, is the Phase 9 plan's open decision 7), no
-  leaked-password protection, no usage, spend or 5xx alert to set (open decision 7), and no
-  MFA enforcement for an organization's members (IS #391). It pauses a project with too little activity ("a few user requests to the
-  database each day" is typically enough); a paused project keeps its data, restorable for
-  a year, and Supabase emails a week before. While paused, the admin screen and
-  `/api/live` fail until it is restored; in the soft launch, before the trucks are back, a
-  week with few entries could pause it. Whether that is acceptable is for Phase 10's plan
-  (IS #373 (Phase 10)). Two active free projects, counted across every organization where
-  the owner is Owner or Administrator: the preview's and, from Phase 10, production's
-  (Supabase's docs and pricing page, read 2026-11-16; IS #373 (Phase 10)). Pro's spend cap
-  is on by default. At Phase 11's upgrade, keep preview projects in a separate free org,
-  or delete them. Phase 9 chose the time-box and logout, not Pro from the deploy (Phase 9
-  plan #4), so Pro stays Phase 11's.
+  audit logs kept 24 hours in its logs (the `auth.audit_log_entries` table keeps them while
+  "Write audit logs to the database" is on: on for the preview since 2026-11-18, and named
+  in README's hosted-settings checklist for production; what the table keeps, and that it
+  needs a retention of its own, is the Phase 9 plan's open decision 7), no leaked-password
+  protection, no usage, spend or 5xx alert to set (open decision 7), and no MFA enforcement
+  for an organization's members (IS #391). It pauses a project with too little activity ("a
+  few user requests to the database each day" is typically enough); a paused project keeps
+  its data, restorable for a year, and Supabase emails a week before. While paused, the
+  admin screen and `/api/live` fail until it is restored; in the soft launch, before the
+  trucks are back, a week with few entries could pause it. Whether that is acceptable is for
+  Phase 10's plan (IS #373 (Phase 10)). Two active free projects, counted across every
+  organization where the owner is Owner or Administrator: the preview's and, from Phase 10,
+  production's (Supabase's docs and pricing page, read 2026-11-16; IS #373 (Phase 10)).
+  Pro's spend cap is on by default. At Phase 11's upgrade, keep preview projects in a
+  separate free org, or delete them. Phase 9 chose the time-box and logout, not Pro from the
+  deploy (Phase 9 plan #4), so Pro stays Phase 11's.
 - **On Vercel Pro, Spend Management with a pause cap is required**, or traffic not
   classified as DDoS is billed on demand.
 - Vercel deprecated Node 20 on 2026-10-01. Deploys build on the major `engines.node`
@@ -931,10 +937,12 @@ mechanics, hand-off rule, custom SMTP provider.
   (its sessions and refresh tokens are credentials), kept only on the admin's machine
   outside the repo, the last few only. A restore recreates the admin user with its old id
   first, since `users.id` and `locations.created_by` reference `auth.users`, and gives it a
-  long random password, as README's "5. Create the admin user" does for a new one (the
-  admin keeps a password: `CLAUDE.md`, "Supabase"). That step can't recreate it by its old
-  id: Studio's "Add user" makes a new id, and the CLI's data
-  dump sets `session_replication_role = replica` (`npx supabase db dump --dry-run
+  long random password, as README's "5. Create the admin user" does for a new one (the admin
+  keeps a password: `CLAUDE.md`, "Supabase"). It comes back with no TOTP factor (the dump
+  holds no `auth` schema), so the admin enrolls again at once: until then any `aal1`
+  session, a guessed code's included, can fill the free slot at Auth (Phase 9 plan #13).
+  README's step can't recreate it by its old id: Studio's "Add user" makes a new id, and the
+  CLI's data dump sets `session_replication_role = replica` (`npx supabase db dump --dry-run
   --data-only`), so its foreign keys aren't checked: the dump's `users` row and
   `locations.created_by` load pointing at a user `auth.users` doesn't have, beside the
   README's new `users` row. A restore from a dump older than a takedown brings that truck
@@ -951,11 +959,11 @@ These hold in both the current state and the target design.
 **Owned by `CLAUDE.md`:** Supabase clients and keys, secrets, grants and RLS, architecture
 layers, the db layer, `proxy.ts`, the security headers, API responses (`withErrorHandling`,
 the `{ error }` shape, `aal2`, the time-box, logout), the `/api/live` rules, locations, UI
-rules and time. This part doesn't restate them. Part 1's "Database" and Part 2 do describe several of them (the db layer, RLS
-and grants, the trigger's SQL rule, `/api/live`, the auth check order) **together with
-their reasons**; where one of those statements and a `CLAUDE.md` rule disagree, the
-`CLAUDE.md` rule wins and the statement is corrected. A rule restated in two files drifts (process-log rows 291, 293,
-294, 295).
+rules and time. This part doesn't restate them. Part 1's "Database" and Part 2 do describe
+several of them (the db layer, RLS and grants, the trigger's SQL rule, `/api/live`, the auth
+check order) **together with their reasons**; where one of those statements and a
+`CLAUDE.md` rule disagree, the `CLAUDE.md` rule wins and the statement is corrected. A rule
+restated in two files drifts (process-log rows 291, 293, 294, 295).
 
 ## Map behaviour
 
@@ -1026,7 +1034,8 @@ plan open decision 6) · `403` authenticated but not allowed (not admin, or a wr
 foreign `Origin`) · `404` an entry or truck that doesn't exist
 (or an entry already cancelled) · `409` conflict (an overlapping entry, from `23P01`; a
 duplicate Instagram handle, from `23505`) · `500` unexpected · `503` Auth or the
-database couldn't say whether the session is an admin's (Phase 7 plan #32).
+database couldn't say whether the session is an admin's (Phase 7 plan #32), or a refused
+session's sign-out at Auth failed (Phase 9 plan #4, #14).
 
 ## Decisions carried forward
 
@@ -1123,6 +1132,7 @@ says.
 | Phase 9 #13 | One factor per user (`max_enrolled_factors = 1`, locally and hosted); a stolen `aal2` session can still swap the factor, which Free can't block, so it is detected (the password-changed and factor emails, Auth's audit log) and recovered in #13's order: the mailbox, the password, the factor, then every session by SQL on `auth.sessions`, then a re-enroll at once | `supabase/config.toml` (pinned by `config.test.ts`); README's "Hosted settings checklist"; this row (the recovery order, for Phase 10's runbook) |
 | Phase 9 #14 (IS #396) | The magic link is the only first factor, and `requireAdmin` and the MFA page admit only an `amr` `magiclink` first factor (the PKCE link's; a typed or guessed code gives `otp`). IS #241's emailed code waits for custom SMTP or Pro, whichever comes first; until then the login keeps IS #240's hint | `CLAUDE.md` "API responses" (`aal2`, the first factor); Part 2 "Admin and auth" |
 | Phase 9 open decisions 5, 6, 9, 10 | One `aal1` page, `/admin/mfa`, for the enroll and the code; an admin route answers an `aal1` session 401 with its own text; the CSPs' sources are `csp.ts`'s lists; TOTP is SHA1, 6 digits, 30 seconds | `CLAUDE.md` "proxy.ts" and "Security headers"; `src/lib/http/csp.ts`; Part 3 "Status codes" |
+| Phase 9 open decisions 1, 8 (IS #386) | The login-abuse settings, threat by threat: the emailed code Auth still issues is 10 digits and lives 15 minutes, so a guess per IP per code is about 1 in 83 million, and a guess gives only an `otp` session `requireAdmin` refuses; no CAPTCHA (it wouldn't stop 2 requests an hour made by hand); no change for the forged-cookie flood or TOTP guessing; the rate limits kept as they are, since a lower `token_refresh` would make the flood easier (the server's refreshes share its per-IP budget). The email-budget lockout: the between-phases row below | `CLAUDE.md` "Supabase" (the emailed code); `supabase/config.toml` (`otp_length`, `otp_expiry`, the rate limits); README's "Hosted settings checklist" |
 | Phase 9 open decision 7 (IS #389, #419) | Neither free plan offers a usage, spend or 5xx alert to set, so none is set and Phase 10's plan decides how they're covered; "Write audit logs to the database" is on for the preview and named for production; its rows outlived Free's one-day log retention when re-read a day on, and the table needs a retention of its own | Part 2's Phase map (Phase 10 row) and "Pricing" ("Supabase Free"); README's "Hosted settings checklist" |
 | IS #393 (PR #423), IS #403, IS #421 | The Phase 9 retrospective's calls: the Phase 8 retrospective's actions kept, the `Caught by` groups adjusted so `check` requires a review row's round and target (#421); one new action, issue and PR text posted through `scripts/post-body.mjs`, which reads it back and, for a PR body, checks its round sections against the log (#403); a stand-ins field in the templates offered and dropped (#422) | `CLAUDE.md` "Doc changes" and "Process Log"; the log's "Columns"; the process log's Phase 9 retrospective |
 | **between phases**, 2026-11-19, IS #394, for Phase 10 | Phase 10 decides again, before production, whether spending the built-in email's budget so the admin's link doesn't come is accepted (the Phase 9 plan's open decision 1, accepted for Phase 9 only: it needs the admin's address and grants no access; custom SMTP, the Owners phase's, is the fix it waits for) | `CLAUDE.md` "Supabase" (the emailed code); README's "Hosted settings checklist" (custom SMTP) |

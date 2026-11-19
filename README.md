@@ -16,9 +16,10 @@ shut down in 2017.
 > Supabase and on protected Vercel previews against a hosted one. One admin logs in with
 > an emailed link and a code from an authenticator app, and keeps the map up to date from
 > a phone-first admin screen. Every pull request into `dev` or `main` runs the checks in
-> GitHub Actions, which must pass before it merges. There is no production deploy yet. Phase 4 removed the old design (automatic
-> ingestion from Make.com and email, plus a Swedish text parser), and Phase 5 replaced its
-> database schema; see [Project status](#project-status).
+> GitHub Actions, which must pass before it merges. There is no production deploy yet.
+> Phase 4 removed the old design (automatic ingestion from Make.com and email, plus a
+> Swedish text parser), and Phase 5 replaced its database schema; see
+> [Project status](#project-status).
 
 ---
 
@@ -101,7 +102,7 @@ The working rules live in [`CLAUDE.md`](CLAUDE.md) and the design reference in
 | 6 · Live read path   | `/api/live`, polling, map tiles on Cloudflare R2, first preview deploy | ✅ Done |
 | 7 · Admin            | Admin login, location entry, truck management, the morning checklist | ✅ Done |
 | 8 · CI/CD            | The checks in GitHub Actions, secret scanning, CodeQL, Dependabot, branch protection | ✅ Done |
-| 9 · Security         | Admin MFA, session limits, security headers, the 2FA audit; the free plans' alerts and logs read (none of their alerts can be set) | ✅ Done |
+| 9 · Security         | Admin MFA, session limits, security headers, the 2FA audit; the free plans' alerts and logs read (no usage, spend or 5xx alert can be set on them) | ✅ Done |
 | 10 · Launch          | Production deploy, a soft launch: the map shown only to the admin, an about page for everyone else | ⬜ Next |
 | 11 · Full launch     | The map public, a custom domain for the tiles, paid plans | ⬜ Not started |
 
