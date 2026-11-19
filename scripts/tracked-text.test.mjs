@@ -4,13 +4,16 @@
 // #430). Why: process-log row 806. Escape text written out (a backslash, `u` and four hex
 // digits) is fine: only the characters themselves are refused.
 //
-// Only `.gitattributes` excuses a file: one marked `binary` or `-text`, read through `git
-// ls-files --format`'s `%(eolattr)`, which prints `-text` for both and for `-text eol=lf`, and
-// reads a nested `.gitattributes` and an unstaged edit to one (probed on IS #432). Every other
-// regular tracked file must be valid UTF-8, and is scanned. Not Git's call from the content
-// (`%(eolinfo:index)`): a bad byte with a NUL or a lone CR made it say `-text`, which hid the
-// file, and a binary file that is valid UTF-8 was scanned (PR #431, round 5). An excused file
-// that decodes as UTF-8 and holds nothing refused is named, as a text file marked by mistake.
+// Only Git's attributes excuse a file: one marked `binary` or `-text` (or the legacy `-crlf`),
+// read through `git ls-files --format`'s `%(eolattr)`, which prints `-text` for each and for
+// `-text eol=lf`. It reads every attributes source Git does: a nested `.gitattributes`, an
+// unstaged edit to one, `$GIT_DIR/info/attributes` and the user's `core.attributesFile` (probed
+// on PR #433). CI's checkout has only the tracked `.gitattributes` files, so a mark made only
+// in a local source skips a file locally that CI then fails. Every other regular tracked file
+// must be valid UTF-8, and is scanned. Not Git's call from the content (`%(eolinfo:index)`): a
+// bad byte with a NUL or a lone CR made it say `-text`, which hid the file, and a binary file
+// that is valid UTF-8 was scanned (PR #431, round 5). An excused file that isn't empty and
+// decodes as UTF-8 with nothing refused in it is named, as a text file marked by mistake.
 //
 // Does not catch: untracked files; what an excused file holds, so a text file marked by mistake
 // that holds a refused character is skipped with it; a binary pattern in `.gitattributes` that
@@ -19,8 +22,10 @@
 // or not a regular file in the working tree, skipped, which includes one whose name isn't valid
 // UTF-8 (Git's output is read as UTF-8, so a bad byte reads back as U+FFFD and the name isn't
 // the file's; probed on PR #431, round 5); invisible characters off post-body.mjs's list.
-// Fails falsely on: a text file whose `working-tree-encoding` isn't UTF-8, reported as not valid
-// UTF-8 unless marked `-text`; `.gitattributes` sets none.
+// Fails falsely on: a text file whose `working-tree-encoding` isn't UTF-8, unless marked
+// `-text` (as not valid UTF-8, or on each NUL a UTF-16 file without a byte-order mark decodes
+// to); a marked file stored with Git LFS and checked out without it, whose pointer reads as
+// text (an LFS line is `-text` too, probed on PR #433). `.gitattributes` sets neither.
 import { execFileSync } from "node:child_process";
 import { lstatSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -68,16 +73,13 @@ export function parseLsFiles(out) {
     // The first tab ends the fields: under -z Git doesn't quote a path, which may hold tabs.
     const tab = rec.indexOf(TAB);
     if (tab < 0) throw new Error(`git ls-files gave a record with no tab: ${rec}`);
-    // The first space ends the mode; the attribute may hold spaces (`text eol=lf`).
-    const head = rec.slice(0, tab);
-    const space = head.indexOf(" ");
-    const mode = space < 0 ? head : head.slice(0, space);
-    const attr = space < 0 ? "" : head.slice(space + 1);
+    // The mode, then the attribute's words (`text eol=lf` holds a space).
+    const [mode, ...attr] = rec.slice(0, tab).split(" ");
     const path = rec.slice(tab + 1);
     const prev = seen.get(path);
-    // In a merge conflict, a regular stage wins over an earlier one that isn't. The attribute
-    // is the path's, the same in every stage.
-    if (!prev || (!REGULAR.has(prev.mode) && REGULAR.has(mode))) seen.set(path, { path, mode, binary: attr.split(" ").includes("-text") });
+    // In a merge conflict, a regular stage wins over an earlier one that isn't. Git reads
+    // attributes by path, so every stage gets the same one.
+    if (!prev || (!REGULAR.has(prev.mode) && REGULAR.has(mode))) seen.set(path, { path, mode, binary: attr.includes("-text") });
   }
   return [...seen.values()];
 }
@@ -106,10 +108,10 @@ export function scanEntries(files, allowed) {
     } catch {
       // Not UTF-8: excused only if marked, below.
     }
-    // Only a mark in .gitattributes excuses a file. One that reads as text with nothing refused
-    // in it is named: a text file marked by mistake.
+    // Only a binary mark excuses a file. One that isn't empty and reads as text with nothing
+    // refused in it is named: a text file marked by mistake.
     if (binary) {
-      if (text !== null && scanText(text).length === 0) found.push(`${path}: marked binary in .gitattributes, but reads as text`);
+      if (buf.length > 0 && text !== null && scanText(text).length === 0) found.push(`${path}: marked binary in .gitattributes, but reads as text`);
       skipped.set(path, "is marked binary");
       continue;
     }
@@ -236,6 +238,9 @@ describe("scanEntries", () => {
   it("names a marked file that reads as text with nothing refused, and skips one that holds a refused character", () => {
     expect(scanEntries([file("t.md", "plain text", { binary: true })], new Map())).toEqual({ scanned: 0, found: ["t.md: marked binary in .gitattributes, but reads as text"] });
     expect(scanEntries([file("t.md", `x${cps(0x00a0)}`, { binary: true })], new Map())).toEqual({ scanned: 0, found: [] });
+  });
+  it("doesn't name an empty marked file", () => {
+    expect(scanEntries([file("e.ico", "", { binary: true })], new Map())).toEqual({ scanned: 0, found: [] });
   });
   it("fails an allowlist entry that is stale, unscanned, untracked or has no reason, naming which", () => {
     expect(scanEntries([file("a.md", "x")], allow("a.md", [0xa0])).found).toEqual(["a.md: allowed U+00A0, but the file no longer holds it (a stale entry)"]);

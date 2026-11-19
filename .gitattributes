@@ -4,6 +4,6 @@
 *.sh text eol=lf
 .githooks/* text eol=lf
 
-# Binary files. scripts/tracked-text.test.mjs skips a file marked here and reads every other
-# tracked file as UTF-8 (CLAUDE.md, "Invisible characters in tracked files"; IS #432).
+# Binary files, marked for scripts/tracked-text.test.mjs (its header says what a mark does;
+# IS #432).
 *.ico binary
