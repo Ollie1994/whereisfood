@@ -36,13 +36,22 @@
 #         - from caught-by-from-row (IS #150), a Caught by cell that doesn't start with
 #           a listed backticked group, and a listed group on the row just before it
 #           (the boundary set too high);
+#         - from review-form-from-row (IS #421), a `code-review` Caught by cell whose
+#           text after the group isn't blanks, then `r<N> on PR #<n>, full` or `r<N> on
+#           PR #<n>, scoped` (whole words: no letter, digit, _, - or non-ASCII character
+#           next; anything else may follow), or `read-through <target>` (the target
+#           starting with a letter, a digit, a backtick, or # and a digit) with at most
+#           one word before it, starting with a letter or digit (any blanks count as one
+#           space); and the last `code-review` row below the key being in that form (the
+#           boundary set too high). It checks the form, not that the round or PR is right;
 #         - from cap-from-row (IS #155), a Miss over cap-miss or a Fix over cap-fix
 #           characters (escaped pipes count as one);
 #         - a Cause in the taxonomy table that the block's cause line lacks, or the
 #           reverse.
 #         Every value rows are checked against comes from the log's values block (the
 #         first ```values fence in its Columns section), never copied here. A missing block, a missing or empty
-#         key, a row number that isn't a number from 1 to the highest row + 1, a drift
+#         key, a row number that isn't a number from 1 to the highest row + 1, a
+#         review-form-from-row below caught-by-from-row, a drift
 #         range that isn't one low-to-high range, an unreadable Cause table, or two lists
 #         sharing a value: check stops with exit 2 instead of passing everything. tally 7
 #         needs only the block's caught-by-from-row.
@@ -102,6 +111,9 @@ cause_values() {
 load_values() {
   load_from
   row_key cap-from-row CAP_FROM
+  row_key review-form-from-row REVIEW_FROM
+  # The form is checked inside the group check, which starts at caught-by-from-row.
+  [ "$REVIEW_FROM" -ge "$FROM" ] || die2 "\"review-form-from-row: $REVIEW_FROM\" is below caught-by-from-row ($FROM)"
   ART=$(value artifact); ESC=$(value escaped); CAU=$(value cause); GRP=$(value caught-by)
   DRIFT=$(value artifact-drift-rows); CAP_MISS=$(value cap-miss); CAP_FIX=$(value cap-fix)
   local k v
@@ -116,8 +128,12 @@ load_values() {
   fi
 }
 
-# A Caught by cell's leading backticked group, or "" if it has none.
-GROUP_FN='function group(v) { sub(/^[ \t]+/, "", v); return match(v, /^`[^`]+`/) ? substr(v, 2, RLENGTH - 2) : "" }'
+# A Caught by cell's leading backticked group, or "" if it has none (group), and the
+# text after it, as written (after_group). The group's pattern is in group_len alone;
+# its callers drop the cell's leading blanks first.
+GROUP_FN='function group_len(v) { return match(v, /^`[^`]+`/) ? RLENGTH : 0 }
+function group(v,  l) { sub(/^[ \t]+/, "", v); l = group_len(v); return l ? substr(v, 2, l - 2) : "" }
+function after_group(v,  l) { sub(/^[ \t]+/, "", v); l = group_len(v); return l ? substr(v, l + 1) : v }'
 # Characters in a UTF-8 string, counted as bytes that don't continue a character.
 CHARS_FN='function chars(s) { gsub(/[\200-\277]/, "", s); return length(s) }'
 
@@ -146,8 +162,20 @@ check() {
   [ -n "$tab" ] || die2 "could not read the Cause taxonomy table"
   masked | awk -F'|' -v art="$ART" -v esc="$ESC" -v cau="$CAU" -v grp="$GRP" -v tab="$tab" \
       -v drift_lo="${DRIFT%-*}" -v drift_hi="${DRIFT#*-}" -v caught_from="$FROM" \
-      -v cap_from="$CAP_FROM" -v cap_miss="$CAP_MISS" -v cap_fix="$CAP_FIX" "$GROUP_FN $CHARS_FN"'
+      -v cap_from="$CAP_FROM" -v cap_miss="$CAP_MISS" -v cap_fix="$CAP_FIX" \
+      -v review_from="$REVIEW_FROM" "$GROUP_FN $CHARS_FN"'
     function cell(v) { gsub(/^ +| +$/, "", v); return v }
+    # Text with each run of blanks one space, trimmed.
+    function collapse(t) { gsub(/[ \t]+/, " ", t); sub(/^ /, "", t); sub(/ $/, "", t); return t }
+    # A code-review cell in the form: blanks after the group, then "r<N> on PR #<n>,
+    # full" or ", scoped" (whole words: no letter, digit, _, - or non-ASCII byte next;
+    # anything else may follow), or a read-through whose target starts with a letter,
+    # a digit, a backtick or # and a digit, with at most one word before it, starting
+    # with a letter or digit ("narrow read-through on PR #280", rows 592, 596, 600).
+    function review_form(v,  t) {
+      t = after_group(v)
+      return t ~ /^[ \t]/ && collapse(t) ~ /^(r[0-9]+ on PR #[0-9]+, (full|scoped)([^-A-Za-z0-9_\200-\377]|$)|([A-Za-z0-9][^ ]* )?read-through ([A-Za-z0-9`]|#[0-9]))/
+    }
     BEGIN {
       # A value repeated within one list is harmless; one in two lists is ambiguous.
       n = split(art, a, " "); for (i = 1; i <= n; i++) A[a[i]]
@@ -177,17 +205,31 @@ check() {
         v = group($7)
         if (v == "") { print r ": Caught by has no leading group"; bad = 1 }
         else if (!(v in G)) { print r ": Caught by group \"" v "\""; bad = 1 }
+        else if (v == "code-review" && r >= review_from + 0 && !review_form($7)) {
+          # Not t: BEGIN holds the Cause table in an array of that name.
+          after = after_group($7)
+          if (after !~ /^[ \t]/) print r ": a code-review Caught by needs a blank after the group, not \"`code-review`" after "\""
+          else print r ": a code-review Caught by needs \"r<N> on PR #<n>, full\" or \", scoped\", or \"read-through <target>\" after the group, not \"" collapse(after) "\" (an escaped pipe shows as ~)"
+          bad = 1
+        }
       } else if (r == caught_from - 1 && (group($7) in G)) {
         # A boundary set too high would exempt grouped rows without a word.
         print r ": Caught by has a group, but caught-by-from-row says " caught_from; bad = 1
       }
+      # The boundary check for the form: the last code-review row below the key, read
+      # in END. It cannot stop the key being moved past a last code-review row that
+      # fails the form: the diff of the values block shows that.
+      if (r < review_from + 0 && group($7) == "code-review") { last_review = r; last_cell = $7 }
       if (r >= cap_from + 0) {
         m = chars(cell($6)); if (m > cap_miss + 0) { print r ": Miss is " m " characters, over cap-miss (" cap_miss ")"; bad = 1 }
         m = chars(cell($10)); if (m > cap_fix + 0) { print r ": Fix is " m " characters, over cap-fix (" cap_fix ")"; bad = 1 }
       }
     }
     # awk runs END even after `exit` in BEGIN, so END must keep the fatal status.
-    END { exit fatal ? fatal : (bad ? 1 : 0) }'
+    END {
+      if (!fatal && last_review && review_form(last_cell)) { print last_review ": a code-review Caught by in the form, below review-form-from-row (" review_from ")"; bad = 1 }
+      exit fatal ? fatal : (bad ? 1 : 0)
+    }'
 }
 
 # Prints the row built from the field file $1 with number $2 (the previous row dated
