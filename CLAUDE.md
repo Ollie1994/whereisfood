@@ -280,9 +280,9 @@ said otherwise: Phase 4 plan decision #14.
   its own (`admin/not-found.tsx`, `admin/error.tsx`), styled by classes: Next's built-in
   ones apply inline styles, which the CSP blocks. An error in the admin layout itself reaches
   the root's `error.tsx` (classes too; without the admin nav or "Logga ut"), seen in a browser
-  on a full load under the nonce CSP (IS #413's PR); only one in the root layout would reach
-  the built-in screen (no `global-error.tsx`). The build's route table shows each `/admin`
-  page as `ƒ`. In CI only `/admin/login`'s is checked (smoke's nonce check); the others,
+  on a full load under the nonce CSP, not on a client-side navigation (IS #413's PR); only one
+  in the root layout would reach the built-in screen (no `global-error.tsx`). The build's
+  route table shows each `/admin` page as `ƒ`. In CI only `/admin/login`'s is checked (smoke's nonce check); the others,
   behind a session, are the route table's and the browser checks'
 - A new host a page loads from or calls (a script, an API, tiles) goes into `csp.ts`, then a
   browser check reads the console for violations. `smoke.mjs` checks the headers on what it

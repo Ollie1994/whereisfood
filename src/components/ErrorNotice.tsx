@@ -1,6 +1,9 @@
+"use client";
+
 // The error pages' text, the owner's wording (IS #310, #413), in one place for the root's
 // and `/admin`'s `error.tsx`: a heading, the sentence and "Försök igen", which calls the
-// boundary's `retry`. Classes only, since the `/admin` CSP admits no inline `style`.
+// boundary's `retry`. Classes only, since the `/admin` CSP admits no inline `style`. A Client
+// Component: it holds an `onClick` and takes a function.
 import { SMALL_BUTTON } from "@/components/Admin/styles";
 
 export default function ErrorNotice({ retry }: { retry: () => void }) {
