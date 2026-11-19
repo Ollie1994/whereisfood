@@ -5,15 +5,12 @@ interface TruckFormProps {
   trucks: TrucksState;
 }
 
-// A new truck, or an edit of `trucks.editing`. Its state is `useTrucks`'. `autoComplete="off"`
-// on the form, as on `LocationForm`'s: the HTML spec's "off" says the browser should neither
-// remember the form's field values nor offer past ones.
+// A new truck, or an edit of `trucks.editing`. Its state is `useTrucks`'.
 export default function TruckForm({ trucks }: TruckFormProps) {
   const { editing, values, setField, saving, formError, saved, submit, stopEdit } = trucks;
 
   return (
     <form
-      autoComplete="off"
       className="flex flex-col gap-4"
       onSubmit={(event) => {
         event.preventDefault();
@@ -25,10 +22,9 @@ export default function TruckForm({ trucks }: TruckFormProps) {
       {/* Locked while a save runs: its answer empties or closes the form, which would drop
           anything typed meanwhile. */}
       <fieldset disabled={saving} className={FIELDSET}>
-        {/* Namn's own `autoComplete="off"`: with `name="name"` and none here or on the form,
-            Chrome's Issues panel listed a field "the browser's autofill recognizes" with no
-            `autocomplete`; with this one, before the form had one, and with both, nothing (IS
-            #412's browser check). Whether the form's alone clears it wasn't checked. */}
+        {/* `autoComplete="off"`: with `name="name"` and none, Chrome's Issues panel listed a
+            field "the browser's autofill recognizes" with no `autocomplete`, and with it nothing
+            (IS #412's browser check). */}
         <label className={LABEL}>
           Namn
           <input
