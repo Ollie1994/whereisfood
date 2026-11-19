@@ -392,7 +392,8 @@ answering 401 and 403 with `no-store`, Phase 7 plan #13, and an `aal1` session, 
 first factor and the time-box, Phase 9; the 503 cases are `withAdmin`'s and
 `requireAdmin`'s unit tests), `api-admin-trucks`, `api-admin-locations`,
 `api-admin-checklist` and `helpers`. The fixtures sign in through the PKCE magic link, read
-from Mailpit, and reach `aal2` with `tests/totp.ts` (Phase 9 plan #9, #14). The `unit`
+from Mailpit (a password or a typed code only in the refusal tests), and reach `aal2` with
+`tests/totp.ts` (Phase 9 plan #9, #14). The `unit`
 project also holds `supabase/config.test.ts`, which pins Phase 9's Auth settings in
 `config.toml`, and `next.config.test.ts`, which checks which paths get which CSP. CI's run
 on `e544db4` (PR #444, 2026-11-19) ran 46 unit files (1328 tests) and 12 integration files
