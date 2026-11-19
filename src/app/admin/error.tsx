@@ -10,5 +10,5 @@
 import ErrorNotice from "@/components/ErrorNotice";
 
 export default function AdminError({ retry }: { retry: () => void }) {
-  return <ErrorNotice retry={retry} />;
+  return <ErrorNotice title="Något gick fel – WhereIsFood admin" retry={retry} />;
 }
