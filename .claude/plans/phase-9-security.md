@@ -517,7 +517,7 @@ guessed code. The swap stays possible as sabotage
   all off, IS #377; step 5a switches the two factor emails on); and Auth's audit log, written
   to the preview's database since 2026-11-18 (open decision 7; #390's checklist names it for
   production), so which Auth events happened, and when, outlives Free's one-day log retention
-  unless the hosted platform trims the table (open decision 7's re-read, IS #419);
+  (open decision 7's re-read, IS #419);
 - **recovering, in this order** (D3's routes, open decision 4; round 4 on PR #376, the
   owner's approval): secure the mailbox; replace the password with the service role's
   `updateUserById` (or SQL), since Auth may refuse a password change from `aal1` once MFA is
@@ -736,8 +736,10 @@ the sequential integration suite's time down.
      caller passes one. On the preview, of the nine rows a logout and a login wrote, only
      `challenge_created` and `verification_attempted` held an IP; the login, logout, token refresh
      and revoke and the recovery request held none (IS #389). GoTrue's cleanup (`cleanup.go`)
-     never deletes from the table, and the app deletes nothing; whether the hosted platform trims
-     it is a re-read after 24 hours (IS #419, 2026-11-19). So past the logs' one day the rows show
+     never deletes from the table, and the app deletes nothing, and the hosted platform hadn't
+     trimmed it a day on: at 17:08 UTC on 2026-11-19 the oldest row was still 17:02:14 UTC on
+     2026-11-18, of 32 (the owner's re-read, IS #419; a later or scheduled trim it can't show).
+     So past the logs' one day the rows show
      which Auth events happened, and when, and where from only on the rows with an IP, such as
      `verification_attempted`, which #13's factor swap includes. They are an input to Phase 10's
      privacy note, and the table needs a retention of its own, since neither GoTrue nor the app
