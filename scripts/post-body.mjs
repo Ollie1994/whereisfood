@@ -108,16 +108,14 @@ const KEYCAP_BASE = /^[0-9#*]$/;
 /** Whether the invisible character at code point k of `chars` belongs to an emoji: a
  * zero-width joiner between two pictographs (the one before it may carry a skin tone or
  * U+FE0F: a family, a woman with a skin tone at a laptop, the rainbow flag), or a U+FE0F
- * right after a pictograph, with or without a skin tone (a red heart, a check mark, a
- * thumbs-up with a skin tone), or after a digit, `#` or `*` that a keycap mark (U+20E3)
- * follows. */
+ * right after a pictograph (a red heart, a check mark) or after a digit, `#` or `*` that a
+ * keycap mark (U+20E3) follows. A U+FE0F after a skin tone is refused: no emoji has one
+ * there (Unicode's emoji spec, UTS #51, puts the modifier last). */
 function inEmoji(chars, k) {
   const cp = chars[k].codePointAt(0);
   if (cp === 0xfe0f) {
     if (k > 0 && KEYCAP_BASE.test(chars[k - 1])) return chars[k + 1]?.codePointAt(0) === 0x20e3;
-    let j = k - 1;
-    while (j >= 0 && isSkinTone(chars[j])) j--;
-    return isPictographic(chars[j]);
+    return isPictographic(chars[k - 1]);
   }
   if (cp !== 0x200d) return false;
   let j = k - 1;
@@ -143,11 +141,14 @@ const around = (chars, bad, k) => {
     .map((c, i) => (bad[from + i] ? markOf(c.codePointAt(0)) : c))
     .join("");
 };
-// Any invisible character, for the read-back's sent and stored lines, where a difference must
-// show whatever it is: every C0 character (tab included), the list, and the ones GitHub keeps
-// that the list leaves out (U+FE0E, U+202F, the tag characters).
-const anyInvisible = (cp) => cp < 0x20 || INVISIBLE_NAMES.has(cp) || cp === 0xfe0e || cp === 0x202f || (cp >= 0xe0000 && cp <= 0xe007f);
-const show = (s) => [...s].map((c) => (anyInvisible(c.codePointAt(0)) ? markOf(c.codePointAt(0)) : c)).join("");
+// For the read-back's sent and stored lines, where a difference must show whatever it is:
+// every control, format or separator character and every default-ignorable one (Unicode's
+// properties, so U+FE0E, U+202F, U+3000, the tag characters and the list are all in), the
+// plain space aside. An emoji's own joiners and selectors are shown too, since a difference
+// may be in them.
+const INVISIBLE_ANY = /[\p{Cc}\p{Cf}\p{Z}\p{Default_Ignorable_Code_Point}]/u;
+const anyInvisible = (c) => c !== " " && INVISIBLE_ANY.test(c);
+const show = (s) => [...s].map((c) => (anyInvisible(c) ? markOf(c.codePointAt(0)) : c)).join("");
 
 /** Whether the text after a `<!--` ends the comment: `-->` in it, or `>` or `->` at once
  * (`<!-->` and `<!--->` are whole comments in CommonMark). */

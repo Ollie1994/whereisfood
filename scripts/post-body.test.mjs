@@ -45,7 +45,6 @@ describe("textProblems", () => {
       "skin tone at a laptop": cps(0x1f469, 0x1f3fd, 0x200d, 0x1f4bb),
       "lightest skin tone at a laptop": cps(0x1f469, 0x1f3fb, 0x200d, 0x1f4bb),
       "darkest skin tone at a laptop": cps(0x1f469, 0x1f3ff, 0x200d, 0x1f4bb),
-      "thumbs-up, a skin tone and U+FE0F": cps(0x1f44d, 0x1f3fd, 0xfe0f),
       "keycap 0": cps(0x30, 0xfe0f, 0x20e3),
       "keycap *": cps(0x2a, 0xfe0f, 0x20e3),
       "rainbow flag": cps(0x1f3f3, 0xfe0f, 0x200d, 0x1f308),
@@ -60,6 +59,9 @@ describe("textProblems", () => {
     expect(textProblems(`${cps(0x1f916, 0x200d)}b`)).toHaveLength(1);
     expect(textProblems(`a${cps(0x200d, 0x1f916)}`)).toHaveLength(1);
     expect(textProblems(`a${cps(0xfe0f)}`)).toHaveLength(1);
+  });
+  it("refuses U+FE0F after a skin tone, which no emoji has (UTS #51)", () => {
+    expect(textProblems(`x ${cps(0x1f44d, 0x1f3fd, 0xfe0f)} y`)).toEqual([expect.stringContaining("U+FE0F")]);
   });
   it("keeps U+FE0F after a digit, # or * only in a keycap", () => {
     expect(textProblems(`version 2${cps(0xfe0f)}`)).toHaveLength(1);
@@ -77,8 +79,10 @@ describe("textProblems", () => {
   it("doesn't mark an emoji cut at the excerpt's edge", () => {
     const [p] = textProblems(`x${cps(0x00a0)}${"a".repeat(27)}${cps(0x1f468, 0x200d, 0x1f469)}`);
     expect(p).not.toContain("<U+200D>");
+    expect(p).toContain(`${cps(0x1f468, 0x200d)}…`);
     const [q] = textProblems(`${cps(0x2764, 0xfe0f)}${"a".repeat(29)}${cps(0x00a0)}`);
     expect(q).not.toContain("<U+FE0F>");
+    expect(q).toContain(`…${cps(0xfe0f)}a`);
   });
   it("takes the escape's hex digits in either case", () => {
     expect(textProblems(`${BS}u000c`)).toHaveLength(1);
@@ -292,6 +296,13 @@ describe("main", () => {
     expect(console.error).toHaveBeenCalledWith(expect.stringContaining("stored: a<U+202F>b"));
     expect(main(["12", file("c d\n")], { api })).toBe(1);
     expect(console.error).toHaveBeenCalledWith(expect.stringContaining("stored: c<0x09>d"));
+    // U+FFF9 is a format character that isn't default-ignorable, so it needs \p{Cf}.
+    for (const cp of [0x200b, 0xfe0e, 0xe0041, 0x3000, 0xfff9]) {
+      const hex = cp.toString(16).toUpperCase().padStart(4, "0");
+      const { api: swap } = fakeApi((b) => b.replace("e f", `e${String.fromCodePoint(cp)}f`));
+      expect(main(["12", file("e f\n")], { api: swap }), hex).toBe(1);
+      expect(console.error).toHaveBeenCalledWith(expect.stringContaining(`stored: e<U+${hex}>f`));
+    }
   });
   it("fails when GitHub stores something else, body or comment", () => {
     quiet();
