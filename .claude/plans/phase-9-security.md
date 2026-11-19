@@ -516,8 +516,9 @@ guessed code. The swap stays possible as sabotage
   notification settings; the preview's dashboard lists both on Free, with password-changed,
   all off, IS #377; step 5a switches the two factor emails on); and Auth's audit log, written
   to the preview's database since 2026-11-18 (open decision 7; #390's checklist names it for
-  production), so which Auth events happened, and when, outlives Free's one-day log retention
-  (open decision 7 has the re-read a day on and its limit, IS #419);
+  production), so the record of which Auth events happened, and when, outlives Free's one-day
+  log retention: on the preview its oldest row was still there 24 hours on (2026-11-19, IS
+  #419; a later trim not ruled out, open decision 7);
 - **recovering, in this order** (D3's routes, open decision 4; round 4 on PR #376, the
   owner's approval): secure the mailbox; replace the password with the service role's
   `updateUserById` (or SQL), since Auth may refuse a password change from `aal1` once MFA is
@@ -736,16 +737,16 @@ the sequential integration suite's time down.
      caller passes one. On the preview, of the nine rows a logout and a login wrote, only
      `challenge_created` and `verification_attempted` held an IP; the login, logout, token refresh
      and revoke and the recovery request held none (IS #389). GoTrue's cleanup (`cleanup.go`)
-     never deletes from the table, and the app deletes nothing. A day on, the hosted platform
-     hadn't trimmed it either: at 18:08 Stockholm (17:08 UTC) on 2026-11-19, by the owner's
-     taskbar clock, about 6 minutes past the oldest row's first day, the table held 32 rows, the
-     oldest still 17:02:14 UTC on 2026-11-18 (the owner's re-read, IS #419). A read a day on
-     can't show a trim that runs later. So, unless such a trim runs, past the logs' one day the
-     rows show which Auth events happened, and when, and where from only on the rows with an
-     IP, such as `verification_attempted`, which #13's factor swap includes. They are an input
-     to Phase 10's privacy note, and, unless such a trim runs, the table needs a retention of its
-     own, since neither GoTrue nor the app deletes its rows; it grows with each event it records,
-     on Free's 0.5 GB database.
+     never deletes from the table, and the app deletes nothing. A day on, the oldest row was
+     still there: at 18:08 Stockholm (17:08 UTC) on 2026-11-19, by the owner's taskbar clock (to
+     the minute), 24 hours and 6 minutes after it was written, the table held 32 rows, the oldest
+     still 17:02:14 UTC on 2026-11-18 (the owner's re-read, IS #419). That read can't show a
+     trim that runs later, or one that removes only newer rows. Unless a later trim runs, past
+     the logs' one day the rows show which Auth events happened, and when, and where from only
+     on the rows with an IP, such as `verification_attempted`, which #13's factor swap includes.
+     They are an input to Phase 10's privacy note, and the table needs a retention of its own,
+     since neither GoTrue nor the app deletes its rows (checked against any platform trim found
+     later); it grows with each event it records, on Free's 0.5 GB database.
    - No account was created (#391).
 8. ~~**The rate limits' values (step 8)**, which step 12 then checks.
    The per-IP limits the login uses (`token_refresh`, `token_verifications`,
