@@ -1072,6 +1072,7 @@ Old rows that point at them are now pointing there: "see note" (rows 14, 15, 17,
 | 791 | 2026-11-18 | PR #420 / IS #390 | `README` | `/code-review` round 2 (scoped) on #420 found 10; 9 applied, 1 dismissed. **Round 1's fixes overreached:** the intro sent Vercel's protection, bypass and toolbar to Phase 10, though production deploys share the one project; a new Trusted Sources row misread its screenshot; "18 minutes" outran whole-minute clock reads; "a logout ends them all" dropped the rule's limits; CLAUDE.md and the README pointed at each other. Also: the magic-link row hid the emailed code it keeps, the RLS reason rested on an old grants read, and the intro didn't name the probes. | `code-review` round 2 (scoped) | `pre-merge` | `overcorrection` | Intro: Supabase rows are the preview project's, Vercel rows the shared project's, probes named; Trusted Sources quoted; "16 to 18 minutes"; logout's limits pointed to; the emailed code named; grants re-read by `db query --linked`; CLAUDE.md's pointer cut; #390's record corrected. |
 | 792 | 2026-11-18 | PR #420 / IS #390 | `README` | `/code-review` round 3 (full) on #420 found 10; 9 applied, 1 dismissed. **Round 2's corrections still claimed more than their evidence:** "16 to 18 minutes" from clock reads in whole minutes (only the last reload is surely past 17); the grants re-read cited as recorded on #390, where it wasn't; the intro's rewrite lost Standard Protection's public production domain; the production toolbar "kept as found" with the team default unread. Also: a dashboard caption stated as fact, Confirm email's local difference unnoted, the SMTP row's reason, an unwrapped plan line, CLAUDE.md's pointers. | `code-review` round 3 (full) | `pre-merge` | `imprecise-claim` | "At least 17 minutes" from the 20:30 reload; the grants read and the team toolbar (on, left to Phase 10) recorded on #390; Standard Protection's public production domain named; the caption quoted; `enable_confirmations` noted; SMTP's reason from plan #14; the search path and a pointer added. |
 | 793 | 2026-11-19 | PR #423 / IS #393 | `process-log` | `/code-review` round 1 on #423, full, found 9; all applied, 1 after the owner's call. **New action 2 was put to the owner as aimed at four of the seven `merged` rows, but 725 was a plan claim against its own citation, not a stand-in, and 780 had a stated limit that #422's Step 5 accepted; three, two as written.** Also: 790–792 misquoted and 19 rows counted where 15 were review rows; the past-ceiling rounds' finds undercounted; A/B labels against 1/2; 20 of 53 on a different base from Phase 8's; two averages rounded down; row 700's Where. | `code-review` r1 on PR #423, full | `pre-merge` | `imprecise-claim` | The owner, asked again, kept action 2 and added a clause: a stated limit doesn't pass when the work relies on the claim (#422). The section, #421, #422 and #403 corrected to the rows; 20 of 55; 9.0 and 8.3; row 700's issue. |
+| 794 | 2026-11-19 | PR #423 / IS #393 | `process-log` | **Round 1's fix for action 2's evidence said the field isn't aimed at the Phase 8 retrospective's five rows because they came from docs, and #422's "Does not catch" said all five were docs-sourced.** Read row by row, 608 and 677 were claims not checked, which the field does catch; only 640 and 699 came from docs, and 635 was a probe on the real target that couldn't fail. Written from Phase 8's "from docs or reasoning" heading, not the rows. | `self` the claims check before round 2 on PR #423 | `pre-merge` | `overcorrection` | The section names which of the five the field reaches (608, 677) and why the other three pass; #422's "Does not catch" names 640, 699 and 635, with a dated note. |
 
 ---
 
@@ -2401,9 +2402,8 @@ two classes and one more:
   preview's email template, never read) and 780 (`next start` for Vercel, with Vercel's
   answer stated as a limit while the code relied on `next start`'s; a CSP defect reached
   `dev`). Before merge: 744 (a probe in Node for browser code), 752 (the host's clock for
-  Docker's), 773 and 777. The Phase 8 retrospective's five such rows (608, 635, 640, 677,
-  699) came from docs or reasoning; it offered a field for them, not taken then. New action
-  2.
+  Docker's), 773 and 777. The Phase 8 retrospective found five rows of the class (608, 635,
+  640, 677, 699) and offered a field for them, not taken then. New action 2.
 - **A plan claim against its own citation:** 725 (step 1 said a flood's 429 ends the
   admin's session, citing `src/proxy.ts`, whose branch deletes no cookie).
 
@@ -2520,8 +2520,9 @@ something outside the repo behaves names where it was checked: on the real targe
 stand-in, in docs or source, or not at all; Step 5 rejects one checked on a stand-in or not
 at all with no step on the real target, unless it is stated as a limit and the work doesn't
 rely on it. Aimed at three of the seven `merged` rows (726, 727, 780) and, before merge,
-744, 752, 773 and 777; a claim from docs or source still passes, so not at the Phase 8
-retrospective's five. The owner's call, 2026-11-19, which reverses Phase 8's: the class
+744, 752, 773 and 777. Of the Phase 8 retrospective's five, it reaches 608 and 677 (claims
+not checked); a claim from docs still passes (640, 699), and so does a probe on the real
+target that couldn't fail (635). The owner's call, 2026-11-19, which reverses Phase 8's: the class
 merged in two phases running, and 780 was a defect in running code, not only plan text.
 The owner first took it on "four of the seven" (725 included, and 780, which a stated limit
 would have let through); asked again with round 1's correction on PR #423, they kept it and
