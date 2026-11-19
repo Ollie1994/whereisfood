@@ -4,9 +4,11 @@
 // #430). Why: process-log row 806. Escape text written out (a backslash, `u` and four hex
 // digits) is fine: only the characters themselves are refused.
 //
-// Only Git's attributes excuse a file: one marked `binary` or `-text` (or the legacy `-crlf`),
+// Only Git's attributes excuse a file: one marked `-text` (or `binary`, or the legacy `-crlf`),
 // read through `git ls-files --format`'s `%(eolattr)`, which prints `-text` for each and for
-// `-text eol=lf`. It reads every attributes source Git does: a nested `.gitattributes`, an
+// `-text eol=lf`. Mark a file `-text`: `binary` also sets `-diff`, and the pre-commit Gitleaks
+// hook then saw only "Binary files … differ" and missed a made-up token in the file, which it
+// caught under `-text` (probed on PR #433; CI's scan, with `--text`, reads both). It reads every attributes source Git does: a nested `.gitattributes`, an
 // unstaged edit to one, `$GIT_DIR/info/attributes` and the user's `core.attributesFile` (probed
 // on PR #433). CI's checkout has only the tracked `.gitattributes` files, so a mark made only
 // in a local source skips a file locally that CI then fails. Every other regular tracked file
@@ -111,12 +113,12 @@ export function scanEntries(files, allowed) {
     // Only a binary mark excuses a file. One that isn't empty and reads as text with nothing
     // refused in it is named: a text file marked by mistake.
     if (binary) {
-      if (buf.length > 0 && text !== null && scanText(text).length === 0) found.push(`${path}: marked binary in .gitattributes, but reads as text`);
+      if (buf.length > 0 && text !== null && scanText(text).length === 0) found.push(`${path}: marked -text in .gitattributes, but reads as text`);
       skipped.set(path, "is marked binary");
       continue;
     }
     if (text === null) {
-      found.push(`${path}: not valid UTF-8 (if it is binary, mark it in .gitattributes)`);
+      found.push(`${path}: not valid UTF-8 (if it is binary, mark it -text in .gitattributes)`);
       invalid.add(path);
       continue;
     }
@@ -228,7 +230,7 @@ describe("scanEntries", () => {
   it("reports an unmarked file that isn't valid UTF-8, whatever else it holds", () => {
     const cr = { path: "cr.md", mode: "100644", binary: false, buf: Buffer.concat([utf8(`line one${CR}caf`), Buffer.from([0xe9]), utf8(` ${cps(0x00a0)} x${LF}`)]) };
     const nul = { path: "nul.md", mode: "100644", binary: false, buf: Buffer.from([0x61, 0x62, 0x00, 0x63, 0xe9, 0x0a]) };
-    expect(scanEntries([cr, nul], new Map()).found).toEqual(["cr.md: not valid UTF-8 (if it is binary, mark it in .gitattributes)", "nul.md: not valid UTF-8 (if it is binary, mark it in .gitattributes)"]);
+    expect(scanEntries([cr, nul], new Map()).found).toEqual(["cr.md: not valid UTF-8 (if it is binary, mark it -text in .gitattributes)", "nul.md: not valid UTF-8 (if it is binary, mark it -text in .gitattributes)"]);
   });
   it("scans an unmarked file that is valid UTF-8, a NUL and control bytes included", () => {
     const short = file("short.md", `ab${String.fromCharCode(1)}${cps(0x00a0)}`);
@@ -236,7 +238,7 @@ describe("scanEntries", () => {
     expect(scanEntries([file("nul.md", `a${NUL}b`)], new Map()).found).toEqual(["nul.md:1:2: U+0000"]);
   });
   it("names a marked file that reads as text with nothing refused, and skips one that holds a refused character", () => {
-    expect(scanEntries([file("t.md", "plain text", { binary: true })], new Map())).toEqual({ scanned: 0, found: ["t.md: marked binary in .gitattributes, but reads as text"] });
+    expect(scanEntries([file("t.md", "plain text", { binary: true })], new Map())).toEqual({ scanned: 0, found: ["t.md: marked -text in .gitattributes, but reads as text"] });
     expect(scanEntries([file("t.md", `x${cps(0x00a0)}`, { binary: true })], new Map())).toEqual({ scanned: 0, found: [] });
   });
   it("doesn't name an empty marked file", () => {
@@ -251,7 +253,7 @@ describe("scanEntries", () => {
   });
   it("reports invalid UTF-8 once", () => {
     const bad = { path: "b.md", mode: "100644", binary: false, buf: Buffer.from([0x61, 0xa0]) };
-    expect(scanEntries([bad], allow("b.md", [0xa0]))).toEqual({ scanned: 0, found: ["b.md: not valid UTF-8 (if it is binary, mark it in .gitattributes)"] });
+    expect(scanEntries([bad], allow("b.md", [0xa0]))).toEqual({ scanned: 0, found: ["b.md: not valid UTF-8 (if it is binary, mark it -text in .gitattributes)"] });
   });
 });
 

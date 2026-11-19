@@ -4,6 +4,6 @@
 *.sh text eol=lf
 .githooks/* text eol=lf
 
-# Binary files, marked for scripts/tracked-text.test.mjs (its header says what a mark does;
-# IS #432).
-*.ico binary
+# Binary files, marked for scripts/tracked-text.test.mjs (its header says what a mark does,
+# and why `-text` and not `binary`; IS #432).
+*.ico -text
