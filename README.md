@@ -501,15 +501,16 @@ Its row stays in the preview's history.
 ## Hosted settings checklist
 
 For the owner: the security settings #390 checked in the Supabase and Vercel dashboards,
-which live outside the repo, each with its value on the preview. Phase 10 applies the list
-to production (Phase 9 plan #10). The Supabase rows are the preview project's: production's
-own project gets them in Phase 10, with its own Site URL and Redirect URLs. The Vercel rows
-are the `whereisfood` project's, which its production deploys share; the project's other
-settings (the Ignored Build Step, the environment variables' scopes) are in "Preview
-deploys", below. Each row was read on 2026-11-18 from the owner's screenshots, except the
-advisor's table (CLI runs, below) and two probes (the Enforce SSL and AAL1 rows), with the
-results recorded on IS #390. It names settings, never keys or addresses (`CLAUDE.md`,
-Secrets).
+and Vercel's deployment retention (IS #417), which live outside the repo, each with its
+value on the preview. Phase 10 applies the list to production (Phase 9 plan #10). The
+Supabase rows are the preview project's: production's own project gets them in Phase 10,
+with its own Site URL and Redirect URLs. The Vercel rows are the `whereisfood` project's,
+which its production deploys share; the project's other settings (the Ignored Build Step,
+the environment variables' scopes) are in "Preview deploys", below. Each row was read on
+2026-11-18 from the owner's screenshots, except the advisor's table (CLI runs, below) and
+two probes (the Enforce SSL and AAL1 rows), with the results recorded on IS #390, and the
+retention row, set and read on 2026-11-19 (IS #417). It names settings, never keys or
+addresses (`CLAUDE.md`, Secrets).
 
 **Supabase, Authentication:**
 
@@ -573,6 +574,7 @@ Secrets).
 | Team → Deployment Protection → Default Protection for New Projects; Who Can Change Protection | Vercel Authentication, Standard Protection; neither box ticked | Kept as found |
 | Team → Deployment Protection → Access Request Permissions | Anyone | Kept as found |
 | Settings → Security → Git Fork Protection | Enabled | "Preview deploys", below |
+| Settings → Build and Deployment → Deployment Retention Policy (the team's too, applied to all projects) | Canceled 1 day; Errored 1 day; Pre-Production 1 week; Production 30 days | Keeps Deployment Storage under Hobby's 10 GB, which Hobby can't alert on and over which deploys can be blocked (IS #417: 3.06 GB on 2026-11-19, with 30 days for all four). `dev`'s preview is kept whatever the policy, by its alias (Vercel's Deployment Retention docs). Production keeps 30 days for rollback; Phase 10 reads it again |
 | Settings → General → Vercel Toolbar → Pre-Production Deployments; Production Deployments | Off; Default (the team's: on) | Pre-Production: the CSP refused its script, styles and iframe (`CLAUDE.md`, Security headers; IS #387). Production: on for team members with the Chrome extension or the toolbar menu's opt-in (the team setting's text); Phase 10 decides it with production's CSP |
 
 ---
