@@ -77,9 +77,8 @@ const isRawControl = (cp) => cp < 0x20 && cp !== 0x09 && cp !== 0x0a && cp !== 0
 const REWRITTEN_ESCAPE = /\\u00(?:0[0-8CEFcef]|1[0-9A-Fa-f])/g;
 // Invisible characters GitHub stores unchanged, so no read-back shows them: each of the 21
 // was posted to probe PR #428 between two letters and read back as sent (2026-11-19). A tool
-// can leave them behind: PR #426's header, BOM regex and body each got one when an escape
-// was written into a file, and PR #429 a U+FE0F (IS #427, row 806). Listed by code point, so
-// this source holds none of them.
+// can leave them behind when an escape is written into a file (process-log row 806: four
+// times). Listed by code point, so this source holds none of them.
 const INVISIBLE_NAMES = new Map([
   [0x00a0, "no-break space"],
   [0x00ad, "soft hyphen"],
@@ -109,13 +108,16 @@ const KEYCAP_BASE = /^[0-9#*]$/;
 /** Whether the invisible character at code point k of `chars` belongs to an emoji: a
  * zero-width joiner between two pictographs (the one before it may carry a skin tone or
  * U+FE0F: a family, a woman with a skin tone at a laptop, the rainbow flag), or a U+FE0F
- * right after a pictograph (a red heart, a check mark) or after a digit, `#` or `*` that a
- * keycap mark (U+20E3) follows. */
+ * right after a pictograph, with or without a skin tone (a red heart, a check mark, a
+ * thumbs-up with a skin tone), or after a digit, `#` or `*` that a keycap mark (U+20E3)
+ * follows. */
 function inEmoji(chars, k) {
   const cp = chars[k].codePointAt(0);
   if (cp === 0xfe0f) {
     if (k > 0 && KEYCAP_BASE.test(chars[k - 1])) return chars[k + 1]?.codePointAt(0) === 0x20e3;
-    return isPictographic(chars[k - 1]);
+    let j = k - 1;
+    while (j >= 0 && isSkinTone(chars[j])) j--;
+    return isPictographic(chars[j]);
   }
   if (cp !== 0x200d) return false;
   let j = k - 1;
@@ -131,17 +133,21 @@ const refused = (chars, k) => {
 
 const lines = (text) => text.replace(/\r\n?/g, "\n").split("\n");
 const codeName = (cp) => `U+${cp.toString(16).toUpperCase().padStart(4, "0")}`;
-/** The characters as text, each refused one shown as `<0xNN>` (C0) or `<U+XXXX>`. */
-const marked = (chars) =>
-  chars
-    .map((c, k) => {
-      if (!refused(chars, k)) return c;
-      const cp = c.codePointAt(0);
-      return cp < 0x20 ? `<0x${cp.toString(16).padStart(2, "0")}>` : `<${codeName(cp)}>`;
-    })
+const markOf = (cp) => (cp < 0x20 ? `<0x${cp.toString(16).padStart(2, "0")}>` : `<${codeName(cp)}>`);
+/** An excerpt of `chars` around k, each character `bad` flags (worked out over the whole
+ * line, so an emoji cut at the excerpt's edge isn't marked) shown as `<0xNN>` or `<U+XXXX>`. */
+const around = (chars, bad, k) => {
+  const from = Math.max(0, k - 30);
+  return chars
+    .slice(from, k + 30)
+    .map((c, i) => (bad[from + i] ? markOf(c.codePointAt(0)) : c))
     .join("");
-const show = (s) => marked([...s]);
-const around = (chars, k) => marked(chars.slice(Math.max(0, k - 30), k + 30));
+};
+// Any invisible character, for the read-back's sent and stored lines, where a difference must
+// show whatever it is: every C0 character (tab included), the list, and the ones GitHub keeps
+// that the list leaves out (U+FE0E, U+202F, the tag characters).
+const anyInvisible = (cp) => cp < 0x20 || INVISIBLE_NAMES.has(cp) || cp === 0xfe0e || cp === 0x202f || (cp >= 0xe0000 && cp <= 0xe007f);
+const show = (s) => [...s].map((c) => (anyInvisible(c.codePointAt(0)) ? markOf(c.codePointAt(0)) : c)).join("");
 
 /** Whether the text after a `<!--` ends the comment: `-->` in it, or `>` or `->` at once
  * (`<!-->` and `<!--->` are whole comments in CommonMark). */
@@ -186,15 +192,16 @@ export function textProblems(text) {
     // Columns count characters (code points), not UTF-16 units, so an emoji is one; `at`
     // maps a UTF-16 index to its character's index, built once per line.
     const chars = [...line];
+    const bad = chars.map((_, k) => refused(chars, k));
     const at = [];
     let u = 0;
     chars.forEach((ch, k) => {
       at[u] = k;
       u += ch.length;
-      if (!refused(chars, k)) return;
+      if (!bad[k]) return;
       const cp = ch.codePointAt(0);
       const what = isRawControl(cp) ? "a raw control character" : `an invisible character, ${codeName(cp)} (${INVISIBLE_NAMES.get(cp)})`;
-      out.push(`line ${i + 1}, column ${k + 1}: ${what}: …${around(chars, k)}…`);
+      out.push(`line ${i + 1}, column ${k + 1}: ${what}: …${around(chars, bad, k)}…`);
     });
     for (const m of line.matchAll(REWRITTEN_ESCAPE)) {
       out.push(`line ${i + 1}, column ${at[m.index] + 1}: GitHub rewrites the text ${m[0]}; write it as \\x${m[0].slice(4)} or in words`);

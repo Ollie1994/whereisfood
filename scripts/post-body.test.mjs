@@ -39,10 +39,15 @@ describe("textProblems", () => {
     expect(textProblems(`${cps(0x1f916)}${BS}u0001`)).toEqual([expect.stringContaining("column 2:")]);
   });
   it("keeps other non-ASCII text, and the joiners and selectors that build an emoji", () => {
-    expect(textProblems("Ställ in, café, naïve, – … →")).toEqual([]);
+    expect(textProblems("Ställ in, café, naïve, åtta, – … →")).toEqual([]);
     const kept = {
       family: cps(0x1f468, 0x200d, 0x1f469, 0x200d, 0x1f467),
       "skin tone at a laptop": cps(0x1f469, 0x1f3fd, 0x200d, 0x1f4bb),
+      "lightest skin tone at a laptop": cps(0x1f469, 0x1f3fb, 0x200d, 0x1f4bb),
+      "darkest skin tone at a laptop": cps(0x1f469, 0x1f3ff, 0x200d, 0x1f4bb),
+      "thumbs-up, a skin tone and U+FE0F": cps(0x1f44d, 0x1f3fd, 0xfe0f),
+      "keycap 0": cps(0x30, 0xfe0f, 0x20e3),
+      "keycap *": cps(0x2a, 0xfe0f, 0x20e3),
       "rainbow flag": cps(0x1f3f3, 0xfe0f, 0x200d, 0x1f308),
       "red heart": cps(0x2764, 0xfe0f),
       "check mark": cps(0x2714, 0xfe0f),
@@ -68,6 +73,12 @@ describe("textProblems", () => {
     const family = cps(0x1f468, 0x200d, 0x1f469);
     const [p] = textProblems(`${family} a${cps(0x00a0)}b`);
     expect(p).toContain(`…${family} a<U+00A0>b…`);
+  });
+  it("doesn't mark an emoji cut at the excerpt's edge", () => {
+    const [p] = textProblems(`x${cps(0x00a0)}${"a".repeat(27)}${cps(0x1f468, 0x200d, 0x1f469)}`);
+    expect(p).not.toContain("<U+200D>");
+    const [q] = textProblems(`${cps(0x2764, 0xfe0f)}${"a".repeat(29)}${cps(0x00a0)}`);
+    expect(q).not.toContain("<U+FE0F>");
   });
   it("takes the escape's hex digits in either case", () => {
     expect(textProblems(`${BS}u000c`)).toHaveLength(1);
@@ -272,6 +283,15 @@ describe("main", () => {
     const { api } = fakeApi((b) => b.replace("text", "txet"));
     expect(main(["--comment", "12", file("text\n")], { api })).toBe(1);
     expect(console.error).toHaveBeenCalledWith(expect.stringContaining("comment 99 was made"));
+  });
+  it("shows every invisible character in the read-back's lines, so a difference is visible", () => {
+    quiet();
+    const nnbsp = String.fromCodePoint(0x202f);
+    const { api } = fakeApi((b) => b.replace("a b", `a${nnbsp}b`).replace("c d", "c\td"));
+    expect(main(["12", file("a b\n")], { api })).toBe(1);
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining("stored: a<U+202F>b"));
+    expect(main(["12", file("c d\n")], { api })).toBe(1);
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining("stored: c<0x09>d"));
   });
   it("fails when GitHub stores something else, body or comment", () => {
     quiet();
