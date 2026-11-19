@@ -508,9 +508,9 @@ with its own Site URL and Redirect URLs. The Vercel rows are the `whereisfood` p
 which its production deploys share; the project's other settings (the Ignored Build Step,
 the environment variables' scopes) are in "Preview deploys", below. Each row was read on
 2026-11-18 from the owner's screenshots, except the advisor's table (CLI runs, below) and
-two probes (the Enforce SSL and AAL1 rows), with the results recorded on IS #390, and the
-retention row, set and read on 2026-11-19 (IS #417). It names settings, never keys or
-addresses (`CLAUDE.md`, Secrets).
+two probes (the Enforce SSL and AAL1 rows), with the results recorded on IS #390. The two
+retention rows were set by the owner on 2026-11-19 and read from their screenshots that day,
+recorded on IS #417. It names settings, never keys or addresses (`CLAUDE.md`, Secrets).
 
 **Supabase, Authentication:**
 
@@ -574,7 +574,8 @@ addresses (`CLAUDE.md`, Secrets).
 | Team → Deployment Protection → Default Protection for New Projects; Who Can Change Protection | Vercel Authentication, Standard Protection; neither box ticked | Kept as found |
 | Team → Deployment Protection → Access Request Permissions | Anyone | Kept as found |
 | Settings → Security → Git Fork Protection | Enabled | "Preview deploys", below |
-| Settings → Build and Deployment → Deployment Retention Policy (the team's too, applied to all projects) | Canceled 1 day; Errored 1 day; Pre-Production 1 week; Production 30 days | Keeps Deployment Storage under Hobby's 10 GB, which Hobby can't alert on and over which deploys can be blocked (IS #417: 3.06 GB on 2026-11-19, with 30 days for all four). `dev`'s preview is kept whatever the policy, by its alias (Vercel's Deployment Retention docs). Production keeps 30 days for rollback; Phase 10 reads it again |
+| Team → Build and Deployment → Deployment Retention Policy | Canceled 1 day; Errored 1 day; Pre-Production 1 week; Production 30 days; "Apply this policy to all existing projects" ticked | Set by the owner, 2026-11-19 (IS #417); the project's own policy, the next row, takes precedence over it (Vercel's Deployment Retention docs) |
+| Settings → Build and Deployment → Deployment Retention Policy | The same four values | Margin under Hobby's 10 GB of Deployment Storage, over which deploys can be blocked: 3.06 GB on 2026-11-19, which at 30 days for all four would have levelled off near 5 GB at that month's pace (IS #417). Hobby's Alerts and Spend Management aren't offered (IS #389); Vercel's docs list a "Usage limit reached" notice, without saying it covers this. It applies team-wide, production included, so there is nothing for Phase 10 to apply. Costs: an errored build's logs go after a day, and a preview URL older than a week stops loading. Vercel's docs don't say `dev`'s branch URL exempts its deployment, so after a week with no push to `dev` its preview may be deleted and the preview's login fail: a push to `dev`, or Redeploy, brings it back (the owner's call, 2026-11-19). Production stays at 30 days, the owner's call: there are no production deployments yet, and Hobby rolls back only to the previous deployment (Vercel's Instant Rollback docs), so Phase 10 decides it |
 | Settings → General → Vercel Toolbar → Pre-Production Deployments; Production Deployments | Off; Default (the team's: on) | Pre-Production: the CSP refused its script, styles and iframe (`CLAUDE.md`, Security headers; IS #387). Production: on for team members with the Chrome extension or the toolbar menu's opt-in (the team setting's text); Phase 10 decides it with production's CSP |
 
 ---
