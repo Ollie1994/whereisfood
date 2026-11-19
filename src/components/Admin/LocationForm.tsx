@@ -52,7 +52,7 @@ export default function LocationForm({
         ) : (
           <label className={LABEL}>
             Foodtruck
-            <select value={values.truckId} onChange={(event) => setField("truckId", event.target.value)} className={FIELD}>
+            <select name="truckId" value={values.truckId} onChange={(event) => setField("truckId", event.target.value)} className={FIELD}>
               <option value="">Välj foodtruck</option>
               {active.map((truck) => (
                 <option key={truck.id} value={truck.id}>
@@ -74,6 +74,7 @@ export default function LocationForm({
           Datum
           <input
             type="date"
+            name="date"
             value={values.date}
             onChange={(event) => setField("date", event.target.value)}
             className={FIELD}
@@ -87,6 +88,7 @@ export default function LocationForm({
             Från
             <input
               type="time"
+              name="start"
               value={values.start}
               onChange={(event) => setField("start", event.target.value)}
               className={FIELD}
@@ -98,6 +100,7 @@ export default function LocationForm({
             Till
             <input
               type="time"
+              name="end"
               value={values.end}
               onChange={(event) => setField("end", event.target.value)}
               className={FIELD}

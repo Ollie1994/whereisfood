@@ -22,10 +22,15 @@ export default function TruckForm({ trucks }: TruckFormProps) {
       {/* Locked while a save runs: its answer empties or closes the form, which would drop
           anything typed meanwhile. */}
       <fieldset disabled={saving} className={FIELDSET}>
+        {/* `autoComplete="off"`: with `name="name"`, Chrome's Issues panel listed one field "the
+            browser's autofill recognizes" with no `autocomplete` (IS #412's browser check); a
+            truck's name is never the admin's own. */}
         <label className={LABEL}>
           Namn
           <input
             type="text"
+            name="name"
+            autoComplete="off"
             value={values.name}
             onChange={(event) => setField("name", event.target.value)}
             className={FIELD}
@@ -36,6 +41,7 @@ export default function TruckForm({ trucks }: TruckFormProps) {
           Instagram (valfritt)
           <input
             type="text"
+            name="instagram"
             value={values.instagram}
             onChange={(event) => setField("instagram", event.target.value)}
             placeholder="@konto"
@@ -49,6 +55,7 @@ export default function TruckForm({ trucks }: TruckFormProps) {
           Typ av mat (valfritt)
           <input
             type="text"
+            name="cuisine"
             value={values.cuisine}
             onChange={(event) => setField("cuisine", event.target.value)}
             placeholder="t.ex. Tacos"
@@ -58,6 +65,7 @@ export default function TruckForm({ trucks }: TruckFormProps) {
         <label className={LABEL}>
           Beskrivning (valfritt)
           <textarea
+            name="description"
             value={values.description}
             onChange={(event) => setField("description", event.target.value)}
             rows={3}
