@@ -8,11 +8,12 @@
 // read through `git ls-files --format`'s `%(eolattr)`, which prints `-text` for each and for
 // `-text eol=lf`. Mark a file `-text`: `binary` also sets `-diff`, and the pre-commit Gitleaks
 // hook then saw only "Binary files … differ" and missed a made-up token in the file, which it
-// caught under `-text` (probed on PR #433; CI's scan, with `--text`, reads both). It reads every attributes source Git does: a nested `.gitattributes`, an
-// unstaged edit to one, `$GIT_DIR/info/attributes` and the user's `core.attributesFile` (probed
-// on PR #433). CI's checkout has only the tracked `.gitattributes` files, so a mark made only
-// in a local source skips a file locally that CI then fails. Every other regular tracked file
-// must be valid UTF-8, and is scanned. Not Git's call from the content (`%(eolinfo:index)`): a
+// caught under `-text` (probed on PR #433; CI's scan, with `--text`, reads both). `%(eolattr)`
+// reads every attributes source Git does: a nested `.gitattributes`, an unstaged edit to one,
+// `$GIT_DIR/info/attributes` and the user's `core.attributesFile` (probed on PR #433). CI's
+// checkout has only the tracked `.gitattributes` files, so a mark made only in a local source
+// skips a file locally that CI then fails. Every other regular tracked file must be valid
+// UTF-8, and is scanned. Not Git's call from the content (`%(eolinfo:index)`): a
 // bad byte with a NUL or a lone CR made it say `-text`, which hid the file, and a binary file
 // that is valid UTF-8 was scanned (PR #431, round 5). An excused file that isn't empty and
 // decodes as UTF-8 with nothing refused in it is named, as a text file marked by mistake.
@@ -110,7 +111,7 @@ export function scanEntries(files, allowed) {
     } catch {
       // Not UTF-8: excused only if marked, below.
     }
-    // Only a binary mark excuses a file. One that isn't empty and reads as text with nothing
+    // Only a -text mark excuses a file. One that isn't empty and reads as text with nothing
     // refused in it is named: a text file marked by mistake.
     if (binary) {
       if (buf.length > 0 && text !== null && scanText(text).length === 0) found.push(`${path}: marked -text in .gitattributes, but reads as text`);
