@@ -18,27 +18,33 @@
 //   node scripts/post-body.mjs <issue-or-PR-number> <file> [--rounds]
 //     Replaces the issue's or PR's body with the file.
 //   node scripts/post-body.mjs --comment <issue-or-PR-number> <file>
-//     Adds the file as a new comment.
+//     Adds the file as a new comment. If anything fails after the comment is made, the
+//     message names its id and URL, to fix with --edit-comment rather than post another.
+//   node scripts/post-body.mjs --edit-comment <comment-id> <file>
+//     Replaces an existing comment's text with the file.
 //   node scripts/post-body.mjs --check <file>
 //     Runs the checks below and posts nothing: for a new issue or PR, before `gh issue create`
-//     or `gh pr create --body-file`, so a bad body is caught before it is public.
+//     or `gh pr create --body-file`; then the first form, on the same file, reads it back.
 //
 // The checks, before anything is posted (exit 1, nothing posted): a raw control character
 // (all of C0 but tab, LF and CR); the escape text GitHub rewrites (above); a `## ` heading
-// twice. Lines inside a ``` or ~~~ fence are not headings. With --rounds (a PR body), it reads
-// the process log's rows whose `Where` starts `PR #<n> /` and whose `Caught by` starts
-// `` `code-review` r<N> on PR #<n> `` (blanks collapsed, as process-log.sh's check does), and
-// needs `## Round <k>` exactly once for each k from 1 to the highest such N; a round heading
-// past it, as a last round that found nothing and so has no row, may appear once. A round
-// heading not in that form (`## Round two`, `## round 1`) fails. Then it posts the text as a
-// JSON body through `gh api`, reads the stored copy back, and exits 1 if it differs from the
-// file in anything but line endings and blanks at the ends of lines or of the text. Exits 2
-// on bad arguments, an unreadable file or log, or a failed `gh` call; 0 when all is well.
+// twice. Lines inside a fenced code block (``` or ~~~, closed only by a fence of the same
+// character, at least as long, with nothing after it) are not headings. With --rounds (a PR
+// body), it reads the process log's rows whose `Where` starts `PR #<n> /` and whose `Caught by`
+// starts `` `code-review` r<N> on PR #<n> `` (blanks collapsed, as process-log.sh's check
+// does), and needs `## Round <k>` exactly once for each k from 1 to the highest such N; the
+// next round's heading, for a last round that found nothing and so has no row, may appear
+// once, and no other. A round heading not in that form (`## Round two`, `## round 1`) fails.
+// Then it posts the text as a JSON body through `gh api`, reads the stored copy back, and
+// exits 1 if it differs from the file in anything but line endings and blanks at the ends of
+// lines or of the text. Exits 2 on bad arguments (a number with a leading zero among them),
+// an unreadable file or log, or a failed `gh` call; 0 when all is well.
 //
 // Does not catch: a wrong or stale statement (the claims check and the rounds read those); text
-// posted in the browser, or by `gh` without this script (CLAUDE.md's rule); an edit to an
-// existing comment (it only adds them); a round section that is present but empty; a round
-// recorded in the log in another form (rows before the log's review-form-from-row).
+// posted in the browser, or by `gh` without this script (CLAUDE.md's rule); a review comment
+// on a PR's diff (it posts only issue and PR comments); a round section that is present but
+// empty; a round recorded in the log in another form (rows before the log's
+// review-form-from-row).
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -57,17 +63,21 @@ const lines = (text) => text.replace(/\r\n?/g, "\n").split("\n");
 const show = (s) => s.replace(/[\u0000-\u001F]/g, (c) => `<0x${c.charCodeAt(0).toString(16).padStart(2, "0")}>`);
 const around = (line, i) => show(line.slice(Math.max(0, i - 30), i + 30));
 
-/** The lines outside ``` and ~~~ fences, each with its 1-based number. */
+/** The lines outside fenced code blocks, each with its 1-based number. A fence opens on
+ * ``` or ~~~ (three or more, up to three spaces in) and closes only on the same character,
+ * at least as many, with nothing but blanks after (CommonMark's fenced code blocks). */
 function unfenced(text) {
   const out = [];
   let fence = null;
   lines(text).forEach((line, i) => {
-    const m = line.match(/^ {0,3}(`{3,}|~{3,})/);
-    if (m && (fence === null || m[1][0] === fence[0])) {
-      fence = fence === null ? m[1] : null;
+    if (fence === null) {
+      const open = line.match(/^ {0,3}(`{3,}|~{3,})/);
+      if (open) fence = open[1];
+      else out.push({ line, n: i + 1 });
       return;
     }
-    if (fence === null) out.push({ line, n: i + 1 });
+    const close = line.match(/^ {0,3}(`{3,}|~{3,})[ \t]*$/);
+    if (close && close[1][0] === fence[0] && close[1].length >= fence.length) fence = null;
   });
   return out;
 }
@@ -130,7 +140,10 @@ export function roundProblems(text, rounds) {
   for (let k = 1; k <= top; k++) {
     if ((count.get(k) ?? 0) !== 1) out.push(`round ${k}: ${count.get(k) ?? 0} "## Round ${k}" headings, not 1 (the log's rounds go to ${top})`);
   }
-  for (const [k, c] of count) if (k > top && c > 1) out.push(`round ${k}: ${c} "## Round ${k}" headings, not 1`);
+  for (const [k, c] of count) {
+    if (k === top + 1 && c > 1) out.push(`round ${k}: ${c} "## Round ${k}" headings, not 1`);
+    if (k > top + 1) out.push(`round ${k}: a "## Round ${k}" heading, but the log's rounds go to ${top}; only round ${top + 1} may follow`);
+  }
   return out;
 }
 
@@ -154,19 +167,21 @@ function gh(args, input) {
 const USAGE = [
   "usage: node scripts/post-body.mjs <issue-or-PR-number> <file> [--rounds]",
   "       node scripts/post-body.mjs --comment <issue-or-PR-number> <file>",
+  "       node scripts/post-body.mjs --edit-comment <comment-id> <file>",
   "       node scripts/post-body.mjs --check <file>",
 ].join("\n");
+const MODES = { "--comment": "comment", "--edit-comment": "edit-comment", "--check": "check" };
 
 export function main(argv, { readLog = () => readFileSync(LOG, "utf8"), api = gh } = {}) {
   const flags = new Set(argv.filter((a) => a.startsWith("--")));
   const args = argv.filter((a) => !a.startsWith("--"));
-  const known = new Set(["--rounds", "--comment", "--check"]);
-  const mode = flags.has("--check") ? "check" : flags.has("--comment") ? "comment" : "body";
+  const modeFlags = [...flags].filter((f) => f in MODES);
+  const mode = modeFlags.length ? MODES[modeFlags[0]] : "body";
   const bad =
-    [...flags].some((f) => !known.has(f)) ||
-    (flags.has("--check") && flags.has("--comment")) ||
+    [...flags].some((f) => !(f in MODES) && f !== "--rounds") ||
+    modeFlags.length > 1 ||
     (flags.has("--rounds") && mode !== "body") ||
-    (mode === "check" ? args.length !== 1 : args.length !== 2 || !/^\d+$/.test(args[0]));
+    (mode === "check" ? args.length !== 1 : args.length !== 2 || !/^[1-9]\d*$/.test(args[0]));
   if (bad) {
     console.error(USAGE);
     return 2;
@@ -174,7 +189,7 @@ export function main(argv, { readLog = () => readFileSync(LOG, "utf8"), api = gh
   const [n, file] = mode === "check" ? [null, args[0]] : args;
   let text;
   try {
-    text = readFileSync(file, "utf8").replace(/^﻿/, "");
+    text = readFileSync(file, "utf8").replace(/^\uFEFF/, "");
   } catch (e) {
     console.error(`post-body: cannot read ${file}: ${e.message}`);
     return 2;
@@ -201,24 +216,34 @@ export function main(argv, { readLog = () => readFileSync(LOG, "utf8"), api = gh
   }
   const json = JSON.stringify({ body: text });
   let stored;
+  let made = null;
+  // A comment made but not read back is named, so it is fixed with --edit-comment and not
+  // posted a second time.
+  const madeNote = () =>
+    made && console.error(`post-body: comment ${made.id} was made (${made.html_url}); fix it with --edit-comment ${made.id} <file>`);
   try {
     if (mode === "comment") {
-      const made = JSON.parse(api(["api", "-X", "POST", `repos/{owner}/{repo}/issues/${n}/comments`, "--input", "-"], json));
+      made = JSON.parse(api(["api", "-X", "POST", `repos/{owner}/{repo}/issues/${n}/comments`, "--input", "-"], json));
       stored = JSON.parse(api(["api", `repos/{owner}/{repo}/issues/comments/${made.id}`])).body;
+    } else if (mode === "edit-comment") {
+      api(["api", "-X", "PATCH", `repos/{owner}/{repo}/issues/comments/${n}`, "--input", "-"], json);
+      stored = JSON.parse(api(["api", `repos/{owner}/{repo}/issues/comments/${n}`])).body;
     } else {
       api(["api", "-X", "PATCH", `repos/{owner}/{repo}/issues/${n}`, "--input", "-"], json);
       stored = JSON.parse(api(["api", `repos/{owner}/{repo}/issues/${n}`])).body;
     }
   } catch (e) {
     console.error(`post-body: ${e.message}`);
+    madeNote();
     return 2;
   }
-  const what = mode === "comment" ? `the new comment on #${n}` : `#${n}'s body`;
+  const what = { comment: `the new comment on #${n}`, "edit-comment": `comment ${n}`, body: `#${n}'s body` }[mode];
   const diff = compareBodies(text, stored);
   if (diff) {
     console.error(`post-body: ${what} as stored differs at line ${diff.line}:`);
     console.error(`  sent:   ${show(diff.sent)}`);
     console.error(`  stored: ${show(diff.stored)}`);
+    madeNote();
     return 1;
   }
   console.log(`post-body: ${what} posted and read back${flags.has("--rounds") ? ", rounds checked" : ""}`);

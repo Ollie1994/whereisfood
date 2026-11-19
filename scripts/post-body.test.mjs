@@ -48,6 +48,11 @@ describe("repeatedHeadings", () => {
   it("ignores headings inside a fence", () => {
     expect(repeatedHeadings("## A\n```md\n## A\n```\n~~~\n## A\n~~~\n")).toEqual([]);
   });
+  it("closes a fence only on the same character, at least as long, with no info string", () => {
+    expect(repeatedHeadings("```md\n```js\n```\n## A\n## A\n")).toEqual(['"## A" 2 times']);
+    expect(repeatedHeadings("```\n~~~\n## A\n```\n## A\n")).toEqual([]);
+    expect(repeatedHeadings("````\n```\n## A\n```\n````\n## A\n")).toEqual([]);
+  });
 });
 
 describe("roundsFromLog", () => {
@@ -81,13 +86,17 @@ describe("roundProblems", () => {
   it("needs every round up to the log's highest, even one the log skips", () => {
     expect(roundProblems(body(1, 3), [1, 3])).toEqual([expect.stringContaining("round 2: 0")]);
   });
-  it("allows one heading past the log's rounds (a last round that found nothing), not two", () => {
+  it("allows the next round's heading once (a last round that found nothing), and no other", () => {
     expect(roundProblems(body(1, 2, 3), [1, 2])).toEqual([]);
     expect(roundProblems(body(1, 2, 3, 3), [1, 2])).toEqual(['round 3: 2 "## Round 3" headings, not 1']);
+    expect(roundProblems(body(1, 2, 4), [1, 2])).toEqual([expect.stringContaining("round 4: a")]);
+    expect(roundProblems(body(1, 2, 5, 9), [1, 2])).toHaveLength(2);
   });
   it("refuses a round heading in another form, and doesn't count Round 10 as Round 1", () => {
     expect(roundProblems("## Round two\n## round 1\n", [])).toHaveLength(2);
-    expect(roundProblems(body(10), [])).toEqual([]);
+    const ps = roundProblems(body(10), [10]);
+    expect(ps).toContain('round 1: 0 "## Round 1" headings, not 1 (the log\'s rounds go to 10)');
+    expect(ps.some((p) => p.startsWith("round 10"))).toBe(false);
     expect(roundProblems("### Round 1\n```\n## Round 1\n```\n", [])).toEqual([]);
   });
 });
@@ -152,6 +161,28 @@ describe("main", () => {
       ["api", "repos/{owner}/{repo}/issues/comments/99"],
     ]);
   });
+  it("edits a comment by its id and reads it back", () => {
+    quiet();
+    const { api, calls } = fakeApi();
+    expect(main(["--edit-comment", "555", file("A record.\n")], { api })).toBe(0);
+    expect(calls).toEqual([
+      ["api", "-X", "PATCH", "repos/{owner}/{repo}/issues/comments/555", "--input", "-"],
+      ["api", "repos/{owner}/{repo}/issues/comments/555"],
+    ]);
+  });
+  it("names a comment it made but couldn't read back, or that differs", () => {
+    quiet();
+    const made = JSON.stringify({ id: 77, html_url: "https://example.test/c77", body: "x" });
+    const failGet = (args) => {
+      if (args.includes("POST")) return made;
+      throw new Error("gh api failed");
+    };
+    expect(main(["--comment", "12", file("text\n")], { api: failGet })).toBe(2);
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining("comment 77 was made (https://example.test/c77); fix it with --edit-comment 77"));
+    const { api } = fakeApi((b) => b.replace("text", "txet"));
+    expect(main(["--comment", "12", file("text\n")], { api })).toBe(1);
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining("comment 99 was made"));
+  });
   it("fails when GitHub stores something else, body or comment", () => {
     quiet();
     const { api } = fakeApi((b) => b.replace("text", "txet"));
@@ -187,7 +218,7 @@ describe("main", () => {
     quiet();
     const { api, calls } = fakeApi();
     const f = file("text\n");
-    for (const argv of [[], ["x", f], ["12", f, "--nope"], ["--check", "12", f], ["--check", f, "--rounds"], ["--comment", "12", f, "--rounds"], ["--comment", "--check", f]]) {
+    for (const argv of [[], ["x", f], ["012", f], ["12", f, "--nope"], ["--check", "12", f], ["--check", f, "--rounds"], ["--comment", "12", f, "--rounds"], ["--edit-comment", "5", f, "--rounds"], ["--comment", "--check", f], ["--comment", "--edit-comment", "5", f]]) {
       expect(main(argv, { api }), argv.join(" ")).toBe(2);
     }
     expect(calls).toEqual([]);

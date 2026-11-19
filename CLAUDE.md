@@ -563,14 +563,15 @@ uncommitted on `dev`. Every doc change then has a reviewable diff and a
   rounds" below; process-log rows 269, 271).
 - **Issue and PR text is posted through `scripts/post-body.mjs`** (IS #403), from a file: a
   body with `node scripts/post-body.mjs <n> <file>` (`--rounds` on a PR body once it has a
-  round section), a new comment with `--comment <n> <file>`. A new issue or PR: run
-  `--check <file>` first, then `gh issue create` or `gh pr create --body-file` with that
-  file. It refuses, before posting, a raw control character, the escape text GitHub
-  rewrites (`\u0000` to `\u001F` but `\u0009`, `\u000A`, `\u000B` and `\u000D`: write
-  `\x00`, or the character's name) and a repeated `## ` heading; then it posts and fails if
-  GitHub's stored copy differs. A failure is fixed before the next step. Its header lists
-  what GitHub rewrites (probe PR #425) and what the script can't see (an edit to an
-  existing comment among them).
+  round section), a new comment with `--comment <n> <file>`, a change to one with
+  `--edit-comment <id> <file>`. A new issue or PR: `--check <file>` first, then `gh issue
+  create` or `gh pr create --body-file` with that file, then the first form on the same
+  file, which reads it back. It refuses, before posting, a raw control character, the
+  escape text GitHub rewrites (`\u0000` to `\u001F` but `\u0009`, `\u000A`, `\u000B` and
+  `\u000D`: write `\x00`, or the character's name) and a repeated `## ` heading; then it
+  posts and fails if GitHub's stored copy differs. A failure is fixed before the next
+  step. Its header lists what GitHub rewrites (probe PR #425) and what the script can't
+  see (a review comment on a PR's diff among them).
 
 ---
 
