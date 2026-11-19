@@ -16,7 +16,8 @@ import { useFocusOnMount } from "@/hooks/useFocusOnMount";
 // more.
 //
 // The message takes focus on mount and `<title>` names the page, as `ErrorNotice` does (IS
-// #438).
+// #438). A "Försök igen" that threw again focused it again (headless Chrome on `npm start`,
+// IS #438's PR); one that succeeds wasn't probed here.
 export default function MapError({ retry }: { retry: () => void }) {
   const message = useFocusOnMount<HTMLParagraphElement>();
   return (
