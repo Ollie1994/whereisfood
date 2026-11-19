@@ -36,7 +36,7 @@ export default function PlacePicker({ picker, pin, label, onLabel }: PlacePicker
     <div className="flex flex-col gap-3">
       <label className={LABEL}>
         Plats
-        <select value={spotAt(pin, label)} onChange={(event) => picker.pickSpot(event.target.value)} className={FIELD}>
+        <select name="spot" value={spotAt(pin, label)} onChange={(event) => picker.pickSpot(event.target.value)} className={FIELD}>
           <option value="">Välj känd plats</option>
           {SPOTS.map((spot) => (
             <option key={spot.name} value={spot.name}>
@@ -99,6 +99,7 @@ export default function PlacePicker({ picker, pin, label, onLabel }: PlacePicker
         Platsnamn (valfritt)
         <input
           type="text"
+          name="label"
           value={label}
           onChange={(event) => onLabel(event.target.value)}
           placeholder="t.ex. Heden"
