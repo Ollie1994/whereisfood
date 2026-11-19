@@ -543,7 +543,9 @@ file/test counts when tests are added, moved or deleted.
 **Invisible characters in tracked files** (IS #430): `scripts/tracked-text.test.mjs`, in the
 `unit` project, fails on any tracked text file holding a character `scripts/post-body.mjs`
 refuses in posted text (raw controls, and its invisible list, emoji kept), and on a file
-that isn't valid UTF-8 (or UTF-16 with a byte-order mark). The tools have turned a written
+with no NUL byte that isn't valid UTF-8, or one marked UTF-16 that isn't valid UTF-16 (a
+file with a NUL byte and no UTF-16 mark is read as binary and skipped; the test's header
+lists what else it can't see). The tools have turned a written
 escape into the character itself (process-log row 806); write such a character from its
 code point, or as escape text. A file that must hold one goes on the test's `ALLOWED` list
 with the code points it may hold and the reason; an entry the file no longer needs fails.
