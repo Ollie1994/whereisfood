@@ -14,7 +14,12 @@ describe("textProblems", () => {
   it("names a raw control character, but not tab, LF or CR", () => {
     expect(textProblems(`a${String.fromCharCode(8)}b`)).toEqual([expect.stringContaining("line 1, column 2: a raw control character")]);
     expect(textProblems("a\u0000b\nc\u001Fd")).toHaveLength(2);
+    expect(textProblems(`a${String.fromCharCode(0x0b)}b${String.fromCharCode(0x0c)}c`)).toHaveLength(2);
     expect(textProblems("a\tb\r\nc\n")).toEqual([]);
+  });
+  it("takes the escape's hex digits in either case", () => {
+    expect(textProblems(`${BS}u000c`)).toHaveLength(1);
+    expect(textProblems(`${BS}u000a`)).toEqual([]);
   });
   it("shows the character's place on a long line", () => {
     const [p] = textProblems(`${"x".repeat(200)}${String.fromCharCode(8)}y`);
@@ -47,6 +52,17 @@ describe("repeatedHeadings", () => {
   });
   it("ignores headings inside a fence", () => {
     expect(repeatedHeadings("## A\n```md\n## A\n```\n~~~\n## A\n~~~\n")).toEqual([]);
+  });
+  it("reads a heading with a tab after ## or a closing run of #", () => {
+    expect(repeatedHeadings("## A\n##\tA\n")).toHaveLength(1);
+    expect(repeatedHeadings("## A\n## A ##\n")).toHaveLength(1);
+  });
+  it("opens no fence on a line of backticks with a backtick after them", () => {
+    expect(repeatedHeadings("```` ``` ```` is a fence\n## A\n## A\n")).toEqual(['"## A" 2 times']);
+  });
+  it("ignores headings inside an HTML comment", () => {
+    expect(repeatedHeadings("## A\n<!--\n## A\n-->\n")).toEqual([]);
+    expect(repeatedHeadings("## A\n<!-- one line -->\n## A\n")).toHaveLength(1);
   });
   it("closes a fence only on the same character, at least as long, with no info string", () => {
     expect(repeatedHeadings("```md\n```js\n```\n## A\n## A\n")).toEqual(['"## A" 2 times']);
@@ -92,6 +108,13 @@ describe("roundProblems", () => {
     expect(roundProblems(body(1, 2, 4), [1, 2])).toEqual([expect.stringContaining("round 4: a")]);
     expect(roundProblems(body(1, 2, 5, 9), [1, 2])).toHaveLength(2);
   });
+  it("refuses Round 0, and a round heading written with a tab past the top", () => {
+    expect(roundProblems(body(0, 1), [1])).toEqual(["round 0: rounds start at 1"]);
+    expect(roundProblems("##\tRound 7\n", [])).toHaveLength(1);
+  });
+  it("doesn't take Round-up or Round trip for a round heading", () => {
+    expect(roundProblems("## Round-up\n## Round trip probe\n", [])).toEqual([]);
+  });
   it("refuses a round heading in another form, and doesn't count Round 10 as Round 1", () => {
     expect(roundProblems("## Round two\n## round 1\n", [])).toHaveLength(2);
     const ps = roundProblems(body(10), [10]);
@@ -107,6 +130,10 @@ describe("compareBodies", () => {
   });
   it("names the first line that differs, as GitHub's rewrite would make it", () => {
     expect(compareBodies(`a\nx ${BS}u0000\n`, `a\nx ${BS}^@\n`)).toEqual({ line: 2, sent: `x ${BS}u0000`, stored: `x ${BS}^@` });
+  });
+  it("counts a change to a non-ASCII space at a line's end", () => {
+    const nbsp = String.fromCharCode(0xa0);
+    expect(compareBodies(`a${nbsp}\n`, "a\n")).toEqual({ line: 1, sent: `a${nbsp}`, stored: "a" });
   });
   it("names a body cut short, and a null body", () => {
     expect(compareBodies("a\nb\n", "a\n")).toEqual({ line: 2, sent: "b", stored: "<none>" });
