@@ -53,7 +53,21 @@ describe("textProblems", () => {
   it("refuses a joiner or selector that builds no emoji", () => {
     expect(textProblems(`a${cps(0x200d)}b`)).toHaveLength(1);
     expect(textProblems(`${cps(0x1f916, 0x200d)}b`)).toHaveLength(1);
+    expect(textProblems(`a${cps(0x200d, 0x1f916)}`)).toHaveLength(1);
     expect(textProblems(`a${cps(0xfe0f)}`)).toHaveLength(1);
+  });
+  it("keeps U+FE0F after a digit, # or * only in a keycap", () => {
+    expect(textProblems(`version 2${cps(0xfe0f)}`)).toHaveLength(1);
+    expect(textProblems(`x #${cps(0xfe0f)} y`)).toHaveLength(1);
+    expect(textProblems(`x ${cps(0x23, 0xfe0f, 0x20e3)} y`)).toEqual([]);
+  });
+  it("counts a raw control character's column in characters too", () => {
+    expect(textProblems(`${cps(0x1f916, 0x1f916)}${String.fromCharCode(1)}`)).toEqual([expect.stringContaining("column 3: a raw control character")]);
+  });
+  it("marks only the refused characters in an excerpt, not an emoji's joiners", () => {
+    const family = cps(0x1f468, 0x200d, 0x1f469);
+    const [p] = textProblems(`${family} a${cps(0x00a0)}b`);
+    expect(p).toContain(`…${family} a<U+00A0>b…`);
   });
   it("takes the escape's hex digits in either case", () => {
     expect(textProblems(`${BS}u000c`)).toHaveLength(1);
