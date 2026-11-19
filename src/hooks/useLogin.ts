@@ -37,8 +37,16 @@ export function useLogin(): {
           emailRedirectTo: new URL("/auth/callback", window.location.origin).href,
         },
       });
-      setStatus(loginStatusFor(error));
-    } catch {
+      const next = loginStatusFor(error);
+      // Logged: `loginStatusFor` reads every error but `otp_disabled` and a rate limit as "failed",
+      // which `loginMessage` gives one text (both in `login.ts`).
+      if (next === "failed") console.error("[login] the send answered:", error);
+      setStatus(next);
+    } catch (err) {
+      // Anything thrown in the `try`, `signInWithOtp`'s own included: with `throwOnError` off,
+      // as `supabaseClient` is created, it returns an `AuthError` and rethrows anything else
+      // (its `catch` and `_returnResult`, read in `@supabase/auth-js` 2.106.2).
+      console.error("[login] the send threw:", err);
       setStatus("failed");
     }
   }
