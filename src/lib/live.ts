@@ -163,18 +163,29 @@ export type PixelOffset = [number, number];
 
 // The marker is 18 px across (`useMapLibre`'s `createMarkerElement`); neighbours in a fan
 // are at least this far apart, centre to centre, after rounding, so 2 px show between them
-// (the owner asked for them closer after the browser check, IS #248).
+// (the owner's choice, IS #248).
 const FAN_SPACING = 20;
 const FAN_MIN_RADIUS = 10;
 
-// `n` whole-pixel points around the spot: two left and right; more on a circle from the top
-// (-90°), clockwise on screen (y grows down).
+// Half away from zero, after absorbing float error near .5: `Math.round` rounds -10.5 up to
+// -10, and 21 sin(150°) is 10.500000000000007 where 21 sin(-30°) is -10.5, so a six-truck fan
+// came out 20 px apart on its right and 22 on its left (probed, round 3 on PR #436).
+function roundPx(value: number): number {
+  return Math.sign(value) * Math.floor(Math.abs(value) + 0.5 + 1e-9) || 0;
+}
+
+// `n` whole-pixel points around the spot, mirror-symmetric about the vertical: two left and
+// right; more on a circle from the top (-90°), clockwise on screen (y grows down).
 function fanPoints(n: number, radius: number): PixelOffset[] {
   return Array.from({ length: n }, (_, i) => {
     const angle = n === 2 ? Math.PI * (i + 1) : -Math.PI / 2 + (2 * Math.PI * i) / n;
-    return [Math.round(radius * Math.cos(angle)) || 0, Math.round(radius * Math.sin(angle)) || 0];
+    return [roundPx(radius * Math.cos(angle)), roundPx(radius * Math.sin(angle))];
   });
 }
+
+// One collator: `localeCompare` builds one per call. Where an engine has no Swedish data it
+// falls back to its default order (Ö sorting like O), a limit.
+const SWEDISH = new Intl.Collator("sv");
 
 function closestPair(points: readonly PixelOffset[]): number {
   let closest = Infinity;
@@ -206,7 +217,7 @@ export function fanOffsets(markers: ReadonlyMap<TruckId, MarkerEntry>): Map<Truc
   for (const group of spots.values()) {
     group.sort(
       (a, b) =>
-        a.truck.name.localeCompare(b.truck.name, "sv") ||
+        SWEDISH.compare(a.truck.name, b.truck.name) ||
         (a.truck.id < b.truck.id ? -1 : a.truck.id > b.truck.id ? 1 : 0),
     );
     const n = group.length;
@@ -236,30 +247,39 @@ export function changedOffsets(
   return changed;
 }
 
-export type MarkerPlan = MarkerDiff & {
-  // Every truck's offset in `next`, when anything changed; empty otherwise.
-  offsets: ReadonlyMap<TruckId, PixelOffset>;
-  // The live markers to move: their offset now (`current`) differs from `offsets`.
+export type MarkerPlan = Omit<MarkerDiff, "add"> & {
+  // Each new truck's marker entry and its offset.
+  add: [MarkerEntry, PixelOffset][];
+  // The live markers to move: their offset now (`offsetOf`) differs from their new one.
   move: [TruckId, PixelOffset][];
 };
 
-// What `useMapLibre` applies in one commit. `current` is each live marker's offset as
+// What `useMapLibre` applies in one commit. `offsetOf` reads a live marker's offset as
 // MapLibre holds it. A fan's offsets follow its trucks' coordinates and names, which only
-// an add, update or remove changes, so they are recomputed only then (and on any update,
-// a status change included, whose offsets come out the same); a tick alone moves nothing.
-// A truck joining or leaving a spot, moving, or a rename that re-sorts a spot moves the
-// others there.
+// an add, update or remove changes, so they are recomputed, and live offsets read, only
+// then (and on any update, a status change included, whose offsets come out the same); a
+// tick alone moves nothing. A truck joining or leaving a spot, moving, or a rename that
+// re-sorts a spot moves the others there.
 export function planMarkers(
   prev: ReadonlyMap<TruckId, MarkerEntry>,
   next: ReadonlyMap<TruckId, MarkerEntry>,
-  current: ReadonlyMap<TruckId, PixelOffset>,
+  offsetOf: (truckId: TruckId) => PixelOffset | undefined,
 ): MarkerPlan {
-  const diff = diffMarkers(prev, next);
-  if (!diff.add.length && !diff.update.length && !diff.remove.length) {
-    return { ...diff, offsets: new Map(), move: [] };
-  }
+  const { add, update, remove } = diffMarkers(prev, next);
+  if (!add.length && !update.length && !remove.length) return { add: [], update, remove, move: [] };
   const offsets = fanOffsets(next);
-  return { ...diff, offsets, move: changedOffsets(current, offsets) };
+  const current = new Map<TruckId, PixelOffset>();
+  for (const truckId of next.keys()) {
+    const offset = offsetOf(truckId);
+    if (offset) current.set(truckId, offset);
+  }
+  return {
+    // `fanOffsets` keys every truck of `next`, the added ones included.
+    add: add.map((marker): [MarkerEntry, PixelOffset] => [marker, offsets.get(marker.entry.truck.id)!]),
+    update,
+    remove,
+    move: changedOffsets(current, offsets),
+  };
 }
 
 // --- Popup text ------------------------------------------------------------------------

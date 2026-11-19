@@ -345,7 +345,7 @@ describe("fanOffsets", () => {
     expect(tie.get("b")).toEqual([10, 0]);
   });
 
-  it("keeps every pair at least 20 px apart after rounding, however many share a spot", () => {
+  it("keeps every pair at least 20 px apart after rounding, for 2 to 10 at a spot", () => {
     for (let n = 2; n <= 10; n++) {
       const list = Array.from({ length: n }, (_, i) => named(`t${i}`, `Bil ${i}`));
       const offsets = [...fanOffsets(markers(...list)).values()];
@@ -364,13 +364,14 @@ describe("fanOffsets", () => {
   });
 
   it("finds the smallest radius from 10 that keeps 20 px, as a search from 10 by single pixels does", () => {
-    // An independent brute force: the first whole radius from 10 at which every rounded pair
-    // is at least 20 px apart, by the same layout (left and right for two; from the top,
-    // clockwise, for more).
+    // Only the search is independent here: the layout copies the code's (left and right for
+    // two; from the top, clockwise, for more; half away from zero), so it checks the bound the
+    // search starts at, not the points. The mirror test below checks the points.
+    const round = (v: number) => Math.sign(v) * Math.floor(Math.abs(v) + 0.5 + 1e-9) || 0;
     const layout = (n: number, r: number) =>
       Array.from({ length: n }, (_, i) => {
         const a = n === 2 ? Math.PI * (i + 1) : -Math.PI / 2 + (2 * Math.PI * i) / n;
-        return [Math.round(r * Math.cos(a)) || 0, Math.round(r * Math.sin(a)) || 0];
+        return [round(r * Math.cos(a)), round(r * Math.sin(a))];
       });
     const ok = (pts: number[][]) => pts.every((p, i) => pts.every((q, j) => j <= i || apart(p, q) >= 20));
     for (let n = 2; n <= 12; n++) {
@@ -378,6 +379,21 @@ describe("fanOffsets", () => {
       while (!ok(layout(n, r))) r++;
       const list = Array.from({ length: n }, (_, i) => named(`t${String(i).padStart(2, "0")}`, `Bil ${String(i).padStart(2, "0")}`));
       expect([...fanOffsets(markers(...list)).values()]).toEqual(layout(n, r));
+    }
+  });
+
+  it("draws every fan mirror-symmetric about the vertical through the spot", () => {
+    // Clockwise from the top, point i and point n - i mirror each other (two: left and right).
+    // Six trucks once came out 20 px apart on the right and 22 on the left (round 3, PR #436).
+    for (let n = 2; n <= 12; n++) {
+      const list = Array.from({ length: n }, (_, i) => named(`t${String(i).padStart(2, "0")}`, `Bil ${String(i).padStart(2, "0")}`));
+      const pts = [...fanOffsets(markers(...list)).values()];
+      if (n === 2) {
+        expect(pts[1]).toEqual([-pts[0][0], pts[0][1]]);
+        continue;
+      }
+      for (let i = 1; i < n; i++) expect(pts[n - i]).toEqual([-pts[i][0] || 0, pts[i][1]]);
+      expect(pts[0][0]).toBe(0);
     }
   });
 
@@ -421,19 +437,36 @@ describe("planMarkers", () => {
     status: "open",
   });
   const markers = (...list: MarkerEntry[]) => new Map(list.map((m) => [m.entry.truck.id, m]));
-  const offsetsOf = (...pairs: [string, [number, number]][]) => new Map(pairs);
+  // The live markers' offsets, as the hook reads them, and how many times they were read.
+  const offsetsOf = (...pairs: [string, [number, number]][]) => {
+    const live = new Map(pairs);
+    const read = (id: string) => {
+      read.calls++;
+      return live.get(id);
+    };
+    read.calls = 0;
+    return read;
+  };
   const elsewhere = { latitude: 57.7, longitude: 11.96 };
 
-  it("does nothing on a tick: no change, no offsets, no moves", () => {
+  it("does nothing on a tick: no change, no moves, no live offset read", () => {
     const shown = markers(at("a", "A"), at("b", "B"));
-    const plan = planMarkers(shown, markers(at("a", "A"), at("b", "B")), offsetsOf(["a", [-10, 0]], ["b", [10, 0]]));
-    expect(plan).toEqual({ add: [], update: [], remove: [], offsets: new Map(), move: [] });
+    const live = offsetsOf(["a", [-10, 0]], ["b", [10, 0]]);
+    expect(planMarkers(shown, markers(at("a", "A"), at("b", "B")), live)).toEqual({ add: [], update: [], remove: [], move: [] });
+    expect(live.calls).toBe(0);
   });
 
   it("builds a truck joining a spot with its offset and moves the one already there", () => {
     const plan = planMarkers(markers(at("t", "Tacobilen")), markers(at("t", "Tacobilen"), at("b", "Burgarbilen")), offsetsOf(["t", [0, 0]]));
-    expect(plan.offsets.get("b")).toEqual([-10, 0]);
+    expect(plan.add.map(([m, offset]) => [m.entry.truck.id, offset])).toEqual([["b", [-10, 0]]]);
     expect(plan.move).toEqual([["t", [10, 0]]]);
+  });
+
+  it("moves nothing on a status change at a fanned spot", () => {
+    const later: MarkerEntry = { ...at("t", "Tacobilen"), status: "later" };
+    const plan = planMarkers(markers(later, at("b", "Burgarbilen")), markers(at("t", "Tacobilen"), at("b", "Burgarbilen")), offsetsOf(["t", [10, 0]], ["b", [-10, 0]]));
+    expect(plan.update.map((m) => m.entry.truck.id)).toEqual(["t"]);
+    expect(plan.move).toEqual([]);
   });
 
   it("moves the one left behind back to the spot when the other leaves", () => {

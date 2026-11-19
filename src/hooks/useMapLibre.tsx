@@ -17,7 +17,8 @@ type OpenPopup = { truckId: TruckId; popup: maplibregl.Popup; root: Root };
 // init effect built and hasn't removed. `shown` is the `markers` last applied, and
 // `live` holds one `maplibregl.Marker` for each of its trucks. `open` is set exactly
 // while a popup is open: its `close` handler clears it, however the popup closed. A
-// marker's fan offset (`planMarkers`) is held by MapLibre alone (`getOffset`).
+// marker's fan offset (`planMarkers`) is held by MapLibre (`getOffset`); an open popup
+// takes a copy when it opens, which the marker effect's move loop keeps in step.
 type MarkerLayer = {
   map: maplibregl.Map | null;
   live: Map<TruckId, maplibregl.Marker>;
@@ -184,16 +185,14 @@ export function useMapLibre(
     const nowChanged = layer.now !== now;
     layer.now = now;
 
-    const liveOffsets = new Map<TruckId, PixelOffset>();
-    for (const [truckId, marker] of layer.live) {
-      const { x, y } = marker.getOffset();
-      liveOffsets.set(truckId, [x, y]);
-    }
-    const { add, update, remove, offsets, move } = planMarkers(layer.shown, markers, liveOffsets);
+    const offsetOf = (truckId: TruckId): PixelOffset | undefined => {
+      const point = layer.live.get(truckId)?.getOffset();
+      return point && [point.x, point.y];
+    };
+    const { add, update, remove, move } = planMarkers(layer.shown, markers, offsetOf);
     layer.shown = markers;
 
-    // `offsets` holds every truck whenever there is an add (`planMarkers`).
-    for (const entry of add) addMarker(current, layer, entry, offsets.get(entry.entry.truck.id)!);
+    for (const [entry, offset] of add) addMarker(current, layer, entry, offset);
     for (const entry of update) {
       const marker = layer.live.get(entry.entry.truck.id);
       marker?.setLngLat(lngLatOf(entry));
