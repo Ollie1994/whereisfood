@@ -129,8 +129,8 @@ export const refused = (chars, k) => {
   return isRawControl(cp) || (INVISIBLE_NAMES.has(cp) && !inEmoji(chars, k));
 };
 
-const lines = (text) => text.replace(/\r\n?/g, "\n").split("\n");
-const codeName = (cp) => `U+${cp.toString(16).toUpperCase().padStart(4, "0")}`;
+export const lines = (text) => text.replace(/\r\n?/g, "\n").split("\n");
+export const codeName = (cp) => `U+${cp.toString(16).toUpperCase().padStart(4, "0")}`;
 const markOf = (cp) => (cp < 0x20 ? `<0x${cp.toString(16).padStart(2, "0")}>` : `<${codeName(cp)}>`);
 /** An excerpt of `chars` around k, each character `bad` flags (worked out over the whole
  * line, so an emoji cut at the excerpt's edge isn't marked) shown as `<0xNN>` or `<U+XXXX>`. */
