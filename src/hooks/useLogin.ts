@@ -39,7 +39,7 @@ export function useLogin(): {
       });
       const next = loginStatusFor(error);
       // Logged: `loginStatusFor` reads every error but `otp_disabled` and a rate limit as "failed",
-      // which `loginMessage` gives one text.
+      // which `loginMessage` gives one text (both in `login.ts`).
       if (next === "failed") console.error("[login] the send answered:", error);
       setStatus(next);
     } catch (err) {
