@@ -60,9 +60,14 @@ describe("repeatedHeadings", () => {
   it("opens no fence on a line of backticks with a backtick after them", () => {
     expect(repeatedHeadings("```` ``` ```` is a fence\n## A\n## A\n")).toEqual(['"## A" 2 times']);
   });
-  it("ignores headings inside an HTML comment", () => {
+  it("ignores headings inside an HTML comment, and reads them again after it", () => {
     expect(repeatedHeadings("## A\n<!--\n## A\n-->\n")).toEqual([]);
     expect(repeatedHeadings("## A\n<!-- one line -->\n## A\n")).toHaveLength(1);
+    expect(repeatedHeadings("<!--\nx\n-->\n## A\n## A\n")).toHaveLength(1);
+  });
+  it("takes <!--> and <!---> as whole comments", () => {
+    expect(repeatedHeadings("<!-->\n## A\n## A\n")).toHaveLength(1);
+    expect(repeatedHeadings("<!--->\n## A\n## A\n")).toHaveLength(1);
   });
   it("closes a fence only on the same character, at least as long, with no info string", () => {
     expect(repeatedHeadings("```md\n```js\n```\n## A\n## A\n")).toEqual(['"## A" 2 times']);
@@ -108,12 +113,18 @@ describe("roundProblems", () => {
     expect(roundProblems(body(1, 2, 4), [1, 2])).toEqual([expect.stringContaining("round 4: a")]);
     expect(roundProblems(body(1, 2, 5, 9), [1, 2])).toHaveLength(2);
   });
-  it("refuses Round 0, and a round heading written with a tab past the top", () => {
-    expect(roundProblems(body(0, 1), [1])).toEqual(["round 0: rounds start at 1"]);
+  it("refuses Round 0 and a leading zero, and a round heading written with a tab past the top", () => {
+    expect(roundProblems(body(0, 1), [1])).toEqual([expect.stringContaining('not in the form "## Round <N>" (N from 1): ## Round 0')]);
+    expect(roundProblems("## Round 01\n", [1])).toHaveLength(2);
     expect(roundProblems("##\tRound 7\n", [])).toHaveLength(1);
   });
-  it("doesn't take Round-up or Round trip for a round heading", () => {
-    expect(roundProblems("## Round-up\n## Round trip probe\n", [])).toEqual([]);
+  it("doesn't take Round-up, Round trip or Round one-off for a round heading", () => {
+    expect(roundProblems("## Round-up\n## Round trip probe\n## Round one-off fixes\n", [])).toEqual([]);
+  });
+  it("refuses a malformed round heading the earlier gate let through", () => {
+    for (const h of ["## Round-1", "## Round #2", "## Round: 3"]) {
+      expect(roundProblems(`${h}\n`, []), h).toEqual([expect.stringContaining("a round heading not in the form")]);
+    }
   });
   it("refuses a round heading in another form, and doesn't count Round 10 as Round 1", () => {
     expect(roundProblems("## Round two\n## round 1\n", [])).toHaveLength(2);
@@ -240,6 +251,20 @@ describe("main", () => {
     expect(calls).toEqual([]);
     expect(main(["12", f], { api, readLog })).toBe(0);
     expect(main(["12", file("## Round 1 (full)\n## Round 2 (scoped)\n"), "--rounds"], { api, readLog })).toBe(0);
+  });
+  it("reads the log PROCESS_LOG names, when --rounds runs", () => {
+    quiet();
+    const log = file([row(1, "PR #12 / IS #3", "`code-review` r1 on PR #12, full"), row(2, "PR #12 / IS #3", "`code-review` r2 on PR #12, full")].join("\n"));
+    vi.stubEnv("PROCESS_LOG", log);
+    try {
+      const { api, calls } = fakeApi();
+      expect(main(["12", file("## Round 1 (full)\n"), "--rounds"], { api })).toBe(1);
+      expect(calls).toEqual([]);
+      expect(main(["12", file("## Round 1 (full)\n## Round 2 (full)\n"), "--rounds"], { api })).toBe(0);
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining(`rounds checked against ${log}`));
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
   it("exits 2 on bad arguments, an unreadable file or log, and a failed gh call", () => {
     quiet();

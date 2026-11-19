@@ -27,34 +27,39 @@
 //     or `gh pr create --body-file`; then the first form, on the same file, reads it back.
 //
 // The checks, before anything is posted (exit 1, nothing posted): a raw control character
-// (all of C0 but tab, LF and CR); the escape text GitHub rewrites (above); a level-2 heading
-// twice (`##` then blanks, a closing run of `#` dropped). Lines inside a fenced code block
-// (``` with no backtick after it on the line, or ~~~; closed only by a fence of the same
-// character, at least as long, with nothing after it) or an HTML comment (`<!--` to `-->`)
-// are not headings. With --rounds (a PR body), it reads the process log's rows (the file
-// PROCESS_LOG names, else .claude/process-log.md) whose `Where` starts `PR #<n> /` and whose
-// `Caught by` starts `` `code-review` r<N> on PR #<n> `` (blanks collapsed, as process-log.sh's
-// check does), and needs `## Round <k>` exactly once for each k from 1 to the highest such N;
-// the next round's heading, for a last round that found nothing and so has no row, may appear
-// once, and no other, and none below 1. A round heading ("Round", any case, then a number or
-// a number word) not in that form (`## Round two`, `## round 1`) fails; `## Round-up` isn't
-// one. Then it posts the text as a JSON body through `gh api`, reads the stored copy back,
+// (all of C0 but tab, LF and CR); the escape text GitHub rewrites (above); an ATX level-2
+// heading twice (`##` then blanks, a closing run of `#` dropped). Lines inside a fenced code
+// block (``` with no backtick after it on the line, or ~~~; closed only by a fence of the same
+// character, at least as long, with nothing after it) or an HTML comment (a line starting
+// `<!--`, to the line holding `-->`; `<!-->` is a whole one) are not headings. With --rounds
+// (a PR body), it reads the process log's rows (the file PROCESS_LOG names, else
+// .claude/process-log.md) whose `Where` starts `PR #<n> /` and whose `Caught by` starts
+// `` `code-review` r<N> on PR #<n> `` (blanks collapsed, as process-log.sh's check does), and
+// needs `## Round <k>` exactly once for each k from 1 to the highest such N; the next round's
+// heading, for a last round that found nothing and so has no row, may appear once, and no
+// other. A round heading (one starting "round", any case, unless a word that isn't a number
+// word follows: `## Round-up`, `## Round trip`) not in the form `## Round <k>`, k from 1
+// with no leading zero, fails: `## Round two`, `## round 1`, `## Round-1`, `## Round 01`.
+// Then it posts the text as a JSON body through `gh api`, reads the stored copy back,
 // and exits 1 if it differs from the file in anything but line endings and spaces or tabs at
 // the ends of lines or of the text. Exits 2 on bad arguments (a number with a leading zero
 // among them), an unreadable file or log, or a failed `gh` call; 0 when all is well.
 //
 // Does not catch: a wrong or stale statement (the claims check and the rounds read those); text
 // posted in the browser, or by `gh` without this script (CLAUDE.md's rule); a review comment
-// on a PR's diff (it posts only issue and PR comments); a round section that is present but
-// empty; a round recorded in the log in another form (rows before the log's
-// review-form-from-row).
+// on a PR's diff (it posts only issue and PR comments); a setext heading (text over `--`),
+// which no heading check reads; a round heading with a number word past "ten"; a round
+// section that is present but empty; a round recorded in the log in another form (rows
+// before the log's review-form-from-row).
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-// PROCESS_LOG overrides it, as for process-log.sh, so a control can use a scratch copy.
-const LOG = process.env.PROCESS_LOG || join(dirname(fileURLToPath(import.meta.url)), "..", ".claude", "process-log.md");
+// PROCESS_LOG overrides it, read when --rounds runs, as for process-log.sh, so a control can
+// use a scratch copy; the success line names the log read.
+const REPO_LOG = join(dirname(fileURLToPath(import.meta.url)), "..", ".claude", "process-log.md");
+const logPath = () => process.env.PROCESS_LOG || REPO_LOG;
 
 // Raw control characters GitHub drops or rewrites, and any other a shell may leave behind:
 // all of C0 but tab, LF and CR.
@@ -66,6 +71,10 @@ const REWRITTEN_ESCAPE = /\\u00(?:0[0-8CEFcef]|1[0-9A-Fa-f])/g;
 const lines = (text) => text.replace(/\r\n?/g, "\n").split("\n");
 const show = (s) => s.replace(/[\u0000-\u001F]/g, (c) => `<0x${c.charCodeAt(0).toString(16).padStart(2, "0")}>`);
 const around = (line, i) => show(line.slice(Math.max(0, i - 30), i + 30));
+
+/** Whether the text after a `<!--` ends the comment: `-->` in it, or `>` or `->` at once
+ * (`<!-->` and `<!--->` are whole comments in CommonMark). */
+const commentEnds = (rest) => rest.startsWith(">") || rest.startsWith("->") || rest.includes("-->");
 
 /** The lines outside fenced code blocks and HTML comments, each with its 1-based number. A
  * fence opens on ``` (with no backtick after it on the line) or ~~~, three or more, up to
@@ -83,7 +92,7 @@ function unfenced(text) {
     if (fence === null) {
       const open = line.match(/^ {0,3}(`{3,})[^`]*$/) ?? line.match(/^ {0,3}(~{3,})/);
       if (open) fence = open[1];
-      else if (/^ {0,3}<!--/.test(line) && !line.slice(line.indexOf("<!--") + 4).includes("-->")) comment = true;
+      else if (/^ {0,3}<!--/.test(line) && !commentEnds(line.slice(line.indexOf("<!--") + 4))) comment = true;
       else out.push({ line, n: i + 1 });
       return;
     }
@@ -140,23 +149,32 @@ export function roundsFromLog(logText, pr) {
   return [...rounds].sort((a, b) => a - b);
 }
 
+/** Whether a heading's text is a round heading, well formed or not: it starts with "round"
+ * (any case), unless a word follows that isn't a number word ("Round-up", "Round trip",
+ * "Round one-off"). "Round-1", "Round #2", "Round two" and "round 1" are round headings. */
+function isRoundHeading(h) {
+  const m = h.match(/^round\b(.*)$/i);
+  if (!m) return false;
+  if (/^-[a-z]/i.test(m[1])) return false;
+  const word = m[1].match(/^[ \t]+([a-z][a-z-]*)/i);
+  return !word || /^(?:one|two|three|four|five|six|seven|eight|nine|ten)$/i.test(word[1]);
+}
+
 /** Each way the body's round headings differ from the rounds the log records. */
 export function roundProblems(text, rounds) {
   const count = new Map();
   const out = [];
   for (const { line, n } of unfenced(text)) {
     const h = h2(line);
-    // A round heading: "Round", any case, then a number or a number word ("Round-up" and
-    // "Round trip" aren't).
-    if (h === null || !/^round[ \t]+(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)\b/i.test(h)) continue;
-    const m = h.match(/^Round (\d+)\b/);
+    if (h === null || !isRoundHeading(h)) continue;
+    // The form: "Round", a space, a number from 1 with no leading zero, then a word boundary.
+    const m = h.match(/^Round ([1-9]\d*)\b/);
     if (!m) {
-      out.push(`line ${n}: a round heading not in the form "## Round <N>": ${line.trim()}`);
+      out.push(`line ${n}: a round heading not in the form "## Round <N>" (N from 1): ${line.trim()}`);
       continue;
     }
     count.set(Number(m[1]), (count.get(Number(m[1])) ?? 0) + 1);
   }
-  for (const k of count.keys()) if (k < 1) out.push(`round ${k}: rounds start at 1`);
   const top = Math.max(0, ...rounds);
   for (let k = 1; k <= top; k++) {
     if ((count.get(k) ?? 0) !== 1) out.push(`round ${k}: ${count.get(k) ?? 0} "## Round ${k}" headings, not 1 (the log's rounds go to ${top})`);
@@ -171,8 +189,14 @@ export function roundProblems(text, rounds) {
 /** The first line where the stored text differs from the sent one, or null. Line endings and
  * blanks at the ends of lines or of the text don't count. */
 export function compareBodies(sent, stored) {
-  // Only ASCII blanks: trimEnd() would also drop U+00A0, U+2028 and the like.
-  const trim = (t) => lines(t.replace(/[ \t\r\n]+$/, "")).map((l) => l.replace(/[ \t]+$/, ""));
+  // Only ASCII blanks: trimEnd() would also drop U+00A0, U+2028 and the like. A loop, not
+  // /[ \t]+$/, which backtracks over a long run of blanks inside the text.
+  const cut = (s, blanks) => {
+    let i = s.length;
+    while (i > 0 && blanks.includes(s[i - 1])) i--;
+    return s.slice(0, i);
+  };
+  const trim = (t) => lines(cut(t, " \t\r\n")).map((l) => cut(l, " \t"));
   const a = trim(sent);
   const b = trim(stored ?? "");
   for (let i = 0; i < Math.max(a.length, b.length); i++) {
@@ -195,7 +219,7 @@ const USAGE = [
 ].join("\n");
 const MODES = { "--comment": "comment", "--edit-comment": "edit-comment", "--check": "check" };
 
-export function main(argv, { readLog = () => readFileSync(LOG, "utf8"), api = gh } = {}) {
+export function main(argv, { readLog = () => readFileSync(logPath(), "utf8"), api = gh } = {}) {
   const flags = new Set(argv.filter((a) => a.startsWith("--")));
   const args = argv.filter((a) => !a.startsWith("--"));
   const modeFlags = [...flags].filter((f) => f in MODES);
@@ -269,7 +293,7 @@ export function main(argv, { readLog = () => readFileSync(LOG, "utf8"), api = gh
     madeNote();
     return 1;
   }
-  console.log(`post-body: ${what} posted and read back${flags.has("--rounds") ? ", rounds checked" : ""}`);
+  console.log(`post-body: ${what} posted and read back${flags.has("--rounds") ? `, rounds checked against ${logPath()}` : ""}`);
   return 0;
 }
 
