@@ -11,12 +11,12 @@ themselves later.
 It fills a real gap: Gothenburg has had no central food-truck map since Streetkäk
 shut down in 2017.
 
-> **Status: Phase 8 of 11 (CI/CD) done; Phase 9 (security) next.** The map shows
+> **Status: Phase 9 of 11 (security) done; Phase 10 (launch) next.** The map shows
 > today's entries from the database through `GET /api/live`, locally against a local
 > Supabase and on protected Vercel previews against a hosted one. One admin logs in with
-> an emailed link and keeps the map up to date from a phone-first admin screen. Every pull
-> request into `dev` or `main` runs the checks in GitHub Actions, which must pass before it
-> merges. There is no production deploy yet. Phase 4 removed the old design (automatic
+> an emailed link and a code from an authenticator app, and keeps the map up to date from
+> a phone-first admin screen. Every pull request into `dev` or `main` runs the checks in
+> GitHub Actions, which must pass before it merges. There is no production deploy yet. Phase 4 removed the old design (automatic
 > ingestion from Make.com and email, plus a Swedish text parser), and Phase 5 replaced its
 > database schema; see [Project status](#project-status).
 
@@ -44,10 +44,11 @@ Consumers are always anonymous. All user-facing text is in Swedish.
 
 ## How it's designed to work
 
-This is the design. Phases 5 to 8 built the schema, the public read path (the map, its
-polling and cache, the popup's freshness text), the admin screen with its entry flow, and
-CI/CD; security is Phase 9's, the first production deploy Phase 10's, as a soft launch
-with the map shown only to the admin, and the full launch Phase 11's.
+This is the design. Phases 5 to 9 built the schema, the public read path (the map, its
+polling and cache, the popup's freshness text), the admin screen with its entry flow,
+CI/CD, and security (the admin's second factor, session limits, security headers); the
+first production deploy is Phase 10's, as a soft launch with the map shown only to the
+admin, and the full launch Phase 11's.
 
 - **The admin enters every location by hand.** A pin comes from a map tap, a known
   Gothenburg spot, a recently used place, or the phone's GPS. Start and end times are
@@ -100,8 +101,8 @@ The working rules live in [`CLAUDE.md`](CLAUDE.md) and the design reference in
 | 6 · Live read path   | `/api/live`, polling, map tiles on Cloudflare R2, first preview deploy | ✅ Done |
 | 7 · Admin            | Admin login, location entry, truck management, the morning checklist | ✅ Done |
 | 8 · CI/CD            | The checks in GitHub Actions, secret scanning, CodeQL, Dependabot, branch protection | ✅ Done |
-| 9 · Security         | Admin MFA, security headers, monitoring, the 2FA audit | ⬜ Next |
-| 10 · Launch          | Production deploy, a soft launch: the map shown only to the admin, an about page for everyone else | ⬜ Not started |
+| 9 · Security         | Admin MFA, session limits, security headers, monitoring, the 2FA audit | ✅ Done |
+| 10 · Launch          | Production deploy, a soft launch: the map shown only to the admin, an about page for everyone else | ⬜ Next |
 | 11 · Full launch     | The map public, a custom domain for the tiles, paid plans | ⬜ Not started |
 
 Phases 2 and 3 built automatic ingestion: Make.com webhooks and Mailgun email, run
@@ -127,15 +128,19 @@ branch and tag.
   database layer reads them, with the `service_role` key. The dev seed has
   three trucks and four weeks of location history relative to the day it is loaded.
 - **The admin screen** (`/admin`, Swedish, phone-first). The admin logs in with an
-  emailed link (public sign-ups are off), then sees the morning checklist (what each
-  truck did on this weekday recently, to confirm with ✓ or skip with ✗), a form to
-  enter a location by known spot, recent place, map tap or GPS, and the list of entries
-  from today for two weeks, each with "Stämmer fortfarande" and "Ställ in", and
-  "Ändra" until it ends.
+  emailed link and then a code from an authenticator app (TOTP, set up the first time;
+  public sign-ups are off), then sees the morning checklist (what each truck did on this
+  weekday recently, to confirm with ✓ or skip with ✗), a form to enter a location by known
+  spot, recent place, map tap or GPS, and the list of entries from today for two weeks,
+  each with "Stämmer fortfarande", "Ställ in" and "Ändra" until it ends. A session lasts
+  at most 12 hours, and logging out on one device logs out the others.
   `/admin/trucks` adds and edits trucks and sets them inactive. Overlapping entries are
   refused with a message naming the other entry's times.
 - The admin is checked twice: in `src/proxy.ts`, and again in every admin API route
-  (`/api/admin/…`), which only an admin's session reaches.
+  (`/api/admin/…`), which only an admin's session that has passed the second factor
+  reaches.
+- Security headers on every page, with a stricter content security policy on the admin
+  pages, and Swedish "page not found" and error pages.
 - The database layer (`src/lib/db/`), which the live read path and the admin use.
 - Unit tests, and integration tests against a local Supabase for the schema (its
   constraints, grants and row-level security), the database layer, `/api/live`, the
