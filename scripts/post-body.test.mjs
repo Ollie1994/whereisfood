@@ -1,4 +1,5 @@
-// post-body.mjs, which posts an issue's or PR's body from a file and reads it back (IS #403).
+// post-body.mjs, which posts an issue's or PR's body, or a new comment, from a file and
+// reads it back (IS #403).
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -6,24 +7,32 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { compareBodies, main, repeatedHeadings, roundProblems, roundsFromLog, textProblems } from "./post-body.mjs";
 
 const BS = "\\";
-const row = (n, where, caught) => `| ${n} | 2026-11-19 | ${where} | \`process-log\` | A miss. | ${caught} | \`pre-merge\` | \`imprecise-claim\` | A fix. |`;
+const row = (n, where, caught, miss = "A miss.") =>
+  `| ${n} | 2026-11-19 | ${where} | \`process-log\` | ${miss} | ${caught} | \`pre-merge\` | \`imprecise-claim\` | A fix. |`;
 
 describe("textProblems", () => {
   it("names a raw control character, but not tab, LF or CR", () => {
-    expect(textProblems(`a${String.fromCharCode(8)}b`)).toEqual([expect.stringContaining("line 1: a raw control character")]);
+    expect(textProblems(`a${String.fromCharCode(8)}b`)).toEqual([expect.stringContaining("line 1, column 2: a raw control character")]);
     expect(textProblems("a\u0000b\nc\u001Fd")).toHaveLength(2);
     expect(textProblems("a\tb\r\nc\n")).toEqual([]);
+  });
+  it("shows the character's place on a long line", () => {
+    const [p] = textProblems(`${"x".repeat(200)}${String.fromCharCode(8)}y`);
+    expect(p).toContain("column 201");
+    expect(p).toContain("<0x08>");
   });
   it("names the escape text GitHub rewrites, and none it keeps (probe PR #425)", () => {
     for (const code of ["0000", "0001", "0008", "000C", "000E", "001F", "001f"]) {
       expect(textProblems(`x ${BS}u${code} y`), code).toEqual([expect.stringContaining(`${BS}u${code}`)]);
     }
-    for (const kept of ["u0009", "u000A", "u000B", "u000D", "u0020", "x00", "0", "n", "u2028", "u{0}"]) {
+    for (const kept of ["u0009", "u000A", "u000B", "u000D", "u0020", "x00", "0", "n", "u2028", "u{0}", "U0001"]) {
       expect(textProblems(`x ${BS}${kept} y`), kept).toEqual([]);
     }
   });
-  it("suggests the \\x form", () => {
-    expect(textProblems(`${BS}u0000`)[0]).toContain(`${BS}x00`);
+  it("names every escape on a line, and suggests the \\x form", () => {
+    const ps = textProblems(`${BS}u0000 and ${BS}u0001`);
+    expect(ps).toHaveLength(2);
+    expect(ps[0]).toContain(`${BS}x00`);
   });
 });
 
@@ -32,8 +41,12 @@ describe("repeatedHeadings", () => {
     expect(repeatedHeadings("## What changed\ntext\n## What changed\n")).toEqual(['"## What changed" 2 times']);
     expect(repeatedHeadings("## A\n### A\n### A\n## B\nnot ## A\n")).toEqual([]);
   });
-  it("counts a heading the same with a trailing blank or CRLF", () => {
+  it("counts a heading the same with trailing blanks, CRLF or a short indent", () => {
     expect(repeatedHeadings("## A \r\n## A\n")).toHaveLength(1);
+    expect(repeatedHeadings("## A\n   ## A\n")).toHaveLength(1);
+  });
+  it("ignores headings inside a fence", () => {
+    expect(repeatedHeadings("## A\n```md\n## A\n```\n~~~\n## A\n~~~\n")).toEqual([]);
   });
 });
 
@@ -42,14 +55,15 @@ describe("roundsFromLog", () => {
     "| # | Date |",
     row(1, "PR #7 / IS #3", "`code-review` r1 on PR #7, full"),
     row(2, "PR #7 / IS #3", "`self` the claims check"),
-    row(3, "PR #7 / IS #3", "`code-review` r2 on PR #7, scoped to `a..b`, with a \\| in it"),
+    row(3, "PR #7 / IS #3", "`code-review` r2 on PR #7, scoped to `a..b`"),
     row(4, "PR #70 / IS #3", "`code-review` r3 on PR #70, full"),
     row(5, "PR #7 / IS #3", "`code-review` read-through of the plan"),
     row(6, "→ IS #7", "`code-review` r9 on PR #7, full"),
-    row(7, "PR #7 / IS #3", "`code-review`  r3 on PR #7, full"),
+    row(7, "PR #7 / IS #3", "`code-review`  r3 \ton  PR #7, full"),
+    row(8, "PR #7 / IS #3", "`code-review` r4 on PR #7, full", "A miss with a \\| in it."),
   ].join("\n");
   it("reads the rounds of that PR only, from code-review rows in the form", () => {
-    expect(roundsFromLog(log, "7")).toEqual([1, 2, 3]);
+    expect(roundsFromLog(log, "7")).toEqual([1, 2, 3, 4]);
     expect(roundsFromLog(log, "70")).toEqual([3]);
     expect(roundsFromLog(log, "8")).toEqual([]);
   });
@@ -61,14 +75,20 @@ describe("roundProblems", () => {
     expect(roundProblems(body(1, 2, 3), [1, 2, 3])).toEqual([]);
   });
   it("names a missing round (row 769) and a repeated one (row 735)", () => {
-    expect(roundProblems(body(1, 2), [1, 2, 3])).toEqual(['round 3: 0 "## Round 3" headings, not 1']);
-    expect(roundProblems(body(1, 1, 2), [1, 2])).toEqual(['round 1: 2 "## Round 1" headings, not 1']);
+    expect(roundProblems(body(1, 2), [1, 2, 3])).toEqual([expect.stringContaining('round 3: 0 "## Round 3" headings, not 1')]);
+    expect(roundProblems(body(1, 1, 2), [1, 2])).toEqual([expect.stringContaining('round 1: 2 "## Round 1" headings, not 1')]);
   });
-  it("names a round heading the log doesn't have", () => {
-    expect(roundProblems(body(1, 2), [1])).toEqual(['round 2: a "## Round 2" heading, but the log has no such round']);
+  it("needs every round up to the log's highest, even one the log skips", () => {
+    expect(roundProblems(body(1, 3), [1, 3])).toEqual([expect.stringContaining("round 2: 0")]);
   });
-  it("doesn't count Round 10 as Round 1, or a deeper heading", () => {
-    expect(roundProblems(body(10) + "### Round 1\n", [10])).toEqual([]);
+  it("allows one heading past the log's rounds (a last round that found nothing), not two", () => {
+    expect(roundProblems(body(1, 2, 3), [1, 2])).toEqual([]);
+    expect(roundProblems(body(1, 2, 3, 3), [1, 2])).toEqual(['round 3: 2 "## Round 3" headings, not 1']);
+  });
+  it("refuses a round heading in another form, and doesn't count Round 10 as Round 1", () => {
+    expect(roundProblems("## Round two\n## round 1\n", [])).toHaveLength(2);
+    expect(roundProblems(body(10), [])).toEqual([]);
+    expect(roundProblems("### Round 1\n```\n## Round 1\n```\n", [])).toEqual([]);
   });
 });
 
@@ -88,8 +108,8 @@ describe("compareBodies", () => {
 describe("main", () => {
   let dir;
   const file = (text) => {
-    dir = mkdtempSync(join(tmpdir(), "post-body-"));
-    const f = join(dir, "body.md");
+    dir ??= mkdtempSync(join(tmpdir(), "post-body-"));
+    const f = join(dir, `body-${Math.random().toString(36).slice(2)}.md`);
     writeFileSync(f, text);
     return f;
   };
@@ -102,36 +122,55 @@ describe("main", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.spyOn(console, "log").mockImplementation(() => {});
   };
-  // A fake `gh api`: a PATCH stores the JSON body, through `store`; a GET returns it.
+  // A fake `gh api`: a PATCH or POST stores the JSON body through `store`; a GET returns it.
   const fakeApi = (store = (b) => b) => {
     const calls = [];
     let body;
     const api = (args, input) => {
       calls.push(args);
-      if (args.includes("PATCH")) body = store(JSON.parse(input).body);
-      return JSON.stringify({ body });
+      if (args.includes("PATCH") || args.includes("POST")) body = store(JSON.parse(input).body);
+      return JSON.stringify({ id: 99, body });
     };
     return { api, calls };
   };
 
-  it("posts the file and passes when it reads back the same", () => {
+  it("posts a body and passes when it reads back the same", () => {
     quiet();
     const { api, calls } = fakeApi((b) => b.replace(/\n/g, "\r\n"));
     expect(main(["12", file("## A\ntext\n")], { api })).toBe(0);
-    expect(calls[0]).toEqual(["api", "-X", "PATCH", "repos/{owner}/{repo}/issues/12", "--input", "-"]);
-    expect(calls[1]).toEqual(["api", "repos/{owner}/{repo}/issues/12"]);
+    expect(calls).toEqual([
+      ["api", "-X", "PATCH", "repos/{owner}/{repo}/issues/12", "--input", "-"],
+      ["api", "repos/{owner}/{repo}/issues/12"],
+    ]);
   });
-  it("fails when GitHub stores something else", () => {
+  it("posts a comment and reads it back by its id", () => {
+    quiet();
+    const { api, calls } = fakeApi();
+    expect(main(["--comment", "12", file("A record.\n")], { api })).toBe(0);
+    expect(calls).toEqual([
+      ["api", "-X", "POST", "repos/{owner}/{repo}/issues/12/comments", "--input", "-"],
+      ["api", "repos/{owner}/{repo}/issues/comments/99"],
+    ]);
+  });
+  it("fails when GitHub stores something else, body or comment", () => {
     quiet();
     const { api } = fakeApi((b) => b.replace("text", "txet"));
     expect(main(["12", file("## A\ntext\n")], { api })).toBe(1);
+    expect(main(["--comment", "12", file("text\n")], { api })).toBe(1);
   });
   it("posts nothing when the file has a problem", () => {
     quiet();
     const { api, calls } = fakeApi();
     expect(main(["12", file("## A\n## A\n")], { api })).toBe(1);
     expect(main(["12", file(`a${String.fromCharCode(8)}b`)], { api })).toBe(1);
-    expect(main(["12", file(`${BS}u0001`)], { api })).toBe(1);
+    expect(main(["--comment", "12", file(`${BS}u0001`)], { api })).toBe(1);
+    expect(calls).toEqual([]);
+  });
+  it("--check runs the checks and never calls gh", () => {
+    quiet();
+    const { api, calls } = fakeApi();
+    expect(main(["--check", file("## A\ntext\n")], { api })).toBe(0);
+    expect(main(["--check", file("## A\n## A\n")], { api })).toBe(1);
     expect(calls).toEqual([]);
   });
   it("checks rounds against the log with --rounds, and only then", () => {
@@ -146,11 +185,13 @@ describe("main", () => {
   });
   it("exits 2 on bad arguments, an unreadable file or log, and a failed gh call", () => {
     quiet();
-    const { api } = fakeApi();
-    expect(main([], { api })).toBe(2);
-    expect(main(["x", "f"], { api })).toBe(2);
-    expect(main(["12", join(tmpdir(), "post-body-none", "missing.md")], { api })).toBe(2);
+    const { api, calls } = fakeApi();
     const f = file("text\n");
+    for (const argv of [[], ["x", f], ["12", f, "--nope"], ["--check", "12", f], ["--check", f, "--rounds"], ["--comment", "12", f, "--rounds"], ["--comment", "--check", f]]) {
+      expect(main(argv, { api }), argv.join(" ")).toBe(2);
+    }
+    expect(calls).toEqual([]);
+    expect(main(["12", join(tmpdir(), "post-body-none", "missing.md")], { api })).toBe(2);
     expect(main(["12", f, "--rounds"], { api, readLog: () => { throw new Error("no log"); } })).toBe(2);
     expect(main(["12", f], { api: () => { throw new Error("gh api failed"); } })).toBe(2);
   });
