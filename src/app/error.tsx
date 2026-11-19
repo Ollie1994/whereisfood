@@ -15,7 +15,7 @@ import ErrorNotice from "@/components/ErrorNotice";
 export default function RootError({ retry }: { retry: () => void }) {
   return (
     <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-6 px-4 py-6 scheme-light-dark">
-      <ErrorNotice retry={retry} />
+      <ErrorNotice title="Något gick fel | Var är maten?" retry={retry} />
     </main>
   );
 }
