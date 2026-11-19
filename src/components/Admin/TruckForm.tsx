@@ -6,11 +6,8 @@ interface TruckFormProps {
 }
 
 // A new truck, or an edit of `trucks.editing`. Its state is `useTrucks`'. `autoComplete="off"`
-// on the form, as on `LocationForm`'s: by the HTML spec's autofill section, the browser then
-// neither remembers these fields' values nor offers past ones. A value it put back before
-// hydration would stay on screen while the state holds another: react-dom 19's `initInput`
-// leaves an input's `value` alone while hydrating (read in `next/dist/compiled/react-dom`).
-// Not probed in a browser (IS #412's PR, round 1).
+// on the form, as on `LocationForm`'s: the HTML spec's "off" says the browser should neither
+// remember the form's field values nor offer past ones.
 export default function TruckForm({ trucks }: TruckFormProps) {
   const { editing, values, setField, saving, formError, saved, submit, stopEdit } = trucks;
 
@@ -28,9 +25,10 @@ export default function TruckForm({ trucks }: TruckFormProps) {
       {/* Locked while a save runs: its answer empties or closes the form, which would drop
           anything typed meanwhile. */}
       <fieldset disabled={saving} className={FIELDSET}>
-        {/* Namn's own `autoComplete="off"`: with `name="name"` and none, Chrome's Issues panel
-            listed a field "the browser's autofill recognizes" with no `autocomplete`, and nothing
-            once it was set here (IS #412's browser check). */}
+        {/* Namn's own `autoComplete="off"`: with `name="name"` and none here or on the form,
+            Chrome's Issues panel listed a field "the browser's autofill recognizes" with no
+            `autocomplete`; with this one, before the form had one, and with both, nothing (IS
+            #412's browser check). Whether the form's alone clears it wasn't checked. */}
         <label className={LABEL}>
           Namn
           <input
