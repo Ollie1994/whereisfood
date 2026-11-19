@@ -2,15 +2,14 @@
 // control characters (all of C0 but tab, LF and CR) and the invisible ones it lists, with the
 // same emoji exceptions, and one byte-order mark opening a file dropped as it drops one (IS
 // #430). Why: process-log row 806. Escape text written out (a backslash, `u` and four hex
-// digits) is fine: only the characters themselves are refused. A file with no NUL byte that
-// isn't valid UTF-8, or one marked UTF-16 that isn't valid UTF-16, is reported too, since
-// decoding it would hide them.
+// digits) is fine: only the characters themselves are refused. Which files are text is Git's
+// call (`git ls-files --format`'s `%(eolinfo:index)`: `-text` is binary, which takes its
+// `.gitattributes` and its look at a file's first bytes); a text file that isn't valid UTF-8
+// is reported, since decoding it would hide them.
 //
-// Does not catch: untracked files; a file holding a NUL byte that isn't marked UTF-16 (read
-// as binary and skipped; Git's own test differs: it looks only at the first 8000 bytes and
-// honours .gitattributes), a UTF-32 file among them; a tracked entry that isn't a regular file
-// here (deleted, a symlink, a submodule), which is skipped; invisible characters off
-// post-body.mjs's list.
+// Does not catch: untracked files; a file Git reads as binary (UTF-16 among them), skipped; a
+// symlink or submodule (by its mode in the index), skipped; a tracked file missing or not a
+// regular file in the working tree, skipped; invisible characters off post-body.mjs's list.
 import { execFileSync } from "node:child_process";
 import { lstatSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -20,10 +19,13 @@ import { codeName, lines, refused } from "./post-body.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const NUL = String.fromCharCode(0);
+const TAB = String.fromCharCode(9);
 const BOM = 0xfeff;
+const REGULAR = new Set(["100644", "100755"]);
 
 // A tracked file that must hold such a character: its path, the code points allowed in it,
-// and the reason. An entry the file no longer needs fails. Empty: no file needs one.
+// and the reason. An entry the file no longer needs, or with no reason, fails. Empty: no file
+// needs one.
 const ALLOWED = new Map();
 
 /** Each refused character in `text`, as { line, column, cp }; lines split as post-body.mjs
@@ -40,42 +42,50 @@ export function scanText(text) {
   return out;
 }
 
-// The decoders keep a byte-order mark (ignoreBOM), so scanText drops exactly one, as
-// post-body.mjs does, and a second is refused.
-const decoder = (label) => new TextDecoder(label, { fatal: true, ignoreBOM: true });
-
-/** A file's bytes as text, its opening byte-order mark kept: UTF-16 by its mark, else UTF-8;
- * null for binary (a NUL byte and no UTF-16 mark, or a UTF-32 mark); throws on invalid text. */
+/** A file's bytes as UTF-8 text, an opening byte-order mark kept (so scanText drops exactly
+ * one); throws on invalid UTF-8. */
 export function decode(buf) {
-  if (buf[0] === 0xff && buf[1] === 0xfe && buf[2] === 0 && buf[3] === 0) return null;
-  if (buf[0] === 0xff && buf[1] === 0xfe) return decoder("utf-16le").decode(buf);
-  if (buf[0] === 0xfe && buf[1] === 0xff) return decoder("utf-16be").decode(buf);
-  if (buf.includes(0)) return null;
-  return decoder("utf-8").decode(buf);
+  return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(buf);
 }
 
-/** Scans `entries` ({ path, buf }, buf null for one that isn't a regular file here) against
- * `allowed`; returns the number scanned and each finding. */
-export function scanEntries(entries, allowed) {
+/** `git ls-files -z --format='%(objectmode) %(eolinfo:index)%x09%(path)'` output as
+ * { path, mode, binary }, each path once (a merge conflict lists one per stage). */
+export function parseLsFiles(out) {
+  const seen = new Map();
+  for (const rec of out.split(NUL).filter(Boolean)) {
+    const tab = rec.indexOf(TAB);
+    const [mode, eol = ""] = rec.slice(0, tab).split(" ");
+    const path = rec.slice(tab + 1);
+    if (!seen.has(path)) seen.set(path, { path, mode, binary: eol === "-text" });
+  }
+  return [...seen.values()];
+}
+
+/** A file's bytes, or null if `full` isn't a regular file here (missing, a directory, a
+ * symlink: lstat doesn't follow one). */
+export function readFile(full) {
+  return lstatSync(full, { throwIfNoEntry: false })?.isFile() ? readFileSync(full) : null;
+}
+
+/** Scans tracked `files` ({ path, mode, binary, buf }) against `allowed`; returns the number
+ * scanned and each finding. */
+export function scanEntries(files, allowed) {
   const found = [];
   const seen = new Set();
-  const unscanned = new Map();
+  const skipped = new Map();
+  const invalid = new Set();
   let scanned = 0;
-  for (const { path, buf } of entries) {
-    if (buf === null) {
-      unscanned.set(path, "isn't a regular file here");
-      continue;
-    }
+  for (const { path, mode, binary, buf } of files) {
+    if (!REGULAR.has(mode)) skipped.set(path, "is a symlink or submodule");
+    else if (binary) skipped.set(path, "is read as binary");
+    else if (buf === null) skipped.set(path, "isn't a regular file here");
+    if (skipped.has(path)) continue;
     let text;
     try {
       text = decode(buf);
     } catch {
-      found.push(`${path}: not valid UTF-8 or UTF-16`);
-      unscanned.set(path, "isn't valid text");
-      continue;
-    }
-    if (text === null) {
-      unscanned.set(path, "is read as binary");
+      found.push(`${path}: not valid UTF-8`);
+      invalid.add(path);
       continue;
     }
     scanned++;
@@ -85,26 +95,22 @@ export function scanEntries(entries, allowed) {
       else found.push(`${path}:${p.line}:${p.column}: ${codeName(p.cp)}`);
     }
   }
-  for (const [path, { cps }] of allowed) {
-    if (unscanned.has(path)) {
-      if (unscanned.get(path) !== "isn't valid text") found.push(`${path}: on the allowlist, but it ${unscanned.get(path)}, so it wasn't scanned`);
-      continue;
+  const tracked = new Set(files.map((f) => f.path));
+  for (const [path, { cps, reason }] of allowed) {
+    if (!reason) found.push(`${path}: on the allowlist with no reason`);
+    if (!tracked.has(path)) found.push(`${path}: on the allowlist, but not a tracked file`);
+    else if (skipped.has(path)) found.push(`${path}: on the allowlist, but it ${skipped.get(path)}, so it wasn't scanned`);
+    else if (!invalid.has(path)) {
+      for (const cp of cps) if (!seen.has(`${path} ${cp}`)) found.push(`${path}: allowed ${codeName(cp)}, but the file no longer holds it (a stale entry)`);
     }
-    for (const cp of cps) if (!seen.has(`${path} ${cp}`)) found.push(`${path}: allowed ${codeName(cp)}, but the file no longer holds it (a stale entry)`);
   }
   return { scanned, found };
 }
 
-/** One entry: the file's bytes, or null if `full` isn't a regular file (missing, a directory,
- * a symlink, which lstat doesn't follow). */
-export function readEntry(path, full) {
-  return { path, buf: lstatSync(full, { throwIfNoEntry: false })?.isFile() ? readFileSync(full) : null };
-}
-
-/** The tracked files, read from the working tree. */
-function trackedEntries() {
-  const files = execFileSync("git", ["ls-files", "-z", "--deduplicate"], { cwd: ROOT, encoding: "utf8" }).split(NUL).filter(Boolean);
-  return files.map((path) => readEntry(path, join(ROOT, path)));
+/** The tracked files, classified by Git and read from the working tree. */
+function trackedFiles() {
+  const out = execFileSync("git", ["ls-files", "-z", "--format=%(objectmode) %(eolinfo:index)%x09%(path)"], { cwd: ROOT, encoding: "utf8" });
+  return parseLsFiles(out).map((f) => ({ ...f, buf: readFile(join(ROOT, f.path)) }));
 }
 
 const cps = (...xs) => xs.map((c) => String.fromCodePoint(c)).join("");
@@ -116,81 +122,88 @@ describe("scanText", () => {
   it("finds a refused character by line and column", () => {
     expect(scanText(`ok${LF}ab${cps(0x00a0)}c`)).toEqual([{ line: 2, column: 3, cp: 0x00a0 }]);
     expect(scanText(`a${String.fromCharCode(1)}`)).toEqual([{ line: 1, column: 2, cp: 1 }]);
+    expect(scanText(`a${NUL}b`)).toEqual([{ line: 1, column: 2, cp: 0 }]);
   });
   it("splits lines as post-body.mjs does, a lone CR included", () => {
     expect(scanText(`a${CR}b${cps(0x00a0)}`)).toEqual([{ line: 2, column: 2, cp: 0x00a0 }]);
   });
   it("passes an emoji's joiners, a tab, CRLF and other non-ASCII text", () => {
     expect(scanText(`family ${cps(0x1f468, 0x200d, 0x1f469, 0x200d, 0x1f467)}, ${cps(0x2764, 0xfe0f)}`)).toEqual([]);
-    expect(scanText(`a${String.fromCharCode(9)}b${CR}${LF}Ställ in, café, åtta`)).toEqual([]);
+    expect(scanText(`a${TAB}b${CR}${LF}Ställ in, café, åtta`)).toEqual([]);
   });
 });
 
 describe("decode and scanText together", () => {
-  const le = (s) => Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(s, "utf16le")]);
-  const be = (s) => Buffer.concat([Buffer.from([0xfe, 0xff]), Buffer.from(s, "utf16le").swap16()]);
-  it("reads UTF-8, and UTF-16 by its mark", () => {
-    expect(scanText(decode(utf8("ok")))).toEqual([]);
-    expect(scanText(decode(le("ok")))).toEqual([]);
-    expect(scanText(decode(be("ok")))).toEqual([]);
-    expect(scanText(decode(le(`a${cps(0x00a0)}`)))).toEqual([{ line: 1, column: 2, cp: 0x00a0 }]);
-  });
-  it("drops one opening byte-order mark and refuses a second, in UTF-8 and UTF-16", () => {
+  it("drops one byte-order mark opening the file, and refuses a second or one opening a later line", () => {
     expect(scanText(decode(utf8(`${cps(BOM)}a`)))).toEqual([]);
     expect(scanText(decode(utf8(`${cps(BOM, BOM)}a`)))).toEqual([{ line: 1, column: 1, cp: BOM }]);
-    expect(scanText(decode(le(`${cps(BOM)}a`)))).toEqual([{ line: 1, column: 1, cp: BOM }]);
+    expect(scanText(decode(utf8(`a${LF}${cps(BOM)}b`)))).toEqual([{ line: 2, column: 1, cp: BOM }]);
     expect(scanText(decode(utf8(`te${cps(BOM)}xt`)))).toEqual([{ line: 1, column: 3, cp: BOM }]);
   });
-  it("returns null for binary, a UTF-32 mark included, and throws on invalid text", () => {
-    expect(decode(Buffer.from([0x61, 0x00, 0x62]))).toBeNull();
-    expect(decode(Buffer.from([0xff, 0xfe, 0x00, 0x00, 0x61, 0x00, 0x00, 0x00]))).toBeNull();
+  it("throws on invalid UTF-8", () => {
     expect(() => decode(Buffer.from([0x61, 0xa0, 0x62]))).toThrow();
-    expect(() => decode(Buffer.from([0xff, 0xfe, 0x61, 0x00, 0x62]))).toThrow();
-    expect(() => decode(Buffer.from([0xff, 0xfe, 0x00, 0xd8, 0x61, 0x00]))).toThrow();
+  });
+});
+
+describe("parseLsFiles", () => {
+  it("reads mode, Git's binary call and path, each path once", () => {
+    const out = [`100644 lf${TAB}a.md`, `100644 -text${TAB}b.ico`, `120000 lf${TAB}link`, `160000 ${TAB}sub`, `100644 lf${TAB}a.md`, `100755 none${TAB}x y.sh`].join(NUL) + NUL;
+    expect(parseLsFiles(out)).toEqual([
+      { path: "a.md", mode: "100644", binary: false },
+      { path: "b.ico", mode: "100644", binary: true },
+      { path: "link", mode: "120000", binary: false },
+      { path: "sub", mode: "160000", binary: false },
+      { path: "x y.sh", mode: "100755", binary: false },
+    ]);
+  });
+});
+
+describe("readFile", () => {
+  it("reads a regular file, and gives null for a missing path or a directory", () => {
+    expect(readFile(fileURLToPath(import.meta.url))).not.toBeNull();
+    expect(readFile(join(ROOT, "no-such-file.control"))).toBeNull();
+    expect(readFile(ROOT)).toBeNull();
   });
 });
 
 describe("scanEntries", () => {
-  const entry = (path, s) => ({ path, buf: s === null ? null : utf8(s) });
-  const allow = (path, ...cpList) => new Map([[path, { cps: cpList, reason: "a test" }]]);
+  const file = (path, s, extra = {}) => ({ path, mode: "100644", binary: false, buf: s === null ? null : utf8(s), ...extra });
+  const allow = (path, cpList, reason = "a test") => new Map([[path, { cps: cpList, reason }]]);
   it("names a refused character, and passes an allowed one", () => {
-    expect(scanEntries([entry("a.md", `x${cps(0x00a0)}`)], new Map()).found).toEqual(["a.md:1:2: U+00A0"]);
-    expect(scanEntries([entry("a.md", `x${cps(0x00a0)}`)], allow("a.md", 0xa0)).found).toEqual([]);
+    expect(scanEntries([file("a.md", `x${cps(0x00a0)}`)], new Map()).found).toEqual(["a.md:1:2: U+00A0"]);
+    expect(scanEntries([file("a.md", `x${cps(0x00a0)}`)], allow("a.md", [0xa0])).found).toEqual([]);
   });
   it("allows only the listed code points", () => {
-    expect(scanEntries([entry("a.md", `x${cps(0x00a0, 0x2028)}`)], allow("a.md", 0xa0)).found).toEqual(["a.md:1:3: U+2028"]);
+    expect(scanEntries([file("a.md", `x${cps(0x00a0, 0x2028)}`)], allow("a.md", [0xa0])).found).toEqual(["a.md:1:3: U+2028"]);
   });
-  it("fails a stale entry, naming the cause", () => {
-    expect(scanEntries([entry("a.md", "x")], allow("a.md", 0xa0)).found).toEqual(["a.md: allowed U+00A0, but the file no longer holds it (a stale entry)"]);
-    expect(scanEntries([entry("a.md", null)], allow("a.md", 0xa0)).found).toEqual(["a.md: on the allowlist, but it isn't a regular file here, so it wasn't scanned"]);
+  it("skips binary, a symlink, a submodule and a missing file, and counts only what it scanned", () => {
+    const files = [file("a.md", "x"), file("b.ico", `x${cps(0x00a0)}`, { binary: true }), file("link", `x${cps(0x00a0)}`, { mode: "120000" }), file("sub", null, { mode: "160000" }), file("gone.md", null)];
+    expect(scanEntries(files, new Map())).toEqual({ scanned: 1, found: [] });
   });
-  it("reports invalid text once, and counts only what it scanned", () => {
-    const bad = { path: "b.md", buf: Buffer.from([0x61, 0xa0]) };
-    expect(scanEntries([bad], allow("b.md", 0xa0))).toEqual({ scanned: 0, found: ["b.md: not valid UTF-8 or UTF-16"] });
-    expect(scanEntries([entry("a.md", "x"), entry("c.md", null)], new Map()).scanned).toBe(1);
+  it("fails an allowlist entry that is stale, unscanned, untracked or has no reason, naming which", () => {
+    expect(scanEntries([file("a.md", "x")], allow("a.md", [0xa0])).found).toEqual(["a.md: allowed U+00A0, but the file no longer holds it (a stale entry)"]);
+    expect(scanEntries([file("a.md", null)], allow("a.md", [0xa0])).found).toEqual(["a.md: on the allowlist, but it isn't a regular file here, so it wasn't scanned"]);
+    expect(scanEntries([file("a.md", "x")], allow("b.md", [0xa0])).found).toEqual(["b.md: on the allowlist, but not a tracked file"]);
+    expect(scanEntries([file("a.md", `x${cps(0x00a0)}`)], allow("a.md", [0xa0], "")).found).toEqual(["a.md: on the allowlist with no reason"]);
   });
-});
-
-describe("readEntry", () => {
-  it("reads a regular file, and gives null for a missing path or a directory", () => {
-    expect(readEntry("p", fileURLToPath(import.meta.url)).buf).not.toBeNull();
-    expect(readEntry("p", join(ROOT, "no-such-file.control")).buf).toBeNull();
-    expect(readEntry("p", ROOT).buf).toBeNull();
+  it("reports invalid UTF-8 once", () => {
+    const bad = { path: "b.md", mode: "100644", binary: false, buf: Buffer.from([0x61, 0xa0]) };
+    expect(scanEntries([bad], allow("b.md", [0xa0]))).toEqual({ scanned: 0, found: ["b.md: not valid UTF-8"] });
   });
 });
 
 describe("the repo's tracked files", () => {
-  let entries;
+  let files;
   let result;
   beforeAll(() => {
-    entries = trackedEntries();
-    result = scanEntries(entries, ALLOWED);
+    files = trackedFiles();
+    result = scanEntries(files, ALLOWED);
   });
   it("are listed and scanned, so an empty scan can't pass", () => {
-    expect(entries.length).toBeGreaterThan(100);
+    expect(files.length).toBeGreaterThan(100);
     expect(result.scanned).toBeGreaterThan(100);
   });
-  it("hold no character post-body.mjs refuses, and the allowlist holds no stale entry", () => {
+  it("hold no character post-body.mjs refuses, and the allowlist holds no bad entry", () => {
     expect(result.found).toEqual([]);
   });
 });
