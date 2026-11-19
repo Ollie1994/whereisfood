@@ -17,6 +17,18 @@ describe("textProblems", () => {
     expect(textProblems(`a${String.fromCharCode(0x0b)}b${String.fromCharCode(0x0c)}c`)).toHaveLength(2);
     expect(textProblems("a\tb\r\nc\n")).toEqual([]);
   });
+  it("names each invisible character by code point, line and column (probe PR #428)", () => {
+    for (const cp of [0x00a0, 0x200b, 0x200c, 0x200d, 0x2028, 0x2029, 0x2060, 0xfeff]) {
+      const hex = cp.toString(16).toUpperCase().padStart(4, "0");
+      expect(textProblems(`ok\nab${String.fromCodePoint(cp)}c`), hex).toEqual([expect.stringContaining(`line 2, column 3: an invisible character, U+${hex}`)]);
+    }
+  });
+  it("keeps other non-ASCII text, and a joiner between two emoji", () => {
+    expect(textProblems("Ställ in, café, naïve, 🤖, – … →")).toEqual([]);
+    const family = [0x1f468, 0x200d, 0x1f469, 0x200d, 0x1f467].map((c) => String.fromCodePoint(c)).join("");
+    expect(textProblems(`a ${family} b`)).toEqual([]);
+    expect(textProblems(`a${String.fromCodePoint(0x200d)}b`)).toHaveLength(1);
+  });
   it("takes the escape's hex digits in either case", () => {
     expect(textProblems(`${BS}u000c`)).toHaveLength(1);
     expect(textProblems(`${BS}u000a`)).toEqual([]);
@@ -239,6 +251,8 @@ describe("main", () => {
     quiet();
     const { api, calls } = fakeApi();
     expect(main(["--check", file("## A\ntext\n")], { api })).toBe(0);
+    expect(main(["--check", file(`${String.fromCodePoint(0xfeff)}## A\ntext\n`)], { api }), "a BOM opening the file").toBe(0);
+    expect(main(["--check", file(`## A\nte${String.fromCodePoint(0xfeff)}xt\n`)], { api }), "a BOM inside it").toBe(1);
     expect(main(["--check", file("## A\n## A\n")], { api })).toBe(1);
     expect(calls).toEqual([]);
   });

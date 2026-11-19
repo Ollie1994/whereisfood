@@ -27,7 +27,11 @@
 //     or `gh pr create --body-file`; then the first form, on the same file, reads it back.
 //
 // The checks, before anything is posted (exit 1, nothing posted): a raw control character
-// (all of C0 but tab, LF and CR); the escape text GitHub rewrites (above); an ATX level-2
+// (all of C0 but tab, LF and CR); an invisible character (the no-break space, the zero-width
+// space, non-joiner and joiner, the line and paragraph separators, the word joiner and the
+// byte-order mark, by code point in INVISIBLE_NAMES; GitHub stores each unchanged, probe PR
+// #428, so a read-back can't show them; a joiner between two emoji, and a byte-order mark
+// opening the file, are kept); the escape text GitHub rewrites (above); an ATX level-2
 // heading twice (`##` then blanks, a closing run of `#` dropped). Lines inside a fenced code
 // block (``` with no backtick after it on the line, or ~~~; closed only by a fence of the same
 // character, at least as long, with nothing after it) or an HTML comment (a line starting
@@ -67,9 +71,29 @@ const RAW_CONTROL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g;
 // The escape text GitHub rewrites (probe PR #425): a lowercase \u, then 0000–001F but 0009,
 // 000A, 000B and 000D, hex digits in either case.
 const REWRITTEN_ESCAPE = /\\u00(?:0[0-8CEFcef]|1[0-9A-Fa-f])/g;
+// Invisible characters GitHub stores unchanged (probe PR #428), so no read-back shows them,
+// and a tool can leave behind: PR #426's header, BOM regex and body each got one when an
+// escape was written into a file (IS #427). Built from code points, so this source holds
+// none of them.
+const INVISIBLE_NAMES = new Map([
+  [0x00a0, "no-break space"],
+  [0x200b, "zero-width space"],
+  [0x200c, "zero-width non-joiner"],
+  [0x200d, "zero-width joiner"],
+  [0x2028, "line separator"],
+  [0x2029, "paragraph separator"],
+  [0x2060, "word joiner"],
+  [0xfeff, "byte-order mark"],
+]);
+const INVISIBLE = new RegExp(`[${[...INVISIBLE_NAMES.keys()].map((cp) => String.fromCodePoint(cp)).join("")}]`, "gu");
+const ZWJ = String.fromCodePoint(0x200d);
+// A zero-width joiner between two emoji builds one emoji (a family, a flag), so it stays.
+const inEmoji = (line, i) => line[i] === ZWJ && /\p{Extended_Pictographic}\uFE0F?$/u.test(line.slice(0, i)) && /^\p{Extended_Pictographic}/u.test(line.slice(i + 1));
 
 const lines = (text) => text.replace(/\r\n?/g, "\n").split("\n");
-const show = (s) => s.replace(/[\u0000-\u001F]/g, (c) => `<0x${c.charCodeAt(0).toString(16).padStart(2, "0")}>`);
+const codeName = (cp) => `U+${cp.toString(16).toUpperCase().padStart(4, "0")}`;
+const show = (s) =>
+  s.replace(/[\u0000-\u001F]/g, (c) => `<0x${c.charCodeAt(0).toString(16).padStart(2, "0")}>`).replace(INVISIBLE, (c) => `<${codeName(c.codePointAt(0))}>`);
 const around = (line, i) => show(line.slice(Math.max(0, i - 30), i + 30));
 
 /** Whether the text after a `<!--` ends the comment: `-->` in it, or `>` or `->` at once
@@ -114,6 +138,11 @@ export function textProblems(text) {
   lines(text).forEach((line, i) => {
     for (const m of line.matchAll(RAW_CONTROL)) {
       out.push(`line ${i + 1}, column ${m.index + 1}: a raw control character: …${around(line, m.index)}…`);
+    }
+    for (const m of line.matchAll(INVISIBLE)) {
+      if (inEmoji(line, m.index)) continue;
+      const cp = m[0].codePointAt(0);
+      out.push(`line ${i + 1}, column ${m.index + 1}: an invisible character, ${codeName(cp)} (${INVISIBLE_NAMES.get(cp)}): …${around(line, m.index)}…`);
     }
     for (const m of line.matchAll(REWRITTEN_ESCAPE)) {
       out.push(`line ${i + 1}, column ${m.index + 1}: GitHub rewrites the text ${m[0]}; write it as \\x${m[0].slice(4)} or in words`);

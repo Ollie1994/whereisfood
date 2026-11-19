@@ -566,10 +566,12 @@ uncommitted on `dev`. Every doc change then has a reviewable diff and a
   round section), a new comment with `--comment <n> <file>`, a change to one with
   `--edit-comment <id> <file>`. A new issue or PR: `--check <file>` first, then `gh issue
   create` or `gh pr create --body-file` with that file, then the first form on the same
-  file, which reads it back. It refuses, before posting, a raw control character, the
-  escape text GitHub rewrites (`\u0000` to `\u001F` but `\u0009`, `\u000A`, `\u000B` and
-  `\u000D`: write `\x00`, or the character's name) and a repeated `## ` heading; then it
-  posts and fails if GitHub's stored copy differs. A failure is fixed before the next
+  file, which reads it back. It refuses, before posting, a raw control character, an
+  invisible character (U+00A0, U+200B to U+200D, U+2028, U+2029, U+2060, U+FEFF; GitHub
+  stores these unchanged, probe PR #428, so no read-back shows them), the escape text GitHub
+  rewrites (`\u0000` to `\u001F` but `\u0009`, `\u000A`, `\u000B` and `\u000D`: write
+  `\x00`, or the character's name) and a repeated `## ` heading; then it posts and fails if
+  GitHub's stored copy differs. A failure is fixed before the next
   step. Its header lists what GitHub rewrites (probe PR #425) and what the script can't
   see (a review comment on a PR's diff among them).
 
