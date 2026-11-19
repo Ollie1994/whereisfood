@@ -189,9 +189,11 @@ function closestPair(points: readonly PixelOffset[]): number {
 // The owner's choice on IS #248: markers whose entries have exactly the same coordinates
 // (a known spot from `spots.ts` gives every truck there the same pair) are drawn apart on
 // screen, each at its real coordinates with a pixel offset. Ordered by truck name, Swedish
-// alphabetical, ties by truck id, so the same trucks keep the same places. The radius
-// starts at `FAN_MIN_RADIUS` and grows a pixel at a time until the rounded points keep
-// `FAN_SPACING`. A truck alone gets [0, 0].
+// alphabetical, ties by truck id, so the same trucks keep the same places. The radius is
+// the smallest from `FAN_MIN_RADIUS` up, in whole pixels, at which the rounded points keep
+// `FAN_SPACING`. The search starts where that can first happen: rounding moves a point at
+// most √2/2 px, so a pair at most √2 px, and below `(FAN_SPACING - √2) / (2 sin(π/n))`
+// neighbours are too close however they round. A truck alone gets [0, 0].
 export function fanOffsets(markers: ReadonlyMap<TruckId, MarkerEntry>): Map<TruckId, PixelOffset> {
   const spots = new Map<string, LiveEntry[]>();
   for (const { entry } of markers.values()) {
@@ -212,7 +214,7 @@ export function fanOffsets(markers: ReadonlyMap<TruckId, MarkerEntry>): Map<Truc
       offsets.set(group[0].truck.id, [0, 0]);
       continue;
     }
-    let radius = FAN_MIN_RADIUS;
+    let radius = Math.max(FAN_MIN_RADIUS, Math.ceil((FAN_SPACING - Math.SQRT2) / (2 * Math.sin(Math.PI / n))));
     let points = fanPoints(n, radius);
     while (closestPair(points) < FAN_SPACING) points = fanPoints(n, ++radius);
     group.forEach((entry, i) => offsets.set(entry.truck.id, points[i]));
@@ -220,9 +222,8 @@ export function fanOffsets(markers: ReadonlyMap<TruckId, MarkerEntry>): Map<Truc
   return offsets;
 }
 
-// The trucks in both `prev` and `next` whose offset changed: `useMapLibre` moves these
-// markers (a truck joining or leaving a spot moves the others there). A truck only in
-// `next` is new, and its marker is built with its offset.
+// The trucks in both `prev` and `next` whose offset changed. A truck only in `next` is new,
+// and its marker is built with its offset.
 export function changedOffsets(
   prev: ReadonlyMap<TruckId, PixelOffset>,
   next: ReadonlyMap<TruckId, PixelOffset>,
@@ -233,6 +234,32 @@ export function changedOffsets(
     if (before && (before[0] !== offset[0] || before[1] !== offset[1])) changed.push([truckId, offset]);
   }
   return changed;
+}
+
+export type MarkerPlan = MarkerDiff & {
+  // Every truck's offset in `next`, when anything changed; empty otherwise.
+  offsets: ReadonlyMap<TruckId, PixelOffset>;
+  // The live markers to move: their offset now (`current`) differs from `offsets`.
+  move: [TruckId, PixelOffset][];
+};
+
+// What `useMapLibre` applies in one commit. `current` is each live marker's offset as
+// MapLibre holds it. A fan's offsets follow its trucks' coordinates and names, which only
+// an add, update or remove changes, so they are recomputed only then (and on any update,
+// a status change included, whose offsets come out the same); a tick alone moves nothing.
+// A truck joining or leaving a spot, moving, or a rename that re-sorts a spot moves the
+// others there.
+export function planMarkers(
+  prev: ReadonlyMap<TruckId, MarkerEntry>,
+  next: ReadonlyMap<TruckId, MarkerEntry>,
+  current: ReadonlyMap<TruckId, PixelOffset>,
+): MarkerPlan {
+  const diff = diffMarkers(prev, next);
+  if (!diff.add.length && !diff.update.length && !diff.remove.length) {
+    return { ...diff, offsets: new Map(), move: [] };
+  }
+  const offsets = fanOffsets(next);
+  return { ...diff, offsets, move: changedOffsets(current, offsets) };
 }
 
 // --- Popup text ------------------------------------------------------------------------

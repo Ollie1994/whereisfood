@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   diffMarkers,
   changedOffsets,
+  planMarkers,
   fanOffsets,
   freshnessText,
   hoursText,
@@ -362,6 +363,24 @@ describe("fanOffsets", () => {
     expect(fanOffsets(markers(named("a", "A"), named("b", "B"))).get("a")).toEqual([-10, 0]);
   });
 
+  it("finds the smallest radius from 10 that keeps 20 px, as a search from 10 by single pixels does", () => {
+    // An independent brute force: the first whole radius from 10 at which every rounded pair
+    // is at least 20 px apart, by the same layout (left and right for two; from the top,
+    // clockwise, for more).
+    const layout = (n: number, r: number) =>
+      Array.from({ length: n }, (_, i) => {
+        const a = n === 2 ? Math.PI * (i + 1) : -Math.PI / 2 + (2 * Math.PI * i) / n;
+        return [Math.round(r * Math.cos(a)) || 0, Math.round(r * Math.sin(a)) || 0];
+      });
+    const ok = (pts: number[][]) => pts.every((p, i) => pts.every((q, j) => j <= i || apart(p, q) >= 20));
+    for (let n = 2; n <= 12; n++) {
+      let r = 10;
+      while (!ok(layout(n, r))) r++;
+      const list = Array.from({ length: n }, (_, i) => named(`t${String(i).padStart(2, "0")}`, `Bil ${String(i).padStart(2, "0")}`));
+      expect([...fanOffsets(markers(...list)).values()]).toEqual(layout(n, r));
+    }
+  });
+
   it("fans only the trucks that share a spot: both coordinates equal", () => {
     const offsets = fanOffsets(
       markers(
@@ -394,7 +413,53 @@ describe("changedOffsets", () => {
     expect(changedOffsets(offsets(["a", [10, 0]]), offsets(["a", [11, 0]]))).toEqual([["a", [11, 0]]]);
     expect(changedOffsets(offsets(["a", [10, 0]]), offsets(["a", [10, 0]]))).toEqual([]);
   });
+});
 
+describe("planMarkers", () => {
+  const at = (id: string, name: string, overrides: Partial<LiveEntry> = {}): MarkerEntry => ({
+    entry: truck(id, { ...overrides, truck: { ...entry().truck, name } }),
+    status: "open",
+  });
+  const markers = (...list: MarkerEntry[]) => new Map(list.map((m) => [m.entry.truck.id, m]));
+  const offsetsOf = (...pairs: [string, [number, number]][]) => new Map(pairs);
+  const elsewhere = { latitude: 57.7, longitude: 11.96 };
+
+  it("does nothing on a tick: no change, no offsets, no moves", () => {
+    const shown = markers(at("a", "A"), at("b", "B"));
+    const plan = planMarkers(shown, markers(at("a", "A"), at("b", "B")), offsetsOf(["a", [-10, 0]], ["b", [10, 0]]));
+    expect(plan).toEqual({ add: [], update: [], remove: [], offsets: new Map(), move: [] });
+  });
+
+  it("builds a truck joining a spot with its offset and moves the one already there", () => {
+    const plan = planMarkers(markers(at("t", "Tacobilen")), markers(at("t", "Tacobilen"), at("b", "Burgarbilen")), offsetsOf(["t", [0, 0]]));
+    expect(plan.offsets.get("b")).toEqual([-10, 0]);
+    expect(plan.move).toEqual([["t", [10, 0]]]);
+  });
+
+  it("moves the one left behind back to the spot when the other leaves", () => {
+    const plan = planMarkers(markers(at("t", "Tacobilen"), at("b", "Burgarbilen")), markers(at("t", "Tacobilen")), offsetsOf(["t", [10, 0]], ["b", [-10, 0]]));
+    expect(plan.remove).toEqual(["b"]);
+    expect(plan.move).toEqual([["t", [0, 0]]]);
+  });
+
+  it("fans both when a truck moves onto another's spot (an update, not an add)", () => {
+    const plan = planMarkers(
+      markers(at("t", "Tacobilen"), at("b", "Burgarbilen", elsewhere)),
+      markers(at("t", "Tacobilen"), at("b", "Burgarbilen")),
+      offsetsOf(["t", [0, 0]], ["b", [0, 0]]),
+    );
+    expect(plan.update.map((m) => m.entry.truck.id)).toEqual(["b"]);
+    expect(new Map(plan.move)).toEqual(new Map([["t", [10, 0]], ["b", [-10, 0]]]));
+  });
+
+  it("swaps a fan when a rename re-sorts it, with nobody joining or leaving", () => {
+    const plan = planMarkers(
+      markers(at("a", "Ankan"), at("b", "Björnen")),
+      markers(at("a", "Örat"), at("b", "Björnen")),
+      offsetsOf(["a", [-10, 0]], ["b", [10, 0]]),
+    );
+    expect(new Map(plan.move)).toEqual(new Map([["a", [10, 0]], ["b", [-10, 0]]]));
+  });
 });
 
 describe("text helpers", () => {

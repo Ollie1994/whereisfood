@@ -4,15 +4,7 @@ import { flushSync } from "react-dom";
 // Namespace import, for the reason `map-setup.ts` gives.
 import * as maplibregl from "maplibre-gl";
 import TruckPopup from "@/components/Map/TruckPopup";
-import {
-  changedOffsets,
-  diffMarkers,
-  fanOffsets,
-  statusText,
-  type MarkerEntry,
-  type PixelOffset,
-  type TruckId,
-} from "@/lib/live";
+import { planMarkers, statusText, type MarkerEntry, type PixelOffset, type TruckId } from "@/lib/live";
 import { NO_WEBGL2, createBaseMap } from "@/lib/map-setup";
 
 // Open is filled, later is outlined (plan, open decision 8). The colour and size are
@@ -24,13 +16,12 @@ type OpenPopup = { truckId: TruckId; popup: maplibregl.Popup; root: Root };
 // What the effects and the click handlers share, in one ref. `map` is the map the
 // init effect built and hasn't removed. `shown` is the `markers` last applied, and
 // `live` holds one `maplibregl.Marker` for each of its trucks. `open` is set exactly
-// while a popup is open: its `close` handler clears it, however the popup closed.
-// `offsets` is `fanOffsets(shown)`: each live marker's pixel offset, which its popup shares.
+// while a popup is open: its `close` handler clears it, however the popup closed. A
+// marker's fan offset (`planMarkers`) is held by MapLibre alone (`getOffset`).
 type MarkerLayer = {
   map: maplibregl.Map | null;
   live: Map<TruckId, maplibregl.Marker>;
   shown: ReadonlyMap<TruckId, MarkerEntry>;
-  offsets: ReadonlyMap<TruckId, PixelOffset>;
   open: OpenPopup | null;
   now: Date;
 };
@@ -139,8 +130,8 @@ function addMarker(map: maplibregl.Map, layer: MarkerLayer, entry: MarkerEntry, 
 }
 
 // Initialises MapLibre + PMTiles on the given container and keeps one marker per entry
-// of `markers` on it, changing only the markers `diffMarkers` names and those whose fan
-// offset changed at a spot a truck joined or left (CLAUDE.md, UI Rules).
+// of `markers` on it, changing only the markers `planMarkers` names: those `diffMarkers`
+// lists, and those whose fan offset changed (CLAUDE.md, UI Rules).
 // True when the browser can't draw the map, for `MapClient` to say so.
 export function useMapLibre(
   containerRef: RefObject<HTMLDivElement | null>,
@@ -151,7 +142,7 @@ export function useMapLibre(
   // effects run in. The map itself is only in the ref.
   const [builds, setBuilds] = useState(0);
   const [failed, setFailed] = useState(false);
-  const layerRef = useRef<MarkerLayer>({ map: null, live: new Map(), shown: new Map(), offsets: new Map(), open: null, now });
+  const layerRef = useRef<MarkerLayer>({ map: null, live: new Map(), shown: new Map(), open: null, now });
 
   useEffect(() => {
     const layer = layerRef.current;
@@ -173,7 +164,6 @@ export function useMapLibre(
       closeOpenPopup(layer);
       layer.live.clear();
       layer.shown = new Map();
-      layer.offsets = new Map();
       layer.map = null;
       created.remove();
     };
@@ -194,15 +184,16 @@ export function useMapLibre(
     const nowChanged = layer.now !== now;
     layer.now = now;
 
-    const { add, update, remove } = diffMarkers(layer.shown, markers);
-    const prevOffsets = layer.offsets;
+    const liveOffsets = new Map<TruckId, PixelOffset>();
+    for (const [truckId, marker] of layer.live) {
+      const { x, y } = marker.getOffset();
+      liveOffsets.set(truckId, [x, y]);
+    }
+    const { add, update, remove, offsets, move } = planMarkers(layer.shown, markers, liveOffsets);
     layer.shown = markers;
-    // Offsets follow positions and names, which only an add, update or remove changes; a
-    // tick alone (a new `markers` map, the same entries) keeps them.
-    if (add.length || update.length || remove.length) layer.offsets = fanOffsets(markers);
 
-    // `fanOffsets` keys every truck of `markers`, so each new one has its offset.
-    for (const entry of add) addMarker(current, layer, entry, layer.offsets.get(entry.entry.truck.id)!);
+    // `offsets` holds every truck whenever there is an add (`planMarkers`).
+    for (const entry of add) addMarker(current, layer, entry, offsets.get(entry.entry.truck.id)!);
     for (const entry of update) {
       const marker = layer.live.get(entry.entry.truck.id);
       marker?.setLngLat(lngLatOf(entry));
@@ -224,9 +215,9 @@ export function useMapLibre(
       layer.live.delete(truckId);
     }
 
-    // A truck joining or leaving a spot moves the others there: only a marker whose offset
-    // changed is touched (`changedOffsets`), and an open popup moves with its marker.
-    for (const [truckId, offset] of changedOffsets(prevOffsets, layer.offsets)) {
+    // Only a marker whose offset changed is moved (`planMarkers` says when), and an open
+    // popup moves with its marker.
+    for (const [truckId, offset] of move) {
       layer.live.get(truckId)?.setOffset(offset);
       if (layer.open?.truckId === truckId) layer.open.popup.setOffset(offset);
     }
