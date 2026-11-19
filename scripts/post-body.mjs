@@ -21,7 +21,7 @@
 //     Adds the file as a new comment.
 //   node scripts/post-body.mjs --check <file>
 //     Runs the checks below and posts nothing: for a new issue or PR, before `gh issue create`
-//     or `gh pr create --body-file`, so a bad body is never public.
+//     or `gh pr create --body-file`, so a bad body is caught before it is public.
 //
 // The checks, before anything is posted (exit 1, nothing posted): a raw control character
 // (all of C0 but tab, LF and CR); the escape text GitHub rewrites (above); a `## ` heading
