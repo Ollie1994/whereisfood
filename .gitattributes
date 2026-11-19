@@ -3,3 +3,7 @@
 # The git hooks are shell scripts with no `.sh` extension, so they need their own line.
 *.sh text eol=lf
 .githooks/* text eol=lf
+
+# Binary files. scripts/tracked-text.test.mjs skips a file marked here and reads every other
+# tracked file as UTF-8 (CLAUDE.md, "Invisible characters in tracked files"; IS #432).
+*.ico binary

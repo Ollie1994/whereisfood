@@ -544,10 +544,11 @@ file/test counts when tests are added, moved or deleted.
 **Invisible characters in tracked files** (IS #430): `scripts/tracked-text.test.mjs`, in the
 `unit` project, fails on any tracked file holding a character `scripts/post-body.mjs`
 refuses in posted text (raw controls, and its invisible list; an emoji's joiners, and one
-byte-order mark opening the file, kept). Every regular file that is valid UTF-8 is scanned,
-whatever Git calls it, since a NUL or enough control bytes make Git call a file binary; a file
-that isn't valid UTF-8 is reported unless Git calls it binary (an image, UTF-16), and then
-skipped. The test's header lists what else it can't see. The
+byte-order mark opening the file, kept). Every regular file is read as UTF-8 and scanned
+unless `.gitattributes` marks it `binary` (or `-text`), which skips it whatever it holds
+(IS #432): a new binary file (an image, UTF-16 text) gets a line there, or the test reports
+it as not valid UTF-8, and a marked file that reads as text with nothing refused in it is
+named. The test's header lists what else it can't see. The
 tools have turned a written escape into the character itself (process-log row 806); write
 such a character from its code point, or as escape text. A file that must hold one goes on
 the test's `ALLOWED` list with the code points it may hold and the reason; an entry the file
