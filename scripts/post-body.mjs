@@ -124,13 +124,13 @@ function inEmoji(chars, k) {
 }
 /** Whether code point k of `chars` is one the checks refuse: a raw control character, or an
  * invisible one not part of an emoji. */
-const refused = (chars, k) => {
+export const refused = (chars, k) => {
   const cp = chars[k].codePointAt(0);
   return isRawControl(cp) || (INVISIBLE_NAMES.has(cp) && !inEmoji(chars, k));
 };
 
-const lines = (text) => text.replace(/\r\n?/g, "\n").split("\n");
-const codeName = (cp) => `U+${cp.toString(16).toUpperCase().padStart(4, "0")}`;
+export const lines = (text) => text.replace(/\r\n?/g, "\n").split("\n");
+export const codeName = (cp) => `U+${cp.toString(16).toUpperCase().padStart(4, "0")}`;
 const markOf = (cp) => (cp < 0x20 ? `<0x${cp.toString(16).padStart(2, "0")}>` : `<${codeName(cp)}>`);
 /** An excerpt of `chars` around k, each character `bad` flags (worked out over the whole
  * line, so an emoji cut at the excerpt's edge isn't marked) shown as `<0xNN>` or `<U+XXXX>`. */
