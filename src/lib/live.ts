@@ -162,22 +162,43 @@ export function diffMarkers(
 export type PixelOffset = [number, number];
 
 // The marker is 18 px across (`useMapLibre`'s `createMarkerElement`); neighbours in a fan
-// are at least this far apart, centre to centre, so 2 px show between them (the owner asked
-// for them closer after the browser check, IS #248).
+// are at least this far apart, centre to centre, after rounding, so 2 px show between them
+// (the owner asked for them closer after the browser check, IS #248).
 const FAN_SPACING = 20;
 const FAN_MIN_RADIUS = 10;
+
+// `n` whole-pixel points around the spot: two left and right; more on a circle from the top
+// (-90°), clockwise on screen (y grows down).
+function fanPoints(n: number, radius: number): PixelOffset[] {
+  return Array.from({ length: n }, (_, i) => {
+    const angle = n === 2 ? Math.PI * (i + 1) : -Math.PI / 2 + (2 * Math.PI * i) / n;
+    return [Math.round(radius * Math.cos(angle)) || 0, Math.round(radius * Math.sin(angle)) || 0];
+  });
+}
+
+function closestPair(points: readonly PixelOffset[]): number {
+  let closest = Infinity;
+  for (let i = 0; i < points.length; i++) {
+    for (let j = i + 1; j < points.length; j++) {
+      closest = Math.min(closest, Math.hypot(points[i][0] - points[j][0], points[i][1] - points[j][1]));
+    }
+  }
+  return closest;
+}
 
 // The owner's choice on IS #248: markers whose entries have exactly the same coordinates
 // (a known spot from `spots.ts` gives every truck there the same pair) are drawn apart on
 // screen, each at its real coordinates with a pixel offset. Ordered by truck name, Swedish
-// alphabetical, ties by truck id, so the same trucks keep the same places. Two sit side by
-// side; three or more on a circle from the top, clockwise, its radius grown so neighbours
-// keep `FAN_SPACING`. A truck alone gets [0, 0].
+// alphabetical, ties by truck id, so the same trucks keep the same places. The radius
+// starts at `FAN_MIN_RADIUS` and grows a pixel at a time until the rounded points keep
+// `FAN_SPACING`. A truck alone gets [0, 0].
 export function fanOffsets(markers: ReadonlyMap<TruckId, MarkerEntry>): Map<TruckId, PixelOffset> {
   const spots = new Map<string, LiveEntry[]>();
   for (const { entry } of markers.values()) {
     const key = `${entry.latitude} ${entry.longitude}`;
-    spots.set(key, [...(spots.get(key) ?? []), entry]);
+    const group = spots.get(key);
+    if (group) group.push(entry);
+    else spots.set(key, [entry]);
   }
   const offsets = new Map<TruckId, PixelOffset>();
   for (const group of spots.values()) {
@@ -191,14 +212,27 @@ export function fanOffsets(markers: ReadonlyMap<TruckId, MarkerEntry>): Map<Truc
       offsets.set(group[0].truck.id, [0, 0]);
       continue;
     }
-    const radius = Math.max(FAN_MIN_RADIUS, Math.ceil(FAN_SPACING / 2 / Math.sin(Math.PI / n)));
-    group.forEach((entry, i) => {
-      // Two: left and right. More: from the top (-90°), clockwise on screen (y grows down).
-      const angle = n === 2 ? Math.PI * (i + 1) : -Math.PI / 2 + (2 * Math.PI * i) / n;
-      offsets.set(entry.truck.id, [Math.round(radius * Math.cos(angle)) || 0, Math.round(radius * Math.sin(angle)) || 0]);
-    });
+    let radius = FAN_MIN_RADIUS;
+    let points = fanPoints(n, radius);
+    while (closestPair(points) < FAN_SPACING) points = fanPoints(n, ++radius);
+    group.forEach((entry, i) => offsets.set(entry.truck.id, points[i]));
   }
   return offsets;
+}
+
+// The trucks in both `prev` and `next` whose offset changed: `useMapLibre` moves these
+// markers (a truck joining or leaving a spot moves the others there). A truck only in
+// `next` is new, and its marker is built with its offset.
+export function changedOffsets(
+  prev: ReadonlyMap<TruckId, PixelOffset>,
+  next: ReadonlyMap<TruckId, PixelOffset>,
+): [TruckId, PixelOffset][] {
+  const changed: [TruckId, PixelOffset][] = [];
+  for (const [truckId, offset] of next) {
+    const before = prev.get(truckId);
+    if (before && (before[0] !== offset[0] || before[1] !== offset[1])) changed.push([truckId, offset]);
+  }
+  return changed;
 }
 
 // --- Popup text ------------------------------------------------------------------------

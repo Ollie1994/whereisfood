@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   diffMarkers,
+  changedOffsets,
   fanOffsets,
   freshnessText,
   hoursText,
@@ -343,14 +344,22 @@ describe("fanOffsets", () => {
     expect(tie.get("b")).toEqual([10, 0]);
   });
 
-  it("keeps neighbours about 20 px apart (19 after rounding) however many share a spot", () => {
-    for (const n of [3, 4, 5, 8]) {
+  it("keeps every pair at least 20 px apart after rounding, however many share a spot", () => {
+    for (let n = 2; n <= 10; n++) {
       const list = Array.from({ length: n }, (_, i) => named(`t${i}`, `Bil ${i}`));
       const offsets = [...fanOffsets(markers(...list)).values()];
       for (let i = 0; i < n; i++) {
-        for (let j = i + 1; j < n; j++) expect(apart(offsets[i], offsets[j])).toBeGreaterThanOrEqual(19);
+        for (let j = i + 1; j < n; j++) expect(apart(offsets[i], offsets[j])).toBeGreaterThanOrEqual(20);
       }
     }
+  });
+
+  it("grows the radius only as far as the spacing needs", () => {
+    // Six: the radius 20 that 20 / 2 / sin(30°) gives rounds two neighbours to 19.7 px
+    // apart, so it grows to 21.
+    const six = [...fanOffsets(markers(...Array.from({ length: 6 }, (_, i) => named(`t${i}`, `Bil ${i}`)))).values()];
+    expect(six[0]).toEqual([0, -21]);
+    expect(fanOffsets(markers(named("a", "A"), named("b", "B"))).get("a")).toEqual([-10, 0]);
   });
 
   it("fans only the trucks that share a spot: both coordinates equal", () => {
@@ -369,6 +378,23 @@ describe("fanOffsets", () => {
     expect(offsets.get("t2")).toEqual([-10, 0]);
     expect(offsets.get("t1")).toEqual([10, 0]);
   });
+});
+
+describe("changedOffsets", () => {
+  const offsets = (...pairs: [string, [number, number]][]) => new Map(pairs);
+
+  it("lists a truck in both whose offset changed, and nothing else", () => {
+    const prev = offsets(["a", [0, 0]], ["b", [-10, 0]], ["gone", [10, 0]]);
+    const next = offsets(["a", [-10, 0]], ["b", [-10, 0]], ["new", [10, 0]]);
+    expect(changedOffsets(prev, next)).toEqual([["a", [-10, 0]]]);
+  });
+
+  it("sees a change in either coordinate", () => {
+    expect(changedOffsets(offsets(["a", [0, -12]]), offsets(["a", [0, -13]]))).toEqual([["a", [0, -13]]]);
+    expect(changedOffsets(offsets(["a", [10, 0]]), offsets(["a", [11, 0]]))).toEqual([["a", [11, 0]]]);
+    expect(changedOffsets(offsets(["a", [10, 0]]), offsets(["a", [10, 0]]))).toEqual([]);
+  });
+
 });
 
 describe("text helpers", () => {
