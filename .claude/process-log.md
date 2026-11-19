@@ -206,12 +206,15 @@ are grouped by hand: rows 308–314 are the first
 range that needs it (the Phase 5 retrospective). **A review Claude was asked to run is
 `code-review`**, however it was done and whatever it reviewed: a `/code-review` round,
 or a read-through of a plan, an issue or a doc. The text says how and what: the round
-and its target (`/code-review` r2 on PR #173, scoped to round 1's diff; or "plan
-read-through"). From the values block's `review-form-from-row`, `check` requires the
-text to start `r<N> on PR #<n>, full` or `r<N> on PR #<n>, scoped` (anything may
-follow, such as the range), or `read-through`; it checks the form, not that the round or
-PR is right (IS #421). Earlier rows stay as written: 774–789 have no round text, and
-790–792 a round with no PR. The owner's own findings, their own read of a plan included, are `user` (Phase 5 plan
+and its target (`r2 on PR #173, scoped to round 1's diff`; or `read-through of the
+plan`). From the values block's `review-form-from-row`, `check` requires the text to
+start `r<N> on PR #<n>, full` or `r<N> on PR #<n>, scoped` (whole words; anything may
+follow, such as the range), or `read-through <target>`, with at most one word before it
+(`narrow read-through on PR #280`); a review before its PR exists is a read-through
+(`read-through 1 of IS #373`). It checks the form, not that the round or PR is right
+(IS #421). Earlier rows stay as written. Of the `code-review` rows from 315 to 792,
+these don't have the form: 50 of the 54 in 315–376 (all but 368, 369, 372 and 373), 532,
+and the 15 in 774–792 (round 1's probe on PR #424). The owner's own findings, their own read of a plan included, are `user` (Phase 5 plan
 decision #22). A `plan-review` group existed until PR #173; no checked row used it,
 and the Phase 3 and 4 retrospectives' "plan / issue review" counts are dated records of
 the rule it came from. **Anything else is grouped by who found it**: `self` while doing
@@ -222,7 +225,7 @@ other goes in the text. Older free-text rows name that one first (rows 289, 296)
 
 - **code-review:** a review Claude was asked to run, whoever asked: a `/code-review`
   round (`r2 on PR #173, scoped …` in the text) or a
-  read-through ("read-through of the plan").
+  read-through (`read-through of the plan`).
 - **self:** found while doing the work: writing, running, probing, mutation testing,
   re-reading output, or a check run as part of it (the gates, the end-of-phase check of
   row 303).
@@ -249,7 +252,7 @@ artifact-drift-rows: 197-267
 cap-from-row: 321
 cap-miss: 600
 cap-fix: 300
-review-form-from-row: 797
+review-form-from-row: 793
 ```
 
 ### Cause taxonomy
@@ -1081,6 +1084,7 @@ Old rows that point at them are now pointing there: "see note" (rows 14, 15, 17,
 | 794 | 2026-11-19 | PR #423 / IS #393 | `process-log` | **Round 1's fix for action 2's evidence said the field isn't aimed at the Phase 8 retrospective's five rows because they came from docs, and #422's "Does not catch" said all five were docs-sourced.** Read row by row, 608 and 677 were claims not checked (round 2 found the field passes them too: each had a step on the real target); only 640 and 699 came from docs, and 635 was a probe on the real target that couldn't fail. Written from Phase 8's "from docs or reasoning" heading, not the rows. | `self` the claims check before round 2 on PR #423 | `pre-merge` | `overcorrection` | The section names which of the five the field reaches (608, 677) and why the other three pass; #422's "Does not catch" names 640, 699 and 635, with a dated note. |
 | 795 | 2026-11-19 | PR #423 / IS #393 | `process-log` | `/code-review` round 2 on #423, scoped to `af8409b..46d919b`, found 9; 8 applied (1 by the owner's call), 1 moot (#422 closed). **Round 1's corrected evidence for the stand-ins field still overclaimed: a template sees only plan and issue text, where 780's, 744's, 752's and 777's claims never were, and Step 5 passes a claim any step checks on the real target (727, 608, 677); it reached one merged row, 726.** Also: the class bullet and #422's Context kept "docs or reasoning"; 759's headline is a stale comment; read-through 1 was a first review; "two classes"; row 794 on 699; a wrap. | `code-review` r2 on PR #423, scoped to `af8409b..46d919b` | `pre-merge` | `overcorrection` | The owner dropped the field (#422 closed, off #394's blockers); the section records it as offered and not taken, with what it reaches. 759 under tests; 20 of 54 and 0 of 1; the summary, the class bullet and row 794 corrected; rewrapped. |
 | 796 | 2026-11-19 | PR #423 / IS #393 | `process-log` | `/code-review` round 3 on #423, full, the ceiling's last, found 7, none in what runs; all applied. **Round 2's paragraph on the dropped field listed 727 among the Phase 8 retrospective's five and left out 635, and #422's closing comment copied it; closed #422's body still held the rejected evidence.** Also: "three" cited to row 795, though row 793 holds it; rounds per PR on two bases; action 4 listed only what the claims check caught; row 795's "all applied" and its scope. | `code-review` r3 on PR #423, full | `pre-merge` | `overcorrection` | 727 accounted for in Phase 9's class, 635 in Phase 8's five, in the section and the comment; #422's body points to the corrected evidence; row 793 cited; 3.2 to 3.8 on one base; 735 and 777 under action 4; row 795 corrected. |
+| 797 | 2026-11-19 | PR #424 / IS #421 | `process-log` | `/code-review` round 1 on #424, full, found 10; 9 applied after the owner's call on the spec, 1 declined. **The form check passed `fuller` and a bare `read-through`, refused rows 592, 596 and 600's `narrow read-through`, and its key had no boundary guard like caught-by-from-row's, so it could be set past conforming rows silently.** Also: the Columns' own examples failed the form; "earlier rows" listed only 774–792; a second group parser; one-space strictness; a key below 315 accepted; no boundary control. Declined: rounds `on IS #`. | `code-review` r1 on PR #424, full | `pre-merge` | `incomplete-guard` | Whole words, a read-through target, one qualifier; the boundary guard and a floor at caught-by-from-row; key 793; one parser; the examples and the earlier rows from a probe; 23 controls. Declined: no row ever used it, and a pre-PR review is a read-through. |
 
 ---
 
