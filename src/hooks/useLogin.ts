@@ -37,8 +37,14 @@ export function useLogin(): {
           emailRedirectTo: new URL("/auth/callback", window.location.origin).href,
         },
       });
-      setStatus(loginStatusFor(error));
-    } catch {
+      const next = loginStatusFor(error);
+      // Logged, as `useMfa`'s verify is: the form's "failed" text is the same for any cause.
+      if (next === "failed") console.error("[login] the send answered:", error);
+      setStatus(next);
+    } catch (err) {
+      // `signInWithOtp` returns an `AuthError` and rethrows anything else (its `catch`, read in
+      // `@supabase/auth-js` 2.106.2).
+      console.error("[login] the send threw:", err);
       setStatus("failed");
     }
   }
