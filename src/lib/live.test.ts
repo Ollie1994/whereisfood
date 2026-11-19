@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   diffMarkers,
+  fanOffsets,
   freshnessText,
   hoursText,
   isLiveEntry,
@@ -304,6 +305,69 @@ describe("diffMarkers", () => {
   ])("updates on a change of %s", (_name, change) => {
     const changed = open(entry(change));
     expect(diffMarkers(byTruck(base), byTruck(changed))).toEqual({ add: [], update: [changed], remove: [] });
+  });
+});
+
+describe("fanOffsets", () => {
+  const named = (id: string, name: string, overrides: Partial<LiveEntry> = {}): MarkerEntry => ({
+    entry: truck(id, { ...overrides, truck: { ...entry().truck, name } }),
+    status: "open",
+  });
+  const markers = (...list: MarkerEntry[]) => new Map(list.map((m) => [m.entry.truck.id, m]));
+  const elsewhere = { latitude: 57.7, longitude: 11.96 };
+  // Centre-to-centre distance between two offsets.
+  const apart = (a: number[], b: number[]) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+
+  it("leaves a truck alone at its spot, and trucks at different spots, at [0, 0]", () => {
+    expect(fanOffsets(markers(named("t1", "Tacobilen")))).toEqual(new Map([["t1", [0, 0]]]));
+    expect(fanOffsets(markers(named("t1", "Tacobilen"), named("t2", "Burgarbilen", elsewhere)))).toEqual(
+      new Map([["t1", [0, 0]], ["t2", [0, 0]]]),
+    );
+    expect(fanOffsets(new Map())).toEqual(new Map());
+  });
+
+  it("puts two trucks at one spot side by side, in name order whatever the map's order", () => {
+    const expected = new Map([["t2", [-12, 0]], ["t1", [12, 0]]]);
+    expect(fanOffsets(markers(named("t1", "Tacobilen"), named("t2", "Burgarbilen")))).toEqual(expected);
+    expect(fanOffsets(markers(named("t2", "Burgarbilen"), named("t1", "Tacobilen")))).toEqual(expected);
+  });
+
+  it("orders by Swedish alphabetical order, then by truck id", () => {
+    // In Swedish, Ö sorts after Z; "Öl" comes last.
+    const three = fanOffsets(markers(named("t1", "Öl"), named("t2", "Zebra"), named("t3", "Apa")));
+    expect(three.get("t3")).toEqual([0, -13]); // first: at the top
+    expect(three.get("t2")![0]).toBeGreaterThan(0); // second: clockwise, right
+    expect(three.get("t1")![0]).toBeLessThan(0); // third: left
+    const tie = fanOffsets(markers(named("b", "Samma"), named("a", "Samma")));
+    expect(tie.get("a")).toEqual([-12, 0]);
+    expect(tie.get("b")).toEqual([12, 0]);
+  });
+
+  it("keeps neighbours about 22 px apart (21 after rounding) however many share a spot", () => {
+    for (const n of [3, 4, 5, 8]) {
+      const list = Array.from({ length: n }, (_, i) => named(`t${i}`, `Bil ${i}`));
+      const offsets = [...fanOffsets(markers(...list)).values()];
+      for (let i = 0; i < n; i++) {
+        for (let j = i + 1; j < n; j++) expect(apart(offsets[i], offsets[j])).toBeGreaterThanOrEqual(21);
+      }
+    }
+  });
+
+  it("fans only the trucks that share a spot: both coordinates equal", () => {
+    const offsets = fanOffsets(
+      markers(
+        named("t1", "Tacobilen"),
+        named("t2", "Burgarbilen"),
+        named("t3", "Pizzabilen", elsewhere),
+        named("t4", "Kebabbilen", { latitude: entry().latitude, longitude: 11.96 }),
+        named("t5", "Fiskbilen", { latitude: 57.7, longitude: entry().longitude }),
+      ),
+    );
+    expect(offsets.get("t3")).toEqual([0, 0]);
+    expect(offsets.get("t4")).toEqual([0, 0]);
+    expect(offsets.get("t5")).toEqual([0, 0]);
+    expect(offsets.get("t2")).toEqual([-12, 0]);
+    expect(offsets.get("t1")).toEqual([12, 0]);
   });
 });
 

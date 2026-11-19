@@ -4,7 +4,7 @@ import { flushSync } from "react-dom";
 // Namespace import, for the reason `map-setup.ts` gives.
 import * as maplibregl from "maplibre-gl";
 import TruckPopup from "@/components/Map/TruckPopup";
-import { diffMarkers, statusText, type MarkerEntry, type TruckId } from "@/lib/live";
+import { diffMarkers, fanOffsets, statusText, type MarkerEntry, type PixelOffset, type TruckId } from "@/lib/live";
 import { NO_WEBGL2, createBaseMap } from "@/lib/map-setup";
 
 // Open is filled, later is outlined (plan, open decision 8). The colour and size are
@@ -17,13 +17,21 @@ type OpenPopup = { truckId: TruckId; popup: maplibregl.Popup; root: Root };
 // init effect built and hasn't removed. `shown` is the `markers` last applied, and
 // `live` holds one `maplibregl.Marker` for each of its trucks. `open` is set exactly
 // while a popup is open: its `close` handler clears it, however the popup closed.
+// `offsets` is `fanOffsets(shown)`: each live marker's pixel offset, which its popup shares.
 type MarkerLayer = {
   map: maplibregl.Map | null;
   live: Map<TruckId, maplibregl.Marker>;
   shown: ReadonlyMap<TruckId, MarkerEntry>;
+  offsets: ReadonlyMap<TruckId, PixelOffset>;
   open: OpenPopup | null;
   now: Date;
 };
+
+const NO_OFFSET: PixelOffset = [0, 0];
+
+function offsetOf(layer: MarkerLayer, truckId: TruckId): PixelOffset {
+  return layer.offsets.get(truckId) ?? NO_OFFSET;
+}
 
 function lngLatOf({ entry }: MarkerEntry): [number, number] {
   return [entry.longitude, entry.latitude];
@@ -77,14 +85,15 @@ function closeOpenPopup(layer: MarkerLayer) {
 function addMarker(map: maplibregl.Map, layer: MarkerLayer, entry: MarkerEntry) {
   const truckId = entry.entry.truck.id;
   const el = createMarkerElement(entry);
-  layer.live.set(truckId, new maplibregl.Marker({ element: el }).setLngLat(lngLatOf(entry)).addTo(map));
+  const marker = new maplibregl.Marker({ element: el, offset: offsetOf(layer, truckId) });
+  layer.live.set(truckId, marker.setLngLat(lngLatOf(entry)).addTo(map));
 
   function openPopup() {
     closeOpenPopup(layer);
 
     const content = document.createElement("div");
     const root = createRoot(content);
-    const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: true });
+    const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: true, offset: offsetOf(layer, truckId) });
     const open: OpenPopup = { truckId, popup, root };
     popup.on("close", () => {
       if (layer.open === open) layer.open = null;
@@ -136,7 +145,7 @@ export function useMapLibre(
   // effects run in. The map itself is only in the ref.
   const [builds, setBuilds] = useState(0);
   const [failed, setFailed] = useState(false);
-  const layerRef = useRef<MarkerLayer>({ map: null, live: new Map(), shown: new Map(), open: null, now });
+  const layerRef = useRef<MarkerLayer>({ map: null, live: new Map(), shown: new Map(), offsets: new Map(), open: null, now });
 
   useEffect(() => {
     const layer = layerRef.current;
@@ -158,6 +167,7 @@ export function useMapLibre(
       closeOpenPopup(layer);
       layer.live.clear();
       layer.shown = new Map();
+      layer.offsets = new Map();
       layer.map = null;
       created.remove();
     };
@@ -179,7 +189,9 @@ export function useMapLibre(
     layer.now = now;
 
     const { add, update, remove } = diffMarkers(layer.shown, markers);
+    const prevOffsets = layer.offsets;
     layer.shown = markers;
+    layer.offsets = fanOffsets(markers);
 
     for (const entry of add) addMarker(current, layer, entry);
     for (const entry of update) {
@@ -201,6 +213,16 @@ export function useMapLibre(
       marker?.remove();
       if (popup) closeOpenPopup(layer);
       layer.live.delete(truckId);
+    }
+
+    // A truck joining or leaving a spot moves the others there (`fanOffsets`): only a
+    // marker whose offset changed is touched, and an open popup moves with its marker.
+    // New markers were built with theirs.
+    for (const [truckId, offset] of layer.offsets) {
+      const before = prevOffsets.get(truckId);
+      if (!before || (before[0] === offset[0] && before[1] === offset[1])) continue;
+      layer.live.get(truckId)?.setOffset(offset);
+      if (layer.open?.truckId === truckId) layer.open.popup.setOffset(offset);
     }
 
     // The status, hours and freshness text follow the tick (e.g. across Stockholm

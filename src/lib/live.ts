@@ -157,6 +157,49 @@ export function diffMarkers(
   return diff;
 }
 
+// --- Markers that share a spot ----------------------------------------------------------
+
+export type PixelOffset = [number, number];
+
+// The marker is 18 px across (`useMapLibre`'s `createMarkerElement`); neighbours in a fan
+// are at least this far apart, centre to centre, so 4 px show between them.
+const FAN_SPACING = 22;
+const FAN_MIN_RADIUS = 12;
+
+// The owner's choice on IS #248: markers whose entries have exactly the same coordinates
+// (a known spot from `spots.ts` gives every truck there the same pair) are drawn apart on
+// screen, each at its real coordinates with a pixel offset. Ordered by truck name, Swedish
+// alphabetical, ties by truck id, so the same trucks keep the same places. Two sit side by
+// side; three or more on a circle from the top, clockwise, its radius grown so neighbours
+// keep `FAN_SPACING`. A truck alone gets [0, 0].
+export function fanOffsets(markers: ReadonlyMap<TruckId, MarkerEntry>): Map<TruckId, PixelOffset> {
+  const spots = new Map<string, LiveEntry[]>();
+  for (const { entry } of markers.values()) {
+    const key = `${entry.latitude} ${entry.longitude}`;
+    spots.set(key, [...(spots.get(key) ?? []), entry]);
+  }
+  const offsets = new Map<TruckId, PixelOffset>();
+  for (const group of spots.values()) {
+    group.sort(
+      (a, b) =>
+        a.truck.name.localeCompare(b.truck.name, "sv") ||
+        (a.truck.id < b.truck.id ? -1 : a.truck.id > b.truck.id ? 1 : 0),
+    );
+    const n = group.length;
+    if (n === 1) {
+      offsets.set(group[0].truck.id, [0, 0]);
+      continue;
+    }
+    const radius = Math.max(FAN_MIN_RADIUS, Math.ceil(FAN_SPACING / 2 / Math.sin(Math.PI / n)));
+    group.forEach((entry, i) => {
+      // Two: left and right. More: from the top (-90°), clockwise on screen (y grows down).
+      const angle = n === 2 ? Math.PI * (i + 1) : -Math.PI / 2 + (2 * Math.PI * i) / n;
+      offsets.set(entry.truck.id, [Math.round(radius * Math.cos(angle)) || 0, Math.round(radius * Math.sin(angle)) || 0]);
+    });
+  }
+  return offsets;
+}
+
 // --- Popup text ------------------------------------------------------------------------
 
 // Stockholm wall time through `stockholm.ts`'s `Intl` reading, not date-fns-tz 3.2.0's
