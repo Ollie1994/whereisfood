@@ -53,6 +53,13 @@ const CASES = [
     wrongShape: { status: 404, contentType: JSON_TYPE, json: {} },
   },
   {
+    path: "/finnsinte",
+    right: { status: 404, contentType: HTML },
+    // A page served for a path no page matches.
+    wrongStatus: { status: 200, contentType: HTML },
+    wrongShape: { status: 404, contentType: JSON_TYPE, json: {} },
+  },
+  {
     path: "/admin/Login",
     right: { status: 308, location: "/admin/login", origin: "http://127.0.0.1:3000" },
     // Let through to the `/admin` 404 rather than sent to the login's lower-case path.

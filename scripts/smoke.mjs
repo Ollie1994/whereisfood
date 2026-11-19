@@ -34,6 +34,9 @@ export const EXPECTATIONS = [
   // #414), so run against a Vercel deploy this path expects the wrong answer: these are
   // `next start`'s.
   { path: "/Admin/login", status: 404, shape: "html", csp: "static" },
+  // A public path no page matches: the root `not-found.tsx` (IS #413), built ahead with the
+  // static CSP.
+  { path: "/finnsinte", status: 404, shape: "html", csp: "static" },
   // Forms the proxy runs on but sets no CSP for (`isAdminPagePath`), so they rest on
   // `headers()`' static one (PR #411, rounds 3 and 4).
   { path: "/admin.json", status: 303, shape: "redirect", location: "/admin/login", csp: "static" },
