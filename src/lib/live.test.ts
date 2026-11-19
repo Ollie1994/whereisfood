@@ -3,6 +3,7 @@ import {
   diffMarkers,
   changedOffsets,
   planMarkers,
+  roundPx,
   fanOffsets,
   freshnessText,
   hoursText,
@@ -345,16 +346,6 @@ describe("fanOffsets", () => {
     expect(tie.get("b")).toEqual([10, 0]);
   });
 
-  it("keeps every pair at least 20 px apart after rounding, for 2 to 10 at a spot", () => {
-    for (let n = 2; n <= 10; n++) {
-      const list = Array.from({ length: n }, (_, i) => named(`t${i}`, `Bil ${i}`));
-      const offsets = [...fanOffsets(markers(...list)).values()];
-      for (let i = 0; i < n; i++) {
-        for (let j = i + 1; j < n; j++) expect(apart(offsets[i], offsets[j])).toBeGreaterThanOrEqual(20);
-      }
-    }
-  });
-
   it("grows the radius only as far as the spacing needs", () => {
     // Six: the radius 20 that 20 / 2 / sin(30°) gives rounds two neighbours to 19.7 px
     // apart, so it grows to 21.
@@ -363,15 +354,14 @@ describe("fanOffsets", () => {
     expect(fanOffsets(markers(named("a", "A"), named("b", "B"))).get("a")).toEqual([-10, 0]);
   });
 
-  it("finds the smallest radius from 10 that keeps 20 px, as a search from 10 by single pixels does", () => {
+  it("keeps every pair 20 px apart at the smallest radius from 10 that does, for 2 to 12 at a spot", () => {
     // Only the search is independent here: the layout copies the code's (left and right for
-    // two; from the top, clockwise, for more; half away from zero), so it checks the bound the
-    // search starts at, not the points. The mirror test below checks the points.
-    const round = (v: number) => Math.sign(v) * Math.floor(Math.abs(v) + 0.5 + 1e-9) || 0;
+    // two; from the top, clockwise, for more; `roundPx`), so it checks the 20 px and the bound
+    // the search starts at, not the points. The mirror test below checks the points.
     const layout = (n: number, r: number) =>
       Array.from({ length: n }, (_, i) => {
         const a = n === 2 ? Math.PI * (i + 1) : -Math.PI / 2 + (2 * Math.PI * i) / n;
-        return [round(r * Math.cos(a)), round(r * Math.sin(a))];
+        return [roundPx(r * Math.cos(a)), roundPx(r * Math.sin(a))];
       });
     const ok = (pts: number[][]) => pts.every((p, i) => pts.every((q, j) => j <= i || apart(p, q) >= 20));
     for (let n = 2; n <= 12; n++) {
@@ -382,9 +372,9 @@ describe("fanOffsets", () => {
     }
   });
 
-  it("draws every fan mirror-symmetric about the vertical through the spot", () => {
+  it("draws a fan mirror-symmetric about the vertical through the spot, for 2 to 12 at a spot", () => {
     // Clockwise from the top, point i and point n - i mirror each other (two: left and right).
-    // Six trucks once came out 20 px apart on the right and 22 on the left (round 3, PR #436).
+    // Why it might not: `roundPx`'s comment.
     for (let n = 2; n <= 12; n++) {
       const list = Array.from({ length: n }, (_, i) => named(`t${String(i).padStart(2, "0")}`, `Bil ${String(i).padStart(2, "0")}`));
       const pts = [...fanOffsets(markers(...list)).values()];
@@ -395,6 +385,19 @@ describe("fanOffsets", () => {
       for (let i = 1; i < n; i++) expect(pts[n - i]).toEqual([-pts[i][0] || 0, pts[i][1]]);
       expect(pts[0][0]).toBe(0);
     }
+  });
+
+  it("rounds a pixel half away from zero, float error near .5 absorbed, never to -0", () => {
+    expect(roundPx(10.5)).toBe(11);
+    expect(roundPx(-10.5)).toBe(-11);
+    expect(roundPx(10.500000000000007)).toBe(11);
+    expect(roundPx(10.499999999999996)).toBe(11);
+    expect(roundPx(-10.500000000000002)).toBe(-11);
+    expect(roundPx(10.4999)).toBe(10);
+    expect(roundPx(-2.6)).toBe(-3);
+    expect(Object.is(roundPx(-0), 0)).toBe(true);
+    expect(Object.is(roundPx(-1e-17), 0)).toBe(true);
+    expect(Object.is(roundPx(-0.4), 0)).toBe(true);
   });
 
   it("fans only the trucks that share a spot: both coordinates equal", () => {

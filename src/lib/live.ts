@@ -170,7 +170,7 @@ const FAN_MIN_RADIUS = 10;
 // Half away from zero, after absorbing float error near .5: `Math.round` rounds -10.5 up to
 // -10, and 21 sin(150°) is 10.500000000000007 where 21 sin(-30°) is -10.5, so a six-truck fan
 // came out 20 px apart on its right and 22 on its left (probed, round 3 on PR #436).
-function roundPx(value: number): number {
+export function roundPx(value: number): number {
   return Math.sign(value) * Math.floor(Math.abs(value) + 0.5 + 1e-9) || 0;
 }
 
@@ -202,9 +202,10 @@ function closestPair(points: readonly PixelOffset[]): number {
 // screen, each at its real coordinates with a pixel offset. Ordered by truck name, Swedish
 // alphabetical, ties by truck id, so the same trucks keep the same places. The radius is
 // the smallest from `FAN_MIN_RADIUS` up, in whole pixels, at which the rounded points keep
-// `FAN_SPACING`. The search starts where that can first happen: rounding moves a point at
-// most √2/2 px, so a pair at most √2 px, and below `(FAN_SPACING - √2) / (2 sin(π/n))`
-// neighbours are too close however they round. A truck alone gets [0, 0].
+// `FAN_SPACING`. The search starts where that can first happen: `roundPx` moves a coordinate
+// at most 0.5 px plus its 1e-9 epsilon, so a point at most a hair over √2/2 px and a pair a
+// hair over √2 px, and below `(FAN_SPACING - √2 - 1e-6) / (2 sin(π/n))` neighbours are too
+// close however they round. A truck alone gets [0, 0].
 export function fanOffsets(markers: ReadonlyMap<TruckId, MarkerEntry>): Map<TruckId, PixelOffset> {
   const spots = new Map<string, LiveEntry[]>();
   for (const { entry } of markers.values()) {
@@ -225,7 +226,7 @@ export function fanOffsets(markers: ReadonlyMap<TruckId, MarkerEntry>): Map<Truc
       offsets.set(group[0].truck.id, [0, 0]);
       continue;
     }
-    let radius = Math.max(FAN_MIN_RADIUS, Math.ceil((FAN_SPACING - Math.SQRT2) / (2 * Math.sin(Math.PI / n))));
+    let radius = Math.max(FAN_MIN_RADIUS, Math.ceil((FAN_SPACING - Math.SQRT2 - 1e-6) / (2 * Math.sin(Math.PI / n))));
     let points = fanPoints(n, radius);
     while (closestPair(points) < FAN_SPACING) points = fanPoints(n, ++radius);
     group.forEach((entry, i) => offsets.set(entry.truck.id, points[i]));
