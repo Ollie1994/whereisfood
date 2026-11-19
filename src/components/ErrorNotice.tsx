@@ -6,8 +6,9 @@
 // which Next's TS plugin flags).
 //
 // The heading takes focus on mount (`useFocusOnMount`), so a screen reader reads it, and
-// `title` names the page (the owner's choices and wording, IS #438). React's `<title>`, since
-// an error page can't export `metadata` (Next's `error.md`, 16.4).
+// `title` names the page (the owner's choices and wording, IS #438). React's `<title>`: an
+// error page is a Client Component (Next's `error.md`, 16.4), and `metadata` exports are
+// only supported in Server Components (`generate-metadata.md`).
 import { SMALL_BUTTON } from "@/components/Admin/styles";
 import { useFocusOnMount } from "@/hooks/useFocusOnMount";
 
