@@ -278,9 +278,13 @@ said otherwise: Phase 4 plan decision #14.
   404 included (`admin/[...missing]`, under that layout): a page built at build time carries
   no nonce, so the CSP blocks its scripts (Next's CSP guide). Its 404 and error pages are
   its own (`admin/not-found.tsx`, `admin/error.tsx`), styled by classes: Next's built-in
-  ones apply inline styles, which the CSP blocks. The build's route table shows each `/admin`
-  page as `ƒ`. In CI only `/admin/login`'s is checked (smoke's nonce check); the others,
-  behind a session, are the route table's and the browser checks'
+  ones apply inline styles, which the CSP blocks. An error in the admin layout itself reaches
+  the root's `error.tsx` (classes too; without the admin nav or "Logga ut"), seen in a browser
+  on a full load under the nonce CSP, not on a client-side navigation (IS #413's PR); one in
+  the root layout, or while the root error page itself renders, would reach the built-in
+  screen (no `global-error.tsx`). The build's route table shows each `/admin` page as `ƒ`. In
+  CI only `/admin/login`'s is checked (smoke's nonce check); the others, behind a session, are
+  the route table's and the browser checks'
 - A new host a page loads from or calls (a script, an API, tiles) goes into `csp.ts`, then a
   browser check reads the console for violations. `smoke.mjs` checks the headers on what it
   reaches without a session; `next.config.test.ts` which paths get which; `proxy.test.ts` the
