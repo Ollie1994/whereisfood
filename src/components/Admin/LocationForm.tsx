@@ -11,7 +11,8 @@ import type { Truck } from "@/lib/types";
 // A new entry, or an edit of `editing`. Creating lists active trucks only; an edit shows
 // the entry's own truck read-only, an inactive one too, since a patch can't change it
 // (Phase 7 plan, step 7). Its state is `useLocationForm`'s and the place picker's
-// `usePlacePicker`'s, held by `AdminLocations`.
+// `usePlacePicker`'s, held by `AdminLocations`. `autoComplete="off"` on the form: why is
+// `TruckForm`'s.
 export default function LocationForm({
   form,
   picker,
@@ -32,6 +33,7 @@ export default function LocationForm({
 
   return (
     <form
+      autoComplete="off"
       className="flex flex-col gap-4"
       onSubmit={(event) => {
         event.preventDefault();
