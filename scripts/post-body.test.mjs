@@ -17,17 +17,43 @@ describe("textProblems", () => {
     expect(textProblems(`a${String.fromCharCode(0x0b)}b${String.fromCharCode(0x0c)}c`)).toHaveLength(2);
     expect(textProblems("a\tb\r\nc\n")).toEqual([]);
   });
-  it("names each invisible character by code point, line and column (probe PR #428)", () => {
-    for (const cp of [0x00a0, 0x200b, 0x200c, 0x200d, 0x2028, 0x2029, 0x2060, 0xfeff]) {
+  const cps = (...xs) => xs.map((c) => String.fromCodePoint(c)).join("");
+  const NAMES = [
+    [0x00a0, "no-break space"], [0x00ad, "soft hyphen"], [0x200b, "zero-width space"], [0x200c, "zero-width non-joiner"],
+    [0x200d, "zero-width joiner"], [0x200e, "left-to-right mark"], [0x200f, "right-to-left mark"], [0x2028, "line separator"],
+    [0x2029, "paragraph separator"], [0x202a, "left-to-right embedding"], [0x202b, "right-to-left embedding"],
+    [0x202c, "pop directional formatting"], [0x202d, "left-to-right override"], [0x202e, "right-to-left override"],
+    [0x2060, "word joiner"], [0x2066, "left-to-right isolate"], [0x2067, "right-to-left isolate"], [0x2068, "first strong isolate"],
+    [0x2069, "pop directional isolate"], [0xfe0f, "emoji presentation selector"], [0xfeff, "byte-order mark"],
+  ];
+  it("names each invisible character by code point, name, line and column, and marks it in the excerpt (probe PR #428)", () => {
+    for (const [cp, name] of NAMES) {
       const hex = cp.toString(16).toUpperCase().padStart(4, "0");
-      expect(textProblems(`ok\nab${String.fromCodePoint(cp)}c`), hex).toEqual([expect.stringContaining(`line 2, column 3: an invisible character, U+${hex}`)]);
+      const [p, ...rest] = textProblems(`ok\nab${cps(cp)}c`);
+      expect(rest, hex).toEqual([]);
+      expect(p, hex).toContain(`line 2, column 3: an invisible character, U+${hex} (${name}): …ab<U+${hex}>c…`);
     }
   });
-  it("keeps other non-ASCII text, and a joiner between two emoji", () => {
-    expect(textProblems("Ställ in, café, naïve, 🤖, – … →")).toEqual([]);
-    const family = [0x1f468, 0x200d, 0x1f469, 0x200d, 0x1f467].map((c) => String.fromCodePoint(c)).join("");
-    expect(textProblems(`a ${family} b`)).toEqual([]);
-    expect(textProblems(`a${String.fromCodePoint(0x200d)}b`)).toHaveLength(1);
+  it("counts columns in characters, so an emoji before it is one", () => {
+    expect(textProblems(`${cps(0x1f916, 0x1f916, 0x00a0)}x`)).toEqual([expect.stringContaining("column 3:")]);
+    expect(textProblems(`${cps(0x1f916)}${BS}u0001`)).toEqual([expect.stringContaining("column 2:")]);
+  });
+  it("keeps other non-ASCII text, and the joiners and selectors that build an emoji", () => {
+    expect(textProblems("Ställ in, café, naïve, – … →")).toEqual([]);
+    const kept = {
+      family: cps(0x1f468, 0x200d, 0x1f469, 0x200d, 0x1f467),
+      "skin tone at a laptop": cps(0x1f469, 0x1f3fd, 0x200d, 0x1f4bb),
+      "rainbow flag": cps(0x1f3f3, 0xfe0f, 0x200d, 0x1f308),
+      "red heart": cps(0x2764, 0xfe0f),
+      "check mark": cps(0x2714, 0xfe0f),
+      "keycap 1": cps(0x31, 0xfe0f, 0x20e3),
+    };
+    for (const [name, s] of Object.entries(kept)) expect(textProblems(`a ${s} b`), name).toEqual([]);
+  });
+  it("refuses a joiner or selector that builds no emoji", () => {
+    expect(textProblems(`a${cps(0x200d)}b`)).toHaveLength(1);
+    expect(textProblems(`${cps(0x1f916, 0x200d)}b`)).toHaveLength(1);
+    expect(textProblems(`a${cps(0xfe0f)}`)).toHaveLength(1);
   });
   it("takes the escape's hex digits in either case", () => {
     expect(textProblems(`${BS}u000c`)).toHaveLength(1);

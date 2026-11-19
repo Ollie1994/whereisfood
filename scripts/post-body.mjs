@@ -27,11 +27,13 @@
 //     or `gh pr create --body-file`; then the first form, on the same file, reads it back.
 //
 // The checks, before anything is posted (exit 1, nothing posted): a raw control character
-// (all of C0 but tab, LF and CR); an invisible character (the no-break space, the zero-width
-// space, non-joiner and joiner, the line and paragraph separators, the word joiner and the
-// byte-order mark, by code point in INVISIBLE_NAMES; GitHub stores each unchanged, probe PR
-// #428, so a read-back can't show them; a joiner between two emoji, and a byte-order mark
-// opening the file, are kept); the escape text GitHub rewrites (above); an ATX level-2
+// (all of C0 but tab, LF and CR); an invisible character (the no-break space, the soft
+// hyphen, the zero-width space, non-joiner and joiner, the line and paragraph separators,
+// the word joiner, the bidi marks, embeddings, overrides and isolates, the emoji
+// presentation selector and the byte-order mark: INVISIBLE_NAMES lists them by code point;
+// GitHub stores each unchanged, probe PR #428, so a read-back can't show them; kept are a
+// joiner between two emoji, U+FE0F right after an emoji, and a byte-order mark opening the
+// file); the escape text GitHub rewrites (above); an ATX level-2
 // heading twice (`##` then blanks, a closing run of `#` dropped). Lines inside a fenced code
 // block (``` with no backtick after it on the line, or ~~~; closed only by a fence of the same
 // character, at least as long, with nothing after it) or an HTML comment (a line starting
@@ -73,28 +75,56 @@ const RAW_CONTROL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g;
 const REWRITTEN_ESCAPE = /\\u00(?:0[0-8CEFcef]|1[0-9A-Fa-f])/g;
 // Invisible characters GitHub stores unchanged (probe PR #428), so no read-back shows them,
 // and a tool can leave behind: PR #426's header, BOM regex and body each got one when an
-// escape was written into a file (IS #427). Built from code points, so this source holds
-// none of them.
+// escape was written into a file, and this one a U+FE0F (IS #427, row 806). Listed by code
+// point, and the pattern below built from `\u{<hex>}` escapes, so this source
+// holds none of them.
 const INVISIBLE_NAMES = new Map([
   [0x00a0, "no-break space"],
+  [0x00ad, "soft hyphen"],
   [0x200b, "zero-width space"],
   [0x200c, "zero-width non-joiner"],
   [0x200d, "zero-width joiner"],
+  [0x200e, "left-to-right mark"],
+  [0x200f, "right-to-left mark"],
   [0x2028, "line separator"],
   [0x2029, "paragraph separator"],
+  [0x202a, "left-to-right embedding"],
+  [0x202b, "right-to-left embedding"],
+  [0x202c, "pop directional formatting"],
+  [0x202d, "left-to-right override"],
+  [0x202e, "right-to-left override"],
   [0x2060, "word joiner"],
+  [0x2066, "left-to-right isolate"],
+  [0x2067, "right-to-left isolate"],
+  [0x2068, "first strong isolate"],
+  [0x2069, "pop directional isolate"],
+  [0xfe0f, "emoji presentation selector"],
   [0xfeff, "byte-order mark"],
 ]);
-const INVISIBLE = new RegExp(`[${[...INVISIBLE_NAMES.keys()].map((cp) => String.fromCodePoint(cp)).join("")}]`, "gu");
-const ZWJ = String.fromCodePoint(0x200d);
-// A zero-width joiner between two emoji builds one emoji (a family, a flag), so it stays.
-const inEmoji = (line, i) => line[i] === ZWJ && /\p{Extended_Pictographic}\uFE0F?$/u.test(line.slice(0, i)) && /^\p{Extended_Pictographic}/u.test(line.slice(i + 1));
+const BACKSLASH = String.fromCharCode(92);
+const INVISIBLE = new RegExp(`[${[...INVISIBLE_NAMES.keys()].map((cp) => `${BACKSLASH}u{${cp.toString(16)}}`).join("")}]`, "gu");
+const isPictographic = (ch) => ch !== undefined && /\p{Extended_Pictographic}/u.test(ch);
+const isSkinTone = (ch) => ch !== undefined && ch.codePointAt(0) >= 0x1f3fb && ch.codePointAt(0) <= 0x1f3ff;
+/** Whether the invisible character at code point k of `chars` belongs to an emoji: a
+ * zero-width joiner between two pictographs (the one before it may carry a skin tone or
+ * U+FE0F: a family, a woman with a skin tone at a laptop, the rainbow flag), or a U+FE0F
+ * right after an emoji (a red heart, a check mark, a keycap digit). */
+function inEmoji(chars, k) {
+  const cp = chars[k].codePointAt(0);
+  if (cp === 0xfe0f) return k > 0 && /\p{Emoji}/u.test(chars[k - 1]);
+  if (cp !== 0x200d) return false;
+  let j = k - 1;
+  while (j >= 0 && (chars[j].codePointAt(0) === 0xfe0f || isSkinTone(chars[j]))) j--;
+  return isPictographic(chars[j]) && isPictographic(chars[k + 1]);
+}
 
 const lines = (text) => text.replace(/\r\n?/g, "\n").split("\n");
 const codeName = (cp) => `U+${cp.toString(16).toUpperCase().padStart(4, "0")}`;
 const show = (s) =>
   s.replace(/[\u0000-\u001F]/g, (c) => `<0x${c.charCodeAt(0).toString(16).padStart(2, "0")}>`).replace(INVISIBLE, (c) => `<${codeName(c.codePointAt(0))}>`);
-const around = (line, i) => show(line.slice(Math.max(0, i - 30), i + 30));
+// Columns count characters (code points), not UTF-16 units, so an emoji is one.
+const column = (line, utf16Index) => [...line.slice(0, utf16Index)].length + 1;
+const around = (chars, k) => show(chars.slice(Math.max(0, k - 30), k + 30).join(""));
 
 /** Whether the text after a `<!--` ends the comment: `-->` in it, or `>` or `->` at once
  * (`<!-->` and `<!--->` are whole comments in CommonMark). */
@@ -136,16 +166,18 @@ function h2(line) {
 export function textProblems(text) {
   const out = [];
   lines(text).forEach((line, i) => {
+    const chars = [...line];
     for (const m of line.matchAll(RAW_CONTROL)) {
-      out.push(`line ${i + 1}, column ${m.index + 1}: a raw control character: …${around(line, m.index)}…`);
+      const c = column(line, m.index);
+      out.push(`line ${i + 1}, column ${c}: a raw control character: …${around(chars, c - 1)}…`);
     }
-    for (const m of line.matchAll(INVISIBLE)) {
-      if (inEmoji(line, m.index)) continue;
-      const cp = m[0].codePointAt(0);
-      out.push(`line ${i + 1}, column ${m.index + 1}: an invisible character, ${codeName(cp)} (${INVISIBLE_NAMES.get(cp)}): …${around(line, m.index)}…`);
-    }
+    chars.forEach((ch, k) => {
+      const cp = ch.codePointAt(0);
+      if (!INVISIBLE_NAMES.has(cp) || inEmoji(chars, k)) return;
+      out.push(`line ${i + 1}, column ${k + 1}: an invisible character, ${codeName(cp)} (${INVISIBLE_NAMES.get(cp)}): …${around(chars, k)}…`);
+    });
     for (const m of line.matchAll(REWRITTEN_ESCAPE)) {
-      out.push(`line ${i + 1}, column ${m.index + 1}: GitHub rewrites the text ${m[0]}; write it as \\x${m[0].slice(4)} or in words`);
+      out.push(`line ${i + 1}, column ${column(line, m.index)}: GitHub rewrites the text ${m[0]}; write it as \\x${m[0].slice(4)} or in words`);
     }
   });
   return out;
