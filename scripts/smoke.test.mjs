@@ -45,20 +45,14 @@ const CASES = [
     wrongStatus: { status: 200, contentType: JSON_TYPE, json: { trucks: [] } },
     wrongShape: { status: 401, contentType: JSON_TYPE, json: { message: "x" } },
   },
-  {
-    path: "/Admin/login",
+  // `/Admin/login`: the login served for a case variant would be the wrong status.
+  // `/finnsinte`: a page served for a path no page matches would be.
+  ...["/Admin/login", "/finnsinte"].map((path) => ({
+    path,
     right: { status: 404, contentType: HTML },
-    // The login served for a case variant.
     wrongStatus: { status: 200, contentType: HTML },
     wrongShape: { status: 404, contentType: JSON_TYPE, json: {} },
-  },
-  {
-    path: "/finnsinte",
-    right: { status: 404, contentType: HTML },
-    // A page served for a path no page matches.
-    wrongStatus: { status: 200, contentType: HTML },
-    wrongShape: { status: 404, contentType: JSON_TYPE, json: {} },
-  },
+  })),
   {
     path: "/admin/Login",
     right: { status: 308, location: "/admin/login", origin: "http://127.0.0.1:3000" },
