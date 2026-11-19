@@ -501,14 +501,17 @@ Its row stays in the preview's history.
 ## Hosted settings checklist
 
 For the owner: the security settings #390 checked in the Supabase and Vercel dashboards,
-which live outside the repo, each with its value on the preview. Phase 10 applies the list
-to production (Phase 9 plan #10). The Supabase rows are the preview project's: production's
-own project gets them in Phase 10, with its own Site URL and Redirect URLs. The Vercel rows
-are the `whereisfood` project's, which its production deploys share; the project's other
-settings (the Ignored Build Step, the environment variables' scopes) are in "Preview
-deploys", below. Each row was read on 2026-11-18 from the owner's screenshots, except the
-advisor's table (CLI runs, below) and two probes (the Enforce SSL and AAL1 rows), with the
-results recorded on IS #390. It names settings, never keys or addresses (`CLAUDE.md`,
+and Vercel's deployment retention (IS #417), which live outside the repo, each with its
+value on the preview. Phase 10 applies the list to production (Phase 9 plan #10). The
+Supabase rows are the preview project's: production's own project gets them in Phase 10,
+with its own Site URL and Redirect URLs. The Vercel rows are the `whereisfood` project's
+(the `Team →` rows, its team's), which its production deploys share, so the project's
+retention row already holds for production; the project's other settings (the Ignored
+Build Step, the environment variables' scopes) are in "Preview deploys", below. Each row was
+read on 2026-11-18 from the owner's screenshots, except the advisor's table (CLI runs,
+below) and two probes (the Enforce SSL and AAL1 rows), with the results recorded on IS #390.
+The two retention rows were set by the owner on 2026-11-19 and read from their screenshots
+that day, recorded on IS #417. It names settings, never keys or addresses (`CLAUDE.md`,
 Secrets).
 
 **Supabase, Authentication:**
@@ -573,6 +576,8 @@ Secrets).
 | Team → Deployment Protection → Default Protection for New Projects; Who Can Change Protection | Vercel Authentication, Standard Protection; neither box ticked | Kept as found |
 | Team → Deployment Protection → Access Request Permissions | Anyone | Kept as found |
 | Settings → Security → Git Fork Protection | Enabled | "Preview deploys", below |
+| Team → Build and Deployment → Deployment Retention Policy | Canceled 1 day; Errored 1 day; Pre-Production 1 week; Production 30 days; "Apply this policy to all existing projects" ticked | Set by the owner, 2026-11-19 (IS #417). A project's own policy replaces the team's (Vercel's Deployment Retention docs), so the next row is the one that holds for `whereisfood` |
+| Settings → Build and Deployment → Deployment Retention Policy | The same four values, on the project's page after the team's save | Margin under the team's 10 GB of Deployment Storage on Hobby (3.06 GB on 2026-11-19), over which deploys can be blocked and deployments deleted; Hobby's Alerts and Spend Management aren't offered (IS #389), and the docs' "Usage limit reached" notice covers Fair Use limits, which don't list it. The owner accepted (2026-11-19) that `dev`'s preview isn't shown to be exempt: after a week with no push to `dev` it can be deleted and the preview's login fail, until it is restored or `dev` is pushed. Production stays at 30 days: no Ready production deployment yet, so Phase 10 decides it. What counts, the exceptions, the costs and the recovery: IS #417's comment of 2026-11-19 |
 | Settings → General → Vercel Toolbar → Pre-Production Deployments; Production Deployments | Off; Default (the team's: on) | Pre-Production: the CSP refused its script, styles and iframe (`CLAUDE.md`, Security headers; IS #387). Production: on for team members with the Chrome extension or the toolbar menu's opt-in (the team setting's text); Phase 10 decides it with production's CSP |
 
 ---
