@@ -124,7 +124,7 @@ function inEmoji(chars, k) {
 }
 /** Whether code point k of `chars` is one the checks refuse: a raw control character, or an
  * invisible one not part of an emoji. */
-const refused = (chars, k) => {
+export const refused = (chars, k) => {
   const cp = chars[k].codePointAt(0);
   return isRawControl(cp) || (INVISIBLE_NAMES.has(cp) && !inEmoji(chars, k));
 };

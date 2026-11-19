@@ -540,6 +540,13 @@ doesn't declare). To narrow a run, use vitest directly (`npx vitest run --projec
 while others run) and files whose tests are all skipped. So glance at each project's
 file/test counts when tests are added, moved or deleted.
 
+**Invisible characters in tracked files** (IS #430): `scripts/tracked-text.test.mjs`, in the
+`unit` project, fails on any tracked text file holding a character `scripts/post-body.mjs`
+refuses in posted text (raw controls, and its invisible list, emoji kept). The tools have
+turned a written escape into the character itself (process-log row 806); write such a
+character from its code point, or as escape text. A file that must hold one goes on the
+test's `ALLOWED` list, with the reason.
+
 ---
 
 ## Doc changes — always issue → branch → PR
