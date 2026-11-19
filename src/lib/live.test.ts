@@ -327,7 +327,7 @@ describe("fanOffsets", () => {
   });
 
   it("puts two trucks at one spot side by side, in name order whatever the map's order", () => {
-    const expected = new Map([["t2", [-12, 0]], ["t1", [12, 0]]]);
+    const expected = new Map([["t2", [-10, 0]], ["t1", [10, 0]]]);
     expect(fanOffsets(markers(named("t1", "Tacobilen"), named("t2", "Burgarbilen")))).toEqual(expected);
     expect(fanOffsets(markers(named("t2", "Burgarbilen"), named("t1", "Tacobilen")))).toEqual(expected);
   });
@@ -335,20 +335,20 @@ describe("fanOffsets", () => {
   it("orders by Swedish alphabetical order, then by truck id", () => {
     // In Swedish, Ö sorts after Z; "Öl" comes last.
     const three = fanOffsets(markers(named("t1", "Öl"), named("t2", "Zebra"), named("t3", "Apa")));
-    expect(three.get("t3")).toEqual([0, -13]); // first: at the top
+    expect(three.get("t3")).toEqual([0, -12]); // first: at the top
     expect(three.get("t2")![0]).toBeGreaterThan(0); // second: clockwise, right
     expect(three.get("t1")![0]).toBeLessThan(0); // third: left
     const tie = fanOffsets(markers(named("b", "Samma"), named("a", "Samma")));
-    expect(tie.get("a")).toEqual([-12, 0]);
-    expect(tie.get("b")).toEqual([12, 0]);
+    expect(tie.get("a")).toEqual([-10, 0]);
+    expect(tie.get("b")).toEqual([10, 0]);
   });
 
-  it("keeps neighbours about 22 px apart (21 after rounding) however many share a spot", () => {
+  it("keeps neighbours about 20 px apart (19 after rounding) however many share a spot", () => {
     for (const n of [3, 4, 5, 8]) {
       const list = Array.from({ length: n }, (_, i) => named(`t${i}`, `Bil ${i}`));
       const offsets = [...fanOffsets(markers(...list)).values()];
       for (let i = 0; i < n; i++) {
-        for (let j = i + 1; j < n; j++) expect(apart(offsets[i], offsets[j])).toBeGreaterThanOrEqual(21);
+        for (let j = i + 1; j < n; j++) expect(apart(offsets[i], offsets[j])).toBeGreaterThanOrEqual(19);
       }
     }
   });
@@ -366,8 +366,8 @@ describe("fanOffsets", () => {
     expect(offsets.get("t3")).toEqual([0, 0]);
     expect(offsets.get("t4")).toEqual([0, 0]);
     expect(offsets.get("t5")).toEqual([0, 0]);
-    expect(offsets.get("t2")).toEqual([-12, 0]);
-    expect(offsets.get("t1")).toEqual([12, 0]);
+    expect(offsets.get("t2")).toEqual([-10, 0]);
+    expect(offsets.get("t1")).toEqual([10, 0]);
   });
 });
 

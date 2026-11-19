@@ -162,9 +162,10 @@ export function diffMarkers(
 export type PixelOffset = [number, number];
 
 // The marker is 18 px across (`useMapLibre`'s `createMarkerElement`); neighbours in a fan
-// are at least this far apart, centre to centre, so 4 px show between them.
-const FAN_SPACING = 22;
-const FAN_MIN_RADIUS = 12;
+// are at least this far apart, centre to centre, so 2 px show between them (the owner asked
+// for them closer after the browser check, IS #248).
+const FAN_SPACING = 20;
+const FAN_MIN_RADIUS = 10;
 
 // The owner's choice on IS #248: markers whose entries have exactly the same coordinates
 // (a known spot from `spots.ts` gives every truck there the same pair) are drawn apart on
