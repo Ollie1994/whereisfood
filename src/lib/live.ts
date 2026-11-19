@@ -157,6 +157,132 @@ export function diffMarkers(
   return diff;
 }
 
+// --- Markers that share a spot ----------------------------------------------------------
+
+export type PixelOffset = [number, number];
+
+// The marker is 18 px across (`useMapLibre`'s `createMarkerElement`); neighbours in a fan
+// are at least this far apart, centre to centre, after rounding, so 2 px show between them
+// (the owner's choice, IS #248).
+const FAN_SPACING = 20;
+const FAN_MIN_RADIUS = 10;
+
+// Half away from zero, after absorbing float error near .5: `Math.round` rounds -10.5 up to
+// -10, and 21 sin(150°) is 10.500000000000007 where 21 sin(-30°) is -10.5, so a six-truck fan
+// came out 20 px apart on its right and 22 on its left (probed, round 3 on PR #436).
+export function roundPx(value: number): number {
+  return Math.sign(value) * Math.floor(Math.abs(value) + 0.5 + 1e-9) || 0;
+}
+
+// `n` whole-pixel points around the spot, mirror-symmetric about the vertical: two left and
+// right; more on a circle from the top (-90°), clockwise on screen (y grows down).
+function fanPoints(n: number, radius: number): PixelOffset[] {
+  return Array.from({ length: n }, (_, i) => {
+    const angle = n === 2 ? Math.PI * (i + 1) : -Math.PI / 2 + (2 * Math.PI * i) / n;
+    return [roundPx(radius * Math.cos(angle)), roundPx(radius * Math.sin(angle))];
+  });
+}
+
+// One collator: `localeCompare` builds one per call. Where an engine has no Swedish data it
+// falls back to its default order (Ö sorting like O), a limit.
+const SWEDISH = new Intl.Collator("sv");
+
+function closestPair(points: readonly PixelOffset[]): number {
+  let closest = Infinity;
+  for (let i = 0; i < points.length; i++) {
+    for (let j = i + 1; j < points.length; j++) {
+      closest = Math.min(closest, Math.hypot(points[i][0] - points[j][0], points[i][1] - points[j][1]));
+    }
+  }
+  return closest;
+}
+
+// The owner's choice on IS #248: markers whose entries have exactly the same coordinates
+// (a known spot from `spots.ts` gives every truck there the same pair) are drawn apart on
+// screen, each at its real coordinates with a pixel offset. Ordered by truck name, Swedish
+// alphabetical, ties by truck id, so the same trucks keep the same places. The radius is
+// the smallest from `FAN_MIN_RADIUS` up, in whole pixels, at which the rounded points keep
+// `FAN_SPACING`. The search starts where that can first happen: `roundPx` moves a coordinate
+// at most 0.5 px plus its 1e-9 epsilon, so a point at most a hair over √2/2 px and a pair a
+// hair over √2 px, and below `(FAN_SPACING - √2 - 1e-6) / (2 sin(π/n))` neighbours are too
+// close however they round. A truck alone gets [0, 0].
+export function fanOffsets(markers: ReadonlyMap<TruckId, MarkerEntry>): Map<TruckId, PixelOffset> {
+  const spots = new Map<string, LiveEntry[]>();
+  for (const { entry } of markers.values()) {
+    const key = `${entry.latitude} ${entry.longitude}`;
+    const group = spots.get(key);
+    if (group) group.push(entry);
+    else spots.set(key, [entry]);
+  }
+  const offsets = new Map<TruckId, PixelOffset>();
+  for (const group of spots.values()) {
+    group.sort(
+      (a, b) =>
+        SWEDISH.compare(a.truck.name, b.truck.name) ||
+        (a.truck.id < b.truck.id ? -1 : a.truck.id > b.truck.id ? 1 : 0),
+    );
+    const n = group.length;
+    if (n === 1) {
+      offsets.set(group[0].truck.id, [0, 0]);
+      continue;
+    }
+    let radius = Math.max(FAN_MIN_RADIUS, Math.ceil((FAN_SPACING - Math.SQRT2 - 1e-6) / (2 * Math.sin(Math.PI / n))));
+    let points = fanPoints(n, radius);
+    while (closestPair(points) < FAN_SPACING) points = fanPoints(n, ++radius);
+    group.forEach((entry, i) => offsets.set(entry.truck.id, points[i]));
+  }
+  return offsets;
+}
+
+// The trucks in both `prev` and `next` whose offset changed. A truck only in `next` is new,
+// and its marker is built with its offset.
+export function changedOffsets(
+  prev: ReadonlyMap<TruckId, PixelOffset>,
+  next: ReadonlyMap<TruckId, PixelOffset>,
+): [TruckId, PixelOffset][] {
+  const changed: [TruckId, PixelOffset][] = [];
+  for (const [truckId, offset] of next) {
+    const before = prev.get(truckId);
+    if (before && (before[0] !== offset[0] || before[1] !== offset[1])) changed.push([truckId, offset]);
+  }
+  return changed;
+}
+
+export type MarkerPlan = Omit<MarkerDiff, "add"> & {
+  // Each new truck's marker entry and its offset.
+  add: [MarkerEntry, PixelOffset][];
+  // The live markers to move: their offset now (`offsetOf`) differs from their new one.
+  move: [TruckId, PixelOffset][];
+};
+
+// What `useMapLibre` applies in one commit. `offsetOf` reads a live marker's offset as
+// MapLibre holds it. A fan's offsets follow its trucks' coordinates and names, which only
+// an add, update or remove changes, so they are recomputed, and live offsets read, only
+// then (and on any update, a status change included, whose offsets come out the same); a
+// tick alone moves nothing. A truck joining or leaving a spot, moving, or a rename that
+// re-sorts a spot moves the others there.
+export function planMarkers(
+  prev: ReadonlyMap<TruckId, MarkerEntry>,
+  next: ReadonlyMap<TruckId, MarkerEntry>,
+  offsetOf: (truckId: TruckId) => PixelOffset | undefined,
+): MarkerPlan {
+  const { add, update, remove } = diffMarkers(prev, next);
+  if (!add.length && !update.length && !remove.length) return { add: [], update, remove, move: [] };
+  const offsets = fanOffsets(next);
+  const current = new Map<TruckId, PixelOffset>();
+  for (const truckId of next.keys()) {
+    const offset = offsetOf(truckId);
+    if (offset) current.set(truckId, offset);
+  }
+  return {
+    // `fanOffsets` keys every truck of `next`, the added ones included.
+    add: add.map((marker): [MarkerEntry, PixelOffset] => [marker, offsets.get(marker.entry.truck.id)!]),
+    update,
+    remove,
+    move: changedOffsets(current, offsets),
+  };
+}
+
 // --- Popup text ------------------------------------------------------------------------
 
 // Stockholm wall time through `stockholm.ts`'s `Intl` reading, not date-fns-tz 3.2.0's

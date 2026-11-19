@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   diffMarkers,
+  changedOffsets,
+  planMarkers,
+  roundPx,
+  fanOffsets,
   freshnessText,
   hoursText,
   isLiveEntry,
@@ -304,6 +308,193 @@ describe("diffMarkers", () => {
   ])("updates on a change of %s", (_name, change) => {
     const changed = open(entry(change));
     expect(diffMarkers(byTruck(base), byTruck(changed))).toEqual({ add: [], update: [changed], remove: [] });
+  });
+});
+
+describe("fanOffsets", () => {
+  const named = (id: string, name: string, overrides: Partial<LiveEntry> = {}): MarkerEntry => ({
+    entry: truck(id, { ...overrides, truck: { ...entry().truck, name } }),
+    status: "open",
+  });
+  const markers = (...list: MarkerEntry[]) => new Map(list.map((m) => [m.entry.truck.id, m]));
+  const elsewhere = { latitude: 57.7, longitude: 11.96 };
+  // Centre-to-centre distance between two offsets.
+  const apart = (a: number[], b: number[]) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+
+  it("leaves a truck alone at its spot, and trucks at different spots, at [0, 0]", () => {
+    expect(fanOffsets(markers(named("t1", "Tacobilen")))).toEqual(new Map([["t1", [0, 0]]]));
+    expect(fanOffsets(markers(named("t1", "Tacobilen"), named("t2", "Burgarbilen", elsewhere)))).toEqual(
+      new Map([["t1", [0, 0]], ["t2", [0, 0]]]),
+    );
+    expect(fanOffsets(new Map())).toEqual(new Map());
+  });
+
+  it("puts two trucks at one spot side by side, in name order whatever the map's order", () => {
+    const expected = new Map([["t2", [-10, 0]], ["t1", [10, 0]]]);
+    expect(fanOffsets(markers(named("t1", "Tacobilen"), named("t2", "Burgarbilen")))).toEqual(expected);
+    expect(fanOffsets(markers(named("t2", "Burgarbilen"), named("t1", "Tacobilen")))).toEqual(expected);
+  });
+
+  it("orders by Swedish alphabetical order, then by truck id", () => {
+    // In Swedish, Ö sorts after Z; "Öl" comes last.
+    const three = fanOffsets(markers(named("t1", "Öl"), named("t2", "Zebra"), named("t3", "Apa")));
+    expect(three.get("t3")).toEqual([0, -12]); // first: at the top
+    expect(three.get("t2")![0]).toBeGreaterThan(0); // second: clockwise, right
+    expect(three.get("t1")![0]).toBeLessThan(0); // third: left
+    const tie = fanOffsets(markers(named("b", "Samma"), named("a", "Samma")));
+    expect(tie.get("a")).toEqual([-10, 0]);
+    expect(tie.get("b")).toEqual([10, 0]);
+  });
+
+  it("grows the radius only as far as the spacing needs", () => {
+    // Six: the radius 20 that 20 / 2 / sin(30°) gives rounds two neighbours to 19.7 px
+    // apart, so it grows to 21.
+    const six = [...fanOffsets(markers(...Array.from({ length: 6 }, (_, i) => named(`t${i}`, `Bil ${i}`)))).values()];
+    expect(six[0]).toEqual([0, -21]);
+    expect(fanOffsets(markers(named("a", "A"), named("b", "B"))).get("a")).toEqual([-10, 0]);
+  });
+
+  it("keeps every pair 20 px apart at the smallest radius from 10 that does, for 2 to 12 at a spot", () => {
+    // Only the search is independent here: the layout copies the code's (left and right for
+    // two; from the top, clockwise, for more; `roundPx`), so it checks the 20 px and the bound
+    // the search starts at, not the points. The mirror test below checks the points.
+    const layout = (n: number, r: number) =>
+      Array.from({ length: n }, (_, i) => {
+        const a = n === 2 ? Math.PI * (i + 1) : -Math.PI / 2 + (2 * Math.PI * i) / n;
+        return [roundPx(r * Math.cos(a)), roundPx(r * Math.sin(a))];
+      });
+    const ok = (pts: number[][]) => pts.every((p, i) => pts.every((q, j) => j <= i || apart(p, q) >= 20));
+    for (let n = 2; n <= 12; n++) {
+      let r = 10;
+      while (!ok(layout(n, r))) r++;
+      const list = Array.from({ length: n }, (_, i) => named(`t${String(i).padStart(2, "0")}`, `Bil ${String(i).padStart(2, "0")}`));
+      expect([...fanOffsets(markers(...list)).values()]).toEqual(layout(n, r));
+    }
+  });
+
+  it("draws a fan mirror-symmetric about the vertical through the spot, for 2 to 12 at a spot", () => {
+    // Clockwise from the top, point i and point n - i mirror each other (two: left and right).
+    // Why it might not: `roundPx`'s comment.
+    for (let n = 2; n <= 12; n++) {
+      const list = Array.from({ length: n }, (_, i) => named(`t${String(i).padStart(2, "0")}`, `Bil ${String(i).padStart(2, "0")}`));
+      const pts = [...fanOffsets(markers(...list)).values()];
+      if (n === 2) {
+        expect(pts[1]).toEqual([-pts[0][0], pts[0][1]]);
+        continue;
+      }
+      for (let i = 1; i < n; i++) expect(pts[n - i]).toEqual([-pts[i][0] || 0, pts[i][1]]);
+      expect(pts[0][0]).toBe(0);
+    }
+  });
+
+  it("rounds a pixel half away from zero, float error near .5 absorbed, never to -0", () => {
+    expect(roundPx(10.5)).toBe(11);
+    expect(roundPx(-10.5)).toBe(-11);
+    expect(roundPx(10.500000000000007)).toBe(11);
+    expect(roundPx(10.499999999999996)).toBe(11);
+    expect(roundPx(-10.500000000000002)).toBe(-11);
+    expect(roundPx(10.4999)).toBe(10);
+    expect(roundPx(-2.6)).toBe(-3);
+    expect(Object.is(roundPx(-0), 0)).toBe(true);
+    expect(Object.is(roundPx(-1e-17), 0)).toBe(true);
+    expect(Object.is(roundPx(-0.4), 0)).toBe(true);
+  });
+
+  it("fans only the trucks that share a spot: both coordinates equal", () => {
+    const offsets = fanOffsets(
+      markers(
+        named("t1", "Tacobilen"),
+        named("t2", "Burgarbilen"),
+        named("t3", "Pizzabilen", elsewhere),
+        named("t4", "Kebabbilen", { latitude: entry().latitude, longitude: 11.96 }),
+        named("t5", "Fiskbilen", { latitude: 57.7, longitude: entry().longitude }),
+      ),
+    );
+    expect(offsets.get("t3")).toEqual([0, 0]);
+    expect(offsets.get("t4")).toEqual([0, 0]);
+    expect(offsets.get("t5")).toEqual([0, 0]);
+    expect(offsets.get("t2")).toEqual([-10, 0]);
+    expect(offsets.get("t1")).toEqual([10, 0]);
+  });
+});
+
+describe("changedOffsets", () => {
+  const offsets = (...pairs: [string, [number, number]][]) => new Map(pairs);
+
+  it("lists a truck in both whose offset changed, and nothing else", () => {
+    const prev = offsets(["a", [0, 0]], ["b", [-10, 0]], ["gone", [10, 0]]);
+    const next = offsets(["a", [-10, 0]], ["b", [-10, 0]], ["new", [10, 0]]);
+    expect(changedOffsets(prev, next)).toEqual([["a", [-10, 0]]]);
+  });
+
+  it("sees a change in either coordinate", () => {
+    expect(changedOffsets(offsets(["a", [0, -12]]), offsets(["a", [0, -13]]))).toEqual([["a", [0, -13]]]);
+    expect(changedOffsets(offsets(["a", [10, 0]]), offsets(["a", [11, 0]]))).toEqual([["a", [11, 0]]]);
+    expect(changedOffsets(offsets(["a", [10, 0]]), offsets(["a", [10, 0]]))).toEqual([]);
+  });
+});
+
+describe("planMarkers", () => {
+  const at = (id: string, name: string, overrides: Partial<LiveEntry> = {}): MarkerEntry => ({
+    entry: truck(id, { ...overrides, truck: { ...entry().truck, name } }),
+    status: "open",
+  });
+  const markers = (...list: MarkerEntry[]) => new Map(list.map((m) => [m.entry.truck.id, m]));
+  // The live markers' offsets, as the hook reads them, and how many times they were read.
+  const offsetsOf = (...pairs: [string, [number, number]][]) => {
+    const live = new Map(pairs);
+    const read = (id: string) => {
+      read.calls++;
+      return live.get(id);
+    };
+    read.calls = 0;
+    return read;
+  };
+  const elsewhere = { latitude: 57.7, longitude: 11.96 };
+
+  it("does nothing on a tick: no change, no moves, no live offset read", () => {
+    const shown = markers(at("a", "A"), at("b", "B"));
+    const live = offsetsOf(["a", [-10, 0]], ["b", [10, 0]]);
+    expect(planMarkers(shown, markers(at("a", "A"), at("b", "B")), live)).toEqual({ add: [], update: [], remove: [], move: [] });
+    expect(live.calls).toBe(0);
+  });
+
+  it("builds a truck joining a spot with its offset and moves the one already there", () => {
+    const plan = planMarkers(markers(at("t", "Tacobilen")), markers(at("t", "Tacobilen"), at("b", "Burgarbilen")), offsetsOf(["t", [0, 0]]));
+    expect(plan.add.map(([m, offset]) => [m.entry.truck.id, offset])).toEqual([["b", [-10, 0]]]);
+    expect(plan.move).toEqual([["t", [10, 0]]]);
+  });
+
+  it("moves nothing on a status change at a fanned spot", () => {
+    const later: MarkerEntry = { ...at("t", "Tacobilen"), status: "later" };
+    const plan = planMarkers(markers(later, at("b", "Burgarbilen")), markers(at("t", "Tacobilen"), at("b", "Burgarbilen")), offsetsOf(["t", [10, 0]], ["b", [-10, 0]]));
+    expect(plan.update.map((m) => m.entry.truck.id)).toEqual(["t"]);
+    expect(plan.move).toEqual([]);
+  });
+
+  it("moves the one left behind back to the spot when the other leaves", () => {
+    const plan = planMarkers(markers(at("t", "Tacobilen"), at("b", "Burgarbilen")), markers(at("t", "Tacobilen")), offsetsOf(["t", [10, 0]], ["b", [-10, 0]]));
+    expect(plan.remove).toEqual(["b"]);
+    expect(plan.move).toEqual([["t", [0, 0]]]);
+  });
+
+  it("fans both when a truck moves onto another's spot (an update, not an add)", () => {
+    const plan = planMarkers(
+      markers(at("t", "Tacobilen"), at("b", "Burgarbilen", elsewhere)),
+      markers(at("t", "Tacobilen"), at("b", "Burgarbilen")),
+      offsetsOf(["t", [0, 0]], ["b", [0, 0]]),
+    );
+    expect(plan.update.map((m) => m.entry.truck.id)).toEqual(["b"]);
+    expect(new Map(plan.move)).toEqual(new Map([["t", [10, 0]], ["b", [-10, 0]]]));
+  });
+
+  it("swaps a fan when a rename re-sorts it, with nobody joining or leaving", () => {
+    const plan = planMarkers(
+      markers(at("a", "Ankan"), at("b", "Björnen")),
+      markers(at("a", "Örat"), at("b", "Björnen")),
+      offsetsOf(["a", [-10, 0]], ["b", [10, 0]]),
+    );
+    expect(new Map(plan.move)).toEqual(new Map([["a", [10, 0]], ["b", [-10, 0]]]));
   });
 });
 
