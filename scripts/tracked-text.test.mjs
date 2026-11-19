@@ -6,20 +6,18 @@
 //
 // Only Git's attributes excuse a file: one marked `-text` (or `binary`, or the legacy `-crlf`),
 // read through `git ls-files --format`'s `%(eolattr)`, which prints `-text` for each and for
-// `-text eol=lf`. Mark a file `-text` (the owner's call, PR #433). For a file with no NUL byte,
-// `binary`'s `-diff` made the pre-commit Gitleaks hook see only "Binary files … differ" and miss
-// a made-up token, which it caught under `-text`, though Git then merges such a file as text,
-// writing conflict markers into it. A file with a NUL (every `.ico`) the hook doesn't read under
-// either mark: Git decides binary from the content (all probed on PR #433). CI's scan, with
-// `--text`, reads both. `%(eolattr)`
-// reads every attributes source Git does: a nested `.gitattributes`, an unstaged edit to one,
+// `-text eol=lf`. Which mark to use, and why: `.gitattributes`' comment. `%(eolattr)` reads
+// every attributes source Git does: a nested `.gitattributes`, an unstaged edit to one,
 // `$GIT_DIR/info/attributes` and the user's `core.attributesFile` (probed on PR #433). CI's
-// checkout has only the tracked `.gitattributes` files, so a mark made only in a local source
-// skips a file locally that CI then fails. Every other regular tracked file must be valid
-// UTF-8, and is scanned. Not Git's call from the content (`%(eolinfo:index)`): a
-// bad byte with a NUL or a lone CR made it say `-text`, which hid the file, and a binary file
-// that is valid UTF-8 was scanned (PR #431, round 5). An excused file that isn't empty and
-// decodes as UTF-8 with nothing refused in it is named, as a text file marked by mistake.
+// checkout has only the tracked `.gitattributes` files, so a local source can make a local run
+// differ from CI's either way: a mark made only there skips a file CI fails, and a line there
+// that sets `text` (`* text=auto`) outranks the tracked mark, so a marked file isn't excused
+// locally (it printed `text=auto`, probed on PR #433). Every other regular tracked file must be
+// valid UTF-8, and is scanned. Not Git's call from the content (`%(eolinfo:index)`): a bad byte
+// with a NUL or a lone CR made it say `-text`, which hid the file, and a binary file that is
+// valid UTF-8 was scanned (PR #431, round 5). An excused file that decodes as UTF-8 to
+// something besides an opening byte-order mark, with nothing refused in it, is named, as a
+// text file marked by mistake.
 //
 // Does not catch: untracked files; what an excused file holds, so a text file marked by mistake
 // that holds a refused character is skipped with it; a binary pattern in `.gitattributes` that
