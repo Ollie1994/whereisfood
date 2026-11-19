@@ -337,7 +337,8 @@ src/
 scripts/                          ← copy-maplibre-worker.mjs, seed-dictionary.mjs, test-all.mjs,
                                     controls.mjs, controls-trigger.mjs, write-env-local.mjs,
                                     smoke.mjs, audit-report.mjs, closing-keywords.mjs,
-                                    post-body.mjs (tests: all but controls.mjs),
+                                    post-body.mjs (tests: audit-report, closing-keywords,
+                                    controls-trigger, post-body, smoke, write-env-local),
                                     controls-trigger-coverage.test.mjs, lint-rules.test.mjs,
                                     ci-advisor.test.mjs, tracked-text.test.mjs, claims.sh,
                                     sweep.sh, process-log.sh, lib/ (diff.sh, header-like.mjs
@@ -356,6 +357,7 @@ public/                           ← gothenburg.pmtiles (development; deploys r
 .github/                          ← workflows/ci.yml, workflows/codeql.yml, dependabot.yml
 .githooks/                        ← pre-commit, commit-msg, gitleaks-common.sh (set through
                                     core.hooksPath, by hand)
+next.config.ts                    ← (+ test: which paths get which CSP, IS #387)
 SECURITY.md, .gitleaks.toml       ← how to report a vulnerability; Gitleaks' config
 ```
 
@@ -388,7 +390,7 @@ first factor and the time-box, Phase 9; the 503 cases are `withAdmin`'s and
 `api-admin-checklist` and `helpers`. The fixtures sign in through the PKCE magic link, read
 from Mailpit, and reach `aal2` with `tests/totp.ts` (Phase 9 plan #9, #14). The `unit`
 project also holds `supabase/config.test.ts`, which pins Phase 9's Auth settings in
-`config.toml`. CI's run on `e544db4` (PR #444, 2026-11-19) ran 46 unit files (1328 tests)
+`config.toml`, and `next.config.test.ts`, which checks which paths get which CSP. CI's run on `e544db4` (PR #444, 2026-11-19) ran 46 unit files (1328 tests)
 and 12 integration files (282 tests), and that day `npm run lint` reported no warnings
 locally. **CI is the gate** (Phase 8, IS
 #297): on each PR into `dev` or `main`, GitHub Actions runs the four gates and the other
@@ -464,7 +466,7 @@ queries it by hand, as a dev-only authoring tool for `SPOTS`).
 | 7 · Admin (done) | Magic-link login, admin only (sign-ups off, locally and on the preview); the session and `is_admin` checks in `proxy.ts` and `withAdmin` on every admin route, with `no-store` and the `Origin` check; trucks added, edited and set inactive (no delete); phone-first location entry by known spot, recent place, map tap or GPS; edit; cancel; "Stämmer fortfarande"; overlap → 409; the morning checklist; three phone checkpoints on the preview (#224, #228, #232) |
 | 8 · CI/CD (done) | `ci.yml` on every PR into `dev` and `main` (a read-only token, actions pinned to SHAs, no path filter): the four gates (`typecheck-lint`; `unit`; `integration`, with a local Supabase and Supabase's security advisor; `build`, with a smoke check of the served build), `audit` (`npm audit`, three runs, Phase 8 plan #12), `controls` (`--check`, the full set on a trigger path or a PR into `main`), `process-log`, `secret-scan` (Gitleaks on the PR's commits and messages, and the closing-keyword check, IS #368) and `base`; `codeql.yml` (CodeQL, on PRs and on push); the Gitleaks hooks; lint rules against HTML sinks and string-built filters, each with a fixture test; rulesets on `dev` and `main` (a PR, the checks by name, up to date, no bypass, no force-push or deletion), CodeQL's checks required on `dev` and joining `main`'s in Phase 10 (#11, #14); Dependabot (Actions version updates and npm security updates), its branches and the probes' cancelled by the Ignored Build Step, and the secret key scoped to `dev` (#15); `SECURITY.md` and private vulnerability reporting; the review of the alerts auto-triage dismissed (#299). SonarQube Cloud was dropped: its Free plan has no custom quality gate (#295), and a re-scan before production is #349. Each check required by #298 was seen red on a probe PR the rules blocked; `base (main)`, added after (IS #356), only by its absence keeping one blocked (#359). Built before Phase 10's production deploy (Phase 6 plan #1) |
 | 9 · Security (done) | The scope draft's "Phase 9 · Security" (IS #278 (Phase 9), Phase 9 plan #1) and the soft launch's inputs (IS #373 (Phase 9), #2), as built: TOTP MFA after the magic link, the link the only first factor (`requireAdmin`'s `amr` allowlist of `magiclink`; #241's emailed code waits for custom SMTP or Pro, #14), one factor per user (#13), `aal2` read from a token Auth verified (#11); a 12-hour time-box from the first factor's sign-in, until Pro's timeouts in Phase 11 (#4), and logout ending every session (#5); secure password change with its email, the factor emails, and the admin keeping a long random password (IS #378); length limits on free text (IS #379, #400); cancel and confirm refusing an ended entry (#8); the login-abuse settings (a 10-digit, 15-minute emailed code, the rate limits kept; the email-budget lockout accepted for Phase 9, open decision 1); security headers, a static CSP outside `/admin` and a nonce CSP on it, asserted by the smoke check (IS #387, #414); the cookie's reach to `/map` and `users_select_own` under `aal1` accepted as limits (#6, #7); one ZAP baseline scan (IS #388); the free plans' alerts and log retentions read, Auth's audit log written to the preview's database (open decision 7); the `x-forwarded-host` probe (`origin.ts`); the 2FA audit (IS #391); the hosted-settings checklist in the README (#10, IS #390); Swedish 404 and error pages (IS #413, #438); the phone checkpoint on `dev`'s preview (IS #392) |
-| 10 · Launch | **A soft launch** (IS #373 (Phase 10)): `/map` shown only to the admin, `/` leading to a Swedish `/about`, on Supabase Free (Pricing's "Supabase Free" says what option (c) changes), the `vercel.app` address and `r2.dev`, with a weekly local dump for backups. The history retention period, for the privacy note below (Phase 7 plan #25); the app's final name, until then **WhereIsFood** in the admin screens and "Var är maten? \| Göteborg" as the public title (#26, open decision 10); a production Supabase project, new keys (Phase 6 plan #18), with Phase 5 #19's hosted check; R2's CORS rule admitting the production origin (the bucket is Phase 6's, #7); production env; the hosted-settings checklist applied; Swedish privacy note and a removal contact; takedown procedure (one transaction: delete the truck's locations, clear or delete each `users` row pointing at it, then delete the truck; Phase 5 plan #7; the weekly dumps keep it until rotated out); tell trucks they're listed; runbook (Vercel Attack Mode; the takeover's recovery order, Phase 9 plan #13); the usage, spend and 5xx alerts, which neither free plan offers to set, so Phase 10's plan decides how they're covered (Phase 9 plan open decision 7); Auth's audit log as an input to the privacy note, with a retention of its own (open decision 7); deciding again whether the email-budget lockout is accepted (Phase 9 plan open decision 1); the scope draft's "Phase 10 · Launch" (Q34 open, Q36), minus what IS #373 (Phase 10) moves to Phase 11; from Phase 8: whether CodeQL gets a base analysis of `main` before the first PR into it, and CodeQL's checks added to `main`'s ruleset once one exists (Phase 8 plan #11, #14), #347 (keeping a reported vulnerability's fix private until disclosure, with Q36) and #349 (the SonarQube Cloud re-scan); **before the deploy**, the checks under "Pre-deploy automation", "Before the production deploy": 2FA checked again on every account, the registrar once one exists, the production Security Advisor, the Ignored Build Step, rotating every credential |
+| 10 · Launch | **A soft launch** (IS #373 (Phase 10)): `/map` shown only to the admin, `/` leading to a Swedish `/about`, on Supabase Free, the `vercel.app` address and `r2.dev`, with a weekly local dump for backups. The history retention period, for the privacy note below (Phase 7 plan #25); the app's final name, until then **WhereIsFood** in the admin screens and "Var är maten? \| Göteborg" as the public title (#26, open decision 10); a production Supabase project, new keys (Phase 6 plan #18), with Phase 5 #19's hosted check; R2's CORS rule admitting the production origin (the bucket is Phase 6's, #7); production env; the hosted-settings checklist applied; Swedish privacy note and a removal contact; takedown procedure (one transaction: delete the truck's locations, clear or delete each `users` row pointing at it, then delete the truck; Phase 5 plan #7; the weekly dumps keep it until rotated out); tell trucks they're listed; runbook (Vercel Attack Mode; the takeover's recovery order, Phase 9 plan #13, and the lost-phone route, its open decision 4, left open: where the recovery's calls run, and whether the login needs an unenroll screen); the usage, spend and 5xx alerts, which neither free plan offers to set, so Phase 10's plan decides how they're covered (Phase 9 plan open decision 7); Auth's audit log as an input to the privacy note, with a retention of its own (open decision 7); deciding again whether the email-budget lockout is accepted (Phase 9 plan open decision 1); the scope draft's "Phase 10 · Launch" (Q34 open, Q36), minus what IS #373 (Phase 10) moves to Phase 11; from Phase 8: whether CodeQL gets a base analysis of `main` before the first PR into it, and CodeQL's checks added to `main`'s ruleset once one exists (Phase 8 plan #11, #14), #347 (keeping a reported vulnerability's fix private until disclosure, with Q36) and #349 (the SonarQube Cloud re-scan); **before the deploy**, the checks under "Pre-deploy automation", "Before the production deploy": 2FA checked again on every account, the registrar once one exists, the production Security Advisor, the Ignored Build Step, rotating every credential |
 | 11 · Full launch | When the coverage target holds (IS #373 (Phase 11)): the gate removed and the smoke check restored; Supabase Pro (backups), with session timeouts; the tiles' custom domain on R2, its CORS rule keeping the app's origins, the domain in the CSP too, and, if the app gets its own domain, Vercel's domain, that domain added to R2's CORS rule, Supabase Auth's Site and Redirect URLs, and HSTS; the acquisition plan; Vercel Pro + Spend Management before the first marketing push |
 | later | Owners (claim flow, owner dashboard, override rules, custom SMTP); optional automation (Meta Business Discovery captions in the admin screen, a scheduler) |
 
@@ -672,24 +674,26 @@ Vercel's free cron.
 ## Admin and auth (built in Phases 7 and 9)
 
 What Phases 7 and 9 built, and why; the reasons are the Phase 7 plan's numbered decisions,
-cited as "#n", the Phase 9 plan's, cited as "Phase 9 #n", and their answered open
-decisions. The rules are `CLAUDE.md`'s ("Supabase", "proxy.ts", "Security headers", "API
+cited as "#n" ("Phase 7 #n" beside a Phase 9 one), the Phase 9 plan's, cited as "Phase 9
+#n", and their answered open decisions, each named with its phase; issues are "IS #n". The rules are `CLAUDE.md`'s ("Supabase", "proxy.ts", "Security headers", "API
 responses", "UI Rules").
 
 - **Login.** `/admin/login` emails a magic link (`signInWithOtp` with
   `shouldCreateUser: false`), and `/auth/callback` exchanges its code, sets the session
   cookies and lands on `/admin/mfa`: the TOTP enroll while the admin has no verified factor,
-  then a code from the authenticator app (Phase 9 #14, open decision 5). Public sign-ups are
+  then a code from the authenticator app (Phase 9 #14, Phase 9 open decision 5). Public
+  sign-ups are
   off under `[auth]`, never `[auth.email]`, locally and on the preview; the admin user is made
   by hand, with a long random password (`README.md`, "5. Create the admin user"). The link has
-  to be opened in the browser that asked for it, which the login says (#240). The magic link
-  is the only first factor for Phase 9: #241's emailed code waits for custom SMTP or Pro,
+  to be opened in the browser that asked for it, which the login says (IS #240). The magic
+  link is the only first factor for Phase 9: IS #241's emailed code waits for custom SMTP or
+  Pro,
   whichever comes first, since the built-in email's template can't be edited without custom
   SMTP (Phase 9 #14). The emailed code Auth still issues is 10 digits and lives 15 minutes
   (Phase 9 open decision 1; `CLAUDE.md`, "Supabase"). One factor per user
   (`max_enrolled_factors = 1`, Phase 9 #13).
 - **A session** ends 12 hours after its first factor's sign-in (the time-box, Phase 9 #4,
-  open decision 2), or at a logout on any device (Phase 9 #5), until Pro's timeouts replace
+  Phase 9 open decision 2), or at a logout on any device (Phase 9 #5), until Pro's timeouts replace
   the time-box in Phase 11. The time-box's and the allowlist's limits are `CLAUDE.md`'s ("API
   responses"). Secure password change is on with its email, and so are the factor-enrolled
   and factor-unenrolled emails (IS #378, #381). A stolen `aal2` session can still swap the
@@ -704,12 +708,14 @@ responses", "UI Rules").
   `server-only`), `supabase-browser.ts` (`createBrowserClient`, for Auth only) and
   `supabase-session.ts` (the cookie-session clients for the proxy, the routes, the
   `/admin` page, the callback and logout).
-- **The check** (`requireAdmin`): no session cookie → reject before any network or DB
-  call; then the session's access token, verified by Auth (`getUser(token)`), whose `aal`
-  and `amr` it reads (Phase 9 #11, open decision 11): a first factor other than `magiclink`,
-  or one past the time-box, is signed out at Auth with `scope: "local"` and answered as no
-  session; an `aal1` session gets 401 with its own text (Phase 9 open decision 6); then
-  `users.is_admin`, read through the db layer (`getUserById`, #14). An Auth or database failure is "unavailable", never "logged out":
+- **The check** (`requireAdmin`), in the order `admin-auth.ts`'s `verify` runs it: no
+  session cookie → reject before any network or DB call; then the session's access token,
+  verified by Auth (`getUser(token)`), whose `aal` and `amr` it reads (Phase 9 #11, Phase 9
+  open decision 11); a first factor other than `magiclink`, or one past the time-box, is
+  signed out at Auth with `scope: "local"` and answered as no session; then
+  `users.is_admin`, read through the db layer (`getUserById`, #14); last, an admin session
+  at `aal1` gets 401 with its own text (Phase 9 open decision 6). An Auth or database
+  failure is "unavailable", never "logged out":
   503 `{ error }` on a route, a Swedish error on a page (#32). The proxy runs it for
   `/admin/*` and `/api/admin/*`, letting the login through; `withAdmin` runs it again
   on every admin handler (#13), sets `Cache-Control: no-store` (#15), refuses a write
@@ -854,7 +860,7 @@ where secrets live meanwhile are `CLAUDE.md`'s ("Secrets").
 
 | Service | Plan | When | ≈ per month |
 |---|---|---|---|
-| Supabase | Free, then Pro | Free from the production deploy (Phase 10, the soft launch); Pro **at the full launch** (Phase 11; Free has no backups or session timeouts, which Phase 9's time-box covers until then, Phase 9 plan #4) | $0, then $25 |
+| Supabase | Free, then Pro | Free from the production deploy (Phase 10, the soft launch); Pro **at the full launch** (Phase 11; Free has no backups or session timeouts: until then the weekly dump stands in for backups, "Principles and risks", and Phase 9's time-box for the timeouts, Phase 9 plan #4) | $0, then $25 |
 | Cloudflare R2 | pay as you go | since Phase 6, tiles only | $0 at expected traffic |
 | A domain | a registrar | the full launch (Phase 11), or earlier once the name is settled, to keep it from being taken | a yearly fee, not priced |
 | Vercel | Pro + Spend Management (pause cap) | before a marketing push, at ~50% of any Hobby limit, or when commercial, whichever first | ~$20/member + capped usage |
@@ -943,8 +949,8 @@ mechanics, hand-off rule, custom SMTP provider.
 These hold in both the current state and the target design.
 
 **Owned by `CLAUDE.md`:** Supabase clients and keys, secrets, grants and RLS, architecture
-layers, the db layer, `proxy.ts`, API responses (`withErrorHandling`, the `{ error }`
-shape), the `/api/live` rules, locations, UI rules and time. This part doesn't restate
+layers, the db layer, `proxy.ts`, the security headers, API responses (`withErrorHandling`,
+the `{ error }` shape, `aal2`, the time-box, logout), the `/api/live` rules, locations, UI rules and time. This part doesn't restate
 them. Part 1's "Database" and Part 2 do describe several of them (the db layer, RLS
 and grants, the trigger's SQL rule, `/api/live`, the auth check order) **together with
 their reasons**; where one of those statements and a `CLAUDE.md` rule disagree, the
@@ -1104,13 +1110,13 @@ says.
 | Phase 8 #16 | A `controls` run of the full set that passed stands in for the hand run | `CLAUDE.md` "Testing" ("Schema controls": it still asks for a hand run while writing a control or a migration, and when CI ran only `--check`) |
 | Phase 8 #17 | Dependabot's PRs keep its default labels, the exception to PRs carrying only a phase label | `.github/dependabot.yml`'s header |
 | IS #301 (PR #369), IS #368 (PR #371) | The Phase 8 retrospective's calls: the Phase 7 retrospective's actions kept; one new action, the closing-keyword check in `secret-scan`, with `claims.sh` listing a PR body's closing references; squash merging off, since the check models the merge commit GitHub writes (the owner's call, round 4 on PR #371) | `CLAUDE.md` "Testing" and "Review rounds"; `scripts/closing-keywords.mjs`'s header; the process log's Phase 8 retrospective |
-| Phase 9 #1 (IS #278 (Phase 9)) | Phase 9's scope as the scope draft settled it, as built: TOTP MFA for the admin login (the emailed code deferred by #14), its enroll window and the lost-phone route; the session cover (#4, #5) for Pro-only timeouts; the login-abuse and code-guessing probes and settings (open decision 1); the split CSP and the cookie's reach (#6); monitoring (open decision 7); the smaller probes and limits (`x-forwarded-host`, length limits); the 2FA audit and the hosted-settings checklist. Replaces the between-phases row, which also amended the Phase 7 open decisions 1–5 row (rewritten above). The owner's calls (the draft's D2, D3, Q11–Q14, Q19–Q23, Q31, Q33) | `.claude/drafts/phases-8-10-scope.md` ("Phase 9 · Security"); Part 2's Phase map (Phase 9 row), "Admin and auth" and "Pre-deploy automation" (the 2FA audit) |
+| Phase 9 #1 (IS #278 (Phase 9)) | Phase 9's scope as the scope draft settled it, as built: TOTP MFA for the admin login (the emailed code deferred by #14) and its enroll window; the lost-phone route probed but left open (open decision 4: the recovery follows #13's order; step 1 recommends the dashboard's SQL editor, which the phone checkpoint used to remove the factor, IS #392; whether the login needs an unenroll screen is unsettled), for Phase 10's runbook; the session cover (#4, #5) for Pro-only timeouts; the login-abuse and code-guessing probes and settings (open decision 1); the split CSP and the cookie's reach (#6); monitoring (open decision 7); the smaller probes and limits (`x-forwarded-host`, length limits); the 2FA audit and the hosted-settings checklist. Replaces the between-phases row, which also amended the Phase 7 open decisions 1–5 row (rewritten above). The owner's calls (the draft's D2, D3, Q11–Q14, Q19–Q23, Q31, Q33) | `.claude/drafts/phases-8-10-scope.md` ("Phase 9 · Security"); Part 2's Phase map (Phase 9 row), "Admin and auth" and "Pre-deploy automation" (the 2FA audit) |
 | Phase 9 #2 (IS #373 (Phase 9)) | The soft launch's inputs, as settled: the time-box with a global logout (#4, #5), not Pro from the deploy; secure password change and its email on, locally and hosted, with "Require current password" hosted; only a magic-link first factor admitted (#13, #14), so a password a stolen session sets gets nothing in the app; cancel and confirm refusing an ended entry (#8); `aal` read from a token Auth verified, through `getUser(token)`, not `getClaims()`, so a logout stays effective (#11, open decision 11); the cookie's reach to `/map` accepted (#6); Auth's audit log written to the database (open decision 7). Replaces the between-phases row | Part 2's Phase map (Phase 9 row) and "Admin and auth"; `CLAUDE.md` "Supabase" and "API responses" |
 | Phase 9 #4; open decision 2 | Until Pro, `requireAdmin` refuses a session 12 hours after its first factor's sign-in (the `amr` entry that isn't `totp`, never the newest), read on the server's clock held within the token's `iat` and `exp`, and signs that session out at Auth with `scope: "local"`. A stolen token used only against Supabase isn't seen. Phase 11's Pro timeouts replace it | `CLAUDE.md` "API responses" (the session time-box); `src/lib/services/admin-auth.ts` (`SESSION_MAX_AGE_MS`) |
 | Phase 9 #5 | Logout signs out with `scope: "global"`, so a logout on one device ends the admin's other sessions | `CLAUDE.md` "API responses" (logout) |
 | Phase 9 #6 | The session cookie is readable by page scripts and reaches `/map`, outside `/admin`'s nonce CSP; accepted, since no public page puts user input into HTML; the public pages' static CSP admits inline scripts. The Owners phase, which adds user-written content, reopens it | `CLAUDE.md` "Security headers" (its limits); Part 2's Phase map (Phase 9 row) |
 | Phase 9 #7 | `users_select_own` lets an `aal1` token read the admin's own `users` row through the Data API; accepted with no migration | this row; `0001_baseline.sql` |
-| Phase 9 #8 | Cancel and confirm refuse an ended entry, the check and the write in one statement; the service reads the entry after a write that changed nothing, to tell ended from missing or cancelled; `TodayList` hides both buttons on an ended row | Part 2 "Product model" (item 3) and "Status codes"; `src/lib/services/locations.ts` |
+| Phase 9 #8 | Cancel and confirm refuse an ended entry, the check and the write in one statement; the service reads the entry after a write that changed nothing, to tell ended from missing or cancelled; `TodayList` hides both buttons on an ended row | Part 2 "Product model" (item 3); Part 3 "Status codes"; `src/lib/services/locations.ts` |
 | Phase 9 #9 | The tests reach `aal2` with a TOTP function of our own on Node's `crypto`, checked against RFC 6238's vectors, not a library; each fixture admin enrolls its one factor when created and signs in through the PKCE magic link, read from Mailpit | `tests/totp.ts`'s header; `tests/integration/helpers.ts` (the fixtures' sign-in) |
 | Phase 9 #10 (IS #390) | The hosted-settings checklist lives in the README, beside "Hosted preview database"; Phase 10 applies it to production | `README.md` "Hosted settings checklist" |
 | Phase 9 #11; open decision 11 | `aal` comes from a token Auth has verified (`getSession()`'s access token, then `getUser(token)`), never a decoded cookie, never "the user has a verified factor", and never `getClaims()`, which would pass a logged-out asymmetric token until it expires | `CLAUDE.md` "API responses" (`aal2`) |

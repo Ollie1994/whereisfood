@@ -101,7 +101,7 @@ The working rules live in [`CLAUDE.md`](CLAUDE.md) and the design reference in
 | 6 · Live read path   | `/api/live`, polling, map tiles on Cloudflare R2, first preview deploy | ✅ Done |
 | 7 · Admin            | Admin login, location entry, truck management, the morning checklist | ✅ Done |
 | 8 · CI/CD            | The checks in GitHub Actions, secret scanning, CodeQL, Dependabot, branch protection | ✅ Done |
-| 9 · Security         | Admin MFA, session limits, security headers, monitoring, the 2FA audit | ✅ Done |
+| 9 · Security         | Admin MFA, session limits, security headers, the 2FA audit; the free plans' alerts and logs read (none of their alerts can be set) | ✅ Done |
 | 10 · Launch          | Production deploy, a soft launch: the map shown only to the admin, an about page for everyone else | ⬜ Next |
 | 11 · Full launch     | The map public, a custom domain for the tiles, paid plans | ⬜ Not started |
 
