@@ -38,12 +38,12 @@ export function useLogin(): {
         },
       });
       const next = loginStatusFor(error);
-      // Logged, as `useMfa`'s verify is: the form's "failed" text is the same for any cause.
+      // Logged: the form's "failed" text (`loginMessage`) is the same for every cause.
       if (next === "failed") console.error("[login] the send answered:", error);
       setStatus(next);
     } catch (err) {
-      // `signInWithOtp` returns an `AuthError` and rethrows anything else (its `catch`, read in
-      // `@supabase/auth-js` 2.106.2).
+      // Anything the send throws, `signInWithOtp`'s own included: it returns an `AuthError`
+      // and rethrows anything else (its `catch`, read in `@supabase/auth-js` 2.106.2).
       console.error("[login] the send threw:", err);
       setStatus("failed");
     }
