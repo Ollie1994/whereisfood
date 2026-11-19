@@ -259,13 +259,17 @@ For each issue:
    `Issue N — ` prefix from the template heading.
 
 3. **Write the body to a file**, not inline — bodies contain backticks, `$`,
-   and checkboxes that the shell will mangle in an inline `--body`:
+   and checkboxes that the shell will mangle in an inline `--body`. Check it, create the
+   issue from it, then post it again through the script, which reads it back
+   (CLAUDE.md, "Doc changes"):
    ```bash
+   node scripts/post-body.mjs --check "<path/to/issue-body.md>"
    gh issue create \
      --title "<verb-phrase title, no 'Issue N —' prefix>" \
      --body-file "<path/to/issue-body.md>" \
      --label "<labels>" \
      --milestone "<milestone name>"
+   node scripts/post-body.mjs <new issue number> "<path/to/issue-body.md>"
    ```
 
 4. **(Optional) add to the Project board** if a project number was given and the
