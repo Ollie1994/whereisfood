@@ -561,6 +561,14 @@ uncommitted on `dev`. Every doc change then has a reviewable diff and a
 - GitHub issue and PR text is not a repo file, so editing it needs no branch. It is
   still a doc: a corrected claim there gets the same sweep as one in a file ("Review
   rounds" below; process-log rows 269, 271).
+- **Issue and PR text is posted through `scripts/post-body.mjs`** (IS #403): write the body
+  to a file, then `node scripts/post-body.mjs <n> <file>`, adding `--rounds` for a PR body
+  once it has a round section. A new issue or PR is created with `--body-file`, then the
+  script is run on the same file. It refuses, before posting, a raw control character, the
+  escape text GitHub rewrites (`\u0000` to `\u001F` but `\u0009`, `\u000A`, `\u000B` and
+  `\u000D`: write `\x00`, or the character's name) and a repeated `## ` heading; then it
+  posts and fails if GitHub's stored copy differs. A failure is fixed before the next step.
+  Its header lists what GitHub rewrites (probe PR #425) and what the script can't see.
 
 ---
 
