@@ -17,6 +17,73 @@ describe("textProblems", () => {
     expect(textProblems(`a${String.fromCharCode(0x0b)}b${String.fromCharCode(0x0c)}c`)).toHaveLength(2);
     expect(textProblems("a\tb\r\nc\n")).toEqual([]);
   });
+  const cps = (...xs) => xs.map((c) => String.fromCodePoint(c)).join("");
+  const NAMES = [
+    [0x00a0, "no-break space"], [0x00ad, "soft hyphen"], [0x200b, "zero-width space"], [0x200c, "zero-width non-joiner"],
+    [0x200d, "zero-width joiner"], [0x200e, "left-to-right mark"], [0x200f, "right-to-left mark"], [0x2028, "line separator"],
+    [0x2029, "paragraph separator"], [0x202a, "left-to-right embedding"], [0x202b, "right-to-left embedding"],
+    [0x202c, "pop directional formatting"], [0x202d, "left-to-right override"], [0x202e, "right-to-left override"],
+    [0x2060, "word joiner"], [0x2066, "left-to-right isolate"], [0x2067, "right-to-left isolate"], [0x2068, "first strong isolate"],
+    [0x2069, "pop directional isolate"], [0xfe0f, "emoji presentation selector"], [0xfeff, "byte-order mark"],
+  ];
+  it("names each invisible character by code point, name, line and column, and marks it in the excerpt (probe PR #428)", () => {
+    for (const [cp, name] of NAMES) {
+      const hex = cp.toString(16).toUpperCase().padStart(4, "0");
+      const [p, ...rest] = textProblems(`ok\nab${cps(cp)}c`);
+      expect(rest, hex).toEqual([]);
+      expect(p, hex).toContain(`line 2, column 3: an invisible character, U+${hex} (${name}): …ab<U+${hex}>c…`);
+    }
+  });
+  it("counts columns in characters, so an emoji before it is one", () => {
+    expect(textProblems(`${cps(0x1f916, 0x1f916, 0x00a0)}x`)).toEqual([expect.stringContaining("column 3:")]);
+    expect(textProblems(`${cps(0x1f916)}${BS}u0001`)).toEqual([expect.stringContaining("column 2:")]);
+  });
+  it("keeps other non-ASCII text, and the joiners and selectors that build an emoji", () => {
+    expect(textProblems("Ställ in, café, naïve, åtta, – … →")).toEqual([]);
+    const kept = {
+      family: cps(0x1f468, 0x200d, 0x1f469, 0x200d, 0x1f467),
+      "skin tone at a laptop": cps(0x1f469, 0x1f3fd, 0x200d, 0x1f4bb),
+      "lightest skin tone at a laptop": cps(0x1f469, 0x1f3fb, 0x200d, 0x1f4bb),
+      "darkest skin tone at a laptop": cps(0x1f469, 0x1f3ff, 0x200d, 0x1f4bb),
+      "keycap 0": cps(0x30, 0xfe0f, 0x20e3),
+      "keycap *": cps(0x2a, 0xfe0f, 0x20e3),
+      "rainbow flag": cps(0x1f3f3, 0xfe0f, 0x200d, 0x1f308),
+      "red heart": cps(0x2764, 0xfe0f),
+      "check mark": cps(0x2714, 0xfe0f),
+      "keycap 1": cps(0x31, 0xfe0f, 0x20e3),
+    };
+    for (const [name, s] of Object.entries(kept)) expect(textProblems(`a ${s} b`), name).toEqual([]);
+  });
+  it("refuses a joiner or selector that builds no emoji", () => {
+    expect(textProblems(`a${cps(0x200d)}b`)).toHaveLength(1);
+    expect(textProblems(`${cps(0x1f916, 0x200d)}b`)).toHaveLength(1);
+    expect(textProblems(`a${cps(0x200d, 0x1f916)}`)).toHaveLength(1);
+    expect(textProblems(`a${cps(0xfe0f)}`)).toHaveLength(1);
+  });
+  it("refuses U+FE0F after a skin tone, which no emoji has (UTS #51)", () => {
+    expect(textProblems(`x ${cps(0x1f44d, 0x1f3fd, 0xfe0f)} y`)).toEqual([expect.stringContaining("U+FE0F")]);
+  });
+  it("keeps U+FE0F after a digit, # or * only in a keycap", () => {
+    expect(textProblems(`version 2${cps(0xfe0f)}`)).toHaveLength(1);
+    expect(textProblems(`x #${cps(0xfe0f)} y`)).toHaveLength(1);
+    expect(textProblems(`x ${cps(0x23, 0xfe0f, 0x20e3)} y`)).toEqual([]);
+  });
+  it("counts a raw control character's column in characters too", () => {
+    expect(textProblems(`${cps(0x1f916, 0x1f916)}${String.fromCharCode(1)}`)).toEqual([expect.stringContaining("column 3: a raw control character")]);
+  });
+  it("marks only the refused characters in an excerpt, not an emoji's joiners", () => {
+    const family = cps(0x1f468, 0x200d, 0x1f469);
+    const [p] = textProblems(`${family} a${cps(0x00a0)}b`);
+    expect(p).toContain(`…${family} a<U+00A0>b…`);
+  });
+  it("doesn't mark an emoji cut at the excerpt's edge", () => {
+    const [p] = textProblems(`x${cps(0x00a0)}${"a".repeat(27)}${cps(0x1f468, 0x200d, 0x1f469)}`);
+    expect(p).not.toContain("<U+200D>");
+    expect(p).toContain(`${cps(0x1f468, 0x200d)}…`);
+    const [q] = textProblems(`${cps(0x2764, 0xfe0f)}${"a".repeat(29)}${cps(0x00a0)}`);
+    expect(q).not.toContain("<U+FE0F>");
+    expect(q).toContain(`…${cps(0xfe0f)}a`);
+  });
   it("takes the escape's hex digits in either case", () => {
     expect(textProblems(`${BS}u000c`)).toHaveLength(1);
     expect(textProblems(`${BS}u000a`)).toEqual([]);
@@ -221,6 +288,22 @@ describe("main", () => {
     expect(main(["--comment", "12", file("text\n")], { api })).toBe(1);
     expect(console.error).toHaveBeenCalledWith(expect.stringContaining("comment 99 was made"));
   });
+  it("shows every invisible character in the read-back's lines, so a difference is visible", () => {
+    quiet();
+    const nnbsp = String.fromCodePoint(0x202f);
+    const { api } = fakeApi((b) => b.replace("a b", `a${nnbsp}b`).replace("c d", "c\td"));
+    expect(main(["12", file("a b\n")], { api })).toBe(1);
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining("stored: a<U+202F>b"));
+    expect(main(["12", file("c d\n")], { api })).toBe(1);
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining("stored: c<0x09>d"));
+    // U+FFF9 is a format character that isn't default-ignorable, so it needs \p{Cf}.
+    for (const cp of [0x200b, 0xfe0e, 0xe0041, 0x3000, 0xfff9]) {
+      const hex = cp.toString(16).toUpperCase().padStart(4, "0");
+      const { api: swap } = fakeApi((b) => b.replace("e f", `e${String.fromCodePoint(cp)}f`));
+      expect(main(["12", file("e f\n")], { api: swap }), hex).toBe(1);
+      expect(console.error).toHaveBeenCalledWith(expect.stringContaining(`stored: e<U+${hex}>f`));
+    }
+  });
   it("fails when GitHub stores something else, body or comment", () => {
     quiet();
     const { api } = fakeApi((b) => b.replace("text", "txet"));
@@ -239,6 +322,8 @@ describe("main", () => {
     quiet();
     const { api, calls } = fakeApi();
     expect(main(["--check", file("## A\ntext\n")], { api })).toBe(0);
+    expect(main(["--check", file(`${String.fromCodePoint(0xfeff)}## A\ntext\n`)], { api }), "a BOM opening the file").toBe(0);
+    expect(main(["--check", file(`## A\nte${String.fromCodePoint(0xfeff)}xt\n`)], { api }), "a BOM inside it").toBe(1);
     expect(main(["--check", file("## A\n## A\n")], { api })).toBe(1);
     expect(calls).toEqual([]);
   });

@@ -27,7 +27,13 @@
 //     or `gh pr create --body-file`; then the first form, on the same file, reads it back.
 //
 // The checks, before anything is posted (exit 1, nothing posted): a raw control character
-// (all of C0 but tab, LF and CR); the escape text GitHub rewrites (above); an ATX level-2
+// (all of C0 but tab, LF and CR); an invisible character (the no-break space, the soft
+// hyphen, the zero-width space, non-joiner and joiner, the line and paragraph separators,
+// the word joiner, the bidi marks, embeddings, overrides and isolates, the emoji
+// presentation selector and the byte-order mark: INVISIBLE_NAMES lists them by code point;
+// GitHub stores each unchanged, probe PR #428, so a read-back can't show them; kept are a
+// joiner between two emoji, a U+FE0F after a pictograph or in a keycap, and a byte-order
+// mark opening the file); the escape text GitHub rewrites (above); an ATX level-2
 // heading twice (`##` then blanks, a closing run of `#` dropped). Lines inside a fenced code
 // block (``` with no backtick after it on the line, or ~~~; closed only by a fence of the same
 // character, at least as long, with nothing after it) or an HTML comment (a line starting
@@ -47,7 +53,9 @@
 //
 // Does not catch: a wrong or stale statement (the claims check and the rounds read those); text
 // posted in the browser, or by `gh` without this script (CLAUDE.md's rule); a review comment
-// on a PR's diff (it posts only issue and PR comments); a setext heading (text over `--`),
+// on a PR's diff (it posts only issue and PR comments); invisible characters off the list,
+// though GitHub keeps them too (probe PR #428: the text presentation selector U+FE0E, the
+// narrow no-break space U+202F, a tag character U+E0041); a setext heading (text over `--`),
 // which no heading check reads; a round heading with a number word past "ten"; a round
 // section that is present but empty; a round recorded in the log in another form (rows
 // before the log's review-form-from-row).
@@ -63,14 +71,84 @@ const logPath = () => process.env.PROCESS_LOG || REPO_LOG;
 
 // Raw control characters GitHub drops or rewrites, and any other a shell may leave behind:
 // all of C0 but tab, LF and CR.
-const RAW_CONTROL = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g;
+const isRawControl = (cp) => cp < 0x20 && cp !== 0x09 && cp !== 0x0a && cp !== 0x0d;
 // The escape text GitHub rewrites (probe PR #425): a lowercase \u, then 0000–001F but 0009,
 // 000A, 000B and 000D, hex digits in either case.
 const REWRITTEN_ESCAPE = /\\u00(?:0[0-8CEFcef]|1[0-9A-Fa-f])/g;
+// Invisible characters GitHub stores unchanged, so no read-back shows them: each of the 21
+// was posted to probe PR #428 between two letters and read back as sent (2026-11-19). A tool
+// can leave them behind when an escape is written into a file (process-log row 806: four
+// times). Listed by code point, so this source holds none of them.
+const INVISIBLE_NAMES = new Map([
+  [0x00a0, "no-break space"],
+  [0x00ad, "soft hyphen"],
+  [0x200b, "zero-width space"],
+  [0x200c, "zero-width non-joiner"],
+  [0x200d, "zero-width joiner"],
+  [0x200e, "left-to-right mark"],
+  [0x200f, "right-to-left mark"],
+  [0x2028, "line separator"],
+  [0x2029, "paragraph separator"],
+  [0x202a, "left-to-right embedding"],
+  [0x202b, "right-to-left embedding"],
+  [0x202c, "pop directional formatting"],
+  [0x202d, "left-to-right override"],
+  [0x202e, "right-to-left override"],
+  [0x2060, "word joiner"],
+  [0x2066, "left-to-right isolate"],
+  [0x2067, "right-to-left isolate"],
+  [0x2068, "first strong isolate"],
+  [0x2069, "pop directional isolate"],
+  [0xfe0f, "emoji presentation selector"],
+  [0xfeff, "byte-order mark"],
+]);
+const isPictographic = (ch) => ch !== undefined && /\p{Extended_Pictographic}/u.test(ch);
+const isSkinTone = (ch) => ch !== undefined && ch.codePointAt(0) >= 0x1f3fb && ch.codePointAt(0) <= 0x1f3ff;
+const KEYCAP_BASE = /^[0-9#*]$/;
+/** Whether the invisible character at code point k of `chars` belongs to an emoji: a
+ * zero-width joiner between two pictographs (the one before it may carry a skin tone or
+ * U+FE0F: a family, a woman with a skin tone at a laptop, the rainbow flag), or a U+FE0F
+ * right after a pictograph (a red heart, a check mark) or after a digit, `#` or `*` that a
+ * keycap mark (U+20E3) follows. A U+FE0F after a skin tone is refused: no emoji has one
+ * there (Unicode's emoji spec, UTS #51, puts the modifier last). */
+function inEmoji(chars, k) {
+  const cp = chars[k].codePointAt(0);
+  if (cp === 0xfe0f) {
+    if (k > 0 && KEYCAP_BASE.test(chars[k - 1])) return chars[k + 1]?.codePointAt(0) === 0x20e3;
+    return isPictographic(chars[k - 1]);
+  }
+  if (cp !== 0x200d) return false;
+  let j = k - 1;
+  while (j >= 0 && (chars[j].codePointAt(0) === 0xfe0f || isSkinTone(chars[j]))) j--;
+  return isPictographic(chars[j]) && isPictographic(chars[k + 1]);
+}
+/** Whether code point k of `chars` is one the checks refuse: a raw control character, or an
+ * invisible one not part of an emoji. */
+const refused = (chars, k) => {
+  const cp = chars[k].codePointAt(0);
+  return isRawControl(cp) || (INVISIBLE_NAMES.has(cp) && !inEmoji(chars, k));
+};
 
 const lines = (text) => text.replace(/\r\n?/g, "\n").split("\n");
-const show = (s) => s.replace(/[\u0000-\u001F]/g, (c) => `<0x${c.charCodeAt(0).toString(16).padStart(2, "0")}>`);
-const around = (line, i) => show(line.slice(Math.max(0, i - 30), i + 30));
+const codeName = (cp) => `U+${cp.toString(16).toUpperCase().padStart(4, "0")}`;
+const markOf = (cp) => (cp < 0x20 ? `<0x${cp.toString(16).padStart(2, "0")}>` : `<${codeName(cp)}>`);
+/** An excerpt of `chars` around k, each character `bad` flags (worked out over the whole
+ * line, so an emoji cut at the excerpt's edge isn't marked) shown as `<0xNN>` or `<U+XXXX>`. */
+const around = (chars, bad, k) => {
+  const from = Math.max(0, k - 30);
+  return chars
+    .slice(from, k + 30)
+    .map((c, i) => (bad[from + i] ? markOf(c.codePointAt(0)) : c))
+    .join("");
+};
+// For the read-back's sent and stored lines, where a difference must show whatever it is:
+// every control, format or separator character and every default-ignorable one (Unicode's
+// properties, so U+FE0E, U+202F, U+3000, the tag characters and the list are all in), the
+// plain space aside. An emoji's own joiners and selectors are shown too, since a difference
+// may be in them.
+const INVISIBLE_ANY = /[\p{Cc}\p{Cf}\p{Z}\p{Default_Ignorable_Code_Point}]/u;
+const anyInvisible = (c) => c !== " " && INVISIBLE_ANY.test(c);
+const show = (s) => [...s].map((c) => (anyInvisible(c) ? markOf(c.codePointAt(0)) : c)).join("");
 
 /** Whether the text after a `<!--` ends the comment: `-->` in it, or `>` or `->` at once
  * (`<!-->` and `<!--->` are whole comments in CommonMark). */
@@ -112,11 +190,22 @@ function h2(line) {
 export function textProblems(text) {
   const out = [];
   lines(text).forEach((line, i) => {
-    for (const m of line.matchAll(RAW_CONTROL)) {
-      out.push(`line ${i + 1}, column ${m.index + 1}: a raw control character: …${around(line, m.index)}…`);
-    }
+    // Columns count characters (code points), not UTF-16 units, so an emoji is one; `at`
+    // maps a UTF-16 index to its character's index, built once per line.
+    const chars = [...line];
+    const bad = chars.map((_, k) => refused(chars, k));
+    const at = [];
+    let u = 0;
+    chars.forEach((ch, k) => {
+      at[u] = k;
+      u += ch.length;
+      if (!bad[k]) return;
+      const cp = ch.codePointAt(0);
+      const what = isRawControl(cp) ? "a raw control character" : `an invisible character, ${codeName(cp)} (${INVISIBLE_NAMES.get(cp)})`;
+      out.push(`line ${i + 1}, column ${k + 1}: ${what}: …${around(chars, bad, k)}…`);
+    });
     for (const m of line.matchAll(REWRITTEN_ESCAPE)) {
-      out.push(`line ${i + 1}, column ${m.index + 1}: GitHub rewrites the text ${m[0]}; write it as \\x${m[0].slice(4)} or in words`);
+      out.push(`line ${i + 1}, column ${at[m.index] + 1}: GitHub rewrites the text ${m[0]}; write it as \\x${m[0].slice(4)} or in words`);
     }
   });
   return out;
