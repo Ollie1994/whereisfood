@@ -1073,7 +1073,8 @@ Old rows that point at them are now pointing there: "see note" (rows 14, 15, 17,
 | 792 | 2026-11-18 | PR #420 / IS #390 | `README` | `/code-review` round 3 (full) on #420 found 10; 9 applied, 1 dismissed. **Round 2's corrections still claimed more than their evidence:** "16 to 18 minutes" from clock reads in whole minutes (only the last reload is surely past 17); the grants re-read cited as recorded on #390, where it wasn't; the intro's rewrite lost Standard Protection's public production domain; the production toolbar "kept as found" with the team default unread. Also: a dashboard caption stated as fact, Confirm email's local difference unnoted, the SMTP row's reason, an unwrapped plan line, CLAUDE.md's pointers. | `code-review` round 3 (full) | `pre-merge` | `imprecise-claim` | "At least 17 minutes" from the 20:30 reload; the grants read and the team toolbar (on, left to Phase 10) recorded on #390; Standard Protection's public production domain named; the caption quoted; `enable_confirmations` noted; SMTP's reason from plan #14; the search path and a pointer added. |
 | 793 | 2026-11-19 | PR #423 / IS #393 | `process-log` | `/code-review` round 1 on #423, full, found 9; all applied, 1 after the owner's call. **New action 2 was put to the owner as aimed at four of the seven `merged` rows, but 725 was a plan claim against its own citation, not a stand-in, and 780 had a stated limit that #422's Step 5 accepted; three, two as written.** Also: 790–792 misquoted and 19 rows counted where 15 were review rows; the past-ceiling rounds' finds undercounted; A/B labels against 1/2; 20 of 53 on a different base from Phase 8's; two averages rounded down; row 700's Where. | `code-review` r1 on PR #423, full | `pre-merge` | `imprecise-claim` | The owner, asked again, kept action 2 and added a clause: a stated limit doesn't pass when the work relies on the claim (#422). The section, #421, #422 and #403 corrected to the rows; 20 of 55; 9.0 and 8.3; row 700's issue. |
 | 794 | 2026-11-19 | PR #423 / IS #393 | `process-log` | **Round 1's fix for action 2's evidence said the field isn't aimed at the Phase 8 retrospective's five rows because they came from docs, and #422's "Does not catch" said all five were docs-sourced.** Read row by row, 608 and 677 were claims not checked (round 2 found the field passes them too: each had a step on the real target); only 640 and 699 came from docs, and 635 was a probe on the real target that couldn't fail. Written from Phase 8's "from docs or reasoning" heading, not the rows. | `self` the claims check before round 2 on PR #423 | `pre-merge` | `overcorrection` | The section names which of the five the field reaches (608, 677) and why the other three pass; #422's "Does not catch" names 640, 699 and 635, with a dated note. |
-| 795 | 2026-11-19 | PR #423 / IS #393 | `process-log` | `/code-review` round 2 on #423, scoped to round 1's fixes, found 9; all applied, 1 by the owner's call. **Round 1's corrected evidence for the stand-ins field still overclaimed: a template sees only plan and issue text, where 780's, 744's, 752's and 777's claims never were, and Step 5 passes a claim any step checks on the real target (727, 608, 677); it reached one merged row, 726.** Also: the class bullet and #422's Context kept "docs or reasoning"; 759's headline is a stale comment; read-through 1 was a first review; "two classes"; row 794 on 699; a wrap. | `code-review` r2 on PR #423, scoped to `af8409b..46d919b` | `pre-merge` | `overcorrection` | The owner dropped the field (#422 closed, off #394's blockers); the section records it as offered and not taken, with what it reaches. 759 under tests; 20 of 54 and 0 of 1; the summary, the class bullet and row 794 corrected; rewrapped. |
+| 795 | 2026-11-19 | PR #423 / IS #393 | `process-log` | `/code-review` round 2 on #423, scoped to `af8409b..46d919b`, found 9; 8 applied (1 by the owner's call), 1 moot (#422 closed). **Round 1's corrected evidence for the stand-ins field still overclaimed: a template sees only plan and issue text, where 780's, 744's, 752's and 777's claims never were, and Step 5 passes a claim any step checks on the real target (727, 608, 677); it reached one merged row, 726.** Also: the class bullet and #422's Context kept "docs or reasoning"; 759's headline is a stale comment; read-through 1 was a first review; "two classes"; row 794 on 699; a wrap. | `code-review` r2 on PR #423, scoped to `af8409b..46d919b` | `pre-merge` | `overcorrection` | The owner dropped the field (#422 closed, off #394's blockers); the section records it as offered and not taken, with what it reaches. 759 under tests; 20 of 54 and 0 of 1; the summary, the class bullet and row 794 corrected; rewrapped. |
+| 796 | 2026-11-19 | PR #423 / IS #393 | `process-log` | `/code-review` round 3 on #423, full, the ceiling's last, found 7, none in what runs; all applied. **Round 2's paragraph on the dropped field listed 727 among the Phase 8 retrospective's five and left out 635, and #422's closing comment copied it; closed #422's body still held the rejected evidence.** Also: "three" cited to row 795, though row 793 holds it; rounds per PR on two bases; action 4 listed only what the claims check caught; row 795's "all applied" and its scope. | `code-review` r3 on PR #423, full | `pre-merge` | `overcorrection` | 727 accounted for in Phase 9's class, 635 in Phase 8's five, in the section and the comment; #422's body points to the corrected evidence; row 793 cited; 3.2 to 3.8 on one base; 735 and 777 under action 4; row 795 corrected. |
 
 ---
 
@@ -2440,7 +2441,9 @@ below):
   - 0 of the 1 read-through.
 - **No PR's rounds ran down.** Each of the 20 PRs had three rounds or more, and each one's
   last round found 5 to 10. 27 of the 75 rounds found exactly 10 (Phase 8: 30 of 133).
-- **Rounds per PR rose** from 3.2 to 3.7.
+- **Rounds per PR rose:** from 3.2 to 3.8 counted as Phase 8 counted (133 rounds over 42
+  PRs, its read-throughs included; 75 over 20), or 3.1 to 3.7 without the read-throughs
+  (130 over 42; 73 over 20).
 
 ### The Phase 8 retrospective's actions
 
@@ -2476,6 +2479,12 @@ had 3. The log passes `check` as this section is written (exit 0).
 - **The share rose again.** `imprecise-claim` went from 32 of 157 (20%) to 24 of 93 (26%).
 - **Rows it caught:** 705 (its `closing:` lines, on their first run), 714 and 746 (its
   output showed the `^@` by chance).
+- **Rows that name it in their Miss** (a grep for `claims check|claims.sh`, 8 hits, each
+  read), beside those it caught:
+  - 735: it ran on the draft before a fill script, so it never read the posted body (new
+    action 1 reads it back);
+  - 777: it cut a reasoned claim, which wasn't probed until the owner's browser check;
+  - 701 is about the Phase 8 section, and 706–708 about `claims.sh`'s own code (#371).
 - **Why kept.** As in Phase 8, no mechanism was found with evidence that it would move
   the share. The one offered for its part that is claims about outside tools wasn't taken
   ("New actions", below).
@@ -2526,12 +2535,14 @@ would reject one checked on a stand-in or not at all with no step on the real ta
 template sees only plan and issue text, and Step 5 passes a claim any step checks on the
 real target. So it reaches one of the seven `merged` rows, 726 (step 1 planned the
 rate-limit probes on the local stack, with no step on the preview), and before merge 773
-(#387's failure mode, checked under `next start`). The rest of the class was claimed
-during the work, where no template looks: 780 (PR #411's limit), 744, 752 and 777. It
-reaches none of the Phase 8 retrospective's five: 727, 608 and 677 had a step on the real
-target, and 640 and 699 came from docs. The owner took it twice on wider evidence put to
-them, "four of the seven" and then "three" (rows 793 and 795); with round 2's correction
-on PR #423, they dropped it (2026-11-19).
+(#387's failure mode, checked under `next start`). Of the class's other rows, 727 had a
+step on the real target (step 5d set the template on the preview), and 780 (PR #411's
+limit), 744, 752 and 777 were claimed during the work, where no template looks. It reaches
+none of the Phase 8 retrospective's five: 608 and 677 had a step on the real target, 640
+and 699 came from docs, and 635 was a probe on the real target that couldn't fail. The
+owner took it twice on wider evidence put to them, "four of the seven" and then "three"
+(both in row 793); with round 2's correction on PR #423 (row 795), they dropped it
+(2026-11-19).
 
 ### Follow-ups
 
