@@ -207,7 +207,11 @@ range that needs it (the Phase 5 retrospective). **A review Claude was asked to 
 `code-review`**, however it was done and whatever it reviewed: a `/code-review` round,
 or a read-through of a plan, an issue or a doc. The text says how and what: the round
 and its target (`/code-review` r2 on PR #173, scoped to round 1's diff; or "plan
-read-through"). The owner's own findings, their own read of a plan included, are `user` (Phase 5 plan
+read-through"). From the values block's `review-form-from-row`, `check` requires the
+text to start `r<N> on PR #<n>, full` or `r<N> on PR #<n>, scoped` (anything may
+follow, such as the range), or `read-through`; it checks the form, not that the round or
+PR is right (IS #421). Earlier rows stay as written: 774–789 have no round text, and
+790–792 a round with no PR. The owner's own findings, their own read of a plan included, are `user` (Phase 5 plan
 decision #22). A `plan-review` group existed until PR #173; no checked row used it,
 and the Phase 3 and 4 retrospectives' "plan / issue review" counts are dated records of
 the rule it came from. **Anything else is grouped by who found it**: `self` while doing
@@ -217,8 +221,8 @@ owner's browser check (row 282) is `user`, and the end-of-phase check run while 
 other goes in the text. Older free-text rows name that one first (rows 289, 296).
 
 - **code-review:** a review Claude was asked to run, whoever asked: a `/code-review`
-  round (the round, `r2`, in the text) or a
-  read-through ("plan read-through").
+  round (`r2 on PR #173, scoped …` in the text) or a
+  read-through ("read-through of the plan").
 - **self:** found while doing the work: writing, running, probing, mutation testing,
   re-reading output, or a check run as part of it (the gates, the end-of-phase check of
   row 303).
@@ -231,6 +235,7 @@ block, and only these; the prose above explains them. Change a value here and no
 else. `artifact-drift-rows` are exempt from the `artifact` list (known drift, row
 297). From `cap-from-row`, a row's Miss is at most `cap-miss` characters and its Fix
 at most `cap-fix`: the details go in the PR body. Earlier rows are exempt (IS #155).
+From `review-form-from-row`, a `code-review` row's text has the form above (IS #421).
 The Cause names in the taxonomy below must match the `cause` line, and `check` says so
 when they don't.
 
@@ -244,6 +249,7 @@ artifact-drift-rows: 197-267
 cap-from-row: 321
 cap-miss: 600
 cap-fix: 300
+review-form-from-row: 797
 ```
 
 ### Cause taxonomy

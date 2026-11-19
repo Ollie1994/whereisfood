@@ -36,6 +36,10 @@
 #         - from caught-by-from-row (IS #150), a Caught by cell that doesn't start with
 #           a listed backticked group, and a listed group on the row just before it
 #           (the boundary set too high);
+#         - from review-form-from-row (IS #421), a `code-review` Caught by cell whose
+#           text after the group doesn't start ` r<N> on PR #<n>, full`, ` r<N> on PR
+#           #<n>, scoped` (anything may follow) or ` read-through`. It checks the form,
+#           not that the round or PR is right;
 #         - from cap-from-row (IS #155), a Miss over cap-miss or a Fix over cap-fix
 #           characters (escaped pipes count as one);
 #         - a Cause in the taxonomy table that the block's cause line lacks, or the
@@ -102,6 +106,7 @@ cause_values() {
 load_values() {
   load_from
   row_key cap-from-row CAP_FROM
+  row_key review-form-from-row REVIEW_FROM
   ART=$(value artifact); ESC=$(value escaped); CAU=$(value cause); GRP=$(value caught-by)
   DRIFT=$(value artifact-drift-rows); CAP_MISS=$(value cap-miss); CAP_FIX=$(value cap-fix)
   local k v
@@ -146,7 +151,8 @@ check() {
   [ -n "$tab" ] || die2 "could not read the Cause taxonomy table"
   masked | awk -F'|' -v art="$ART" -v esc="$ESC" -v cau="$CAU" -v grp="$GRP" -v tab="$tab" \
       -v drift_lo="${DRIFT%-*}" -v drift_hi="${DRIFT#*-}" -v caught_from="$FROM" \
-      -v cap_from="$CAP_FROM" -v cap_miss="$CAP_MISS" -v cap_fix="$CAP_FIX" "$GROUP_FN $CHARS_FN"'
+      -v cap_from="$CAP_FROM" -v cap_miss="$CAP_MISS" -v cap_fix="$CAP_FIX" \
+      -v review_from="$REVIEW_FROM" "$GROUP_FN $CHARS_FN"'
     function cell(v) { gsub(/^ +| +$/, "", v); return v }
     BEGIN {
       # A value repeated within one list is harmless; one in two lists is ambiguous.
@@ -177,6 +183,12 @@ check() {
         v = group($7)
         if (v == "") { print r ": Caught by has no leading group"; bad = 1 }
         else if (!(v in G)) { print r ": Caught by group \"" v "\""; bad = 1 }
+        else if (v == "code-review" && r >= review_from + 0) {
+          rest = $7; sub(/^[ \t]+/, "", rest); sub(/^`[^`]+`/, "", rest)
+          if (rest !~ /^ (r[0-9]+ on PR #[0-9]+, (full|scoped)|read-through)/) {
+            print r ": a code-review Caught by needs \"r<N> on PR #<n>, full\" or \", scoped\", or \"read-through\" after the group"; bad = 1
+          }
+        }
       } else if (r == caught_from - 1 && (group($7) in G)) {
         # A boundary set too high would exempt grouped rows without a word.
         print r ": Caught by has a group, but caught-by-from-row says " caught_from; bad = 1
