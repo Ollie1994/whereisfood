@@ -39,7 +39,8 @@
 #         - from review-form-from-row (IS #421), a `code-review` Caught by cell whose
 #           text after the group isn't blanks, then `r<N> on PR #<n>, full` or `r<N> on
 #           PR #<n>, scoped` (whole words; anything may follow), or `read-through
-#           <target>` with at most one word before it; and the last `code-review` row
+#           <target>` with at most one word before it (any blanks count as one space);
+#           and the last `code-review` row
 #           below the key being in that form (the boundary set too high). It checks the
 #           form, not that the round or PR is right;
 #         - from cap-from-row (IS #155), a Miss over cap-miss or a Fix over cap-fix
@@ -163,11 +164,16 @@ check() {
       -v cap_from="$CAP_FROM" -v cap_miss="$CAP_MISS" -v cap_fix="$CAP_FIX" \
       -v review_from="$REVIEW_FROM" "$GROUP_FN $CHARS_FN"'
     function cell(v) { gsub(/^ +| +$/, "", v); return v }
+    # The text after the group, each run of blanks one space, trimmed.
+    function review_text(v) { v = after_group(v); gsub(/[ \t]+/, " ", v); sub(/^ /, "", v); sub(/ $/, "", v); return v }
     # A code-review cell in the form: blanks after the group, then "r<N> on PR #<n>,
-    # full" or ", scoped" (whole words: no letter, digit, _ or non-ASCII byte next;
-    # anything else may follow), or a read-through naming its target, with at most one
-    # word before it ("narrow read-through on PR #280", rows 592, 596, 600).
-    function review_form(v) { return after_group(v) ~ /^[ \t]+(r[0-9]+ on PR #[0-9]+, (full|scoped)([^A-Za-z0-9_\200-\377]|$)|([a-z-]+ )?read-through [^ ])/ }
+    # full" or ", scoped" (whole words: no letter, digit, _, - or non-ASCII byte next;
+    # anything else may follow), or a read-through whose target starts with a letter,
+    # digit or #, with at most one word before it, starting with a letter or digit
+    # ("narrow read-through on PR #280", rows 592, 596, 600).
+    function review_form(v) {
+      return after_group(v) ~ /^[ \t]/ && review_text(v) ~ /^(r[0-9]+ on PR #[0-9]+, (full|scoped)([^-A-Za-z0-9_\200-\377]|$)|([A-Za-z0-9][-A-Za-z0-9]* )?read-through [A-Za-z0-9#])/
+    }
     BEGIN {
       # A value repeated within one list is harmless; one in two lists is ambiguous.
       n = split(art, a, " "); for (i = 1; i <= n; i++) A[a[i]]
@@ -198,7 +204,7 @@ check() {
         if (v == "") { print r ": Caught by has no leading group"; bad = 1 }
         else if (!(v in G)) { print r ": Caught by group \"" v "\""; bad = 1 }
         else if (v == "code-review" && r >= review_from + 0 && !review_form($7)) {
-          print r ": a code-review Caught by needs \"r<N> on PR #<n>, full\" or \", scoped\", or \"read-through <target>\" after the group, not \"" cell(after_group($7)) "\" (an escaped pipe shows as ~)"; bad = 1
+          print r ": a code-review Caught by needs \"r<N> on PR #<n>, full\" or \", scoped\", or \"read-through <target>\" after the group, not \"" review_text($7) "\" (an escaped pipe shows as ~)"; bad = 1
         }
       } else if (r == caught_from - 1 && (group($7) in G)) {
         # A boundary set too high would exempt grouped rows without a word.
@@ -207,7 +213,7 @@ check() {
       # The boundary check for the form: the last code-review row below the key, read
       # in END. It cannot stop the key being moved past a last code-review row that
       # fails the form: the diff of the values block shows that.
-      if (r < review_from + 0 && group($7) == "code-review") { last_review = r; last_in_form = review_form($7) }
+      if (r < review_from + 0 && group($7) == "code-review") { last_review = r; last_cell = $7 }
       if (r >= cap_from + 0) {
         m = chars(cell($6)); if (m > cap_miss + 0) { print r ": Miss is " m " characters, over cap-miss (" cap_miss ")"; bad = 1 }
         m = chars(cell($10)); if (m > cap_fix + 0) { print r ": Fix is " m " characters, over cap-fix (" cap_fix ")"; bad = 1 }
@@ -215,7 +221,7 @@ check() {
     }
     # awk runs END even after `exit` in BEGIN, so END must keep the fatal status.
     END {
-      if (!fatal && last_in_form) { print last_review ": a code-review Caught by in the form, below review-form-from-row (" review_from ")"; bad = 1 }
+      if (!fatal && last_review && review_form(last_cell)) { print last_review ": a code-review Caught by in the form, below review-form-from-row (" review_from ")"; bad = 1 }
       exit fatal ? fatal : (bad ? 1 : 0)
     }'
 }
