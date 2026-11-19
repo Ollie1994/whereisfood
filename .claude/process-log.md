@@ -2325,3 +2325,190 @@ owner's to confirm.
 ### Follow-ups
 
 - #368: the closing-keyword check. In #302's `Blocked by`.
+
+## Phase 9 retrospective (2026-11-19, #393)
+
+**Rows counted: 700–792 (93 rows).** The range runs from the Phase 8 retrospective's own
+rows (700–704, PR #369) to the last row written before this retrospective started (792,
+PR #420, 2026-11-18). Row 793 onward belong to the next range, this retrospective's own
+rows included, and so do any rows from #419's PR: #419 can't run before 2026-11-19 18:04
+Stockholm, and the owner took it off #393's blockers (2026-11-19; it still blocks #394).
+What the rows came from:
+- **Rows 700–714, Phase 8's closing steps:** the retrospective (PR #369, 700–704), its
+  follow-up #368 (PR #371, 705–710) and the reconciliation #302 (PR #372, 711–714).
+- **Rows 715–720, between phases:** IS #373, the soft launch's inputs (two read-throughs
+  of the issue, 715–716; PR #374, 717–720).
+- **Rows 721–727, the Phase 9 plan** (PR #376, IS #375). 725–727 were found while doing
+  step 1 (#377), after the plan merged.
+- **Rows 728–792, Phase 9's steps** (PRs #395–#420).
+
+```bash
+bash scripts/process-log.sh tally 9 700 792    # Cause
+bash scripts/process-log.sh tally 7 700 792    # Caught by
+bash scripts/process-log.sh tally 8 700 792    # Escaped
+```
+
+### By `Cause`
+
+| Cause | Rows | Share | Phase 8 (543–699) |
+|---|---|---|---|
+| `imprecise-claim` | 24 | 26% | 32 (20%) |
+| `incomplete-guard` | 22 | 24% | 35 (22%) |
+| `overcorrection` | 21 | 23% | 46 (29%) |
+| `unverified-assumption` | 17 | 18% | 31 (20%) |
+| `gate-skipped` | 4 | 4% | 4 (3%) |
+| `stale-doc` | 3 | 3% | 1 (1%) |
+| `missing-gate` | 2 | 2% | 5 (3%) |
+| `manual-drift` | 0 | 0% | 3 (2%) |
+
+The two parts:
+- **Rows 700–727 (`tally 9 700 727`, 28 rows):** `overcorrection` 9, `imprecise-claim` 8,
+  `unverified-assumption` 5, `incomplete-guard` 5, `missing-gate` 1.
+- **Rows 728–792 (`tally 9 728 792`, 65 rows):** `incomplete-guard` 17, `imprecise-claim`
+  16, `unverified-assumption` 12, `overcorrection` 12, `gate-skipped` 4, `stale-doc` 3,
+  `missing-gate` 1.
+
+### By `Caught by`
+
+`tally 7` grouped all 93 rows:
+
+| Group | Rows | Phase 8 |
+|---|---|---|
+| `code-review` | 75 | 133 |
+| `self` | 14 | 18 |
+| `user` | 4 | 6 |
+
+**`Escaped`:**
+
+| Escaped | Rows |
+|---|---|
+| `pre-merge` | 79 |
+| `merged` | 7 (725, 726, 727, 746, 747, 769, 780) |
+| `pre-commit` | 5 (700, 705, 715, 716, 773) |
+| `n/a` | 2 (776, 781) |
+
+`merged` rose from 8 of 157 (5.1%) to 7 of 93 (7.5%). The seven, read row by row, are
+two classes:
+- **Text posted to GitHub that didn't hold what was meant:** 746 and 747 (GitHub stored
+  the `\u0000` and `\u0001` escapes rewritten, in three PRs' and issues' text) and 769 (a
+  script inserted no round sections into PRs #408 and #409, with no error). Before merge,
+  735 is the same class: a fill script duplicated half of PR #398's body. New action 1.
+- **A claim about how a hosted service or outside tool behaves, made on a stand-in or with
+  no check:** 725 (the plan's step 1 against its own citation), 726 (the local stack, which
+  enforces no rate limit, for the preview), 727 (the preview's email template, never read)
+  and 780 (`next start` for Vercel; a CSP defect reached `dev`). Before merge: 744 (a probe
+  in Node for browser code), 752 (the host's clock for Docker's), 773 and 777. The Phase 8
+  retrospective found the class in five of its nine (608, 635, 640, 677, 699) and offered a
+  field for it, not taken then. New action 2.
+
+Who found them: `self` 725, 726, 746, 769 and 780; `user` 727; review 747, round 3 on #402,
+of text 746's class had already merged.
+
+### Review rounds
+
+75 rounds, 657 findings: 73 rounds on 20 PRs, and the two read-throughs of IS #373 (715,
+716). The Phase 6 retrospective's round script, run with `first=700 last=792`, gets no
+round number from rows 774–792, whose `Caught by` is a bare `` `code-review` `` (774–789)
+or "round 1 (full)" (790–792); for those the round, and "scoped", were read from the Miss
+cell (action 5 below):
+
+| Round | Rounds | Findings | Per round | Headline `overcorrection` |
+|---|---|---|---|---|
+| r1 | 20 | 179 | 8.9 | 0 |
+| r2 | 20 | 165 | 8.2 | 12 |
+| r3 | 20 | 174 | 8.7 | 2 |
+| r4 | 9 | 75 | 8.3 | 5 |
+| r5 | 3 | 25 | 8.3 | 0 |
+| r6 | 1 | 8 | 8.0 | 1 |
+| read-through | 2 | 31 | 15.5 | 0 |
+
+- **A round's fixes are still the next round's main finding, less often.** 20 of the 53
+  rounds after round 1 have `overcorrection` as their headline (Phase 8: 45 of 91):
+  - 18 of the 30 scoped rounds (8.3 findings a round);
+  - 2 of the 23 later full rounds (8.6 a round).
+- **No PR's rounds ran down.** Each of the 20 PRs had three rounds or more, and each one's
+  last round found 5 to 10. 27 of the 75 rounds found exactly 10 (Phase 8: 30 of 133).
+- **Rounds per PR rose** from 3.2 to 3.7.
+
+### The Phase 8 retrospective's actions
+
+The Phase 8 retrospective kept the six actions before it and added the closing-keyword
+check (#368). The owner's calls, 2026-11-19, on the evidence below: keep all but action 5,
+which is adjusted (#421).
+
+**1. The fix sweep and `scripts/sweep.sh` (#200). Keep, unchanged.**
+- **The copy grep** (the Phase 6 retrospective's) matches 23 of the 93 rows (25%), as in
+  Phase 8 (40 of 157, 25%): 704, 706, 734, 735, 736, 738, 739, 742, 743, 747, 748, 749,
+  756, 759, 764, 768, 769, 771, 773, 774, 782, 789 and 790.
+- **Sweep misses.** A sweep missed a copy, a sibling or a place in 5 rows (Phase 8: 7 of
+  157): 728 (it grepped "6-digit" in issue bodies only), 743 (no sweep read the README's
+  procedures), 756 and 759 (a copy in `CLAUDE.md`, and one in `tests/totp.ts`), and 771
+  (copies in the plan and two issue bodies). All found by review. From a grep for
+  `sweep|swept` over the Miss cells (7 hits), each hit read; 720 and 735 aren't misses. A
+  floor.
+
+**2. Negative controls and the "Failure modes" field (#170). Keep, unchanged.**
+- **The share** of `incomplete-guard` went from 35 of 157 (22%) to 22 of 93 (24%), 17 of
+  them in rows 728–792, the steps that built guards.
+- **Checks that couldn't fail.** The Phase 8 retrospective's grep matches 2 rows: 761
+  (the allowlist's unit tests passed because the time-box refused their sessions too) and
+  773 (a failure mode's control stayed green on the served build). 763's "a 'no iat'
+  test that any rule passes" says it in other words. A floor.
+
+**3. `scripts/process-log.sh check`. Keep, unchanged.** No row in the range records a
+commit made without waiting on `add` or `check` (a grep of the Miss cells for
+`process-log.sh`, `` `check` ``, `` `add` `` and "without waiting": no hit), where Phase 8
+had 3. The log passes `check` as this section is written (exit 0).
+
+**4. The claims check, with the probe words (#200). Keep, unchanged.**
+- **The share rose again.** `imprecise-claim` went from 32 of 157 (20%) to 24 of 93 (26%).
+- **Rows it caught:** 705 (its `closing:` lines, on their first run), 714 and 746 (its
+  output showed the `^@` by chance).
+- **Why kept.** As in Phase 8, no mechanism was found with evidence that it would move
+  the share. New action 2 aims at the part of it that is claims about outside tools.
+
+**5. `Caught by` groups. Adjust (#421).** `tally 7` grouped all 93 rows, each starting
+with a listed group. But the Columns' "the round and its target" is free text that `check`
+doesn't read, and 19 rows dropped it (774–792), so the round counts above came from the
+Miss cells. #421 makes `check` require the form on a `code-review` row from a set row on.
+
+**6. The round ceiling, full, scoped, full (#260, PR #262). Keep, unchanged.**
+- **PRs past it.** 6 of the 20 PRs had rounds past it that the owner asked for (Phase 8: 5
+  of 40): #371 (round 5, 710), #374 (round 4, 720), #376 (round 4, 724), #404 (round 4,
+  752), #405 (rounds 5 and 6, 759 and 760) and #415 (round 5, 786).
+- **What those rounds found:** 786 a defect in what runs (a foreign write on a case
+  variant got a 308 before its 403) and 752 one in the tests (TOTP codes from the host's
+  clock, which can drift from Docker's after a sleep).
+- **`merged` rows rose** to 7 of 93 (above). Review found none of the seven before merge.
+- **What the measures can't show.** Neither shows whether a dropped round would have found
+  any of the seven, as Phase 8 said.
+
+**7. The closing-keyword check (#368, PR #371). Keep, unchanged.** `claims.sh`'s
+`closing:` lines found four closing keywords in PR #371's draft body on their first run
+(705). No row in the range records an issue closed by a closing keyword (a grep of the
+Miss cells for `closed|closing|closes`: six hits, each read; 704 is about #300's close in
+Phase 8, which no keyword caused).
+
+### New actions
+
+**1. Post issue and PR text through a helper that reads it back (#403, widened).** #403,
+open since 2026-11-17 for rows 746 and 747, asked for a rule and an optional helper. The
+owner's call, 2026-11-19: the helper is required, and checks more than the read-back. It
+posts a body from a file, reads it back and fails on a difference or a repeated `##`
+heading; for a PR, with `--rounds`, it also fails unless the body holds one `## Round k`
+per `code-review` row the log has for that PR. The read-back would have caught 746 and 747;
+the heading and round checks 735 and 769.
+
+**2. A stand-ins field in the plan and issue templates (#422).** Each claim about how
+something outside the repo behaves names where it was checked: on the real target, on a
+stand-in, in docs or source, or not at all; Step 5 rejects one checked on a stand-in or not
+at all with no step on the real target and no stated limit. Aimed at four of the seven
+`merged` rows (725, 726, 727, 780) and the Phase 8 retrospective's five. The owner's call,
+2026-11-19, which reverses Phase 8's: the class merged in two phases running, and 780 was a
+defect in running code, not only plan text.
+
+### Follow-ups
+
+- #403: the posting helper. In #394's `Blocked by`.
+- #421: `check` requires a review row's round form. In #394's `Blocked by`.
+- #422: the stand-ins field. In #394's `Blocked by`.
