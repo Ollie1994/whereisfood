@@ -390,14 +390,14 @@ first factor and the time-box, Phase 9; the 503 cases are `withAdmin`'s and
 `api-admin-checklist` and `helpers`. The fixtures sign in through the PKCE magic link, read
 from Mailpit, and reach `aal2` with `tests/totp.ts` (Phase 9 plan #9, #14). The `unit`
 project also holds `supabase/config.test.ts`, which pins Phase 9's Auth settings in
-`config.toml`, and `next.config.test.ts`, which checks which paths get which CSP. CI's run on `e544db4` (PR #444, 2026-11-19) ran 46 unit files (1328 tests)
-and 12 integration files (282 tests), and that day `npm run lint` reported no warnings
-locally. **CI is the gate** (Phase 8, IS
-#297): on each PR into `dev` or `main`, GitHub Actions runs the four gates and the other
-checks, and each branch's ruleset requires its list of them. `CLAUDE.md` "Testing" has the
-lists, what they don't cover, the local fast loop and the schema controls, which CI's
-`controls` check runs. Green checks don't show the map renders: look at `/map` in a browser
-after any map, dependency or tile change.
+`config.toml`, and `next.config.test.ts`, which checks which paths get which CSP. CI's run
+on `e544db4` (PR #444, 2026-11-19) ran 46 unit files (1328 tests) and 12 integration files
+(282 tests), and that day `npm run lint` reported no warnings locally. **CI is the gate**
+(Phase 8, IS #297): on each PR into `dev` or `main`, GitHub Actions runs the four gates and
+the other checks, and each branch's ruleset requires its list of them. `CLAUDE.md`
+"Testing" has the lists, what they don't cover, the local fast loop and the schema
+controls, which CI's `controls` check runs. Green checks don't show the map renders: look at
+`/map` in a browser after any map, dependency or tile change.
 
 ---
 
@@ -673,68 +673,68 @@ Vercel's free cron.
 
 ## Admin and auth (built in Phases 7 and 9)
 
-What Phases 7 and 9 built, and why; the reasons are the Phase 7 plan's numbered decisions,
-cited as "#n" ("Phase 7 #n" beside a Phase 9 one), the Phase 9 plan's, cited as "Phase 9
-#n", and their answered open decisions, each named with its phase; issues are "IS #n". The rules are `CLAUDE.md`'s ("Supabase", "proxy.ts", "Security headers", "API
-responses", "UI Rules").
+What Phases 7 and 9 built, and why. The reasons are the two plans' numbered decisions,
+cited as "Phase 7 #n" and "Phase 9 #n", and their answered open decisions, named with their
+phase; issues are cited as "IS #n". The rules are `CLAUDE.md`'s ("Supabase", "proxy.ts",
+"Security headers", "API responses", "UI Rules").
 
 - **Login.** `/admin/login` emails a magic link (`signInWithOtp` with
   `shouldCreateUser: false`), and `/auth/callback` exchanges its code, sets the session
   cookies and lands on `/admin/mfa`: the TOTP enroll while the admin has no verified factor,
   then a code from the authenticator app (Phase 9 #14, Phase 9 open decision 5). Public
-  sign-ups are
-  off under `[auth]`, never `[auth.email]`, locally and on the preview; the admin user is made
-  by hand, with a long random password (`README.md`, "5. Create the admin user"). The link has
-  to be opened in the browser that asked for it, which the login says (IS #240). The magic
-  link is the only first factor for Phase 9: IS #241's emailed code waits for custom SMTP or
-  Pro,
-  whichever comes first, since the built-in email's template can't be edited without custom
-  SMTP (Phase 9 #14). The emailed code Auth still issues is 10 digits and lives 15 minutes
-  (Phase 9 open decision 1; `CLAUDE.md`, "Supabase"). One factor per user
-  (`max_enrolled_factors = 1`, Phase 9 #13).
+  sign-ups are off under `[auth]`, never `[auth.email]`, locally and on the preview; the
+  admin user is made by hand, with a long random password (`README.md`, "5. Create the
+  admin user"). The link has to be opened in the browser that asked for it, which the login
+  says (IS #240). The magic link is the only first factor for Phase 9: IS #241's emailed
+  code waits for custom SMTP or Pro, whichever comes first, since the built-in email's
+  template can't be edited without custom SMTP (Phase 9 #14). The emailed code Auth still
+  issues is 10 digits and lives 15 minutes (Phase 9 open decision 1; `CLAUDE.md`,
+  "Supabase"). One factor per user (`max_enrolled_factors = 1`, Phase 9 #13).
 - **A session** ends 12 hours after its first factor's sign-in (the time-box, Phase 9 #4,
-  Phase 9 open decision 2), or at a logout on any device (Phase 9 #5), until Pro's timeouts replace
-  the time-box in Phase 11. The time-box's and the allowlist's limits are `CLAUDE.md`'s ("API
-  responses"). Secure password change is on with its email, and so are the factor-enrolled
-  and factor-unenrolled emails (IS #378, #381). A stolen `aal2` session can still swap the
-  admin's factor for its own, which Free can't block: Phase 9 #13 records what holds instead,
-  the recovery order included.
-- **Cookie sessions through `@supabase/ssr`** (#12). The proxy refreshes the session and
-  writes its cookies; admin routes only read them; `/auth/callback` and `POST
-  /auth/logout` write their own. Logout is `signOut({ scope: 'global' })` since Phase 9 (#5;
-  Phase 7 #28's `'local'` before it), then deleting the `sb-*` cookies itself, answered with
-  a 303 to the login (#28).
-- **Three clients** (#27): `supabase.ts` (`supabaseAdmin`, server only, behind
+  Phase 9 open decision 2), or at a logout on any device (Phase 9 #5), until Pro's timeouts
+  replace the time-box in Phase 11. The time-box's and the allowlist's limits are
+  `CLAUDE.md`'s ("API responses"). Secure password change is on with its email, and so are
+  the factor-enrolled and factor-unenrolled emails (IS #378, IS #381). A stolen `aal2`
+  session can still swap the admin's factor for its own, which Free can't block: Phase 9 #13
+  records what holds instead, the recovery order included.
+- **Cookie sessions through `@supabase/ssr`** (Phase 7 #12). The proxy refreshes the session
+  and writes its cookies; admin routes only read them; `/auth/callback` and `POST
+  /auth/logout` write their own. Logout is `signOut({ scope: 'global' })` since Phase 9
+  (Phase 9 #5; `'local'` before it), then deleting the `sb-*` cookies itself, answered with
+  a 303 to the login (Phase 7 #28).
+- **Three clients** (Phase 7 #27): `supabase.ts` (`supabaseAdmin`, server only, behind
   `server-only`), `supabase-browser.ts` (`createBrowserClient`, for Auth only) and
   `supabase-session.ts` (the cookie-session clients for the proxy, the routes, the
   `/admin` page, the callback and logout).
-- **The check** (`requireAdmin`), in the order `admin-auth.ts`'s `verify` runs it: no
-  session cookie → reject before any network or DB call; then the session's access token,
-  verified by Auth (`getUser(token)`), whose `aal` and `amr` it reads (Phase 9 #11, Phase 9
-  open decision 11); a first factor other than `magiclink`, or one past the time-box, is
-  signed out at Auth with `scope: "local"` and answered as no session; then
-  `users.is_admin`, read through the db layer (`getUserById`, #14); last, an admin session
-  at `aal1` gets 401 with its own text (Phase 9 open decision 6). An Auth or database
-  failure is "unavailable", never "logged out":
-  503 `{ error }` on a route, a Swedish error on a page (#32). The proxy runs it for
-  `/admin/*` and `/api/admin/*`, letting the login through; `withAdmin` runs it again
-  on every admin handler (#13), sets `Cache-Control: no-store` (#15), refuses a write
-  whose `Origin` isn't this origin (#16; `requestOrigin` reads the headers, because
-  `next dev`'s `request.url` isn't the browser's host), and reads bodies through
-  `readJson`.
-- **Writes** go through API routes, route → service → db (#11); the server sets
-  `created_by` and `source` (#17). An overlap (`23P01`) and a duplicate Instagram handle
-  (`23505`) are 409s; handles are stored in one form, lower-case with no `@` (#29).
+- **The check.** `admin-auth.ts`'s `verify`, which `requireAdmin` and `mfaStepAllowed`
+  share, runs in this order: no session cookie → reject before any network or DB call; then
+  the session's access token, verified by Auth (`getUser(token)`), whose `aal` and `amr` it
+  reads (Phase 9 #11, Phase 9 open decision 11); a first factor other than `magiclink`, or
+  one past the time-box, is signed out at Auth with `scope: "local"` and answered as no
+  session; then `users.is_admin`, read through the db layer (`getUserById`, Phase 7 #14).
+  `requireAdmin` then admits only `aal2`: an admin route answers an `aal1` admin session 401
+  with its own text (Phase 9 open decision 6), and the proxy sends it to `/admin/mfa`, which
+  `mfaStepAllowed` lets through (Phase 9 open decision 5). An Auth or database failure is
+  "unavailable", never "logged out": 503 `{ error }` on a route, a Swedish error on a page
+  (Phase 7 #32). The proxy runs the check for `/admin/*` and `/api/admin/*`, letting the
+  login through; `withAdmin` runs it again on every admin handler (Phase 7 #13), sets
+  `Cache-Control: no-store` (Phase 7 #15), refuses a write whose `Origin` isn't this origin
+  (Phase 7 #16; `requestOrigin` reads the headers, because `next dev`'s `request.url` isn't
+  the browser's host), and reads bodies through `readJson`.
+- **Writes** go through API routes, route → service → db (Phase 7 #11); the server sets
+  `created_by` and `source` (Phase 7 #17). An overlap (`23P01`) and a duplicate Instagram
+  handle (`23505`) are 409s; handles are stored in one form, lower-case with no `@` (Phase 7
+  #29).
 - **The screens** are phone-first and Swedish, with "Poster" and "Foodtrucks" in every
-  header but the login's (`AdminNav`, #37). "Ställ in" and "Sätt inaktiv" ask first
-  (#37); ✗ on the checklist lives in `localStorage` (#20); "Inställt idag" isn't built
-  (#19). The place picker has a name field, a map on demand and five recent places
-  (#35).
-- **Pages** under `/admin` render per request with the proxy's nonce CSP (Phase 9, IS #387;
+  header but the login's (`AdminNav`, Phase 7 #37). "Ställ in" and "Sätt inaktiv" ask first
+  (Phase 7 #37); ✗ on the checklist lives in `localStorage` (Phase 7 #20); "Inställt idag"
+  isn't built (Phase 7 #19). The place picker has a name field, a map on demand and five
+  recent places (Phase 7 #35).
+- **Pages** under `/admin` render per request with the proxy's nonce CSP (IS #387;
   `CLAUDE.md`, "Security headers").
-- **Checked on the owner's phone on the preview:** login and logout, with `/api/live`
-  still cached for a logged-in admin (#224); an entry reaching the public map (#228);
-  the whole walkthrough (#232, its history inserted by SQL: Phase 7 #38); Phase 9's
+- **Checked on the owner's phone on the preview:** login and logout, with `/api/live` still
+  cached for a logged-in admin (IS #224); an entry reaching the public map (IS #228); the
+  whole walkthrough (IS #232, its history inserted by SQL: Phase 7 #38); Phase 9's
   checkpoint: the link, the TOTP enroll and code on the phone alone, an entry reaching
   `/map`, logout ending the other device's session, no CSP block (IS #392).
 
@@ -950,8 +950,8 @@ These hold in both the current state and the target design.
 
 **Owned by `CLAUDE.md`:** Supabase clients and keys, secrets, grants and RLS, architecture
 layers, the db layer, `proxy.ts`, the security headers, API responses (`withErrorHandling`,
-the `{ error }` shape, `aal2`, the time-box, logout), the `/api/live` rules, locations, UI rules and time. This part doesn't restate
-them. Part 1's "Database" and Part 2 do describe several of them (the db layer, RLS
+the `{ error }` shape, `aal2`, the time-box, logout), the `/api/live` rules, locations, UI
+rules and time. This part doesn't restate them. Part 1's "Database" and Part 2 do describe several of them (the db layer, RLS
 and grants, the trigger's SQL rule, `/api/live`, the auth check order) **together with
 their reasons**; where one of those statements and a `CLAUDE.md` rule disagree, the
 `CLAUDE.md` rule wins and the statement is corrected. A rule restated in two files drifts (process-log rows 291, 293,
@@ -1110,7 +1110,7 @@ says.
 | Phase 8 #16 | A `controls` run of the full set that passed stands in for the hand run | `CLAUDE.md` "Testing" ("Schema controls": it still asks for a hand run while writing a control or a migration, and when CI ran only `--check`) |
 | Phase 8 #17 | Dependabot's PRs keep its default labels, the exception to PRs carrying only a phase label | `.github/dependabot.yml`'s header |
 | IS #301 (PR #369), IS #368 (PR #371) | The Phase 8 retrospective's calls: the Phase 7 retrospective's actions kept; one new action, the closing-keyword check in `secret-scan`, with `claims.sh` listing a PR body's closing references; squash merging off, since the check models the merge commit GitHub writes (the owner's call, round 4 on PR #371) | `CLAUDE.md` "Testing" and "Review rounds"; `scripts/closing-keywords.mjs`'s header; the process log's Phase 8 retrospective |
-| Phase 9 #1 (IS #278 (Phase 9)) | Phase 9's scope as the scope draft settled it, as built: TOTP MFA for the admin login (the emailed code deferred by #14) and its enroll window; the lost-phone route probed but left open (open decision 4: the recovery follows #13's order; step 1 recommends the dashboard's SQL editor, which the phone checkpoint used to remove the factor, IS #392; whether the login needs an unenroll screen is unsettled), for Phase 10's runbook; the session cover (#4, #5) for Pro-only timeouts; the login-abuse and code-guessing probes and settings (open decision 1); the split CSP and the cookie's reach (#6); monitoring (open decision 7); the smaller probes and limits (`x-forwarded-host`, length limits); the 2FA audit and the hosted-settings checklist. Replaces the between-phases row, which also amended the Phase 7 open decisions 1–5 row (rewritten above). The owner's calls (the draft's D2, D3, Q11–Q14, Q19–Q23, Q31, Q33) | `.claude/drafts/phases-8-10-scope.md` ("Phase 9 · Security"); Part 2's Phase map (Phase 9 row), "Admin and auth" and "Pre-deploy automation" (the 2FA audit) |
+| Phase 9 #1 (IS #278 (Phase 9)) | Phase 9's scope as the scope draft settled it, as built: TOTP MFA for the admin login (the emailed code deferred by #14) and its enroll window; the lost-phone route probed but left open for Phase 10's runbook (open decision 4: where the recovery's calls run, the plan's step 1 recommending the dashboard's SQL editor, IS #377, which the phone checkpoint used to remove the factor, IS #392; and whether the login needs an unenroll screen; the recovery follows #13's order); the session cover (#4, #5) for Pro-only timeouts; the login-abuse and code-guessing probes and settings (open decision 1); the split CSP and the cookie's reach (#6); monitoring (open decision 7); the smaller probes and limits (`x-forwarded-host`, length limits); the 2FA audit and the hosted-settings checklist. Replaces the between-phases row, which also amended the Phase 7 open decisions 1–5 row (rewritten above). The owner's calls (the draft's D2, D3, Q11–Q14, Q19–Q23, Q31, Q33) | `.claude/drafts/phases-8-10-scope.md` ("Phase 9 · Security"); Part 2's Phase map (Phase 9 row; Phase 10 row, the lost-phone route), "Admin and auth" and "Pre-deploy automation" (the 2FA audit) |
 | Phase 9 #2 (IS #373 (Phase 9)) | The soft launch's inputs, as settled: the time-box with a global logout (#4, #5), not Pro from the deploy; secure password change and its email on, locally and hosted, with "Require current password" hosted; only a magic-link first factor admitted (#13, #14), so a password a stolen session sets gets nothing in the app; cancel and confirm refusing an ended entry (#8); `aal` read from a token Auth verified, through `getUser(token)`, not `getClaims()`, so a logout stays effective (#11, open decision 11); the cookie's reach to `/map` accepted (#6); Auth's audit log written to the database (open decision 7). Replaces the between-phases row | Part 2's Phase map (Phase 9 row) and "Admin and auth"; `CLAUDE.md` "Supabase" and "API responses" |
 | Phase 9 #4; open decision 2 | Until Pro, `requireAdmin` refuses a session 12 hours after its first factor's sign-in (the `amr` entry that isn't `totp`, never the newest), read on the server's clock held within the token's `iat` and `exp`, and signs that session out at Auth with `scope: "local"`. A stolen token used only against Supabase isn't seen. Phase 11's Pro timeouts replace it | `CLAUDE.md` "API responses" (the session time-box); `src/lib/services/admin-auth.ts` (`SESSION_MAX_AGE_MS`) |
 | Phase 9 #5 | Logout signs out with `scope: "global"`, so a logout on one device ends the admin's other sessions | `CLAUDE.md` "API responses" (logout) |
