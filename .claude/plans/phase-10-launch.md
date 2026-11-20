@@ -267,9 +267,9 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
 13. **The production Supabase project:** migrations applied; Phase 5 #19's hosted check
     (`sv-SE-x-icu`, both extensions in `extensions`, the Data API's Max rows at least
     `MAX_ROWS`); README's hosted-settings checklist applied, "Write audit logs to the database"
-    included; the Security Advisor (`db advisors --linked --type security --fail-on error`,
-    never by a database URL, which missed RLS off on the preview, IS #474; or the
-    dashboard): no ERROR, each WARN fixed or accepted with a reason (leaked-password
+    included; the Security Advisor (`db advisors --linked --type security --level info
+    --fail-on error`, the CLI linked to production, never by a database URL, which missed RLS
+    off on the preview, IS #474; or the dashboard): no ERROR, each WARN fixed or accepted with a reason (leaked-password
     protection's, on Free), INFO read; Auth's Site URL and Redirect URLs set to the one
     production `vercel.app` host the admin logs in from in step 16, named on the issue, and
     that host's `/auth/callback` alone, as README's checklist names `dev`'s alias for the

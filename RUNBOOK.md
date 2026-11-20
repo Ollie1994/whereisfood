@@ -392,9 +392,19 @@ password or an account token, all of these; after the secret key, the first two:
 
   ```bash
   npx supabase link --project-ref <production project ref>
-  npx supabase db advisors --linked --type security --level info --fail-on error; echo "advisor exit $?"
+  if grep -qx '<production project ref>' supabase/.temp/project-ref; then
+    npx supabase db advisors --linked --type security --level info --fail-on error
+    echo "advisor exit $?"
+  else
+    echo "NOT LINKED to production: nothing checked"
+  fi
   npx supabase link --project-ref <preview project ref>
   ```
+
+  The check matters: a failed `link` (a mistyped ref, a revoked login) exits 1 and leaves the
+  CLI linked to the preview, so an unguarded `--linked` run would check the preview instead.
+  Probed with a ref no project has: `link` exited 1, `supabase/.temp/project-ref` kept the
+  preview's ref, and `grep -qx` matched only the linked one (IS #474).
 
   `--linked`, not `--db-url`: on the preview, with a scratch table with RLS off and an anon
   grant in `public`, `--linked` reported ERROR `rls_disabled_in_public` on it (and the Auth
@@ -456,17 +466,32 @@ container. In this order, since the login has to reach the new project:
 
    ```bash
    npx supabase link --project-ref <new project ref>
-   npx supabase db push --dry-run   # lists the migrations, and no seed
-   npx supabase db push
+   if grep -qx '<new project ref>' supabase/.temp/project-ref; then
+     npx supabase db push --dry-run   # lists the migrations, and no seed
+   else
+     echo "NOT LINKED to the new project: stop"
+   fi
    ```
 
-   Then README's "Hosted settings checklist", every Supabase row, with production's Site URL
-   and Redirect URLs (its `/auth/callback` only, no wildcard), and the checks the Phase 10
-   plan's step 13 runs on a new production project: Phase 5 #19's hosted check (the
-   `sv-SE-x-icu` collation, both extensions in `extensions`, the Data API's Max rows at least
-   `MAX_ROWS`), and the Security Advisor while the CLI is linked to the new project:
-   `npx supabase db advisors --linked --type security --level info --fail-on error`. No
-   ERROR, each WARN fixed or accepted; why `--linked`, not a URL, is "A leaked key"'s.
+   Read the dry run, then, still linked to it, push and run the Security Advisor:
+
+   ```bash
+   if grep -qx '<new project ref>' supabase/.temp/project-ref; then
+     npx supabase db push
+     npx supabase db advisors --linked --type security --level info --fail-on error
+     echo "advisor exit $?"
+   else
+     echo "NOT LINKED to the new project: nothing pushed"
+   fi
+   ```
+
+   A failed `link` leaves the CLI linked to the preview ("A leaked key", the advisor's
+   check), where a push or an advisor run would land instead. The advisor: no ERROR, each
+   WARN fixed or accepted; why `--linked`, not a URL, is "A leaked key"'s. Then README's
+   "Hosted settings checklist", every Supabase row, with production's Site URL and Redirect
+   URLs (its `/auth/callback` only, no wildcard), and Phase 5 #19's hosted check, which the
+   Phase 10 plan's step 13 runs on a new production project (the `sv-SE-x-icu` collation,
+   both extensions in `extensions`, the Data API's Max rows at least `MAX_ROWS`).
 2. **`.env.prod-db.local`:** the new project's session pooler URL, before the load, so
    nothing reaches the old project by mistake.
 3. **The data:** README's "Restoring" against the new project: its check that `trucks` and
