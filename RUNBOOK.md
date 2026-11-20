@@ -50,11 +50,11 @@ Free project from pausing ("A paused project", below).
 
 ## Attack Mode
 
-For a flood of traffic, on Vercel. From Vercel's docs (vercel.com/docs/vercel-firewall/attack-mode,
-read 2026-11-20, IS #457):
+For a flood of traffic, on Vercel. From Vercel's docs
+(vercel.com/docs/vercel-firewall/attack-mode, read 2026-11-20, IS #457):
 
-- **On:** the project → Firewall → the ⋯ menu at the top right → **Enable Attack Mode**, for
-  1, 6 or 24 hours. It "turns off automatically when this period ends"; enable it again to
+- **On:** the project → Firewall → the ⋯ menu at the top right → **Enable Attack Mode**,
+  for 1, 6 or 24 hours. It "turns off automatically when this period ends"; enable it again to
   continue. **Off:** the same menu → **Disable Attack Mode**.
 - It is "available for free on all plans", Hobby included, and blocked requests "do not count
   towards your usage limits".
@@ -90,9 +90,10 @@ plan's #13. Its order:
 
    It prints Auth's answer, then the status. `200` means done. A `4xx` gives its reason in the
    answer: a wrong key answered `401`, and an id no user has `404` `user_not_found` (both on
-   the local stack, IS #457). For `000`, a dropped connection, run it again. The admin id is `select id from users where is_admin;`. Probed on the local stack
-   with a throwaway user (IS #457): `200`, the stored hash changed, the new password signed
-   in and the old one was refused. The admin never needs the password, but must have one
+   the local stack, IS #457). For `000`, a dropped connection, run it again. The admin id is
+   `select id from users where is_admin;`. Probed on the local stack with a throwaway user
+   (IS #457): `200`, the stored hash changed, the new password signed in and the old one was
+   refused. The admin never needs the password, but must have one
    (`CLAUDE.md`, "Supabase"). The key and the password are on `curl`'s command line while it
    runs, where other processes of this user can read them (README, "Restoring", Limits): on a
    machine you suspect, run it from another.
