@@ -264,7 +264,9 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
 
 **D. Production** (in order, after every step above)
 
-13. **The production Supabase project:** migrations applied; Phase 5 #19's hosted check
+13. **The production Supabase project:** migrations applied, with the CLI linked to
+    production and checked before the push, which must succeed (`RUNBOOK.md`'s "A restore",
+    step 1, is the guarded form); Phase 5 #19's hosted check
     (`sv-SE-x-icu`, both extensions in `extensions`, the Data API's Max rows at least
     `MAX_ROWS`); README's hosted-settings checklist applied, "Write audit logs to the database"
     included; the Security Advisor (`db advisors --linked --type security --level info
