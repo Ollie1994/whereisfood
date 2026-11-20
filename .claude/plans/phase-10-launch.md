@@ -566,8 +566,9 @@ would name and rotate the files but is new code to test, for one person once a w
   old id with a long random password, `locations.created_by` resolving, each logged takedown
   and `retention.sql` re-run after it, and a TOTP enroll needed at once.
 - [ ] `/integritet` answers 200 with the static CSP and names what is stored and why, both
-  retention periods, the dump count, Vercel's and Supabase's logs (IP addresses), Auth's audit
-  log and the removal contact; the owner approved the wording.
+  retention periods, the dump count, the 8-week incident caps (IS #457), Vercel's and
+  Supabase's logs (IP addresses), Auth's audit log and the removal contact; the owner approved
+  the wording.
 - [ ] `RUNBOOK.md` has a section each for Attack Mode, a takeover, a lost phone, a leaked key,
   a takedown request, a paused project, a restore and the weekly routine.
 - [ ] `SECURITY.md` says how an in-house finding goes to a private security advisory (#347
