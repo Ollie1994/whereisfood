@@ -173,9 +173,9 @@ dashboard, no secret key outside Supabase, no unenroll screen; IS #457):
    by the email, which a thief holding the mailbox could change. A signed-in user can't change
    `is_admin` with their own session (`CLAUDE.md`, "Supabase": no owner self-UPDATE on
    `users`); step 2 covers a key that can. The factor's challenges and the sessions' refresh
-   tokens and sign-in records go with them (`ON DELETE CASCADE`). Probed on the local stack as `postgres`, in a transaction
-   rolled back after (IS #457): `1|1|1`, with factors, sessions, refresh tokens and sign-in
-   records at `0` inside it.
+   tokens and sign-in records go with them (`ON DELETE CASCADE`). Probed on the local stack as
+   `postgres`, in a transaction rolled back after (IS #457): `1|1|1`, with factors, sessions,
+   refresh tokens and sign-in records at `0` inside it.
 4. **Log in at once** and enroll the new phone from the QR code. Until then any `aal1`
    session can fill the free slot (Phase 9 plan #13). Delete the old phone's entry if the app
    synced it.
