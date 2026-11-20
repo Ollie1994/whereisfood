@@ -132,7 +132,7 @@ Ignored Build Step; R2's CORS rule; `main`'s ruleset (CodeQL's checks); the aler
 | `Home` | page | `redirect(ABOUT_PATH)` |
 | `AboutPage` | page (static) | What this is; the map opens when the trucks are back (a gate site, #5); a link to `/integritet` (step 9) |
 | `PrivacyPage` | page (static) | What is stored and why; both retention periods, deleted in the weekly run after each ends, so up to a week later; the dump count; Vercel's and Supabase's logs (IP addresses); Auth's audit log; the removal contact |
-| `ABOUT_PATH`, `PRIVACY_PATH` | lib constants | Shared by the pages, the nav and the tests |
+| `ABOUT_PATH`, `PRIVACY_PATH` | lib constants | For the code that sends someone to the pages: the gate's redirect (step 4) and `/about`'s link to `/integritet` (step 9) |
 | `AdminNav` | component | Gains "Karta", to `/map`, as a plain `<a>`, so it loads `/map` as a new document under its static CSP; a `next/link` would render it inside the admin page, under that page's nonce CSP |
 | the marker test | unit test | Every tracked file outside `.claude/` holding the gate's marker is on the removal list in `map/page.tsx`'s header, and every listed file holds it (#5) |
 | `takedown.sql` | manual SQL | For one truck id, in one transaction: delete its locations, clear or delete each `users` row pointing at it, delete the truck; report the counts |
