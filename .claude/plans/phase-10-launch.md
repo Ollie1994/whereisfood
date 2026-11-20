@@ -624,16 +624,24 @@ would name and rotate the files but is new code to test, for one person once a w
    backups. Leaning: 4.~~ → **settled** (the owner, 2026-11-20, IS #455, approving the leaning):
    the newest 4, so a removal leaves the backups about four weeks on.
 6. **The email-budget lockout** (#3): accepted again, or a mitigation, before step 13.
-7. **How the usage, spend and 5xx alerts are covered** on the free plans (Phase 9 plan open
+7. ~~**How the usage, spend and 5xx alerts are covered** on the free plans (Phase 9 plan open
    decision 7): a look at each usage page in the weekly routine; an external free uptime
    monitor on `/api/live` (a new account, with two-factor at creation); or the gap accepted
-   with a reason.
-8. **Whether a paused project is acceptable** (IS #373 (Phase 10)): a quiet week before the
+   with a reason.~~ → **settled** (the owner, 2026-11-20, IS #457): a look at Supabase's and
+   Vercel's usage pages and the 5xx logs in the weekly routine, no monitor or new account; a
+   5xx between looks goes unalerted, accepted while the admin uses the app daily
+   (`RUNBOOK.md`, "The weekly routine").
+8. ~~**Whether a paused project is acceptable** (IS #373 (Phase 10)): a quiet week before the
    trucks are back could pause it. Leaning: accepted, with the runbook's section and the weekly
-   routine's activity.
-9. **The lost-phone route** (Phase 9 plan open decision 4): where the recovery's calls run,
+   routine's activity.~~ → **settled** (the owner, 2026-11-20, IS #457, approving the leaning):
+   accepted (`RUNBOOK.md`, "A paused project").
+9. ~~**The lost-phone route** (Phase 9 plan open decision 4): where the recovery's calls run,
    and whether the login needs an unenroll screen. Phase 9's leaning: the dashboard's SQL
-   editor, deleting the factor and the user's `auth.sessions` rows, then a re-enroll at once.
+   editor, deleting the factor and the user's `auth.sessions` rows, then a re-enroll at once.~~
+   → **settled** (the owner, 2026-11-20, IS #457, approving the leaning): production's SQL
+   editor, one statement deleting the factor and the user's `auth.sessions` rows (probed
+   locally in a rolled-back transaction), then a re-enroll at once; no unenroll screen
+   (`RUNBOOK.md`, "A lost phone").
 10. ~~**Plan A or a proxy branch** for the gate, from step 1a and its re-run on `dev`'s preview,
     step 4b (#6); the branch changes
     `CLAUDE.md`'s proxy rule, the owner's call.~~ → **settled**: Plan A, with the proxy rule
