@@ -749,13 +749,84 @@ An open map drops the truck within about three minutes while its polls succeed a
 is visible (a failed poll keeps the last markers, and a hidden tab doesn't poll): `/api/live`
 is cached for 60 s and may be served stale for 60 s more (`CLAUDE.md`, "`/api/live`"), and the map polls it every
 60 s (`POLL_MS`, `src/hooks/useLocations.ts`). Until the dumps from before the
-takedown age out, they still hold the truck's rows; how many are kept is Phase 10 plan's
-open decision 5.
+takedown age out, they still hold the truck's rows: about four weeks, as four are kept
+("Backups" below).
 
 `tests/integration/takedown.test.ts` runs the file on the local stack, as `postgres`. The
 preview's SQL editor runs as `postgres` too (IS #454's probe), but hasn't run this file, and
 production's role isn't probed yet (#464). An error in either editor changes nothing, as in
 step 3.
+
+---
+
+## Backups
+
+Supabase Free has no backups, so until Pro (Phase 11) the backup is a weekly dump of the
+`public` schema's data, made by hand (Phase 10 plan, #11). Never the `auth` schema: its
+sessions and refresh tokens are credentials. The dumps live on the owner's machine outside
+the repo, next to the takedown log ("Takedown", step 4), and **the newest four are kept**
+(open decision 5), so a takedown or a retention delete leaves the backups about four weeks
+later.
+
+**The connection string** is the production project's **Session pooler** one (dashboard →
+Connect → Direct → Session pooler → URI, the password filled in, `@ : / ? # %` in it
+percent-encoded), in the gitignored `.env.prod-db.local` as `PROD_DB_URL=…` (`CLAUDE.md`,
+"Where secrets live"). The Direct connection is IPv6 only on Free, and from this machine it
+was refused; the session pooler worked (the preview, IS #455). The Transaction pooler can't
+run `pg_dump`.
+
+### The weekly dump
+
+With Docker running (the CLI runs `pg_dump` in a container), from the repo, in Git Bash:
+
+```bash
+PROD_DB_URL=$(grep '^PROD_DB_URL=' .env.prod-db.local | cut -d= -f2-)
+npx supabase db dump --db-url "$PROD_DB_URL" --data-only --schema public \
+  -f "<backups folder>/whereisfood-$(date -u +%Y-%m-%d).sql"
+unset PROD_DB_URL
+```
+
+The file opens with `SET session_replication_role = replica;` and holds an `INSERT` for each
+of `trucks`, `locations` and `users` that has rows. Then delete all but the newest four, and
+run [`supabase/manual/retention.sql`](supabase/manual/retention.sql) in the SQL editor: the
+weekly routine runs it after the dump (Phase 10 plan, #10).
+
+### Restoring
+
+A restore goes into a database with the migrations applied and no data. It brings back what
+was deleted after its dump, so the takedowns and `retention.sql` run again after it. The
+steps, tested once on the local stack (IS #455's record):
+
+1. **The admin, by its old id**, before the data: `users.id` and `locations.created_by`
+   reference `auth.users`, and the dump loads with its foreign keys unchecked (`replica`),
+   so a new id would leave both pointing at nobody. Studio's "Add user" can't set an id;
+   Auth's admin API can (Phase 10 plan, open decision 11). The old id is the `users` row with `is_admin`
+   `true` in the dump. With the project's secret key read without echoing (`read -rs
+   SECRET_KEY`) and a long random password the admin never needs (`CLAUDE.md`, "Supabase"):
+
+   ```bash
+   PASSWORD=$(node -e 'console.log(require("crypto").randomBytes(32).toString("base64url"))')
+   curl -X POST "<project URL>/auth/v1/admin/users" -H "apikey: $SECRET_KEY" \
+     -H "Content-Type: application/json" \
+     -d "{\"id\":\"<old id>\",\"email\":\"<admin email>\",\"password\":\"$PASSWORD\",\"email_confirm\":true}"
+   unset PASSWORD SECRET_KEY
+   ```
+
+   A `200` means it was made; `select id from auth.users` in the SQL editor shows the old id.
+2. **The data:** load the dump with `psql`. On the local stack:
+   `docker exec -i supabase_db_whereisfood psql -U postgres -v ON_ERROR_STOP=1 < <dump file>`.
+3. **Every takedown in the log**, whatever its date, each with its name read from the
+   restored database ("Takedown", steps 1 to 4).
+4. **`retention.sql`**, once.
+5. **Log in and enroll TOTP at once.** The dump holds no `auth` schema, so the admin comes
+   back with no factor: the login shows the enroll QR code, and until it is done any `aal1`
+   session, a guessed code's included, can fill the free slot (Phase 9 plan #13). Delete the
+   authenticator app's old entry.
+
+Limits: steps 1 and 2 were run only on the local stack (its API URL and `sb_secret_` key; its
+`postgres`, which may set `session_replication_role`). On a hosted project neither the admin
+API call nor the load has been tried, and a hosted restore needs a paused project or a free
+slot (two active free projects).
 
 ---
 
