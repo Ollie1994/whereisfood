@@ -30,9 +30,11 @@ export default function AdminNav() {
           </Link>
         );
       })}
-      {/* A plain `<a>`, not `Link` (Phase 10 plan, step 3): a full load, so the browser takes
-          `/map`'s own answer and its static CSP. A `Link` to `/map` wasn't tried. Current on
-          no page: `/map` has no nav. */}
+      {/* A plain `<a>`, not `Link` (Phase 10 plan, "Functions and components"): a full load, so
+          `/map` is its own document under its static CSP. A `Link` to `/map`, tried once from
+          `/admin/login` in headless Chrome 157 (PR #468, round 2), stayed in the admin page's
+          document, under its nonce CSP, and the map drew its canvas and marker with no CSP
+          violation reported. Current on no page: `/map` has no nav. */}
       <a href="/map" className="text-foreground/70 hover:underline">
         Karta
       </a>
