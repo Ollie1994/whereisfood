@@ -771,9 +771,10 @@ later.
 **The connection string** is the production project's **Session pooler** one (dashboard →
 Connect → Direct → Session pooler → URI, the password filled in, every character of it other
 than a letter, a digit or `-._~` percent-encoded), in the gitignored `.env.prod-db.local` as
-`PROD_DB_URL=…` (`CLAUDE.md`, "Where secrets live"). The Direct connection uses IPv6 unless the paid IPv4 add-on is on
-(the dashboard's note), and from this machine it was refused; the session pooler worked (the
-preview, IS #455). The Transaction pooler wasn't tried.
+`PROD_DB_URL=…` (`CLAUDE.md`, "Where secrets live"). The Direct connection uses IPv6
+unless the paid IPv4 add-on is on (the dashboard's note), and from this machine it was
+refused; the session pooler worked (the preview, IS #455). The Transaction pooler wasn't
+tried.
 
 ### The weekly dump
 
