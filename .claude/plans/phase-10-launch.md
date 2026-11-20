@@ -95,9 +95,10 @@ precedes production's enroll (step 16).
   `tests/integration/takedown.test.ts`.
 - New: `supabase/manual/retention.sql`, the weekly retention delete (#10), with its
   integration test.
-- `supabase/migrations/0001_baseline.sql`: its comment "only the takedown (Phase 10) removes
-  history (#7)" goes stale with #10; step 7's sweep settles it (a comment in an applied
-  migration). The rule's live copy is `CLAUDE.md`'s.
+- `supabase/migrations/0001_baseline.sql`: its comments "only the takedown (Phase 10) removes
+  history (#7)" (line 28) and "Rows are never deleted" (line 54, `locations`) go stale with
+  #10; step 7's sweep settles both (comments in an applied migration). The rule's live copy
+  is `CLAUDE.md`'s.
 
 **Docs:**
 - New: `RUNBOOK.md` at the root (#8).
@@ -124,7 +125,7 @@ Ignored Build Step; R2's CORS rule; `main`'s ruleset (CodeQL's checks); the aler
 | `MapPage` | page (server component) | The check `withAdmin` makes (`src/lib/http/admin.ts`), from `cookies()`: `createSessionClient(readOnlyCookies(store))`, `requireAdmin({ cookieNames, auth, now })`, with no proxy before it to refresh the session (#6); `redirect(ABOUT_PATH)` for anything but `check.ok`, with no `try` around `redirect()` or `cookies()`; then `<MapClient />` with no props (#5) |
 | `Home` | page | `redirect(ABOUT_PATH)` |
 | `AboutPage` | page (static) | What this is; the map opens when the trucks are back (a gate site, #5); a link to `/integritet` (step 9) |
-| `PrivacyPage` | page (static) | What is stored and why; both retention periods; the dump count; Vercel's and Supabase's logs (IP addresses); Auth's audit log; the removal contact |
+| `PrivacyPage` | page (static) | What is stored and why; both retention periods, deleted in the weekly run after each ends, so up to a week later; the dump count; Vercel's and Supabase's logs (IP addresses); Auth's audit log; the removal contact |
 | `ABOUT_PATH`, `PRIVACY_PATH` | lib constants | Shared by the pages, the nav and the tests |
 | `AdminNav` | component | Gains "Karta", to `/map`, as a plain `<a>`, so it loads `/map` as a new document under its static CSP; a `next/link` would render it inside the admin page, under that page's nonce CSP |
 | the marker test | unit test | Every tracked file outside `.claude/` holding the gate's marker is on the removal list in `map/page.tsx`'s header, and every listed file holds it (#5) |
@@ -185,15 +186,20 @@ on.
    rule; the marker on `/about`'s sentence that the map opens when the trucks are back;
    `readOnlyCookies`' comment in `src/lib/supabase-session.ts` ("use it behind something that
    refreshes first: the proxy"), rewritten under Plan A with step 1a's evidence, since
-   `MapPage` then uses it with no proxy before it (the owner's call, round 3 on PR #447).
-   Needs steps 1a and 3. If #6's branch is needed, the proxy branch and its tests join this
-   PR as gate sites, the branch its own function.
+   `MapPage` then uses it with no proxy before it (the owner's call, round 3 on PR #447); the
+   root 404's "Till kartan" link (`src/app/not-found.tsx`) pointed at `/about` with Swedish
+   text to match (the owner's call, round 4 on PR #447); README's sentences that `/` redirects
+   to `/map` (its "4. Run" and "Hosted preview database"), each with the marker as an HTML
+   comment. Needs steps 1a and 3. If #6's branch is needed, the proxy branch and its tests
+   join this PR as gate sites, the branch its own function.
 4b. **The gate on `dev`'s preview** (#6), its own issue, blocked by step 4, blocking step 13
    (the owner's call, round 2 on PR #447): step 1a's probe on `dev`'s preview, recorded on
    this issue. If it shows a logout where the local run didn't: the owner's call on
    `CLAUDE.md`'s "never `/map`" proxy rule (open decision 10), then #6's branch in this
-   issue's PR, holding only gate sites outside `.claude/`, each with the marker, and the
-   removal list in `map/page.tsx`'s header gaining them. If the session survives, the issue
+   issue's PR, holding only gate sites outside `.claude/`, each with the marker (the branch,
+   its `/map` matcher entry, `proxy.test.ts`'s case), `readOnlyCookies`' comment rewritten
+   again with the preview's evidence, and the removal list in `map/page.tsx`'s header gaining
+   them. If the session survives, the issue
    closes with the result and no PR.
 5. **The app name** (open decision 1) in the files under "Files". Needs step 4 merged (both
    touch `map/` and the tests).
@@ -212,9 +218,12 @@ on.
    succeeds whether or not row-level security hides the rows. `retention.sql` reports each
    delete's row count. Needs open decisions 2 and 3.
 8. **Backups** (#11): the weekly dump's command; production's database URL in
-   `.env.production.local`, which `CLAUDE.md`'s "Where secrets live" names; how a restore
-   recreates the admin by its old id (open decision 11); **one restore test on the local
-   stack** from a dump, then each takedown the log holds since the dump's date and
+   `.env.production.local`, which `CLAUDE.md`'s "Where secrets live" names: the connection
+   string (direct or session pooler) that works from the owner's network, its kind named on the
+   issue once the command has run against the preview; how a restore recreates the admin by
+   its old id (open decision 11); **one restore test on the local
+   stack** from a dump, then each takedown the log holds on or after the dump's date (a
+   re-run on a truck already gone changes nothing, step 6) and
    `retention.sql` re-run, and the TOTP enroll needed at once (Principles and risks,
    "Backups"; Phase 9 plan #13); README's backups and restore section. Needs steps 6 and 7 and
    open decision 5.
@@ -265,9 +274,12 @@ on.
       (`CodeQL` and both `analyze` jobs) join `main`'s ruleset (Phase 8 plan #11, #14), read
       back by `gh api`. The production build it starts has no variables, so it fails or
       serves nothing (#9).
-16. **The deploy:** Production's variables set, from the new project only; a production build
-    from `main`; then the admin's magic-link login on the phone and the TOTP enroll at
-    `/admin/mfa`, which needs the deployed app (the owner's call, round 1 on PR #447).
+16. **The deploy:** the Ignored Build Step read again and no `ignoreCommand` on `dev` or
+    `main`, just before Production's variables are set, from the new project only, since step
+    15's merge changed `main`; a production build from `main`, never a promoted branch preview,
+    which skips the Ignored Build Step (Part 2, "Before the production deploy"); then the
+    admin's magic-link login on the phone and the TOTP enroll at `/admin/mfa`, which needs
+    the deployed app (the owner's call, round 1 on PR #447).
 17. **The production checks**, on the owner's phone and by headers:
     - logged out, `/` and `/map` land on `/about`; as the admin at `aal2`, reaching `/map` by
       "Karta", the map shows with
@@ -364,19 +376,25 @@ and open no hole.
 - **One place.** The page alone (Plan A, #6): the proxy, the CSPs and `next.config.ts` are
   untouched, so the removal edits no security-critical file. If #6's branch is needed (step 1a
   or 4b), it is its own function in `proxy.ts` with its own tests, so removing it leaves the
-  matcher and the other branches as they are.
+  other branches as they are; it also adds `/map` to `config.matcher` (today `/admin/:path*`
+  and `/api/admin/:path*` alone, `src/proxy.ts:216`) and changes `proxy.test.ts`'s case that
+  `/map` isn't matched (`:83`), and both are gate sites the removal restores.
 - **Every site findable.** Each gate site carries the marker comment `SOFT-LAUNCH GATE (Phase
   10 plan #5)`. The sites: `MapPage`, `Home`, the smoke check's `/` and `/map` expectations,
   the gate's tests, the no-props test, the marker test itself, `CLAUDE.md`'s gate rule,
-  `/about`'s sentence that the map opens when the trucks are back, and `readOnlyCookies`'
-  comment in `supabase-session.ts` (round 3 on PR #447).
+  `/about`'s sentence that the map opens when the trucks are back, `readOnlyCookies`' comment
+  in `supabase-session.ts` (round 3 on PR #447), the root 404's link and README's sentences
+  on `/` (round 4), and, if #6's branch is needed, the branch, its `/map` matcher entry and
+  `proxy.test.ts`'s "not matched" case for `/map`.
 - **One copy of the removal list**, in `map/page.tsx`'s header, where a removal starts: each
   site and what it goes back to (`/` → `/map`; smoke's `/` entry, which step 4 adds, expects
   the redirect to `/map`, and its `/map` entry 200 with the static CSP;
   `○ /map` in the route table; the gate's tests, the no-props test, the marker test and the
   `CLAUDE.md` rule deleted; `/about`'s sentence rewritten for after the full launch;
-  `readOnlyCookies`' comment restored to "behind the proxy"). This decision and the
-  carried-forward row point to it.
+  `readOnlyCookies`' comment restored to "behind the proxy"; the 404's link back to "Till
+  kartan" and `/map`; README's sentences back to `/` redirecting to `/map`; if #6's branch
+  was added, the branch deleted, `/map` out of the matcher and `proxy.test.ts`'s case for it
+  restored). This decision and the carried-forward row point to it.
 - **The marker test** reads that list from the header and fails if a tracked file outside
   `.claude/` holds the marker and isn't listed, or a listed file doesn't hold it. `.claude/`
   is left out because the plans and the log quote the marker as history. Seen red once each
@@ -455,9 +473,9 @@ owner's machine outside the repo, since the repo is public; the last few only (o
 backups only as old dumps are deleted, which the privacy note states. The command runs with
 production's database URL from the gitignored `.env.production.local`, a developer's own copy
 (`CLAUDE.md`, "Where secrets live"). A restore brings back what was deleted after its dump,
-so it re-runs each takedown in the takedown log since the dump's date, then `retention.sql`
-(the owner's call, round 3 on PR #447). Weighed: `scripts/backup.mjs`, which would name and
-rotate the files but is new code to test, for one person once a week.
+so it re-runs each takedown in the takedown log on or after the dump's date, then
+`retention.sql` (the owner's call, round 3 on PR #447). Weighed: `scripts/backup.mjs`, which
+would name and rotate the files but is new code to test, for one person once a week.
 
 ---
 
@@ -472,10 +490,11 @@ rotate the files but is new code to test, for one person once a week.
   trucks are back, linking to `/integritet`; `AdminNav` shows "Karta", a plain `<a>` to `/map`
   (`/map` is outside the admin layout and shows no nav: the way back is the browser's, the
   owner's call, round 1 on PR #447).
-- [ ] The gate: no session, `aal1`, a non-admin, a time-boxed session and Auth unavailable
-  each get a 307 from `/map` to `/about` (unit tests per case, and an integration test on the
-  local stack); `/` gets a 307 to `/about`; the admin at `aal2` gets the map; the route table
-  shows `ƒ /map`; smoke expects both redirects.
+- [ ] The gate: every answer of `requireAdmin` but `check.ok` (no session, `aal1`, a
+  non-admin, a time-boxed session, a first factor that isn't `magiclink`, a failed sign-out,
+  Auth unavailable) gets a 307 from `/map` to `/about`, by a test over each refusal reason
+  (unit), and an integration test on the local stack; `/` gets a 307 to `/about`; the admin
+  at `aal2` gets the map; the route table shows `ƒ /map`; smoke expects both redirects.
 - [ ] The gate's invariants: a test fails if `MapPage` passes `MapClient` a prop; the marker
   test fails on a marked file not on the removal list and on a listed file without the marker,
   each seen red once locally; step 4's PR holds only listed sites outside `.claude/`;
@@ -509,7 +528,9 @@ rotate the files but is new code to test, for one person once a week.
 - [ ] Vercel and R2: the Ignored Build Step read as set, no `ignoreCommand` on `dev` or
   `main`; R2's CORS rule covers each production address, by an origin or a redirect; the
   toolbar reads Off for Production; Production's variables come only from the new project.
-- [ ] Before the deploy: the 2FA re-check recorded per account; every earlier credential
+- [ ] Before the deploy: the Ignored Build Step and `ignoreCommand` read again at step 16,
+  before the variables, and Production built from `main`, not promoted; the 2FA re-check
+  recorded per account; every earlier credential
   rotated or replaced, listed by name; the first merge into `main` ran every required check,
   the controls' full set included; CodeQL's checks in `main`'s ruleset, read back by `gh api`.
 - [ ] The production checks: logged out on the phone, `/` and `/map` land on `/about`; as the
