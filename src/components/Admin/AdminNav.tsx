@@ -30,9 +30,9 @@ export default function AdminNav() {
           </Link>
         );
       })}
-      {/* A plain `<a>`, not `Link`: a full load, so `/map` is its own document under its
-          static CSP, where a client-side navigation would keep this page's document and its
-          nonce CSP (`csp.ts`). Current on no page: `/map` has no nav. */}
+      {/* A plain `<a>`, not `Link` (Phase 10 plan, step 3): a full load, so the browser takes
+          `/map`'s own answer and its static CSP. A `Link` to `/map` wasn't tried. Current on
+          no page: `/map` has no nav. */}
       <a href="/map" className="text-foreground/70 hover:underline">
         Karta
       </a>
