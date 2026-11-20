@@ -479,7 +479,8 @@ container. In this order, since the login has to reach the new project:
    ```
 
    Read the dry run, then, still linked to it, push, and run the Security Advisor only if the
-   push succeeded (an advisor on a half-migrated schema can look clean):
+   push succeeded (a table a failed push never created has no RLS setting for the advisor to
+   flag):
 
    ```bash
    if grep -qxF '<new project ref>' supabase/.temp/project-ref; then
