@@ -4,8 +4,8 @@ What to open in an incident, and the weekly routine (Phase 10 plan, step 10 and 
 is public, so nothing here is a secret. Each value a step needs lives where `CLAUDE.md`'s
 "Where secrets live" says: production's Supabase keys in its dashboard (Project Settings → API
 Keys) and in Vercel's environment variables, and its database URL in the gitignored
-`.env.prod-db.local`. `<admin email>` and `<project URL>` stand for production's own. Each
-step names what showed it works: a probe, with its issue, or the doc that was read.
+`.env.prod-db.local`. `<admin email>` and `<project URL>` stand for production's own. A step
+that rests on a probe or a doc names it, with its issue.
 
 - [The weekly routine](#the-weekly-routine)
 - [Attack Mode](#attack-mode)
