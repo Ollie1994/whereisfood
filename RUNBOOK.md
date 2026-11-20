@@ -226,9 +226,10 @@ A secret that reaches a commit, an issue or a PR is rotated, not just deleted (`
   it was issued, and make a new one.
 
 **After rotating the secret key, a legacy `service_role` key or the database password**, also
-run "A takeover", steps 2 to 4. Rotating a key ends no session made with it, and any of them
-can change the admin's email, factor and sessions with no email sent ("A takeover", step 2's
-probe). Then hold the weekly routine as an incident ("The weekly routine").
+run "A takeover", steps 2 to 4. Supabase's docs don't say a key's rotation ends the sessions a
+thief made with it (#448's 1b: "not stated"), and any of them can change the admin's email,
+factor and sessions with no email sent ("A takeover", step 2's probe). Then hold the weekly
+routine as an incident ("The weekly routine").
 
 Then look for use of the key, knowing how little shows:
 
