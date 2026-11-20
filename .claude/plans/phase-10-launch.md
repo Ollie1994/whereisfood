@@ -184,10 +184,10 @@ on.
    test; the marker test; the removal list in `map/page.tsx`'s header; `CLAUDE.md`'s gate
    rule; the marker on `/about`'s sentence that the map opens when the trucks are back;
    `readOnlyCookies`' comment in `src/lib/supabase-session.ts` ("use it behind something that
-   refreshes first: the proxy"), rewritten with step 1a's evidence, since `MapPage` uses it
-   with no proxy before it (the owner's call, round 3 on PR #447). Needs steps 1a and 3. If
-   #6's branch is needed, the proxy branch and its tests join this PR as gate sites, the
-   branch its own function.
+   refreshes first: the proxy"), rewritten under Plan A with step 1a's evidence, since
+   `MapPage` then uses it with no proxy before it (the owner's call, round 3 on PR #447).
+   Needs steps 1a and 3. If #6's branch is needed, the proxy branch and its tests join this
+   PR as gate sites, the branch its own function.
 4b. **The gate on `dev`'s preview** (#6), its own issue, blocked by step 4, blocking step 13
    (the owner's call, round 2 on PR #447): step 1a's probe on `dev`'s preview, recorded on
    this issue. If it shows a logout where the local run didn't: the owner's call on
@@ -242,9 +242,7 @@ on.
     protection's, on Free), INFO read; Auth's Site URL and Redirect URLs set to the one
     production `vercel.app` host the admin logs in from in step 16, named on the issue, and
     that host's `/auth/callback` alone, as README's checklist names `dev`'s alias for the
-    preview; step 7's rolled-back DELETE on `auth.audit_log_entries` repeated in production's
-    SQL editor, the count dropping by one inside it, and recorded beside the preview's, since
-    the two projects' grants may differ; the admin user with a long random password (README,
+    preview; the admin user with a long random password (README,
     "5. Create the admin user"), its TOTP factor enrolled in step 16, through the deployed
     app; the email-budget lockout as open decision 6 settles it. README's "Production" section
     written.
@@ -277,6 +275,10 @@ on.
     - `/api/live` goes MISS → HIT;
     - a logged-out request to `/map` right after the admin's never gets the map, and no `/map`
       answer shows a cache `HIT`;
+    - step 7's rolled-back DELETE on `auth.audit_log_entries` repeated in production's SQL
+      editor, the count dropping by one inside it, recorded beside the preview's, since the two
+      projects' grants may differ; here, after step 16's login has written rows (a new
+      project's table may hold none before);
     - the first weekly dump is on the owner's machine.
 
     **This step is the phase's done.**
@@ -503,9 +505,7 @@ rotate the files but is new code to test, for one person once a week.
 - [ ] The production project: Phase 5 #19's hosted check passes; each hosted-checklist item is
   recorded as applied; the Security Advisor shows no ERROR, each WARN fixed or accepted with a
   reason, INFO read; Auth's Site URL is the production host named on the issue and its
-  Redirect URLs that host's `/auth/callback` alone; the rolled-back DELETE removed one
-  `auth.audit_log_entries` row in production's SQL editor; the admin has a long random
-  password.
+  Redirect URLs that host's `/auth/callback` alone; the admin has a long random password.
 - [ ] Vercel and R2: the Ignored Build Step read as set, no `ignoreCommand` on `dev` or
   `main`; R2's CORS rule covers each production address, by an origin or a redirect; the
   toolbar reads Off for Production; Production's variables come only from the new project.
@@ -517,7 +517,8 @@ rotate the files but is new code to test, for one person once a week.
   CSP violation;
   `/api/live` goes MISS → HIT; a
   logged-out request to `/map` after the admin's gets the redirect, and no `/map` answer shows
-  a cache `HIT`; the first dump is on the owner's machine.
+  a cache `HIT`; the rolled-back DELETE removed one `auth.audit_log_entries` row in
+  production's SQL editor; the first dump is on the owner's machine.
 - [ ] The closing steps (19, 20) are done: the retrospective, then the reconciliation.
 
 ---
