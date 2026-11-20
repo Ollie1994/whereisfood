@@ -783,53 +783,63 @@ With Docker running (the CLI runs `pg_dump` in a container), from the repo, in G
 ```bash
 BACKUPS="<backups folder>"
 FILE="$BACKUPS/whereisfood-$(date -u +%Y-%m-%d).sql"
-PROD_DB_URL=$(grep '^PROD_DB_URL=' .env.prod-db.local | cut -d= -f2- | tr -d '\r"')
-npx supabase db dump --db-url "$PROD_DB_URL" --data-only --schema public -f "$FILE" \
-  && tail -n 1 "$FILE" | grep -qx 'RESET ALL;' \
-  && ls -1 "$BACKUPS"/whereisfood-*.sql | sort | head -n -4 | xargs -d '\n' -r rm -- \
-  && echo "DUMP OK: now run retention.sql" \
-  || echo "DUMP FAILED: old dumps kept; don't run retention.sql"
+PROD_DB_URL=$(grep '^PROD_DB_URL=' .env.prod-db.local | cut -d= -f2- | tr -d "\r\"'")
+rm -f "$FILE.part"
+if npx supabase db dump --db-url "$PROD_DB_URL" --data-only --schema public -f "$FILE.part" \
+  && tail -n 1 "$FILE.part" | grep -qx 'RESET ALL;' && mv "$FILE.part" "$FILE"; then
+  echo "DUMP OK: now run retention.sql"
+  ls -1 "$BACKUPS"/whereisfood-*.sql | sort | head -n -4 | xargs -d '\n' -r rm -- \
+    || echo "PRUNE FAILED: the dump is good; delete all but the newest four by hand"
+else
+  rm -f "$FILE.part"
+  echo "DUMP FAILED: nothing kept from this run, old dumps untouched; don't run retention.sql"
+fi
 unset PROD_DB_URL
 ```
 
-- The URL is read with any quotes and Windows line endings removed.
+- The line in `.env.prod-db.local` is exactly `PROD_DB_URL=<url>`: no spaces around the `=` and
+  no comment after it. The read drops double and single quotes and Windows line endings.
 - A complete dump ends with the CLI's `RESET ALL;`. A failed one exits non-zero and leaves a
-  short file without it: an unreachable database left 41 bytes (IS #455). The old dumps are
-  deleted only after that check passes.
+  short file without it: an unreachable database left 41 bytes (IS #455). The dump is written
+  to `<name>.part`, which the deletion doesn't match. It takes the dated name only after that
+  check passes, and a failed run's `.part` is removed. So a failed run never counts as one of
+  the four, and never replaces a good dump of the same day.
 - The deletion keeps the newest four `whereisfood-*.sql` files and touches nothing else in the
-  folder, so the takedown log stays (checked with six dated files, a takedown log, and a
-  space in the folder's name).
+  folder, so the takedown log stays. If it fails, the new dump is still good.
 
 After `DUMP OK`, run [`supabase/manual/retention.sql`](supabase/manual/retention.sql) in the SQL
 editor: the weekly routine runs it after the dump (Phase 10 plan, #10). After `DUMP FAILED`,
-fix the cause, delete the short file and run the block again.
+fix the cause and run the block again.
 
 ### Restoring
 
 A restore goes into a database with the migrations applied and **no seed**: on the local
 stack `npx supabase db reset --no-seed`; on a new hosted project `npx supabase db push`
-without `--include-seed` (not tried). The seed's trucks have fixed ids, so a dump loads beside
-them without an error. Check first that `select count(*) from trucks` answers 0. A restore
+without `--include-seed` (not tried). The seed's trucks have ids no production dump holds, so
+a dump would load beside them with no error, mixing them in. Check first that
+`select count(*) from trucks` answers 0. A restore
 brings back what was deleted after its dump, so the takedowns and `retention.sql` run again
 after it. The steps, tested once on the local stack (IS #455's record):
 
 1. **The admin, by its old id**, before the data: `users.id` and `locations.created_by`
    reference `auth.users`, and the dump loads with its foreign keys unchecked (`replica`),
    so a new id would leave both pointing at nobody. Studio's "Add user" can't set an id;
-   Auth's admin API can (Phase 10 plan, open decision 11). The old id is the `users` row with `is_admin`
-   `true` in the dump. With the project's secret key read without echoing (`read -rs
+   Auth's admin API can (Phase 10 plan, open decision 11). The old id is the `users` row with
+   `is_admin` `true` in the dump. With the project's secret key read without echoing (`read -rs
    SECRET_KEY`) and a long random password the admin never needs (`CLAUDE.md`, "Supabase"):
 
    ```bash
    PASSWORD=$(node -e 'console.log(require("crypto").randomBytes(32).toString("base64url"))')
-   curl -sS -o /dev/null -w '%{http_code}\n' -X POST "<project URL>/auth/v1/admin/users" \
+   curl -sS -w '\n%{http_code}\n' -X POST "<project URL>/auth/v1/admin/users" \
      -H "apikey: $SECRET_KEY" -H "Content-Type: application/json" \
      -d "{\"id\":\"<old id>\",\"email\":\"<admin email>\",\"password\":\"$PASSWORD\",\"email_confirm\":true}"
    unset PASSWORD SECRET_KEY
    ```
 
-   It prints the status: `200` means it was made, and `select id from auth.users` in the SQL
-   editor shows the old id. Anything else made nothing.
+   It prints Auth's answer, then the status. `200` means it was made, and
+   `select id from auth.users` in the SQL editor shows the old id. A `4xx` gives its reason in
+   the answer. For anything else, such as `000`, a dropped connection, check `auth.users`
+   before running it again.
 2. **The data:** load the dump with `psql` in one transaction (`-1`), so a load that fails
    partway leaves nothing behind and can be run again. On the local stack:
    `docker exec -i supabase_db_whereisfood psql -U postgres -v ON_ERROR_STOP=1 -1 < <dump file>`.
@@ -848,7 +858,9 @@ Limits: steps 1 and 2 were run only on the local stack (its API URL and `sb_secr
 API call nor the load has been tried, and a hosted restore needs a paused project or a free
 slot (two active free projects). The secret key, the admin's password and the database URL
 are on command lines while the commands run, which other processes of this user can read;
-the variables keep them out of the shell's history only.
+the variables keep them out of the shell's history only. The CLI also hands the database URL's
+parts to its `pg_dump` container: its script exports `PGPASSWORD` there (`--dry-run`), so
+whoever can reach Docker could read it while the dump runs (not seen in `docker inspect`).
 
 ---
 
