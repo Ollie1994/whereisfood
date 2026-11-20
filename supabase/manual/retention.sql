@@ -16,8 +16,8 @@
 -- with nothing due, IS #454, 2026-11-20), and both deletes happen or neither.
 -- It returns how many rows each delete removed. Nothing references `locations`, so its
 -- delete has no foreign key to fail. `auth.audit_log_entries` has row-level security on, so
--- a role without BYPASSRLS deletes none of its rows with no error (a role made without it,
--- on the local stack: 0 rows). The preview's SQL editor runs as `postgres`, which deleted one
+-- a role that may delete from it but has no BYPASSRLS and doesn't own it deletes none of its
+-- rows with no error (one made so on the local stack: 0 rows). The preview's SQL editor runs as `postgres`, which deleted one
 -- of them in a rolled-back probe (IS #454, 2026-11-20); production's is #464's.
 --
 -- `tests/integration/retention.test.ts` runs it on the local stack, as `postgres`.

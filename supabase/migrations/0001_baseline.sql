@@ -116,7 +116,8 @@ create index locations_live_truck_starts_at on locations (truck_id, starts_at de
 -- stack `pg_default_acl` gives anon, authenticated and service_role TRUNCATE,
 -- REFERENCES, TRIGGER and MAINTAIN on every new table in `public` (checked
 -- 2026-10-18). No service_role policies: it bypasses RLS.
--- No anon access to `trucks` or `locations`: history is kept, and anon SELECT would
+-- No anon access to `trucks` or `locations`: history is kept (52 weeks after each entry
+-- ends; CLAUDE.md, "Locations"), and anon SELECT would
 -- publish every truck's movement history through the Data API.
 -- ---------------------------------------------------------------------------
 

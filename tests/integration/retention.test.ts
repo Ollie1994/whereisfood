@@ -17,6 +17,18 @@ import { FIXTURE_PREFIX, localSql } from "./helpers";
 
 const FILE = readFileSync(new URL("../../supabase/manual/retention.sql", import.meta.url), "utf8");
 
+// The rollback below holds only while the file controls no transaction itself: a `commit` in
+// it would commit its deletes, and the fixtures, to the local database. So a statement of the
+// file that starts with one of these words stops the test before anything runs.
+const TRANSACTION_CONTROL = /^(begin|commit|end|rollback|abort|start|savepoint|release|prepare)\b/i;
+const controlStatements = FILE.replace(/--[^\n]*/g, "")
+  .split(";")
+  .map((statement) => statement.trim())
+  .filter((statement) => TRANSACTION_CONTROL.test(statement));
+if (controlStatements.length > 0) {
+  throw new Error(`retention.test: retention.sql controls its own transaction: ${controlStatements.join(" / ")}`);
+}
+
 const LOCATIONS_CUT = "now() - interval '52 weeks'";
 const AUDIT_CUT = "now() - interval '30 days'";
 
