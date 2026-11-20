@@ -23,7 +23,11 @@ import { resolve } from "node:path";
 //   (`src/lib/http/csp.ts`), "none" for the proxy's bodiless case redirect on `/admin/…`.
 // - `noStore`: `Cache-Control` must hold `no-store` (the proxy's case redirect, `src/proxy.ts`).
 export const EXPECTATIONS = [
-  { path: "/map", status: 200, shape: "html", csp: "static" },
+  // SOFT-LAUNCH GATE (Phase 10 plan #5): with no session, `/` and `/map` redirect to `/about`
+  // (307, Next's `redirect()` in a page). At the full launch `/` expects the redirect to `/map`,
+  // and `/map` 200, html, the static CSP (the removal list in src/app/map/page.tsx).
+  { path: "/", status: 307, shape: "redirect", location: "/about", csp: "static" },
+  { path: "/map", status: 307, shape: "redirect", location: "/about", csp: "static" },
   { path: "/about", status: 200, shape: "html", csp: "static" },
   { path: "/api/live", status: 200, shape: "entries", csp: "static" },
   { path: "/admin/login", status: 200, shape: "html", csp: "nonce" },

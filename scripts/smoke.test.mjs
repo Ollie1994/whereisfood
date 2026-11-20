@@ -12,11 +12,22 @@ const JSON_TYPE = "application/json";
 
 // Each path: its right answer, a wrong status, and a wrong shape (IS #286).
 const CASES = [
+  // SOFT-LAUNCH GATE (Phase 10 plan #5): `/` and `/map` redirect to `/about` with no session;
+  // back to `/` redirecting to `/map` and `/map` 200 at the full launch (the removal list in
+  // src/app/map/page.tsx).
+  {
+    path: "/",
+    right: { status: 307, location: "/about", origin: "http://127.0.0.1:3000" },
+    wrongStatus: { status: 200, contentType: HTML, origin: "http://127.0.0.1:3000" },
+    // `/` still redirecting to `/map`, as before the gate.
+    wrongShape: { status: 307, location: "/map", origin: "http://127.0.0.1:3000" },
+  },
   {
     path: "/map",
-    right: { status: 200, contentType: HTML },
-    wrongStatus: { status: 500, contentType: HTML },
-    wrongShape: { status: 200, contentType: JSON_TYPE, json: {} },
+    right: { status: 307, location: "/about", origin: "http://127.0.0.1:3000" },
+    // The map served with no session: the gate missing.
+    wrongStatus: { status: 200, contentType: HTML, origin: "http://127.0.0.1:3000" },
+    wrongShape: { status: 307, location: "/admin/login", origin: "http://127.0.0.1:3000" },
   },
   {
     path: "/about",

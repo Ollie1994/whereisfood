@@ -350,6 +350,20 @@ said otherwise: Phase 4 plan decision #14.
   column list, never `*`**, so
   `created_by` and future columns can't leak
 
+**The soft-launch gate** (Phase 10 plan #5, #6; until the full launch, Phase 11)
+<!-- SOFT-LAUNCH GATE (Phase 10 plan #5): this section is deleted at the full launch (the removal list in src/app/map/page.tsx). -->
+- `/map` shows only to the admin at `aal2`; `/` and `/map` send everyone else to `/about`.
+  `MapPage` runs `requireAdmin` with `readOnlyCookies` and no proxy before it (Plan A, IS
+  #448's probe); the proxy's matcher stays as "proxy.ts" above says
+- **The gate hides `/map`; it protects nothing.** `/map` renders only what `/api/live`
+  publishes, and `MapPage` passes `MapClient` no props. Nothing admin-only (an edit link,
+  unconfirmed entries, the admin's id) is added to `/map` or behind the gate while it
+  stands: admin data stays behind `withAdmin` and RLS, so removing the gate opens nothing
+- Every gate site carries the marker `SOFT-LAUNCH GATE (Phase 10 plan #5)` and is on the
+  removal list in `src/app/map/page.tsx`'s header, its one copy, which says what each goes
+  back to; `gate-markers.test.ts` fails on a marked file not listed or a listed file not
+  marked. A new gate site is marked and listed in the PR that adds it
+
 **Locations**
 - Overlapping non-cancelled entries for a truck are refused by the DB exclusion
   constraint (`23P01` → 409, Swedish "överlappar" message). Never auto-resolve,
