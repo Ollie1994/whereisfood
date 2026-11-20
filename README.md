@@ -869,11 +869,12 @@ hosted settings checklist, the Redirect URLs) isn't covered here or tried; `RUNB
 restore takes it (#457). Steps 1 and 2 were run only on the local stack (its API URL and
 `sb_secret_` key; its `postgres`, which may set `session_replication_role`). On a hosted
 project neither the admin API call nor the load has been tried, and a hosted restore needs a
-paused project or a free slot (two active free projects). The secret key, the admin's password and the database URL
-are on command lines while the commands run, which other processes of this user can read;
-the variables keep them out of the shell's history only. The CLI also hands the database URL's
-parts to its `pg_dump` container: its script exports `PGPASSWORD` there (`--dry-run`), so
-whoever can reach Docker could read it while the dump runs (not seen in `docker inspect`).
+paused project or a free slot (two active free projects). The secret key, the admin's
+password and the database URL are on command lines while the commands run, which other
+processes of this user can read; the variables keep them out of the shell's history only. The
+CLI also hands the database URL's parts to its `pg_dump` container: its script exports
+`PGPASSWORD` there (`--dry-run`), so whoever can reach Docker could read it while the dump
+runs (not seen in `docker inspect`).
 
 ---
 
