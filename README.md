@@ -815,8 +815,9 @@ unset PROD_DB_URL
   stay and take no place among the four. If it fails, the new dump is still good.
 
 After `DUMP OK`, run [`supabase/manual/retention.sql`](supabase/manual/retention.sql) in the SQL
-editor: the weekly routine runs it after the dump (Phase 10 plan, #10). After `DUMP FAILED`
-or `NO URL`, don't run it: fix the cause and run the block again.
+editor: the weekly routine runs it after the dump (Phase 10 plan, #10), except while an
+incident is being investigated (`RUNBOOK.md`, "The weekly routine"). After `DUMP FAILED` or
+`NO URL`, don't run it: fix the cause and run the block again.
 
 ### Restoring
 
@@ -850,7 +851,7 @@ it. The steps, tested once on the local stack (IS #455's record):
    It prints Auth's answer, then the status. `200` means it was made, and
    `select id from auth.users` in the SQL editor shows the old id. A `4xx` gives its reason in
    the answer. For anything else, such as `000`, a dropped connection, check `auth.users`
-   before running it again.
+   before running it again, and `read -rs SECRET_KEY` first: the block has cleared it.
 2. **The data:** load the dump with `psql` in one transaction (`-1`), so a load that fails
    partway leaves nothing behind and can be run again. On the local stack:
    `docker exec -i supabase_db_whereisfood psql -U postgres -v ON_ERROR_STOP=1 -1 < <dump file>`.

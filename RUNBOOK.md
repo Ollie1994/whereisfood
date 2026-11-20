@@ -4,8 +4,9 @@ What to open in an incident, and the weekly routine (Phase 10 plan, step 10 and 
 is public, so nothing here is a secret. Each value a step needs lives where `CLAUDE.md`'s
 "Where secrets live" says: production's Supabase keys in its dashboard (Project Settings → API
 Keys) and in Vercel's environment variables, and its database URL in the gitignored
-`.env.prod-db.local`. `<project URL>` and `<admin id>` stand for production's own. A step
-that rests on a probe or a doc names it, with its issue.
+`.env.prod-db.local`. `<project URL>` and `<admin id>` stand for production's own; in "A
+restore", for the new project's. A step that rests on a probe or a doc names it, with its
+issue.
 
 - [The weekly routine](#the-weekly-routine)
 - [Attack Mode](#attack-mode)
@@ -28,9 +29,10 @@ Once a week, in this order:
    decisions 2 and 3). The first audit-log rows come due 30 days after the production
    project's first Auth event (the admin's creation, with "Write audit logs to the database"
    on), and the first locations 52 weeks after the first production location ends. Until
-   then it answers `0` for that count, which is expected. **Skip it while a takeover is
-   being investigated**: it deletes the audit rows "A takeover", step 5, reads, and no dump
-   holds them (the dumps hold `public` only).
+   then it answers `0` for that count, which is expected. **Skip it while an incident is
+   being investigated** (a takeover, a leaked key): it deletes the audit rows "A takeover",
+   step 5, reads, and no dump holds them (the dumps hold `public` only). README's `DUMP OK`
+   line doesn't know about an incident; this rule does.
 3. **The usage look**, which stands in for the alerts neither free plan offers (open decision
    7, IS #457):
    - **Supabase:** the organization's Usage page, each figure against its limit (database size
@@ -78,29 +80,35 @@ plan's #13. Its order:
 1. **Secure the mailbox.** The login is the emailed link, so whoever holds the mailbox can log
    in. Change its password, check its two-factor and recovery options, and end its other
    sessions.
-2. **Replace the password** through Auth's admin API, with the secret key read without echoing
-   (`read -rs SECRET_KEY`), as README's restore step 1 does:
+2. **Replace the password, and the email if it changed**, through Auth's admin API. First, in
+   the SQL editor, `select u.id, a.email from users u join auth.users a on a.id = u.id where
+   u.is_admin;`: one row, the admin's id, and an email that should be your mailbox's. A thief
+   who held the mailbox may have moved it to theirs, and step 4's link goes to that address.
+   Then, with the secret key read without echoing (`read -rs SECRET_KEY`), as README's
+   restore step 1 does, and `<your email>` in place:
 
    ```bash
    PASSWORD=$(node -e 'console.log(require("crypto").randomBytes(32).toString("base64url"))')
    curl -sS -w '\n%{http_code}\n' -X PUT "<project URL>/auth/v1/admin/users/<admin id>" \
-     -H "apikey: $SECRET_KEY" -H "Content-Type: application/json" -d "{\"password\":\"$PASSWORD\"}"
+     -H "apikey: $SECRET_KEY" -H "Content-Type: application/json" \
+     -d "{\"password\":\"$PASSWORD\",\"email\":\"<your email>\",\"email_confirm\":true}"
    unset PASSWORD SECRET_KEY
    ```
 
    It prints Auth's answer, then the status. `200` means done. A `4xx` gives its reason in the
    answer: a wrong key answered `401`, and an id no user has `404` `user_not_found` (both on
-   the local stack, IS #457). For `000`, a dropped connection, run it again. The admin id is
-   `select id from users where is_admin;`. Probed on the local stack with a throwaway user
-   (IS #457): `200`, the stored hash changed, the new password signed in and the old one was
-   refused. The admin never needs the password, but must have one
+   the local stack, IS #457). For `000`, a dropped connection: the block has already cleared
+   the key, so `read -rs SECRET_KEY` again, then run the block again. Probed on the local
+   stack with a throwaway user (IS #457): a password-only `PUT` answered `200`, the stored
+   hash changed, the new password signed in and the old one was refused; with the email too,
+   `200`, the new address confirmed at once, no change left pending, the identity's email
+   moved with it, and no email sent. The admin never needs the password, but must have one
    (`CLAUDE.md`, "Supabase"). The key and the password are on `curl`'s command line while it
    runs, where other processes of this user can read them (README, "Restoring", Limits): on a
    machine you suspect, run it from another.
-3. **Delete the factor and end every session:** the statement in "A lost phone", step 2. It
-   finds the admin by `users.is_admin`, not by email, so a thief who changed the address
-   doesn't hide them. Sessions end after the password and the factor, or the thief signs
-   straight back in (#13). Deleting the factor alone ends no session (IS #381).
+3. **Delete the factor and end every session:** "A lost phone", steps 2 and 3. Sessions end
+   after the password and the factor, or the thief signs straight back in (#13). Deleting the
+   factor alone ends no session (IS #381).
 4. **Re-enroll at once:** log in with the link, which shows the enroll QR code. Until then any
    `aal1` session can fill the free factor slot (#13).
 5. **See what happened**, in the SQL editor. The audit log keeps 30 days (`retention.sql`),
@@ -111,8 +119,19 @@ plan's #13. Its order:
    from auth.audit_log_entries order by created_at desc limit 100;
    ```
 
-   and the newest entries, for changes you didn't make:
-   `select id, truck_id, label, starts_at, ends_at, cancelled_at, updated_at from locations order by updated_at desc limit 50;`.
+   Then the data, for changes you didn't make, one query at a time (how the editor shows
+   several results wasn't checked):
+
+   ```sql
+   select id, truck_id, label, starts_at, ends_at, cancelled_at, updated_at
+   from locations order by updated_at desc limit 50;
+   select id, name, is_active, created_at from trucks order by created_at desc;
+   select id, is_admin, truck_id, created_at from users;
+   ```
+
+   A location edit moves `updated_at`, and a new row has its `created_at`. A truck or `users`
+   edit and a deleted row leave no time, so compare what you see with what you know, an admin
+   you don't know included.
 
 The swap (unenroll, enroll and a password set by the thief) stays possible as sabotage, a
 lockout, not a way in: the app admits only a magic-link sign-in (#13).
@@ -127,7 +146,12 @@ dashboard, no secret key outside Supabase, no unenroll screen; IS #457):
 
 1. Make sure it is the phone, not a takeover. If anything under "A takeover" looks off, follow
    that instead.
-2. Delete the admin's factor and every session they have, in one statement:
+2. Check there is one admin: `select id, created_at from users where is_admin;` answers one
+   row, yours. Two rows mean someone made a second admin, which a signed-in user can't do
+   with their own session, but the secret key or the database password can: treat it as "A
+   leaked key" too, and set the other row's `is_admin` to false before step 3, which would
+   otherwise end that user's sessions as well. No row means no admin: stop.
+3. Delete the admin's factor and every session they have, in one statement:
 
    ```sql
    with admin as (
@@ -145,13 +169,14 @@ dashboard, no secret key outside Supabase, no unenroll screen; IS #457):
      (select count(*) from deleted_sessions) as sessions_deleted;
    ```
 
-   Expect `admins` `1` and `factors_deleted` `1`. It finds the admin by `users.is_admin`,
-   which no user can change (`CLAUDE.md`, "Supabase": no owner self-UPDATE on `users`), not by
-   the email. The factor's challenges and the sessions' refresh tokens and sign-in records go
-   with them (`ON DELETE CASCADE`). Probed on the local stack as `postgres`, in a transaction
+   Expect `admins` `1` and `factors_deleted` `1`. It finds the admin by `users.is_admin`, not
+   by the email, which a thief holding the mailbox could change. A signed-in user can't change
+   `is_admin` with their own session (`CLAUDE.md`, "Supabase": no owner self-UPDATE on
+   `users`); step 2 covers a key that can. The factor's challenges and the sessions' refresh
+   tokens and sign-in records go with them (`ON DELETE CASCADE`). Probed on the local stack as `postgres`, in a transaction
    rolled back after (IS #457): `1|1|1`, with factors, sessions, refresh tokens and sign-in
    records at `0` inside it.
-3. **Log in at once** and enroll the new phone from the QR code. Until then any `aal1`
+4. **Log in at once** and enroll the new phone from the QR code. Until then any `aal1`
    session can fill the free slot (Phase 9 plan #13). Delete the old phone's entry if the app
    synced it.
 
@@ -183,9 +208,11 @@ A secret that reaches a commit, an issue or a PR is rotated, not just deleted (`
 Then look for use of the key, knowing how little shows:
 
 - **Auth admin actions** (users made, changed or deleted) are in Auth's audit log: "A
-  takeover", step 5.
-- **Changes to data** show in the tables' own columns: "A takeover", step 5's `locations`
-  query (`updated_at`), and the same for `trucks` (`created_at`).
+  takeover", step 5. Hold the weekly `retention.sql` meanwhile ("The weekly routine").
+- **Changes to data:** only new rows (`created_at`) and location edits (`updated_at`) leave a
+  time: "A takeover", step 5's queries. A truck edit, a `users` change (`is_admin`,
+  `truck_id`) and a deleted row leave none, so check the `users` rows for an admin you don't
+  know, and the trucks against what you know.
 - **Reads** through the data API with the secret key bypass row-level security and leave
   nothing in any table. Supabase's API logs keep 1 day on Free (Phase 9 plan open decision
   7), so a read older than that can't be ruled out. Treat what the key could read, the
@@ -229,11 +256,22 @@ database, so on a hosted project into a **new** project, in a free slot: Free al
 active projects, and pausing another frees one. A paused project keeps its data and users,
 so it isn't fresh. In this order, since the login has to reach the new project:
 
-1. **The new project:** the migrations (`npx supabase db push`, without `--include-seed`),
-   then README's "Hosted settings checklist", every Supabase row, with production's Site URL
-   and Redirect URLs (its `/auth/callback` only, no wildcard).
-2. **The data:** README's "Restoring", steps 1 to 4, against the new project: the admin by
-   their old id, the load, the takedowns and `retention.sql`.
+1. **The new project:** link the CLI to it first, since a push goes to whichever project the
+   CLI is linked to (README, "Hosted preview database", links the preview), then push the
+   migrations without `--include-seed`:
+
+   ```bash
+   npx supabase link --project-ref <new project ref>
+   npx supabase db push --dry-run   # lists the migrations, and no seed
+   npx supabase db push
+   ```
+
+   The CLI stays linked to the new project, which is production from here on. Then README's
+   "Hosted settings checklist", every Supabase row, with production's Site URL and Redirect
+   URLs (its `/auth/callback` only, no wildcard).
+2. **The data:** README's "Restoring" against the new project: its check that `trucks` and
+   `auth.users` both count 0, then its steps 1 to 4 (the admin by their old id, the load, the
+   takedowns and `retention.sql`).
 3. **Vercel's Production variables:** `NEXT_PUBLIC_SUPABASE_URL`,
    `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` set to the new project's.
    Then redeploy Production.
