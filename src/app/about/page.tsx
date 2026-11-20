@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
 // What the app is (Phase 10 plan, step 3): where everyone but the admin lands during the soft
-// launch, and a page that stays after it. Static, Swedish (CLAUDE.md, UI Rules), styled like
-// the root `not-found.tsx`.
+// launch, and a page that stays after it. Static, Swedish (CLAUDE.md, UI Rules), in the root
+// `not-found.tsx`'s column (`max-w-md`, `px-4 py-6`) and heading style.
 export const metadata: Metadata = {
   title: "Om tjänsten | Var är maten?",
 };
