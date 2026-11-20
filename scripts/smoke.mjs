@@ -24,6 +24,7 @@ import { resolve } from "node:path";
 // - `noStore`: `Cache-Control` must hold `no-store` (the proxy's case redirect, `src/proxy.ts`).
 export const EXPECTATIONS = [
   { path: "/map", status: 200, shape: "html", csp: "static" },
+  { path: "/about", status: 200, shape: "html", csp: "static" },
   { path: "/api/live", status: 200, shape: "entries", csp: "static" },
   { path: "/admin/login", status: 200, shape: "html", csp: "nonce" },
   { path: "/admin", status: 303, shape: "redirect", location: "/admin/login", csp: "nonce" },

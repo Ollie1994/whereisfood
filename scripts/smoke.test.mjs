@@ -19,6 +19,12 @@ const CASES = [
     wrongShape: { status: 200, contentType: JSON_TYPE, json: {} },
   },
   {
+    path: "/about",
+    right: { status: 200, contentType: HTML },
+    wrongStatus: { status: 404, contentType: HTML },
+    wrongShape: { status: 200, contentType: JSON_TYPE, json: {} },
+  },
+  {
     path: "/api/live",
     right: { status: 200, contentType: JSON_TYPE, json: { entries: [] } },
     wrongStatus: { status: 500, contentType: JSON_TYPE, json: { error: "x" } },
@@ -152,7 +158,7 @@ describe("checkHeaders", () => {
   };
 
   it("passes each path's right headers", () => {
-    expect(checkHeaders(byPath("/map"), answer(STATIC_CSP))).toEqual([]);
+    expect(checkHeaders(byPath("/about"), answer(STATIC_CSP))).toEqual([]);
     expect(checkHeaders(byPath("/api/live"), answer(STATIC_CSP))).toEqual([]);
     expect(checkHeaders(byPath("/api/admin/trucks"), answer(STATIC_CSP))).toEqual([]);
     expect(checkHeaders(byPath("/admin/login"), answer(nonceCsp("abc"), {}, PAGE))).toEqual([]);
@@ -164,12 +170,12 @@ describe("checkHeaders", () => {
   it.each(Object.keys(STATIC_HEADERS))("fails a missing %s", (name) => {
     const response = answer(STATIC_CSP);
     response.headers.delete(name);
-    expect(checkHeaders(byPath("/map"), response)).toEqual([`${name} missing, expected "${STATIC_HEADERS[name]}"`]);
+    expect(checkHeaders(byPath("/about"), response)).toEqual([`${name} missing, expected "${STATIC_HEADERS[name]}"`]);
   });
 
   it("fails a wrong value and an X-Powered-By", () => {
-    expect(checkHeaders(byPath("/map"), answer(STATIC_CSP, { "x-frame-options": "SAMEORIGIN" }))).toHaveLength(1);
-    expect(checkHeaders(byPath("/map"), answer(STATIC_CSP, { "x-powered-by": "Next.js" }))).toEqual(['x-powered-by "Next.js", expected none']);
+    expect(checkHeaders(byPath("/about"), answer(STATIC_CSP, { "x-frame-options": "SAMEORIGIN" }))).toHaveLength(1);
+    expect(checkHeaders(byPath("/about"), answer(STATIC_CSP, { "x-powered-by": "Next.js" }))).toEqual(['x-powered-by "Next.js", expected none']);
   });
 
   // The proxy's bodiless case redirect carries none on `/admin/…`, and `no-store` (IS #414).
@@ -185,20 +191,20 @@ describe("checkHeaders", () => {
   });
 
   it("fails no CSP, and two", () => {
-    expect(checkHeaders(byPath("/map"), answer(null))).toEqual(["0 CSPs, expected 1"]);
+    expect(checkHeaders(byPath("/about"), answer(null))).toEqual(["0 CSPs, expected 1"]);
     const two = answer(STATIC_CSP);
     two.headers.append("content-security-policy", nonceCsp("abc"));
     expect(checkHeaders(byPath("/admin/login"), two)).toEqual(["2 CSPs, expected 1"]);
   });
 
   it("fails a CSP without frame-ancestors 'none'", () => {
-    expect(checkHeaders(byPath("/map"), answer("default-src 'self'; frame-ancestors 'self'"))).toEqual([
+    expect(checkHeaders(byPath("/about"), answer("default-src 'self'; frame-ancestors 'self'"))).toEqual([
       "CSP without frame-ancestors 'none'",
     ]);
   });
 
   it("fails the wrong kind of CSP", () => {
-    expect(checkHeaders(byPath("/map"), answer(nonceCsp("abc")))).toEqual(["a nonce CSP, expected the static one"]);
+    expect(checkHeaders(byPath("/about"), answer(nonceCsp("abc")))).toEqual(["a nonce CSP, expected the static one"]);
     expect(checkHeaders(byPath("/admin"), answer(STATIC_CSP))).toEqual(["the static CSP, expected a nonce one"]);
   });
 
