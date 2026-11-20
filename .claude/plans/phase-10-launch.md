@@ -373,9 +373,10 @@ back, so the browser keeps presenting the used refresh token, which Auth's reuse
 answer by ending the session. Step 1a probes it locally before the gate is built, and again
 on `dev`'s preview once step 4 merges, the first place a gated `/map` can build with the
 secret key (the owner's call, round 1 on PR #447), as step 4b, an issue of its own (round
-2). If the session survives, Plan A: the page alone (IS #373 (Phase 10)). If it ends, a `/map` branch in the proxy, which changes
-`CLAUDE.md`'s "never `/map`" proxy rule (Phase 7 plan #10, #28; `src/proxy.test.ts` pins it):
-the owner's call, with the rule's text changed in the same PR (open decision 10).
+2). If the session survives, Plan A: the page alone (IS #373 (Phase 10)). If it ends, a
+`/map` branch in the proxy, which changes `CLAUDE.md`'s "never `/map`" proxy rule (Phase 7
+plan #10, #28; `src/proxy.test.ts` pins it): the owner's call, with the rule's text changed in
+the same PR (open decision 10).
 
 ### #7 — The domain is optional in Phase 10
 
