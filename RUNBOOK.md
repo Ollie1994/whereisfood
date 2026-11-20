@@ -388,23 +388,28 @@ password or an account token, all of these; after the secret key, the first two:
   Locally there is no trigger on any `auth` table. A role or trigger the preview doesn't
   have is suspect.
 - **The Security Advisor** on production, with the CLI linked to it for the run, then back to
-  the preview (if the CLI login was what leaked, `npx supabase login` with a new token first):
+  the preview (if the CLI login was what leaked, `npx supabase login` with a new token first).
+  From the repo root, since the check reads `supabase/.temp/project-ref` there:
 
   ```bash
   npx supabase link --project-ref <production project ref>
-  if grep -qx '<production project ref>' supabase/.temp/project-ref; then
+  if grep -qxF '<production project ref>' supabase/.temp/project-ref; then
     npx supabase db advisors --linked --type security --level info --fail-on error
     echo "advisor exit $?"
   else
     echo "NOT LINKED to production: nothing checked"
   fi
   npx supabase link --project-ref <preview project ref>
+  grep -qxF '<preview project ref>' supabase/.temp/project-ref \
+    && echo "back on the preview" \
+    || echo "STILL NOT ON THE PREVIEW: link it before any db push"
   ```
 
-  The check matters: a failed `link` (a mistyped ref, a revoked login) exits 1 and leaves the
-  CLI linked to the preview, so an unguarded `--linked` run would check the preview instead.
-  Probed with a ref no project has: `link` exited 1, `supabase/.temp/project-ref` kept the
-  preview's ref, and `grep -qx` matched only the linked one (IS #474).
+  The checks matter: a failed `link` (a mistyped ref, a revoked login) exits 1 and leaves the
+  CLI linked to whichever project it was linked to before, so an unguarded `--linked` run, or
+  a later plain `db push`, would reach that one instead. Probed with a ref no project has,
+  from the preview: `link` exited 1, `supabase/.temp/project-ref` kept the preview's ref, and
+  `grep -qx` matched only the linked one (IS #474).
 
   `--linked`, not `--db-url`: on the preview, with a scratch table with RLS off and an anon
   grant in `public`, `--linked` reported ERROR `rls_disabled_in_public` on it (and the Auth
@@ -466,27 +471,32 @@ container. In this order, since the login has to reach the new project:
 
    ```bash
    npx supabase link --project-ref <new project ref>
-   if grep -qx '<new project ref>' supabase/.temp/project-ref; then
+   if grep -qxF '<new project ref>' supabase/.temp/project-ref; then
      npx supabase db push --dry-run   # lists the migrations, and no seed
    else
      echo "NOT LINKED to the new project: stop"
    fi
    ```
 
-   Read the dry run, then, still linked to it, push and run the Security Advisor:
+   Read the dry run, then, still linked to it, push, and run the Security Advisor only if the
+   push succeeded (an advisor on a half-migrated schema can look clean):
 
    ```bash
-   if grep -qx '<new project ref>' supabase/.temp/project-ref; then
-     npx supabase db push
-     npx supabase db advisors --linked --type security --level info --fail-on error
-     echo "advisor exit $?"
+   if grep -qxF '<new project ref>' supabase/.temp/project-ref; then
+     if npx supabase db push; then
+       npx supabase db advisors --linked --type security --level info --fail-on error
+       echo "advisor exit $?"
+     else
+       echo "PUSH FAILED: fix it before anything else"
+     fi
    else
      echo "NOT LINKED to the new project: nothing pushed"
    fi
    ```
 
-   A failed `link` leaves the CLI linked to the preview ("A leaked key", the advisor's
-   check), where a push or an advisor run would land instead. The advisor: no ERROR, each
+   Both blocks run from the repo root. A failed `link` leaves the CLI linked to whichever
+   project it was before ("A leaked key", the advisor's checks), where a push or an advisor
+   run would land instead. The advisor: no ERROR, each
    WARN fixed or accepted; why `--linked`, not a URL, is "A leaked key"'s. Then README's
    "Hosted settings checklist", every Supabase row, with production's Site URL and Redirect
    URLs (its `/auth/callback` only, no wildcard), and Phase 5 #19's hosted check, which the
@@ -519,7 +529,15 @@ container. In this order, since the login has to reach the new project:
    takedown or retention run since misses it (a paused project runs no SQL), and its keys
    still work: say so in a takedown's reply meanwhile ("A takedown request").
 7. **The CLI back to the preview:** resume the preview if you paused it for the slot (step
-   6's pause has freed one), then `npx supabase link --project-ref <preview project ref>`.
+   6's pause has freed one), then, from the repo root:
+
+   ```bash
+   npx supabase link --project-ref <preview project ref>
+   grep -qxF '<preview project ref>' supabase/.temp/project-ref \
+     && echo "back on the preview" \
+     || echo "STILL NOT ON THE PREVIEW: link it before any db push"
+   ```
+
    README's "Later migrations go up with plain `npx supabase db push`" assumes the preview;
    left linked to production, the next migration would skip it.
 

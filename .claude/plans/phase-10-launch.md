@@ -268,10 +268,12 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     (`sv-SE-x-icu`, both extensions in `extensions`, the Data API's Max rows at least
     `MAX_ROWS`); README's hosted-settings checklist applied, "Write audit logs to the database"
     included; the Security Advisor (`db advisors --linked --type security --level info
-    --fail-on error`, the CLI linked to production, never by a database URL, which missed RLS
-    off on the preview, IS #474; or the dashboard): no ERROR, each WARN fixed or accepted with a reason (leaked-password
-    protection's, on Free), INFO read; Auth's Site URL and Redirect URLs set to the one
-    production `vercel.app` host the admin logs in from in step 16, named on the issue, and
+    --fail-on error`, the CLI linked to production and checked, then linked back to the
+    preview and checked, as `RUNBOOK.md`'s "A leaked key" does; never by a database URL, which
+    missed RLS off on the preview, IS #474; or the dashboard): no ERROR, each WARN fixed or
+    accepted with a reason (leaked-password protection's, on Free), INFO read; Auth's Site URL
+    and Redirect URLs set to the one production `vercel.app` host the admin logs in from in
+    step 16, named on the issue, and
     that host's `/auth/callback` alone, as README's checklist names `dev`'s alias for the
     preview; the admin user with a long random password (README,
     "5. Create the admin user"), its id noted in the password manager (`RUNBOOK.md`, "A lost
