@@ -328,7 +328,7 @@ password or an account token, all of these; after the secret key, the first two:
   ```bash
   PROD_DB_URL=$(grep '^PROD_DB_URL=' .env.prod-db.local | cut -d= -f2- | tr -d "\r\"'")
   if [ -z "$PROD_DB_URL" ]; then
-    echo "NO URL: nothing checked; with no URL the CLI would read the local stack"
+    echo "NO URL: nothing checked; with no URL the CLI would try a database on localhost"
   else
     npx supabase db dump --db-url "$PROD_DB_URL" --schema public -f prod-schema.sql
     npx supabase db dump --local --schema public -f local-schema.sql
