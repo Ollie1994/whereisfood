@@ -752,8 +752,8 @@ is cached for 60 s and may be served stale for 60 s more (`CLAUDE.md`, "`/api/li
 takedown age out, they still hold the truck's rows; how many are kept is Phase 10 plan's
 open decision 5.
 
-`tests/integration/takedown.test.ts` runs the file on the local stack, as `postgres`. A hosted
-project's SQL editor runs it as the dashboard's role, which hasn't been probed with it; an
+`tests/integration/takedown.test.ts` runs the file on the local stack, as `postgres`. The
+preview's SQL editor runs as `postgres` too (IS #454's probe), but hasn't run this file; an
 error there changes nothing, as in step 3.
 
 ---
