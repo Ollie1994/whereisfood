@@ -260,8 +260,9 @@ describe("the updated_at trigger and created_by (decision #5)", () => {
 });
 
 describe("foreign keys and the unique Instagram handle (decisions #7, #8)", () => {
-  // NO ACTION on each foreign key, so only the takedown removes a truck's history
-  // (decision #7). Each case asserts the SQLSTATE and the constraint the message names.
+  // NO ACTION on each foreign key, so a truck with history can't be deleted alone: only
+  // manual SQL removes history (`CLAUDE.md`, "Locations"; decision #7). Each case asserts
+  // the SQLSTATE and the constraint the message names.
   async function deleteTruck(id: string): Promise<PostgrestError | null> {
     const { error } = await supabaseAdmin.from("trucks").delete().eq("id", id);
     return error;

@@ -549,7 +549,7 @@ Secrets).
 | Rate Limits → Enable IP address forwarding | Off | Kept, IS #386 |
 | Attack Protection → CAPTCHA | Off | Decided against in IS #386 |
 | URL Configuration → Site URL; Redirect URLs | `dev`'s alias; its `/auth/callback` alone | "Auth", above |
-| Audit Logs → Write audit logs to the database | On | Turned on 2026-11-18 (IS #389); the Phase 9 plan's open decision 7 has what the rows hold and their retention |
+| Audit Logs → Write audit logs to the database | On | Turned on 2026-11-18 (IS #389); the Phase 9 plan's open decision 7 has what the rows hold; `supabase/manual/retention.sql`'s weekly run deletes those older than 30 days (Phase 10 plan, open decision 3) |
 
 **Supabase, the database and services:**
 
@@ -752,9 +752,10 @@ is cached for 60 s and may be served stale for 60 s more (`CLAUDE.md`, "`/api/li
 takedown age out, they still hold the truck's rows; how many are kept is Phase 10 plan's
 open decision 5.
 
-`tests/integration/takedown.test.ts` runs the file on the local stack, as `postgres`. A hosted
-project's SQL editor runs it as the dashboard's role, which hasn't been probed with it; an
-error there changes nothing, as in step 3.
+`tests/integration/takedown.test.ts` runs the file on the local stack, as `postgres`. The
+preview's SQL editor runs as `postgres` too (IS #454's probe), but hasn't run this file, and
+production's role isn't probed yet (#464). An error in either editor changes nothing, as in
+step 3.
 
 ---
 
