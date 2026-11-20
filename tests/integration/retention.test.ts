@@ -3,12 +3,15 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { FIXTURE_PREFIX, localSql } from "./helpers";
 
-// `supabase/manual/retention.sql` (Phase 10 plan, step 7), run as written through `psql` on
-// the local stack.
+// `supabase/manual/retention.sql` (Phase 10 plan, step 7), run as written on the local stack,
+// through `psql`, as the text of an `EXECUTE` in a `do` block.
 //
 // Its fixtures, the file and the reads after it run in one transaction that is rolled back,
-// so a run changes nothing in the database, a broken copy of the file included: the file
-// deletes from whole tables, the seed's rows and a developer's own among them. In one
+// so a run changes nothing in the database: the file deletes from whole tables, the seed's
+// rows and a developer's own among them. The `EXECUTE` keeps a broken copy of the file inside
+// that transaction too: Postgres refuses a transaction command there ("EXECUTE of transaction
+// commands is not implemented"), which a `commit` after a block comment, after a `--` inside
+// a string, or a `begin`…`commit` wrapping all got (PR #471, round 4). In one
 // transaction `now()` is one instant, so the rows sit a second either side of each cut. It is
 // `repeatable read`, so its reads share one snapshot: an audit row Auth writes meanwhile (a
 // dev server's token refresh) doesn't move the counts between them. A limit of that mode: a
@@ -17,17 +20,19 @@ import { FIXTURE_PREFIX, localSql } from "./helpers";
 
 const FILE = readFileSync(new URL("../../supabase/manual/retention.sql", import.meta.url), "utf8");
 
-// The rollback below holds only while the file controls no transaction itself: a `commit` in
-// it would commit its deletes, and the fixtures, to the local database. So a statement of the
-// file that starts with one of these words stops the test before anything runs.
-const TRANSACTION_CONTROL = /^(begin|commit|end|rollback|abort|start|savepoint|release|prepare)\b/i;
-const controlStatements = FILE.replace(/--[^\n]*/g, "")
-  .split(";")
-  .map((statement) => statement.trim())
-  .filter((statement) => TRANSACTION_CONTROL.test(statement));
-if (controlStatements.length > 0) {
-  throw new Error(`retention.test: retention.sql controls its own transaction: ${controlStatements.join(" / ")}`);
+// The file's text, dollar-quoted, inside a `do` block that keeps its one row in a temporary
+// table (dropped by the rollback), since a `do` block returns none. The tags must not occur in
+// the file, or the quoting would end early.
+const DO_TAG = "$retention_do$";
+const FILE_TAG = "$retention_file$";
+for (const tag of [DO_TAG, FILE_TAG]) {
+  if (FILE.includes(tag)) throw new Error(`retention.test: retention.sql holds ${tag}`);
 }
+const RUN_FILE =
+  "create temp table retention_reported (locations_deleted bigint, audit_entries_deleted bigint);\n" +
+  `do ${DO_TAG} declare l bigint; a bigint; begin execute ${FILE_TAG}${FILE}${FILE_TAG} into l, a;` +
+  ` insert into retention_reported values (l, a); end ${DO_TAG};\n` +
+  "select * from retention_reported;";
 
 const LOCATIONS_CUT = "now() - interval '52 weeks'";
 const AUDIT_CUT = "now() - interval '30 days'";
@@ -80,7 +85,7 @@ function run() {
       audit(id.auditBefore, `${AUDIT_CUT} - interval '1 second'`),
       audit(id.auditAfter, `${AUDIT_CUT} + interval '1 second'`),
       counts,
-      FILE,
+      RUN_FILE,
       counts,
       "select '[' || coalesce(string_agg(id::text, ',' order by id), '') || ']' from (" +
         ` select id from locations where id in (${fixtureIds})` +

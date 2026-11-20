@@ -141,8 +141,9 @@ said otherwise: Phase 4 plan decision #14.
   `/api/live`; the admin screen reads through its own (uncached) API routes; every
   write goes through an API route. Server-side, all of them go route → service → db
   layer, and only the db layer uses `supabaseAdmin`
-- Anon gets **no SELECT on `trucks` or `locations`**. With history kept (52 weeks,
-  "Locations" below), anon access would make every truck's movement history public through Supabase's API
+- Anon gets **no SELECT on `trucks` or `locations`**. With history kept (until the
+  weekly retention run after 52 weeks, "Locations" below), anon access would make every
+  truck's movement history public through Supabase's API
 - RLS on every table, an explicit `GRANT` per table that matches its RLS policies, and
   no owner self-UPDATE on `users` (blocks `is_admin` self-escalation and `truck_id`
   hijack). Every migration grants per table, `service_role` included, after revoking
