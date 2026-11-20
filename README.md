@@ -349,7 +349,9 @@ npm run dev
 ```
 
 Open the URL from the `Local:` line Next prints, usually
-[http://localhost:3000](http://localhost:3000). It redirects to `/map`.
+[http://localhost:3000](http://localhost:3000). It redirects to `/about`; `/map` sends
+everyone but the admin at `aal2` there too until the full launch.
+<!-- SOFT-LAUNCH GATE (Phase 10 plan #5): back to "It redirects to `/map`." at the full launch (the removal list in src/app/map/page.tsx). -->
 
 If a page reloads itself in a loop under `npm run dev`: `CLAUDE.md`, "Testing" (IS #304).
 
@@ -430,10 +432,11 @@ machine, never in a tracked file (`CLAUDE.md`, Secrets).
 
 So log in from `dev`'s alias. For a redirect URL that "doesn't match one from the allow
 list", Auth uses the Site URL (the dashboard's text for it), and the app's `/` only
-redirects to `/map`, so a login started on another preview URL doesn't finish. Checked with
+redirects to `/about`, so a login started on another preview URL doesn't finish. Checked with
 the publishable and secret keys on 2026-11-07: `/auth/v1/settings` gives
 `disable_signup: true`, and a link request for an unknown email with
 `shouldCreateUser: true` got `422 signup_disabled` and created no auth user.
+<!-- SOFT-LAUNCH GATE (Phase 10 plan #5): `/about` back to `/map` at the full launch (the removal list in src/app/map/page.tsx). -->
 
 **The admin user.** As in "5. Create the admin user", in the project's dashboard
 instead of Studio.

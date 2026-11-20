@@ -15,6 +15,8 @@ export default function AboutPage() {
         En karta över var Göteborgs foodtruckar står i dag. Varje plats läggs in för hand, så
         kartan visar bara de foodtruckar som har en plats inlagd för dagen.
       </p>
+      {/* SOFT-LAUNCH GATE (Phase 10 plan #5): rewritten at the full launch, when the map opens
+          (the removal list in `src/app/map/page.tsx`). */}
       <p>Kartan öppnar när foodtruckarna är tillbaka för säsongen.</p>
     </main>
   );

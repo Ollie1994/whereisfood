@@ -22,8 +22,18 @@ type CookieSource = { getAll(): { name: string; value: string }[] };
 // Reads only. A session the client counts as expired is still refreshed on the server,
 // and the rotated tokens are lost. Probed on the local stack with a session whose cookie
 // `expires_at` was set in the past, its JWT still valid: each of two `getUser` reads,
-// 11 s apart, logged one `@supabase/ssr` warning and still worked. A truly expired JWT
-// wasn't tried. So use it behind something that refreshes first: the proxy (`src/proxy.ts`).
+// 11 s apart, logged one `@supabase/ssr` warning and still worked. A truly expired JWT, in
+// IS #448's probe (GoTrue v2.197.0, `jwt_expiry` 60 s, a page gated with this and
+// `requireAdmin` on `next start`): 7 loads up to 193 s after the cookie's refresh token was
+// first used and 133 s past its access token's expiry, more than
+// `refresh_token_reuse_interval`'s 10 s apart, each refreshed, lost the result and was
+// admitted. Auth minted no new token, its active one staying the presented token's child, and
+// an admin page through the proxy 3 s and 15 s after such a load stored the refresh. Not run
+// on a hosted project (Phase 10 plan step 4b, IS #451). Use it behind something that
+// refreshes first: the proxy (`src/proxy.ts`).
+// SOFT-LAUNCH GATE (Phase 10 plan #5): but for `MapPage`, the gated `/map`, which uses it
+// with no proxy before it on that probe (Plan A, plan #6). This sentence goes at the full
+// launch (the removal list in `src/app/map/page.tsx`).
 export function readOnlyCookies(source: CookieSource): CookieMethodsServer {
   return { getAll: () => source.getAll() };
 }
