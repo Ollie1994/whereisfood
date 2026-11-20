@@ -249,7 +249,8 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
 9. **`/integritet`** (`PrivacyPage`), its wording approved by the owner; `/about`'s link to it;
    smoke expects it 200 with the static CSP. Needs steps 3, 7 and 8
    and open decision 4 (it states the periods, the dump count with the 8-week caps, the
-   incident hold's and an old project's after a restore, and the contact).
+   incident hold's and an old project's after a restore, an incident's evidence export,
+   which keeps audit-log IP addresses with the held dumps, and the contact).
 10. **`RUNBOOK.md`** (#8): Attack Mode; a takeover (Phase 9 plan #13's recovery order); a lost
     phone (open decision 9 settled here, Phase 9 plan open decision 4); a leaked key; a
     takedown request; a paused project (step 1c, open decision 8); a restore (step 8); the
@@ -272,7 +273,8 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     production `vercel.app` host the admin logs in from in step 16, named on the issue, and
     that host's `/auth/callback` alone, as README's checklist names `dev`'s alias for the
     preview; the admin user with a long random password (README,
-    "5. Create the admin user"), its TOTP factor enrolled in step 16, through the deployed
+    "5. Create the admin user"), its id noted in the password manager (`RUNBOOK.md`, "A lost
+    phone", step 2), its TOTP factor enrolled in step 16, through the deployed
     app; the email-budget lockout as open decision 6 settles it. README's "Production" section
     written.
 14. **Vercel and R2:** the Ignored Build Step read as set to cancel a Production build from any

@@ -375,7 +375,9 @@ admin is created by hand, and again after each `npx supabase db reset`:
    ```
 
    It shows the row it added. No row means the email matched no user. Without
-   `returning`, the Editor says "Success. No rows returned" in both cases.
+   `returning`, the Editor says "Success. No rows returned" in both cases. On a hosted
+   project, note the `id` it returns in your password manager: with two admins rows, it is
+   how `RUNBOOK.md` ("A lost phone", step 2) tells yours apart.
 
 Then log in at `/admin/login`. The link arrives in Mailpit, the local mail catcher
 ([http://127.0.0.1:54324](http://127.0.0.1:54324)). Open it in the browser that asked
@@ -769,8 +771,9 @@ Supabase Free has no backups, so until Pro (Phase 11) the backup is a weekly dum
 sessions and refresh tokens are credentials. The dumps live on the owner's machine outside
 the repo, next to the takedown log ("Takedown", step 4), and **the newest four are kept**
 (open decision 5), so a takedown or a retention delete leaves the backups about four weeks
-later; while an incident hold keeps older dumps aside, at the later of that and the hold's
-end, at most 8 weeks after it began (`RUNBOOK.md`, "The weekly routine").
+later; while an incident hold keeps older dumps aside, or after a restore into a new project
+while the old one is kept, at the latest of these, each at most 8 weeks (`RUNBOOK.md`, "A
+takedown request").
 
 **The connection string** is the production project's **Session pooler** one (dashboard →
 Connect → Direct → Session pooler → URI, the password filled in, every character of it other

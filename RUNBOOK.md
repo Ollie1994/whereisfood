@@ -10,6 +10,7 @@ issue.
 
 - [The weekly routine](#the-weekly-routine)
 - [Attack Mode](#attack-mode)
+- [Exporting evidence](#exporting-evidence)
 - [A takeover of the admin account](#a-takeover-of-the-admin-account)
 - [A lost phone](#a-lost-phone)
 - [A leaked key](#a-leaked-key)
@@ -38,10 +39,10 @@ Once a week, in this order:
    project's first Auth event (the admin's creation, with "Write audit logs to the database"
    on), and the first locations 52 weeks after the first production location ends. Until
    then it answers `0` for that count, which is expected. **During an incident** (a
-   takeover, a leaked key), **skip it until "A takeover", step 5's export is saved, and never
-   more than 8 weeks** (the owner's call, IS #457): it deletes the audit rows that export
-   reads, and no dump holds them (the dumps hold `public` only). README's `DUMP OK` line
-   doesn't know about an incident; this rule does.
+   takeover, a leaked key), **skip it until "Exporting evidence" has printed `EXPORT OK
+   audit`, and never more than 8 weeks** (the owner's call, IS #457): it deletes the audit
+   rows that export saves, and no dump holds them (the dumps hold `public` only). README's
+   `DUMP OK` line doesn't know about an incident; this rule does.
 3. **The usage look**, which stands in for the alerts neither free plan offers (open decision
    7, IS #457):
    - **Supabase:** the organization's Usage page, each figure against its limit (database size
@@ -76,6 +77,52 @@ For a flood of traffic, on Vercel. From Vercel's docs
   may not be able to pass challenges and could be blocked." Nothing here calls the app that way.
 - Not covered by the page: what Attack Mode does to responses already in the CDN cache. Not
   tried on this project.
+
+---
+
+## Exporting evidence
+
+Before anything an incident deletes (sessions, factors, the audit log `retention.sql` trims),
+save it to files, whole. Not through the SQL editor, whose results show at most 100 rows
+("Limited to only 100 rows"). With the local stack started, through its `psql`, from the
+repo in Git Bash:
+
+```bash
+BACKUPS="<backups folder>"
+PROD_DB_URL=$(grep '^PROD_DB_URL=' .env.prod-db.local | cut -d= -f2- | tr -d "\r\"'")
+EXPORT="$BACKUPS/hold/incident-$(date -u +%Y-%m-%d)"
+if [ -z "$PROD_DB_URL" ]; then
+  echo "NO URL: nothing exported"
+else
+  mkdir -p "$EXPORT"
+  for item in \
+    "audit|select * from auth.audit_log_entries order by created_at" \
+    "sessions|select * from auth.sessions order by created_at" \
+    "factors|select * from auth.mfa_factors order by created_at" \
+    "admins|select u.id, a.email, u.is_admin, u.truck_id, u.created_at, a.created_at as auth_created_at from public.users u join auth.users a on a.id = u.id order by u.created_at" \
+    "trucks|select * from public.trucks order by created_at"; do
+    name=${item%%|*}; query=${item#*|}
+    if docker exec -i supabase_db_whereisfood psql "$PROD_DB_URL" -v ON_ERROR_STOP=1 -c \
+      "\copy ($query) to stdout with csv header" > "$EXPORT/$name.csv.part"; then
+      mv "$EXPORT/$name.csv.part" "$EXPORT/$name.csv"
+      echo "EXPORT OK $name: $(($(wc -l < "$EXPORT/$name.csv") - 1)) lines after the header"
+    else
+      rm -f "$EXPORT/$name.csv.part"
+      echo "EXPORT FAILED $name: nothing kept for it"
+    fi
+  done
+fi
+unset PROD_DB_URL
+```
+
+Each file is written as `.part` and renamed only when `psql` succeeds, so a file with its
+own name is a complete export. Probed on the local stack, by its own URL (IS #457): each
+answered `EXPORT OK` with as many lines as its table had rows (audit 54, sessions 1, factors
+1, admins 1, trucks 23); with an unreachable URL, each answered `EXPORT FAILED` and left no
+file; with none, `NO URL`. A line count can exceed the rows if a value holds a line break.
+Run it again later in an incident to export what has changed. The files hold IP addresses
+and emails: keep them in `hold` with the held dumps, and delete them with those, at most 8
+weeks after the hold began ("The weekly routine").
 
 ---
 
@@ -127,41 +174,14 @@ plan's #13. Its order:
    factor alone ends no session (IS #381).
 4. **Re-enroll at once:** log in with the link, which shows the enroll QR code. Until then any
    `aal1` session can fill the free factor slot (#13).
-5. **See what happened.** The audit log keeps 30 days (`retention.sql`), so the weekly
-   `retention.sql` waits for this export, at most 8 weeks, while the dump and its hold go on
-   ("The weekly routine"). Export **every** row to a file, not through the SQL editor, which
-   shows at most 100 ("Limited to only 100 rows" on its results). With the local stack
-   started, through its `psql`:
-
-   ```bash
-   PROD_DB_URL=$(grep '^PROD_DB_URL=' .env.prod-db.local | cut -d= -f2- | tr -d "\r\"'")
-   if [ -z "$PROD_DB_URL" ]; then echo "NO URL: nothing exported"; else
-     mkdir -p "<backups folder>/hold"
-     docker exec -i supabase_db_whereisfood psql "$PROD_DB_URL" -v ON_ERROR_STOP=1 -c \
-       "\copy (select * from auth.audit_log_entries order by created_at) to stdout with csv header" \
-       > "<backups folder>/hold/audit-$(date -u +%Y-%m-%d).csv"
-   fi
-   unset PROD_DB_URL
-   ```
-
-   Probed on the local stack, by its own URL (IS #457): the file held all 49 rows the table
-   had. It holds IP addresses: keep it with the held dumps, and delete it with them. Read it
-   by `created_at`, `payload`'s `action` and `ip_address`.
-
-   Then the data, for changes you didn't make, one query at a time (how the editor shows
-   several results wasn't checked):
-
-   ```sql
-   select id, truck_id, label, starts_at, ends_at, cancelled_at, updated_at
-   from locations order by updated_at desc limit 50;
-   select id, name, is_active, created_at from trucks order by created_at desc;
-   select id, is_admin, truck_id, created_at from users;
-   ```
-
-   A location edit moves `updated_at` (its trigger skips one that clears `created_by`:
-   `CLAUDE.md`, "db layer"), and a new row has its `created_at`. A truck or `users` edit and a
-   deleted row leave no time, so compare what you see with what you know, an admin you don't
-   know included.
+5. **See what happened**, from "Exporting evidence"'s files (run it first if step 3 didn't):
+   `audit.csv` by `created_at`, `payload`'s `action` and `ip_address`; `admins.csv` and
+   `trucks.csv` against what you know, an admin you don't know included. For locations, the
+   newest edits, in the SQL editor (50 rows, under its 100-row display):
+   `select id, truck_id, label, starts_at, ends_at, cancelled_at, updated_at from locations
+   order by updated_at desc limit 50;`. A location edit moves `updated_at` (its trigger skips
+   one that clears `created_by`: `CLAUDE.md`, "db layer"), and a new row has its
+   `created_at`. A truck or `users` edit and a deleted row leave no time.
 
 The swap (unenroll, enroll and a password set by the thief) stays possible as sabotage, a
 lockout, not a way in: the app admits only a magic-link sign-in (#13).
@@ -192,7 +212,7 @@ no secret key outside Supabase, no unenroll screen; IS #457):
 2. Check there is one admin:
 
    ```sql
-   select u.id, a.email, u.created_at
+   select u.id, a.email, a.created_at as auth_created_at
    from users u join auth.users a on a.id = u.id where u.is_admin;
    ```
 
@@ -202,12 +222,12 @@ no secret key outside Supabase, no unenroll screen; IS #457):
    changed: the `users` row with `is_admin` true in the newest weekly dump from before the
    incident (the id README's restore calls the old id). Keep that id in your password manager
    from production's setup on: if every kept dump already shows both admins, the noted id
-   decides. Without it, stop and compare each `auth.users.created_at` with when you created
-   the production admin; don't guess. Then shut the other out, keeping its rows as evidence:
-   1. Export its sessions and factors first (they hold its IPs, user agents and times), with
-      the editor's Export:
-      `select * from auth.sessions where user_id = '<other id>';` and
-      `select * from auth.mfa_factors where user_id = '<other id>';`.
+   decides. Without it, stop and compare each `auth_created_at` with when you created the
+   production admin, or with the last restore's date, since a restore recreates the admin and
+   resets it; don't guess. Then shut the other out, keeping its rows as evidence:
+   1. Export first: "Exporting evidence" saves every session and factor, its included (they
+      hold its IPs, user agents and times). Go on only after its `EXPORT OK sessions` and
+      `EXPORT OK factors`.
    2. Then, in the SQL editor:
 
       ```sql
@@ -224,8 +244,8 @@ no secret key outside Supabase, no unenroll screen; IS #457):
    fail to delete the user. Then come back to the step that sent you here; "A leaked key"
    follows once the section you came from is finished.
 3. Delete the admin's factor and every session they have, in one statement. In a takeover,
-   export the sessions first, since the thief's are among them:
-   `select * from auth.sessions where user_id = (select id from public.users where is_admin);`.
+   run "Exporting evidence" first (unless step 2 just did), since the thief's sessions are
+   among them.
 
    ```sql
    with admin as (
@@ -239,24 +259,35 @@ no secret key outside Supabase, no unenroll screen; IS #457):
    ),
    deleted_links as (
      delete from auth.one_time_tokens where user_id in (select id from admin) returning 1
+   ),
+   cleared_tokens as (
+     update auth.users set recovery_token = '', confirmation_token = '',
+       email_change_token_new = '', email_change_token_current = '', reauthentication_token = ''
+     where id in (select id from admin) returning 1
    )
    select
      (select count(*) from admin) as admins,
      (select count(*) from deleted_factors) as factors_deleted,
      (select count(*) from deleted_sessions) as sessions_deleted,
-     (select count(*) from deleted_links) as links_voided;
+     (select count(*) from deleted_links) as links_voided,
+     (select count(*) from cleared_tokens) as tokens_cleared;
    ```
 
-   Expect `admins` `1` and `factors_deleted` `1`. `links_voided` voids a login link already
-   sent, which a stolen phone's mail app may hold: probed on the local stack with a throwaway
-   user (IS #457), a link whose `auth.one_time_tokens` row was deleted by SQL answered `403` at
-   Auth's verify and made no session, where the same link left alone answered `200`. It finds
-   the admin by `users.is_admin`, not by the email, which a thief holding the mailbox could
-   change. A signed-in user can't change `is_admin` with their own session (`CLAUDE.md`,
-   "Supabase": no owner self-UPDATE on `users`); step 2 covers a key that can. The factor's challenges and the sessions' refresh
-   tokens and sign-in records go with them (`ON DELETE CASCADE`). Probed on the local stack as
-   `postgres`, in a transaction rolled back after (IS #457): `1|1|1|0` (no link was pending),
-   with factors, sessions, refresh tokens and sign-in records at `0` inside it.
+   Expect `admins` `1`, `factors_deleted` `1` and `tokens_cleared` `1`. `links_voided` voids
+   a login link already sent, which a stolen phone's mail app may hold: probed on the local
+   stack with a throwaway user (IS #457), a link whose `auth.one_time_tokens` row was deleted
+   by SQL answered `403` at Auth's verify and made no session, where the same link left alone
+   answered `200`. `tokens_cleared` also empties the token columns `auth.users` keeps, in case
+   a hosted Auth reads them when no `one_time_tokens` row is left (not seen; locally the
+   deleted row alone was enough). Set to `''`, not `null`; a password sign-in still answered
+   `200` after (IS #457). The emails carry no code (`CLAUDE.md`, "Supabase"), only the link.
+   It finds the admin by `users.is_admin`, not by the email, which a thief holding the
+   mailbox could change. A signed-in user can't change `is_admin` with their own session
+   (`CLAUDE.md`, "Supabase": no owner self-UPDATE on `users`); step 2 covers a key that can.
+   The factor's challenges and the sessions' refresh tokens and sign-in records go with them
+   (`ON DELETE CASCADE`). Probed on the local stack as `postgres`, in a transaction rolled
+   back after (IS #457): `1|1|1|0|1` (no link was pending), with factors, sessions, refresh
+   tokens and sign-in records at `0` inside it.
 4. **Log in at once** and enroll the new phone from the QR code. Until then any `aal1`
    session can fill the free slot (Phase 9 plan #13). Delete the old phone's entry if the app
    synced it.
@@ -428,9 +459,18 @@ container. In this order, since the login has to reach the new project:
    `sv-SE-x-icu` collation, both extensions in `extensions`, the Data API's Max rows at least
    `MAX_ROWS`).
 2. **`.env.prod-db.local`:** the new project's session pooler URL, before the load, so
-   nothing reaches the old project by mistake. Then the Security Advisor by that URL, as "A
-   leaked key" runs it, with `pgrst.db_schemas` on the session: no ERROR, each WARN fixed or
+   nothing reaches the old project by mistake. Then the Security Advisor by that URL, with
+   `pgrst.db_schemas` on the session ("A leaked key" says why): no ERROR, each WARN fixed or
    accepted.
+
+   ```bash
+   PROD_DB_URL=$(grep '^PROD_DB_URL=' .env.prod-db.local | cut -d= -f2- | tr -d "\r\"'")
+   if [ -z "$PROD_DB_URL" ]; then echo "NO URL: nothing checked"; else
+     npx supabase db advisors --type security \
+       --db-url "$PROD_DB_URL?options=-c%20pgrst.db_schemas%3Dpublic%2Cgraphql_public"
+   fi
+   unset PROD_DB_URL
+   ```
 3. **The data:** README's "Restoring" against the new project: its check that `trucks` and
    `auth.users` both count 0, then its steps 1 to 4 (the admin by their old id, the load, the
    takedowns and `retention.sql`). README shows the load on the local stack; against the new
