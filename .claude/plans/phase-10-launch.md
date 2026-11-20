@@ -76,7 +76,9 @@ and gates nothing (#4).
 - New: the marker test (a unit test, beside `map/page.tsx`), #5.
 - `tests/integration/`: the gate against the local stack.
 - `scripts/smoke.mjs` (+ `smoke.test.mjs`): `/` and `/map` expect the redirect to `/about`;
-  `/about` and `/integritet` expect 200 with the static CSP.
+  `/about` and `/integritet` expect 200 with the static CSP. `smoke.test.mjs` uses `/map` as
+  its static-CSP page in its header tests; step 3 moves them to `/about`, which stays, so only
+  its `/map` path entry is a gate site.
 - `src/proxy.ts` (+ test): **only if** step 1a or 4b rules out Plan A (#6).
 - `src/lib/supabase-session.ts`: `readOnlyCookies`' comment, a gate site (#5).
 - `src/app/not-found.tsx`: the "Till kartan" link pointed at `/about`, a gate site (#5).
@@ -109,8 +111,8 @@ precedes production's enroll (step 16).
 - `SECURITY.md`: #347.
 - `CLAUDE.md`: the gate's rule (#5, a gate site); "Locations" and "db layer" gain the
   retention delete beside the takedown (#10); "Where secrets live" gains production's
-  database URL in the gitignored `.env.production.local` (#11); the proxy rule only if #6's
-  branch is needed.
+  database URL in the gitignored `.env.prod-db.local` (#11), a name Next never loads; the
+  proxy rule only if #6's branch is needed.
 - This plan; `CLAUDE.md`'s bold line; `.claude/process-log.md`; at the reconciliation,
   `project-context.md` and README's status parts.
 
@@ -146,8 +148,8 @@ Each step is one issue and one PR into `dev`, except where a step is settings on
 on its issue. Every PR merges through CI's required checks (`CLAUDE.md`, "Testing"). **Step 1
 comes first**; step 2's decisions are settled as the steps that need them reach them; steps
 3–12 (4b included) may run in any order their own dependencies allow (named in each step);
-steps 13–17 run in order, after every step before them; step 18 runs alongside from step 17
-on.
+steps 13–17 run in order, after every step before them but step 2, each of whose decisions
+blocks only the step that needs it; step 18 runs alongside from step 17 on.
 
 0. **This plan.** The plan file, and `CLAUDE.md`'s bold "Current phase plan" line naming it,
    where between phases it reads `none (the last one: .claude/plans/phase-9-security.md)`.
@@ -180,20 +182,24 @@ on.
 3. **`/about`** (`AboutPage`), `ABOUT_PATH` and `PRIVACY_PATH`, and `AdminNav`'s "Karta" link.
    These stay at Phase 11 and ride outside step 4's PR, but for `/about`'s sentence that the
    map opens when the trucks are back, which step 4 marks as a gate site. The link to
-   `/integritet` comes with step 9. Smoke expects `/about` 200 with the static CSP.
+   `/integritet` comes with step 9. Smoke expects `/about` 200 with the static CSP, and
+   `smoke.test.mjs`'s header tests move from `/map` to `/about`. `src/app/error.tsx`'s
+   comment ("the only other page it covers today is `/`") gains `/about`, and step 9 adds
+   `/integritet`.
 4. **The gate** (#5, #6), **one PR holding only gate sites** outside `.claude/`, where its
-   review rounds' log rows ride along (`CLAUDE.md`, "Doc changes"): `MapPage`; `Home`; the smoke
-   check's `/` and `/map` expectations; the gate's unit and integration tests; the no-props
-   test; the marker test; the removal list in `map/page.tsx`'s header; `CLAUDE.md`'s gate
-   rule; the marker on `/about`'s sentence that the map opens when the trucks are back;
-   `readOnlyCookies`' comment in `src/lib/supabase-session.ts` ("use it behind something that
-   refreshes first: the proxy"), rewritten under Plan A with step 1a's evidence, since
-   `MapPage` then uses it with no proxy before it (the owner's call, round 3 on PR #447); the
-   root 404's "Till kartan" link (`src/app/not-found.tsx`) pointed at `/about` with Swedish
-   text to match (the owner's call, round 4 on PR #447); README's sentences that `/` redirects
-   to `/map` (its "4. Run" and "Hosted preview database"), each with the marker as an HTML
-   comment. Needs steps 1a and 3. If #6's branch is needed, the proxy branch and its tests
-   join this PR as gate sites, the branch its own function.
+   review rounds' log rows ride along (`CLAUDE.md`, "Doc changes"): `MapPage`; `Home`; the
+   smoke check's `/` and `/map` expectations (in `smoke.mjs`, and `smoke.test.mjs`'s `/map`
+   path entry); the gate's unit and integration tests; the no-props test; the marker test; the
+   removal list in `map/page.tsx`'s header; `CLAUDE.md`'s gate rule; the marker on `/about`'s
+   sentence that the map opens when the trucks are back; `readOnlyCookies`' comment in
+   `src/lib/supabase-session.ts` ("use it behind something that refreshes first: the proxy"),
+   rewritten under Plan A with step 1a's evidence, since `MapPage` then uses it with no proxy
+   before it (the owner's call, round 3 on PR #447); the root 404's "Till kartan" link
+   (`src/app/not-found.tsx`) pointed at `/about` with Swedish text to match (the owner's call,
+   round 4 on PR #447); README's sentences that `/` redirects to `/map` (its "4. Run" and
+   "Hosted preview database"), each with the marker as an HTML comment. Needs steps 1a and 3.
+   If #6's branch is needed, the proxy branch and its tests join this PR as gate sites, the
+   branch its own function.
 4b. **The gate on `dev`'s preview** (#6), its own issue, blocked by step 4, blocking step 13
    (the owner's call, round 2 on PR #447): step 1a's probe on `dev`'s preview, recorded on
    this issue. If it shows a logout where the local run didn't: the owner's call on
@@ -201,8 +207,10 @@ on.
    issue's PR, holding only gate sites outside `.claude/`, each with the marker (the branch,
    its `/map` matcher entry, `proxy.test.ts`'s case), `readOnlyCookies`' comment rewritten
    again with the preview's evidence, and the removal list in `map/page.tsx`'s header gaining
-   them. If the session survives, the issue
-   closes with the result and no PR.
+   them. The issue also reads the cache on the preview: no `/map` answer shows a `HIT`, and a
+   logged-out request right after the admin's gets the redirect (the IS #373 (Phase 10) row
+   asks it of `dev`'s preview and production). If the session survives, the issue closes
+   with the results and no PR.
 5. **The app name** (open decision 1) in the files under "Files". Needs step 4 merged (both
    touch `map/` and the tests).
 
@@ -220,15 +228,14 @@ on.
    succeeds whether or not row-level security hides the rows. `retention.sql` reports each
    delete's row count. Needs open decisions 2 and 3.
 8. **Backups** (#11): the weekly dump's command; production's database URL in
-   `.env.production.local`, which `CLAUDE.md`'s "Where secrets live" names: the connection
-   string (direct or session pooler) that works from the owner's network, its kind named on the
-   issue once the command has run against the preview; how a restore recreates the admin by
-   its old id (open decision 11); **one restore test on the local
-   stack** from a dump, then each takedown the log holds on or after the dump's date (a
-   re-run on a truck already gone changes nothing, step 6) and
-   `retention.sql` re-run, and the TOTP enroll needed at once (Principles and risks,
-   "Backups"; Phase 9 plan #13); README's backups and restore section. Needs steps 6 and 7 and
-   open decision 5.
+   `.env.prod-db.local`, which this step adds to `CLAUDE.md`'s "Where secrets live": the
+   connection string (direct or session pooler) that works from the owner's network, its kind
+   named on the issue once the command has run against the preview; how a restore recreates
+   the admin by its old id (open decision 11); **one restore test on the local stack** from a
+   dump, then each takedown the log holds on or after the dump's date (a re-run on a truck
+   already gone changes nothing, step 6) and `retention.sql` re-run, and the TOTP enroll
+   needed at once (Principles and risks, "Backups"; Phase 9 plan #13); README's backups and
+   restore section. Needs steps 6 and 7 and open decision 5.
 9. **`/integritet`** (`PrivacyPage`), its wording approved by the owner; `/about`'s link to it;
    smoke expects it 200 with the static CSP. Needs steps 3, 7 and 8
    and open decision 4 (it states the periods, the dump count and the contact).
@@ -258,12 +265,15 @@ on.
     app; the email-budget lockout as open decision 6 settles it. README's "Production" section
     written.
 14. **Vercel and R2:** the Ignored Build Step read as set to cancel a Production build from any
-    branch but `main`, and no `vercel.json` `ignoreCommand` on `dev` or `main`; R2's CORS rule
+    branch but `main`, and no `vercel.json` `ignoreCommand` and no `vercel.ts` (which may
+    override it too, not probed) on `dev` or `main`; R2's CORS rule
     gains an origin for each production address README names (`whereisfood.vercel.app`,
     `whereisfood-theta.vercel.app`, `<project>-<scope-slug>.vercel.app`), or each address
     without one redirects to one that has it (README, "Get the map tiles"); the Vercel Toolbar
     off for Production deployments, as for pre-production (the owner's call, round 3 on PR
-    #447; README's "Hosted settings checklist"). **Production gets no variables yet** (#9).
+    #447; README's "Hosted settings checklist"); Production's Deployment Retention Policy, which
+    README's checklist leaves at 30 days for Phase 10 to decide (open decision 14), recorded
+    there. **Production gets no variables yet** (#9).
 15. **Before the deploy:**
     - the 2FA re-check of every account, each one's recovery mailbox, and the registrar and
       removal-contact mailbox if they exist (`CLAUDE.md`, "Secrets"), recorded without an
@@ -272,16 +282,22 @@ on.
       listed by name;
     - **the first merge `dev` → `main`** (#9): a PR opened fresh against `main`, never
       retargeted (`CLAUDE.md`, "Testing"), running every required check, the controls' full
-      set included. Its push gives CodeQL its first analysis of `main`; then CodeQL's checks
+      set included. With no analysis of `main` to compare with, CodeQL may count old findings
+      as new on it: each is read and settled as on `dev` (fixed, an issue, or dismissed with a
+      reason), the owner's call, round 5 on PR #447, which Phase 8 plan step 17 handed this
+      plan. Its push gives CodeQL its first analysis of `main`; then CodeQL's checks
       (`CodeQL` and both `analyze` jobs) join `main`'s ruleset (Phase 8 plan #11, #14), read
       back by `gh api`. The production build it starts has no variables, so it fails or
       serves nothing (#9).
-16. **The deploy:** the Ignored Build Step read again and no `ignoreCommand` on `dev` or
-    `main`, just before Production's variables are set, from the new project only, since step
-    15's merge changed `main`; a production build from `main`, never a promoted branch preview,
-    which skips the Ignored Build Step (Part 2, "Before the production deploy"); then the
-    admin's magic-link login on the phone and the TOTP enroll at `/admin/mfa`, which needs
-    the deployed app (the owner's call, round 1 on PR #447).
+16. **The deploy:** the Ignored Build Step read again and no `ignoreCommand` or `vercel.ts` on
+    `dev` or `main`, just before Production's variables are set, from the new project only,
+    since step 15's merge changed `main`; a production build from `main`, started by a push to
+    it: a second PR from `dev`, opened fresh, carrying `dev`'s commits since step 15 (if there
+    are none, a one-line doc change through its own issue). Never a promoted branch preview,
+    which skips the Ignored Build Step (Part 2, "Before the production deploy"), nor a
+    Redeploy, whose path through the step hasn't been read; then the admin's magic-link login
+    on the phone and the TOTP enroll at `/admin/mfa`, which needs the deployed app (the
+    owner's call, round 1 on PR #447).
 17. **The production checks**, on the owner's phone and by headers:
     - logged out, `/` and `/map` land on `/about`; as the admin at `aal2`, reaching `/map` by
       "Karta", the map shows with
@@ -382,21 +398,22 @@ and open no hole.
   and `/api/admin/:path*` alone, `src/proxy.ts:216`) and changes `proxy.test.ts`'s case that
   `/map` isn't matched (`:83`), and both are gate sites the removal restores.
 - **Every site findable.** Each gate site carries the marker comment `SOFT-LAUNCH GATE (Phase
-  10 plan #5)`. The sites: `MapPage`, `Home`, the smoke check's `/` and `/map` expectations,
-  the gate's tests, the no-props test, the marker test itself, `CLAUDE.md`'s gate rule,
-  `/about`'s sentence that the map opens when the trucks are back, `readOnlyCookies`' comment
-  in `supabase-session.ts` (round 3 on PR #447), the root 404's link and README's sentences
-  on `/` (round 4), and, if #6's branch is needed, the branch, its `/map` matcher entry and
-  `proxy.test.ts`'s "not matched" case for `/map`.
+  10 plan #5)`. The sites: `MapPage`, `Home`, the smoke check's `/` and `/map` expectations
+  (`smoke.mjs`, and `smoke.test.mjs`'s `/map` path entry), the gate's tests, the no-props
+  test, the marker test itself, `CLAUDE.md`'s gate rule, `/about`'s sentence that the map
+  opens when the trucks are back, `readOnlyCookies`' comment in `supabase-session.ts` (round 3
+  on PR #447), the root 404's link and README's sentences on `/` (round 4), and, if #6's
+  branch is needed, the branch, its `/map` matcher entry and `proxy.test.ts`'s "not matched"
+  case for `/map`.
 - **One copy of the removal list**, in `map/page.tsx`'s header, where a removal starts: each
   site and what it goes back to (`/` → `/map`; smoke's `/` entry, which step 4 adds, expects
-  the redirect to `/map`, and its `/map` entry 200 with the static CSP;
-  `○ /map` in the route table; the gate's tests, the no-props test, the marker test and the
-  `CLAUDE.md` rule deleted; `/about`'s sentence rewritten for after the full launch;
-  `readOnlyCookies`' comment restored to "behind the proxy"; the 404's link back to "Till
-  kartan" and `/map`; README's sentences back to `/` redirecting to `/map`; if #6's branch
-  was added, the branch deleted, `/map` out of the matcher and `proxy.test.ts`'s case for it
-  restored). This decision and the carried-forward row point to it.
+  the redirect to `/map`, and its `/map` entry, `smoke.test.mjs`'s with it, 200 with the
+  static CSP; `○ /map` in the route table; the gate's tests, the no-props test, the marker
+  test and the `CLAUDE.md` rule deleted; `/about`'s sentence rewritten for after the full
+  launch; `readOnlyCookies`' comment restored to "behind the proxy"; the 404's link back to
+  "Till kartan" and `/map`; README's sentences back to `/` redirecting to `/map`; if #6's
+  branch was added, the branch deleted, `/map` out of the matcher and `proxy.test.ts`'s case
+  for it restored). This decision and the carried-forward row point to it.
 - **The marker test** reads that list from the header and fails if a tracked file outside
   `.claude/` holds the marker and isn't listed, or a listed file doesn't hold it. `.claude/`
   is left out because the plans and the log quote the marker as history. Seen red once each
@@ -448,16 +465,23 @@ The owner's call (2026-11-20). `main` is at PR #195 (Phase 6), whose commit pred
 `workflow_dispatch` (it runs on PRs and pushes to `dev` and `main`). The first merge's push
 gives `main` its analysis, so CodeQL's checks join `main`'s ruleset before the deploy. The
 production build that merge starts has no variables, so it fails or serves nothing, holding no
-data. Weighed: deploying with the first merge, its PR then having no CodeQL base and `main`'s
+data. The first PR's CodeQL findings, which may count as new against no base, are each read
+and settled as on `dev` before the checks join the ruleset (the owner's call, round 5 on PR
+#447; Phase 8 plan, #11's limit); weighed: a base analysis uploaded without a push, through
+codeql-action's `ref` and `sha` inputs (documented, not probed). Weighed too: deploying with
+the first merge, its PR then having no CodeQL base and `main`'s
 ruleset getting CodeQL only after the deploy.
 
 ### #10 — Retention is manual SQL, run weekly after the dump
 
 The owner's call (2026-11-20). Location history is personal data for a sole trader (where a
 person worked, day by day), and GDPR's storage limitation keeps it only as long as its purpose
-needs: the checklist's 4-week look-back and the recent places. Auth's audit log, kept for
-investigating a takeover (Phase 9 plan #13), grows without end on Free's 0.5 GB, since neither
-GoTrue nor the app deletes its rows (Phase 9 plan open decision 7). `retention.sql` deletes
+needs: the checklist's 4-week look-back, and the recent places, which take a truck's last
+`RECENT_ENTRIES` (50) entries however old (`src/lib/services/locations.ts`), so a period
+shorter than a truck's break leaves it none when it is back (open decision 2). Auth's audit
+log, kept for investigating a takeover (Phase 9 plan #13), grows without end on Free's 0.5 GB,
+since neither GoTrue nor the app deletes its rows (Phase 9 plan open decision 7).
+`retention.sql` deletes
 both past their periods (open decisions 2, 3), run from the runbook in the same weekly slot as
 the dump; the runbook names the date the first row comes due. It keeps the deletes manual SQL,
 as the takedown is (Phase 5 plan #7, #10). `CLAUDE.md`'s "Locations are never deleted (except a
@@ -473,8 +497,11 @@ Pro's (Phase 11). Weekly bounds the loss to a week, which today's posts and the 
 owner's machine outside the repo, since the repo is public; the last few only (open decision
 5), since the dumps are copies of the history: a takedown or a retention delete reaches the
 backups only as old dumps are deleted, which the privacy note states. The command runs with
-production's database URL from the gitignored `.env.production.local`, a developer's own copy
-(`CLAUDE.md`, "Where secrets live"). A restore brings back what was deleted after its dump,
+production's database URL from the gitignored `.env.prod-db.local`, a developer's own copy
+(`CLAUDE.md`, "Where secrets live"), named so Next never loads it: Next reads
+`.env.$(NODE_ENV).local` ahead of `.env.local`, so a `.env.production.local` would put the URL
+in every local `next build` and `next start` (Next's environment-variables guide, "Load Order";
+the owner's call, round 5 on PR #447). A restore brings back what was deleted after its dump,
 so it re-runs each takedown in the takedown log on or after the dump's date, then
 `retention.sql` (the owner's call, round 3 on PR #447). Weighed: `scripts/backup.mjs`, which
 would name and rotate the files but is new code to test, for one person once a week.
@@ -527,14 +554,20 @@ would name and rotate the files but is new code to test, for one person once a w
   recorded as applied; the Security Advisor shows no ERROR, each WARN fixed or accepted with a
   reason, INFO read; Auth's Site URL is the production host named on the issue and its
   Redirect URLs that host's `/auth/callback` alone; the admin has a long random password.
-- [ ] Vercel and R2: the Ignored Build Step read as set, no `ignoreCommand` on `dev` or
-  `main`; R2's CORS rule covers each production address, by an origin or a redirect; the
-  toolbar reads Off for Production; Production's variables come only from the new project.
-- [ ] Before the deploy: the Ignored Build Step and `ignoreCommand` read again at step 16,
-  before the variables, and Production built from `main`, not promoted; the 2FA re-check
+- [ ] Vercel and R2: the Ignored Build Step read as set, no `ignoreCommand` or `vercel.ts` on
+  `dev` or `main`; R2's CORS rule covers each production address, by an origin or a
+  redirect; the toolbar reads Off for Production; Production's Deployment Retention Policy
+  reads the value open decision 14 settled, in README's checklist too; Production's variables
+  come only from
+  the new project.
+- [ ] Before the deploy: the Ignored Build Step, `ignoreCommand` and `vercel.ts` read again at
+  step 16,
+  before the variables, and Production built from a push to `main`, not promoted or
+  redeployed; the 2FA re-check
   recorded per account; every earlier credential
   rotated or replaced, listed by name; the first merge into `main` ran every required check,
-  the controls' full set included; CodeQL's checks in `main`'s ruleset, read back by `gh api`.
+  the controls' full set included, its CodeQL findings each settled; CodeQL's checks in
+  `main`'s ruleset, read back by `gh api`.
 - [ ] The production checks: logged out on the phone, `/` and `/map` land on `/about`; as the
   admin, after the TOTP enroll of step 16 and by "Karta", the map shows with R2's tiles and no
   CSP violation;
@@ -551,8 +584,12 @@ would name and rotate the files but is new code to test, for one person once a w
 1. **The app name** (Phase 7 plan #26): the UI text and the TOTP entry's label (step 5), and
    whether to buy the domain now (#7). Until then the admin screens say WhereIsFood and the
    public title "Var är maten? | Göteborg".
-2. **The retention period for location history** (Phase 7 plan #25; #10). Leaning: 8 weeks,
-   the checklist's 4-week look-back with a margin.
+2. **The retention period for location history** (Phase 7 plan #25; #10), at step 7. Its two
+   purposes pull apart: the checklist needs 4 weeks, and the recent places need a truck's last
+   entries however old, which a period shorter than a seasonal break deletes. The options: a
+   period that outlasts a break (12 months, say), or a short one (8 weeks, say) with the loss
+   of a returning truck's recent places stated (the owner's call to leave it open, round 5 on
+   PR #447).
 3. **The retention period for Auth's audit log** (Phase 9 plan open decision 7; #10), kept to
    investigate a takeover. Leaning: 30 days.
 4. **The removal contact** (IS #373 (Phase 10)). Leaning: a dedicated address, not a personal
@@ -580,3 +617,6 @@ would name and rotate the files but is new code to test, for one person once a w
     or only stay out of production ("reuse nothing from the preview setup").
 13. **How the trucks are told** (step 18): the channel and the Swedish text, with a link to
     `/integritet`.
+14. **Production's Deployment Retention Policy** (step 14): README's checklist keeps Production
+    at 30 days because no Ready production deployment existed (IS #417's comment of
+    2026-11-19); the value against Hobby's 10 GB of Deployment Storage (#417).
