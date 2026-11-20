@@ -78,6 +78,7 @@ and gates nothing (#4).
 - `scripts/smoke.mjs` (+ `smoke.test.mjs`): `/` and `/map` expect the redirect to `/about`;
   `/about` and `/integritet` expect 200 with the static CSP.
 - `src/proxy.ts` (+ test): **only if** step 1a or 4b rules out Plan A (#6).
+- `src/lib/supabase-session.ts`: `readOnlyCookies`' comment, a gate site (#5).
 
 **The app name** (open decision 1): `src/app/layout.tsx`, `src/app/admin/layout.tsx`,
 `src/app/admin/error.tsx`, `src/app/admin/not-found.tsx`, `src/app/error.tsx`,
@@ -122,13 +123,13 @@ Ignored Build Step; R2's CORS rule; `main`'s ruleset (CodeQL's checks); the aler
 |---|---|---|
 | `MapPage` | page (server component) | The check `withAdmin` makes (`src/lib/http/admin.ts`), from `cookies()`: `createSessionClient(readOnlyCookies(store))`, `requireAdmin({ cookieNames, auth, now })`, with no proxy before it to refresh the session (#6); `redirect(ABOUT_PATH)` for anything but `check.ok`, with no `try` around `redirect()` or `cookies()`; then `<MapClient />` with no props (#5) |
 | `Home` | page | `redirect(ABOUT_PATH)` |
-| `AboutPage` | page (static) | What this is; the map opens when the trucks are back; a link to `/integritet` |
+| `AboutPage` | page (static) | What this is; the map opens when the trucks are back (a gate site, #5); a link to `/integritet` (step 9) |
 | `PrivacyPage` | page (static) | What is stored and why; both retention periods; the dump count; Vercel's and Supabase's logs (IP addresses); Auth's audit log; the removal contact |
 | `ABOUT_PATH`, `PRIVACY_PATH` | lib constants | Shared by the pages, the nav and the tests |
-| `AdminNav`'s `LINKS` | component | Gains `{ href: "/map", text: "Karta" }` |
+| `AdminNav` | component | Gains "Karta", to `/map`, as a plain `<a>`, so it loads `/map` as a new document under its static CSP; a `next/link` would render it inside the admin page, under that page's nonce CSP |
 | the marker test | unit test | Every tracked file outside `.claude/` holding the gate's marker is on the removal list in `map/page.tsx`'s header, and every listed file holds it (#5) |
 | `takedown.sql` | manual SQL | For one truck id, in one transaction: delete its locations, clear or delete each `users` row pointing at it, delete the truck; report the counts |
-| `retention.sql` | manual SQL | Delete `locations` that ended more than the retention period ago, and `auth.audit_log_entries` older than theirs (open decisions 2, 3) |
+| `retention.sql` | manual SQL | Delete `locations` that ended more than the retention period ago, and `auth.audit_log_entries` older than theirs, reporting each delete's row count (open decisions 2, 3) |
 | the weekly dump | runbook command | `npx supabase db dump --data-only --schema public` against production, the last N kept (#11, open decision 5) |
 
 **No new db-layer or service function.** The gate reuses `requireAdmin`; the deletes stay
@@ -155,11 +156,14 @@ on.
    - **(a) The expired-session probe, locally.** A local, uncommitted `/map` gated as
      `MapPage` will be, with `readOnlyCookies`, and a short `jwt_expiry` (restored after):
      once the access token has expired, a load of `/map` makes `getSession()` refresh, and
-     the new tokens can't be written back. Does the next request, presenting the used refresh
-     token, keep the session, or does Auth's reuse detection end it? It decides Plan A or the
-     proxy branch (#6). Steps 4 and 5 wait for it. The same probe on `dev`'s preview is step
-     4b, since only `dev`'s preview builds with the secret key (`CLAUDE.md`, "Where an
-     issue's browser checks run").
+     the new tokens can't be written back, so each later load presents the used refresh
+     token again. Auth accepts a reused one within `refresh_token_reuse_interval` (10 s in
+     `config.toml` and on the preview, README's hosted-settings checklist), so the probe
+     records that interval, then loads `/map` several times after expiry, more than 10 s
+     apart and across more than one `jwt_expiry`, and reads whether reuse detection ends the
+     session. It decides Plan A or the proxy branch (#6). Steps 4 and 5 wait for it. The
+     same probe on `dev`'s preview is step 4b, since only `dev`'s preview builds with the
+     secret key (`CLAUDE.md`, "Where an issue's browser checks run").
    - **(b)** Supabase's key-rotation docs read, for step 15 (its newer and legacy API keys
      rotate differently).
    - **(c)** What a paused free project answers the admin screen and `/api/live`, from the
@@ -171,38 +175,51 @@ on.
 **B. The app**
 
 3. **`/about`** (`AboutPage`), `ABOUT_PATH` and `PRIVACY_PATH`, and `AdminNav`'s "Karta" link.
-   These stay at Phase 11, so they are not gate sites and ride outside step 4's PR. Smoke
-   expects `/about` 200 with the static CSP.
-4. **The gate** (#5, #6), **one PR holding only gate sites**: `MapPage`; `Home`; the smoke
+   These stay at Phase 11 and ride outside step 4's PR, but for `/about`'s sentence that the
+   map opens when the trucks are back, which step 4 marks as a gate site. The link to
+   `/integritet` comes with step 9. Smoke expects `/about` 200 with the static CSP.
+4. **The gate** (#5, #6), **one PR holding only gate sites** outside `.claude/`, where its
+   review rounds' log rows ride along (`CLAUDE.md`, "Doc changes"): `MapPage`; `Home`; the smoke
    check's `/` and `/map` expectations; the gate's unit and integration tests; the no-props
    test; the marker test; the removal list in `map/page.tsx`'s header; `CLAUDE.md`'s gate
-   rule. Needs steps 1a and 3. If #6's branch is needed, the proxy branch and its tests join
-   this PR as gate sites, the branch its own function.
+   rule; the marker on `/about`'s sentence that the map opens when the trucks are back;
+   `readOnlyCookies`' comment in `src/lib/supabase-session.ts` ("use it behind something that
+   refreshes first: the proxy"), rewritten with step 1a's evidence, since `MapPage` uses it
+   with no proxy before it (the owner's call, round 3 on PR #447). Needs steps 1a and 3. If
+   #6's branch is needed, the proxy branch and its tests join this PR as gate sites, the
+   branch its own function.
 4b. **The gate on `dev`'s preview** (#6), its own issue, blocked by step 4, blocking step 13
    (the owner's call, round 2 on PR #447): step 1a's probe on `dev`'s preview, recorded on
    this issue. If it shows a logout where the local run didn't: the owner's call on
    `CLAUDE.md`'s "never `/map`" proxy rule (open decision 10), then #6's branch in this
-   issue's PR, holding only gate sites, each with the marker, and the removal list in
-   `map/page.tsx`'s header gaining them. If the session survives, the issue closes with the
-   result and no PR.
+   issue's PR, holding only gate sites outside `.claude/`, each with the marker, and the
+   removal list in `map/page.tsx`'s header gaining them. If the session survives, the issue
+   closes with the result and no PR.
 5. **The app name** (open decision 1) in the files under "Files". Needs step 4 merged (both
    touch `map/` and the tests).
 
 **C. Operations**
 
-6. **`takedown.sql`** and its integration test.
+6. **`takedown.sql`** and its integration test; **the takedown log** (the owner's call, round 3
+   on PR #447): each takedown's truck id and date, kept with the dumps on the owner's machine
+   outside the repo, never in the database a restore replaces; README's takedown section.
 7. **Retention** (#10): `retention.sql` and its integration test; `CLAUDE.md`'s "Locations"
    and "db layer" rules gain the retention delete beside the takedown. The test runs on the
    local stack only, so the issue also names the role that runs the file on a hosted project
-   (the dashboard's SQL editor's) and probes on the preview that it may DELETE from
-   `auth.audit_log_entries`, an `auth` table, with a delete that matches no row. Needs open
-   decisions 2 and 3.
+   (the dashboard's SQL editor's) and probes on the preview that it removes rows from
+   `auth.audit_log_entries`, an `auth` table: in a transaction rolled back after, a delete
+   of one existing row, the count read before and after, since a delete that matches no row
+   succeeds whether or not row-level security hides the rows. `retention.sql` reports each
+   delete's row count. Needs open decisions 2 and 3.
 8. **Backups** (#11): the weekly dump's command; production's database URL in
    `.env.production.local`, which `CLAUDE.md`'s "Where secrets live" names; how a restore
    recreates the admin by its old id (open decision 11); **one restore test on the local
-   stack** from a dump, the takedown re-run after it, and the TOTP enroll needed at once
-   (Principles and risks, "Backups"; Phase 9 plan #13). Needs open decision 5.
-9. **`/integritet`** (`PrivacyPage`), its wording approved by the owner. Needs steps 3, 7 and 8
+   stack** from a dump, then each takedown the log holds since the dump's date and
+   `retention.sql` re-run, and the TOTP enroll needed at once (Principles and risks,
+   "Backups"; Phase 9 plan #13); README's backups and restore section. Needs steps 6 and 7 and
+   open decision 5.
+9. **`/integritet`** (`PrivacyPage`), its wording approved by the owner; `/about`'s link to it;
+   smoke expects it 200 with the static CSP. Needs steps 3, 7 and 8
    and open decision 4 (it states the periods, the dump count and the contact).
 10. **`RUNBOOK.md`** (#8): Attack Mode; a takeover (Phase 9 plan #13's recovery order); a lost
     phone (open decision 9 settled here, Phase 9 plan open decision 4); a leaked key; a
@@ -225,14 +242,19 @@ on.
     protection's, on Free), INFO read; Auth's Site URL and Redirect URLs set to the one
     production `vercel.app` host the admin logs in from in step 16, named on the issue, and
     that host's `/auth/callback` alone, as README's checklist names `dev`'s alias for the
-    preview; step 7's no-row DELETE on `auth.audit_log_entries` repeated in production's SQL
-    editor and recorded beside the preview's, since the two projects' grants may differ; the
-    admin user with a long random password (README, "5. Create
-    the admin user"), its TOTP factor enrolled in step 16, through the deployed app; the
-    email-budget lockout as open decision 6 settles it. README's "Production" section written.
+    preview; step 7's rolled-back DELETE on `auth.audit_log_entries` repeated in production's
+    SQL editor, the count dropping by one inside it, and recorded beside the preview's, since
+    the two projects' grants may differ; the admin user with a long random password (README,
+    "5. Create the admin user"), its TOTP factor enrolled in step 16, through the deployed
+    app; the email-budget lockout as open decision 6 settles it. README's "Production" section
+    written.
 14. **Vercel and R2:** the Ignored Build Step read as set to cancel a Production build from any
     branch but `main`, and no `vercel.json` `ignoreCommand` on `dev` or `main`; R2's CORS rule
-    gains the production origin. **Production gets no variables yet** (#9).
+    gains an origin for each production address README names (`whereisfood.vercel.app`,
+    `whereisfood-theta.vercel.app`, `<project>-<scope-slug>.vercel.app`), or each address
+    without one redirects to one that has it (README, "Get the map tiles"); the Vercel Toolbar
+    off for Production deployments, as for pre-production (the owner's call, round 3 on PR
+    #447; README's "Hosted settings checklist"). **Production gets no variables yet** (#9).
 15. **Before the deploy:**
     - the 2FA re-check of every account, each one's recovery mailbox, and the registrar and
       removal-contact mailbox if they exist (`CLAUDE.md`, "Secrets"), recorded without an
@@ -249,7 +271,8 @@ on.
     from `main`; then the admin's magic-link login on the phone and the TOTP enroll at
     `/admin/mfa`, which needs the deployed app (the owner's call, round 1 on PR #447).
 17. **The production checks**, on the owner's phone and by headers:
-    - logged out, `/` and `/map` land on `/about`; as the admin at `aal2`, the map shows with
+    - logged out, `/` and `/map` land on `/about`; as the admin at `aal2`, reaching `/map` by
+      "Karta", the map shows with
       R2's tiles and no CSP violation in the console;
     - `/api/live` goes MISS → HIT;
     - a logged-out request to `/map` right after the admin's never gets the map, and no `/map`
@@ -273,7 +296,8 @@ on.
     #2 and #3; rewrites Part 1 for production and the gate, the Roadmap and the Phase map's
     Phase 10 row, "Pre-deploy automation"'s "Before the production deploy" (done), "Open
     decisions" (the retention period, the app name, the removal contact, as settled),
-    "Principles and risks"' backups item (the dump count, the restore method), Pricing's
+    "Principles and risks"' backups item (the dump count, the restore method, the takedown
+    log), Pricing's
     "Supabase Free" item (the paused project, open decision 8); brings README's status parts in
     line; carries forward the decisions that outlive the phase (#5 and #10 at least: #5's row
     names the removal list in `map/page.tsx`'s header and #5's removal checks, for Phase 11's
@@ -341,19 +365,23 @@ and open no hole.
   matcher and the other branches as they are.
 - **Every site findable.** Each gate site carries the marker comment `SOFT-LAUNCH GATE (Phase
   10 plan #5)`. The sites: `MapPage`, `Home`, the smoke check's `/` and `/map` expectations,
-  the gate's tests, the no-props test, the marker test itself and `CLAUDE.md`'s gate rule.
+  the gate's tests, the no-props test, the marker test itself, `CLAUDE.md`'s gate rule,
+  `/about`'s sentence that the map opens when the trucks are back, and `readOnlyCookies`'
+  comment in `supabase-session.ts` (round 3 on PR #447).
 - **One copy of the removal list**, in `map/page.tsx`'s header, where a removal starts: each
   site and what it goes back to (`/` → `/map`; smoke's `/` entry, which step 4 adds, expects
   the redirect to `/map`, and its `/map` entry 200 with the static CSP;
   `○ /map` in the route table; the gate's tests, the no-props test, the marker test and the
-  `CLAUDE.md` rule deleted). This decision and the carried-forward row point to it.
+  `CLAUDE.md` rule deleted; `/about`'s sentence rewritten for after the full launch;
+  `readOnlyCookies`' comment restored to "behind the proxy"). This decision and the
+  carried-forward row point to it.
 - **The marker test** reads that list from the header and fails if a tracked file outside
   `.claude/` holds the marker and isn't listed, or a listed file doesn't hold it. `.claude/`
   is left out because the plans and the log quote the marker as history. Seen red once each
   way, locally, before its PR.
-- **Its own PR** (step 4), holding only gate sites, and step 4b's if it adds the proxy
-  branch, so their diffs are the map of what Phase 11 undoes (the owner's call, round 2 on PR
-  #447).
+- **Its own PR** (step 4), holding only gate sites outside `.claude/`, and step 4b's if it
+  adds the proxy branch, so their diffs are the map of what Phase 11 undoes (the owner's call,
+  round 2 on PR #447).
 - **The removal's checks**, for Phase 11's plan: `git grep` finds no marker outside
   `.claude/`; the build shows `/map` static again; smoke passes with the restored
   expectations; `/api/live`'s cache headers are unchanged (the gate never touched them); a
@@ -424,8 +452,10 @@ owner's machine outside the repo, since the repo is public; the last few only (o
 5), since the dumps are copies of the history: a takedown or a retention delete reaches the
 backups only as old dumps are deleted, which the privacy note states. The command runs with
 production's database URL from the gitignored `.env.production.local`, a developer's own copy
-(`CLAUDE.md`, "Where secrets live"). Weighed: `scripts/backup.mjs`, which would name and rotate
-the files but is new code to test, for one person once a week.
+(`CLAUDE.md`, "Where secrets live"). A restore brings back what was deleted after its dump,
+so it re-runs each takedown in the takedown log since the dump's date, then `retention.sql`
+(the owner's call, round 3 on PR #447). Weighed: `scripts/backup.mjs`, which would name and
+rotate the files but is new code to test, for one person once a week.
 
 ---
 
@@ -437,7 +467,7 @@ the files but is new code to test, for one person once a week.
   are recorded too.
 - [ ] Each open decision below is settled and struck through here with "→ settled".
 - [ ] `/about` answers 200 with the static CSP, in Swedish, saying the map opens when the
-  trucks are back, linking to `/integritet`; `AdminNav` shows "Karta", linking to `/map`
+  trucks are back, linking to `/integritet`; `AdminNav` shows "Karta", a plain `<a>` to `/map`
   (`/map` is outside the admin layout and shows no nav: the way back is the browser's, the
   owner's call, round 1 on PR #447).
 - [ ] The gate: no session, `aal1`, a non-admin, a time-boxed session and Auth unavailable
@@ -446,8 +476,8 @@ the files but is new code to test, for one person once a week.
   shows `ƒ /map`; smoke expects both redirects.
 - [ ] The gate's invariants: a test fails if `MapPage` passes `MapClient` a prop; the marker
   test fails on a marked file not on the removal list and on a listed file without the marker,
-  each seen red once locally; step 4's PR holds only listed sites; `CLAUDE.md` holds the gate
-  rule.
+  each seen red once locally; step 4's PR holds only listed sites outside `.claude/`;
+  `CLAUDE.md` holds the gate rule.
 - [ ] The app name in every file under "Files"; `git grep` over `src` for each name the
   chosen one replaces ("WhereIsFood", and "Var är maten?" if the public title changes) finds
   nothing, and the public title matches the name.
@@ -459,8 +489,8 @@ the files but is new code to test, for one person once a week.
   layer" name it beside the takedown; the hosted role and its DELETE probe on the preview are
   recorded on step 7's issue.
 - [ ] The restore test on the local stack, recorded on its issue: the admin recreated by its
-  old id with a long random password, `locations.created_by` resolving, the takedown re-run
-  after it, and a TOTP enroll needed at once.
+  old id with a long random password, `locations.created_by` resolving, each logged takedown
+  and `retention.sql` re-run after it, and a TOTP enroll needed at once.
 - [ ] `/integritet` answers 200 with the static CSP and names what is stored and why, both
   retention periods, the dump count, Vercel's and Supabase's logs (IP addresses), Auth's audit
   log and the removal contact; the owner approved the wording.
@@ -473,17 +503,18 @@ the files but is new code to test, for one person once a week.
 - [ ] The production project: Phase 5 #19's hosted check passes; each hosted-checklist item is
   recorded as applied; the Security Advisor shows no ERROR, each WARN fixed or accepted with a
   reason, INFO read; Auth's Site URL is the production host named on the issue and its
-  Redirect URLs that host's `/auth/callback` alone; the no-row DELETE on
-  `auth.audit_log_entries` succeeded in production's SQL editor; the admin has a long random
+  Redirect URLs that host's `/auth/callback` alone; the rolled-back DELETE removed one
+  `auth.audit_log_entries` row in production's SQL editor; the admin has a long random
   password.
 - [ ] Vercel and R2: the Ignored Build Step read as set, no `ignoreCommand` on `dev` or
-  `main`; R2's CORS rule names the production origin; Production's variables come only from
-  the new project.
+  `main`; R2's CORS rule covers each production address, by an origin or a redirect; the
+  toolbar reads Off for Production; Production's variables come only from the new project.
 - [ ] Before the deploy: the 2FA re-check recorded per account; every earlier credential
   rotated or replaced, listed by name; the first merge into `main` ran every required check,
   the controls' full set included; CodeQL's checks in `main`'s ruleset, read back by `gh api`.
 - [ ] The production checks: logged out on the phone, `/` and `/map` land on `/about`; as the
-  admin, after the TOTP enroll of step 16, the map shows with R2's tiles and no CSP violation;
+  admin, after the TOTP enroll of step 16 and by "Karta", the map shows with R2's tiles and no
+  CSP violation;
   `/api/live` goes MISS → HIT; a
   logged-out request to `/map` after the admin's gets the redirect, and no `/map` answer shows
   a cache `HIT`; the first dump is on the owner's machine.
