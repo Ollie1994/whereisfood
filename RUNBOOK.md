@@ -129,9 +129,10 @@ plan's #13. Its order:
    select id, is_admin, truck_id, created_at from users;
    ```
 
-   A location edit moves `updated_at`, and a new row has its `created_at`. A truck or `users`
-   edit and a deleted row leave no time, so compare what you see with what you know, an admin
-   you don't know included.
+   A location edit moves `updated_at` (its trigger skips one that clears `created_by`:
+   `CLAUDE.md`, "db layer"), and a new row has its `created_at`. A truck or `users` edit and a
+   deleted row leave no time, so compare what you see with what you know, an admin you don't
+   know included.
 
 The swap (unenroll, enroll and a password set by the thief) stays possible as sabotage, a
 lockout, not a way in: the app admits only a magic-link sign-in (#13).
@@ -209,8 +210,8 @@ Then look for use of the key, knowing how little shows:
 
 - **Auth admin actions** (users made, changed or deleted) are in Auth's audit log: "A
   takeover", step 5. Hold the weekly `retention.sql` meanwhile ("The weekly routine").
-- **Changes to data:** only new rows (`created_at`) and location edits (`updated_at`) leave a
-  time: "A takeover", step 5's queries. A truck edit, a `users` change (`is_admin`,
+- **Changes to data:** only new rows (`created_at`) and most location edits (`updated_at`)
+  leave a time: "A takeover", step 5's queries. A truck edit, a `users` change (`is_admin`,
   `truck_id`) and a deleted row leave none, so check the `users` rows for an admin you don't
   know, and the trucks against what you know.
 - **Reads** through the data API with the secret key bypass row-level security and leave
