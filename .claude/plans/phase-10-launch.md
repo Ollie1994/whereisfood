@@ -347,7 +347,8 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     log), the takedown's "clear or delete each `users` row" (lines 474 and 1071), which only
     clears them (round 3 on PR #470), "only the takedown removes history" (line 207) and
     "Rows are **never deleted**, except a takedown" (line 503), which the retention delete
-    joins, and "History is kept" (lines 530 and 673), for 52 weeks now (IS #454), Pricing's
+    joins, "History is kept" (lines 530 and 673), for 52 weeks now, and the audit log's
+    "needs a retention of its own" (line 892), now 30 days (IS #454), Pricing's
     "Supabase Free" item (the paused project, open decision 8); brings README's status parts in
     line; carries forward the decisions that outlive the phase (#5 and #10 at least: #5's row
     names the removal list in `map/page.tsx`'s header and #5's removal checks, for Phase 11's
