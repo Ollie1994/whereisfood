@@ -189,8 +189,12 @@ said otherwise: Phase 4 plan decision #14.
   deploys and CI live in Vercel's environment variables (type "Secret"; Vercel's
   changelog of 2026-08-24 turned "Sensitive" into it, IS #187), GitHub Actions secrets
   and, for Dependabot's runs, Dependabot secrets. A developer's own copies (the preview
-  project's keys and the Vercel bypass secret in the gitignored `.env.preview.local`,
-  IS #186 and #187; a CLI login token where the CLI stores it) stay on their machine.
+  project's keys, its database URLs and the Vercel bypass secret in the gitignored
+  `.env.preview.local`, IS #186, #187 and #455; production's database URL, the session
+  pooler's, for the weekly dump, in the gitignored `.env.prod-db.local`, a name Next never
+  loads, where a `.env.production.local` would put the URL in every local `next build` and
+  `next start`, Phase 10 plan #11;
+  a CLI login token where the CLI stores it) stay on their machine.
   None goes in a tracked or shared file
 - Every account that can reach the project (GitHub, Supabase, Vercel, Cloudflare, the
   registrar, their recovery email) uses two-factor authentication by passkey, hardware

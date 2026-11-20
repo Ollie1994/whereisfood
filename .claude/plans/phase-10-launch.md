@@ -137,7 +137,7 @@ Ignored Build Step; R2's CORS rule; `main`'s ruleset (CodeQL's checks); the aler
 | the marker test | unit test | Every tracked file outside `.claude/` holding the gate's marker is on the removal list in `map/page.tsx`'s header, and every listed file holds it (#5) |
 | `takedown.sql` | manual SQL | For one truck id and its name (both must match, so an id and a name from different trucks change nothing: round 1 on PR #470), in one transaction: delete its locations, clear each `users` row's `truck_id` (the account stays, round 3 on PR #470), delete the truck; report the counts |
 | `retention.sql` | manual SQL | Delete `locations` that ended more than 52 weeks ago, and `auth.audit_log_entries` older than 30 days, in one statement reporting each delete's row count (open decisions 2, 3) |
-| the weekly dump | runbook command | `npx supabase db dump --data-only --schema public` against production, the last N kept (#11, open decision 5) |
+| the weekly dump | runbook command | `npx supabase db dump --data-only --schema public` against production's session pooler URL, the newest 4 kept (#11, open decision 5) |
 
 **No new db-layer or service function.** The gate reuses `requireAdmin`; the deletes stay
 manual SQL, by the db layer's "no function deletes" (Phase 5 plan #10).
@@ -620,8 +620,9 @@ would name and rotate the files but is new code to test, for one person once a w
    approving the leaning): 30 days after a row's `created_at`.
 4. **The removal contact** (IS #373 (Phase 10)). Leaning: a dedicated address, not a personal
    one; a new mailbox gets two-factor at creation and joins step 15's re-check.
-5. **How many weekly dumps are kept** (#11), which sets how long a removal takes to leave the
-   backups. Leaning: 4.
+5. ~~**How many weekly dumps are kept** (#11), which sets how long a removal takes to leave the
+   backups. Leaning: 4.~~ → **settled** (the owner, 2026-11-20, IS #455, approving the leaning):
+   the newest 4, so a removal leaves the backups about four weeks on.
 6. **The email-budget lockout** (#3): accepted again, or a mitigation, before step 13.
 7. **How the usage, spend and 5xx alerts are covered** on the free plans (Phase 9 plan open
    decision 7): a look at each usage page in the weekly routine; an external free uptime
@@ -638,9 +639,11 @@ would name and rotate the files but is new code to test, for one person once a w
     `CLAUDE.md`'s proxy rule, the owner's call.~~ → **settled**: Plan A, with the proxy rule
     unchanged (IS #448's probe on the local stack; IS #451's re-run on `dev`'s preview, a load
     after the access token's expiry showing `/map`). Built in PR #469.
-11. **How a restore recreates the admin by its old id** (step 8): Studio's "Add user" makes a
+11. ~~**How a restore recreates the admin by its old id** (step 8): Studio's "Add user" makes a
     new id, and the data dump loads with its foreign keys unchecked (Principles and risks,
-    "Backups").
+    "Backups").~~ → **settled** (the owner, 2026-11-20, IS #455): Auth's admin API,
+    `POST /auth/v1/admin/users` with the old `id`, before the dump is loaded; probed on the
+    local stack, then used in the restore test (README, "Backups").
 12. **Which credentials exist to rotate** (step 15), and whether the preview's keys rotate too
     or only stay out of production ("reuse nothing from the preview setup").
 13. **How the trucks are told** (step 18): the channel and the Swedish text, with a link to

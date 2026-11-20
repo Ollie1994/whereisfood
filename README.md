@@ -749,13 +749,132 @@ An open map drops the truck within about three minutes while its polls succeed a
 is visible (a failed poll keeps the last markers, and a hidden tab doesn't poll): `/api/live`
 is cached for 60 s and may be served stale for 60 s more (`CLAUDE.md`, "`/api/live`"), and the map polls it every
 60 s (`POLL_MS`, `src/hooks/useLocations.ts`). Until the dumps from before the
-takedown age out, they still hold the truck's rows; how many are kept is Phase 10 plan's
-open decision 5.
+takedown age out, they still hold the truck's rows: about four weeks, as four are kept
+("Backups" below).
 
 `tests/integration/takedown.test.ts` runs the file on the local stack, as `postgres`. The
 preview's SQL editor runs as `postgres` too (IS #454's probe), but hasn't run this file, and
 production's role isn't probed yet (#464). An error in either editor changes nothing, as in
 step 3.
+
+---
+
+## Backups
+
+Supabase Free has no backups, so until Pro (Phase 11) the backup is a weekly dump of the
+`public` schema's data, made by hand (Phase 10 plan, #11). Never the `auth` schema: its
+sessions and refresh tokens are credentials. The dumps live on the owner's machine outside
+the repo, next to the takedown log ("Takedown", step 4), and **the newest four are kept**
+(open decision 5), so a takedown or a retention delete leaves the backups about four weeks
+later.
+
+**The connection string** is the production project's **Session pooler** one (dashboard →
+Connect → Direct → Session pooler → URI, the password filled in, every character of it other
+than a letter, a digit or `-._~` percent-encoded), in the gitignored `.env.prod-db.local` as
+`PROD_DB_URL=…` (`CLAUDE.md`, "Where secrets live"). The Direct connection uses IPv6
+unless the paid IPv4 add-on is on (the dashboard's note), and from the owner's machine it was
+refused; the session pooler worked (the preview, IS #455). The Transaction pooler wasn't
+tried.
+
+### The weekly dump
+
+With Docker running (the CLI runs `pg_dump` in a container), from the repo, in Git Bash:
+
+```bash
+BACKUPS="<backups folder>"
+FILE="$BACKUPS/whereisfood-$(date -u +%Y-%m-%d).sql"
+PROD_DB_URL=$(grep '^PROD_DB_URL=' .env.prod-db.local | cut -d= -f2- | tr -d "\r\"'")
+rm -f "$BACKUPS"/whereisfood-*.sql.part
+if [ -z "$PROD_DB_URL" ]; then
+  echo "NO URL: no PROD_DB_URL=<url> line read from .env.prod-db.local; no dump made"
+elif npx supabase db dump --db-url "$PROD_DB_URL" --data-only --schema public -f "$FILE.part" \
+  && tail -n 1 "$FILE.part" | grep -qx 'RESET ALL;' && mv "$FILE.part" "$FILE"; then
+  echo "DUMP OK: now run retention.sql"
+  ls -1 "$BACKUPS"/whereisfood-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].sql \
+    | sort | head -n -4 | xargs -d '\n' -r rm -- \
+    || echo "PRUNE FAILED: the dump is good; delete all but the newest four by hand"
+else
+  rm -f "$FILE.part"
+  echo "DUMP FAILED: nothing kept from this run, old dumps untouched; don't run retention.sql"
+fi
+unset PROD_DB_URL
+```
+
+- The line in `.env.prod-db.local` is exactly `PROD_DB_URL=<url>`: no spaces around the `=` and
+  no comment after it. The read drops double and single quotes and Windows line endings. With
+  no such line (the file missing or misnamed, a byte-order mark before the line), the block
+  stops at `NO URL`: given an empty URL, the CLI would try a database on `localhost`.
+- A complete dump ends with the CLI's `RESET ALL;`. A failed one exits non-zero and leaves a
+  short file without it: an unreachable database left 41 bytes (IS #455). The dump is written
+  to `<name>.part`, which the deletion doesn't match. It takes the dated name only after that
+  check passes, and a failed run's `.part` is removed. So a failed run never counts as one of
+  the four, and never replaces a good dump of the same day. Each run first removes every
+  `.part` an interrupted run left, whatever its date.
+- The deletion keeps the newest four dated dumps (`whereisfood-YYYY-MM-DD.sql`) and touches
+  nothing else in the folder: the takedown log, and any other file, `whereisfood-` or not,
+  stay and take no place among the four. If it fails, the new dump is still good.
+
+After `DUMP OK`, run [`supabase/manual/retention.sql`](supabase/manual/retention.sql) in the SQL
+editor: the weekly routine runs it after the dump (Phase 10 plan, #10). After `DUMP FAILED`
+or `NO URL`, don't run it: fix the cause and run the block again.
+
+### Restoring
+
+A restore always goes into a **fresh** database, with the migrations applied, **no seed** and
+no `auth` users: on the local stack `npx supabase db reset --no-seed`; on a new hosted project
+`npx supabase db push` without `--include-seed` (not tried). The seed's trucks have ids no
+production dump holds, so a dump would load beside them with no error, mixing them in. Check
+first that `select count(*) from trucks` and `select count(*) from auth.users` both answer 0.
+A database that still holds data or users, production with some rows lost included, isn't a
+target for these steps: emptying a live database by hand is untested, so restore into a fresh
+one instead. (Of the checks, the first catches data and the second any user; step 1 also
+answers `422 email_exists` when the admin's email is already there, probed.) A restore brings
+back what was deleted after its dump, so the takedowns and `retention.sql` run again after
+it. The steps, tested once on the local stack (IS #455's record):
+
+1. **The admin, by its old id**, before the data: `users.id` and `locations.created_by`
+   reference `auth.users`, and the dump loads with its foreign keys unchecked (`replica`),
+   so a new id would leave both pointing at nobody. Studio's "Add user" can't set an id;
+   Auth's admin API can (Phase 10 plan, open decision 11). The old id is the `users` row with
+   `is_admin` `true` in the dump. With the project's secret key read without echoing (`read -rs
+   SECRET_KEY`) and a long random password the admin never needs (`CLAUDE.md`, "Supabase"):
+
+   ```bash
+   PASSWORD=$(node -e 'console.log(require("crypto").randomBytes(32).toString("base64url"))')
+   curl -sS -w '\n%{http_code}\n' -X POST "<project URL>/auth/v1/admin/users" \
+     -H "apikey: $SECRET_KEY" -H "Content-Type: application/json" \
+     -d "{\"id\":\"<old id>\",\"email\":\"<admin email>\",\"password\":\"$PASSWORD\",\"email_confirm\":true}"
+   unset PASSWORD SECRET_KEY
+   ```
+
+   It prints Auth's answer, then the status. `200` means it was made, and
+   `select id from auth.users` in the SQL editor shows the old id. A `4xx` gives its reason in
+   the answer. For anything else, such as `000`, a dropped connection, check `auth.users`
+   before running it again.
+2. **The data:** load the dump with `psql` in one transaction (`-1`), so a load that fails
+   partway leaves nothing behind and can be run again. On the local stack:
+   `docker exec -i supabase_db_whereisfood psql -U postgres -v ON_ERROR_STOP=1 -1 < <dump file>`.
+   Probed: a copy of a dump whose second statement failed, a duplicate `users` key, left its
+   first insert behind without `-1` and nothing with it.
+3. **Every takedown in the log**, whatever its date, each with its name read from the
+   restored database ("Takedown", steps 1 to 4).
+4. **`retention.sql`**, once.
+5. **Log in and enroll TOTP at once.** The dump holds no `auth` schema, so the admin comes
+   back with no factor: the login shows the enroll QR code, and until it is done any `aal1`
+   session, a guessed code's included, can fill the free slot (Phase 9 plan #13). Delete the
+   authenticator app's old entry.
+
+Limits: moving the live app to a new project after a hosted restore (Vercel's variables, the
+hosted settings checklist, the Redirect URLs) isn't covered here or tried; `RUNBOOK.md`'s
+restore takes it (#457). Steps 1 and 2 were run only on the local stack (its API URL and
+`sb_secret_` key; its `postgres`, which may set `session_replication_role`). On a hosted
+project neither the admin API call nor the load has been tried, and a hosted restore needs a
+paused project or a free slot (two active free projects). The secret key, the admin's
+password and the database URL are on command lines while the commands run, which other
+processes of this user can read; the variables keep them out of the shell's history only. The
+CLI also hands the database URL's parts to its `pg_dump` container: its script exports
+`PGPASSWORD` there (`--dry-run`), so whoever can reach Docker could read it while the dump
+runs (not seen in `docker inspect`).
 
 ---
 
