@@ -713,6 +713,33 @@ logged-in browser's requests wasn't checked.
 
 ---
 
+## Takedown
+
+A truck that asks to be removed is deleted with its whole history by
+[`supabase/manual/takedown.sql`](supabase/manual/takedown.sql), by hand: no app code deletes
+(`CLAUDE.md`, "db layer"). It is one statement: the truck's locations deleted, each `users`
+row pointing at it cleared (the account stays), then the truck, all or nothing. Its header
+says why one statement works under the `NO ACTION` foreign keys.
+
+1. In the project's SQL editor (the dashboard's for a hosted project, Studio's at
+   `http://127.0.0.1:54323` locally), find the truck's id, which the admin screen doesn't
+   show: `select id, name from trucks order by name;`.
+2. Paste the file there and replace `TRUCK_ID` with the id, keeping the quotes. Left
+   unedited, it fails and changes nothing.
+3. Run it, and read its one row: `taken down`, the truck's name and the counts removed. An id
+   that is no truck gives `no truck with this id: nothing changed`, so a second run on the
+   same id is safe.
+4. Add a line to **the takedown log**: the truck's id and the date (UTC), nothing else. It is
+   a plain text file kept with the weekly dumps on the owner's machine, never in the repo or
+   the database, since a restore replaces the database. A restore from a dump re-runs every
+   takedown the log holds on or after the dump's date (Phase 10 plan, step 8).
+
+Until the dumps from before the takedown age out, they still hold the truck's rows; how
+many are kept is Phase 10 plan's open decision 5. `tests/integration/takedown.test.ts` runs
+the file on the local stack.
+
+---
+
 ## Scripts
 
 ```bash
