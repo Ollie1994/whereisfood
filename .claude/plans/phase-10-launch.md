@@ -612,7 +612,8 @@ would name and rotate the files but is new code to test, for one person once a w
    period that outlasts a break (12 months, say), or a short one (8 weeks, say) with the loss
    of a returning truck's recent places stated (the owner's call to leave it open, round 5 on
    PR #447).~~ → **settled** (the owner, 2026-11-20, IS #454): 52 weeks after a location's
-   `ends_at`, so a truck back from a seasonal break keeps its recent places.
+   `ends_at`, so a truck back from a seasonal break still has recent places, from its entries
+   that ended within the 52 weeks (`retention.sql`'s header).
 3. ~~**The retention period for Auth's audit log** (Phase 9 plan open decision 7; #10), kept to
    investigate a takeover. Leaning: 30 days.~~ → **settled** (the owner, 2026-11-20, IS #454,
    approving the leaning): 30 days after a row's `created_at`.
