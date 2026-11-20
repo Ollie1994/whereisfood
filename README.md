@@ -772,7 +772,7 @@ later.
 Connect → Direct → Session pooler → URI, the password filled in, every character of it other
 than a letter, a digit or `-._~` percent-encoded), in the gitignored `.env.prod-db.local` as
 `PROD_DB_URL=…` (`CLAUDE.md`, "Where secrets live"). The Direct connection uses IPv6
-unless the paid IPv4 add-on is on (the dashboard's note), and from this machine it was
+unless the paid IPv4 add-on is on (the dashboard's note), and from the owner's machine it was
 refused; the session pooler worked (the preview, IS #455). The Transaction pooler wasn't
 tried.
 
@@ -784,11 +784,14 @@ With Docker running (the CLI runs `pg_dump` in a container), from the repo, in G
 BACKUPS="<backups folder>"
 FILE="$BACKUPS/whereisfood-$(date -u +%Y-%m-%d).sql"
 PROD_DB_URL=$(grep '^PROD_DB_URL=' .env.prod-db.local | cut -d= -f2- | tr -d "\r\"'")
-rm -f "$FILE.part"
-if npx supabase db dump --db-url "$PROD_DB_URL" --data-only --schema public -f "$FILE.part" \
+rm -f "$BACKUPS"/whereisfood-*.sql.part
+if [ -z "$PROD_DB_URL" ]; then
+  echo "NO URL: no PROD_DB_URL=<url> line read from .env.prod-db.local; nothing done"
+elif npx supabase db dump --db-url "$PROD_DB_URL" --data-only --schema public -f "$FILE.part" \
   && tail -n 1 "$FILE.part" | grep -qx 'RESET ALL;' && mv "$FILE.part" "$FILE"; then
   echo "DUMP OK: now run retention.sql"
-  ls -1 "$BACKUPS"/whereisfood-*.sql | sort | head -n -4 | xargs -d '\n' -r rm -- \
+  ls -1 "$BACKUPS"/whereisfood-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].sql \
+    | sort | head -n -4 | xargs -d '\n' -r rm -- \
     || echo "PRUNE FAILED: the dump is good; delete all but the newest four by hand"
 else
   rm -f "$FILE.part"
@@ -798,14 +801,18 @@ unset PROD_DB_URL
 ```
 
 - The line in `.env.prod-db.local` is exactly `PROD_DB_URL=<url>`: no spaces around the `=` and
-  no comment after it. The read drops double and single quotes and Windows line endings.
+  no comment after it. The read drops double and single quotes and Windows line endings. With
+  no such line (the file missing or misnamed, a byte-order mark before the line), the block
+  stops at `NO URL`: given an empty URL, the CLI would try a database on `localhost`.
 - A complete dump ends with the CLI's `RESET ALL;`. A failed one exits non-zero and leaves a
   short file without it: an unreachable database left 41 bytes (IS #455). The dump is written
   to `<name>.part`, which the deletion doesn't match. It takes the dated name only after that
   check passes, and a failed run's `.part` is removed. So a failed run never counts as one of
-  the four, and never replaces a good dump of the same day.
-- The deletion keeps the newest four `whereisfood-*.sql` files and touches nothing else in the
-  folder, so the takedown log stays. If it fails, the new dump is still good.
+  the four, and never replaces a good dump of the same day. Each run first removes every
+  `.part` an interrupted run left, whatever its date.
+- The deletion keeps the newest four dated dumps (`whereisfood-YYYY-MM-DD.sql`) and touches
+  nothing else in the folder: the takedown log, and any other file, `whereisfood-` or not,
+  stay and take no place among the four. If it fails, the new dump is still good.
 
 After `DUMP OK`, run [`supabase/manual/retention.sql`](supabase/manual/retention.sql) in the SQL
 editor: the weekly routine runs it after the dump (Phase 10 plan, #10). After `DUMP FAILED`,
@@ -813,13 +820,16 @@ fix the cause and run the block again.
 
 ### Restoring
 
-A restore goes into a database with the migrations applied and **no seed**: on the local
-stack `npx supabase db reset --no-seed`; on a new hosted project `npx supabase db push`
-without `--include-seed` (not tried). The seed's trucks have ids no production dump holds, so
-a dump would load beside them with no error, mixing them in. Check first that
-`select count(*) from trucks` answers 0. A restore
-brings back what was deleted after its dump, so the takedowns and `retention.sql` run again
-after it. The steps, tested once on the local stack (IS #455's record):
+A restore always goes into a **fresh** database, with the migrations applied, **no seed** and
+no `auth` users: on the local stack `npx supabase db reset --no-seed`; on a new hosted project
+`npx supabase db push` without `--include-seed` (not tried). The seed's trucks have ids no
+production dump holds, so a dump would load beside them with no error, mixing them in. Check
+first that `select count(*) from trucks` answers 0. A database that still holds data or the
+admin, production with some rows lost included, isn't a target for these steps: the trucks
+check fails and step 1 answers a `4xx`, and emptying a live database by hand is untested.
+Restore into a fresh one instead. A restore brings back what was deleted after its dump, so
+the takedowns and `retention.sql` run again after it. The steps, tested once on the local
+stack (IS #455's record):
 
 1. **The admin, by its old id**, before the data: `users.id` and `locations.created_by`
    reference `auth.users`, and the dump loads with its foreign keys unchecked (`replica`),
