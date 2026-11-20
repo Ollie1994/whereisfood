@@ -3,9 +3,10 @@
 -- layer"), run once a week after the dump.
 --
 -- The periods, the owner's calls on IS #454 (the plan's open decisions 2 and 3):
---   locations that ended more than 52 weeks ago: long enough that a truck back from a
---     seasonal break still has its recent places, its last entries however old
---     (`RECENT_ENTRIES`, `src/lib/services/locations.ts`). Cancelled ones go the same way;
+--   locations that ended more than 52 weeks ago, so a truck back from a break shorter than
+--     that still has its recent places (its last `RECENT_ENTRIES` entries,
+--     `src/lib/services/locations.ts`); one away longer has none. Cancelled ones go the same
+--     way, by `ends_at`;
 --   `auth.audit_log_entries` rows created more than 30 days ago, kept to investigate a
 --     takeover. A row with no `created_at` is never deleted (none on the local stack,
 --     IS #454).

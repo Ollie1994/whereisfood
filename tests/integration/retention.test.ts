@@ -9,7 +9,9 @@ import { FIXTURE_PREFIX, localSql } from "./helpers";
 // Its fixtures, the file and the reads after it run in one transaction that is rolled back,
 // so a run changes nothing in the database, a broken copy of the file included: the file
 // deletes from whole tables, the seed's rows and a developer's own among them. In one
-// transaction `now()` is one instant, so the rows sit a second either side of each cut.
+// transaction `now()` is one instant, so the rows sit a second either side of each cut. It is
+// `repeatable read`, so its reads share one snapshot: an audit row Auth writes meanwhile (a
+// dev server's token refresh) doesn't move the counts between them.
 
 const FILE = readFileSync(new URL("../../supabase/manual/retention.sql", import.meta.url), "utf8");
 
@@ -17,7 +19,8 @@ const LOCATIONS_CUT = "now() - interval '52 weeks'";
 const AUDIT_CUT = "now() - interval '30 days'";
 
 // psql prints each select's row on its own line: the counts before, the file's row, the
-// counts after, then the fixture ids still there.
+// counts after, then the fixture ids still there, bracketed so an empty list keeps its line
+// (`localSql` trims the output).
 function run() {
   const trucks = [randomUUID(), randomUUID()];
   const id = {
@@ -25,6 +28,8 @@ function run() {
     cancelledBefore: randomUUID(),
     // Started before the cut and ended after it: kept, as only `ends_at` counts.
     endedAfter: randomUUID(),
+    // Cancelled long before the cut but ended after it: kept, as cancelled rows go by `ends_at`.
+    cancelledAfter: randomUUID(),
     auditBefore: randomUUID(),
     auditAfter: randomUUID(),
   };
@@ -40,7 +45,7 @@ function run() {
 
   const lines = localSql(
     [
-      "begin;",
+      "begin isolation level repeatable read;",
       ...trucks.map((truck, n) => `insert into trucks (id, name) values ('${truck}', '${FIXTURE_PREFIX}Retention ${n}');`),
       location(id.endedBefore, trucks[0], `${LOCATIONS_CUT} - interval '1 hour'`, `${LOCATIONS_CUT} - interval '1 second'`),
       location(
@@ -51,12 +56,19 @@ function run() {
         `${LOCATIONS_CUT} - interval '2 days'`,
       ),
       location(id.endedAfter, trucks[1], `${LOCATIONS_CUT} - interval '1 hour'`, `${LOCATIONS_CUT} + interval '1 second'`),
+      location(
+        id.cancelledAfter,
+        trucks[1],
+        `${LOCATIONS_CUT} - interval '1 hour'`,
+        `${LOCATIONS_CUT} + interval '1 day'`,
+        `${LOCATIONS_CUT} - interval '2 days'`,
+      ),
       audit(id.auditBefore, `${AUDIT_CUT} - interval '1 second'`),
       audit(id.auditAfter, `${AUDIT_CUT} + interval '1 second'`),
       counts,
       FILE,
       counts,
-      "select coalesce(string_agg(id::text, ',' order by id), '') from (" +
+      "select '[' || coalesce(string_agg(id::text, ',' order by id), '') || ']' from (" +
         ` select id from locations where id in (${fixtureIds})` +
         ` union all select id from auth.audit_log_entries where id in (${fixtureIds})) as kept;`,
       "rollback;",
@@ -65,8 +77,8 @@ function run() {
 
   if (lines.length !== 4) throw new Error(`retention.test: expected 4 lines from psql, got ${lines.length}`);
   const [before, reported, after] = lines.slice(0, 3).map((line) => line.split("|").map(Number));
-  const kept = new Set(lines[3].split(",").filter(Boolean));
-  return { id, before, reported, after, kept };
+  const kept = new Set(lines[3].slice(1, -1).split(",").filter(Boolean));
+  return { id, before, reported, after, kept, fixtureIds };
 }
 
 describe("retention.sql", () => {
@@ -76,6 +88,7 @@ describe("retention.sql", () => {
     expect(kept.has(id.endedBefore)).toBe(false);
     expect(kept.has(id.cancelledBefore)).toBe(false);
     expect(kept.has(id.endedAfter)).toBe(true);
+    expect(kept.has(id.cancelledAfter)).toBe(true);
     expect(kept.has(id.auditBefore)).toBe(false);
     expect(kept.has(id.auditAfter)).toBe(true);
 
@@ -85,11 +98,17 @@ describe("retention.sql", () => {
     expect(reported[1]).toBeGreaterThanOrEqual(1);
   });
 
-  it("leaves both tables as they were, since the run is rolled back", () => {
-    const counts = () => localSql("select (select count(*) from locations), (select count(*) from auth.audit_log_entries)");
-    const beforeRun = counts();
-    const { id } = run();
-    expect(counts()).toBe(beforeRun);
-    expect(localSql(`select count(*) from locations where id = '${id.endedAfter}'`)).toBe("0");
+  // The locations count only: Auth may write audit rows between these separate reads.
+  it("commits nothing, since the run is rolled back", () => {
+    const locations = () => localSql("select count(*) from locations");
+    const beforeRun = locations();
+    const { fixtureIds } = run();
+    expect(locations()).toBe(beforeRun);
+    expect(
+      localSql(
+        `select (select count(*) from locations where id in (${fixtureIds}))` +
+          ` + (select count(*) from auth.audit_log_entries where id in (${fixtureIds}))`,
+      ),
+    ).toBe("0");
   });
 });
