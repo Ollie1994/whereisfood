@@ -364,6 +364,10 @@ said otherwise: Phase 4 plan decision #14.
   removal list in `src/app/map/page.tsx`'s header, its one copy, which says what each goes
   back to; `gate-markers.test.ts` fails on a marked file not listed or a listed file not
   marked. A new gate site is marked and listed in the PR that adds it
+- The `/map` browser check ("Testing") is made signed in as the admin at `aal2` (locally: the
+  magic link from Mailpit, then TOTP); signed out, `/map` only redirects. Nothing in CI serves
+  `/map`'s page while the gate stands: smoke sees the redirect, and the gate's tests stub
+  `MapClient`
 
 **Locations**
 - Overlapping non-cancelled entries for a truck are refused by the DB exclusion

@@ -350,7 +350,7 @@ npm run dev
 
 Open the URL from the `Local:` line Next prints, usually
 [http://localhost:3000](http://localhost:3000). It redirects to `/about`; `/map` sends
-everyone but the admin there too until the full launch.
+everyone but the admin at `aal2` there too until the full launch.
 <!-- SOFT-LAUNCH GATE (Phase 10 plan #5): back to "It redirects to `/map`." at the full launch (the removal list in src/app/map/page.tsx). -->
 
 If a page reloads itself in a loop under `npm run dev`: `CLAUDE.md`, "Testing" (IS #304).

@@ -17,9 +17,16 @@ const MARKER = "SOFT-LAUNCH GATE (Phase 10 plan #5)";
 const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 const PAGE = "src/app/map/page.tsx";
 
-// The removal list's paths: each `// - <path>: …` line of `page.tsx`.
+// The removal list's paths: each `// - <path>: …` line of `page.tsx` after its "THE REMOVAL
+// LIST" heading, up to the first line that isn't a comment, so a bullet elsewhere in the
+// header (its limits) isn't read as a site.
 function listedPaths(source: string): string[] {
-  return [...source.matchAll(/^\/\/ - ([^\s:]+):/gm)].map((match) => match[1]);
+  const start = source.indexOf("// THE REMOVAL LIST");
+  if (start < 0) throw new Error("listedPaths: no THE REMOVAL LIST heading in page.tsx");
+  const lines = source.slice(start).split(/\r?\n/);
+  const end = lines.findIndex((line) => !line.startsWith("//"));
+  const list = lines.slice(0, end < 0 ? lines.length : end).join("\n");
+  return [...list.matchAll(/^\/\/ - ([^\s:]+):/gm)].map((match) => match[1]);
 }
 
 // The tracked files outside `.claude/` holding the marker. `git grep` exits 1 when nothing

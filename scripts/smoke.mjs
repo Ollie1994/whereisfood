@@ -25,7 +25,9 @@ import { resolve } from "node:path";
 export const EXPECTATIONS = [
   // SOFT-LAUNCH GATE (Phase 10 plan #5): with no session, `/` and `/map` redirect to `/about`
   // (307, Next's `redirect()` in a page). At the full launch `/` expects the redirect to `/map`,
-  // and `/map` 200, html, the static CSP (the removal list in src/app/map/page.tsx).
+  // and `/map` 200, html, the static CSP (the removal list in src/app/map/page.tsx). Until then
+  // nothing in CI serves `/map`'s page, its HTML or its CSP, which only the admin sees: the
+  // `/map` browser check, signed in as the admin (`CLAUDE.md`, "The soft-launch gate"), covers it.
   { path: "/", status: 307, shape: "redirect", location: "/about", csp: "static" },
   { path: "/map", status: 307, shape: "redirect", location: "/about", csp: "static" },
   { path: "/about", status: 200, shape: "html", csp: "static" },

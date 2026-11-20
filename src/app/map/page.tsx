@@ -20,6 +20,10 @@ import { createSessionClient, readOnlyCookies } from "@/lib/supabase-session";
 //   (`requireAdmin`'s `getUser`) before redirecting.
 // - `createSessionClient` throws on a missing Supabase URL or anon key before any check, so
 //   `/map` then answers its error page, not the redirect; the rest of the app needs them too.
+// - `/map` is a function run per request now, not a static page. A request with a cookie named
+//   like a session (`hasSessionCookie`) gets past the cookie check and costs Auth calls
+//   (`getSession`, which refreshes a cookie past its `expires_at`, then `getUser`), as it does
+//   on any `/admin` path through the proxy; one with no such cookie costs only the run.
 //
 // The gate hides `/map`; it protects nothing. `/map` renders only what `/api/live` already
 // publishes, so `<MapClient />` takes no props (the no-props test), and nothing admin-only goes
