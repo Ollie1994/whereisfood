@@ -79,6 +79,7 @@ and gates nothing (#4).
   `/about` and `/integritet` expect 200 with the static CSP.
 - `src/proxy.ts` (+ test): **only if** step 1a or 4b rules out Plan A (#6).
 - `src/lib/supabase-session.ts`: `readOnlyCookies`' comment, a gate site (#5).
+- `src/app/not-found.tsx`: the "Till kartan" link pointed at `/about`, a gate site (#5).
 
 **The app name** (open decision 1): `src/app/layout.tsx`, `src/app/admin/layout.tsx`,
 `src/app/admin/error.tsx`, `src/app/admin/not-found.tsx`, `src/app/error.tsx`,
@@ -103,7 +104,8 @@ precedes production's enroll (step 16).
 **Docs:**
 - New: `RUNBOOK.md` at the root (#8).
 - `README.md`: a "Production" section (setup, the hosted-settings checklist as applied,
-  Production's variables), backups and restore, the takedown.
+  Production's variables), backups and restore, the takedown; its two sentences that `/`
+  redirects to `/map`, gate sites (#5).
 - `SECURITY.md`: #347.
 - `CLAUDE.md`: the gate's rule (#5, a gate site); "Locations" and "db layer" gain the
   retention delete beside the takedown (#10); "Where secrets live" gains production's
