@@ -566,7 +566,13 @@ Secrets).
 | Storage | No buckets | Unused |
 
 **The hosted Security Advisor.** `npx supabase db advisors --linked --type all --level info`
-(CLI 2.109.1, run 2026-11-18, before and after Enforce SSL went on, the same five each time):
+(CLI 2.109.1, run 2026-11-18, before and after Enforce SSL went on, the same five each time).
+Run it `--linked`, not by a database URL: on the preview, with a scratch table with RLS off
+and an anon grant in `public`, `--linked` reported ERROR `rls_disabled_in_public` on it, while
+runs by the session pooler's URL, with or without `options=-c pgrst.db_schemas=…`, missed it
+and never report the Auth lint below. Add `--fail-on error` to make an ERROR exit 1: it did
+with that table and exited 0 without it; without the flag every run exits 0 (IS #474, the
+table dropped after). The findings, re-read the same way on 2026-11-20, the same five:
 
 | Finding | Settled |
 |---|---|

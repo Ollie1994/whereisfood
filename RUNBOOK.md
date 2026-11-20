@@ -353,8 +353,7 @@ password or an account token, all of these; after the secret key, the first two:
 - **Settings:** README's "Hosted settings checklist", row by row, Auth's sign-ups and Redirect
   URLs included; Vercel's Production variables and its recent deployments.
 - **The database's `public` schema,** compared whole with the migrations': dump production's
-  and the local stack's schema (the local stack started, no data needed), diff them, and run
-  the Security Advisor on production (its bullet below), in one block:
+  and the local stack's schema (the local stack started, no data needed) and diff them:
 
   ```bash
   PROD_DB_URL=$(grep '^PROD_DB_URL=' .env.prod-db.local | cut -d= -f2- | tr -d "\r\"'")
@@ -364,8 +363,6 @@ password or an account token, all of these; after the secret key, the first two:
     npx supabase db dump --db-url "$PROD_DB_URL" --schema public -f prod-schema.sql
     npx supabase db dump --local --schema public -f local-schema.sql
     diff <(grep -v '^--' local-schema.sql | grep -v '^\s*$') <(grep -v '^--' prod-schema.sql | grep -v '^\s*$')
-    npx supabase db advisors --type security \
-      --db-url "$PROD_DB_URL?options=-c%20pgrst.db_schemas%3Dpublic%2Cgraphql_public"
   fi
   unset PROD_DB_URL
   ```
@@ -390,11 +387,21 @@ password or an account token, all of these; after the secret key, the first two:
 
   Locally there is no trigger on any `auth` table. A role or trigger the preview doesn't
   have is suspect.
-- **The Security Advisor** on production, the block's last command: by its URL, since the CLI
-  is normally linked to the preview, with the setting CI gives its own run. Without it, the
-  RLS-disabled lint and six more read an unset `pgrst.db_schemas`, and the RLS one passed a
-  table with RLS off (`ci.yml`'s advisor step, IS #290). The URL is the session pooler's,
-  with nothing after `/postgres` already; this run wasn't tried.
+- **The Security Advisor** on production, with the CLI linked to it for the run, then back to
+  the preview (if the CLI login was what leaked, `npx supabase login` with a new token first):
+
+  ```bash
+  npx supabase link --project-ref <production project ref>
+  npx supabase db advisors --linked --type security --level info --fail-on error; echo "advisor exit $?"
+  npx supabase link --project-ref <preview project ref>
+  ```
+
+  `--linked`, not `--db-url`: on the preview, with a scratch table with RLS off and an anon
+  grant in `public`, `--linked` reported ERROR `rls_disabled_in_public` on it (and the Auth
+  lint `auth_leaked_password_protection`, which a run by URL never reports), while a run by
+  the session pooler's URL, with or without `options=-c pgrst.db_schemas=…` on it, missed it.
+  With `--fail-on error`, `--linked` exited 1 with the table and 0 without (IS #474; the
+  table was dropped after). Read the output too: without `--fail-on`, each run exited 0.
 
 ---
 
@@ -457,20 +464,11 @@ container. In this order, since the login has to reach the new project:
    and Redirect URLs (its `/auth/callback` only, no wildcard), and the checks the Phase 10
    plan's step 13 runs on a new production project: Phase 5 #19's hosted check (the
    `sv-SE-x-icu` collation, both extensions in `extensions`, the Data API's Max rows at least
-   `MAX_ROWS`).
+   `MAX_ROWS`), and the Security Advisor while the CLI is linked to the new project:
+   `npx supabase db advisors --linked --type security --level info --fail-on error`. No
+   ERROR, each WARN fixed or accepted; why `--linked`, not a URL, is "A leaked key"'s.
 2. **`.env.prod-db.local`:** the new project's session pooler URL, before the load, so
-   nothing reaches the old project by mistake. Then the Security Advisor by that URL, with
-   `pgrst.db_schemas` on the session ("A leaked key" says why): no ERROR, each WARN fixed or
-   accepted.
-
-   ```bash
-   PROD_DB_URL=$(grep '^PROD_DB_URL=' .env.prod-db.local | cut -d= -f2- | tr -d "\r\"'")
-   if [ -z "$PROD_DB_URL" ]; then echo "NO URL: nothing checked"; else
-     npx supabase db advisors --type security \
-       --db-url "$PROD_DB_URL?options=-c%20pgrst.db_schemas%3Dpublic%2Cgraphql_public"
-   fi
-   unset PROD_DB_URL
-   ```
+   nothing reaches the old project by mistake.
 3. **The data:** README's "Restoring" against the new project: its check that `trucks` and
    `auth.users` both count 0, then its steps 1 to 4 (the admin by their old id, the load, the
    takedowns and `retention.sql`). README shows the load on the local stack; against the new
