@@ -77,15 +77,17 @@ and gates nothing (#4).
 - `tests/integration/`: the gate against the local stack.
 - `scripts/smoke.mjs` (+ `smoke.test.mjs`): `/` and `/map` expect the redirect to `/about`;
   `/about` and `/integritet` expect 200 with the static CSP.
-- `src/proxy.ts` (+ test): **only if** step 1a rules out Plan A (#6).
+- `src/proxy.ts` (+ test): **only if** step 1a or 4b rules out Plan A (#6).
 
 **The app name** (open decision 1): `src/app/layout.tsx`, `src/app/admin/layout.tsx`,
 `src/app/admin/error.tsx`, `src/app/admin/not-found.tsx`, `src/app/error.tsx`,
 `src/app/map/error.tsx`, `src/app/not-found.tsx`; `src/lib/mfa.ts` (the enroll's `issuer` and
 `friendlyName`, the label the authenticator app shows); `src/lib/login.ts` (that label named in
 the wrong-code text and in `codeIntro`); `src/proxy.ts` (`unavailablePage`'s `<title>` alone, in
-the security-critical file); and the tests that pin their texts. A factor enrolled before the
-rename keeps the old label, so step 5 precedes production's enroll (step 16).
+the security-critical file); `src/app/about/page.tsx` (step 3) and `src/app/integritet/page.tsx`
+(step 9), whichever exist by then, the other taking the name when it is written; and the tests
+that pin their texts. A factor enrolled before the rename keeps the old label, so step 5
+precedes production's enroll (step 16).
 
 **Operations (manual SQL, not app code):**
 - New: `supabase/manual/takedown.sql`, the one-transaction takedown (Phase 5 plan #7), with
@@ -139,8 +141,9 @@ manual SQL, by the db layer's "no function deletes" (Phase 5 plan #10).
 Each step is one issue and one PR into `dev`, except where a step is settings only, recorded
 on its issue. Every PR merges through CI's required checks (`CLAUDE.md`, "Testing"). **Step 1
 comes first**; step 2's decisions are settled as the steps that need them reach them; steps
-3–12 may run in any order their own dependencies allow (named in each step); steps 13–17 run
-in order, after every step before them; step 18 runs alongside from step 17 on.
+3–12 (4b included) may run in any order their own dependencies allow (named in each step);
+steps 13–17 run in order, after every step before them; step 18 runs alongside from step 17
+on.
 
 0. **This plan.** The plan file, and `CLAUDE.md`'s bold "Current phase plan" line naming it,
    where between phases it reads `none (the last one: .claude/plans/phase-9-security.md)`.
@@ -154,9 +157,9 @@ in order, after every step before them; step 18 runs alongside from step 17 on.
      once the access token has expired, a load of `/map` makes `getSession()` refresh, and
      the new tokens can't be written back. Does the next request, presenting the used refresh
      token, keep the session, or does Auth's reuse detection end it? It decides Plan A or the
-     proxy branch (#6). Steps 4 and 5 wait for it. The same probe on `dev`'s preview runs
-     after step 4 merges, since only `dev`'s preview builds with the secret key
-     (`CLAUDE.md`, "Where an issue's browser checks run").
+     proxy branch (#6). Steps 4 and 5 wait for it. The same probe on `dev`'s preview is step
+     4b, since only `dev`'s preview builds with the secret key (`CLAUDE.md`, "Where an
+     issue's browser checks run").
    - **(b)** Supabase's key-rotation docs read, for step 15 (its newer and legacy API keys
      rotate differently).
    - **(c)** What a paused free project answers the admin screen and `/api/live`, from the
@@ -174,9 +177,14 @@ in order, after every step before them; step 18 runs alongside from step 17 on.
    check's `/` and `/map` expectations; the gate's unit and integration tests; the no-props
    test; the marker test; the removal list in `map/page.tsx`'s header; `CLAUDE.md`'s gate
    rule. Needs steps 1a and 3. If #6's branch is needed, the proxy branch and its tests join
-   this PR as gate sites, the branch its own function. **After it merges,** step 1a's probe
-   runs on `dev`'s preview, recorded on this issue; if it shows a logout where the local run
-   didn't, #6's branch follows in a PR of its own, before step 13.
+   this PR as gate sites, the branch its own function.
+4b. **The gate on `dev`'s preview** (#6), its own issue, blocked by step 4, blocking step 13
+   (the owner's call, round 2 on PR #447): step 1a's probe on `dev`'s preview, recorded on
+   this issue. If it shows a logout where the local run didn't: the owner's call on
+   `CLAUDE.md`'s "never `/map`" proxy rule (open decision 10), then #6's branch in this
+   issue's PR, holding only gate sites, each with the marker, and the removal list in
+   `map/page.tsx`'s header gaining them. If the session survives, the issue closes with the
+   result and no PR.
 5. **The app name** (open decision 1) in the files under "Files". Needs step 4 merged (both
    touch `map/` and the tests).
 
@@ -201,7 +209,7 @@ in order, after every step before them; step 18 runs alongside from step 17 on.
     takedown request; a paused project (step 1c, open decision 8); a restore (step 8); the
     weekly routine (the dump, then `retention.sql`, then the alerts' cover from open decision
     7, with the date the first retention row comes due). Needs steps 1c and 6–8 and open
-    decisions 7, 8 and 9.
+    decisions 7 and 8; open decision 9 is settled on this step's issue.
 11. **`SECURITY.md`** (#347): how an in-house finding goes to a GitHub private security
     advisory until its fix ships (the scope draft's Q36).
 12. **#349,** the SonarQube Cloud re-scan: the account with two-factor at creation, each
@@ -214,9 +222,12 @@ in order, after every step before them; step 18 runs alongside from step 17 on.
     `MAX_ROWS`); README's hosted-settings checklist applied, "Write audit logs to the database"
     included; the Security Advisor (`db advisors --linked --type security`, or the
     dashboard): no ERROR, each WARN fixed or accepted with a reason (leaked-password
-    protection's, on Free), INFO read; Auth's Site URL and Redirect URLs set to production's
-    `vercel.app` address and its `/auth/callback` alone, as README's checklist sets the
-    preview's to `dev`'s alias; the admin user with a long random password (README, "5. Create
+    protection's, on Free), INFO read; Auth's Site URL and Redirect URLs set to the one
+    production `vercel.app` host the admin logs in from in step 16, named on the issue, and
+    that host's `/auth/callback` alone, as README's checklist names `dev`'s alias for the
+    preview; step 7's no-row DELETE on `auth.audit_log_entries` repeated in production's SQL
+    editor and recorded beside the preview's, since the two projects' grants may differ; the
+    admin user with a long random password (README, "5. Create
     the admin user"), its TOTP factor enrolled in step 16, through the deployed app; the
     email-budget lockout as open decision 6 settles it. README's "Production" section written.
 14. **Vercel and R2:** the Ignored Build Step read as set to cancel a Production build from any
@@ -325,9 +336,9 @@ and open no hole.
   because only the admin sees `/map` (an edit link, unconfirmed entries, the admin's id):
   `CLAUDE.md`'s gate rule forbids it for as long as the gate stands.
 - **One place.** The page alone (Plan A, #6): the proxy, the CSPs and `next.config.ts` are
-  untouched, so the removal edits no security-critical file. If #6's branch is needed, it is
-  its own function in `proxy.ts` with its own tests, so removing it leaves the matcher and the
-  other branches as they are.
+  untouched, so the removal edits no security-critical file. If #6's branch is needed (step 1a
+  or 4b), it is its own function in `proxy.ts` with its own tests, so removing it leaves the
+  matcher and the other branches as they are.
 - **Every site findable.** Each gate site carries the marker comment `SOFT-LAUNCH GATE (Phase
   10 plan #5)`. The sites: `MapPage`, `Home`, the smoke check's `/` and `/map` expectations,
   the gate's tests, the no-props test, the marker test itself and `CLAUDE.md`'s gate rule.
@@ -340,8 +351,9 @@ and open no hole.
   `.claude/` holds the marker and isn't listed, or a listed file doesn't hold it. `.claude/`
   is left out because the plans and the log quote the marker as history. Seen red once each
   way, locally, before its PR.
-- **Its own PR** (step 4), holding only gate sites, so its diff is the map of what Phase 11
-  undoes.
+- **Its own PR** (step 4), holding only gate sites, and step 4b's if it adds the proxy
+  branch, so their diffs are the map of what Phase 11 undoes (the owner's call, round 2 on PR
+  #447).
 - **The removal's checks**, for Phase 11's plan: `git grep` finds no marker outside
   `.claude/`; the build shows `/map` static again; smoke passes with the restored
   expectations; `/api/live`'s cache headers are unchanged (the gate never touched them); a
@@ -360,8 +372,8 @@ list (the owner chose the test).
 back, so the browser keeps presenting the used refresh token, which Auth's reuse detection may
 answer by ending the session. Step 1a probes it locally before the gate is built, and again
 on `dev`'s preview once step 4 merges, the first place a gated `/map` can build with the
-secret key (the owner's call, round 1 on PR #447). If the session survives, Plan A: the page
-alone (IS #373 (Phase 10)). If it ends, a `/map` branch in the proxy, which changes
+secret key (the owner's call, round 1 on PR #447), as step 4b, an issue of its own (round
+2). If the session survives, Plan A: the page alone (IS #373 (Phase 10)). If it ends, a `/map` branch in the proxy, which changes
 `CLAUDE.md`'s "never `/map`" proxy rule (Phase 7 plan #10, #28; `src/proxy.test.ts` pins it):
 the owner's call, with the rule's text changed in the same PR (open decision 10).
 
@@ -418,8 +430,8 @@ the files but is new code to test, for one person once a week.
 
 ## Acceptance Criteria
 
-- [ ] Step 1a's result is on its issue (locally) and on step 4's (on `dev`'s preview, after
-  the merge): whether a refresh on `/map` that couldn't be stored ended the session, and Plan
+- [ ] Step 1a's result is on its issue (locally) and step 4b's on its own (on `dev`'s
+  preview): whether a refresh on `/map` that couldn't be stored ended the session, and Plan
   A or the branch named, with the owner's call recorded if it is the branch. Steps 1b and 1c
   are recorded too.
 - [ ] Each open decision below is settled and struck through here with "→ settled".
@@ -435,8 +447,9 @@ the files but is new code to test, for one person once a week.
   test fails on a marked file not on the removal list and on a listed file without the marker,
   each seen red once locally; step 4's PR holds only listed sites; `CLAUDE.md` holds the gate
   rule.
-- [ ] The app name in every file under "Files"; `git grep WhereIsFood -- src` finds nothing,
-  and the public title matches the name.
+- [ ] The app name in every file under "Files"; `git grep` over `src` for each name the
+  chosen one replaces ("WhereIsFood", and "Var är maten?" if the public title changes) finds
+  nothing, and the public title matches the name.
 - [ ] `takedown.sql`: an integration test seeds two trucks with history and a `users` row
   pointing at one, runs the file, and finds that truck, its locations and the pointer gone and
   the other truck untouched; on an id that doesn't exist it changes nothing and says so.
@@ -458,8 +471,10 @@ the files but is new code to test, for one person once a week.
   creation.
 - [ ] The production project: Phase 5 #19's hosted check passes; each hosted-checklist item is
   recorded as applied; the Security Advisor shows no ERROR, each WARN fixed or accepted with a
-  reason, INFO read; Auth's Site URL is production's `vercel.app` address and its Redirect
-  URLs that address's `/auth/callback` alone; the admin has a long random password.
+  reason, INFO read; Auth's Site URL is the production host named on the issue and its
+  Redirect URLs that host's `/auth/callback` alone; the no-row DELETE on
+  `auth.audit_log_entries` succeeded in production's SQL editor; the admin has a long random
+  password.
 - [ ] Vercel and R2: the Ignored Build Step read as set, no `ignoreCommand` on `dev` or
   `main`; R2's CORS rule names the production origin; Production's variables come only from
   the new project.
@@ -499,8 +514,8 @@ the files but is new code to test, for one person once a week.
 9. **The lost-phone route** (Phase 9 plan open decision 4): where the recovery's calls run,
    and whether the login needs an unenroll screen. Phase 9's leaning: the dashboard's SQL
    editor, deleting the factor and the user's `auth.sessions` rows, then a re-enroll at once.
-10. **Plan A or a proxy branch** for the gate, from step 1a and its re-run on `dev`'s preview
-    after step 4 (#6); the branch changes
+10. **Plan A or a proxy branch** for the gate, from step 1a and its re-run on `dev`'s preview,
+    step 4b (#6); the branch changes
     `CLAUDE.md`'s proxy rule, the owner's call.
 11. **How a restore recreates the admin by its old id** (step 8): Studio's "Add user" makes a
     new id, and the data dump loads with its foreign keys unchecked (Principles and risks,
