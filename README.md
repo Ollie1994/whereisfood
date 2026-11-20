@@ -727,27 +727,32 @@ says why one statement works under the `NO ACTION` foreign keys.
    `select id, name, instagram_handle, created_at from trucks order by name;`.
 2. Paste the file there and replace `TRUCK_ID` with the id and `TRUCK_NAME` with the name
    exactly as that row shows it, keeping the quotes (a quote in the name is doubled). Both
-   must match one truck, so an id copied from the wrong row changes nothing. Left unedited,
-   it fails and changes nothing.
-3. Run it, and read its one row: `taken down`, the truck's name and the counts removed. An id
-   and name that match no truck give `no truck with this id and name: nothing changed`, so a
-   second run on the same truck is safe. An error changes nothing either: a foreign-key error
-   (`23503`) names the table still pointing at the truck, which the file then needs to
-   handle before it is run again.
+   must match one truck, so an id and a name from different trucks change nothing. Two
+   trucks with the same name are told apart only by the id: check it against the row's other
+   columns. Left unedited, it fails and changes nothing.
+3. Run it, and read its one row. `taken down` gives the truck's name and the counts removed.
+   Anything else changed nothing: `no truck with this id` (also a truck already taken down,
+   so a second run is safe), `the name does not match this id` (the row shows the name the
+   id has; a typo, or `TRUCK_NAME` left in), or an error. A foreign-key error (`23503`) names
+   the table still pointing at the truck, which the file then needs to handle before it is
+   run again.
 4. Add a line to **the takedown log**: the truck's id and the date (UTC), nothing else. It is
    a plain text file kept with the weekly dumps on the owner's machine, never in the repo or
    the database, since a restore replaces the database. A restore from a dump re-runs every
    takedown the log holds, whatever its date (Phase 10 plan, step 8), reading each truck's
-   name from step 1's query on the restored database; one already gone gives "no truck …".
+   name from step 1's query on the restored database; one already gone gives `no truck with
+   this id`, while `the name does not match this id` means it wasn't taken down: fix the name
+   and run it again.
 
-The map drops the truck within about two minutes: `/api/live` is cached for 60 s and may be
-served stale for 60 s more (`CLAUDE.md`, "`/api/live`"). Until the dumps from before the
+An open map drops the truck within about three minutes: `/api/live` is cached for 60 s and
+may be served stale for 60 s more (`CLAUDE.md`, "`/api/live`"), and the map polls it every
+60 s (`POLL_MS`, `src/hooks/useLocations.ts`). Until the dumps from before the
 takedown age out, they still hold the truck's rows; how many are kept is Phase 10 plan's
 open decision 5.
 
 `tests/integration/takedown.test.ts` runs the file on the local stack, as `postgres`. A hosted
-project's SQL editor runs it as the dashboard's role, which hasn't been probed: if it reads
-no row for a truck step 1 shows, the result is "no truck …", so compare it with step 1.
+project's SQL editor runs it as the dashboard's role, which hasn't been probed with it; an
+error there changes nothing, as in step 3.
 
 ---
 

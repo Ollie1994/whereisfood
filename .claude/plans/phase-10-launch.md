@@ -135,7 +135,7 @@ Ignored Build Step; R2's CORS rule; `main`'s ruleset (CodeQL's checks); the aler
 | `ABOUT_PATH`, `PRIVACY_PATH` | lib constants | For the code that sends someone to the pages |
 | `AdminNav` | component | Gains "Karta", to `/map`, as a plain `<a>`, so it loads `/map` as a new document under its static CSP. A `next/link` added for a probe to `/admin/login` (no nav there, but the proxy's nonce CSP, as on the admin pages), clicked once in headless Chrome (PR #468, round 2), stayed in that page's document, under its nonce CSP, and the map drew with no CSP violation reported |
 | the marker test | unit test | Every tracked file outside `.claude/` holding the gate's marker is on the removal list in `map/page.tsx`'s header, and every listed file holds it (#5) |
-| `takedown.sql` | manual SQL | For one truck id and its name (both must match, round 1 on PR #470), in one transaction: delete its locations, clear or delete each `users` row pointing at it, delete the truck; report the counts |
+| `takedown.sql` | manual SQL | For one truck id and its name (both must match, so an id and a name from different trucks change nothing: round 1 on PR #470), in one transaction: delete its locations, clear or delete each `users` row pointing at it, delete the truck; report the counts |
 | `retention.sql` | manual SQL | Delete `locations` that ended more than the retention period ago, and `auth.audit_log_entries` older than theirs, reporting each delete's row count (open decisions 2, 3) |
 | the weekly dump | runbook command | `npx supabase db dump --data-only --schema public` against production, the last N kept (#11, open decision 5) |
 

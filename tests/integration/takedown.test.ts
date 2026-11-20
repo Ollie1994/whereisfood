@@ -14,23 +14,24 @@ function fill(sql: string, placeholder: string, value: string): string {
   return sql.replace(placeholder, `'${value.replaceAll("'", "''")}'`);
 }
 
-// The file run on a truck's id and name: its one row's columns (`localSql` gives psql's
-// unaligned output, `|`-separated): result, truck, locations_deleted, users_cleared,
-// trucks_deleted.
+// The file run on a truck's id and name: its one row's columns, result, truck,
+// locations_deleted, users_cleared, trucks_deleted. `localSql` gives psql's unaligned output,
+// `|`-separated, so a name holding `|` would split wrongly; the fixtures' names hold none.
 function takedown(truckId: string, name: string): string[] {
   return localSql(fill(fill(FILE, "'TRUCK_ID'", truckId), "'TRUCK_NAME'", name)).split("|");
 }
 
 const count = (sql: string) => Number(localSql(`select count(*) from ${sql}`));
 
-// The rows of the three tables the file writes: every truck's and location's id, and every
-// `users` row's id with its `truck_id`, sorted, to show a run changed nothing.
+// The rows of the three tables the file writes, to show a run changed nothing: every truck's
+// and location's id, and every `users` row's id with its `truck_id`, sorted, each table in its
+// own slot, empty when the table is.
 const snapshot = () =>
   localSql(
-    "select concat_ws(' / '," +
-      " (select string_agg(id::text, ',' order by id) from trucks)," +
-      " (select string_agg(id::text, ',' order by id) from locations)," +
-      " (select string_agg(id::text || ':' || coalesce(truck_id::text, '-'), ',' order by id) from users))",
+    "select concat(" +
+      " coalesce((select string_agg(id::text, ',' order by id) from trucks), ''), ' / '," +
+      " coalesce((select string_agg(id::text, ',' order by id) from locations), ''), ' / '," +
+      " coalesce((select string_agg(id::text || ':' || coalesce(truck_id::text, '-'), ',' order by id) from users), ''))",
   );
 
 const NAME = (name: string) => `itest-fixture-${name}`;
@@ -61,14 +62,21 @@ describe("takedown.sql", () => {
     expect(localSql(`select truck_id from users where id = '${bystanderOwner}'`)).toBe(bystander);
   });
 
-  it("changes nothing for an id that is no truck, or a truck's id with another name, and says so", async () => {
+  it("changes nothing for an id that is no truck, or a truck's id with another name, and says which", async () => {
     const other = await seedTruck("Takedown other");
     await seedLocation(other);
     await createFixtureUser(other);
     const before = snapshot();
-    const nothing = ["no truck with this id and name: nothing changed", "", "0", "0", "0"];
-    expect(takedown(randomUUID(), NAME("Takedown other"))).toEqual(nothing);
-    expect(takedown(other, NAME("Takedown another"))).toEqual(nothing);
+    expect(takedown(randomUUID(), NAME("Takedown other"))).toEqual(["no truck with this id: nothing changed", "", "0", "0", "0"]);
+    expect(takedown(other, NAME("Takedown another"))).toEqual([
+      "the name does not match this id: nothing changed",
+      NAME("Takedown other"),
+      "0",
+      "0",
+      "0",
+    ]);
+    // The id filled in and TRUCK_NAME left as it is.
+    expect(localSql(fill(FILE, "'TRUCK_ID'", other)).split("|")[0]).toBe("the name does not match this id: nothing changed");
     expect(snapshot()).toEqual(before);
   });
 
@@ -79,15 +87,16 @@ describe("takedown.sql", () => {
     expect(snapshot()).toEqual(before);
   });
 
-  // All or nothing: a failure at the end of the statement, after its deletes ran, undoes them.
-  // A scratch table pointing at the truck (as a table added later and left out of the file
-  // would) fails the truck's delete with 23503, at the end of the statement.
-  it("changes nothing when the truck's delete fails after its locations' and pointers'", async () => {
+  // A scratch table pointing at the truck, as a table added later and left out of the file
+  // would. Split into separately committed statements, the file failed this case with a
+  // location gone and the pointer cleared (the control on PR #470, round 1).
+  it("fails with 23503 and changes nothing while another table points at the truck", async () => {
     const target = await seedTruck("Takedown blocked");
     await seedLocation(target);
     await createFixtureUser(target);
-    localSql("create table takedown_test_ref (truck_id uuid references trucks (id))");
+    localSql("drop table if exists takedown_test_ref");
     try {
+      localSql("create table takedown_test_ref (truck_id uuid references trucks (id))");
       localSql(`insert into takedown_test_ref values ('${target}')`);
       const before = snapshot();
       expect(() => takedown(target, NAME("Takedown blocked"))).toThrow(/takedown_test_ref_truck_id_fkey/);
