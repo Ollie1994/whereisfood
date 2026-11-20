@@ -135,7 +135,7 @@ Ignored Build Step; R2's CORS rule; `main`'s ruleset (CodeQL's checks); the aler
 | `ABOUT_PATH`, `PRIVACY_PATH` | lib constants | For the code that sends someone to the pages |
 | `AdminNav` | component | Gains "Karta", to `/map`, as a plain `<a>`, so it loads `/map` as a new document under its static CSP. A `next/link` added for a probe to `/admin/login` (no nav there, but the proxy's nonce CSP, as on the admin pages), clicked once in headless Chrome (PR #468, round 2), stayed in that page's document, under its nonce CSP, and the map drew with no CSP violation reported |
 | the marker test | unit test | Every tracked file outside `.claude/` holding the gate's marker is on the removal list in `map/page.tsx`'s header, and every listed file holds it (#5) |
-| `takedown.sql` | manual SQL | For one truck id and its name (both must match, so an id and a name from different trucks change nothing: round 1 on PR #470), in one transaction: delete its locations, clear or delete each `users` row pointing at it, delete the truck; report the counts |
+| `takedown.sql` | manual SQL | For one truck id and its name (both must match, so an id and a name from different trucks change nothing: round 1 on PR #470), in one transaction: delete its locations, clear each `users` row's `truck_id` (the account stays, round 3 on PR #470), delete the truck; report the counts |
 | `retention.sql` | manual SQL | Delete `locations` that ended more than the retention period ago, and `auth.audit_log_entries` older than theirs, reporting each delete's row count (open decisions 2, 3) |
 | the weekly dump | runbook command | `npx supabase db dump --data-only --schema public` against production, the last N kept (#11, open decision 5) |
 
@@ -344,7 +344,8 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     Phase 10 row, "Pre-deploy automation"'s "Before the production deploy" (done), "Open
     decisions" (the retention period, the app name, the removal contact, as settled),
     "Principles and risks"' backups item (the dump count, the restore method, the takedown
-    log), Pricing's
+    log), the takedown's "clear or delete each `users` row" (lines 474 and 1071), which only
+    clears them (round 3 on PR #470), Pricing's
     "Supabase Free" item (the paused project, open decision 8); brings README's status parts in
     line; carries forward the decisions that outlive the phase (#5 and #10 at least: #5's row
     names the removal list in `map/page.tsx`'s header and #5's removal checks, for Phase 11's

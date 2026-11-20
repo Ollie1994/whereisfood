@@ -11,7 +11,9 @@ const FILE = readFileSync(new URL("../../supabase/manual/takedown.sql", import.m
 // The file with `placeholder` replaced by `value`, quoted; it must hold the placeholder once.
 function fill(sql: string, placeholder: string, value: string): string {
   if (sql.split(placeholder).length !== 2) throw new Error(`takedown.sql: not exactly one ${placeholder}`);
-  return sql.replace(placeholder, `'${value.replaceAll("'", "''")}'`);
+  const quoted = `'${value.replaceAll("'", "''")}'`;
+  // A function, so a `$` in the value isn't read as a replacement pattern.
+  return sql.replace(placeholder, () => quoted);
 }
 
 // The file run on a truck's id and name: its one row's columns, result, truck,
@@ -36,7 +38,12 @@ const snapshot = () =>
 
 const NAME = (name: string) => `itest-fixture-${name}`;
 
-beforeAll(resetTables);
+// A scratch table a killed run of the 23503 case left would block `resetTables` (23503), so
+// it goes first.
+beforeAll(async () => {
+  localSql("drop table if exists takedown_test_ref");
+  await resetTables();
+});
 afterAll(resetTables);
 
 describe("takedown.sql", () => {

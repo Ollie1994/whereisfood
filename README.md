@@ -740,12 +740,14 @@ says why one statement works under the `NO ACTION` foreign keys.
    a plain text file kept with the weekly dumps on the owner's machine, never in the repo or
    the database, since a restore replaces the database. A restore from a dump re-runs every
    takedown the log holds, whatever its date (Phase 10 plan, step 8), reading each truck's
-   name from step 1's query on the restored database; one already gone gives `no truck with
-   this id`, while `the name does not match this id` means it wasn't taken down: fix the name
-   and run it again.
+   name from step 1's query on the restored database. A logged id that query doesn't list was
+   taken down before the dump and needs no run (run anyway, it answers `no truck with this
+   id`); `the name does not match this id` means it wasn't taken down: fix the name and run it
+   again.
 
-An open map drops the truck within about three minutes: `/api/live` is cached for 60 s and
-may be served stale for 60 s more (`CLAUDE.md`, "`/api/live`"), and the map polls it every
+An open map drops the truck within about three minutes while its polls succeed and its tab
+is visible (a failed poll keeps the last markers, and a hidden tab doesn't poll): `/api/live`
+is cached for 60 s and may be served stale for 60 s more (`CLAUDE.md`, "`/api/live`"), and the map polls it every
 60 s (`POLL_MS`, `src/hooks/useLocations.ts`). Until the dumps from before the
 takedown age out, they still hold the truck's rows; how many are kept is Phase 10 plan's
 open decision 5.
