@@ -132,7 +132,7 @@ the weekly routine.)
 | `MapPage` | page (server component) | The check `withAdmin` makes (`src/lib/http/admin.ts`), from `cookies()`: `createSessionClient(readOnlyCookies(store))`, `requireAdmin({ cookieNames, auth, now })`, with no proxy before it to refresh the session (#6); `redirect(ABOUT_PATH)` for anything but `check.ok`, with no `try` around `redirect()` or `cookies()`; then `<MapClient />` with no props (#5) |
 | `Home` | page | `redirect(ABOUT_PATH)` |
 | `AboutPage` | page (static) | What this is; the map opens when the trucks are back (a gate site, #5); a link to `/integritet` (step 9) |
-| `PrivacyPage` | page (static) | What is stored and why; both retention periods, deleted in the weekly run after each ends, so up to a week later; the dump count; Vercel's and Supabase's logs (IP addresses); Auth's audit log; the removal contact |
+| `PrivacyPage` | page (static) | What is stored and why; both retention periods, deleted in the weekly run after each ends, so up to a week later, or up to 8 weeks during a security incident; the dump count, with the incident hold's and an old project's 8-week caps (IS #457); Vercel's and Supabase's logs (IP addresses); Auth's audit log; the removal contact |
 | `ABOUT_PATH`, `PRIVACY_PATH` | lib constants | For the code that sends someone to the pages |
 | `AdminNav` | component | Gains "Karta", to `/map`, as a plain `<a>`, so it loads `/map` as a new document under its static CSP. A `next/link` added for a probe to `/admin/login` (no nav there, but the proxy's nonce CSP, as on the admin pages), clicked once in headless Chrome (PR #468, round 2), stayed in that page's document, under its nonce CSP, and the map drew with no CSP violation reported |
 | the marker test | unit test | Every tracked file outside `.claude/` holding the gate's marker is on the removal list in `map/page.tsx`'s header, and every listed file holds it (#5) |
@@ -626,7 +626,10 @@ would name and rotate the files but is new code to test, for one person once a w
    backups. Leaning: 4.~~ → **settled** (the owner, 2026-11-20, IS #455, approving the leaning):
    the newest 4, so a removal leaves the backups about four weeks on. Amended (the owner,
    2026-11-20, IS #457, round 5 on PR #473): during an incident, the dumps from before it are
-   held aside at most 8 weeks, then deleted (`RUNBOOK.md`, "The weekly routine").
+   held aside at most 8 weeks, then deleted (`RUNBOOK.md`, "The weekly routine"). And (the
+   owner, round 6): `retention.sql` is skipped during an incident only until the takeover's
+   audit-log export is saved, at most 8 weeks; after a restore into a new project, the old
+   one is deleted at most 8 weeks after the restore (`RUNBOOK.md`, "A restore").
 6. **The email-budget lockout** (#3): accepted again, or a mitigation, before step 13.
 7. ~~**How the usage, spend and 5xx alerts are covered** on the free plans (Phase 9 plan open
    decision 7): a look at each usage page in the weekly routine; an external free uptime

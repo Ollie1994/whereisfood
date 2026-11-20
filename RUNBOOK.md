@@ -37,10 +37,11 @@ Once a week, in this order:
    decisions 2 and 3). The first audit-log rows come due 30 days after the production
    project's first Auth event (the admin's creation, with "Write audit logs to the database"
    on), and the first locations 52 weeks after the first production location ends. Until
-   then it answers `0` for that count, which is expected. **Skip it while an incident is
-   being investigated** (a takeover, a leaked key): it deletes the audit rows "A takeover",
-   step 5, reads, and no dump holds them (the dumps hold `public` only). README's `DUMP OK`
-   line doesn't know about an incident; this rule does.
+   then it answers `0` for that count, which is expected. **During an incident** (a
+   takeover, a leaked key), **skip it until "A takeover", step 5's export is saved, and never
+   more than 8 weeks** (the owner's call, IS #457): it deletes the audit rows that export
+   reads, and no dump holds them (the dumps hold `public` only). README's `DUMP OK` line
+   doesn't know about an incident; this rule does.
 3. **The usage look**, which stands in for the alerts neither free plan offers (open decision
    7, IS #457):
    - **Supabase:** the organization's Usage page, each figure against its limit (database size
@@ -92,8 +93,8 @@ plan's #13. Its order:
    the SQL editor, `select u.id, a.email from users u join auth.users a on a.id = u.id where
    u.is_admin;`: one row, the admin's id, and an email that should be your mailbox's. A thief
    who held the mailbox may have moved it to theirs, and step 4's link goes to that address.
-   Two rows: shut the other out as "A lost phone", step 2, says, then go on here with yours.
-   After step 5, follow "A leaked key" to rotate whatever made it.
+   Two rows: shut the other out as "A lost phone", step 2, says (it tells yours by its id,
+   not the email), then come back to this step with yours. "A leaked key" comes after step 5.
    Then, with the secret key read without echoing (`read -rs SECRET_KEY`), as README's
    restore step 1 does, and `<your email>` in place:
 
@@ -127,8 +128,8 @@ plan's #13. Its order:
 4. **Re-enroll at once:** log in with the link, which shows the enroll QR code. Until then any
    `aal1` session can fill the free factor slot (#13).
 5. **See what happened**, in the SQL editor. The audit log keeps 30 days (`retention.sql`),
-   so skip the weekly `retention.sql` until this is done, keeping the dump and its hold ("The
-   weekly routine", step 1), and save the result with the editor's Export:
+   so the weekly `retention.sql` waits for this export, at most 8 weeks, while the dump and its
+   hold go on ("The weekly routine"). Save the result with the editor's Export:
 
    ```sql
    select created_at, payload->>'action' as action, ip_address
@@ -185,19 +186,32 @@ no secret key outside Supabase, no unenroll screen; IS #457):
 
    It answers one row, with your email. No row means no admin: stop. Two rows mean someone made
    a second admin, which a signed-in user can't do with their own session, but a key or the
-   database password can. Tell yours by its email (the takeover's step 2 restores it first if
-   it was changed), and keep the other's rows as evidence, but shut it out, with its id:
-   - `update users set is_admin = false where id = '<other id>';`
-   - ban it at Auth, the takeover's step 2 `curl` with `-d '{"ban_duration":"876000h"}'` and
-     `<other id>`;
-   - `delete from auth.mfa_factors where user_id = '<other id>';` and
-     `delete from auth.sessions where user_id = '<other id>';`.
+   database password can. **Tell yours by its id**, not the email, which a thief may have
+   changed: the `users` row with `is_admin` true in the newest weekly dump from before the
+   incident (the id README's restore calls the old id). Then shut the other out, keeping its
+   rows as evidence:
+   1. Export its sessions and factors first (they hold its IPs, user agents and times), with
+      the editor's Export:
+      `select * from auth.sessions where user_id = '<other id>';` and
+      `select * from auth.mfa_factors where user_id = '<other id>';`.
+   2. Then, in the SQL editor:
 
-   A ban refuses new sign-ins but ends no session. Probed on the local stack with a throwaway
-   user (IS #457): `200`, then a password sign-in answered `400` `user_banned`, while its
-   session stayed. Then treat it as "A leaked key" too, after the steps here, and go back to
-   where you came from.
-3. Delete the admin's factor and every session they have, in one statement:
+      ```sql
+      update users set is_admin = false where id = '<other id>';
+      update auth.users set banned_until = now() + interval '100 years' where id = '<other id>';
+      delete from auth.mfa_factors where user_id = '<other id>';
+      delete from auth.sessions where user_id = '<other id>';
+      ```
+
+   A ban refuses new sign-ins but ends no session, hence the deletes. Probed on the local
+   stack with throwaway users (IS #457): after the ban by SQL, a password sign-in answered
+   `400` `user_banned`; a ban through the admin API left the user's session in place. Use a
+   finite date: `banned_until = 'infinity'` made the sign-in answer `500` and the admin API
+   fail to delete the user. Then come back to the step that sent you here; "A leaked key"
+   follows once the section you came from is finished.
+3. Delete the admin's factor and every session they have, in one statement. In a takeover,
+   export the sessions first, since the thief's are among them:
+   `select * from auth.sessions where user_id = (select id from public.users where is_admin);`.
 
    ```sql
    with admin as (
@@ -286,24 +300,42 @@ password or an account token, all of these; after the secret key, the first two:
   does).
 - **Settings:** README's "Hosted settings checklist", row by row, Auth's sign-ups and Redirect
   URLs included; Vercel's Production variables and its recent deployments.
-- **The database,** each query in the SQL editor against what the migrations give, here the
-  local stack's answers (IS #457):
+- **The database's `public` schema,** compared whole with the migrations': dump production's
+  and the local stack's schema (the local stack started, no data needed) and diff them:
 
-  ```sql
-  select grantee, table_name, privilege_type from information_schema.role_table_grants
-  where table_schema = 'public' and grantee in ('anon', 'authenticated');
-  select tablename, policyname from pg_policies where schemaname = 'public';
-  select event_object_table, trigger_name from information_schema.triggers
-  where trigger_schema = 'public';
-  select rolname from pg_roles where rolcanlogin order by 1;
+  ```bash
+  PROD_DB_URL=$(grep '^PROD_DB_URL=' .env.prod-db.local | cut -d= -f2- | tr -d "\r\"'")
+  npx supabase db dump --db-url "$PROD_DB_URL" --schema public -f prod-schema.sql
+  npx supabase db dump --local --schema public -f local-schema.sql
+  diff <(grep -v '^--' local-schema.sql | grep -v '^\s*$') <(grep -v '^--' prod-schema.sql | grep -v '^\s*$')
   ```
 
-  Locally: `authenticated` `users` `SELECT` only; the one policy `users_select_own`; the one
-  trigger `locations_updated_at`. A login role you don't recognise is suspect: the hosted
-  list wasn't read, so compare it with the preview's. Then the Security Advisor on
-  production, by its URL, since the CLI is normally linked to the preview:
-  `npx supabase db advisors --db-url "$PROD_DB_URL" --type security`, with `PROD_DB_URL` read
-  as README's weekly dump reads it (`--db-url` is in the CLI's `--help`; not run).
+  The dump holds every table's RLS setting, each policy with its condition, the grants
+  (`PUBLIC`'s included), functions and their grants, triggers and default privileges. The
+  preview's diffed this way showed 3 lines only, all on the local side: `ALTER DEFAULT
+  PRIVILEGES … GRANT UPDATE ON SEQUENCES` to `anon`, `authenticated` and `service_role` (IS
+  #457). Anything else is a change to explain. The control: a `SECURITY DEFINER` function
+  that anon could run, a `GRANT SELECT … TO PUBLIC` and RLS turned off on `trucks`, planted
+  on the local stack, each showed in the diff, and were removed after. Delete both files
+  after, and `unset PROD_DB_URL`.
+- **What a `public` dump doesn't hold:** roles and triggers in other schemas, in the SQL
+  editor, compared with the same queries on the preview (the hosted answers weren't read):
+
+  ```sql
+  select rolname, rolbypassrls from pg_roles where rolcanlogin or rolbypassrls order by 1;
+  select n.nspname, c.relname, t.tgname from pg_trigger t
+  join pg_class c on c.oid = t.tgrelid join pg_namespace n on n.oid = c.relnamespace
+  where not t.tgisinternal and n.nspname <> 'public' order by 1, 2, 3;
+  ```
+
+  Locally there is no trigger on any `auth` table. A role or trigger the preview doesn't
+  have is suspect.
+- **The Security Advisor** on production, by its URL, since the CLI is normally linked to
+  the preview, with the setting CI gives its own run: without it, the RLS-disabled lint and
+  six more read an unset `pgrst.db_schemas`, and the RLS one passed a table with RLS off
+  (`ci.yml`'s advisor step, IS #290):
+  `npx supabase db advisors --db-url "$PROD_DB_URL?options=-c%20pgrst.db_schemas%3Dpublic%2Cgraphql_public" --type security`
+  (the session pooler's URL, with nothing after `/postgres` already; not run).
 
 ---
 
@@ -316,7 +348,8 @@ A truck that asks to be removed is removed, company or sole trader (IS #373 (Pha
 2. Reply to the requester. The map drops the truck within about three minutes; the weekly
    dumps from before it age out over about four weeks (README, "Backups"), or, while an
    incident hold is open, when the held dumps are deleted, at most 8 weeks after the hold
-   began ("The weekly routine").
+   began ("The weekly routine"). After a restore, the old project also holds them until it
+   is deleted, at most 8 weeks after the restore ("A restore", step 7).
 
 ---
 
@@ -345,7 +378,10 @@ warning email "roughly one week before", and activity after it prevents the paus
 From a weekly dump, following README's "Backups" → "Restoring". It goes only into a fresh
 database, so on a hosted project into a **new** project, in a free slot: Free allows two
 active projects, and pausing another frees one. A paused project keeps its data and users,
-so it isn't fresh. In this order, since the login has to reach the new project:
+so it isn't fresh. **Skip the weekly dump until step 3's load is done**: from step 2 on, its
+URL points at the new project, and a dump of it before the load would prune a good one.
+Start the local stack first (`npx supabase start`): step 3's load runs through its
+container. In this order, since the login has to reach the new project:
 
 1. **The new project:** link the CLI to it first, since a push goes to whichever project the
    CLI is linked to (README, "Hosted preview database", links the preview), then push the
@@ -382,12 +418,15 @@ so it isn't fresh. In this order, since the login has to reach the new project:
    Then redeploy Production.
 5. **Log in and enroll TOTP at once** (README's "Restoring", step 5), now that the app points
    at the new project. Then look at `/map`.
-6. **The CLI back to the preview:** `npx supabase link --project-ref <preview project ref>`.
-   README's "Later migrations go up with plain `npx supabase db push`" assumes the preview;
-   left linked to production, the next migration would skip it.
-7. **The old project:** pause it once the new one works, and delete it once the restore is
-   confirmed. Until then it still holds every truck's history, a takedown or retention run
-   since misses it, and its keys still work. Say so in a takedown's reply meanwhile.
+6. **The CLI back to the preview:** resume the preview first if you paused it for the slot,
+   then `npx supabase link --project-ref <preview project ref>`. README's "Later migrations
+   go up with plain `npx supabase db push`" assumes the preview; left linked to production,
+   the next migration would skip it.
+7. **The old project:** pause it once the new one works, and delete it when the restore is
+   confirmed or 8 weeks after the restore, whichever comes first (the owner's call, IS
+   #457). Until then it still holds every truck's history, a takedown or retention run since
+   misses it (a paused project runs no SQL), and its keys still work: say so in a takedown's
+   reply meanwhile ("A takedown request").
 
 Not tried: neither the hosted restore nor this move has been run (README, "Restoring",
 Limits).

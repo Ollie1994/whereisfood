@@ -751,7 +751,9 @@ is cached for 60 s and may be served stale for 60 s more (`CLAUDE.md`, "`/api/li
 60 s (`POLL_MS`, `src/hooks/useLocations.ts`). Until the dumps from before the
 takedown age out, they still hold the truck's rows: about four weeks, as four are kept
 ("Backups" below), or, while an incident hold keeps older dumps, until it ends, at most 8
-weeks after it began (`RUNBOOK.md`, "The weekly routine").
+weeks after it began (`RUNBOOK.md`, "The weekly routine"). After a restore into a new
+project, the old one holds them until it is deleted, at most 8 weeks after the restore
+(`RUNBOOK.md`, "A restore").
 
 `tests/integration/takedown.test.ts` runs the file on the local stack, as `postgres`. The
 preview's SQL editor runs as `postgres` too (IS #454's probe), but hasn't run this file, and
