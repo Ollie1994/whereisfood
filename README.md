@@ -786,7 +786,7 @@ FILE="$BACKUPS/whereisfood-$(date -u +%Y-%m-%d).sql"
 PROD_DB_URL=$(grep '^PROD_DB_URL=' .env.prod-db.local | cut -d= -f2- | tr -d "\r\"'")
 rm -f "$BACKUPS"/whereisfood-*.sql.part
 if [ -z "$PROD_DB_URL" ]; then
-  echo "NO URL: no PROD_DB_URL=<url> line read from .env.prod-db.local; nothing done"
+  echo "NO URL: no PROD_DB_URL=<url> line read from .env.prod-db.local; no dump made"
 elif npx supabase db dump --db-url "$PROD_DB_URL" --data-only --schema public -f "$FILE.part" \
   && tail -n 1 "$FILE.part" | grep -qx 'RESET ALL;' && mv "$FILE.part" "$FILE"; then
   echo "DUMP OK: now run retention.sql"
@@ -815,8 +815,8 @@ unset PROD_DB_URL
   stay and take no place among the four. If it fails, the new dump is still good.
 
 After `DUMP OK`, run [`supabase/manual/retention.sql`](supabase/manual/retention.sql) in the SQL
-editor: the weekly routine runs it after the dump (Phase 10 plan, #10). After `DUMP FAILED`,
-fix the cause and run the block again.
+editor: the weekly routine runs it after the dump (Phase 10 plan, #10). After `DUMP FAILED`
+or `NO URL`, don't run it: fix the cause and run the block again.
 
 ### Restoring
 
@@ -824,12 +824,13 @@ A restore always goes into a **fresh** database, with the migrations applied, **
 no `auth` users: on the local stack `npx supabase db reset --no-seed`; on a new hosted project
 `npx supabase db push` without `--include-seed` (not tried). The seed's trucks have ids no
 production dump holds, so a dump would load beside them with no error, mixing them in. Check
-first that `select count(*) from trucks` answers 0. A database that still holds data or the
-admin, production with some rows lost included, isn't a target for these steps: the trucks
-check fails and step 1 answers a `4xx`, and emptying a live database by hand is untested.
-Restore into a fresh one instead. A restore brings back what was deleted after its dump, so
-the takedowns and `retention.sql` run again after it. The steps, tested once on the local
-stack (IS #455's record):
+first that `select count(*) from trucks` and `select count(*) from auth.users` both answer 0.
+A database that still holds data or users, production with some rows lost included, isn't a
+target for these steps: emptying a live database by hand is untested, so restore into a fresh
+one instead. (Of the checks, the first catches data and the second any user; step 1 also
+answers `422 email_exists` when the admin's email is already there, probed.) A restore brings
+back what was deleted after its dump, so the takedowns and `retention.sql` run again after
+it. The steps, tested once on the local stack (IS #455's record):
 
 1. **The admin, by its old id**, before the data: `users.id` and `locations.created_by`
    reference `auth.users`, and the dump loads with its foreign keys unchecked (`replica`),
@@ -863,10 +864,12 @@ stack (IS #455's record):
    session, a guessed code's included, can fill the free slot (Phase 9 plan #13). Delete the
    authenticator app's old entry.
 
-Limits: steps 1 and 2 were run only on the local stack (its API URL and `sb_secret_` key; its
-`postgres`, which may set `session_replication_role`). On a hosted project neither the admin
-API call nor the load has been tried, and a hosted restore needs a paused project or a free
-slot (two active free projects). The secret key, the admin's password and the database URL
+Limits: moving the live app to a new project after a hosted restore (Vercel's variables, the
+hosted settings checklist, the Redirect URLs) isn't covered here or tried; `RUNBOOK.md`'s
+restore takes it (#457). Steps 1 and 2 were run only on the local stack (its API URL and
+`sb_secret_` key; its `postgres`, which may set `session_replication_role`). On a hosted
+project neither the admin API call nor the load has been tried, and a hosted restore needs a
+paused project or a free slot (two active free projects). The secret key, the admin's password and the database URL
 are on command lines while the commands run, which other processes of this user can read;
 the variables keep them out of the shell's history only. The CLI also hands the database URL's
 parts to its `pg_dump` container: its script exports `PGPASSWORD` there (`--dry-run`), so
