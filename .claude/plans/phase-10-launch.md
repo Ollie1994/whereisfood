@@ -119,8 +119,9 @@ precedes production's enroll (step 16).
   `project-context.md` and README's status parts.
 
 **Settings, not files:** the production Supabase project; Vercel's Production variables and
-Ignored Build Step; R2's CORS rule; `main`'s ruleset (CodeQL's checks); the alerts' cover
-(open decision 7); the registrar, if the domain is bought (#7).
+Ignored Build Step; R2's CORS rule; `main`'s ruleset (CodeQL's checks); the registrar, if the
+domain is bought (#7). (The alerts' cover, open decision 7, settled with no setting: a look in
+the weekly routine.)
 
 ---
 
