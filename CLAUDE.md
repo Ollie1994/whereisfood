@@ -352,7 +352,8 @@ said otherwise: Phase 4 plan decision #14.
 
 **The soft-launch gate** (Phase 10 plan #5, #6; until the full launch, Phase 11)
 <!-- SOFT-LAUNCH GATE (Phase 10 plan #5): this section is deleted at the full launch (the removal list in src/app/map/page.tsx). -->
-- `/map` shows only to the admin at `aal2`; `/` and `/map` send everyone else to `/about`.
+- `/map` shows only to the admin at `aal2` and sends everyone else to `/about`; `/` sends
+  everyone there, the admin included.
   `MapPage` runs `requireAdmin` with `readOnlyCookies` and no proxy before it (Plan A, IS
   #448's probe); the proxy's matcher stays as "proxy.ts" above says
 - **The gate hides `/map`; it protects nothing.** `/map` renders only what `/api/live`
