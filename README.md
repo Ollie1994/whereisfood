@@ -713,6 +713,51 @@ logged-in browser's requests wasn't checked.
 
 ---
 
+## Takedown
+
+A truck that asks to be removed is deleted with its whole history by
+[`supabase/manual/takedown.sql`](supabase/manual/takedown.sql), by hand: no app code deletes
+(`CLAUDE.md`, "db layer"). It is one statement: the truck's locations deleted, each `users`
+row pointing at it cleared (the account stays), then the truck, all or nothing. Its header
+says why one statement works under the `NO ACTION` foreign keys.
+
+1. In the project's SQL editor (the dashboard's for a hosted project, Studio's at
+   `http://127.0.0.1:54323` locally), find the truck, whose id the admin screen doesn't show.
+   Names needn't be unique, so read the rest of the row too:
+   `select id, name, instagram_handle, created_at from trucks order by name;`.
+2. Paste the file there and replace `TRUCK_ID` with the id and `TRUCK_NAME` with the name
+   exactly as that row shows it, keeping the quotes (a quote in the name is doubled). Both
+   must match one truck, so an id and a name from different trucks change nothing. Two
+   trucks with the same name are told apart only by the id: check it against the row's other
+   columns. Left unedited, it fails and changes nothing.
+3. Run it, and read its one row. `taken down` gives the truck's name and the counts removed.
+   Anything else changed nothing: `no truck with this id` (also a truck already taken down,
+   so a second run is safe), `the name does not match this id` (the row shows the name the
+   id has; a typo, or `TRUCK_NAME` left in), or an error. A foreign-key error (`23503`) names
+   the table still pointing at the truck, which the file then needs to handle before it is
+   run again.
+4. Add a line to **the takedown log**: the truck's id and the date (UTC), nothing else. It is
+   a plain text file kept with the weekly dumps on the owner's machine, never in the repo or
+   the database, since a restore replaces the database. A restore from a dump re-runs every
+   takedown the log holds, whatever its date (Phase 10 plan, step 8), reading each truck's
+   name from step 1's query on the restored database. A logged id that query doesn't list was
+   taken down before the dump and needs no run (run anyway, it answers `no truck with this
+   id`); `the name does not match this id` means it wasn't taken down: fix the name and run it
+   again.
+
+An open map drops the truck within about three minutes while its polls succeed and its tab
+is visible (a failed poll keeps the last markers, and a hidden tab doesn't poll): `/api/live`
+is cached for 60 s and may be served stale for 60 s more (`CLAUDE.md`, "`/api/live`"), and the map polls it every
+60 s (`POLL_MS`, `src/hooks/useLocations.ts`). Until the dumps from before the
+takedown age out, they still hold the truck's rows; how many are kept is Phase 10 plan's
+open decision 5.
+
+`tests/integration/takedown.test.ts` runs the file on the local stack, as `postgres`. A hosted
+project's SQL editor runs it as the dashboard's role, which hasn't been probed with it; an
+error there changes nothing, as in step 3.
+
+---
+
 ## Scripts
 
 ```bash

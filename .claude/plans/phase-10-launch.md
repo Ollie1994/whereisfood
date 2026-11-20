@@ -135,7 +135,7 @@ Ignored Build Step; R2's CORS rule; `main`'s ruleset (CodeQL's checks); the aler
 | `ABOUT_PATH`, `PRIVACY_PATH` | lib constants | For the code that sends someone to the pages |
 | `AdminNav` | component | Gains "Karta", to `/map`, as a plain `<a>`, so it loads `/map` as a new document under its static CSP. A `next/link` added for a probe to `/admin/login` (no nav there, but the proxy's nonce CSP, as on the admin pages), clicked once in headless Chrome (PR #468, round 2), stayed in that page's document, under its nonce CSP, and the map drew with no CSP violation reported |
 | the marker test | unit test | Every tracked file outside `.claude/` holding the gate's marker is on the removal list in `map/page.tsx`'s header, and every listed file holds it (#5) |
-| `takedown.sql` | manual SQL | For one truck id, in one transaction: delete its locations, clear or delete each `users` row pointing at it, delete the truck; report the counts |
+| `takedown.sql` | manual SQL | For one truck id and its name (both must match, so an id and a name from different trucks change nothing: round 1 on PR #470), in one transaction: delete its locations, clear each `users` row's `truck_id` (the account stays, round 3 on PR #470), delete the truck; report the counts |
 | `retention.sql` | manual SQL | Delete `locations` that ended more than the retention period ago, and `auth.audit_log_entries` older than theirs, reporting each delete's row count (open decisions 2, 3) |
 | the weekly dump | runbook command | `npx supabase db dump --data-only --schema public` against production, the last N kept (#11, open decision 5) |
 
@@ -240,8 +240,9 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
    connection string (direct or session pooler) that works from the owner's network, its kind
    named on the issue once the command has run against the preview; how a restore recreates
    the admin by its old id (open decision 11); **one restore test on the local stack** from a
-   dump, then each takedown the log holds on or after the dump's date (a re-run on a truck
-   already gone changes nothing, step 6) and `retention.sql` re-run, and the TOTP enroll
+   dump, then every takedown the log holds (a re-run on a truck already gone changes nothing,
+   step 6, so no date comparison can skip one: the owner's call, round 1 on PR #470) and
+   `retention.sql` re-run, and the TOTP enroll
    needed at once (Principles and risks, "Backups"; Phase 9 plan #13); README's backups and
    restore section. Needs steps 6 and 7 and open decision 5.
 9. **`/integritet`** (`PrivacyPage`), its wording approved by the owner; `/about`'s link to it;
@@ -343,7 +344,8 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     Phase 10 row, "Pre-deploy automation"'s "Before the production deploy" (done), "Open
     decisions" (the retention period, the app name, the removal contact, as settled),
     "Principles and risks"' backups item (the dump count, the restore method, the takedown
-    log), Pricing's
+    log), the takedown's "clear or delete each `users` row" (lines 474 and 1071), which only
+    clears them (round 3 on PR #470), Pricing's
     "Supabase Free" item (the paused project, open decision 8); brings README's status parts in
     line; carries forward the decisions that outlive the phase (#5 and #10 at least: #5's row
     names the removal list in `map/page.tsx`'s header and #5's removal checks, for Phase 11's
@@ -517,8 +519,9 @@ production's database URL from the gitignored `.env.prod-db.local`, a developer'
 `.env.$(NODE_ENV).local` ahead of `.env.local`, so a `.env.production.local` would put the URL
 in every local `next build` and `next start` (Next's environment-variables guide, "Load Order";
 the owner's call, round 5 on PR #447). A restore brings back what was deleted after its dump,
-so it re-runs each takedown in the takedown log on or after the dump's date, then
-`retention.sql` (the owner's call, round 3 on PR #447). Weighed: `scripts/backup.mjs`, which
+so it re-runs every takedown in the takedown log, then `retention.sql` (the owner's call,
+round 3 on PR #447; every one, not those on or after the dump's date, the owner's call, round
+1 on PR #470: the log's UTC date against a dump labelled by local date could skip one). Weighed: `scripts/backup.mjs`, which
 would name and rotate the files but is new code to test, for one person once a week.
 
 ---
