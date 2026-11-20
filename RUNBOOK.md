@@ -398,7 +398,7 @@ password or an account token, all of these; after the secret key, the first two:
 
   `--linked`, not `--db-url`: on the preview, with a scratch table with RLS off and an anon
   grant in `public`, `--linked` reported ERROR `rls_disabled_in_public` on it (and the Auth
-  lint `auth_leaked_password_protection`, which a run by URL never reports), while a run by
+  lint `auth_leaked_password_protection`, which the runs by URL didn't report), while a run by
   the session pooler's URL, with or without `options=-c pgrst.db_schemas=…` on it, missed it.
   With `--fail-on error`, `--linked` exited 1 with the table and 0 without (IS #474; the
   table was dropped after). Read the output too: without `--fail-on`, each run exited 0.
