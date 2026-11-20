@@ -771,9 +771,9 @@ later.
 **The connection string** is the production project's **Session pooler** one (dashboard →
 Connect → Direct → Session pooler → URI, the password filled in, `@ : / ? # %` in it
 percent-encoded), in the gitignored `.env.prod-db.local` as `PROD_DB_URL=…` (`CLAUDE.md`,
-"Where secrets live"). The Direct connection is IPv6 only on Free, and from this machine it
-was refused; the session pooler worked (the preview, IS #455). The Transaction pooler can't
-run `pg_dump`.
+"Where secrets live"). The Direct connection uses IPv6 unless the paid IPv4 add-on is on
+(the dashboard's note), and from this machine it was refused; the session pooler worked (the
+preview, IS #455). The Transaction pooler wasn't tried.
 
 ### The weekly dump
 
@@ -786,8 +786,8 @@ npx supabase db dump --db-url "$PROD_DB_URL" --data-only --schema public \
 unset PROD_DB_URL
 ```
 
-The file opens with `SET session_replication_role = replica;` and holds an `INSERT` for each
-of `trucks`, `locations` and `users` that has rows. Then delete all but the newest four, and
+The file opens with `SET session_replication_role = replica;` and holds `INSERT`s into `trucks`,
+`locations` and `users`. Then delete all but the newest four, and
 run [`supabase/manual/retention.sql`](supabase/manual/retention.sql) in the SQL editor: the
 weekly routine runs it after the dump (Phase 10 plan, #10).
 
