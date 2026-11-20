@@ -11,7 +11,9 @@ import { FIXTURE_PREFIX, localSql } from "./helpers";
 // deletes from whole tables, the seed's rows and a developer's own among them. In one
 // transaction `now()` is one instant, so the rows sit a second either side of each cut. It is
 // `repeatable read`, so its reads share one snapshot: an audit row Auth writes meanwhile (a
-// dev server's token refresh) doesn't move the counts between them.
+// dev server's token refresh) doesn't move the counts between them. A limit of that mode: a
+// row past a cut that another session changes or deletes during the run fails it with 40001
+// (could not serialize access), unrelated to the file.
 
 const FILE = readFileSync(new URL("../../supabase/manual/retention.sql", import.meta.url), "utf8");
 
@@ -77,7 +79,9 @@ function run() {
 
   if (lines.length !== 4) throw new Error(`retention.test: expected 4 lines from psql, got ${lines.length}`);
   const [before, reported, after] = lines.slice(0, 3).map((line) => line.split("|").map(Number));
-  const kept = new Set(lines[3].slice(1, -1).split(",").filter(Boolean));
+  const bracketed = /^\[(.*)\]$/.exec(lines[3]);
+  if (!bracketed) throw new Error(`retention.test: the kept list isn't bracketed: ${lines[3]}`);
+  const kept = new Set(bracketed[1].split(",").filter(Boolean));
   return { id, before, reported, after, kept, fixtureIds };
 }
 
