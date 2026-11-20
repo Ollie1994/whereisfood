@@ -28,7 +28,9 @@ Once a week, in this order:
    takeover, a leaked key), first move the dumps from before it into a `hold` folder inside
    the backups folder: the prune deletes only `whereisfood-YYYY-MM-DD.sql` files at the
    folder's top level, and these may be the only copy of rows an intruder deleted. Move them
-   back when the incident is closed.
+   back when the incident is closed. Held dumps keep the rows of any truck taken down before
+   or during the hold until then, past README's "about four weeks": say so in a takedown's
+   reply meanwhile ("A takedown request").
 2. **`supabase/manual/retention.sql`** in production's SQL editor. Its row counts the
    locations and audit-log rows it deleted (52 weeks and 30 days, Phase 10 plan's open
    decisions 2 and 3). The first audit-log rows come due 30 days after the production
@@ -89,7 +91,9 @@ plan's #13. Its order:
    the SQL editor, `select u.id, a.email from users u join auth.users a on a.id = u.id where
    u.is_admin;`: one row, the admin's id, and an email that should be your mailbox's. A thief
    who held the mailbox may have moved it to theirs, and step 4's link goes to that address.
-   Two rows: stop, and do "A lost phone", step 2, first.
+   Two rows mean a second admin was made (a key can, a session can't): note the other row's id,
+   set it aside with `update users set is_admin = false where id = '<other id>';`, then go on
+   with this step for yours. After step 5, follow "A leaked key" to rotate whatever made it.
    Then, with the secret key read without echoing (`read -rs SECRET_KEY`), as README's
    restore step 1 does, and `<your email>` in place:
 
@@ -108,10 +112,12 @@ plan's #13. Its order:
    stack with a throwaway user (IS #457): a password-only `PUT` answered `200`, the stored
    hash changed, the new password signed in and the old one was refused; with the email too,
    `200`, the new address confirmed at once, no change left pending, the identity's email
-   moved with it, and no email sent. It also voids a login link sent before it: a link
-   requested before the `PUT` (password and email) answered `403` at Auth's verify and made no
-   session, where the same link with no `PUT` answered `200` and made one (IS #457). So a
-   thief's pending link can't fill the free slot after step 3. The admin never needs the
+   moved with it, and no email sent. It also voids a login link sent before it, whichever of
+   these the `PUT` held: a new password with a new email, with the same email, or alone. In
+   each, the user's `auth.one_time_tokens` row was gone after the `PUT`, and the link answered
+   `403` at Auth's verify and made no session; the same link with no `PUT` answered `200` and
+   made one (IS #457, local stack). So a thief's pending link can't fill the free slot after
+   step 3. The admin never needs the
    password, but must have one
    (`CLAUDE.md`, "Supabase"). The key and the password are on `curl`'s command line while it
    runs, where other processes of this user can read them (README, "Restoring", Limits): on a
@@ -153,14 +159,19 @@ lockout, not a way in: the app admits only a magic-link sign-in (#13).
 
 The authenticator app holds the admin's one TOTP factor. If the phone **broke** and the app's
 backup restores onto the new one, nothing else is needed. If it was **lost or stolen**, its
-finder holds the same TOTP secret and maybe the mailbox's app too: run the steps below even
-if the backup restored, and end the mailbox's sessions on that phone ("A takeover", step 1).
-They run in production's SQL editor (open decision 9: the dashboard, no secret key outside
-Supabase, no unenroll screen; IS #457):
+finder holds the same TOTP secrets and maybe the mailbox's app too: run the steps below even
+if the backup restored. They run in production's SQL editor (open decision 9: the dashboard,
+no secret key outside Supabase, no unenroll screen; IS #457):
 
-0. **Get into the dashboards.** Supabase's, Vercel's and GitHub's own two-factor may be on
-   the lost phone too (`CLAUDE.md`, "Secrets": every account has it). Sign in with each
-   account's recovery codes, kept where you keep them, never in the repo.
+0. **The accounts first, before step 3.**
+   - **The mailbox** (lost or stolen): change its password and end its sessions, the lost
+     phone's included ("A takeover", step 1). Until then its app can fetch a login link.
+   - **The dashboards:** every account `CLAUDE.md`'s "Secrets" lists with two-factor
+     (GitHub, Supabase, Vercel, Cloudflare, the registrar, the recovery email) may have it on
+     the phone. Sign in with each account's recovery codes, kept where you keep them, never in
+     the repo. If the phone was lost or stolen, also reset each one's two-factor: remove the
+     old authenticator, enroll the new phone, and save the new recovery codes. Otherwise the
+     finder's codes still work.
 1. Make sure it is the phone, not a takeover. If anything under "A takeover" looks off, follow
    that instead.
 2. Check there is one admin: `select id, created_at from users where is_admin;` answers one
@@ -220,12 +231,16 @@ A secret that reaches a commit, an issue or a PR is rotated, not just deleted (`
   stored it (a CLI link made with it). The app doesn't use it.
 - **The legacy keys** (`anon` and `service_role` JWTs): they "stay valid until you disable
   them in the Settings > API Keys section", even where the project uses the new `sb_` keys
-  (#448's 1b). Disable them there. If the legacy JWT secret itself leaked, rotating it signs
-  every user out and needs both legacy keys rotated at once (#448's 1b).
+  (#448's 1b). First check that Vercel's Production `NEXT_PUBLIC_SUPABASE_ANON_KEY` and
+  `SUPABASE_SERVICE_ROLE_KEY` start `sb_publishable_` and `sb_secret_`; if either is a legacy
+  JWT, replace it with an `sb_` key and redeploy, or the app stops working. Then disable the
+  legacy keys there. If the legacy JWT secret itself leaked, rotating it signs every user out
+  and needs both legacy keys rotated at once (#448's 1b).
 - **Anything else** (a GitHub token, a CLI login, the Vercel bypass secret): revoke it where
   it was issued, and make a new one.
 
-**After rotating the secret key, a legacy `service_role` key or the database password**, also
+**After rotating the secret key, a legacy `service_role` key or JWT secret, the database
+password, or a Supabase or Vercel account's token or CLI login**, also
 run "A takeover", steps 2 to 4. Supabase's docs don't say a key's rotation ends the sessions a
 thief made with it (#448's 1b: "not stated"), and any of them can change the admin's email,
 factor and sessions with no email sent ("A takeover", step 2's probe). Then hold the weekly
@@ -254,7 +269,8 @@ A truck that asks to be removed is removed, company or sole trader (IS #373 (Pha
 1. README, "Takedown", steps 1 to 4: find the truck, run `supabase/manual/takedown.sql`, read
    its row, and add the line to the takedown log.
 2. Reply to the requester. The map drops the truck within about three minutes; the weekly
-   dumps from before it age out over about four weeks (README, "Backups").
+   dumps from before it age out over about four weeks (README, "Backups"), or, while an
+   incident hold is open, when the held dumps are released ("The weekly routine").
 
 ---
 
