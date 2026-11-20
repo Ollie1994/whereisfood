@@ -117,11 +117,10 @@ plan's #13. Its order:
    each, the user's `auth.one_time_tokens` row was gone after the `PUT`, and the link answered
    `403` at Auth's verify and made no session; the same link with no `PUT` answered `200` and
    made one (IS #457, local stack). So a thief's pending link can't fill the free slot after
-   step 3. The admin never needs the
-   password, but must have one
-   (`CLAUDE.md`, "Supabase"). The key and the password are on `curl`'s command line while it
-   runs, where other processes of this user can read them (README, "Restoring", Limits): on a
-   machine you suspect, run it from another.
+   step 3. The admin never needs the password, but must have one (`CLAUDE.md`, "Supabase").
+   The key and the password are on `curl`'s command line while it runs, where other
+   processes of this user can read them (README, "Restoring", Limits): on a machine you
+   suspect, run it from another.
 3. **Delete the factor and end every session:** "A lost phone", steps 2 and 3. Sessions end
    after the password and the factor, or the thief signs straight back in (#13). Deleting the
    factor alone ends no session (IS #381).
