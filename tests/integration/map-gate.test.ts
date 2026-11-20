@@ -3,8 +3,8 @@ import { SIGN_IN_TIMEOUT, resetTables, sessionUser } from "./helpers";
 
 // SOFT-LAUNCH GATE (Phase 10 plan #5): the gate on the local stack, deleted at the full launch
 // (the removal list in src/app/map/page.tsx). `MapPage` runs with real sessions against the
-// local Auth and database; only what a page gets from Next is stubbed: the request's cookies
-// (`next/headers`), `redirect()` (`next/navigation`), and `MapClient`, which this suite
+// local Auth and database. Stubbed: what a page gets from Next, the request's cookies
+// (`next/headers`) and `redirect()` (`next/navigation`), and `MapClient`, which this suite
 // doesn't render. The refusal reasons one by one: `src/app/map/page.test.tsx`.
 
 const request = { jar: new Map<string, string>() };
