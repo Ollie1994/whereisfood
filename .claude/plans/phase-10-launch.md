@@ -1,0 +1,486 @@
+# Phase 10 — Launch (soft)
+
+**Planned:** 2026-11-20 · **Status:** planned
+
+**Source:** `project-context.md` Part 2 ("Phase map", "Pre-deploy automation", "Pricing and
+upgrade triggers", "Principles and risks", "Open decisions"), Part 3's "Decisions carried
+forward" (the three rows marked **between phases** for Phase 10: IS #278 (Phase 10), IS #373
+(Phase 10) and IS #394, taken up by #1, #2 and #3), the scope draft
+`.claude/drafts/phases-8-10-scope.md` ("Phase 10 · Launch", which the IS #278 (Phase 10) row
+points to), the Phase 9 plan's open decisions 1, 4 and 7, which hand work to this phase, and
+the `/create-milestone` conversation of 2026-11-20. The IS #373 (Phase 11) row is Phase 11's
+plan's (`CLAUDE.md`, "Process Log"). Where this plan and `project-context.md` disagree, **this
+plan wins** until the reconciliation (step 20).
+
+**Purpose of the phase:** the first production deploy, a soft launch. Real data goes into
+production on the free plans, but only the admin sees the map: everyone else lands on a
+Swedish `/about`, until the trucks are back and Phase 11's coverage target holds. Before real
+data exists, the legal and operational pieces it needs exist too: a privacy note with a
+removal contact and retention periods, a takedown, backups, and a runbook.
+
+---
+
+## Goal
+
+Production runs on the free plans with real data the admin entered by hand, `/map` shown only
+to the admin and `/` leading to a Swedish `/about`, with the privacy note, removal contact,
+retention, takedown, weekly backup and runbook in place and every "Before the production
+deploy" check done before the first deploy.
+
+Done is the deploy and its checks (step 17). Telling the trucks they're listed runs alongside
+and gates nothing (#4).
+
+---
+
+## Prerequisites
+
+- Node and npm in the ranges `package.json`'s `devEngines` admits (`CLAUDE.md`,
+  "Dependencies"); Docker running, for local Supabase and the integration tests.
+- The owner's phone with the authenticator app and its backups (Phase 9, D3).
+- Access to the Supabase, Vercel, Cloudflare and GitHub dashboards, for the settings the CLI
+  token can't read or set (recorded on each step's issue, never a secret).
+- A free Supabase project slot: two active free projects are allowed, counted across every
+  organization where the owner is Owner or Administrator; the preview's is one, production's
+  is the second (Pricing, "Supabase Free").
+
+---
+
+## Out of Scope
+
+| Item | Where it goes |
+|---|---|
+| Removing the gate and restoring the smoke check; the coverage target (N trucks before 11:00, held two weeks) | Phase 11 (IS #373 (Phase 11)); the removal follows #5's list |
+| Supabase Pro: backups, session timeouts, a restore test on Pro, leaked-password protection | Phase 11 |
+| The custom domain: R2's domain, its CSP entry, HSTS, Vercel's domain, Auth's Site and Redirect URLs | Phase 11 (buying the domain early is optional here, #7) |
+| Vercel Pro and Spend Management; the acquisition plan | Phase 11 |
+| Custom SMTP (the email-budget lockout's real fix); #241's emailed code | Owners phase (#241: custom SMTP or Pro, whichever comes first) |
+| Truck-owner accounts, the claim flow and their threat model | Owners phase |
+| #435, #442, #256, #264, #308, #406, #416, #417 | standalone, outside any phase |
+| A log drain, paid monitoring, a secrets manager | not planned |
+| A scheduled retention job (pg_cron) | not planned (#10); revisit if a week is missed |
+
+---
+
+## Files
+
+**The public pages and the gate:**
+- `src/app/map/page.tsx` (+ test): the gate (#5, #6). `requireAdmin`; anything but `check.ok`
+  gets `redirect(ABOUT_PATH)`. Its header holds the gate's removal list, the one copy.
+- `src/app/page.tsx`: `/` redirects to `/about` (a gate site; Phase 11 points it back at
+  `/map`).
+- New: `src/app/about/page.tsx`, the Swedish `/about`; `src/app/integritet/page.tsx`, the
+  Swedish privacy note (#8).
+- `src/lib/` (the module beside `MFA_PATH` in `login.ts`, or a small `paths.ts`): `ABOUT_PATH`,
+  `PRIVACY_PATH`.
+- `src/components/Admin/AdminNav.tsx`: a "Karta" link to `/map`.
+- New: the marker test (a unit test, beside `map/page.tsx`), #5.
+- `tests/integration/`: the gate against the local stack.
+- `scripts/smoke.mjs` (+ `smoke.test.mjs`): `/` and `/map` expect the redirect to `/about`;
+  `/about` and `/integritet` expect 200 with the static CSP.
+- `src/proxy.ts` (+ test): **only if** step 1a rules out Plan A (#6).
+
+**The app name** (open decision 1): `src/app/layout.tsx`, `src/app/admin/layout.tsx`,
+`src/app/admin/error.tsx`, `src/app/admin/not-found.tsx`, `src/app/error.tsx`,
+`src/app/map/error.tsx`, `src/app/not-found.tsx`, `src/lib/login.ts` (the TOTP entry's name in
+its wrong-code text), and the tests that pin their texts.
+
+**Operations (manual SQL, not app code):**
+- New: `supabase/manual/takedown.sql`, the one-transaction takedown (Phase 5 plan #7), with
+  `tests/integration/takedown.test.ts`.
+- New: `supabase/manual/retention.sql`, the weekly retention delete (#10), with its
+  integration test.
+- `supabase/migrations/0001_baseline.sql`: its comment "only the takedown (Phase 10) removes
+  history (#7)" goes stale with #10; step 7's sweep settles it (a comment in an applied
+  migration). The rule's live copy is `CLAUDE.md`'s.
+
+**Docs:**
+- New: `RUNBOOK.md` at the root (#8).
+- `README.md`: a "Production" section (setup, the hosted-settings checklist as applied,
+  Production's variables), backups and restore, the takedown.
+- `SECURITY.md`: #347.
+- `CLAUDE.md`: the gate's rule (#5, a gate site); "Locations" and "db layer" gain the
+  retention delete beside the takedown (#10); "Where secrets live" gains production's
+  database URL in the gitignored `.env.production.local` (#11); the proxy rule only if #6's
+  branch is needed.
+- This plan; `CLAUDE.md`'s bold line; `.claude/process-log.md`; at the reconciliation,
+  `project-context.md` and README's status parts.
+
+**Settings, not files:** the production Supabase project; Vercel's Production variables and
+Ignored Build Step; R2's CORS rule; `main`'s ruleset (CodeQL's checks); the alerts' cover
+(open decision 7); the registrar, if the domain is bought (#7).
+
+---
+
+## Functions and components
+
+| Name | Layer | What it does |
+|---|---|---|
+| `MapPage` | page (server component) | As `MfaPage` does: `cookies()`, `createSessionClient(readOnlyCookies(store))`, `requireAdmin({ cookieNames, auth, now })`; `redirect(ABOUT_PATH)` for anything but `check.ok`, with no `try` around `redirect()` or `cookies()`; then `<MapClient />` with no props (#5) |
+| `Home` | page | `redirect(ABOUT_PATH)` |
+| `AboutPage` | page (static) | What this is; the map opens when the trucks are back; a link to `/integritet` |
+| `PrivacyPage` | page (static) | What is stored and why; both retention periods; the dump count; Vercel's and Supabase's logs (IP addresses); Auth's audit log; the removal contact |
+| `ABOUT_PATH`, `PRIVACY_PATH` | lib constants | Shared by the pages, the nav and the tests |
+| `AdminNav`'s `LINKS` | component | Gains `{ href: "/map", text: "Karta" }` |
+| the marker test | unit test | Every tracked file outside `.claude/` holding the gate's marker is on the removal list in `map/page.tsx`'s header, and every listed file holds it (#5) |
+| `takedown.sql` | manual SQL | For one truck id, in one transaction: delete its locations, clear or delete each `users` row pointing at it, delete the truck; report the counts |
+| `retention.sql` | manual SQL | Delete `locations` that ended more than the retention period ago, and `auth.audit_log_entries` older than theirs (open decisions 2, 3) |
+| the weekly dump | runbook command | `npx supabase db dump --data-only --schema public` against production, the last N kept (#11, open decision 5) |
+
+**No new db-layer or service function.** The gate reuses `requireAdmin`; the deletes stay
+manual SQL, by the db layer's "no function deletes" (Phase 5 plan #10).
+
+---
+
+## Steps
+
+Each step is one issue and one PR into `dev`, except where a step is settings only, recorded
+on its issue. Every PR merges through CI's required checks (`CLAUDE.md`, "Testing"). **Step 1
+comes first**; step 2's decisions are settled as the steps that need them reach them; steps
+3–12 may run in any order their own dependencies allow (named in each step); steps 13–17 run
+in order, after every step before them; step 18 runs alongside from step 17 on.
+
+0. **This plan.** The plan file, and `CLAUDE.md`'s bold "Current phase plan" line naming it,
+   where between phases it reads `none (the last one: .claude/plans/phase-9-security.md)`.
+   Only that line of the header changes.
+
+**A. Inputs**
+
+1. **Probes** (#6), each recorded on the issue with its command and result:
+   - **(a) The expired-session probe.** A `/map` gated as `MapPage` will be, with
+     `readOnlyCookies`, locally with a short `jwt_expiry` (restored after) and on `dev`'s
+     preview: once the access token has expired, a load of `/map` makes `getSession()`
+     refresh, and the new tokens can't be written back. Does the next request, presenting the
+     used refresh token, keep the session, or does Auth's reuse detection end it? It decides
+     Plan A or the proxy branch (#6). Steps 4 and 5 wait for it.
+   - **(b)** Supabase's key-rotation docs read, for step 15 (its newer and legacy API keys
+     rotate differently).
+   - **(c)** What a paused free project answers the admin screen and `/api/live`, from the
+     docs, for the runbook (open decision 8).
+2. **The owner's decisions** (open decisions 1–8, 12, 13), each settled on the issue of the
+   step that needs it, or its own issue where it needs research, and struck through here with
+   "→ settled" as Phase 9's were.
+
+**B. The app**
+
+3. **`/about`** (`AboutPage`), `ABOUT_PATH` and `PRIVACY_PATH`, and `AdminNav`'s "Karta" link.
+   These stay at Phase 11, so they are not gate sites and ride outside step 4's PR. Smoke
+   expects `/about` 200 with the static CSP.
+4. **The gate** (#5, #6), **one PR holding only gate sites**: `MapPage`; `Home`; the smoke
+   check's `/` and `/map` expectations; the gate's unit and integration tests; the no-props
+   test; the marker test; the removal list in `map/page.tsx`'s header; `CLAUDE.md`'s gate
+   rule. Needs steps 1a and 3. If #6's branch is needed, the proxy branch and its tests join
+   this PR as gate sites, the branch its own function.
+5. **The app name** (open decision 1) in the files under "Files". Needs step 4 merged (both
+   touch `map/` and the tests).
+
+**C. Operations**
+
+6. **`takedown.sql`** and its integration test.
+7. **Retention** (#10): `retention.sql` and its integration test; `CLAUDE.md`'s "Locations"
+   and "db layer" rules gain the retention delete beside the takedown. Needs open decisions 2
+   and 3.
+8. **Backups** (#11): the weekly dump's command; production's database URL in
+   `.env.production.local`, which `CLAUDE.md`'s "Where secrets live" names; how a restore
+   recreates the admin by its old id (open decision 11); **one restore test on the local
+   stack** from a dump, the takedown re-run after it, and the TOTP enroll needed at once
+   (Principles and risks, "Backups"; Phase 9 plan #13). Needs open decision 5.
+9. **`/integritet`** (`PrivacyPage`), its wording approved by the owner. Needs steps 3, 7 and 8
+   and open decision 4 (it states the periods, the dump count and the contact).
+10. **`RUNBOOK.md`** (#8): Attack Mode; a takeover (Phase 9 plan #13's recovery order); a lost
+    phone (open decision 9 settled here, Phase 9 plan open decision 4); a leaked key; a
+    takedown request; a paused project (step 1c, open decision 8); a restore (step 8); the
+    weekly routine (the dump, then `retention.sql`, then the alerts' cover from open decision
+    7, with the date the first retention row comes due). Needs steps 6–8.
+11. **`SECURITY.md`** (#347): how an in-house finding goes to a GitHub private security
+    advisory until its fix ships (the scope draft's Q36).
+12. **#349,** the SonarQube Cloud re-scan: the account with two-factor at creation, each
+    finding an issue or a recorded reason. Before step 15.
+
+**D. Production** (in order, after every step above)
+
+13. **The production Supabase project:** migrations applied; Phase 5 #19's hosted check
+    (`sv-SE-x-icu`, both extensions in `extensions`, the Data API's Max rows at least
+    `MAX_ROWS`); README's hosted-settings checklist applied, "Write audit logs to the database"
+    included; the Security Advisor (`db advisors --linked --type security`, or the
+    dashboard): no ERROR, each WARN fixed or accepted with a reason (leaked-password
+    protection's, on Free), INFO read; the admin user with a long random password (README, "5.
+    Create the admin user") and a TOTP factor; the email-budget lockout as open decision 6
+    settles it. README's "Production" section written.
+14. **Vercel and R2:** the Ignored Build Step read as set to cancel a Production build from any
+    branch but `main`, and no `vercel.json` `ignoreCommand` on `dev` or `main`; R2's CORS rule
+    gains the production origin. **Production gets no variables yet** (#9).
+15. **Before the deploy:**
+    - the 2FA re-check of every account, each one's recovery mailbox, and the registrar and
+      removal-contact mailbox if they exist (`CLAUDE.md`, "Secrets"), recorded without an
+      address or secret;
+    - every credential that existed before the deploy rotated or replaced (open decision 12),
+      listed by name;
+    - **the first merge `dev` → `main`** (#9): a PR opened fresh against `main`, never
+      retargeted (`CLAUDE.md`, "Testing"), running every required check, the controls' full
+      set included. Its push gives CodeQL its first analysis of `main`; then CodeQL's checks
+      (`CodeQL` and both `analyze` jobs) join `main`'s ruleset (Phase 8 plan #11, #14), read
+      back by `gh api`. The production build it starts has no variables and shows nothing.
+16. **The deploy:** Production's variables set, from the new project only; a production build
+    from `main`.
+17. **The production checks**, on the owner's phone and by headers:
+    - logged out, `/` and `/map` land on `/about`; as the admin at `aal2`, the map shows with
+      R2's tiles and no CSP violation in the console;
+    - `/api/live` goes MISS → HIT;
+    - a logged-out request to `/map` right after the admin's never gets the map, and no `/map`
+      answer shows a cache `HIT`;
+    - the first weekly dump is on the owner's machine.
+
+    **This step is the phase's done.**
+
+**Alongside**
+
+18. **Telling the trucks** they're listed (#4, open decision 13), with a link to `/integritet`,
+    from step 17 on. Recorded on its issue as it goes; it blocks neither closing step.
+
+**Closing**
+
+19. **The Phase 10 retrospective** (`.claude/process-log.md`, "How to use it"): its range
+    starts at row 793, the row after the Phase 9 retrospective's range (700–792). Blocked by
+    every other planned issue but step 18's; its follow-ups block step 20.
+20. **The reconciliation of `project-context.md`**, blocked by step 19 and its follow-ups. It
+    replaces the IS #278 (Phase 10), IS #373 (Phase 10) and IS #394 (Phase 10) markers with #1,
+    #2 and #3; rewrites Part 1 for production and the gate, the Roadmap and the Phase map's
+    Phase 10 row, "Pre-deploy automation"'s "Before the production deploy" (done), "Open
+    decisions" (the retention period, the app name, the removal contact, as settled),
+    "Principles and risks"' backups item (the dump count, the restore method), Pricing's
+    "Supabase Free" item (the paused project, open decision 8); brings README's status parts in
+    line; carries forward the decisions that outlive the phase (#5 and #10 at least: #5's row
+    names the removal list in `map/page.tsx`'s header and #5's removal checks, for Phase 11's
+    plan; the IS #373 (Phase 11) row's marker stays, and its "removes the gate" points to #5's
+    row); and sets `CLAUDE.md`'s bold line to none, naming this plan as the last one.
+
+---
+
+## Rationale
+
+### #1 — Phase 10's scope as the scope draft settles it (IS #278 (Phase 10))
+
+Takes up the IS #278 (Phase 10) **between phases** row: the old launch row minus what IS #373
+(Phase 10) moves to Phase 11 (Pro and its timeouts, the custom domain with its CSP entry and
+HSTS, Vercel Pro, the acquisition plan); the hosted-settings checklist applied to production,
+with its Security Advisor settled before the deploy (no ERROR, each WARN fixed or accepted
+with a reason, the owner's threshold, round 3 on PR #281); the alerts the free plans can't
+send (Phase 9 plan open decision 7: none can, so open decision 7 here); Phase 5 #19's hosted
+check on the production project; Q36, an in-house finding in a private security advisory once
+production exists (step 11); Q34, the runbook's incident section (step 10), with the restore
+test moved to the local stack (step 8) since Pro's restore is Phase 11's. The detail is the
+scope draft's "Phase 10 · Launch".
+
+### #2 — A soft launch (IS #373 (Phase 10))
+
+Takes up the IS #373 (Phase 10) **between phases** row, the owner's calls: production with
+`/map` shown only to the admin and `/` leading to a Swedish `/about`; only real data, from the
+trucks' own posts, entered by hand, nothing scraped; every removal request honoured; it costs
+nothing (Supabase Free, `vercel.app`, `r2.dev`). `/api/live` stays public, so the privacy note,
+the removal contact, the retention period, the app's name and telling each truck are due at the
+deploy. On Free: the weekly data-only dump (#11), never the `auth` schema; a restore recreates
+the admin by its old id (open decision 11); leaked-password protection's advisor warning
+accepted with a reason. The proxy is untouched (Plan A) unless the probe says otherwise (#6).
+The row's proposed gate is #5's; whether a paused project is acceptable is open decision 8.
+
+### #3 — The email-budget lockout is decided again before production (IS #394)
+
+Takes up the IS #394 **between phases** row for Phase 10: spending the built-in email's
+budget so the admin's link doesn't come was accepted for Phase 9 only (Phase 9 plan open
+decision 1). It needs the admin's address and grants no access; custom SMTP, the Owners
+phase's, is the fix it waits for. The answer is open decision 6, settled before step 13
+applies production's settings.
+
+### #4 — Done at the deploy; telling the trucks runs alongside
+
+The owner's call (2026-11-20). Done is step 17. Telling the trucks depends on replies the plan
+can't control, so it starts once production holds their data and the privacy note exists, and
+blocks neither the retrospective nor the reconciliation. Phase 11's coverage target, not this
+phase, measures daily use.
+
+### #5 — The soft-launch gate is temporary, and removable without a hole
+
+The owner's call (2026-11-20): the gate goes at the full launch, and its removal must be easy
+and open no hole.
+
+- **It hides `/map`; it protects nothing.** `/map` renders only what `/api/live` already
+  publishes; `MapPage` passes nothing from the check to the client (`<MapClient />` keeps no
+  props), and admin-only data stays behind `withAdmin` and RLS. A test fails if `MapPage`
+  passes `MapClient` a prop. The hole a removal could open is something added behind the gate
+  because only the admin sees `/map` (an edit link, unconfirmed entries, the admin's id):
+  `CLAUDE.md`'s gate rule forbids it for as long as the gate stands.
+- **One place.** The page alone (Plan A, #6): the proxy, the CSPs and `next.config.ts` are
+  untouched, so the removal edits no security-critical file. If #6's branch is needed, it is
+  its own function in `proxy.ts` with its own tests, so removing it leaves the matcher and the
+  other branches as they are.
+- **Every site findable.** Each gate site carries the marker comment `SOFT-LAUNCH GATE (Phase
+  10 plan #5)`. The sites: `MapPage`, `Home`, the smoke check's `/` and `/map` expectations,
+  the gate's tests, the no-props test, the marker test itself and `CLAUDE.md`'s gate rule.
+- **One copy of the removal list**, in `map/page.tsx`'s header, where a removal starts: each
+  site and what it goes back to (`/` → `/map`; smoke expects `/map` 200 with the static CSP;
+  `○ /map` in the route table; the gate's tests, the no-props test, the marker test and the
+  `CLAUDE.md` rule deleted). This decision and the carried-forward row point to it.
+- **The marker test** reads that list from the header and fails if a tracked file outside
+  `.claude/` holds the marker and isn't listed, or a listed file doesn't hold it. `.claude/`
+  is left out because the plans and the log quote the marker as history. Seen red once each
+  way, locally, before its PR.
+- **Its own PR** (step 4), holding only gate sites, so its diff is the map of what Phase 11
+  undoes.
+- **The removal's checks**, for Phase 11's plan: `git grep` finds no marker outside
+  `.claude/`; the build shows `/map` static again; smoke passes with the restored
+  expectations; `/api/live`'s cache headers are unchanged (the gate never touched them); a
+  `/map` browser check (`CLAUDE.md`, "Testing").
+- **While it stands:** an admin's rendered `/map` is never cached and served to someone else
+  (step 17's check).
+
+Weighed: the gate in the proxy, which puts both the gate and its removal in the
+security-critical file; no marker test, cheaper but blind to a site added later without the
+list (the owner chose the test).
+
+### #6 — The probe decides Plan A or a proxy branch
+
+`/map` is outside the proxy's matcher, so nothing refreshes the session there. `requireAdmin`'s
+`getSession()` refreshes an expiring token, but `readOnlyCookies` can't write the new tokens
+back, so the browser keeps presenting the used refresh token, which Auth's reuse detection may
+answer by ending the session. Step 1a probes it. If the session survives, Plan A: the page
+alone (IS #373 (Phase 10)). If it ends, a `/map` branch in the proxy, which changes
+`CLAUDE.md`'s "never `/map`" proxy rule (Phase 7 plan #10, #28; `src/proxy.test.ts` pins it):
+the owner's call, with the rule's text changed in the same PR (open decision 10).
+
+### #7 — The domain is optional in Phase 10
+
+The owner's call (2026-11-20). Pricing says a domain can be bought "once the name is settled,
+to keep it from being taken", and step 2 settles the name. If it is bought, the registrar
+account has two-factor at creation and joins step 15's re-check; nothing in the app uses the
+domain until Phase 11.
+
+### #8 — The privacy note is its own page; the runbook is `RUNBOOK.md`
+
+The owner's calls (2026-11-20). `/integritet` is what a removal request links to, and it
+outlives the soft launch, where `/about`'s text changes at Phase 11. The runbook is what is
+opened in an incident, and #264 will restructure the README.
+
+### #9 — The first merge into `main` comes before Production's variables
+
+The owner's call (2026-11-20). `main` is at PR #195 (Phase 6), whose commit predates
+`codeql.yml`, so no CodeQL analysis of `main` exists, and `codeql.yml` has no
+`workflow_dispatch` (it runs on PRs and pushes to `dev` and `main`). The first merge's push
+gives `main` its analysis, so CodeQL's checks join `main`'s ruleset before the deploy. The
+production build that merge starts has no variables, so it fails or serves nothing, holding no
+data. Weighed: deploying with the first merge, its PR then having no CodeQL base and `main`'s
+ruleset getting CodeQL only after the deploy.
+
+### #10 — Retention is manual SQL, run weekly after the dump
+
+The owner's call (2026-11-20). Location history is personal data for a sole trader (where a
+person worked, day by day), and GDPR's storage limitation keeps it only as long as its purpose
+needs: the checklist's 4-week look-back and the recent places. Auth's audit log, kept for
+investigating a takeover (Phase 9 plan #13), grows without end on Free's 0.5 GB, since neither
+GoTrue nor the app deletes its rows (Phase 9 plan open decision 7). `retention.sql` deletes
+both past their periods (open decisions 2, 3), run from the runbook in the same weekly slot as
+the dump; the runbook names the date the first row comes due. It keeps the deletes manual SQL,
+as the takedown is (Phase 5 plan #7, #10). `CLAUDE.md`'s "Locations are never deleted (except a
+takedown)" and the db layer's "the one delete, a takedown" gain retention in step 7's PR.
+Weighed: pg_cron, which can't be forgotten but is the project's first scheduler and a job that
+deletes; revisit if a week is missed.
+
+### #11 — The weekly dump is a runbook command
+
+The owner's call (2026-11-20). Supabase Free has no backups; the dump is the only one until
+Pro's (Phase 11). Weekly bounds the loss to a week, which today's posts and the checklist's
+4-week look-back rebuild. Data-only and `public` only, since `auth` holds credentials; on the
+owner's machine outside the repo, since the repo is public; the last few only (open decision
+5), since the dumps are copies of the history: a takedown or a retention delete reaches the
+backups only as old dumps are deleted, which the privacy note states. The command runs with
+production's database URL from the gitignored `.env.production.local`, a developer's own copy
+(`CLAUDE.md`, "Where secrets live"). Weighed: `scripts/backup.mjs`, which would name and rotate
+the files but is new code to test, for one person once a week.
+
+---
+
+## Acceptance Criteria
+
+- [ ] Step 1a's result is on its issue, locally and on `dev`'s preview: whether a refresh on
+  `/map` that couldn't be stored ended the session, and Plan A or the branch named, with the
+  owner's call recorded if it is the branch. Steps 1b and 1c are recorded too.
+- [ ] Each open decision below is settled and struck through here with "→ settled".
+- [ ] `/about` answers 200 with the static CSP, in Swedish, saying the map opens when the
+  trucks are back, linking to `/integritet`; `AdminNav` shows "Karta", marked current on `/map`.
+- [ ] The gate: no session, `aal1`, a non-admin, a time-boxed session and Auth unavailable
+  each get a 307 from `/map` to `/about` (unit tests per case, and an integration test on the
+  local stack); `/` gets a 307 to `/about`; the admin at `aal2` gets the map; the route table
+  shows `ƒ /map`; smoke expects both redirects.
+- [ ] The gate's invariants: a test fails if `MapPage` passes `MapClient` a prop; the marker
+  test fails on a marked file not on the removal list and on a listed file without the marker,
+  each seen red once locally; step 4's PR holds only listed sites; `CLAUDE.md` holds the gate
+  rule.
+- [ ] The app name in every file under "Files"; `git grep WhereIsFood -- src` finds nothing,
+  and the public title matches the name.
+- [ ] `takedown.sql`: an integration test seeds two trucks with history and a `users` row
+  pointing at one, runs the file, and finds that truck, its locations and the pointer gone and
+  the other truck untouched; on an id that doesn't exist it changes nothing and says so.
+- [ ] `retention.sql`: an integration test finds locations ended past the period deleted and
+  newer ones kept, and audit-log rows past theirs deleted; `CLAUDE.md`'s "Locations" and "db
+  layer" name it beside the takedown.
+- [ ] The restore test on the local stack, recorded on its issue: the admin recreated by its
+  old id with a long random password, `locations.created_by` resolving, the takedown re-run
+  after it, and a TOTP enroll needed at once.
+- [ ] `/integritet` answers 200 with the static CSP and names what is stored and why, both
+  retention periods, the dump count, Vercel's and Supabase's logs (IP addresses), Auth's audit
+  log and the removal contact; the owner approved the wording.
+- [ ] `RUNBOOK.md` has a section each for Attack Mode, a takeover, a lost phone, a leaked key,
+  a takedown request, a paused project, a restore and the weekly routine.
+- [ ] `SECURITY.md` says how an in-house finding goes to a private security advisory (#347
+  closed).
+- [ ] #349: each finding has an issue or a recorded reason; the account had two-factor at
+  creation.
+- [ ] The production project: Phase 5 #19's hosted check passes; each hosted-checklist item is
+  recorded as applied; the Security Advisor shows no ERROR, each WARN fixed or accepted with a
+  reason, INFO read; the admin has a long random password and a TOTP factor.
+- [ ] Vercel and R2: the Ignored Build Step read as set, no `ignoreCommand` on `dev` or
+  `main`; R2's CORS rule names the production origin; Production's variables come only from
+  the new project.
+- [ ] Before the deploy: the 2FA re-check recorded per account; every earlier credential
+  rotated or replaced, listed by name; the first merge into `main` ran every required check,
+  the controls' full set included; CodeQL's checks in `main`'s ruleset, read back by `gh api`.
+- [ ] The production checks: logged out on the phone, `/` and `/map` land on `/about`; as the
+  admin, the map shows with R2's tiles and no CSP violation; `/api/live` goes MISS → HIT; a
+  logged-out request to `/map` after the admin's gets the redirect, and no `/map` answer shows
+  a cache `HIT`; the first dump is on the owner's machine.
+- [ ] The closing steps (19, 20) are done: the retrospective, then the reconciliation.
+
+---
+
+## Open Decisions
+
+1. **The app name** (Phase 7 plan #26): the UI text and the TOTP entry's label (step 5), and
+   whether to buy the domain now (#7). Until then the admin screens say WhereIsFood and the
+   public title "Var är maten? | Göteborg".
+2. **The retention period for location history** (Phase 7 plan #25; #10). Leaning: 8 weeks,
+   the checklist's 4-week look-back with a margin.
+3. **The retention period for Auth's audit log** (Phase 9 plan open decision 7; #10), kept to
+   investigate a takeover. Leaning: 30 days.
+4. **The removal contact** (IS #373 (Phase 10)). Leaning: a dedicated address, not a personal
+   one; a new mailbox gets two-factor at creation and joins step 15's re-check.
+5. **How many weekly dumps are kept** (#11), which sets how long a removal takes to leave the
+   backups. Leaning: 4.
+6. **The email-budget lockout** (#3): accepted again, or a mitigation, before step 13.
+7. **How the usage, spend and 5xx alerts are covered** on the free plans (Phase 9 plan open
+   decision 7): a look at each usage page in the weekly routine; an external free uptime
+   monitor on `/api/live` (a new account, with two-factor at creation); or the gap accepted
+   with a reason.
+8. **Whether a paused project is acceptable** (IS #373 (Phase 10)): a quiet week before the
+   trucks are back could pause it. Leaning: accepted, with the runbook's section and the weekly
+   routine's activity.
+9. **The lost-phone route** (Phase 9 plan open decision 4): where the recovery's calls run,
+   and whether the login needs an unenroll screen. Phase 9's leaning: the dashboard's SQL
+   editor, deleting the factor and the user's `auth.sessions` rows, then a re-enroll at once.
+10. **Plan A or a proxy branch** for the gate, from step 1a (#6); the branch changes
+    `CLAUDE.md`'s proxy rule, the owner's call.
+11. **How a restore recreates the admin by its old id** (step 8): Studio's "Add user" makes a
+    new id, and the data dump loads with its foreign keys unchecked (Principles and risks,
+    "Backups").
+12. **Which credentials exist to rotate** (step 15), and whether the preview's keys rotate too
+    or only stay out of production ("reuse nothing from the preview setup").
+13. **How the trucks are told** (step 18): the channel and the Swedish text, with a link to
+    `/integritet`.
