@@ -3,7 +3,8 @@ import Link from "next/link";
 import { ABOUT_PATH } from "@/lib/paths";
 
 // The 404 outside `/admin` (which has its own): Swedish (CLAUDE.md, UI Rules), in the owner's
-// wording (IS #413), styled by classes only, like `admin/not-found.tsx`. Its title, the
+// wording (IS #413; the link's text: its comment), styled by classes only, like
+// `admin/not-found.tsx`. Its title, the
 // owner's wording (IS #438), through `metadata`, which the root not-found may export (Next's
 // `not-found.md`, 16.4, "Metadata").
 export const metadata: Metadata = {

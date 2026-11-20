@@ -74,6 +74,7 @@ describe("MapPage on the local stack", () => {
 // joined in order), as `base64-` and the session's JSON, base64url.
 function sessionOf(jar: Map<string, string>): { refresh_token: string; expires_at: number } {
   const names = [...jar.keys()].filter((name) => SESSION_COOKIE.test(name));
+  if (names.length === 0) throw new Error("sessionOf: no session cookie in the jar");
   const whole = names.find((name) => !/\.\d+$/.test(name));
   const order = (name: string) => Number(/\.(\d+)$/.exec(name)?.[1]);
   const value = whole ? jar.get(whole)! : names.sort((a, b) => order(a) - order(b)).map((name) => jar.get(name)).join("");
@@ -94,8 +95,9 @@ function withExpiresAt(jar: Map<string, string>, seconds: number): Map<string, s
 
 // Plan A's risk (plan #6): with no proxy before it, `MapPage` refreshes an expiring session
 // through `readOnlyCookies`, which can't store the result, so the browser presents the used
-// refresh token again. IS #448's probe, on the local stack: the cookie's `expires_at` moved into
-// the past (auth-js refreshes within 90 s of it), the JWT itself still valid.
+// refresh token again. Here the cookie's `expires_at` is moved into the past (auth-js refreshes
+// within 90 s of it) with the JWT itself still valid, as `readOnlyCookies`' first probe did; IS
+// #448's probe ran a truly expired JWT (`jwt_expiry` 60 s), which this test doesn't.
 describe("an expiring admin session on the gated /map, with no proxy before it", () => {
   it(
     "is admitted on a refresh it can't store, again past refresh_token_reuse_interval, and the proxy then stores one",
@@ -106,9 +108,9 @@ describe("an expiring admin session on the gated /map, with no proxy before it",
       const revoked = () => localSql(`select revoked from auth.refresh_tokens where token = '${used}'`);
       expect(revoked()).toBe("f");
       expect(await answer(jar)).toEqual({ rendered: MapClientStub });
-      // The load refreshed, and the rotated tokens were lost: the jar still holds `used`.
+      // The load refreshed: `used` is revoked, with one active child, which the jar never got.
       expect(revoked()).toBe("t");
-      expect(sessionOf(jar).refresh_token).toBe(used);
+      expect(localSql(`select count(*) from auth.refresh_tokens where parent = '${used}' and not revoked`)).toBe("1");
 
       // Past `config.toml`'s `refresh_token_reuse_interval = 10`.
       await new Promise((resolve) => setTimeout(resolve, 11_000));

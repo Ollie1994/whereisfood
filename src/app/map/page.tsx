@@ -9,15 +9,15 @@ import { createSessionClient, readOnlyCookies } from "@/lib/supabase-session";
 // the admin at `aal2`; everyone else is sent to `/about`. The check is `withAdmin`'s
 // (`src/lib/http/admin.ts`): `requireAdmin` with `readOnlyCookies`, here with no proxy before
 // it to refresh the session, which IS #448's probe showed the session survives (plan #6,
-// Plan A; `readOnlyCookies`' comment), and `map-gate.test.ts` checks on the local stack.
+// Plan A; `readOnlyCookies`' comment). `map-gate.test.ts` checks it on the local stack with a
+// cookie past its `expires_at` whose JWT is still valid; a truly expired JWT rests on IS #448.
 // `redirect()` throws to answer, so nothing here catches.
 //
 // Limits, beside `requireAdmin`'s (`admin-auth.ts`):
 // - A session it refuses and signs out (past the time-box, or a first factor it doesn't admit)
-//   keeps its cookies, which `readOnlyCookies` can't delete (`admin-auth.ts`'s time-box limit,
-//   whose integration test shows the cookie left), so each later `/map` load asks Auth again
-//   (`requireAdmin`'s `getUser`) before redirecting, until a request through the proxy or a new
-//   login replaces them.
+//   keeps its cookies, which `readOnlyCookies` can't delete, until something clears them, as
+//   `admin-auth.ts`'s time-box limit says; so each `/map` load till then asks Auth again
+//   (`requireAdmin`'s `getUser`) before redirecting.
 // - `createSessionClient` throws on a missing Supabase URL or anon key before any check, so
 //   `/map` then answers its error page, not the redirect; the rest of the app needs them too.
 //
@@ -29,8 +29,7 @@ import { createSessionClient, readOnlyCookies } from "@/lib/supabase-session";
 // listed here; `gate-markers.test.ts` checks the list against `git grep`. At the full launch
 // each site goes back as it says, then: `git grep` finds no marker outside `.claude/`, the
 // build's route table shows `○ /map`, smoke passes, `/api/live`'s cache headers are unchanged,
-// and `/map` is checked in a browser (`CLAUDE.md`, "Testing"). `ABOUT_PATH` may then have no
-// importer left (`git grep ABOUT_PATH`); if so, it goes from `src/lib/paths.ts`.
+// and `/map` is checked in a browser (`CLAUDE.md`, "Testing").
 // - src/app/map/page.tsx: `MapPage` back to `return <MapClient />`, with `MapClient`'s import
 //   alone and no header.
 // - src/app/map/page.test.tsx: deleted (the gate's unit tests and the no-props test).
@@ -42,7 +41,7 @@ import { createSessionClient, readOnlyCookies } from "@/lib/supabase-session";
 // - src/app/about/page.tsx: the sentence that the map opens when the trucks are back,
 //   rewritten for after the launch.
 // - src/app/not-found.tsx: the link back to "Till kartan" and `/map`, its `ABOUT_PATH` import
-//   gone.
+//   gone, and its header's pointer to the link's comment.
 // - src/lib/supabase-session.ts: `readOnlyCookies`' marked sentence deleted, so the comment says
 //   to use it behind the proxy alone.
 // - README.md: "It redirects to `/map`" ("4. Run") and "the app's `/` only redirects to
