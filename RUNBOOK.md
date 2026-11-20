@@ -23,7 +23,12 @@ issue.
 
 Once a week, in this order:
 
-1. **The dump:** README, "Backups" → "The weekly dump". Go on only after `DUMP OK`.
+1. **The dump:** README, "Backups" → "The weekly dump". Step 2 runs only after `DUMP OK`;
+   step 3 runs whatever the dump answered. **While an incident is being investigated** (a
+   takeover, a leaked key), first move the dumps from before it into a `hold` folder inside
+   the backups folder: the prune deletes only `whereisfood-YYYY-MM-DD.sql` files at the
+   folder's top level, and these may be the only copy of rows an intruder deleted. Move them
+   back when the incident is closed.
 2. **`supabase/manual/retention.sql`** in production's SQL editor. Its row counts the
    locations and audit-log rows it deleted (52 weeks and 30 days, Phase 10 plan's open
    decisions 2 and 3). The first audit-log rows come due 30 days after the production
@@ -84,6 +89,7 @@ plan's #13. Its order:
    the SQL editor, `select u.id, a.email from users u join auth.users a on a.id = u.id where
    u.is_admin;`: one row, the admin's id, and an email that should be your mailbox's. A thief
    who held the mailbox may have moved it to theirs, and step 4's link goes to that address.
+   Two rows: stop, and do "A lost phone", step 2, first.
    Then, with the secret key read without echoing (`read -rs SECRET_KEY`), as README's
    restore step 1 does, and `<your email>` in place:
 
@@ -102,7 +108,11 @@ plan's #13. Its order:
    stack with a throwaway user (IS #457): a password-only `PUT` answered `200`, the stored
    hash changed, the new password signed in and the old one was refused; with the email too,
    `200`, the new address confirmed at once, no change left pending, the identity's email
-   moved with it, and no email sent. The admin never needs the password, but must have one
+   moved with it, and no email sent. It also voids a login link sent before it: a link
+   requested before the `PUT` (password and email) answered `403` at Auth's verify and made no
+   session, where the same link with no `PUT` answered `200` and made one (IS #457). So a
+   thief's pending link can't fill the free slot after step 3. The admin never needs the
+   password, but must have one
    (`CLAUDE.md`, "Supabase"). The key and the password are on `curl`'s command line while it
    runs, where other processes of this user can read them (README, "Restoring", Limits): on a
    machine you suspect, run it from another.
@@ -141,10 +151,16 @@ lockout, not a way in: the app admits only a magic-link sign-in (#13).
 
 ## A lost phone
 
-The authenticator app holds the admin's one TOTP factor. If its backup restores onto the new
-phone, nothing else is needed. Otherwise, in production's SQL editor (open decision 9: the
-dashboard, no secret key outside Supabase, no unenroll screen; IS #457):
+The authenticator app holds the admin's one TOTP factor. If the phone **broke** and the app's
+backup restores onto the new one, nothing else is needed. If it was **lost or stolen**, its
+finder holds the same TOTP secret and maybe the mailbox's app too: run the steps below even
+if the backup restored, and end the mailbox's sessions on that phone ("A takeover", step 1).
+They run in production's SQL editor (open decision 9: the dashboard, no secret key outside
+Supabase, no unenroll screen; IS #457):
 
+0. **Get into the dashboards.** Supabase's, Vercel's and GitHub's own two-factor may be on
+   the lost phone too (`CLAUDE.md`, "Secrets": every account has it). Sign in with each
+   account's recovery codes, kept where you keep them, never in the repo.
 1. Make sure it is the phone, not a takeover. If anything under "A takeover" looks off, follow
    that instead.
 2. Check there is one admin: `select id, created_at from users where is_admin;` answers one
@@ -198,18 +214,27 @@ A secret that reaches a commit, an issue or a PR is rotated, not just deleted (`
   works, then delete the old key there.
 - **The publishable key** (`NEXT_PUBLIC_SUPABASE_ANON_KEY`): public by design, in every
   browser. How to revoke one wasn't stated on the pages read.
-- **The database password** (in `.env.prod-db.local`): Connect → **Reset database password**,
-  then the new one into `.env.prod-db.local`. The app doesn't use it; only the dump does.
-- **The legacy JWT secret:** only if the project uses the legacy keys (the preview uses the new
-  `sb_` ones, #448's 1b). Rotating it signs every user out and needs both legacy keys rotated
-  at once.
+- **The database password** (in `.env.prod-db.local`): the dashboard's Connect dialog has
+  **Reset database password** (seen on the preview's, IS #455; how a reset affects anything
+  else wasn't read). Then put the new one into `.env.prod-db.local`, and anywhere else that
+  stored it (a CLI link made with it). The app doesn't use it.
+- **The legacy keys** (`anon` and `service_role` JWTs): they "stay valid until you disable
+  them in the Settings > API Keys section", even where the project uses the new `sb_` keys
+  (#448's 1b). Disable them there. If the legacy JWT secret itself leaked, rotating it signs
+  every user out and needs both legacy keys rotated at once (#448's 1b).
 - **Anything else** (a GitHub token, a CLI login, the Vercel bypass secret): revoke it where
   it was issued, and make a new one.
 
+**After rotating the secret key, a legacy `service_role` key or the database password**, also
+run "A takeover", steps 2 to 4. Rotating a key ends no session made with it, and any of them
+can change the admin's email, factor and sessions with no email sent ("A takeover", step 2's
+probe). Then hold the weekly routine as an incident ("The weekly routine").
+
 Then look for use of the key, knowing how little shows:
 
-- **Auth admin actions** (users made, changed or deleted) are in Auth's audit log: "A
-  takeover", step 5. Hold the weekly `retention.sql` meanwhile ("The weekly routine").
+- **Auth admin actions** (users made, changed or deleted through Auth) are in Auth's audit
+  log: "A takeover", step 5. A change made by SQL with the database password goes around
+  Auth and leaves no audit row.
 - **Changes to data:** only new rows (`created_at`) and most location edits (`updated_at`)
   leave a time: "A takeover", step 5's queries. A truck edit, a `users` change (`is_admin`,
   `truck_id`) and a deleted row leave none, so check the `users` rows for an admin you don't
@@ -239,8 +264,10 @@ warning email "roughly one week before", and activity after it prevents the paus
 1c, from Supabase's docs). Accepted (open decision 8, IS #457).
 
 - **What it looks like:** Supabase answers `540 project paused` (#448's 1c), so every call the
-  app makes to it fails: `/api/live` answers an error (the map keeps its last markers), and so
-  do the admin screen and the login. Not seen on this project.
+  app makes to it fails: `/api/live` answers an error, and so do the admin screen and the
+  login. A map tab already open keeps its last markers; a new load of `/map` lands on
+  `/about`, since the gate asks Auth first and sends any answer but `ok` there (`MapPage`'s
+  `requireAdmin`, which reads an Auth error as `unavailable`). Not seen on this project.
 - **Resume:** the project's dashboard → **Resume project** and confirm. It "will return to
   its previous state, including data and configurations", and can be resumed "for up to 1
   year after it was paused" (#448's 1c). Then load the map and the admin screen once.

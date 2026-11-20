@@ -816,7 +816,8 @@ unset PROD_DB_URL
 
 After `DUMP OK`, run [`supabase/manual/retention.sql`](supabase/manual/retention.sql) in the SQL
 editor: the weekly routine runs it after the dump (Phase 10 plan, #10), except while an
-incident is being investigated (`RUNBOOK.md`, "The weekly routine"). After `DUMP FAILED` or
+incident is being investigated, when the dumps from before it are also moved aside
+(`RUNBOOK.md`, "The weekly routine"). After `DUMP FAILED` or
 `NO URL`, don't run it: fix the cause and run the block again.
 
 ### Restoring
