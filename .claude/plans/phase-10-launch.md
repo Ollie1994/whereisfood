@@ -248,7 +248,8 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
    restore section. Needs steps 6 and 7 and open decision 5.
 9. **`/integritet`** (`PrivacyPage`), its wording approved by the owner; `/about`'s link to it;
    smoke expects it 200 with the static CSP. Needs steps 3, 7 and 8
-   and open decision 4 (it states the periods, the dump count and the contact).
+   and open decision 4 (it states the periods, the dump count with the incident hold's 8-week
+   cap, and the contact).
 10. **`RUNBOOK.md`** (#8): Attack Mode; a takeover (Phase 9 plan #13's recovery order); a lost
     phone (open decision 9 settled here, Phase 9 plan open decision 4); a leaked key; a
     takedown request; a paused project (step 1c, open decision 8); a restore (step 8); the
@@ -623,7 +624,9 @@ would name and rotate the files but is new code to test, for one person once a w
    one; a new mailbox gets two-factor at creation and joins step 15's re-check.
 5. ~~**How many weekly dumps are kept** (#11), which sets how long a removal takes to leave the
    backups. Leaning: 4.~~ → **settled** (the owner, 2026-11-20, IS #455, approving the leaning):
-   the newest 4, so a removal leaves the backups about four weeks on.
+   the newest 4, so a removal leaves the backups about four weeks on. Amended (the owner,
+   2026-11-20, IS #457, round 5 on PR #473): during an incident, the dumps from before it are
+   held aside at most 8 weeks, then deleted (`RUNBOOK.md`, "The weekly routine").
 6. **The email-budget lockout** (#3): accepted again, or a mitigation, before step 13.
 7. ~~**How the usage, spend and 5xx alerts are covered** on the free plans (Phase 9 plan open
    decision 7): a look at each usage page in the weekly routine; an external free uptime

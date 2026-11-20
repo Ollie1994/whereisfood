@@ -27,10 +27,11 @@ Once a week, in this order:
    step 3 runs whatever the dump answered. **While an incident is being investigated** (a
    takeover, a leaked key), first move the dumps from before it into a `hold` folder inside
    the backups folder: the prune deletes only `whereisfood-YYYY-MM-DD.sql` files at the
-   folder's top level, and these may be the only copy of rows an intruder deleted. Move them
-   back when the incident is closed. Held dumps keep the rows of any truck taken down before
-   or during the hold until then, past README's "about four weeks": say so in a takedown's
-   reply meanwhile ("A takedown request").
+   folder's top level, and these may be the only copy of rows an intruder deleted. **At most
+   8 weeks** (the owner's call, IS #457): delete the held dumps when the incident is closed,
+   or 8 weeks after the hold began, whichever comes first. Held dumps keep the rows of any
+   truck taken down before or during the hold until then, past README's "about four weeks":
+   say so in a takedown's reply meanwhile ("A takedown request").
 2. **`supabase/manual/retention.sql`** in production's SQL editor. Its row counts the
    locations and audit-log rows it deleted (52 weeks and 30 days, Phase 10 plan's open
    decisions 2 and 3). The first audit-log rows come due 30 days after the production
@@ -91,9 +92,8 @@ plan's #13. Its order:
    the SQL editor, `select u.id, a.email from users u join auth.users a on a.id = u.id where
    u.is_admin;`: one row, the admin's id, and an email that should be your mailbox's. A thief
    who held the mailbox may have moved it to theirs, and step 4's link goes to that address.
-   Two rows mean a second admin was made (a key can, a session can't): note the other row's id,
-   set it aside with `update users set is_admin = false where id = '<other id>';`, then go on
-   with this step for yours. After step 5, follow "A leaked key" to rotate whatever made it.
+   Two rows: shut the other out as "A lost phone", step 2, says, then go on here with yours.
+   After step 5, follow "A leaked key" to rotate whatever made it.
    Then, with the secret key read without echoing (`read -rs SECRET_KEY`), as README's
    restore step 1 does, and `<your email>` in place:
 
@@ -127,7 +127,8 @@ plan's #13. Its order:
 4. **Re-enroll at once:** log in with the link, which shows the enroll QR code. Until then any
    `aal1` session can fill the free factor slot (#13).
 5. **See what happened**, in the SQL editor. The audit log keeps 30 days (`retention.sql`),
-   so skip the weekly run until this is done, and save the result with the editor's Export:
+   so skip the weekly `retention.sql` until this is done, keeping the dump and its hold ("The
+   weekly routine", step 1), and save the result with the editor's Export:
 
    ```sql
    select created_at, payload->>'action' as action, ip_address
@@ -168,16 +169,34 @@ no secret key outside Supabase, no unenroll screen; IS #457):
    - **The dashboards:** every account `CLAUDE.md`'s "Secrets" lists with two-factor
      (GitHub, Supabase, Vercel, Cloudflare, the registrar, the recovery email) may have it on
      the phone. Sign in with each account's recovery codes, kept where you keep them, never in
-     the repo. If the phone was lost or stolen, also reset each one's two-factor: remove the
-     old authenticator, enroll the new phone, and save the new recovery codes. Otherwise the
-     finder's codes still work.
+     the repo. If the phone was lost or stolen, also, in each: reset its two-factor (remove the
+     old authenticator, enroll the new phone, save the new recovery codes), sign out every
+     other session and device, revoke the tokens and app authorisations the phone held, and
+     change any password the phone's browser or password manager kept. Otherwise the finder's
+     codes and signed-in apps still work.
 1. Make sure it is the phone, not a takeover. If anything under "A takeover" looks off, follow
    that instead.
-2. Check there is one admin: `select id, created_at from users where is_admin;` answers one
-   row, yours. Two rows mean someone made a second admin, which a signed-in user can't do
-   with their own session, but the secret key or the database password can: treat it as "A
-   leaked key" too, and set the other row's `is_admin` to false before step 3, which would
-   otherwise end that user's sessions as well. No row means no admin: stop.
+2. Check there is one admin:
+
+   ```sql
+   select u.id, a.email, u.created_at
+   from users u join auth.users a on a.id = u.id where u.is_admin;
+   ```
+
+   It answers one row, with your email. No row means no admin: stop. Two rows mean someone made
+   a second admin, which a signed-in user can't do with their own session, but a key or the
+   database password can. Tell yours by its email (the takeover's step 2 restores it first if
+   it was changed), and keep the other's rows as evidence, but shut it out, with its id:
+   - `update users set is_admin = false where id = '<other id>';`
+   - ban it at Auth, the takeover's step 2 `curl` with `-d '{"ban_duration":"876000h"}'` and
+     `<other id>`;
+   - `delete from auth.mfa_factors where user_id = '<other id>';` and
+     `delete from auth.sessions where user_id = '<other id>';`.
+
+   A ban refuses new sign-ins but ends no session. Probed on the local stack with a throwaway
+   user (IS #457): `200`, then a password sign-in answered `400` `user_banned`, while its
+   session stayed. Then treat it as "A leaked key" too, after the steps here, and go back to
+   where you came from.
 3. Delete the admin's factor and every session they have, in one statement:
 
    ```sql
@@ -259,6 +278,33 @@ Then look for use of the key, knowing how little shows:
   7), so a read older than that can't be ruled out. Treat what the key could read, the
   location history included, as possibly read.
 
+**Then look for what it left behind**, which a rotation doesn't remove. After the database
+password or an account token, all of these; after the secret key, the first two:
+
+- **Keys and accounts:** the API Keys page, for a key you didn't make (delete it), and Auth's
+  users, for one you didn't make (ban it and end its sessions, as "A lost phone", step 2,
+  does).
+- **Settings:** README's "Hosted settings checklist", row by row, Auth's sign-ups and Redirect
+  URLs included; Vercel's Production variables and its recent deployments.
+- **The database,** each query in the SQL editor against what the migrations give, here the
+  local stack's answers (IS #457):
+
+  ```sql
+  select grantee, table_name, privilege_type from information_schema.role_table_grants
+  where table_schema = 'public' and grantee in ('anon', 'authenticated');
+  select tablename, policyname from pg_policies where schemaname = 'public';
+  select event_object_table, trigger_name from information_schema.triggers
+  where trigger_schema = 'public';
+  select rolname from pg_roles where rolcanlogin order by 1;
+  ```
+
+  Locally: `authenticated` `users` `SELECT` only; the one policy `users_select_own`; the one
+  trigger `locations_updated_at`. A login role you don't recognise is suspect: the hosted
+  list wasn't read, so compare it with the preview's. Then the Security Advisor on
+  production, by its URL, since the CLI is normally linked to the preview:
+  `npx supabase db advisors --db-url "$PROD_DB_URL" --type security`, with `PROD_DB_URL` read
+  as README's weekly dump reads it (`--db-url` is in the CLI's `--help`; not run).
+
 ---
 
 ## A takedown request
@@ -269,7 +315,8 @@ A truck that asks to be removed is removed, company or sole trader (IS #373 (Pha
    its row, and add the line to the takedown log.
 2. Reply to the requester. The map drops the truck within about three minutes; the weekly
    dumps from before it age out over about four weeks (README, "Backups"), or, while an
-   incident hold is open, when the held dumps are released ("The weekly routine").
+   incident hold is open, when the held dumps are deleted, at most 8 weeks after the hold
+   began ("The weekly routine").
 
 ---
 
@@ -310,18 +357,37 @@ so it isn't fresh. In this order, since the login has to reach the new project:
    npx supabase db push
    ```
 
-   The CLI stays linked to the new project, which is production from here on. Then README's
-   "Hosted settings checklist", every Supabase row, with production's Site URL and Redirect
-   URLs (its `/auth/callback` only, no wildcard).
-2. **The data:** README's "Restoring" against the new project: its check that `trucks` and
+   Then README's "Hosted settings checklist", every Supabase row, with production's Site URL
+   and Redirect URLs (its `/auth/callback` only, no wildcard), and the checks the Phase 10
+   plan's step 13 runs on a new production project: Phase 5 #19's hosted check (the
+   `sv-SE-x-icu` collation, both extensions in `extensions`, the Data API's Max rows at least
+   `MAX_ROWS`), and the Security Advisor (`npx supabase db advisors --linked --type
+   security`): no ERROR, each WARN fixed or accepted.
+2. **`.env.prod-db.local`:** the new project's session pooler URL, before the load, so
+   nothing reaches the old project by mistake.
+3. **The data:** README's "Restoring" against the new project: its check that `trucks` and
    `auth.users` both count 0, then its steps 1 to 4 (the admin by their old id, the load, the
-   takedowns and `retention.sql`).
-3. **Vercel's Production variables:** `NEXT_PUBLIC_SUPABASE_URL`,
+   takedowns and `retention.sql`). README shows the load on the local stack; against the new
+   project, the same `psql` through the local stack's container reads the URL instead (not
+   tried):
+
+   ```bash
+   PROD_DB_URL=$(grep '^PROD_DB_URL=' .env.prod-db.local | cut -d= -f2- | tr -d "\r\"'")
+   docker exec -i supabase_db_whereisfood psql "$PROD_DB_URL" -v ON_ERROR_STOP=1 -1 < <dump file>
+   unset PROD_DB_URL
+   ```
+
+4. **Vercel's Production variables:** `NEXT_PUBLIC_SUPABASE_URL`,
    `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` set to the new project's.
    Then redeploy Production.
-4. **`.env.prod-db.local`:** the new project's session pooler URL, for the next dump.
 5. **Log in and enroll TOTP at once** (README's "Restoring", step 5), now that the app points
    at the new project. Then look at `/map`.
+6. **The CLI back to the preview:** `npx supabase link --project-ref <preview project ref>`.
+   README's "Later migrations go up with plain `npx supabase db push`" assumes the preview;
+   left linked to production, the next migration would skip it.
+7. **The old project:** pause it once the new one works, and delete it once the restore is
+   confirmed. Until then it still holds every truck's history, a takedown or retention run
+   since misses it, and its keys still work. Say so in a takedown's reply meanwhile.
 
 Not tried: neither the hosted restore nor this move has been run (README, "Restoring",
-Limits). README's step 2 shows the load on the local stack only.
+Limits).
