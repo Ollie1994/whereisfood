@@ -78,8 +78,10 @@ and gates nothing (#4).
 - `scripts/smoke.mjs` (+ `smoke.test.mjs`): `/` and `/map` expect the redirect to `/about`;
   `/about` and `/integritet` expect 200 with the static CSP. `smoke.test.mjs` uses `/map` as
   its static-CSP page in its header tests; step 3 moves them to `/about`, which stays, so only
-  its `/map` path entry is a gate site.
-- `src/proxy.ts` (+ test): **only if** step 1a or 4b rules out Plan A (#6).
+  its `/` and `/map` cases are gate sites. Steps 3 and 9 add its cases for `/about` and
+  `/integritet`, which its "covers exactly the paths" test requires.
+- `src/proxy.ts` (+ test): the `/map` branch **only if** step 1a or 4b rules out Plan A (#6);
+  step 5's title edit (below) either way.
 - `src/lib/supabase-session.ts`: `readOnlyCookies`' comment, a gate site (#5).
 - `src/app/not-found.tsx`: the "Till kartan" link pointed at `/about`, a gate site (#5).
 
@@ -148,8 +150,8 @@ Each step is one issue and one PR into `dev`, except where a step is settings on
 on its issue. Every PR merges through CI's required checks (`CLAUDE.md`, "Testing"). **Step 1
 comes first**; step 2's decisions are settled as the steps that need them reach them; steps
 3–12 (4b included) may run in any order their own dependencies allow (named in each step);
-steps 13–17 run in order, after every step before them but step 2, each of whose decisions
-blocks only the step that needs it; step 18 runs alongside from step 17 on.
+steps 13–17 (15b included) run in order, after every step before them but step 2, each of
+whose decisions blocks only the step that needs it; step 18 runs alongside from step 17 on.
 
 0. **This plan.** The plan file, and `CLAUDE.md`'s bold "Current phase plan" line naming it,
    where between phases it reads `none (the last one: .claude/plans/phase-9-security.md)`.
@@ -160,20 +162,22 @@ blocks only the step that needs it; step 18 runs alongside from step 17 on.
 1. **Probes** (#6), each recorded on the issue with its command and result:
    - **(a) The expired-session probe, locally.** A local, uncommitted `/map` gated as
      `MapPage` will be, with `readOnlyCookies`, and a short `jwt_expiry` (restored after):
-     once the access token has expired, a load of `/map` makes `getSession()` refresh, and
-     the new tokens can't be written back, so each later load presents the used refresh
-     token again. Auth accepts a reused one within `refresh_token_reuse_interval` (10 s in
+     once the access token has expired, a load of `/map` makes `getSession()` refresh, and the
+     new tokens can't be written back, so each later load presents the used refresh token
+     again. Auth accepts a reused one within `refresh_token_reuse_interval` (10 s in
      `config.toml` and on the preview, README's hosted-settings checklist), so the probe
-     records that interval, then loads `/map` several times after expiry, more than 10 s
-     apart and across more than one `jwt_expiry`, and reads whether reuse detection ends the
-     session. It decides Plan A or the proxy branch (#6). Steps 4 and 5 wait for it. The
-     same probe on `dev`'s preview is step 4b, since only `dev`'s preview builds with the
-     secret key (`CLAUDE.md`, "Where an issue's browser checks run").
+     records that interval, then loads `/map` several times after expiry, more than 10 s apart
+     and across more than one `jwt_expiry`, and, after a `/map` load has refreshed, an admin
+     page within the interval and again past it, where the proxy presents the token `/map`
+     already used; and reads whether reuse detection ends the session. It decides Plan A or
+     the proxy branch (#6). Steps 4 and 5 wait for it. The same probe on `dev`'s preview is
+     step 4b, since only `dev`'s preview builds with the secret key (`CLAUDE.md`, "Where an
+     issue's browser checks run").
    - **(b)** Supabase's key-rotation docs read, for step 15 (its newer and legacy API keys
      rotate differently).
    - **(c)** What a paused free project answers the admin screen and `/api/live`, from the
      docs, for the runbook (open decision 8).
-2. **The owner's decisions** (open decisions 1–8, 12, 13), each settled on the issue of the
+2. **The owner's decisions** (open decisions 1–8, 12–14), each settled on the issue of the
    step that needs it, or its own issue where it needs research, and struck through here with
    "→ settled" as Phase 9's were.
 
@@ -188,10 +192,11 @@ blocks only the step that needs it; step 18 runs alongside from step 17 on.
    `/integritet`.
 4. **The gate** (#5, #6), **one PR holding only gate sites** outside `.claude/`, where its
    review rounds' log rows ride along (`CLAUDE.md`, "Doc changes"): `MapPage`; `Home`; the
-   smoke check's `/` and `/map` expectations (in `smoke.mjs`, and `smoke.test.mjs`'s `/map`
-   path entry); the gate's unit and integration tests; the no-props test; the marker test; the
-   removal list in `map/page.tsx`'s header; `CLAUDE.md`'s gate rule; the marker on `/about`'s
-   sentence that the map opens when the trucks are back; `readOnlyCookies`' comment in
+   smoke check's `/` and `/map` expectations (in `smoke.mjs`, and `smoke.test.mjs`'s `/` and
+   `/map` cases, which its "covers exactly the paths" test requires beside each expectation);
+   the gate's unit and integration tests; the no-props test; the marker test; the removal list
+   in `map/page.tsx`'s header; `CLAUDE.md`'s gate rule; the marker on `/about`'s sentence that
+   the map opens when the trucks are back; `readOnlyCookies`' comment in
    `src/lib/supabase-session.ts` ("use it behind something that refreshes first: the proxy"),
    rewritten under Plan A with step 1a's evidence, since `MapPage` then uses it with no proxy
    before it (the owner's call, round 3 on PR #447); the root 404's "Till kartan" link
@@ -224,8 +229,11 @@ blocks only the step that needs it; step 18 runs alongside from step 17 on.
    local stack only, so the issue also names the role that runs the file on a hosted project
    (the dashboard's SQL editor's) and probes on the preview that it removes rows from
    `auth.audit_log_entries`, an `auth` table: in a transaction rolled back after, a delete
-   of one existing row, the count read before and after, since a delete that matches no row
-   succeeds whether or not row-level security hides the rows. `retention.sql` reports each
+   of one existing row, with its count of deleted rows shown, since a delete that matches no
+   row succeeds whether or not row-level security hides the rows. The issue settles a form
+   whose output the dashboard's SQL editor shows (a single statement that deletes and returns
+   the count, or `psql` with the database URL), since the editor may show only one
+   statement's result (not read). `retention.sql` reports each
    delete's row count. Needs open decisions 2 and 3.
 8. **Backups** (#11): the weekly dump's command; production's database URL in
    `.env.prod-db.local`, which this step adds to `CLAUDE.md`'s "Where secrets live": the
@@ -289,6 +297,12 @@ blocks only the step that needs it; step 18 runs alongside from step 17 on.
       (`CodeQL` and both `analyze` jobs) join `main`'s ruleset (Phase 8 plan #11, #14), read
       back by `gh api`. The production build it starts has no variables, so it fails or
       serves nothing (#9).
+15b. **`main` back into `dev`** (the owner's call, round 6 on PR #447): a branch cut from
+    `dev` merges `origin/main` and goes into `dev` through a PR, so `dev` holds step 15's
+    merge commit. Both rulesets require a PR up to date with its base and allow no direct
+    push (merge or rebase only), so without it step 16's PR from `dev` into `main` can't
+    merge. The same PR adds the sync to `RUNBOOK.md`, for every later `dev` → `main` PR (Phase
+    11's).
 16. **The deploy:** the Ignored Build Step read again and no `ignoreCommand` or `vercel.ts` on
     `dev` or `main`, just before Production's variables are set, from the new project only,
     since step 15's merge changed `main`; a production build from `main`, started by a push to
@@ -306,9 +320,9 @@ blocks only the step that needs it; step 18 runs alongside from step 17 on.
     - a logged-out request to `/map` right after the admin's never gets the map, and no `/map`
       answer shows a cache `HIT`;
     - step 7's rolled-back DELETE on `auth.audit_log_entries` repeated in production's SQL
-      editor, the count dropping by one inside it, recorded beside the preview's, since the two
-      projects' grants may differ; here, after step 16's login has written rows (a new
-      project's table may hold none before);
+      editor, in the form step 7 settled, showing one row deleted, recorded beside the
+      preview's, since the two projects' grants may differ; here, after step 16's login has
+      written rows (a new project's table may hold none before);
     - the first weekly dump is on the owner's machine.
 
     **This step is the phase's done.**
@@ -399,7 +413,7 @@ and open no hole.
   `/map` isn't matched (`:83`), and both are gate sites the removal restores.
 - **Every site findable.** Each gate site carries the marker comment `SOFT-LAUNCH GATE (Phase
   10 plan #5)`. The sites: `MapPage`, `Home`, the smoke check's `/` and `/map` expectations
-  (`smoke.mjs`, and `smoke.test.mjs`'s `/map` path entry), the gate's tests, the no-props
+  (`smoke.mjs`, and `smoke.test.mjs`'s `/` and `/map` cases), the gate's tests, the no-props
   test, the marker test itself, `CLAUDE.md`'s gate rule, `/about`'s sentence that the map
   opens when the trucks are back, `readOnlyCookies`' comment in `supabase-session.ts` (round 3
   on PR #447), the root 404's link and README's sentences on `/` (round 4), and, if #6's
@@ -407,13 +421,14 @@ and open no hole.
   case for `/map`.
 - **One copy of the removal list**, in `map/page.tsx`'s header, where a removal starts: each
   site and what it goes back to (`/` → `/map`; smoke's `/` entry, which step 4 adds, expects
-  the redirect to `/map`, and its `/map` entry, `smoke.test.mjs`'s with it, 200 with the
-  static CSP; `○ /map` in the route table; the gate's tests, the no-props test, the marker
-  test and the `CLAUDE.md` rule deleted; `/about`'s sentence rewritten for after the full
-  launch; `readOnlyCookies`' comment restored to "behind the proxy"; the 404's link back to
-  "Till kartan" and `/map`; README's sentences back to `/` redirecting to `/map`; if #6's
-  branch was added, the branch deleted, `/map` out of the matcher and `proxy.test.ts`'s case
-  for it restored). This decision and the carried-forward row point to it.
+  the redirect to `/map`, and its `/map` entry 200 with the static CSP, `smoke.test.mjs`'s `/`
+  and `/map` cases with them; `○ /map` in the route table; the gate's tests, the no-props
+  test, the marker test and the `CLAUDE.md` rule deleted; `/about`'s sentence rewritten for
+  after the full launch; `readOnlyCookies`' comment restored to "behind the proxy"; the 404's
+  link back to "Till kartan" and `/map`; README's sentences back to `/` redirecting to `/map`;
+  if #6's branch was added, the branch deleted, `/map` out of the matcher and
+  `proxy.test.ts`'s case for it restored). This decision and the carried-forward row point to
+  it.
 - **The marker test** reads that list from the header and fails if a tracked file outside
   `.claude/` holds the marker and isn't listed, or a listed file doesn't hold it. `.claude/`
   is left out because the plans and the log quote the marker as history. Seen red once each
@@ -566,7 +581,8 @@ would name and rotate the files but is new code to test, for one person once a w
   redeployed; the 2FA re-check
   recorded per account; every earlier credential
   rotated or replaced, listed by name; the first merge into `main` ran every required check,
-  the controls' full set included, its CodeQL findings each settled; CodeQL's checks in
+  the controls' full set included, its CodeQL findings each settled; after it, `git
+  merge-base --is-ancestor origin/main origin/dev` succeeds (step 15b); CodeQL's checks in
   `main`'s ruleset, read back by `gh api`.
 - [ ] The production checks: logged out on the phone, `/` and `/map` land on `/about`; as the
   admin, after the TOTP enroll of step 16 and by "Karta", the map shows with R2's tiles and no
