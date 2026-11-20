@@ -192,7 +192,8 @@ said otherwise: Phase 4 plan decision #14.
   project's keys, its database URLs and the Vercel bypass secret in the gitignored
   `.env.preview.local`, IS #186, #187 and #455; production's database URL, the session
   pooler's, for the weekly dump, in the gitignored `.env.prod-db.local`, a name Next never
-  loads, since Next reads `.env.$(NODE_ENV).local` ahead of `.env.local`, Phase 10 plan #11;
+  loads, where a `.env.production.local` would put the URL in every local `next build` and
+  `next start`, Phase 10 plan #11;
   a CLI login token where the CLI stores it) stay on their machine.
   None goes in a tracked or shared file
 - Every account that can reach the project (GitHub, Supabase, Vercel, Cloudflare, the

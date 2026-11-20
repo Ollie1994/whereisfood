@@ -769,9 +769,9 @@ the repo, next to the takedown log ("Takedown", step 4), and **the newest four a
 later.
 
 **The connection string** is the production project's **Session pooler** one (dashboard →
-Connect → Direct → Session pooler → URI, the password filled in, `@ : / ? # %` in it
-percent-encoded), in the gitignored `.env.prod-db.local` as `PROD_DB_URL=…` (`CLAUDE.md`,
-"Where secrets live"). The Direct connection uses IPv6 unless the paid IPv4 add-on is on
+Connect → Direct → Session pooler → URI, the password filled in, every character of it other
+than a letter, a digit or `-._~` percent-encoded), in the gitignored `.env.prod-db.local` as
+`PROD_DB_URL=…` (`CLAUDE.md`, "Where secrets live"). The Direct connection uses IPv6 unless the paid IPv4 add-on is on
 (the dashboard's note), and from this machine it was refused; the session pooler worked (the
 preview, IS #455). The Transaction pooler wasn't tried.
 
@@ -780,22 +780,37 @@ preview, IS #455). The Transaction pooler wasn't tried.
 With Docker running (the CLI runs `pg_dump` in a container), from the repo, in Git Bash:
 
 ```bash
-PROD_DB_URL=$(grep '^PROD_DB_URL=' .env.prod-db.local | cut -d= -f2-)
-npx supabase db dump --db-url "$PROD_DB_URL" --data-only --schema public \
-  -f "<backups folder>/whereisfood-$(date -u +%Y-%m-%d).sql"
+BACKUPS="<backups folder>"
+FILE="$BACKUPS/whereisfood-$(date -u +%Y-%m-%d).sql"
+PROD_DB_URL=$(grep '^PROD_DB_URL=' .env.prod-db.local | cut -d= -f2- | tr -d '\r"')
+npx supabase db dump --db-url "$PROD_DB_URL" --data-only --schema public -f "$FILE" \
+  && tail -n 1 "$FILE" | grep -qx 'RESET ALL;' \
+  && ls -1 "$BACKUPS"/whereisfood-*.sql | sort | head -n -4 | xargs -d '\n' -r rm -- \
+  && echo "DUMP OK: now run retention.sql" \
+  || echo "DUMP FAILED: old dumps kept; don't run retention.sql"
 unset PROD_DB_URL
 ```
 
-The file opens with `SET session_replication_role = replica;` and holds `INSERT`s into `trucks`,
-`locations` and `users`. Then delete all but the newest four, and
-run [`supabase/manual/retention.sql`](supabase/manual/retention.sql) in the SQL editor: the
-weekly routine runs it after the dump (Phase 10 plan, #10).
+- The URL is read with any quotes and Windows line endings removed.
+- A complete dump ends with the CLI's `RESET ALL;`. A failed one exits non-zero and leaves a
+  short file without it: an unreachable database left 41 bytes (IS #455). The old dumps are
+  deleted only after that check passes.
+- The deletion keeps the newest four `whereisfood-*.sql` files and touches nothing else in the
+  folder, so the takedown log stays (checked with six dated files, a takedown log, and a
+  space in the folder's name).
+
+After `DUMP OK`, run [`supabase/manual/retention.sql`](supabase/manual/retention.sql) in the SQL
+editor: the weekly routine runs it after the dump (Phase 10 plan, #10). After `DUMP FAILED`,
+fix the cause, delete the short file and run the block again.
 
 ### Restoring
 
-A restore goes into a database with the migrations applied and no data. It brings back what
-was deleted after its dump, so the takedowns and `retention.sql` run again after it. The
-steps, tested once on the local stack (IS #455's record):
+A restore goes into a database with the migrations applied and **no seed**: on the local
+stack `npx supabase db reset --no-seed`; on a new hosted project `npx supabase db push`
+without `--include-seed` (not tried). The seed's trucks have fixed ids, so a dump loads beside
+them without an error. Check first that `select count(*) from trucks` answers 0. A restore
+brings back what was deleted after its dump, so the takedowns and `retention.sql` run again
+after it. The steps, tested once on the local stack (IS #455's record):
 
 1. **The admin, by its old id**, before the data: `users.id` and `locations.created_by`
    reference `auth.users`, and the dump loads with its foreign keys unchecked (`replica`),
@@ -806,15 +821,19 @@ steps, tested once on the local stack (IS #455's record):
 
    ```bash
    PASSWORD=$(node -e 'console.log(require("crypto").randomBytes(32).toString("base64url"))')
-   curl -X POST "<project URL>/auth/v1/admin/users" -H "apikey: $SECRET_KEY" \
-     -H "Content-Type: application/json" \
+   curl -sS -o /dev/null -w '%{http_code}\n' -X POST "<project URL>/auth/v1/admin/users" \
+     -H "apikey: $SECRET_KEY" -H "Content-Type: application/json" \
      -d "{\"id\":\"<old id>\",\"email\":\"<admin email>\",\"password\":\"$PASSWORD\",\"email_confirm\":true}"
    unset PASSWORD SECRET_KEY
    ```
 
-   A `200` means it was made; `select id from auth.users` in the SQL editor shows the old id.
-2. **The data:** load the dump with `psql`. On the local stack:
-   `docker exec -i supabase_db_whereisfood psql -U postgres -v ON_ERROR_STOP=1 < <dump file>`.
+   It prints the status: `200` means it was made, and `select id from auth.users` in the SQL
+   editor shows the old id. Anything else made nothing.
+2. **The data:** load the dump with `psql` in one transaction (`-1`), so a load that fails
+   partway leaves nothing behind and can be run again. On the local stack:
+   `docker exec -i supabase_db_whereisfood psql -U postgres -v ON_ERROR_STOP=1 -1 < <dump file>`.
+   Probed: a copy of a dump whose second statement failed, a duplicate `users` key, left its
+   first insert behind without `-1` and nothing with it.
 3. **Every takedown in the log**, whatever its date, each with its name read from the
    restored database ("Takedown", steps 1 to 4).
 4. **`retention.sql`**, once.
@@ -826,7 +845,9 @@ steps, tested once on the local stack (IS #455's record):
 Limits: steps 1 and 2 were run only on the local stack (its API URL and `sb_secret_` key; its
 `postgres`, which may set `session_replication_role`). On a hosted project neither the admin
 API call nor the load has been tried, and a hosted restore needs a paused project or a free
-slot (two active free projects).
+slot (two active free projects). The secret key, the admin's password and the database URL
+are on command lines while the commands run, which other processes of this user can read;
+the variables keep them out of the shell's history only.
 
 ---
 
