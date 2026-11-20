@@ -248,8 +248,8 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
    restore section. Needs steps 6 and 7 and open decision 5.
 9. **`/integritet`** (`PrivacyPage`), its wording approved by the owner; `/about`'s link to it;
    smoke expects it 200 with the static CSP. Needs steps 3, 7 and 8
-   and open decision 4 (it states the periods, the dump count with the incident hold's 8-week
-   cap, and the contact).
+   and open decision 4 (it states the periods, the dump count with the 8-week caps, the
+   incident hold's and an old project's after a restore, and the contact).
 10. **`RUNBOOK.md`** (#8): Attack Mode; a takeover (Phase 9 plan #13's recovery order); a lost
     phone (open decision 9 settled here, Phase 9 plan open decision 4); a leaked key; a
     takedown request; a paused project (step 1c, open decision 8); a restore (step 8); the

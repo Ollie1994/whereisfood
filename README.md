@@ -750,10 +750,10 @@ is visible (a failed poll keeps the last markers, and a hidden tab doesn't poll)
 is cached for 60 s and may be served stale for 60 s more (`CLAUDE.md`, "`/api/live`"), and the map polls it every
 60 s (`POLL_MS`, `src/hooks/useLocations.ts`). Until the dumps from before the
 takedown age out, they still hold the truck's rows: about four weeks, as four are kept
-("Backups" below), or, while an incident hold keeps older dumps, until it ends, at most 8
-weeks after it began (`RUNBOOK.md`, "The weekly routine"). After a restore into a new
-project, the old one holds them until it is deleted, at most 8 weeks after the restore
-(`RUNBOOK.md`, "A restore").
+("Backups" below). During an incident hold, held dumps keep them until the hold ends, at
+most 8 weeks after it began; after a restore into a new project, the old one keeps them
+until it is deleted, at most 8 weeks after the restore. The rows go at the latest of these
+dates (`RUNBOOK.md`, "A takedown request").
 
 `tests/integration/takedown.test.ts` runs the file on the local stack, as `postgres`. The
 preview's SQL editor runs as `postgres` too (IS #454's probe), but hasn't run this file, and
@@ -769,8 +769,8 @@ Supabase Free has no backups, so until Pro (Phase 11) the backup is a weekly dum
 sessions and refresh tokens are credentials. The dumps live on the owner's machine outside
 the repo, next to the takedown log ("Takedown", step 4), and **the newest four are kept**
 (open decision 5), so a takedown or a retention delete leaves the backups about four weeks
-later, or, while an incident hold keeps older dumps aside, until it ends, at most 8 weeks
-after it began (`RUNBOOK.md`, "The weekly routine").
+later; while an incident hold keeps older dumps aside, at the later of that and the hold's
+end, at most 8 weeks after it began (`RUNBOOK.md`, "The weekly routine").
 
 **The connection string** is the production project's **Session pooler** one (dashboard →
 Connect → Direct → Session pooler → URI, the password filled in, every character of it other

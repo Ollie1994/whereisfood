@@ -127,14 +127,26 @@ plan's #13. Its order:
    factor alone ends no session (IS #381).
 4. **Re-enroll at once:** log in with the link, which shows the enroll QR code. Until then any
    `aal1` session can fill the free factor slot (#13).
-5. **See what happened**, in the SQL editor. The audit log keeps 30 days (`retention.sql`),
-   so the weekly `retention.sql` waits for this export, at most 8 weeks, while the dump and its
-   hold go on ("The weekly routine"). Save the result with the editor's Export:
+5. **See what happened.** The audit log keeps 30 days (`retention.sql`), so the weekly
+   `retention.sql` waits for this export, at most 8 weeks, while the dump and its hold go on
+   ("The weekly routine"). Export **every** row to a file, not through the SQL editor, which
+   shows at most 100 ("Limited to only 100 rows" on its results). With the local stack
+   started, through its `psql`:
 
-   ```sql
-   select created_at, payload->>'action' as action, ip_address
-   from auth.audit_log_entries order by created_at desc limit 100;
+   ```bash
+   PROD_DB_URL=$(grep '^PROD_DB_URL=' .env.prod-db.local | cut -d= -f2- | tr -d "\r\"'")
+   if [ -z "$PROD_DB_URL" ]; then echo "NO URL: nothing exported"; else
+     mkdir -p "<backups folder>/hold"
+     docker exec -i supabase_db_whereisfood psql "$PROD_DB_URL" -v ON_ERROR_STOP=1 -c \
+       "\copy (select * from auth.audit_log_entries order by created_at) to stdout with csv header" \
+       > "<backups folder>/hold/audit-$(date -u +%Y-%m-%d).csv"
+   fi
+   unset PROD_DB_URL
    ```
+
+   Probed on the local stack, by its own URL (IS #457): the file held all 49 rows the table
+   had. It holds IP addresses: keep it with the held dumps, and delete it with them. Read it
+   by `created_at`, `payload`'s `action` and `ip_address`.
 
    Then the data, for changes you didn't make, one query at a time (how the editor shows
    several results wasn't checked):
@@ -188,8 +200,10 @@ no secret key outside Supabase, no unenroll screen; IS #457):
    a second admin, which a signed-in user can't do with their own session, but a key or the
    database password can. **Tell yours by its id**, not the email, which a thief may have
    changed: the `users` row with `is_admin` true in the newest weekly dump from before the
-   incident (the id README's restore calls the old id). Then shut the other out, keeping its
-   rows as evidence:
+   incident (the id README's restore calls the old id). Keep that id in your password manager
+   from production's setup on: if every kept dump already shows both admins, the noted id
+   decides. Without it, stop and compare each `auth.users.created_at` with when you created
+   the production admin; don't guess. Then shut the other out, keeping its rows as evidence:
    1. Export its sessions and factors first (they hold its IPs, user agents and times), with
       the editor's Export:
       `select * from auth.sessions where user_id = '<other id>';` and
@@ -222,20 +236,28 @@ no secret key outside Supabase, no unenroll screen; IS #457):
    ),
    deleted_sessions as (
      delete from auth.sessions where user_id in (select id from admin) returning 1
+   ),
+   deleted_links as (
+     delete from auth.one_time_tokens where user_id in (select id from admin) returning 1
    )
    select
      (select count(*) from admin) as admins,
      (select count(*) from deleted_factors) as factors_deleted,
-     (select count(*) from deleted_sessions) as sessions_deleted;
+     (select count(*) from deleted_sessions) as sessions_deleted,
+     (select count(*) from deleted_links) as links_voided;
    ```
 
-   Expect `admins` `1` and `factors_deleted` `1`. It finds the admin by `users.is_admin`, not
-   by the email, which a thief holding the mailbox could change. A signed-in user can't change
+   Expect `admins` `1` and `factors_deleted` `1`. `links_voided` voids a login link already
+   sent, which a stolen phone's mail app may hold: probed on the local stack with a throwaway
+   user (IS #457), a link whose `auth.one_time_tokens` row was deleted by SQL answered `403` at
+   Auth's verify and made no session, where the same link left alone answered `200`. It finds
+   the admin by `users.is_admin`, not by the email, which a thief holding the mailbox could
+   change. A signed-in user can't change
    `is_admin` with their own session (`CLAUDE.md`, "Supabase": no owner self-UPDATE on
    `users`); step 2 covers a key that can. The factor's challenges and the sessions' refresh
    tokens and sign-in records go with them (`ON DELETE CASCADE`). Probed on the local stack as
-   `postgres`, in a transaction rolled back after (IS #457): `1|1|1`, with factors, sessions,
-   refresh tokens and sign-in records at `0` inside it.
+   `postgres`, in a transaction rolled back after (IS #457): `1|1|1|0` (no link was pending),
+   with factors, sessions, refresh tokens and sign-in records at `0` inside it.
 4. **Log in at once** and enroll the new phone from the QR code. Until then any `aal1`
    session can fill the free slot (Phase 9 plan #13). Delete the old phone's entry if the app
    synced it.
@@ -301,13 +323,21 @@ password or an account token, all of these; after the secret key, the first two:
 - **Settings:** README's "Hosted settings checklist", row by row, Auth's sign-ups and Redirect
   URLs included; Vercel's Production variables and its recent deployments.
 - **The database's `public` schema,** compared whole with the migrations': dump production's
-  and the local stack's schema (the local stack started, no data needed) and diff them:
+  and the local stack's schema (the local stack started, no data needed), diff them, and run
+  the Security Advisor on production (its bullet below), in one block:
 
   ```bash
   PROD_DB_URL=$(grep '^PROD_DB_URL=' .env.prod-db.local | cut -d= -f2- | tr -d "\r\"'")
-  npx supabase db dump --db-url "$PROD_DB_URL" --schema public -f prod-schema.sql
-  npx supabase db dump --local --schema public -f local-schema.sql
-  diff <(grep -v '^--' local-schema.sql | grep -v '^\s*$') <(grep -v '^--' prod-schema.sql | grep -v '^\s*$')
+  if [ -z "$PROD_DB_URL" ]; then
+    echo "NO URL: nothing checked; with no URL the CLI would read the local stack"
+  else
+    npx supabase db dump --db-url "$PROD_DB_URL" --schema public -f prod-schema.sql
+    npx supabase db dump --local --schema public -f local-schema.sql
+    diff <(grep -v '^--' local-schema.sql | grep -v '^\s*$') <(grep -v '^--' prod-schema.sql | grep -v '^\s*$')
+    npx supabase db advisors --type security \
+      --db-url "$PROD_DB_URL?options=-c%20pgrst.db_schemas%3Dpublic%2Cgraphql_public"
+  fi
+  unset PROD_DB_URL
   ```
 
   The dump holds every table's RLS setting, each policy with its condition, the grants
@@ -317,7 +347,7 @@ password or an account token, all of these; after the secret key, the first two:
   #457). Anything else is a change to explain. The control: a `SECURITY DEFINER` function
   that anon could run, a `GRANT SELECT … TO PUBLIC` and RLS turned off on `trucks`, planted
   on the local stack, each showed in the diff, and were removed after. Delete both files
-  after, and `unset PROD_DB_URL`.
+  after.
 - **What a `public` dump doesn't hold:** roles and triggers in other schemas, in the SQL
   editor, compared with the same queries on the preview (the hosted answers weren't read):
 
@@ -330,12 +360,11 @@ password or an account token, all of these; after the secret key, the first two:
 
   Locally there is no trigger on any `auth` table. A role or trigger the preview doesn't
   have is suspect.
-- **The Security Advisor** on production, by its URL, since the CLI is normally linked to
-  the preview, with the setting CI gives its own run: without it, the RLS-disabled lint and
-  six more read an unset `pgrst.db_schemas`, and the RLS one passed a table with RLS off
-  (`ci.yml`'s advisor step, IS #290):
-  `npx supabase db advisors --db-url "$PROD_DB_URL?options=-c%20pgrst.db_schemas%3Dpublic%2Cgraphql_public" --type security`
-  (the session pooler's URL, with nothing after `/postgres` already; not run).
+- **The Security Advisor** on production, the block's last command: by its URL, since the CLI
+  is normally linked to the preview, with the setting CI gives its own run. Without it, the
+  RLS-disabled lint and six more read an unset `pgrst.db_schemas`, and the RLS one passed a
+  table with RLS off (`ci.yml`'s advisor step, IS #290). The URL is the session pooler's,
+  with nothing after `/postgres` already; this run wasn't tried.
 
 ---
 
@@ -345,11 +374,12 @@ A truck that asks to be removed is removed, company or sole trader (IS #373 (Pha
 
 1. README, "Takedown", steps 1 to 4: find the truck, run `supabase/manual/takedown.sql`, read
    its row, and add the line to the takedown log.
-2. Reply to the requester. The map drops the truck within about three minutes; the weekly
-   dumps from before it age out over about four weeks (README, "Backups"), or, while an
-   incident hold is open, when the held dumps are deleted, at most 8 weeks after the hold
-   began ("The weekly routine"). After a restore, the old project also holds them until it
-   is deleted, at most 8 weeks after the restore ("A restore", step 7).
+2. Reply to the requester. The map drops the truck within about three minutes. The backups
+   keep its rows until the latest of: about four weeks after the takedown, as the weekly
+   dumps from before it age out (README, "Backups"); while an incident hold is open, the held
+   dumps' deletion, at most 8 weeks after the hold began ("The weekly routine"); and after a
+   restore, the old project's deletion, at most 8 weeks after the restore ("A restore", step
+   6). Give the latest date that applies.
 
 ---
 
@@ -397,10 +427,11 @@ container. In this order, since the login has to reach the new project:
    and Redirect URLs (its `/auth/callback` only, no wildcard), and the checks the Phase 10
    plan's step 13 runs on a new production project: Phase 5 #19's hosted check (the
    `sv-SE-x-icu` collation, both extensions in `extensions`, the Data API's Max rows at least
-   `MAX_ROWS`), and the Security Advisor (`npx supabase db advisors --linked --type
-   security`): no ERROR, each WARN fixed or accepted.
+   `MAX_ROWS`).
 2. **`.env.prod-db.local`:** the new project's session pooler URL, before the load, so
-   nothing reaches the old project by mistake.
+   nothing reaches the old project by mistake. Then the Security Advisor by that URL, as "A
+   leaked key" runs it, with `pgrst.db_schemas` on the session: no ERROR, each WARN fixed or
+   accepted.
 3. **The data:** README's "Restoring" against the new project: its check that `trucks` and
    `auth.users` both count 0, then its steps 1 to 4 (the admin by their old id, the load, the
    takedowns and `retention.sql`). README shows the load on the local stack; against the new
@@ -409,7 +440,9 @@ container. In this order, since the login has to reach the new project:
 
    ```bash
    PROD_DB_URL=$(grep '^PROD_DB_URL=' .env.prod-db.local | cut -d= -f2- | tr -d "\r\"'")
-   docker exec -i supabase_db_whereisfood psql "$PROD_DB_URL" -v ON_ERROR_STOP=1 -1 < <dump file>
+   if [ -z "$PROD_DB_URL" ]; then echo "NO URL: nothing loaded"; else
+     docker exec -i supabase_db_whereisfood psql "$PROD_DB_URL" -v ON_ERROR_STOP=1 -1 < <dump file>
+   fi
    unset PROD_DB_URL
    ```
 
@@ -418,15 +451,15 @@ container. In this order, since the login has to reach the new project:
    Then redeploy Production.
 5. **Log in and enroll TOTP at once** (README's "Restoring", step 5), now that the app points
    at the new project. Then look at `/map`.
-6. **The CLI back to the preview:** resume the preview first if you paused it for the slot,
-   then `npx supabase link --project-ref <preview project ref>`. README's "Later migrations
-   go up with plain `npx supabase db push`" assumes the preview; left linked to production,
-   the next migration would skip it.
-7. **The old project:** pause it once the new one works, and delete it when the restore is
-   confirmed or 8 weeks after the restore, whichever comes first (the owner's call, IS
-   #457). Until then it still holds every truck's history, a takedown or retention run since
-   misses it (a paused project runs no SQL), and its keys still work: say so in a takedown's
-   reply meanwhile ("A takedown request").
+6. **The old project:** pause it now that the new one works, which also frees its slot, and
+   delete it when the restore is confirmed or 8 weeks after the restore, whichever comes
+   first (the owner's call, IS #457). Until then it still holds every truck's history, a
+   takedown or retention run since misses it (a paused project runs no SQL), and its keys
+   still work: say so in a takedown's reply meanwhile ("A takedown request").
+7. **The CLI back to the preview:** resume the preview if you paused it for the slot (step
+   6's pause has freed one), then `npx supabase link --project-ref <preview project ref>`.
+   README's "Later migrations go up with plain `npx supabase db push`" assumes the preview;
+   left linked to production, the next migration would skip it.
 
 Not tried: neither the hosted restore nor this move has been run (README, "Restoring",
 Limits).
