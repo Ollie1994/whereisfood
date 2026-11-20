@@ -252,9 +252,8 @@ no secret key outside Supabase, no unenroll screen; IS #457):
    user (IS #457), a link whose `auth.one_time_tokens` row was deleted by SQL answered `403` at
    Auth's verify and made no session, where the same link left alone answered `200`. It finds
    the admin by `users.is_admin`, not by the email, which a thief holding the mailbox could
-   change. A signed-in user can't change
-   `is_admin` with their own session (`CLAUDE.md`, "Supabase": no owner self-UPDATE on
-   `users`); step 2 covers a key that can. The factor's challenges and the sessions' refresh
+   change. A signed-in user can't change `is_admin` with their own session (`CLAUDE.md`,
+   "Supabase": no owner self-UPDATE on `users`); step 2 covers a key that can. The factor's challenges and the sessions' refresh
    tokens and sign-in records go with them (`ON DELETE CASCADE`). Probed on the local stack as
    `postgres`, in a transaction rolled back after (IS #457): `1|1|1|0` (no link was pending),
    with factors, sessions, refresh tokens and sign-in records at `0` inside it.
