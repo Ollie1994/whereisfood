@@ -212,8 +212,9 @@ said otherwise: Phase 4 plan decision #14.
 - It finds and mutates; it decides nothing. Postgres errors propagate unchanged (for
   `23P01`, see Locations below), no function reads the clock (the caller
   passes `cancelledAt`, a window, a `before`), and no function deletes (Phase 5 plan
-  decision #10). The one delete, a takedown, is a manual SQL procedure Phase 10 writes
-  (Phase 5 plan decision #7), not app code
+  decision #10). The two deletes are manual SQL in `supabase/manual/`, not app code: a
+  takedown (`takedown.sql`, Phase 5 plan decision #7) and the weekly retention delete
+  (`retention.sql`, Phase 10 plan #10)
 - Return the selected row **uncast, never `as Location` or `as Truck`**: uncast, `tsc`
   checks that the select has every key of the row type; a cast also compiles when the
   column list leaves one out (Phase 5 plan decision #18). `tsc` doesn't see an *extra*
@@ -374,8 +375,10 @@ said otherwise: Phase 4 plan decision #14.
   constraint (`23P01` → 409, Swedish "överlappar" message). Never auto-resolve,
   replace or delete. The db layer lets `23P01` through unchanged; the service maps it
   (Phase 7)
-- Locations are never deleted (except a takedown, which deletes the truck's whole
-  history). Ended (`ends_at <= now()`) and cancelled (`cancelled_at`) are filters
+- Locations are deleted only by a takedown, which deletes the truck's whole history, and by
+  the weekly retention delete, which deletes those that ended more than 52 weeks ago
+  (`supabase/manual/retention.sql`, Phase 10 plan #10). Until then, ended
+  (`ends_at <= now()`) and cancelled (`cancelled_at`) are filters
 - Foreign keys to `trucks` stay `NO ACTION`, never `ON DELETE CASCADE`: deleting a
   truck with history then fails (`23503`), so no "delete truck" action can wipe its
   history silently (Phase 5 plan decision #7)

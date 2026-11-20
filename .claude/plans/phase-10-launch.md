@@ -136,7 +136,7 @@ Ignored Build Step; R2's CORS rule; `main`'s ruleset (CodeQL's checks); the aler
 | `AdminNav` | component | Gains "Karta", to `/map`, as a plain `<a>`, so it loads `/map` as a new document under its static CSP. A `next/link` added for a probe to `/admin/login` (no nav there, but the proxy's nonce CSP, as on the admin pages), clicked once in headless Chrome (PR #468, round 2), stayed in that page's document, under its nonce CSP, and the map drew with no CSP violation reported |
 | the marker test | unit test | Every tracked file outside `.claude/` holding the gate's marker is on the removal list in `map/page.tsx`'s header, and every listed file holds it (#5) |
 | `takedown.sql` | manual SQL | For one truck id and its name (both must match, so an id and a name from different trucks change nothing: round 1 on PR #470), in one transaction: delete its locations, clear each `users` row's `truck_id` (the account stays, round 3 on PR #470), delete the truck; report the counts |
-| `retention.sql` | manual SQL | Delete `locations` that ended more than the retention period ago, and `auth.audit_log_entries` older than theirs, reporting each delete's row count (open decisions 2, 3) |
+| `retention.sql` | manual SQL | Delete `locations` that ended more than 52 weeks ago, and `auth.audit_log_entries` older than 30 days, in one statement reporting each delete's row count (open decisions 2, 3) |
 | the weekly dump | runbook command | `npx supabase db dump --data-only --schema public` against production, the last N kept (#11, open decision 5) |
 
 **No new db-layer or service function.** The gate reuses `requireAdmin`; the deletes stay
@@ -345,7 +345,9 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     decisions" (the retention period, the app name, the removal contact, as settled),
     "Principles and risks"' backups item (the dump count, the restore method, the takedown
     log), the takedown's "clear or delete each `users` row" (lines 474 and 1071), which only
-    clears them (round 3 on PR #470), Pricing's
+    clears them (round 3 on PR #470), "only the takedown removes history" (line 207) and
+    "Rows are **never deleted**, except a takedown" (line 503), which the retention delete
+    joins (IS #454), Pricing's
     "Supabase Free" item (the paused project, open decision 8); brings README's status parts in
     line; carries forward the decisions that outlive the phase (#5 and #10 at least: #5's row
     names the removal list in `map/page.tsx`'s header and #5's removal checks, for Phase 11's
@@ -499,7 +501,8 @@ shorter than a truck's break leaves it none when it is back (open decision 2). A
 log, kept for investigating a takeover (Phase 9 plan #13), grows without end on Free's 0.5 GB,
 since neither GoTrue nor the app deletes its rows (Phase 9 plan open decision 7).
 `retention.sql` deletes
-both past their periods (open decisions 2, 3), run from the runbook in the same weekly slot as
+both past their periods (open decisions 2, 3: 52 weeks after a location ends, 30 days for the
+audit log, the owner's calls on IS #454), run from the runbook in the same weekly slot as
 the dump; the runbook names the date the first row comes due. It keeps the deletes manual SQL,
 as the takedown is (Phase 5 plan #7, #10). `CLAUDE.md`'s "Locations are never deleted (except a
 takedown)" and the db layer's "the one delete, a takedown" gain retention in step 7's PR.
@@ -603,14 +606,16 @@ would name and rotate the files but is new code to test, for one person once a w
 1. **The app name** (Phase 7 plan #26): the UI text and the TOTP entry's label (step 5), and
    whether to buy the domain now (#7). Until then the admin screens say WhereIsFood and the
    public title "Var är maten? | Göteborg".
-2. **The retention period for location history** (Phase 7 plan #25; #10), at step 7. Its two
+2. ~~**The retention period for location history** (Phase 7 plan #25; #10), at step 7. Its two
    purposes pull apart: the checklist needs 4 weeks, and the recent places need a truck's last
    entries however old, which a period shorter than a seasonal break deletes. The options: a
    period that outlasts a break (12 months, say), or a short one (8 weeks, say) with the loss
    of a returning truck's recent places stated (the owner's call to leave it open, round 5 on
-   PR #447).
-3. **The retention period for Auth's audit log** (Phase 9 plan open decision 7; #10), kept to
-   investigate a takeover. Leaning: 30 days.
+   PR #447).~~ → **settled** (the owner, 2026-11-20, IS #454): 52 weeks after a location's
+   `ends_at`, so a truck back from a seasonal break keeps its recent places.
+3. ~~**The retention period for Auth's audit log** (Phase 9 plan open decision 7; #10), kept to
+   investigate a takeover. Leaning: 30 days.~~ → **settled** (the owner, 2026-11-20, IS #454,
+   approving the leaning): 30 days after a row's `created_at`.
 4. **The removal contact** (IS #373 (Phase 10)). Leaning: a dedicated address, not a personal
    one; a new mailbox gets two-factor at creation and joins step 15's re-check.
 5. **How many weekly dumps are kept** (#11), which sets how long a removal takes to leave the
@@ -626,9 +631,11 @@ would name and rotate the files but is new code to test, for one person once a w
 9. **The lost-phone route** (Phase 9 plan open decision 4): where the recovery's calls run,
    and whether the login needs an unenroll screen. Phase 9's leaning: the dashboard's SQL
    editor, deleting the factor and the user's `auth.sessions` rows, then a re-enroll at once.
-10. **Plan A or a proxy branch** for the gate, from step 1a and its re-run on `dev`'s preview,
+10. ~~**Plan A or a proxy branch** for the gate, from step 1a and its re-run on `dev`'s preview,
     step 4b (#6); the branch changes
-    `CLAUDE.md`'s proxy rule, the owner's call.
+    `CLAUDE.md`'s proxy rule, the owner's call.~~ → **settled**: Plan A, with the proxy rule
+    unchanged (IS #448's probe on the local stack; IS #451's re-run on `dev`'s preview, a load
+    after the access token's expiry showing `/map`). Built in PR #469.
 11. **How a restore recreates the admin by its old id** (step 8): Studio's "Add user" makes a
     new id, and the data dump loads with its foreign keys unchecked (Principles and risks,
     "Backups").

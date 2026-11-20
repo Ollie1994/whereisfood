@@ -25,7 +25,8 @@ create type location_source as enum ('admin', 'owner');
 -- Tables. Every column's nullability and default is stated here (#17).
 -- `locations.truck_id`, `users.truck_id` and `users.id` are NO ACTION: deleting a truck
 -- with history fails with 23503 (probed on this schema 2026-10-19,
--- `locations_truck_id_fkey`), and only the takedown (Phase 10) removes history (#7).
+-- `locations_truck_id_fkey`), and only manual SQL removes history: the takedown and the
+-- retention delete (Phase 10; CLAUDE.md, "Locations"; #7).
 -- `locations.created_by` is the exception, ON DELETE SET NULL (#8; the trigger below).
 -- ---------------------------------------------------------------------------
 
@@ -51,7 +52,7 @@ create table locations (
   label         text,
   starts_at     timestamptz     not null,
   ends_at       timestamptz     not null,
-  -- NULL means live; set means cancelled. Rows are never deleted.
+  -- NULL means live; set means cancelled. Rows are deleted only by hand (CLAUDE.md, "Locations").
   cancelled_at  timestamptz,
   source        location_source not null default 'admin',
   -- Nullable for seed rows and hand-written SQL; never selected by the db layer (#8).
