@@ -567,10 +567,13 @@ Secrets).
 
 **The hosted Security Advisor.** `npx supabase db advisors --linked --type all --level info
 --fail-on error` (CLI 2.109.1; run without `--fail-on` on 2026-11-18, before and after
-Enforce SSL went on, the same five each time). Run it `--linked`, not by a database URL: on
-the preview, with a scratch table with RLS off and an anon grant in `public`, `--linked`
-reported ERROR `rls_disabled_in_public` on it, while runs by the session pooler's URL, with or
-without `options=-c pgrst.db_schemas=…`, missed it and didn't report the Auth lint below.
+Enforce SSL went on, the same five each time). It reads whichever project the CLI is linked
+to, so check that first, as `RUNBOOK.md`'s blocks do:
+`grep -qxF '<preview project ref>' supabase/.temp/project-ref`. Run it `--linked`, not by a
+database URL: on the preview, with a scratch table with RLS off and an anon grant in
+`public`, `--linked` reported ERROR `rls_disabled_in_public` on it, while runs by the session
+pooler's URL, with or without `options=-c pgrst.db_schemas=…`, missed it and didn't report
+the Auth lint below.
 `--fail-on error` makes an ERROR exit 1: it did with that table and exited 0 without it;
 without the flag each of those runs exited 0 (IS #474, the table dropped after). The
 findings, re-read `--linked` on 2026-11-20, the same five:
