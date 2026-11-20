@@ -119,8 +119,9 @@ precedes production's enroll (step 16).
   `project-context.md` and README's status parts.
 
 **Settings, not files:** the production Supabase project; Vercel's Production variables and
-Ignored Build Step; R2's CORS rule; `main`'s ruleset (CodeQL's checks); the alerts' cover
-(open decision 7); the registrar, if the domain is bought (#7).
+Ignored Build Step; R2's CORS rule; `main`'s ruleset (CodeQL's checks); the registrar, if the
+domain is bought (#7). (The alerts' cover, open decision 7, settled with no setting: a look in
+the weekly routine.)
 
 ---
 
@@ -131,7 +132,7 @@ Ignored Build Step; R2's CORS rule; `main`'s ruleset (CodeQL's checks); the aler
 | `MapPage` | page (server component) | The check `withAdmin` makes (`src/lib/http/admin.ts`), from `cookies()`: `createSessionClient(readOnlyCookies(store))`, `requireAdmin({ cookieNames, auth, now })`, with no proxy before it to refresh the session (#6); `redirect(ABOUT_PATH)` for anything but `check.ok`, with no `try` around `redirect()` or `cookies()`; then `<MapClient />` with no props (#5) |
 | `Home` | page | `redirect(ABOUT_PATH)` |
 | `AboutPage` | page (static) | What this is; the map opens when the trucks are back (a gate site, #5); a link to `/integritet` (step 9) |
-| `PrivacyPage` | page (static) | What is stored and why; both retention periods, deleted in the weekly run after each ends, so up to a week later; the dump count; Vercel's and Supabase's logs (IP addresses); Auth's audit log; the removal contact |
+| `PrivacyPage` | page (static) | What is stored and why; both retention periods, deleted in the weekly run after each ends, so up to a week later, or up to 8 weeks during a security incident; the dump count, with the incident hold's and an old project's 8-week caps (IS #457); Vercel's and Supabase's logs (IP addresses); Auth's audit log; the removal contact |
 | `ABOUT_PATH`, `PRIVACY_PATH` | lib constants | For the code that sends someone to the pages |
 | `AdminNav` | component | Gains "Karta", to `/map`, as a plain `<a>`, so it loads `/map` as a new document under its static CSP. A `next/link` added for a probe to `/admin/login` (no nav there, but the proxy's nonce CSP, as on the admin pages), clicked once in headless Chrome (PR #468, round 2), stayed in that page's document, under its nonce CSP, and the map drew with no CSP violation reported |
 | the marker test | unit test | Every tracked file outside `.claude/` holding the gate's marker is on the removal list in `map/page.tsx`'s header, and every listed file holds it (#5) |
@@ -247,7 +248,9 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
    restore section. Needs steps 6 and 7 and open decision 5.
 9. **`/integritet`** (`PrivacyPage`), its wording approved by the owner; `/about`'s link to it;
    smoke expects it 200 with the static CSP. Needs steps 3, 7 and 8
-   and open decision 4 (it states the periods, the dump count and the contact).
+   and open decision 4 (it states the periods, the dump count with the 8-week caps, the
+   incident hold's and an old project's after a restore, an incident's evidence export,
+   which keeps audit-log IP addresses with the held dumps, and the contact).
 10. **`RUNBOOK.md`** (#8): Attack Mode; a takeover (Phase 9 plan #13's recovery order); a lost
     phone (open decision 9 settled here, Phase 9 plan open decision 4); a leaked key; a
     takedown request; a paused project (step 1c, open decision 8); a restore (step 8); the
@@ -270,7 +273,8 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     production `vercel.app` host the admin logs in from in step 16, named on the issue, and
     that host's `/auth/callback` alone, as README's checklist names `dev`'s alias for the
     preview; the admin user with a long random password (README,
-    "5. Create the admin user"), its TOTP factor enrolled in step 16, through the deployed
+    "5. Create the admin user"), its id noted in the password manager (`RUNBOOK.md`, "A lost
+    phone", step 2), its TOTP factor enrolled in step 16, through the deployed
     app; the email-budget lockout as open decision 6 settles it. README's "Production" section
     written.
 14. **Vercel and R2:** the Ignored Build Step read as set to cancel a Production build from any
@@ -564,8 +568,9 @@ would name and rotate the files but is new code to test, for one person once a w
   old id with a long random password, `locations.created_by` resolving, each logged takedown
   and `retention.sql` re-run after it, and a TOTP enroll needed at once.
 - [ ] `/integritet` answers 200 with the static CSP and names what is stored and why, both
-  retention periods, the dump count, Vercel's and Supabase's logs (IP addresses), Auth's audit
-  log and the removal contact; the owner approved the wording.
+  retention periods, the dump count, the 8-week incident caps (IS #457), Vercel's and
+  Supabase's logs (IP addresses), Auth's audit log and the removal contact; the owner approved
+  the wording.
 - [ ] `RUNBOOK.md` has a section each for Attack Mode, a takeover, a lost phone, a leaked key,
   a takedown request, a paused project, a restore and the weekly routine.
 - [ ] `SECURITY.md` says how an in-house finding goes to a private security advisory (#347
@@ -622,18 +627,31 @@ would name and rotate the files but is new code to test, for one person once a w
    one; a new mailbox gets two-factor at creation and joins step 15's re-check.
 5. ~~**How many weekly dumps are kept** (#11), which sets how long a removal takes to leave the
    backups. Leaning: 4.~~ → **settled** (the owner, 2026-11-20, IS #455, approving the leaning):
-   the newest 4, so a removal leaves the backups about four weeks on.
+   the newest 4, so a removal leaves the backups about four weeks on. Amended (the owner,
+   2026-11-20, IS #457, round 5 on PR #473): during an incident, the dumps from before it are
+   held aside at most 8 weeks, then deleted (`RUNBOOK.md`, "The weekly routine"). And (the
+   owner, round 6): `retention.sql` is skipped during an incident only until the takeover's
+   audit-log export is saved, at most 8 weeks; after a restore into a new project, the old
+   one is deleted at most 8 weeks after the restore (`RUNBOOK.md`, "A restore").
 6. **The email-budget lockout** (#3): accepted again, or a mitigation, before step 13.
-7. **How the usage, spend and 5xx alerts are covered** on the free plans (Phase 9 plan open
+7. ~~**How the usage, spend and 5xx alerts are covered** on the free plans (Phase 9 plan open
    decision 7): a look at each usage page in the weekly routine; an external free uptime
    monitor on `/api/live` (a new account, with two-factor at creation); or the gap accepted
-   with a reason.
-8. **Whether a paused project is acceptable** (IS #373 (Phase 10)): a quiet week before the
+   with a reason.~~ → **settled** (the owner, 2026-11-20, IS #457): a look at Supabase's and
+   Vercel's usage pages and the 5xx logs in the weekly routine, no monitor or new account; a
+   5xx between looks goes unalerted, accepted while the admin uses the app daily
+   (`RUNBOOK.md`, "The weekly routine").
+8. ~~**Whether a paused project is acceptable** (IS #373 (Phase 10)): a quiet week before the
    trucks are back could pause it. Leaning: accepted, with the runbook's section and the weekly
-   routine's activity.
-9. **The lost-phone route** (Phase 9 plan open decision 4): where the recovery's calls run,
+   routine's activity.~~ → **settled** (the owner, 2026-11-20, IS #457, approving the leaning):
+   accepted (`RUNBOOK.md`, "A paused project").
+9. ~~**The lost-phone route** (Phase 9 plan open decision 4): where the recovery's calls run,
    and whether the login needs an unenroll screen. Phase 9's leaning: the dashboard's SQL
-   editor, deleting the factor and the user's `auth.sessions` rows, then a re-enroll at once.
+   editor, deleting the factor and the user's `auth.sessions` rows, then a re-enroll at once.~~
+   → **settled** (the owner, 2026-11-20, IS #457, approving the leaning): production's SQL
+   editor, one statement deleting the factor and the user's `auth.sessions` rows (probed
+   locally in a rolled-back transaction), then a re-enroll at once; no unenroll screen
+   (`RUNBOOK.md`, "A lost phone").
 10. ~~**Plan A or a proxy branch** for the gate, from step 1a and its re-run on `dev`'s preview,
     step 4b (#6); the branch changes
     `CLAUDE.md`'s proxy rule, the owner's call.~~ → **settled**: Plan A, with the proxy rule

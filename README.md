@@ -375,7 +375,9 @@ admin is created by hand, and again after each `npx supabase db reset`:
    ```
 
    It shows the row it added. No row means the email matched no user. Without
-   `returning`, the Editor says "Success. No rows returned" in both cases.
+   `returning`, the Editor says "Success. No rows returned" in both cases. On a hosted
+   project, note the `id` it returns in your password manager: with two admins rows, it is
+   how `RUNBOOK.md` ("A lost phone", step 2) tells yours apart.
 
 Then log in at `/admin/login`. The link arrives in Mailpit, the local mail catcher
 ([http://127.0.0.1:54324](http://127.0.0.1:54324)). Open it in the browser that asked
@@ -750,7 +752,10 @@ is visible (a failed poll keeps the last markers, and a hidden tab doesn't poll)
 is cached for 60 s and may be served stale for 60 s more (`CLAUDE.md`, "`/api/live`"), and the map polls it every
 60 s (`POLL_MS`, `src/hooks/useLocations.ts`). Until the dumps from before the
 takedown age out, they still hold the truck's rows: about four weeks, as four are kept
-("Backups" below).
+("Backups" below). During an incident hold, held dumps keep them until the hold ends, at
+most 8 weeks after it began; after a restore into a new project, the old one keeps them
+until it is deleted, at most 8 weeks after the restore. The rows go at the latest of these
+dates (`RUNBOOK.md`, "A takedown request").
 
 `tests/integration/takedown.test.ts` runs the file on the local stack, as `postgres`. The
 preview's SQL editor runs as `postgres` too (IS #454's probe), but hasn't run this file, and
@@ -766,7 +771,9 @@ Supabase Free has no backups, so until Pro (Phase 11) the backup is a weekly dum
 sessions and refresh tokens are credentials. The dumps live on the owner's machine outside
 the repo, next to the takedown log ("Takedown", step 4), and **the newest four are kept**
 (open decision 5), so a takedown or a retention delete leaves the backups about four weeks
-later.
+later; while an incident hold keeps older dumps aside, or after a restore into a new project
+while the old one is kept, at the latest of these, each at most 8 weeks (`RUNBOOK.md`, "A
+takedown request").
 
 **The connection string** is the production project's **Session pooler** one (dashboard →
 Connect → Direct → Session pooler → URI, the password filled in, every character of it other
@@ -815,8 +822,10 @@ unset PROD_DB_URL
   stay and take no place among the four. If it fails, the new dump is still good.
 
 After `DUMP OK`, run [`supabase/manual/retention.sql`](supabase/manual/retention.sql) in the SQL
-editor: the weekly routine runs it after the dump (Phase 10 plan, #10). After `DUMP FAILED`
-or `NO URL`, don't run it: fix the cause and run the block again.
+editor: the weekly routine runs it after the dump (Phase 10 plan, #10), except while an
+incident is being investigated, when the dumps from before it are also moved aside
+(`RUNBOOK.md`, "The weekly routine"). After `DUMP FAILED` or
+`NO URL`, don't run it: fix the cause and run the block again.
 
 ### Restoring
 
@@ -850,7 +859,7 @@ it. The steps, tested once on the local stack (IS #455's record):
    It prints Auth's answer, then the status. `200` means it was made, and
    `select id from auth.users` in the SQL editor shows the old id. A `4xx` gives its reason in
    the answer. For anything else, such as `000`, a dropped connection, check `auth.users`
-   before running it again.
+   before running it again, and `read -rs SECRET_KEY` first: the block has cleared it.
 2. **The data:** load the dump with `psql` in one transaction (`-1`), so a load that fails
    partway leaves nothing behind and can be run again. On the local stack:
    `docker exec -i supabase_db_whereisfood psql -U postgres -v ON_ERROR_STOP=1 -1 < <dump file>`.
@@ -869,12 +878,12 @@ hosted settings checklist, the Redirect URLs) isn't covered here or tried; `RUNB
 restore takes it (#457). Steps 1 and 2 were run only on the local stack (its API URL and
 `sb_secret_` key; its `postgres`, which may set `session_replication_role`). On a hosted
 project neither the admin API call nor the load has been tried, and a hosted restore needs a
-paused project or a free slot (two active free projects). The secret key, the admin's
-password and the database URL are on command lines while the commands run, which other
-processes of this user can read; the variables keep them out of the shell's history only. The
-CLI also hands the database URL's parts to its `pg_dump` container: its script exports
-`PGPASSWORD` there (`--dry-run`), so whoever can reach Docker could read it while the dump
-runs (not seen in `docker inspect`).
+new project in a free slot (two active free projects; pausing another frees one). The secret
+key, the admin's password and the database URL are on command lines while the commands run,
+which other processes of this user can read; the variables keep them out of the shell's
+history only. The CLI also hands the database URL's parts to its `pg_dump` container: its
+script exports `PGPASSWORD` there (`--dry-run`), so whoever can reach Docker could read it
+while the dump runs (not seen in `docker inspect`).
 
 ---
 
