@@ -13,6 +13,7 @@ describe("next.config.ts's headers", () => {
     "/",
     "/map",
     "/about",
+    "/integritet",
     "/api/live",
     "/api/admin/trucks",
     "/auth/callback",
@@ -43,6 +44,7 @@ describe("next.config.ts's headers", () => {
     "/",
     "/map",
     "/about",
+    "/integritet",
     "/api/live",
     "/api/admin/trucks",
     "/auth/callback",
@@ -81,6 +83,7 @@ describe("NOT_ADMIN and isAdminPagePath", () => {
     "/api/admin/trucks",
     "/map",
     "/about",
+    "/integritet",
   ])("agree on %s", async (path) => {
     const hasStatic = (await answer(path)).headers.get("content-security-policy") !== null;
     expect(hasStatic).toBe(!isAdminPagePath(path));

@@ -629,8 +629,11 @@ would name and rotate the files but is new code to test, for one person once a w
 3. ~~**The retention period for Auth's audit log** (Phase 9 plan open decision 7; #10), kept to
    investigate a takeover. Leaning: 30 days.~~ → **settled** (the owner, 2026-11-20, IS #454,
    approving the leaning): 30 days after a row's `created_at`.
-4. **The removal contact** (IS #373 (Phase 10)). Leaning: a dedicated address, not a personal
-   one; a new mailbox gets two-factor at creation and joins step 15's re-check.
+4. ~~**The removal contact** (IS #373 (Phase 10)). Leaning: a dedicated address, not a personal
+   one; a new mailbox gets two-factor at creation and joins step 15's re-check.~~ →
+   **settled** (the owner, 2026-11-21, IS #456, approving the leaning): `vararmaten@proton.me`,
+   a mailbox for this app alone, which joins step 15's re-check; `/integritet` names it, with
+   the owner's name as the controller (the owner's call on #456).
 5. ~~**How many weekly dumps are kept** (#11), which sets how long a removal takes to leave the
    backups. Leaning: 4.~~ → **settled** (the owner, 2026-11-20, IS #455, approving the leaning):
    the newest 4, so a removal leaves the backups about four weeks on. Amended (the owner,

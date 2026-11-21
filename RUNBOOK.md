@@ -15,6 +15,7 @@ issue.
 - [A lost phone](#a-lost-phone)
 - [A leaked key](#a-leaked-key)
 - [A takedown request](#a-takedown-request)
+- [Other requests](#other-requests)
 - [A paused project](#a-paused-project)
 - [A restore](#a-restore)
 
@@ -24,15 +25,18 @@ issue.
 
 Once a week, in this order:
 
-1. **The dump:** README, "Backups" → "The weekly dump". Step 2 runs only after `DUMP OK`;
-   step 3 runs whatever the dump answered. **While an incident is being investigated** (a
-   takeover, a leaked key), first move the dumps from before it into a `hold` folder inside
-   the backups folder: the prune deletes only `whereisfood-YYYY-MM-DD.sql` files at the
-   folder's top level, and these may be the only copy of rows an intruder deleted. **At most
-   8 weeks** (the owner's call, IS #457): delete the held dumps when the incident is closed,
-   or 8 weeks after the hold began, whichever comes first. Held dumps keep the rows of any
-   truck taken down before or during the hold until then, past README's "about four weeks":
-   say so in a takedown's reply meanwhile ("A takedown request").
+1. **The dump:** README, "Backups" → "The weekly dump". Step 2 runs only after `DUMP OK`; step 3
+   runs whatever the dump answered. A week with no new good dump (`DUMP FAILED`, `NO URL`, or the
+   routine skipped) or a prune left undone (`PRUNE FAILED` until the hand deletion) keeps an old
+   dump longer: check "A takedown request", step 4, for a requester whose date it moves. **While an
+   incident is being investigated** (a takeover, a leaked key), first move the dumps from before it
+   into a `hold` folder inside the backups folder: the prune deletes only
+   `whereisfood-YYYY-MM-DD.sql` files at the folder's top level, and these may be the only copy of
+   rows an intruder deleted. **At most 8 weeks** (the owner's call, IS #457): delete the held dumps
+   when the incident is closed, or 8 weeks after the hold began, whichever comes first. Held dumps
+   keep the rows of any truck taken down before or during the hold until then, past README's "about
+   four weeks": say so in a takedown's reply meanwhile, and write to each earlier requester whose
+   date this moves ("A takedown request", steps 3 and 4).
 2. **`supabase/manual/retention.sql`** in production's SQL editor. Its row counts the
    locations and audit-log rows it deleted (52 weeks and 30 days, Phase 10 plan's open
    decisions 2 and 3). The first audit-log rows come due 30 days after the production
@@ -82,10 +86,14 @@ For a flood of traffic, on Vercel. From Vercel's docs
 
 ## Exporting evidence
 
-Before anything an incident deletes (sessions, factors, the audit log `retention.sql` trims),
-save it to files, whole. Not through the SQL editor, whose results show at most 100 rows
-("Limited to only 100 rows"). With the local stack started, through its `psql`, from the
-repo in Git Bash:
+Before anything an incident deletes (sessions, factors, and the MFA challenges and AMR claims their
+deletion cascades to; the audit log `retention.sql` trims), save it to files, every row. Those four
+by named columns, leaving out the credentials: a factor's `secret` (the TOTP seed),
+`web_authn_credential` and `last_webauthn_challenge_data`, a challenge's `otp_code` and
+`web_authn_session_data`, and a session's `refresh_token_hmac_key`, which `select *` wrote in plain
+text (`information_schema.columns` on the local stack and the preview, PR #476). Not through the SQL
+editor, whose results show at most 100 rows ("Limited to only 100 rows"). With the local stack
+started, through its `psql`, from the repo in Git Bash:
 
 ```bash
 BACKUPS="<backups folder>"
@@ -97,8 +105,10 @@ else
   mkdir -p "$EXPORT"
   for item in \
     "audit|select * from auth.audit_log_entries order by created_at" \
-    "sessions|select * from auth.sessions order by created_at" \
-    "factors|select * from auth.mfa_factors order by created_at" \
+    "sessions|select id, user_id, created_at, updated_at, factor_id, aal, not_after, refreshed_at, user_agent, ip, tag, oauth_client_id, scopes, refresh_token_counter from auth.sessions order by created_at" \
+    "factors|select id, user_id, friendly_name, factor_type, status, created_at, updated_at, last_challenged_at, phone, web_authn_aaguid from auth.mfa_factors order by created_at" \
+    "challenges|select id, factor_id, created_at, verified_at, ip_address from auth.mfa_challenges order by created_at" \
+    "amr|select id, session_id, created_at, updated_at, authentication_method from auth.mfa_amr_claims order by created_at" \
     "admins|select u.id, a.email, u.is_admin, u.truck_id, u.created_at, a.created_at as auth_created_at from public.users u join auth.users a on a.id = u.id order by u.created_at" \
     "trucks|select * from public.trucks order by created_at"; do
     name=${item%%|*}; query=${item#*|}
@@ -115,14 +125,18 @@ fi
 unset PROD_DB_URL
 ```
 
-Each file is written as `.part` and renamed only when `psql` succeeds, so a file with its
-own name is a complete export. Probed on the local stack, by its own URL (IS #457): each
-answered `EXPORT OK` with as many lines as its table had rows (audit 54, sessions 1, factors
-1, admins 1, trucks 23); with an unreachable URL, each answered `EXPORT FAILED` and left no
-file; with none, `NO URL`. A line count can exceed the rows if a value holds a line break.
-Run it again later in an incident to export what has changed. The files hold IP addresses
-and emails: keep them in `hold` with the held dumps, and delete them with those, at most 8
-weeks after the hold began ("The weekly routine").
+Each file is written as `.part` and renamed only when `psql` succeeds, so a file with its own name
+is a complete export. Probed on the local stack, by its own URL (IS #457; again with these named
+columns, PR #476): each answered `EXPORT OK` with as many lines as its table had rows (PR #476's
+run: audit 54, sessions 1, factors 1, challenges 1, amr 2, admins 1, trucks 23); with an unreachable
+URL, each of IS #457's five answered `EXPORT FAILED` and left no file; with none, `NO URL`. The
+named columns were read on the local stack and the preview, not on production, which has none yet:
+if a table answers `EXPORT FAILED` with `column … does not exist`, take that column out of its query
+and run the block again, never `select *`, which writes the credentials. A line count can exceed the
+rows if a value holds a line break. Run it again later in an incident to export what has changed.
+The files hold IP addresses and emails, and `trucks` holds every truck's row, so it keeps a truck
+taken down after the export: keep them in `hold` with the held dumps, and delete them with those, at
+most 8 weeks after the hold began ("The weekly routine").
 
 ---
 
@@ -427,16 +441,96 @@ password or an account token, all of these; after the secret key, the first two:
 
 ## A takedown request
 
-A truck that asks to be removed is removed, company or sole trader (IS #373 (Phase 10)):
+A truck that asks to be removed is removed, company or sole trader (IS #373 (Phase 10)), as
+soon as possible and within a month of the request, as `/integritet` promises (PR #476). An
+objection to the processing of a truck's data is handled the same way, as the page says; any
+other request goes to "Other requests":
 
-1. README, "Takedown", steps 1 to 4: find the truck, run `supabase/manual/takedown.sql`, read
+1. Confirm the requester as "Other requests" says, by a code through the truck's Instagram: a
+   takedown deletes the truck's whole history, and every restore re-runs it (the owner's call, round
+   5 on PR #476). With no channel to confirm through at all, remove anyway: an unlisted truck is the
+   safe default.
+2. README, "Takedown", steps 1 to 4: find the truck, run `supabase/manual/takedown.sql`, read
    its row, and add the line to the takedown log.
-2. Reply to the requester. The map drops the truck within about three minutes. The backups
+3. Reply to the requester. The map drops the truck within about three minutes. The backups
    keep its rows until the latest of: about four weeks after the takedown, as the weekly
    dumps from before it age out (README, "Backups"); while an incident hold is open, the held
-   dumps' deletion, at most 8 weeks after the hold began ("The weekly routine"); and after a
+   dumps' deletion, with the evidence export's copy of `trucks` beside them, at most 8 weeks
+   after the hold began ("The weekly routine", "Exporting evidence"); and after a
    restore, the old project's deletion, at most 8 weeks after the restore ("A restore", step
    6). Give the latest date that applies.
+4. Keep the request mail and the reply until no copy from before the takedown is left, as
+   `/integritet` says: no dump dated on or before its date in the backups folder or in `hold` (a
+   dump is named by its UTC date, so one from earlier that day holds the truck), no export dated on
+   or before it in `hold`, and, after a restore, the old project deleted. If that comes later than
+   the date given, for any reason (a week with no new good dump (`DUMP FAILED`, `NO URL`, or the
+   routine skipped) or a prune left undone (`PRUNE FAILED` until the hand deletion); a hold; a
+   restore), write to the requester with the new date. Then delete both, and delete them from Trash
+   too. The takedown log keeps what a restore needs, the truck's id and the date (README,
+   "Takedown", step 4), not who asked.
+
+---
+
+## Other requests
+
+`/integritet` also offers access, correction and restriction by mail. Answer each as soon as
+possible and within a month (GDPR art. 12(3)), then delete the request and the reply, from
+Trash too, once the matter is closed: a restriction's mail stays until it is lifted.
+
+Before sending a truck's data or changing it, confirm that the requesting address speaks for the
+truck (GDPR art. 12(6) allows asking): send a code in a message to the Instagram account on the
+truck's row, and ask for it to be mailed back from the requesting address. Send files only to that
+address. With no handle on the row, or when the handle itself is what's disputed, do the same
+through another channel the truck publishes itself (its website, or a contact in its own posts);
+with none, answer that the request can't be verified, and what would let you verify it. A takedown
+is confirmed the same way ("A takedown request").
+
+- **Access:** the truck's rows as CSV files, through the local stack's `psql` as "Exporting
+  evidence" does (the SQL editor shows at most 100 rows). From the repo in Git Bash, with the
+  truck's id from README's "Takedown", step 1, and a folder outside the backups:
+
+  ```bash
+  OUT="<a folder outside the backups>"
+  TRUCK="<the truck's id>"
+  PROD_DB_URL=$(grep '^PROD_DB_URL=' .env.prod-db.local | cut -d= -f2- | tr -d "\r\"'")
+  if [ -z "$PROD_DB_URL" ]; then
+    echo "NO URL: nothing exported"
+  elif ! [[ "$TRUCK" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]; then
+    echo "NOT AN ID: nothing exported"
+  else
+    mkdir -p "$OUT"
+    for item in \
+      "trucks|select * from trucks where id = '$TRUCK'" \
+      "locations|select id, truck_id, latitude, longitude, label, starts_at, ends_at, cancelled_at, source, created_at, updated_at from locations where truck_id = '$TRUCK' order by starts_at"; do
+      table=${item%%|*}; query=${item#*|}
+      if docker exec -i supabase_db_whereisfood psql "$PROD_DB_URL" -v ON_ERROR_STOP=1 -c \
+        "\copy ($query) to stdout with csv header" > "$OUT/$table.csv.part"; then
+        mv "$OUT/$table.csv.part" "$OUT/$table.csv"
+        echo "EXPORT OK $table: $(($(wc -l < "$OUT/$table.csv") - 1)) lines after the header"
+      else
+        rm -f "$OUT/$table.csv.part"
+        echo "EXPORT FAILED $table"
+      fi
+    done
+  fi
+  unset PROD_DB_URL
+  ```
+
+  `locations` leaves out `created_by`, the admin's user id. Probed on the local stack (PR #476): a
+  truck with 31 places gave `EXPORT OK` with 1 and 31 lines; an id that isn't a UUID, `' or true or
+  id::text = '` among them, gave `NOT AN ID` and wrote nothing. Send both files, say that the
+  backups hold the same rows until they age out, and delete the folder once sent.
+- **Correction:** the truck, or a place that hasn't ended, in the admin screen. A place that
+  has ended can't be edited there (Phase 7 plan #33), so in production's SQL editor, for example
+  `update locations set label = '<the right name>' where id = '<the place's id>' returning *;`
+  (the `locations_updated_at` trigger sets `updated_at`). Say that the backups hold the old
+  value until they age out.
+- **Restriction**, while a correction or an objection is settled: enter no new places for the truck,
+  and cancel its running and upcoming ones in the admin screen, until it is settled. A cancel can't
+  be undone, so note each one cancelled and enter it again when the restriction is lifted.
+- **An objection to anything but a truck's data**, such as a visitor's IP address in Vercel's
+  logs: no takedown reaches it, and the service can't edit those logs; answer that each
+  provider keeps them under its own terms, as the page says.
 
 ---
 
@@ -545,7 +639,8 @@ container. In this order, since the login has to reach the new project:
    delete it when the restore is confirmed or 8 weeks after the restore, whichever comes
    first (the owner's call, IS #457). Until then it still holds every truck's history, a
    takedown or retention run since misses it (a paused project runs no SQL), and its keys
-   still work: say so in a takedown's reply meanwhile ("A takedown request").
+   still work: say so in a takedown's reply meanwhile, and write to each earlier requester whose
+   date this moves ("A takedown request", steps 3 and 4).
 7. **The CLI back to the preview:** resume the preview if you paused it for the slot (step
    6's pause has freed one), then, from the repo root:
 

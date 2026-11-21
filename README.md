@@ -763,7 +763,9 @@ is cached for 60 s and may be served stale for 60 s more (`CLAUDE.md`, "`/api/li
 60 s (`POLL_MS`, `src/hooks/useLocations.ts`). Until the dumps from before the
 takedown age out, they still hold the truck's rows: about four weeks, as four are kept
 ("Backups" below). During an incident hold, held dumps keep them until the hold ends, at
-most 8 weeks after it began; after a restore into a new project, the old one keeps them
+most 8 weeks after it began, as does the evidence export's copy of `trucks`, which holds the
+truck's own row, not its places, if it was taken down after the export (`RUNBOOK.md`,
+"Exporting evidence"); after a restore into a new project, the old one keeps them
 until it is deleted, at most 8 weeks after the restore. The rows go at the latest of these
 dates (`RUNBOOK.md`, "A takedown request").
 
