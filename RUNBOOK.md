@@ -121,8 +121,9 @@ answered `EXPORT OK` with as many lines as its table had rows (audit 54, session
 1, admins 1, trucks 23); with an unreachable URL, each answered `EXPORT FAILED` and left no
 file; with none, `NO URL`. A line count can exceed the rows if a value holds a line break.
 Run it again later in an incident to export what has changed. The files hold IP addresses
-and emails: keep them in `hold` with the held dumps, and delete them with those, at most 8
-weeks after the hold began ("The weekly routine").
+and emails, and `trucks` holds every truck's row, so it keeps a truck taken down after the
+export: keep them in `hold` with the held dumps, and delete them with those, at most 8 weeks
+after the hold began ("The weekly routine").
 
 ---
 
