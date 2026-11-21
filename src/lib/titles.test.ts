@@ -6,6 +6,8 @@ describe("titles", () => {
   it("puts the page's name first, then the app", () => {
     expect(SITE_TITLE).toBe("Väm | Var är maten i Göteborg");
     expect(pageTitle("Karta")).toBe("Karta | Väm | Var är maten i Göteborg");
+    // The root layout's `title.template`: `%s` must come through as it is.
+    expect(pageTitle("%s")).toBe("%s | Väm | Var är maten i Göteborg");
   });
 
   it("gives the admin its own, shorter suffix", () => {
