@@ -9,7 +9,7 @@
 # on PR #433. For a file with no NUL byte, `binary`'s `-diff` made the pre-commit Gitleaks hook
 # see only "Binary files … differ" and miss a made-up token, which it caught under `-text`,
 # though Git then merges such a file as text, writing conflict markers into it. A file with a
-# NUL (every `.ico`) the hook doesn't read under either mark: Git decides binary from the
+# NUL (every `.ico` and `.png`) the hook doesn't read under either mark: Git decides binary from the
 # content (all probed on PR #433). CI's secret scan, with `--text`, reads both, except in the
 # extensions Gitleaks' default config skips (`.png`, `.pdf` and `.bin` among them: ci.yml's
 # secret-scan comment).

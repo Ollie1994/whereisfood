@@ -1,8 +1,8 @@
-// Väm's temporary logo (IS #481): option A from the owner's logo canvas, "Väm" drawn in lines,
-// the same drawing as `src/app/icon.svg`. Beside the text "Var är maten" (the owner's call), it is
-// the heading's only "Väm", so it is labelled "Väm" for screen readers.
-// Presentation attributes, not `style`, so the admin pages' nonce CSP admits it (`CLAUDE.md`,
-// "Security headers").
+// Väm's temporary logo (IS #481): option A from the owner's logo canvas, "Väm" drawn in lines.
+// A copy of `src/app/icon.svg`'s drawing; nothing checks that the two match. On `/om` and in the
+// admin header it stands beside the text "Var är maten" (the owner's call), so it carries the name:
+// labelled "Väm" for screen readers. Drawn with presentation attributes, not `style`: the owner's
+// browser check of `/admin` under its nonce CSP showed no violation (PR #482).
 export default function VamLogo({ size }: { size: number }) {
   return (
     <svg

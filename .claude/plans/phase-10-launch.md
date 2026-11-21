@@ -366,6 +366,7 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     every `/about` and `/map`, now `/om` and `/karta` (#12, IS #478),
     Q36 in the IS #278 (Phase 10) row (line 1142) and #347's "private until disclosure" in the
     Phase 10 row (line 474) and in "Pre-deploy automation" (line 825), which #13 amends (IS #347),
+    the folder tree's `src/app/` (line 304), which gains `icon.svg` and `apple-icon.png` (IS #481),
     "Principles and risks"' backups item (the dump count, the restore method, the takedown
     log), the takedown's "clear or delete each `users` row" (lines 474 and 1071), which only
     clears them (round 3 on PR #470), "only the takedown removes history" (line 207) and
