@@ -15,7 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  // Each page under it sets only its name ("Om", "Karta"; `src/lib/titles.ts`).
+  // A page in a child segment sets only its name ("Om", "Karta"); the root not-found and the
+  // error pages build theirs (`src/lib/titles.ts`).
   title: { default: SITE_TITLE, template: `%s | ${SITE_TITLE}` },
   description: "Se var Göteborgs foodtruckar befinner sig just nu.",
 };
