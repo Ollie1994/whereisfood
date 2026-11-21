@@ -49,6 +49,8 @@ import { createSessionClient, readOnlyCookies } from "@/lib/supabase-session";
 //   framåt" rewritten for after the launch, its "Nu" no longer the soft launch (IS #483).
 // - src/app/not-found.tsx: the link to "Till kartan", its text before the gate, and `/karta`, its
 //   `ABOUT_PATH` import gone, and its header's pointer to the link's comment.
+// - src/components/PublicShell.tsx: the footer gains a link to `/om` (its text the owner's call
+//   then), since nothing else links to `/om` once `/` leads to the map (IS #483).
 // - src/app/integritet/page.tsx: the link to "Till kartan" and `/karta`, its `ABOUT_PATH` import
 //   gone.
 // - src/lib/supabase-session.ts: `readOnlyCookies`' marked sentence deleted, so the comment says
