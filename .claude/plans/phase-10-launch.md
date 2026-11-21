@@ -112,11 +112,12 @@ precedes production's enroll (step 16).
 - `README.md`: a "Production" section (setup, the hosted-settings checklist as applied,
   Production's variables), backups and restore, the takedown; its two sentences that `/`
   redirects to `/map`, gate sites (#5).
-- `SECURITY.md`: #347.
-- `CLAUDE.md`: the gate's rule (#5, a gate site); "Locations" and "db layer" gain the
-  retention delete beside the takedown (#10); "Where secrets live" gains production's
-  database URL in the gitignored `.env.prod-db.local` (#11), a name Next never loads; the
-  proxy rule only if #6's branch is needed.
+- `SECURITY.md`: #347, a private vulnerability's fix (#13).
+- `CLAUDE.md`: the gate's rule (#5, a gate site); "Doc changes" gains the private-vulnerability
+  exception, with pointers in "CI is the gate" and "Process Log" (#13); "Locations" and "db
+  layer" gain the retention delete beside the takedown (#10); "Where secrets live" gains
+  production's database URL in the gitignored `.env.prod-db.local` (#11), a name Next never
+  loads; the proxy rule only if #6's branch is needed.
 - This plan; `CLAUDE.md`'s bold line; `.claude/process-log.md`; at the reconciliation,
   `project-context.md` and README's status parts.
 
@@ -560,11 +561,16 @@ still to come and the open criteria name the new ones.
 
 ### #13 — A private vulnerability is fixed in its advisory and shipped by a public PR
 
-The owner's calls (2026-11-21, IS #347): a privately reported vulnerability, before production
-too, and once production exists one found in-house (Q36), is fixed in its advisory's private fork
-with the local gates and shipped by a normal public PR with CI. The advisory's merge button is
-never used: GitHub's docs (read 2026-11-21) say it doesn't enforce the branch's protection
-rules, and CI can't run in the fork. The public records follow at disclosure. In-house findings
+The owner's calls (2026-11-21, IS #347, round 1 on PR #480): a privately reported
+vulnerability, before production too, and once production exists one found in-house (Q36), is
+fixed in its advisory's private fork with the local gates and shipped by a normal public PR with
+CI: before production into `dev`, whose preview is the only deploy, so #9's first merge into
+`main` keeps its order; once production exists by a branch off `main` and a PR into `main`,
+then `main` synced back into `dev`, so unfinished work on `dev` doesn't ship with it. The
+advisory's merge button is never used: GitHub's docs (read 2026-11-21) say it doesn't enforce
+the branch's protection rules, and CI can't run in the fork. From the public PR's opening to the
+deploy the fix is public before it is live, which amends Q36's "until its fix ships" to "until
+its public PR opens". The public records follow the advisory's publication. In-house findings
 before production stay public (Q36).
 
 ---
@@ -609,8 +615,8 @@ before production stay public (Q36).
   the wording.
 - [ ] `RUNBOOK.md` has a section each for Attack Mode, a takeover, a lost phone, a leaked key,
   a takedown request, a paused project, a restore and the weekly routine.
-- [ ] `SECURITY.md` says how an in-house finding goes to a private security advisory (#347
-  closed).
+- [ ] `SECURITY.md` says how a reported vulnerability, and once production exists an in-house
+  one, is fixed privately in an advisory, and `CLAUDE.md` carries #13's exception (#347 closed).
 - [ ] #349: each finding has an issue or a recorded reason; the account had two-factor at
   creation.
 - [ ] The production project: Phase 5 #19's hosted check passes; each hosted-checklist item is

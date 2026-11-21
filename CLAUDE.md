@@ -465,7 +465,8 @@ after the outage; a PR that works around the advisory and passes its own checks)
 rule is lifted by hand in the repository's settings (plan #11).
 `gh api repos/{owner}/{repo}/rulesets` lists them, and `…/rulesets/<id>` reads one's rules
 back. A PR is reviewed and merged once its checks are green; nothing runs the gates by hand
-for it. What CI doesn't cover:
+for it (but a private vulnerability's fix in its fork: "Doc changes", the exception). What CI
+doesn't cover:
 - the `/karta` browser check, which stays manual (below);
 - what a PR's checks run: a PR runs its own copy of everything its jobs read (workflows,
   scripts, configs, tests, `package.json` and the lockfile, `.env.example`), so any edit can
@@ -626,14 +627,25 @@ uncommitted on `dev`. Every doc change then has a reviewable diff and a
   see (a review comment on a PR's diff among them).
 - **Exception: a private vulnerability** (Phase 10 plan #13, IS #347). An outside report
   (`SECURITY.md`), before production too, and once production exists an unfixed vulnerability
-  found in-house (Q36), is worked in its GitHub security advisory, not a public issue or PR. The
-  fix is developed and reviewed in the advisory's temporary private fork, with the local gates
-  (`npx tsc --noEmit`, `npm run test:all`, `npm run build` and smoke), since CI can't run there.
-  Never merge with the advisory's button: GitHub's docs say it doesn't enforce the branch's
-  protection rules, and CI can't run in the fork. On the ship date the fix goes through a normal
-  public PR into `dev` and on to `main`, where CI runs and the rulesets hold. It is deployed, and
-  the advisory is published the same day. The public records (the issue, the PR's round records,
-  the process-log rows) are written at disclosure, from notes kept in the advisory.
+  found in-house (Q36), is worked in its GitHub security advisory, not a public issue or PR.
+  - **The fix** is developed and reviewed in the advisory's temporary private fork. Its clone
+    gets `core.hooksPath` set (README, "1. Install") before the first commit. CI can't run there,
+    so the local gates run instead: `npx tsc --noEmit`, `npm run lint`, `npm run test:all`,
+    Supabase's security advisor as `ci.yml` runs it, `npm run build`, `node scripts/smoke.mjs
+    <Local: URL>` against `npm start`, and `node scripts/controls.mjs` for a schema change.
+    Never merge with the advisory's button: GitHub's docs say it doesn't enforce the branch's
+    protection rules.
+  - **Shipping:** before production, by a public PR into `dev`, whose preview is the only
+    deploy. Once production exists, by a branch off `main` and a public PR into `main`,
+    deployed, then `main` synced back into `dev`. CI runs and the rulesets hold on that PR. The
+    advisory is published the same day.
+  - **The window:** from the public PR's opening to the deploy, the fix is public before it's
+    live: CI's run, and on a PR into `main` the full controls set, about 45 s a control. This
+    amends Q36: "until its fix ships" becomes "until its public PR opens".
+  - **Records:** the public PR's body says what the fix changes and points to the advisory. The
+    issue, the round records and the process-log rows are written after the advisory is
+    published, from notes kept in the advisory. The final records check runs on those notes
+    before the merge.
 
 ---
 
@@ -780,8 +792,9 @@ when the miss is mine:**
 - A settled decision gets re-proposed, or a preference is assumed instead of asked
 - A review round finds anything — that is the signal an earlier gate missed it
 
-A private vulnerability's rows are still added, but at its disclosure ("Doc changes", the
-exception).
+A private vulnerability's rows are still added, at its disclosure: dated that day (`add`
+refuses a date earlier than the last row's), with the day the miss happened in the Miss. It is
+the one exception to "as it happens" ("Doc changes", the exception).
 
 **Do not** log ordinary bugs found and fixed while writing the code. That is just
 work. The bar is *"this says something about the process."* Bugs belong in GitHub
