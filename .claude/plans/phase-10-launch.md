@@ -138,6 +138,7 @@ setting: a look in the weekly routine.)
 | `PrivacyPage` | page (static) | What is stored and why; both retention periods, deleted in the weekly run after each ends, so up to a week later, or up to 8 weeks during a security incident; the dump count, with the incident hold's and an old project's 8-week caps (IS #457); Vercel's and Supabase's logs (IP addresses); Auth's audit log; the removal contact |
 | `ABOUT_PATH`, `PRIVACY_PATH` | lib constants | For the code that sends someone to the pages |
 | `AdminNav` | component | Gains "Karta", to `/karta` (`/map` until #12), as a plain `<a>`, so it loads `/karta` as a new document under its static CSP. A `next/link` added for a probe to `/admin/login` (no nav there, but the proxy's nonce CSP, as on the admin pages), clicked once in headless Chrome (PR #468, round 2), stayed in that page's document, under its nonce CSP, and the map drew with no CSP violation reported |
+| `VamLogo` | component | The temporary logo (IS #481) as an inline SVG badge, sized by `size`, labelled "Väm"; beside "Var är maten" on `/om` and in the admin header |
 | the marker test | unit test | Every tracked file outside `.claude/` holding the gate's marker is on the removal list in the header of `karta/page.tsx` (`map/page.tsx` until #12), and every listed file holds it (#5) |
 | `takedown.sql` | manual SQL | For one truck id and its name (both must match, so an id and a name from different trucks change nothing: round 1 on PR #470), in one transaction: delete its locations, clear each `users` row's `truck_id` (the account stays, round 3 on PR #470), delete the truck; report the counts |
 | `retention.sql` | manual SQL | Delete `locations` that ended more than 52 weeks ago, and `auth.audit_log_entries` older than 30 days, in one statement reporting each delete's row count (open decisions 2, 3) |
@@ -225,6 +226,9 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
 5b. **Swedish paths** (#12, IS #478): `/about` → `/om` and `/map` → `/karta`, the folders moved
     (`karta/` with its tests), every link, test and doc pointed at the new paths; the old paths
     answer 404, which smoke expects. Before step 13.
+5c. **A temporary logo** (IS #481, the owner's choice from a logo canvas): `src/app/icon.svg`,
+    `favicon.ico` (for browsers without SVG favicons), `apple-icon.png` and `VamLogo` beside "Var
+    är maten" on `/om` and in the admin header.
 
 **C. Operations**
 
@@ -364,6 +368,8 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     every `/about` and `/map`, now `/om` and `/karta` (#12, IS #478),
     Q36 in the IS #278 (Phase 10) row (line 1142) and #347's "private until disclosure" in the
     Phase 10 row (line 474) and in "Pre-deploy automation" (line 825), which #13 amends (IS #347),
+    the folder tree's `src/app/` (line 304), which gains `icon.svg` and `apple-icon.png`, and its
+    `components/`, which gains `VamLogo.tsx` (IS #481),
     "Principles and risks"' backups item (the dump count, the restore method, the takedown
     log), the takedown's "clear or delete each `users` row" (lines 474 and 1071), which only
     clears them (round 3 on PR #470), "only the takedown removes history" (line 207) and

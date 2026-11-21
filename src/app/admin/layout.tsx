@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { connection } from "next/server";
 import AdminNav from "@/components/Admin/AdminNav";
 import LogoutButton from "@/components/Admin/LogoutButton";
+import VamLogo from "@/components/VamLogo";
 import { ADMIN_TITLE } from "@/lib/titles";
 
 // Väm, the app's name (Phase 10 plan, open decision 1, IS #452).
@@ -27,7 +28,10 @@ export default async function AdminLayout({ children }: Readonly<{ children: Rea
     <div className="mx-auto flex w-full max-w-md flex-1 flex-col gap-6 px-4 py-6 scheme-light-dark">
       <header className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-4">
-          <span className="text-lg font-semibold">Väm</span>
+          <span className="flex items-center gap-2 text-lg font-semibold">
+            <VamLogo size={28} />
+            Var är maten
+          </span>
           <LogoutButton />
         </div>
         <AdminNav />
