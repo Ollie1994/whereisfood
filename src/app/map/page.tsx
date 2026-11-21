@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import MapClient from "@/components/Map/MapClient";
@@ -34,8 +35,8 @@ import { createSessionClient, readOnlyCookies } from "@/lib/supabase-session";
 // each site goes back as it says, then: `git grep` finds no marker outside `.claude/`, the
 // build's route table shows `○ /map`, smoke passes, `/api/live`'s cache headers are unchanged,
 // and `/map` is checked in a browser (`CLAUDE.md`, "Testing").
-// - src/app/map/page.tsx: `MapPage` back to `return <MapClient />`, with `MapClient`'s import
-//   alone and no header.
+// - src/app/map/page.tsx: `MapPage` back to `return <MapClient />`, with its `metadata` (the
+//   "Karta" title) and the imports `MapClient` and it need, and no header.
 // - src/app/map/page.test.tsx: deleted (the gate's unit tests and the no-props test).
 // - src/app/map/gate-markers.test.ts: deleted (the marker test).
 // - tests/integration/map-gate.test.ts: deleted (the gate on the local stack).
@@ -53,6 +54,8 @@ import { createSessionClient, readOnlyCookies } from "@/lib/supabase-session";
 // - README.md: "It redirects to `/map`" ("4. Run") and "the app's `/` only redirects to
 //   `/map`" ("Hosted preview database"), and their HTML-comment markers removed.
 // - CLAUDE.md: "The soft-launch gate" deleted.
+export const metadata: Metadata = { title: "Karta" };
+
 export default async function MapPage() {
   const store = await cookies();
   const supabase = createSessionClient(readOnlyCookies(store));

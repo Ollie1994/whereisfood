@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "@/app/globals.css";
+import { SITE_TITLE } from "@/lib/titles";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,7 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Väm | Var är maten i Göteborg?",
+  // Each page under it sets only its name ("Om", "Karta"; `src/lib/titles.ts`).
+  title: { default: SITE_TITLE, template: `%s | ${SITE_TITLE}` },
   description: "Se var Göteborgs foodtruckar befinner sig just nu.",
 };
 

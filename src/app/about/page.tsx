@@ -7,7 +7,7 @@ import { PRIVACY_PATH } from "@/lib/paths";
 // (CLAUDE.md, UI Rules), in the root `not-found.tsx`'s column (`max-w-md`, `px-4 py-6`) and
 // heading style.
 export const metadata: Metadata = {
-  title: "Om tjänsten | Väm",
+  title: "Om",
 };
 
 export default function AboutPage() {

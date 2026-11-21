@@ -34,7 +34,7 @@ import { ABOUT_PATH } from "@/lib/paths";
 //   names an IP field, hence "kan innehålla". All read 2026-11-21, on the plans in use until Phase
 //   11.
 export const metadata: Metadata = {
-  title: "Integritet | Väm",
+  title: "Integritet",
 };
 
 const CONTACT = "vararmaten@proton.me";

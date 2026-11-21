@@ -2,6 +2,7 @@
 
 import { MAP_NOTICE } from "@/components/Map/styles";
 import { useFocusOnMount } from "@/hooks/useFocusOnMount";
+import { pageTitle } from "@/lib/titles";
 
 // `/map`'s error page: an error thrown while `/map` renders or in its effects (the map's
 // start, a marker update), other than a browser without WebGL2 (`createBaseMap`'s
@@ -22,7 +23,7 @@ export default function MapError({ retry }: { retry: () => void }) {
   const message = useFocusOnMount<HTMLParagraphElement>();
   return (
     <div className="flex h-screen w-full items-start justify-center px-4 pt-4">
-      <title>Något gick fel | Väm</title>
+      <title>{pageTitle("Något gick fel")}</title>
       <div className={`${MAP_NOTICE} border border-gray-300`}>
         <p ref={message} tabIndex={-1} className="focus:outline-none">
           Något gick fel, och kartan kan inte visas just nu.

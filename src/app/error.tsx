@@ -13,11 +13,12 @@
 // Limits: an admin here gets no nav and no "Logga ut"; and an error in the root layout itself,
 // or while this page renders, isn't caught here (`global-error.js` would be needed).
 import ErrorNotice from "@/components/ErrorNotice";
+import { pageTitle } from "@/lib/titles";
 
 export default function RootError({ retry }: { retry: () => void }) {
   return (
     <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-6 px-4 py-6 scheme-light-dark">
-      <ErrorNotice title="Något gick fel | Väm" retry={retry} />
+      <ErrorNotice title={pageTitle("Något gick fel")} retry={retry} />
     </main>
   );
 }

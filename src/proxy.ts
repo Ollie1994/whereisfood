@@ -5,6 +5,7 @@ import { foreignOriginRefusal, isSameOrigin, isWrite } from "@/lib/http/origin";
 import { LOGOUT_LABEL, LOGOUT_PATH, MFA_PATH, SESSION_CHECK_FAILED } from "@/lib/login";
 import { hasSessionCookie, mfaStepAllowed, requireAdmin } from "@/lib/services/admin-auth";
 import { createSessionClient, writingCookies } from "@/lib/supabase-session";
+import { ADMIN_TITLE } from "@/lib/titles";
 
 // NO `export const runtime` HERE — and none is needed. Next.js 16 rejects route
 // segment config in the Proxy file outright ("Route segment config is not allowed
@@ -53,7 +54,7 @@ function wroteSession(from: NextResponse): boolean {
 // devices included, when Auth answers (`/auth/logout`, Phase 9 plan #5); while Auth is
 // failing, one of this page's causes, it can't, and the login says so (`?error=logout`).
 function unavailablePage(): NextResponse {
-  const html = `<!doctype html><html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Väm – admin</title></head><body><p role="alert">${SESSION_CHECK_FAILED}</p><form method="post" action="${LOGOUT_PATH}"><button type="submit">${LOGOUT_LABEL}</button></form></body></html>`;
+  const html = `<!doctype html><html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${ADMIN_TITLE}</title></head><body><p role="alert">${SESSION_CHECK_FAILED}</p><form method="post" action="${LOGOUT_PATH}"><button type="submit">${LOGOUT_LABEL}</button></form></body></html>`;
   return new NextResponse(html, {
     status: 503,
     headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },

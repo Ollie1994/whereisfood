@@ -8,7 +8,8 @@
 // in the admin layout itself isn't caught here (`error.md`: a segment's boundary doesn't catch
 // its own layout's errors) but by the root's `error.tsx`, with the same `ErrorNotice` (IS #413).
 import ErrorNotice from "@/components/ErrorNotice";
+import { adminTitle } from "@/lib/titles";
 
 export default function AdminError({ retry }: { retry: () => void }) {
-  return <ErrorNotice title="Något gick fel – Väm admin" retry={retry} />;
+  return <ErrorNotice title={adminTitle("Något gick fel")} retry={retry} />;
 }
