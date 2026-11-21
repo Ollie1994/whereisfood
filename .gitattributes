@@ -14,3 +14,4 @@
 # extensions Gitleaks' default config skips (`.png`, `.pdf` and `.bin` among them: ci.yml's
 # secret-scan comment).
 *.ico -text
+*.png -text

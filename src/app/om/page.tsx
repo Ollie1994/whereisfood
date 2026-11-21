@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import VamLogo from "@/components/VamLogo";
 import { PRIVACY_PATH } from "@/lib/paths";
 
 // What the app is (Phase 10 plan, step 3): where everyone but the admin lands during the soft
@@ -13,7 +14,10 @@ export const metadata: Metadata = {
 export default function AboutPage() {
   return (
     <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-4 px-4 py-6">
-      <h1 className="text-2xl font-semibold">Väm</h1>
+      <h1 className="flex items-center gap-3 text-2xl font-semibold">
+        <VamLogo size={40} />
+        Var är maten
+      </h1>
       <p>
         En karta över var Göteborgs foodtruckar står i dag. Varje plats läggs in för hand, så
         kartan visar bara de foodtruckar som har en plats inlagd för dagen.
