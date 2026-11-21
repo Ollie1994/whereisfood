@@ -626,13 +626,13 @@ uncommitted on `dev`. Every doc change then has a reviewable diff and a
   step. Its header lists what GitHub rewrites (probe PR #425) and what the script can't
   see (a review comment on a PR's diff among them).
 - **Exception: a private vulnerability** (Phase 10 plan #13, IS #347). An outside report
-  (`SECURITY.md`), before production too, and once production exists an unfixed vulnerability
-  found in-house (Q36), is worked in its GitHub security advisory and the advisory's temporary
-  private fork, not a public issue or PR, by `RUNBOOK.md`'s "A private vulnerability". The fix
-  ships by a public PR, where CI runs and the rulesets hold, never by the advisory's merge button
-  (GitHub's docs: it doesn't enforce the branch's protection rules). The fix is public from the
-  push of its branch. The issue, the round records and the process-log rows are written when the
-  advisory is published.
+  (`SECURITY.md`), before production too, and once production exists an unfixed vulnerability found
+  in-house (Q36), is worked in its GitHub security advisory and the advisory's temporary private
+  fork, not a public issue, and no public PR until it ships, by `RUNBOOK.md`'s "A private
+  vulnerability". The fix ships by a public PR, where CI runs and the rulesets hold, never by the
+  advisory's merge button (GitHub's docs: it doesn't enforce the branch's protection rules). The fix
+  is public from the push of its branch. The issue, the round records and the process-log rows are
+  written when the advisory is published.
 
 ---
 
