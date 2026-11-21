@@ -225,6 +225,8 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
 5b. **Swedish paths** (#12, IS #478): `/about` → `/om` and `/map` → `/karta`, the folders moved
     (`karta/` with its tests), every link, test and doc pointed at the new paths; the old paths
     answer 404, which smoke expects. Before step 13.
+5c. **A temporary logo** (IS #481, the owner's choice from a logo canvas): `src/app/icon.svg`,
+    `apple-icon.png` and `VamLogo` beside "Var är maten" on `/om` and in the admin header.
 
 **C. Operations**
 
