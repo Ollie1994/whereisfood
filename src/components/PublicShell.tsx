@@ -8,8 +8,8 @@ import { PRIVACY_PATH } from "@/lib/paths";
 // full-screen map) or `/admin` (its own header) or `error.tsx`, which an error in the admin
 // layout reaches too (`CLAUDE.md`, "Security headers"). The header's link goes to `/`, which
 // leads to `/om` while the gate stands and to the map after it, so it is no gate site. Classes
-// only, in `globals.css`'s public palette, with `scheme-light-dark` as the admin layout has, so a
-// dark page gets dark scrollbars and controls.
+// only, in `globals.css`'s public palette, with `scheme-light-dark` as the admin layout has (its
+// comment says what it does); the browser check of PR #484 looks at it here.
 // The public column, this comment its one copy: `max-w-md px-4` on a phone, `md:max-w-2xl md:px-8`
 // from `md` up, used by the header and footer here and by each page's `<main>`.
 // A limit: outside this frame `body` keeps `--background` (#ffffff, or #0a0a0a in dark mode),
