@@ -134,7 +134,7 @@ setting: a look in the weekly routine.)
 |---|---|---|
 | `MapPage` | page (server component) | The check `withAdmin` makes (`src/lib/http/admin.ts`), from `cookies()`: `createSessionClient(readOnlyCookies(store))`, `requireAdmin({ cookieNames, auth, now })`, with no proxy before it to refresh the session (#6); `redirect(ABOUT_PATH)` for anything but `check.ok`, with no `try` around `redirect()` or `cookies()`; then `<MapClient />` with no props (#5) |
 | `Home` | page | `redirect(ABOUT_PATH)` |
-| `AboutPage` | page (static), at `/om` (#12) | What this is, for people looking for food, truck owners, and developers and employers (step 5d, IS #483); why the map isn't open yet and the roadmap (gate sites, #5); a link to `/integritet` (step 9), in `PublicShell`'s footer since IS #483 |
+| `AboutPage` | page (static), at `/om` (#12) | What this is, for people looking for food, truck owners, and developers and employers (step 5d, IS #483); the intro's "Snart kan du", why the map isn't open yet, and the roadmap (gate sites, #5); a link to `/integritet` (step 9), in `PublicShell`'s footer since IS #483 |
 | `PublicShell` | component | The public pages' header (the logo and "Var är maten", linking to `/`), footer (`/integritet`, Instagram, the contact) and warm palette, around `/om`, `/integritet` and the root 404 (IS #483) |
 | `ExternalLink` | component | A link to another site, in a new tab with `rel="noopener noreferrer"` and a hidden "(öppnas i en ny flik)" (IS #483) |
 | `PrivacyPage` | page (static) | What is stored and why; both retention periods, deleted in the weekly run after each ends, so up to a week later, or up to 8 weeks during a security incident; the dump count, with the incident hold's and an old project's 8-week caps (IS #457); Vercel's and Supabase's logs (IP addresses); Auth's audit log; the removal contact |
@@ -232,8 +232,8 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     `favicon.ico` (for browsers without SVG favicons), `apple-icon.png` and `VamLogo` beside "Var
     är maten" on `/om` and in the admin header.
 5d. **`/om` rewritten for the soft launch** (IS #483, the owner's calls on it): for people looking
-    for food, truck owners, and developers and employers, in the logo's colours, with a "Just nu"
-    card and a roadmap with no dates (both gate sites, #5); `PublicShell`'s header and footer on
+    for food, truck owners, and developers and employers, in the logo's colours, with "Snart kan du" in
+    the intro, a "Just nu" card and a roadmap with no dates (all three gate sites, #5); `PublicShell`'s header and footer on
     `/om`, `/integritet` and the root 404, not `/karta`, `/admin` or `error.tsx`.
 
 **C. Operations**
