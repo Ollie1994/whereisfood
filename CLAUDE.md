@@ -366,10 +366,10 @@ said otherwise: Phase 4 plan decision #14.
   publishes, and `MapPage` passes `MapClient` no props. Nothing admin-only (an edit link,
   unconfirmed entries, the admin's id) is added to `/karta` or behind the gate while it
   stands: admin data stays behind `withAdmin` and RLS, so removing the gate opens nothing
-- Every gate site carries the marker `SOFT-LAUNCH GATE (Phase 10 plan #5)` and is on the
-  removal list in `src/app/karta/page.tsx`'s header, its one copy, which says what each goes
-  back to; `gate-markers.test.ts` fails on a marked file not listed or a listed file not
-  marked. A new gate site is marked and listed in the PR that adds it
+- Every gate site carries the marker `SOFT-LAUNCH GATE (Phase 10 plan #5)` and is on the removal
+  list in `src/app/karta/page.tsx`'s header, its one copy, which says what each becomes;
+  `gate-markers.test.ts` fails on a marked file not listed or a listed file not marked. A new gate
+  site is marked and listed in the PR that adds it
 - The `/karta` browser check ("Testing") is made signed in as the admin at `aal2` (locally: the
   magic link from Mailpit, then TOTP); signed out, `/karta` only redirects. Nothing in CI serves
   `/karta`'s page while the gate stands: smoke sees the redirect, and the gate's tests stub

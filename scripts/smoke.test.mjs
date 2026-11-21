@@ -19,8 +19,7 @@ const CASES = [
     path: "/",
     right: { status: 307, location: "/om", origin: "http://127.0.0.1:3000" },
     wrongStatus: { status: 200, contentType: HTML, origin: "http://127.0.0.1:3000" },
-    // `/` still redirecting to the map's page, as before the gate (`/map` then, `/karta` since
-    // IS #478).
+    // `/` still redirecting to the map's page, as before the gate.
     wrongShape: { status: 307, location: "/karta", origin: "http://127.0.0.1:3000" },
   },
   {
@@ -72,7 +71,7 @@ const CASES = [
   },
   // `/Admin/login`: the login served for a case variant would be the wrong status.
   // `/finnsinte`: a page served for a path no page matches would be; `/about` and `/map`: an old
-  // public path still served, or redirected (IS #478).
+  // public path still served (IS #478).
   ...["/Admin/login", "/finnsinte", "/about", "/map"].map((path) => ({
     path,
     right: { status: 404, contentType: HTML },

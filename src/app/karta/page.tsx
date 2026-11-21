@@ -40,8 +40,7 @@ import { createSessionClient, readOnlyCookies } from "@/lib/supabase-session";
 // - src/app/karta/page.test.tsx: deleted (the gate's unit tests and the no-props test).
 // - src/app/karta/gate-markers.test.ts: deleted (the marker test).
 // - tests/integration/map-gate.test.ts: deleted (the gate on the local stack).
-// - src/app/page.tsx: `Home` redirects to `/karta`, the map's path since IS #478, its `ABOUT_PATH`
-//   import gone.
+// - src/app/page.tsx: `Home` redirects to `/karta`, its `ABOUT_PATH` import gone.
 // - scripts/smoke.mjs: `/` expects the redirect to `/karta`, and `/karta` 200, html, the static
 //   CSP.
 // - scripts/smoke.test.mjs: its `/` and `/karta` cases to match.
