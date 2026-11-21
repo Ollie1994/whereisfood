@@ -55,7 +55,7 @@ describe a different one.
 
 **Dependencies**
 - `next`, `eslint-config-next` and `maplibre-gl` are **exact pins**. Upgrade them
-  deliberately, each with a browser check of `/map` (Phase 4 plan decision #10). `next` and
+  deliberately, each with a browser check of `/karta` (Phase 4 plan decision #10). `next` and
   `eslint-config-next` move together, to the same version (PR #135).
 - **The Node and npm versions are the ranges `package.json`'s `devEngines` admits** (IS
   #139). npm 10.9 and later check them before `install`, `ci`, `run` and `exec` and stop
@@ -252,7 +252,7 @@ said otherwise: Phase 4 plan decision #14.
 - Must export a named function: `export function proxy(request: NextRequest)`
 - Must export `config` with `matcher` to scope to protected routes only: `/admin/:path*`
   and `/api/admin/:path*`, with `/admin/login` let through in the function. Never
-  `/api/live`, `/map`, `/auth/*` or `/dashboard`; `src/proxy.test.ts` pins the list
+  `/api/live`, `/karta`, `/auth/*` or `/dashboard`; `src/proxy.test.ts` pins the list
   (Phase 7 plan, #10, #28)
 - `/admin/mfa` is the one admin page besides `/admin/login` that an `aal1` admin session
   reaches, for the TOTP enroll and code: every other admin page sends such a session there,
@@ -357,22 +357,22 @@ said otherwise: Phase 4 plan decision #14.
   `created_by` and future columns can't leak
 
 **The soft-launch gate** (Phase 10 plan #5, #6; until the full launch, Phase 11)
-<!-- SOFT-LAUNCH GATE (Phase 10 plan #5): this section is deleted at the full launch (the removal list in src/app/map/page.tsx). -->
-- `/map` shows only to the admin at `aal2` and sends everyone else to `/about`; `/` sends
+<!-- SOFT-LAUNCH GATE (Phase 10 plan #5): this section is deleted at the full launch (the removal list in src/app/karta/page.tsx). -->
+- `/karta` shows only to the admin at `aal2` and sends everyone else to `/om`; `/` sends
   everyone there, the admin included.
   `MapPage` runs `requireAdmin` with `readOnlyCookies` and no proxy before it (Plan A, IS
   #448's probe); the proxy's matcher stays as "proxy.ts" above says
-- **The gate hides `/map`; it protects nothing.** `/map` renders only what `/api/live`
+- **The gate hides `/karta`; it protects nothing.** `/karta` renders only what `/api/live`
   publishes, and `MapPage` passes `MapClient` no props. Nothing admin-only (an edit link,
-  unconfirmed entries, the admin's id) is added to `/map` or behind the gate while it
+  unconfirmed entries, the admin's id) is added to `/karta` or behind the gate while it
   stands: admin data stays behind `withAdmin` and RLS, so removing the gate opens nothing
-- Every gate site carries the marker `SOFT-LAUNCH GATE (Phase 10 plan #5)` and is on the
-  removal list in `src/app/map/page.tsx`'s header, its one copy, which says what each goes
-  back to; `gate-markers.test.ts` fails on a marked file not listed or a listed file not
-  marked. A new gate site is marked and listed in the PR that adds it
-- The `/map` browser check ("Testing") is made signed in as the admin at `aal2` (locally: the
-  magic link from Mailpit, then TOTP); signed out, `/map` only redirects. Nothing in CI serves
-  `/map`'s page while the gate stands: smoke sees the redirect, and the gate's tests stub
+- Every gate site carries the marker `SOFT-LAUNCH GATE (Phase 10 plan #5)` and is on the removal
+  list in `src/app/karta/page.tsx`'s header, its one copy, which says what each becomes;
+  `gate-markers.test.ts` fails on a marked file not listed or a listed file not marked. A new gate
+  site is marked and listed in the PR that adds it
+- The `/karta` browser check ("Testing") is made signed in as the admin at `aal2` (locally: the
+  magic link from Mailpit, then TOTP); signed out, `/karta` only redirects. Nothing in CI serves
+  `/karta`'s page while the gate stands: smoke sees the redirect, and the gate's tests stub
   `MapClient`
 
 **Locations**
@@ -466,7 +466,7 @@ rule is lifted by hand in the repository's settings (plan #11).
 `gh api repos/{owner}/{repo}/rulesets` lists them, and `…/rulesets/<id>` reads one's rules
 back. A PR is reviewed and merged once its checks are green; nothing runs the gates by hand
 for it. What CI doesn't cover:
-- the `/map` browser check, which stays manual (below);
+- the `/karta` browser check, which stays manual (below);
 - what a PR's checks run: a PR runs its own copy of everything its jobs read (workflows,
   scripts, configs, tests, `package.json` and the lockfile, `.env.example`), so any edit can
   turn a required check into one that passes whatever the code does, under the same name
@@ -537,7 +537,7 @@ a browser check, use `npm run build` + `npm start` instead, reading its `Local:`
 (above): #304's probe saw no reload loop under `npm start`.
 
 ⚠ **Green gates don't show the map renders.** After a change to the map code, its
-dependencies or the tile file, look at `/map` in a real browser: basemap, markers and
+dependencies or the tile file, look at `/karta` in a real browser: basemap, markers and
 a popup. MapLibre's worker 404'd with all four gates green (process-log row 282).
 Headless Edge on this machine doesn't load the style at all, even on a working build,
 so it is no substitute (PR #138).

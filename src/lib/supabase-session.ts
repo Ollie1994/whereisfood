@@ -31,9 +31,9 @@ type CookieSource = { getAll(): { name: string; value: string }[] };
 // an admin page through the proxy 3 s and 15 s after such a load stored the refresh. Not run
 // on a hosted project (Phase 10 plan step 4b, IS #451). Use it behind something that
 // refreshes first: the proxy (`src/proxy.ts`).
-// SOFT-LAUNCH GATE (Phase 10 plan #5): but for `MapPage`, the gated `/map`, which uses it
+// SOFT-LAUNCH GATE (Phase 10 plan #5): but for `MapPage`, the gated `/karta`, which uses it
 // with no proxy before it on that probe (Plan A, plan #6). This sentence goes at the full
-// launch (the removal list in `src/app/map/page.tsx`).
+// launch (the removal list in `src/app/karta/page.tsx`).
 export function readOnlyCookies(source: CookieSource): CookieMethodsServer {
   return { getAll: () => source.getAll() };
 }

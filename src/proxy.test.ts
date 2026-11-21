@@ -80,7 +80,7 @@ describe("the matcher", () => {
 
   // `/api/live`: a cookie written on its answer would stop Vercel caching it (`CLAUDE.md`).
   // `/auth/*` sets its own cookies (plan #28). `/dashboard` is the Owners phase's.
-  it.each(["/api/live", "/map", "/", "/auth/callback", "/auth/logout", "/dashboard", "/administrator", "/api/administer"])(
+  it.each(["/api/live", "/karta", "/", "/auth/callback", "/auth/logout", "/dashboard", "/administrator", "/api/administer"])(
     "doesn't run on %s",
     (url) => expect(matches(url)).toBe(false),
   );

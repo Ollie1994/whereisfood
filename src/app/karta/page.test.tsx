@@ -40,7 +40,7 @@ function MapClientStub() {
 }
 vi.mock("@/components/Map/MapClient", () => ({ default: MapClientStub }));
 
-const { default: MapPage } = await import("@/app/map/page");
+const { default: MapPage } = await import("@/app/karta/page");
 
 const ID = "00000000-0000-4000-8000-000000000001";
 const ADMIN = { id: ID, is_admin: true, truck_id: null, created_at: "" };
@@ -83,7 +83,7 @@ describe("MapPage, the soft-launch gate", () => {
     expect(await answer()).toEqual({ element: expect.objectContaining({ type: MapClientStub }) });
   });
 
-  // The gate hides `/map`; it protects nothing (plan #5): the check's result, the user's id
+  // The gate hides `/karta`; it protects nothing (plan #5): the check's result, the user's id
   // included, never reaches the client.
   it("passes MapClient no props", async () => {
     const result = await answer();
@@ -118,8 +118,8 @@ describe("MapPage, the soft-launch gate", () => {
     ["a session read that throws", () => (session.auth = { getSession: () => Promise.reject(new TypeError("boom")) })],
   ];
 
-  it.each(refusals)("sends %s to /about", async (_, arrange) => {
+  it.each(refusals)("sends %s to /om", async (_, arrange) => {
     arrange();
-    expect(await answer()).toEqual({ redirected: "/about" });
+    expect(await answer()).toEqual({ redirected: "/om" });
   });
 });

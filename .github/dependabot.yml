@@ -26,7 +26,7 @@
 # warns EBADDEVENGINES (probed on PR #362, npm 11.21 and the image's npm 12.2.0). Its
 # peer-dependency check runs without `--force`, fails, and is read as no conflicts, so a
 # peer conflict reaches the lockfile and turns CI's `npm ci` red (ERESOLVE, probed there).
-# A security PR for `next` moves `next` alone: add `eslint-config-next` and run the `/map`
+# A security PR for `next` moves `next` alone: add `eslint-config-next` and run the `/karta`
 # check before merging (CLAUDE.md, "Dependencies").
 version: 2
 updates:

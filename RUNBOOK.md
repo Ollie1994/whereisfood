@@ -542,8 +542,8 @@ warning email "roughly one week before", and activity after it prevents the paus
 
 - **What it looks like:** Supabase answers `540 project paused` (#448's 1c), so every call the
   app makes to it fails: `/api/live` answers an error, and so do the admin screen and the
-  login. A map tab already open keeps its last markers; a new load of `/map` lands on
-  `/about`, since the gate asks Auth first and sends any answer but `ok` there (`MapPage`'s
+  login. A map tab already open keeps its last markers; a new load of `/karta` lands on
+  `/om`, since the gate asks Auth first and sends any answer but `ok` there (`MapPage`'s
   `requireAdmin`, which reads an Auth error as `unavailable`). Not seen on this project.
 - **Resume:** the project's dashboard → **Resume project** and confirm. It "will return to
   its previous state, including data and configurations", and can be resumed "for up to 1
@@ -634,7 +634,7 @@ container. In this order, since the login has to reach the new project:
    `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` set to the new project's.
    Then redeploy Production.
 5. **Log in and enroll TOTP at once** (README's "Restoring", step 5), now that the app points
-   at the new project. Then look at `/map`.
+   at the new project. Then look at `/karta`.
 6. **The old project:** pause it now that the new one works, which also frees its slot, and
    delete it when the restore is confirmed or 8 weeks after the restore, whichever comes
    first (the owner's call, IS #457). Until then it still holds every truck's history, a
