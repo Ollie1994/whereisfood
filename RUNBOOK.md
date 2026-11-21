@@ -86,14 +86,14 @@ For a flood of traffic, on Vercel. From Vercel's docs
 
 ## Exporting evidence
 
-Before anything an incident deletes (sessions, factors, and the MFA challenges and AMR claims
-their deletion cascades to; the audit log `retention.sql` trims), save it to files, every row.
-Those four by named columns, leaving out the credentials: a factor's `secret` (the TOTP seed),
+Before anything an incident deletes (sessions, factors, and the MFA challenges and AMR claims their
+deletion cascades to; the audit log `retention.sql` trims), save it to files, every row. Those four
+by named columns, leaving out the credentials: a factor's `secret` (the TOTP seed),
 `web_authn_credential` and `last_webauthn_challenge_data`, a challenge's `otp_code` and
-`web_authn_session_data`, and a session's `refresh_token_hmac_key`, which `select *` wrote in
-plain text (`information_schema.columns` on the local stack and the preview, PR #476). Not through the SQL editor, whose results show at most 100 rows
-("Limited to only 100 rows"). With the local stack started, through its `psql`, from the
-repo in Git Bash:
+`web_authn_session_data`, and a session's `refresh_token_hmac_key`, which `select *` wrote in plain
+text (`information_schema.columns` on the local stack and the preview, PR #476). Not through the SQL
+editor, whose results show at most 100 rows ("Limited to only 100 rows"). With the local stack
+started, through its `psql`, from the repo in Git Bash:
 
 ```bash
 BACKUPS="<backups folder>"
@@ -125,15 +125,15 @@ fi
 unset PROD_DB_URL
 ```
 
-Each file is written as `.part` and renamed only when `psql` succeeds, so a file with its
-own name is a complete export. Probed on the local stack, by its own URL (IS #457; again with
-these named columns, PR #476): each answered `EXPORT OK` with as many lines as its table had
-rows (audit 54, sessions 1, factors 1, admins 1, trucks 23 in IS #457's run); with an unreachable URL, each answered `EXPORT FAILED` and left no
-file; with none, `NO URL`. A line count can exceed the rows if a value holds a line break.
-Run it again later in an incident to export what has changed. The files hold IP addresses
-and emails, and `trucks` holds every truck's row, so it keeps a truck taken down after the
-export: keep them in `hold` with the held dumps, and delete them with those, at most 8 weeks
-after the hold began ("The weekly routine").
+Each file is written as `.part` and renamed only when `psql` succeeds, so a file with its own name
+is a complete export. Probed on the local stack, by its own URL (IS #457; again with these named
+columns, PR #476): each answered `EXPORT OK` with as many lines as its table had rows (audit 54,
+sessions 1, factors 1, admins 1, trucks 23 in IS #457's run); with an unreachable URL, each answered
+`EXPORT FAILED` and left no file; with none, `NO URL`. A line count can exceed the rows if a value
+holds a line break. Run it again later in an incident to export what has changed. The files hold IP
+addresses and emails, and `trucks` holds every truck's row, so it keeps a truck taken down after the
+export: keep them in `hold` with the held dumps, and delete them with those, at most 8 weeks after
+the hold began ("The weekly routine").
 
 ---
 
@@ -453,12 +453,13 @@ other request goes to "Other requests":
    restore, the old project's deletion, at most 8 weeks after the restore ("A restore", step
    6). Give the latest date that applies.
 3. Keep the request mail and the reply until no copy from before the takedown is left, as
-   `/integritet` says: no dump dated on or before its date in the backups folder or in `hold`
-   (a dump is named by its UTC date, so one from earlier that day holds the truck), no export
-   dated on or before it in `hold`, and, after a restore, the old project deleted. If that comes later
-   than the date given, for any reason (a `DUMP FAILED` or `PRUNE FAILED` week, a hold, a
-   restore), write to the requester with the new date. Then delete both, and delete them from
-   Trash too. The takedown log keeps what a restore needs, the truck's id and the date (README, "Takedown", step 4), not who asked.
+   `/integritet` says: no dump dated on or before its date in the backups folder or in `hold` (a
+   dump is named by its UTC date, so one from earlier that day holds the truck), no export dated on
+   or before it in `hold`, and, after a restore, the old project deleted. If that comes later than
+   the date given, for any reason (a `DUMP FAILED` or `PRUNE FAILED` week, a hold, a restore), write
+   to the requester with the new date. Then delete both, and delete them from Trash too. The
+   takedown log keeps what a restore needs, the truck's id and the date (README, "Takedown", step
+   4), not who asked.
 
 ---
 
@@ -504,10 +505,10 @@ address confirmed that way. A takedown needs no such check: it only removes.
   unset PROD_DB_URL
   ```
 
-  `locations` leaves out `created_by`, the admin's user id. Probed on the local stack (PR
-  #476): a truck with 31 places gave `EXPORT OK` with 1 and 31 lines; an id that isn't a UUID,
-  `' or true or id::text = '` among them, gave `NOT AN ID` and wrote nothing. Send both files, say that the backups hold the same rows until they age out, and delete the folder once
-  sent.
+  `locations` leaves out `created_by`, the admin's user id. Probed on the local stack (PR #476): a
+  truck with 31 places gave `EXPORT OK` with 1 and 31 lines; an id that isn't a UUID, `' or true or
+  id::text = '` among them, gave `NOT AN ID` and wrote nothing. Send both files, say that the
+  backups hold the same rows until they age out, and delete the folder once sent.
 - **Correction:** the truck, or a place that hasn't ended, in the admin screen. A place that
   has ended can't be edited there (#33), so in production's SQL editor, for example
   `update locations set label = '<the right name>' where id = '<the place's id>' returning *;`
