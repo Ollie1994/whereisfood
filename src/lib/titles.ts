@@ -4,10 +4,8 @@
 // (the root `not-found.tsx`) and the client error pages, which can't export `metadata`, build
 // theirs with `pageTitle` (Next 16.4's `generate-metadata.md`: a layout's template applies to
 // child segments only). The admin's: `ADMIN_TITLE` under `title.absolute` in its layout, and
-// `adminTitle` in its error and 404 pages. No admin page sets a title of its own. One that did
-// would get the root's public template, whose `titleTemplates` Next keeps for the leaf
-// (`resolve-metadata.js`, `accumulateMetadata`'s `i < metadataItems.length - 2` guard, 16.4), so
-// it would set `title.absolute` with `adminTitle`.
+// `adminTitle` in its error and 404 pages. No admin page sets a title of its own; one that does
+// sets `title.absolute` with `adminTitle`, since neither layout gives it the admin's suffix.
 export const SITE_TITLE = "Väm | Var är maten i Göteborg";
 export const ADMIN_TITLE = "Admin | Väm";
 

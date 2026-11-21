@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { ADMIN_TITLE, SITE_TITLE, adminTitle, pageTitle } from "./titles";
 
-// The owner's wording (IS #452, PR #477): a change here is a change the owner approves.
+// The owner's wording (IS #452, PR #477): a change here is a change the owner approves. It pins
+// the helpers, not that the layouts use them: the served titles were read with `curl` against
+// `npm start` (PR #477), and nothing in CI reads a page's `<title>`.
 describe("titles", () => {
   it("puts the page's name first, then the app", () => {
     expect(SITE_TITLE).toBe("Väm | Var är maten i Göteborg");
