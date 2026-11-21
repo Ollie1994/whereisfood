@@ -19,7 +19,7 @@ export default function AboutPage() {
         kartan visar bara de foodtruckar som har en plats inlagd för dagen.
       </p>
       {/* SOFT-LAUNCH GATE (Phase 10 plan #5): rewritten at the full launch, when the map opens
-          (the removal list in `src/app/map/page.tsx`). */}
+          (the removal list in `src/app/karta/page.tsx`). */}
       <p>Kartan öppnar när foodtruckarna är tillbaka för säsongen.</p>
       <Link href={PRIVACY_PATH} className="text-sm underline">
         Integritet och borttagning

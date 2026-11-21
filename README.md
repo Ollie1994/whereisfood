@@ -349,9 +349,9 @@ npm run dev
 ```
 
 Open the URL from the `Local:` line Next prints, usually
-[http://localhost:3000](http://localhost:3000). It redirects to `/about`; `/map` sends
+[http://localhost:3000](http://localhost:3000). It redirects to `/om`; `/karta` sends
 everyone but the admin at `aal2` there too until the full launch.
-<!-- SOFT-LAUNCH GATE (Phase 10 plan #5): back to "It redirects to `/map`." at the full launch (the removal list in src/app/map/page.tsx). -->
+<!-- SOFT-LAUNCH GATE (Phase 10 plan #5): to "It redirects to `/karta`." at the full launch (the removal list in src/app/karta/page.tsx). -->
 
 If a page reloads itself in a loop under `npm run dev`: `CLAUDE.md`, "Testing" (IS #304).
 
@@ -434,11 +434,11 @@ machine, never in a tracked file (`CLAUDE.md`, Secrets).
 
 So log in from `dev`'s alias. For a redirect URL that "doesn't match one from the allow
 list", Auth uses the Site URL (the dashboard's text for it), and the app's `/` only
-redirects to `/about`, so a login started on another preview URL doesn't finish. Checked with
+redirects to `/om`, so a login started on another preview URL doesn't finish. Checked with
 the publishable and secret keys on 2026-11-07: `/auth/v1/settings` gives
 `disable_signup: true`, and a link request for an unknown email with
 `shouldCreateUser: true` got `422 signup_disabled` and created no auth user.
-<!-- SOFT-LAUNCH GATE (Phase 10 plan #5): `/about` back to `/map` at the full launch (the removal list in src/app/map/page.tsx). -->
+<!-- SOFT-LAUNCH GATE (Phase 10 plan #5): `/om` to `/karta` at the full launch (the removal list in src/app/karta/page.tsx). -->
 
 **The admin user.** As in "5. Create the admin user", in the project's dashboard
 instead of Studio.
@@ -923,7 +923,7 @@ retargeted from `dev` wait for a run against `main`. It doesn't show which run e
 check came from, so a pull request is opened fresh against the branch it merges into, not
 retargeted (`CLAUDE.md`, "Testing"). The branch must also be up to date with its base, so
 after another pull request merges, update the branch and let the checks run again. What the
-checks don't cover (the `/map` browser check, and when the controls need a hand run among
+checks don't cover (the `/karta` browser check, and when the controls need a hand run among
 others) is in `CLAUDE.md`, "Testing". Locally, the fast loop is:
 
 ```bash

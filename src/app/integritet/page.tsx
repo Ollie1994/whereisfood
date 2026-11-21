@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ABOUT_PATH } from "@/lib/paths";
 
 // The privacy note (Phase 10 plan, step 9, #8): what is stored, why and for how long, and the
-// removal contact (open decision 4). Static, Swedish (CLAUDE.md, UI Rules), in `/about`'s column
+// removal contact (open decision 4). Static, Swedish (CLAUDE.md, UI Rules), in `/om`'s column
 // on a phone, widened from `md` up to a reading width (`max-w-2xl`), each part a `<section>`. The
 // owner approved its text (IS #456, PR #476); "senast inom en månad" is GDPR's one month to
 // answer a request (art. 12(3)). Where each fact comes from, so a change there is a change here:
@@ -176,9 +176,9 @@ export default function PrivacyPage() {
         <p>Personuppgiftsansvarig: Oliwer Karlsson, som nås på {CONTACT}.</p>
       </section>
 
-      {/* SOFT-LAUNCH GATE (Phase 10 plan #5): to `/about` while `/map` is gated, as "Till
-          startsidan", the 404 page's wording (PR #469); back to "Till kartan" and `/map` at the
-          full launch (the removal list in `src/app/map/page.tsx`). */}
+      {/* SOFT-LAUNCH GATE (Phase 10 plan #5): to `/om` while `/karta` is gated, as "Till
+          startsidan", the 404 page's wording (PR #469); to "Till kartan" and `/karta` at the full
+          launch (the removal list in `src/app/karta/page.tsx`). */}
       <Link href={ABOUT_PATH} className="text-sm underline">
         Till startsidan
       </Link>

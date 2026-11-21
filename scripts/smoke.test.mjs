@@ -12,25 +12,26 @@ const JSON_TYPE = "application/json";
 
 // Each path: its right answer, a wrong status, and a wrong shape (IS #286).
 const CASES = [
-  // SOFT-LAUNCH GATE (Phase 10 plan #5): `/` and `/map` redirect to `/about` with no session;
-  // back to `/` redirecting to `/map` and `/map` 200 at the full launch (the removal list in
-  // src/app/map/page.tsx).
+  // SOFT-LAUNCH GATE (Phase 10 plan #5): `/` and `/karta` redirect to `/om` with no session;
+  // then `/` redirecting to `/karta` and `/karta` 200 at the full launch (the removal list in
+  // src/app/karta/page.tsx).
   {
     path: "/",
-    right: { status: 307, location: "/about", origin: "http://127.0.0.1:3000" },
+    right: { status: 307, location: "/om", origin: "http://127.0.0.1:3000" },
     wrongStatus: { status: 200, contentType: HTML, origin: "http://127.0.0.1:3000" },
-    // `/` still redirecting to `/map`, as before the gate.
-    wrongShape: { status: 307, location: "/map", origin: "http://127.0.0.1:3000" },
+    // `/` still redirecting to the map's page, as before the gate (`/map` then, `/karta` since
+    // IS #478).
+    wrongShape: { status: 307, location: "/karta", origin: "http://127.0.0.1:3000" },
   },
   {
-    path: "/map",
-    right: { status: 307, location: "/about", origin: "http://127.0.0.1:3000" },
+    path: "/karta",
+    right: { status: 307, location: "/om", origin: "http://127.0.0.1:3000" },
     // The map served with no session: the gate missing.
     wrongStatus: { status: 200, contentType: HTML, origin: "http://127.0.0.1:3000" },
     wrongShape: { status: 307, location: "/admin/login", origin: "http://127.0.0.1:3000" },
   },
   {
-    path: "/about",
+    path: "/om",
     right: { status: 200, contentType: HTML },
     wrongStatus: { status: 404, contentType: HTML },
     wrongShape: { status: 200, contentType: JSON_TYPE, json: {} },
@@ -60,7 +61,7 @@ const CASES = [
     right: { status: 303, location: "/admin/login", origin: "http://127.0.0.1:3000" },
     // The admin page served with no session: the proxy not guarding it.
     wrongStatus: { status: 200, contentType: HTML, origin: "http://127.0.0.1:3000" },
-    wrongShape: { status: 303, location: "/map", origin: "http://127.0.0.1:3000" },
+    wrongShape: { status: 303, location: "/karta", origin: "http://127.0.0.1:3000" },
   },
   {
     path: "/api/admin/trucks",
@@ -70,8 +71,9 @@ const CASES = [
     wrongShape: { status: 401, contentType: JSON_TYPE, json: { message: "x" } },
   },
   // `/Admin/login`: the login served for a case variant would be the wrong status.
-  // `/finnsinte`: a page served for a path no page matches would be.
-  ...["/Admin/login", "/finnsinte"].map((path) => ({
+  // `/finnsinte`: a page served for a path no page matches would be; `/about` and `/map`: an old
+  // public path still served, or redirected (IS #478).
+  ...["/Admin/login", "/finnsinte", "/about", "/map"].map((path) => ({
     path,
     right: { status: 404, contentType: HTML },
     wrongStatus: { status: 200, contentType: HTML },
@@ -96,7 +98,7 @@ const CASES = [
     right: { status: 303, location: "/admin/login", origin: "http://127.0.0.1:3000" },
     // Served with no session: the proxy not guarding it.
     wrongStatus: { status: 200, contentType: HTML, origin: "http://127.0.0.1:3000" },
-    wrongShape: { status: 303, location: "/map", origin: "http://127.0.0.1:3000" },
+    wrongShape: { status: 303, location: "/karta", origin: "http://127.0.0.1:3000" },
   })),
 ];
 
@@ -176,7 +178,7 @@ describe("checkHeaders", () => {
   };
 
   it("passes each path's right headers", () => {
-    expect(checkHeaders(byPath("/about"), answer(STATIC_CSP))).toEqual([]);
+    expect(checkHeaders(byPath("/om"), answer(STATIC_CSP))).toEqual([]);
     expect(checkHeaders(byPath("/integritet"), answer(STATIC_CSP))).toEqual([]);
     expect(checkHeaders(byPath("/api/live"), answer(STATIC_CSP))).toEqual([]);
     expect(checkHeaders(byPath("/api/admin/trucks"), answer(STATIC_CSP))).toEqual([]);
@@ -189,12 +191,12 @@ describe("checkHeaders", () => {
   it.each(Object.keys(STATIC_HEADERS))("fails a missing %s", (name) => {
     const response = answer(STATIC_CSP);
     response.headers.delete(name);
-    expect(checkHeaders(byPath("/about"), response)).toEqual([`${name} missing, expected "${STATIC_HEADERS[name]}"`]);
+    expect(checkHeaders(byPath("/om"), response)).toEqual([`${name} missing, expected "${STATIC_HEADERS[name]}"`]);
   });
 
   it("fails a wrong value and an X-Powered-By", () => {
-    expect(checkHeaders(byPath("/about"), answer(STATIC_CSP, { "x-frame-options": "SAMEORIGIN" }))).toHaveLength(1);
-    expect(checkHeaders(byPath("/about"), answer(STATIC_CSP, { "x-powered-by": "Next.js" }))).toEqual(['x-powered-by "Next.js", expected none']);
+    expect(checkHeaders(byPath("/om"), answer(STATIC_CSP, { "x-frame-options": "SAMEORIGIN" }))).toHaveLength(1);
+    expect(checkHeaders(byPath("/om"), answer(STATIC_CSP, { "x-powered-by": "Next.js" }))).toEqual(['x-powered-by "Next.js", expected none']);
   });
 
   // The proxy's bodiless case redirect carries none on `/admin/…`, and `no-store` (IS #414).
@@ -210,20 +212,20 @@ describe("checkHeaders", () => {
   });
 
   it("fails no CSP, and two", () => {
-    expect(checkHeaders(byPath("/about"), answer(null))).toEqual(["0 CSPs, expected 1"]);
+    expect(checkHeaders(byPath("/om"), answer(null))).toEqual(["0 CSPs, expected 1"]);
     const two = answer(STATIC_CSP);
     two.headers.append("content-security-policy", nonceCsp("abc"));
     expect(checkHeaders(byPath("/admin/login"), two)).toEqual(["2 CSPs, expected 1"]);
   });
 
   it("fails a CSP without frame-ancestors 'none'", () => {
-    expect(checkHeaders(byPath("/about"), answer("default-src 'self'; frame-ancestors 'self'"))).toEqual([
+    expect(checkHeaders(byPath("/om"), answer("default-src 'self'; frame-ancestors 'self'"))).toEqual([
       "CSP without frame-ancestors 'none'",
     ]);
   });
 
   it("fails the wrong kind of CSP", () => {
-    expect(checkHeaders(byPath("/about"), answer(nonceCsp("abc")))).toEqual(["a nonce CSP, expected the static one"]);
+    expect(checkHeaders(byPath("/om"), answer(nonceCsp("abc")))).toEqual(["a nonce CSP, expected the static one"]);
     expect(checkHeaders(byPath("/admin"), answer(STATIC_CSP))).toEqual(["the static CSP, expected a nonce one"]);
   });
 

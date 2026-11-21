@@ -4,7 +4,7 @@ import { MAP_NOTICE } from "@/components/Map/styles";
 import { useFocusOnMount } from "@/hooks/useFocusOnMount";
 import { pageTitle } from "@/lib/titles";
 
-// `/map`'s error page: an error thrown while `/map` renders or in its effects (the map's
+// `/karta`'s error page: an error thrown while `/karta` renders or in its effects (the map's
 // start, a marker update), other than a browser without WebGL2 (`createBaseMap`'s
 // `NO_WEBGL2`, a notice on the map instead). Not one inside the popup, which renders in its
 // own React root (`useMapLibre`'s `createRoot`). Next's `error.js` convention
