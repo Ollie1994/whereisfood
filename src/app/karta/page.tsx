@@ -32,7 +32,7 @@ import { createSessionClient, readOnlyCookies } from "@/lib/supabase-session";
 //
 // THE REMOVAL LIST, its one copy (plan #5). Every gate site carries the marker above and is
 // listed here; `gate-markers.test.ts` checks the list against `git grep`. At the full launch
-// each site goes back as it says, then: `git grep` finds no marker outside `.claude/`, the
+// each site changes as it says, then: `git grep` finds no marker outside `.claude/`, the
 // build's route table shows `○ /karta`, smoke passes, `/api/live`'s cache headers are unchanged,
 // and `/karta` is checked in a browser (`CLAUDE.md`, "Testing").
 // - src/app/karta/page.tsx: `MapPage` back to `return <MapClient />`, with its `metadata` (the
@@ -47,10 +47,10 @@ import { createSessionClient, readOnlyCookies } from "@/lib/supabase-session";
 // - scripts/smoke.test.mjs: its `/` and `/karta` cases to match.
 // - src/app/om/page.tsx: the sentence that the map opens when the trucks are back,
 //   rewritten for after the launch.
-// - src/app/not-found.tsx: the link back to "Till kartan" and `/karta`, its `ABOUT_PATH` import
-//   gone, and its header's pointer to the link's comment.
-// - src/app/integritet/page.tsx: the link back to "Till kartan" and `/karta`, its `ABOUT_PATH`
-//   import gone.
+// - src/app/not-found.tsx: the link to "Till kartan", its text before the gate, and `/karta`, its
+//   `ABOUT_PATH` import gone, and its header's pointer to the link's comment.
+// - src/app/integritet/page.tsx: the link to "Till kartan" and `/karta`, its `ABOUT_PATH` import
+//   gone.
 // - src/lib/supabase-session.ts: `readOnlyCookies`' marked sentence deleted, so the comment says
 //   to use it behind the proxy alone.
 // - README.md: "It redirects to `/karta`" ("4. Run") and "the app's `/` only redirects to
