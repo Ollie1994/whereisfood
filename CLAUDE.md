@@ -627,25 +627,12 @@ uncommitted on `dev`. Every doc change then has a reviewable diff and a
   see (a review comment on a PR's diff among them).
 - **Exception: a private vulnerability** (Phase 10 plan #13, IS #347). An outside report
   (`SECURITY.md`), before production too, and once production exists an unfixed vulnerability
-  found in-house (Q36), is worked in its GitHub security advisory, not a public issue or PR.
-  - **The fix** is developed and reviewed in the advisory's temporary private fork. Its clone
-    gets `core.hooksPath` set (README, "1. Install") before the first commit. CI can't run there,
-    so the local gates run instead: `npx tsc --noEmit`, `npm run lint`, `npm run test:all`,
-    Supabase's security advisor as `ci.yml` runs it, `npm run build`, `node scripts/smoke.mjs
-    <Local: URL>` against `npm start`, and `node scripts/controls.mjs` for a schema change.
-    Never merge with the advisory's button: GitHub's docs say it doesn't enforce the branch's
-    protection rules.
-  - **Shipping:** before production, by a public PR into `dev`, whose preview is the only
-    deploy. Once production exists, by a branch off `main` and a public PR into `main`,
-    deployed, then `main` synced back into `dev`. CI runs and the rulesets hold on that PR. The
-    advisory is published the same day.
-  - **The window:** from the public PR's opening to the deploy, the fix is public before it's
-    live: CI's run, and on a PR into `main` the full controls set, about 45 s a control. This
-    amends Q36: "until its fix ships" becomes "until its public PR opens".
-  - **Records:** the public PR's body says what the fix changes and points to the advisory. The
-    issue, the round records and the process-log rows are written after the advisory is
-    published, from notes kept in the advisory. The final records check runs on those notes
-    before the merge.
+  found in-house (Q36), is worked in its GitHub security advisory and the advisory's temporary
+  private fork, not a public issue or PR, by `RUNBOOK.md`'s "A private vulnerability". The fix
+  ships by a public PR, where CI runs and the rulesets hold, never by the advisory's merge button
+  (GitHub's docs: it doesn't enforce the branch's protection rules). The fix is public from the
+  push of its branch. The issue, the round records and the process-log rows are written when the
+  advisory is published.
 
 ---
 

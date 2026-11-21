@@ -16,6 +16,7 @@ issue.
 - [A leaked key](#a-leaked-key)
 - [A takedown request](#a-takedown-request)
 - [Other requests](#other-requests)
+- [A private vulnerability](#a-private-vulnerability)
 - [A paused project](#a-paused-project)
 - [A restore](#a-restore)
 
@@ -531,6 +532,43 @@ is confirmed the same way ("A takedown request").
 - **An objection to anything but a truck's data**, such as a visitor's IP address in Vercel's
   logs: no takedown reaches it, and the service can't edit those logs; answer that each
   provider keeps them under its own terms, as the page says.
+
+---
+
+## A private vulnerability
+
+A vulnerability reported privately (`SECURITY.md`), before production too, and once production
+exists one found in-house, is fixed without a public issue or PR until it ships (`CLAUDE.md`,
+"Doc changes", the exception; plan #13, IS #347):
+
+1. **The advisory:** the report's draft advisory, or a new one for an in-house finding. Start its
+   temporary private fork and clone it, and set `core.hooksPath` in that clone (README, "1.
+   Install") before the first commit. Notes go in the advisory: what was found, each review
+   round, each miss the process log will need.
+2. **The fix**, in the fork, with the gates CI would run, as `ci.yml` runs them (CI can't reach
+   the fork, GitHub's docs): `npx next typegen`, then `npx tsc --noEmit`; `npm run lint`;
+   `npm run test:all`; Supabase's security advisor as the `integration` job runs it;
+   `npm run build`, then `node scripts/smoke.mjs <Local: URL>` against `npm start`; and
+   `node scripts/controls.mjs` when the change touches a path a `TRIGGERS` entry in
+   `scripts/controls-trigger.mjs` covers, or the fix goes into `main`. The review rounds and
+   the final records check run on the advisory's notes. Never press the advisory's "Merge pull
+   request(s)": GitHub's docs say it doesn't enforce the branch's protection rules.
+3. **Ship it.** From the push of the fix's branch the fix is public, until it is deployed: CI's
+   run, and the full controls set on a PR into `main` or one touching a `TRIGGERS` path, about
+   45 s a control. So push only when ready to ship.
+   - The vulnerable code only on `dev` (always, before production): a branch off `dev` and a PR
+     into `dev`, whose preview deploys it.
+   - The vulnerable code on `main` (production): a branch off `main` and a PR into `main`,
+     deployed, then `main` synced into `dev` by a PR (plan step 15b's sync, #462); both
+     rulesets refuse a direct push.
+
+   The PR's body says what the fix changes and points to the advisory: the one record public
+   before the advisory.
+4. **Publish the advisory** once the fix is live, or at the time agreed with the reporter if
+   that is later.
+5. **The public records**, then: an issue recording the fix, the PR body's round records, and the
+   process-log rows, dated that day (`add` refuses a date earlier than the last row's), each
+   with the day of its miss in its Miss. The final records check runs again on them.
 
 ---
 

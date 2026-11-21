@@ -108,7 +108,7 @@ precedes production's enroll (step 16).
   is `CLAUDE.md`'s.
 
 **Docs:**
-- New: `RUNBOOK.md` at the root (#8).
+- New: `RUNBOOK.md` at the root (#8); its "A private vulnerability" (#13).
 - `README.md`: a "Production" section (setup, the hosted-settings checklist as applied,
   Production's variables), backups and restore, the takedown; its two sentences that `/`
   redirects to `/map`, gate sites (#5).
@@ -263,9 +263,9 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     weekly routine (the dump, then `retention.sql`, then the alerts' cover from open decision
     7, with the date the first retention row comes due). Needs steps 1c and 6–8 and open
     decisions 7 and 8; open decision 9 is settled on this step's issue.
-11. **`SECURITY.md`** (#347): how an in-house finding goes to a GitHub private security
-    advisory until its fix ships (the scope draft's Q36), and how a reported one's fix is made
-    (#13); `CLAUDE.md`'s exception to the issue → PR rule.
+11. **`SECURITY.md`** (#347): how a reported vulnerability, and once production exists an
+    in-house one (the scope draft's Q36), is fixed in a GitHub private security advisory (#13);
+    `CLAUDE.md`'s exception to the issue → PR rule; `RUNBOOK.md`'s "A private vulnerability".
 12. **#349,** the SonarQube Cloud re-scan: the account with two-factor at creation, each
     finding an issue or a recorded reason. Before step 15.
 
@@ -362,7 +362,8 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     decisions" (the retention period, the app name, the removal contact, as settled), the
     "Phase 7 #25, #26" carried-forward row (line 1108), whose name is now Väm (IS #452),
     every `/about` and `/map`, now `/om` and `/karta` (#12, IS #478),
-    Q36 in the IS #278 (Phase 10) row (line 1142), which #13 amends (IS #347),
+    Q36 in the IS #278 (Phase 10) row (line 1142) and #347's "private until disclosure" in the
+    Phase 10 row (line 474), which #13 amends (IS #347),
     "Principles and risks"' backups item (the dump count, the restore method, the takedown
     log), the takedown's "clear or delete each `users` row" (lines 474 and 1071), which only
     clears them (round 3 on PR #470), "only the takedown removes history" (line 207) and
@@ -562,17 +563,18 @@ still to come and the open criteria name the new ones.
 
 ### #13 — A private vulnerability is fixed in its advisory and shipped by a public PR
 
-The owner's calls (2026-11-21, IS #347, round 1 on PR #480): a privately reported
+The owner's calls (2026-11-21, IS #347, rounds 1 and 2 on PR #480): a privately reported
 vulnerability, before production too, and once production exists one found in-house (Q36), is
-fixed in its advisory's private fork with the local gates and shipped by a normal public PR with
-CI: before production into `dev`, whose preview is the only deploy, so #9's first merge into
-`main` keeps its order; once production exists by a branch off `main` and a PR into `main`,
-then `main` synced back into `dev`, so unfinished work on `dev` doesn't ship with it. The
-advisory's merge button is never used: GitHub's docs (read 2026-11-21) say it doesn't enforce
-the branch's protection rules, and CI can't run in the fork. From the public PR's opening to the
-deploy the fix is public before it is live, which amends Q36's "until its fix ships" to "until
-its public PR opens". The public records follow the advisory's publication. In-house findings
-before production stay public (Q36).
+fixed in its advisory's private fork with the local gates, by `RUNBOOK.md`'s "A private
+vulnerability", and shipped by a public PR with CI: into `dev` when the vulnerable code is only
+there, as always before production, so #9's first merge into `main` keeps its order; into
+`main` from a branch off it when the code is on `main`, then synced into `dev`, so unfinished
+work on `dev` doesn't ship with it. The advisory's merge button is never used: GitHub's docs
+(read 2026-11-21) say it doesn't enforce the branch's protection rules, and CI can't run in the
+fork. The fix is public from the push of its branch until it is deployed, which amends Q36's
+"until its fix ships". The advisory is published once the fix ships, or at the time agreed with
+the reporter if later; the public records follow it. In-house findings before production stay
+public (Q36).
 
 ---
 
