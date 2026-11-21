@@ -5,9 +5,28 @@
   --foreground: #171717;
 }
 
+/* The public pages' warm palette (IS #483), from the logo's charcoal, cream and saffron (IS
+   #481), used by `PublicShell` and `/om` (`git grep`, PR for IS #483); `--background` and
+   `--foreground` stay as they were for the admin and the map. Dark mode's paper (#26221c) is
+   lighter than the logo's disc (#17191F), which IS #481 left nearly matching the old dark page. */
+:root {
+  --paper: #fff8ec;
+  --card: #ffffff;
+  --ink: #17191f;
+  --muted: #5c5546;
+  --line: #efe0c4;
+  --saffron: #f5a524;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-paper: var(--paper);
+  --color-card: var(--card);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-saffron: var(--saffron);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -16,6 +35,11 @@
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+    --paper: #26221c;
+    --card: #322d25;
+    --ink: #fff4e0;
+    --muted: #d3c8b2;
+    --line: #463f34;
   }
 }
 

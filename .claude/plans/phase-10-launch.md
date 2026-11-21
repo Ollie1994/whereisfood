@@ -134,11 +134,13 @@ setting: a look in the weekly routine.)
 |---|---|---|
 | `MapPage` | page (server component) | The check `withAdmin` makes (`src/lib/http/admin.ts`), from `cookies()`: `createSessionClient(readOnlyCookies(store))`, `requireAdmin({ cookieNames, auth, now })`, with no proxy before it to refresh the session (#6); `redirect(ABOUT_PATH)` for anything but `check.ok`, with no `try` around `redirect()` or `cookies()`; then `<MapClient />` with no props (#5) |
 | `Home` | page | `redirect(ABOUT_PATH)` |
-| `AboutPage` | page (static), at `/om` (#12) | What this is; the map opens when the trucks are back (a gate site, #5); a link to `/integritet` (step 9) |
+| `AboutPage` | page (static), at `/om` (#12) | What this is, for people looking for food, truck owners, and developers and employers (step 5d, IS #483); the intro's "Snart kan du", why the map isn't open yet, and the roadmap (gate sites, #5); a link to `/integritet` (step 9), in `PublicShell`'s footer since IS #483 |
+| `PublicShell` | component | The public pages' header (the logo and "Var är maten", linking to `/`), footer (`/integritet`, Instagram, the contact) and warm palette, around `/om`, `/integritet` and the root 404 (IS #483) |
+| `ExternalLink` | component | A link to another site, in a new tab with `rel="noopener noreferrer"` and a hidden "(öppnas i en ny flik)" (IS #483) |
 | `PrivacyPage` | page (static) | What is stored and why; both retention periods, deleted in the weekly run after each ends, so up to a week later, or up to 8 weeks during a security incident; the dump count, with the incident hold's and an old project's 8-week caps (IS #457); Vercel's and Supabase's logs (IP addresses); Auth's audit log; the removal contact |
 | `ABOUT_PATH`, `PRIVACY_PATH` | lib constants | For the code that sends someone to the pages |
 | `AdminNav` | component | Gains "Karta", to `/karta` (`/map` until #12), as a plain `<a>`, so it loads `/karta` as a new document under its static CSP. A `next/link` added for a probe to `/admin/login` (no nav there, but the proxy's nonce CSP, as on the admin pages), clicked once in headless Chrome (PR #468, round 2), stayed in that page's document, under its nonce CSP, and the map drew with no CSP violation reported |
-| `VamLogo` | component | The temporary logo (IS #481) as an inline SVG badge, sized by `size`, labelled "Väm"; beside "Var är maten" on `/om` and in the admin header |
+| `VamLogo` | component | The temporary logo (IS #481) as an inline SVG badge, sized by `size`, labelled "Väm"; beside "Var är maten" in `PublicShell`'s header (inside its link to `/`, IS #483) and the admin header |
 | the marker test | unit test | Every tracked file outside `.claude/` holding the gate's marker is on the removal list in the header of `karta/page.tsx` (`map/page.tsx` until #12), and every listed file holds it (#5) |
 | `takedown.sql` | manual SQL | For one truck id and its name (both must match, so an id and a name from different trucks change nothing: round 1 on PR #470), in one transaction: delete its locations, clear each `users` row's `truck_id` (the account stays, round 3 on PR #470), delete the truck; report the counts |
 | `retention.sql` | manual SQL | Delete `locations` that ended more than 52 weeks ago, and `auth.audit_log_entries` older than 30 days, in one statement reporting each delete's row count (open decisions 2, 3) |
@@ -229,6 +231,11 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
 5c. **A temporary logo** (IS #481, the owner's choice from a logo canvas): `src/app/icon.svg`,
     `favicon.ico` (for browsers without SVG favicons), `apple-icon.png` and `VamLogo` beside "Var
     är maten" on `/om` and in the admin header.
+5d. **`/om` rewritten for the soft launch** (IS #483, the owner's calls on it): for people looking
+    for food, truck owners, and developers and employers, in the logo's colours, with "Snart kan
+    du" in the intro, a "Just nu" card and a roadmap with no dates (all three gate sites, #5);
+    `PublicShell`'s header and footer on `/om`, `/integritet` and the root 404, not `/karta`,
+    `/admin` or `error.tsx`. At the full launch its footer gains a link to `/om` (a gate site).
 
 **C. Operations**
 

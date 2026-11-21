@@ -1,10 +1,11 @@
 // Väm's temporary logo (IS #481): option A from the owner's logo canvas, "Väm" drawn in lines.
 // The drawing has four copies, kept by hand and checked by nothing: this one, `src/app/icon.svg`,
 // and two rendered from it, `favicon.ico` (16, 32, 48 px) and `apple-icon.png`; a change to the
-// drawing changes all four. On `/om` and in the admin header it stands beside "Var är maten" (the
-// owner's call), so it carries the name: labelled "Väm" for screen readers. Presentation
-// attributes, not `style`, which renders as an inline `style=""` that the admin pages' nonce CSP
-// refuses (`CLAUDE.md`, "Security headers"); the owner's browser check of `/admin` showed no
+// drawing changes all four. In `PublicShell`'s header (inside its link to `/`, IS #483) and the
+// admin header it stands beside "Var är maten" (the owner's call), so it carries the name:
+// labelled "Väm" for screen readers. Presentation attributes, not `style`, which renders as an
+// inline `style=""` that the admin pages' nonce CSP refuses (`CLAUDE.md`, "Security headers");
+// the owner's browser check of `/admin` showed no
 // violation (PR #482).
 export default function VamLogo({ size }: { size: number }) {
   return (
