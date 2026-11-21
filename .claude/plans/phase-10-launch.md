@@ -563,9 +563,9 @@ still to come and the open criteria name the new ones.
 The owner's calls (2026-11-21, IS #347): a privately reported vulnerability, before production
 too, and once production exists one found in-house (Q36), is fixed in its advisory's private fork
 with the local gates and shipped by a normal public PR with CI. The advisory's merge button is
-never used: it bypasses the rulesets, and CI can't run in the fork (GitHub's docs, read
-2026-11-21). The public records follow at disclosure. In-house findings before production stay
-public (Q36).
+never used: GitHub's docs (read 2026-11-21) say it doesn't enforce the branch's protection
+rules, and CI can't run in the fork. The public records follow at disclosure. In-house findings
+before production stay public (Q36).
 
 ---
 
