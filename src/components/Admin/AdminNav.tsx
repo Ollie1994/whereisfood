@@ -31,11 +31,11 @@ export default function AdminNav() {
         );
       })}
       {/* A plain `<a>`, not `Link` (Phase 10 plan, "Functions and components"): a full load, so
-          `/karta` is its own document under its static CSP. Not this link: a `Link` to `/karta`
-          added for a probe to `/admin/login`, which shows no nav but gets the proxy's nonce
-          CSP as the admin pages do, clicked once in headless Chrome 157 (PR #468, round 2),
-          stayed in that page's document, under its nonce CSP, and the map drew its canvas and
-          marker with no CSP violation reported. Current on no page: `/karta` has no nav. */}
+          `/karta` is its own document under its static CSP. Not this link: a `Link` to the map
+          (`/map` then, IS #478) added for a probe to `/admin/login`, which shows no nav but gets
+          the proxy's nonce CSP as the admin pages do, clicked once in headless Chrome 157 (PR
+          #468, round 2), stayed in that page's document, under its nonce CSP, and the map drew
+          its canvas and marker with no CSP violation reported. Current on no page: `/karta` has no nav. */}
       <a href="/karta" className="text-foreground/70 hover:underline">
         Karta
       </a>

@@ -13,13 +13,14 @@ const JSON_TYPE = "application/json";
 // Each path: its right answer, a wrong status, and a wrong shape (IS #286).
 const CASES = [
   // SOFT-LAUNCH GATE (Phase 10 plan #5): `/` and `/karta` redirect to `/om` with no session;
-  // back to `/` redirecting to `/karta` and `/karta` 200 at the full launch (the removal list in
+  // then `/` redirecting to `/karta` and `/karta` 200 at the full launch (the removal list in
   // src/app/karta/page.tsx).
   {
     path: "/",
     right: { status: 307, location: "/om", origin: "http://127.0.0.1:3000" },
     wrongStatus: { status: 200, contentType: HTML, origin: "http://127.0.0.1:3000" },
-    // `/` still redirecting to `/karta`, as before the gate.
+    // `/` still redirecting to the map's page, as before the gate (`/map` then, `/karta` since
+    // IS #478).
     wrongShape: { status: 307, location: "/karta", origin: "http://127.0.0.1:3000" },
   },
   {

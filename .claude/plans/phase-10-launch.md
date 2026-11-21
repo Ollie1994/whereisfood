@@ -12,20 +12,20 @@ the `/create-milestone` conversation of 2026-11-20. The IS #373 (Phase 11) row i
 plan's (`CLAUDE.md`, "Process Log"). Where this plan and `project-context.md` disagree, **this
 plan wins** until the reconciliation (step 20).
 
-**Purpose of the phase:** the first production deploy, a soft launch. Real data goes into
-production on the free plans, but only the admin sees the map: everyone else lands on a
-Swedish `/about`, until the trucks are back and Phase 11's coverage target holds. Before real
-data exists, the legal and operational pieces it needs exist too: a privacy note with a
-removal contact and retention periods, a takedown, backups, and a runbook.
+**Purpose of the phase:** the first production deploy, a soft launch. Real data goes into production
+on the free plans, but only the admin sees the map: everyone else lands on a Swedish `/om` (`/about`
+until IS #478, #12), until the trucks are back and Phase 11's coverage target holds. Before real
+data exists, the legal and operational pieces it needs exist too: a privacy note with a removal
+contact and retention periods, a takedown, backups, and a runbook.
 
 ---
 
 ## Goal
 
-Production runs on the free plans with real data the admin entered by hand, `/map` shown only
-to the admin and `/` leading to a Swedish `/about`, with the privacy note, removal contact,
-retention, takedown, weekly backup and runbook in place and every "Before the production
-deploy" check done before the first deploy.
+Production runs on the free plans with real data the admin entered by hand, `/karta` shown only to
+the admin and `/` leading to a Swedish `/om` (`/map` and `/about` until IS #478, #12), with the
+privacy note, removal contact, retention, takedown, weekly backup and runbook in place and every
+"Before the production deploy" check done before the first deploy.
 
 Done is the deploy and its checks (step 17). Telling the trucks they're listed runs alongside
 and gates nothing (#4).
@@ -64,8 +64,8 @@ and gates nothing (#4).
 ## Files
 
 **The public pages and the gate:**
-- Since IS #478 (#12), `/about` is `/om` and `/map` is `/karta`: `src/app/om/` and
-  `src/app/karta/`, moved with their tests. The lines below name the paths as they were built.
+- Since IS #478 (#12), `/about` is `/om` and `/map` is `/karta`: `src/app/om/` and `src/app/karta/`,
+  the latter moved with its tests. The lines below name the paths as they were built.
 - `src/app/map/page.tsx` (+ test): the gate (#5, #6). `requireAdmin`; anything but `check.ok`
   gets `redirect(ABOUT_PATH)`. Its header holds the gate's removal list, the one copy.
 - `src/app/page.tsx`: `/` redirects to `/about` (a gate site; Phase 11 points it back at
@@ -133,10 +133,10 @@ setting: a look in the weekly routine.)
 |---|---|---|
 | `MapPage` | page (server component) | The check `withAdmin` makes (`src/lib/http/admin.ts`), from `cookies()`: `createSessionClient(readOnlyCookies(store))`, `requireAdmin({ cookieNames, auth, now })`, with no proxy before it to refresh the session (#6); `redirect(ABOUT_PATH)` for anything but `check.ok`, with no `try` around `redirect()` or `cookies()`; then `<MapClient />` with no props (#5) |
 | `Home` | page | `redirect(ABOUT_PATH)` |
-| `AboutPage` | page (static) | What this is; the map opens when the trucks are back (a gate site, #5); a link to `/integritet` (step 9) |
+| `AboutPage` | page (static), at `/om` (#12) | What this is; the map opens when the trucks are back (a gate site, #5); a link to `/integritet` (step 9) |
 | `PrivacyPage` | page (static) | What is stored and why; both retention periods, deleted in the weekly run after each ends, so up to a week later, or up to 8 weeks during a security incident; the dump count, with the incident hold's and an old project's 8-week caps (IS #457); Vercel's and Supabase's logs (IP addresses); Auth's audit log; the removal contact |
 | `ABOUT_PATH`, `PRIVACY_PATH` | lib constants | For the code that sends someone to the pages |
-| `AdminNav` | component | Gains "Karta", to `/map`, as a plain `<a>`, so it loads `/map` as a new document under its static CSP. A `next/link` added for a probe to `/admin/login` (no nav there, but the proxy's nonce CSP, as on the admin pages), clicked once in headless Chrome (PR #468, round 2), stayed in that page's document, under its nonce CSP, and the map drew with no CSP violation reported |
+| `AdminNav` | component | Gains "Karta", to `/karta` (`/map` until #12), as a plain `<a>`, so it loads it as a new document under its static CSP. A `next/link` added for a probe to `/admin/login` (no nav there, but the proxy's nonce CSP, as on the admin pages), clicked once in headless Chrome (PR #468, round 2), stayed in that page's document, under its nonce CSP, and the map drew with no CSP violation reported |
 | the marker test | unit test | Every tracked file outside `.claude/` holding the gate's marker is on the removal list in `map/page.tsx`'s header, and every listed file holds it (#5) |
 | `takedown.sql` | manual SQL | For one truck id and its name (both must match, so an id and a name from different trucks change nothing: round 1 on PR #470), in one transaction: delete its locations, clear each `users` row's `truck_id` (the account stays, round 3 on PR #470), delete the truck; report the counts |
 | `retention.sql` | manual SQL | Delete `locations` that ended more than 52 weeks ago, and `auth.audit_log_entries` older than 30 days, in one statement reporting each delete's row count (open decisions 2, 3) |
@@ -222,8 +222,8 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
 5. **The app name** (open decision 1) in the files under "Files". Needs step 4 merged (both
    touch `map/` and the tests).
 5b. **Swedish paths** (#12, IS #478): `/about` → `/om` and `/map` → `/karta`, the folders moved
-   with their tests, every link, test and doc pointed at the new paths; the old paths answer 404,
-   which smoke expects. Before step 13.
+    (`karta/` with its tests), every link, test and doc pointed at the new paths; the old paths
+    answer 404, which smoke expects. Before step 13.
 
 **C. Operations**
 
@@ -552,8 +552,10 @@ The owner's calls (2026-11-21, IS #478): `/about` becomes `/om` and `/map` becom
 deploy, while no link to them has been shared. No redirects: the old paths answer 404, which
 smoke expects. Public pages only: `/admin/…`, `/api/…` and `/auth/…` stay, since only the admin
 sees them and they run through the proxy's, the CSP's and Auth's rules. A rename only, with no
-new constant for the map's path. Steps 3, 4 and 9, decisions #5 and #6 and the criteria already
-met name the paths as they were built; the steps still to come name the new ones.
+new constant for the map's path. As history, naming the paths as they were built: steps 1a, 3,
+4, 5 and 9, decisions #2, #5, #6 and #8, the Files lines below their note, step 1a's probe
+criterion and struck open decisions. The Purpose, the Goal, the functions table, the steps
+still to come and the open criteria name the new ones.
 
 ---
 
@@ -564,15 +566,16 @@ met name the paths as they were built; the steps still to come name the new ones
   A or the branch named, with the owner's call recorded if it is the branch. Steps 1b and 1c
   are recorded too.
 - [ ] Each open decision below is settled and struck through here with "→ settled".
-- [ ] `/about` answers 200 with the static CSP, in Swedish, saying the map opens when the
-  trucks are back, linking to `/integritet`; `AdminNav` shows "Karta", a plain `<a>` to `/map`
-  (`/map` is outside the admin layout and shows no nav: the way back is the browser's, the
+- [ ] `/om` answers 200 with the static CSP, in Swedish, saying the map opens when the
+  trucks are back, linking to `/integritet`; `AdminNav` shows "Karta", a plain `<a>` to `/karta`
+  (`/karta` is outside the admin layout and shows no nav: the way back is the browser's, the
   owner's call, round 1 on PR #447).
 - [ ] The gate: every answer of `requireAdmin` but `check.ok` (no session, `aal1`, a
   non-admin, a time-boxed session, a first factor that isn't `magiclink`, a failed sign-out,
-  Auth unavailable) gets a 307 from `/map` to `/about`, by a test over each refusal reason
-  (unit), and an integration test on the local stack; `/` gets a 307 to `/about`; the admin
-  at `aal2` gets the map; the route table shows `ƒ /map`; smoke expects both redirects.
+  Auth unavailable) gets a 307 from `/karta` to `/om`, by a test over each refusal reason
+  (unit), and an integration test on the local stack; `/` gets a 307 to `/om`; the admin
+  at `aal2` gets the map; the route table shows `ƒ /karta`; smoke expects both redirects, and
+  `/about` and `/map` answering 404 (#12).
 - [ ] The gate's invariants: a test fails if `MapPage` passes `MapClient` a prop; the marker
   test fails on a marked file not on the removal list and on a listed file without the marker,
   each seen red once locally; step 4's PR holds only listed sites outside `.claude/`;
