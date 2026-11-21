@@ -108,15 +108,16 @@ precedes production's enroll (step 16).
   is `CLAUDE.md`'s.
 
 **Docs:**
-- New: `RUNBOOK.md` at the root (#8).
+- New: `RUNBOOK.md` at the root (#8); its "A private vulnerability" (#13).
 - `README.md`: a "Production" section (setup, the hosted-settings checklist as applied,
   Production's variables), backups and restore, the takedown; its two sentences that `/`
   redirects to `/map`, gate sites (#5).
-- `SECURITY.md`: #347.
-- `CLAUDE.md`: the gate's rule (#5, a gate site); "Locations" and "db layer" gain the
-  retention delete beside the takedown (#10); "Where secrets live" gains production's
-  database URL in the gitignored `.env.prod-db.local` (#11), a name Next never loads; the
-  proxy rule only if #6's branch is needed.
+- `SECURITY.md`: #347, a private vulnerability's fix (#13).
+- `CLAUDE.md`: the gate's rule (#5, a gate site); "Doc changes" gains the private-vulnerability
+  exception, with pointers in "CI is the gate" and "Process Log" (#13); "Locations" and "db
+  layer" gain the retention delete beside the takedown (#10); "Where secrets live" gains
+  production's database URL in the gitignored `.env.prod-db.local` (#11), a name Next never
+  loads; the proxy rule only if #6's branch is needed.
 - This plan; `CLAUDE.md`'s bold line; `.claude/process-log.md`; at the reconciliation,
   `project-context.md` and README's status parts.
 
@@ -262,8 +263,9 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     weekly routine (the dump, then `retention.sql`, then the alerts' cover from open decision
     7, with the date the first retention row comes due). Needs steps 1c and 6–8 and open
     decisions 7 and 8; open decision 9 is settled on this step's issue.
-11. **`SECURITY.md`** (#347): how an in-house finding goes to a GitHub private security
-    advisory until its fix ships (the scope draft's Q36).
+11. **`SECURITY.md`** (#347): how a reported vulnerability, and once production exists an
+    in-house one (the scope draft's Q36), is fixed in a GitHub private security advisory (#13);
+    `CLAUDE.md`'s exception to the issue → PR rule; `RUNBOOK.md`'s "A private vulnerability".
 12. **#349,** the SonarQube Cloud re-scan: the account with two-factor at creation, each
     finding an issue or a recorded reason. Before step 15.
 
@@ -360,6 +362,8 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     decisions" (the retention period, the app name, the removal contact, as settled), the
     "Phase 7 #25, #26" carried-forward row (line 1108), whose name is now Väm (IS #452),
     every `/about` and `/map`, now `/om` and `/karta` (#12, IS #478),
+    Q36 in the IS #278 (Phase 10) row (line 1142) and #347's "private until disclosure" in the
+    Phase 10 row (line 474) and in "Pre-deploy automation" (line 825), which #13 amends (IS #347),
     "Principles and risks"' backups item (the dump count, the restore method, the takedown
     log), the takedown's "clear or delete each `users` row" (lines 474 and 1071), which only
     clears them (round 3 on PR #470), "only the takedown removes history" (line 207) and
@@ -557,6 +561,21 @@ new constant for the map's path. As history, naming the paths as they were built
 criterion and struck open decisions. The Purpose, the Goal, the functions table, the steps
 still to come and the open criteria name the new ones.
 
+### #13 — A private vulnerability is fixed in its advisory and shipped by a public PR
+
+The owner's calls (2026-11-21, IS #347, rounds 1 and 2 on PR #480): a privately reported
+vulnerability, before production too, and once production exists one found in-house (Q36), is fixed
+in its advisory's private fork with the local gates, by `RUNBOOK.md`'s "A private vulnerability",
+and shipped by a public PR with CI: before production always into `dev`, so #9's first merge into
+`main` keeps its order; once production exists, into `main` from a branch off it when the vulnerable
+code is deployed there, then synced into `dev` with `dev`'s copy checked, so unfinished work on
+`dev` doesn't ship with it, and into `dev` when the code is only there (round 3). The advisory's
+merge button is never used: GitHub's docs (read 2026-11-21) say it doesn't enforce the branch's
+protection rules, and CI can't run in the fork. The fix is public from the push of its branch until
+it is deployed, which amends Q36's "until its fix ships". The advisory is published once the fix
+ships, or at the time agreed with the reporter if later; the public records follow it. In-house
+findings before production stay public (Q36).
+
 ---
 
 ## Acceptance Criteria
@@ -598,9 +617,10 @@ still to come and the open criteria name the new ones.
   Supabase's logs (IP addresses), Auth's audit log and the removal contact; the owner approved
   the wording.
 - [ ] `RUNBOOK.md` has a section each for Attack Mode, a takeover, a lost phone, a leaked key,
-  a takedown request, a paused project, a restore and the weekly routine.
-- [ ] `SECURITY.md` says how an in-house finding goes to a private security advisory (#347
-  closed).
+  a takedown request, a paused project, a restore, the weekly routine and a private
+  vulnerability (#13).
+- [ ] `SECURITY.md` says how a reported vulnerability, and once production exists an in-house
+  one, is fixed privately in an advisory, and `CLAUDE.md` carries #13's exception (#347 closed).
 - [ ] #349: each finding has an issue or a recorded reason; the account had two-factor at
   creation.
 - [ ] The production project: Phase 5 #19's hosted check passes; each hosted-checklist item is

@@ -465,7 +465,8 @@ after the outage; a PR that works around the advisory and passes its own checks)
 rule is lifted by hand in the repository's settings (plan #11).
 `gh api repos/{owner}/{repo}/rulesets` lists them, and `…/rulesets/<id>` reads one's rules
 back. A PR is reviewed and merged once its checks are green; nothing runs the gates by hand
-for it. What CI doesn't cover:
+for it (but a private vulnerability's fix in its fork: "Doc changes", the exception). What CI
+doesn't cover:
 - the `/karta` browser check, which stays manual (below);
 - what a PR's checks run: a PR runs its own copy of everything its jobs read (workflows,
   scripts, configs, tests, `package.json` and the lockfile, `.env.example`), so any edit can
@@ -624,6 +625,14 @@ uncommitted on `dev`. Every doc change then has a reviewable diff and a
   GitHub's stored copy differs. A failure is fixed before the next
   step. Its header lists what GitHub rewrites (probe PR #425) and what the script can't
   see (a review comment on a PR's diff among them).
+- **Exception: a private vulnerability** (Phase 10 plan #13, IS #347). An outside report
+  (`SECURITY.md`), before production too, and once production exists an unfixed vulnerability found
+  in-house (Q36), is worked in its GitHub security advisory and the advisory's temporary private
+  fork, not a public issue, and no public PR until it ships, by `RUNBOOK.md`'s "A private
+  vulnerability". The fix ships by a public PR, where CI runs and the rulesets hold, never by the
+  advisory's merge button (GitHub's docs: it doesn't enforce the branch's protection rules). The fix
+  is public from the push of its branch. The issue, the round records and the process-log rows are
+  written when the advisory is published.
 
 ---
 
@@ -769,6 +778,10 @@ when the miss is mine:**
 - The same class of problem is caught twice
 - A settled decision gets re-proposed, or a preference is assumed instead of asked
 - A review round finds anything — that is the signal an earlier gate missed it
+
+A private vulnerability's rows are still added, at its disclosure: dated that day (`add`
+refuses a date earlier than the last row's), with the day the miss happened in the Miss. It is
+the one exception to "as it happens" ("Doc changes", the exception).
 
 **Do not** log ordinary bugs found and fixed while writing the code. That is just
 work. The bar is *"this says something about the process."* Bugs belong in GitHub

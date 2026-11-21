@@ -1,12 +1,11 @@
 # Runbook
 
-What to open in an incident, and the weekly routine (Phase 10 plan, step 10 and #8). The repo
-is public, so nothing here is a secret. Each value a step needs lives where `CLAUDE.md`'s
-"Where secrets live" says: production's Supabase keys in its dashboard (Project Settings → API
-Keys) and in Vercel's environment variables, and its database URL in the gitignored
-`.env.prod-db.local`. `<project URL>` and `<admin id>` stand for production's own; in "A
-restore", for the new project's. A step that rests on a probe or a doc names it, with its
-issue.
+What to open in an incident, and the weekly routine (Phase 10 plan, steps 10 and 11, #8 and #13).
+The repo is public, so nothing here is a secret. Each value a step needs lives where `CLAUDE.md`'s
+"Where secrets live" says: production's Supabase keys in its dashboard (Project Settings → API Keys)
+and in Vercel's environment variables, and its database URL in the gitignored `.env.prod-db.local`.
+`<project URL>` and `<admin id>` stand for production's own; in "A restore", for the new project's.
+A step that rests on a probe or a doc names it, with its issue.
 
 - [The weekly routine](#the-weekly-routine)
 - [Attack Mode](#attack-mode)
@@ -16,6 +15,7 @@ issue.
 - [A leaked key](#a-leaked-key)
 - [A takedown request](#a-takedown-request)
 - [Other requests](#other-requests)
+- [A private vulnerability](#a-private-vulnerability)
 - [A paused project](#a-paused-project)
 - [A restore](#a-restore)
 
@@ -531,6 +531,56 @@ is confirmed the same way ("A takedown request").
 - **An objection to anything but a truck's data**, such as a visitor's IP address in Vercel's
   logs: no takedown reaches it, and the service can't edit those logs; answer that each
   provider keeps them under its own terms, as the page says.
+
+---
+
+## A private vulnerability
+
+A vulnerability reported privately (`SECURITY.md`), before production too, and once production
+exists one found in-house, is fixed without a public issue or PR until it ships (`CLAUDE.md`,
+"Doc changes", the exception; plan #13, IS #347):
+
+1. **The advisory:** the report's draft advisory, or a new one for an in-house finding. Its
+   description is public once it is published, so write it on purpose; keep working notes (what
+   was found, each review round's record, each miss the process log will need) in a file
+   outside the repo, like the backups, not in the advisory. Start its temporary private fork and
+   clone it. In that clone, before the first commit: set `core.hooksPath` (README, "1.
+   Install") and create `.env.local` (README, "3. Environment").
+2. **The fix**, in the fork, with `ci.yml`'s gates run by hand, since CI can't reach the fork
+   (GitHub's docs). First stop the main clone's local stack (`npx supabase stop` there) and run
+   `npx supabase start` and `npx supabase db reset` from the fork's clone: both clones share
+   `config.toml`'s `project_id`, so a running stack would be the main clone's, without the
+   fix's migrations. Then: `npx next typegen`, then `npx tsc --noEmit`; `npm run lint`;
+   `npm audit --omit=dev --audit-level=high` and `npm audit --audit-level=critical`;
+   `npm run test:all`; Supabase's security advisor as the `integration` job runs it;
+   `npm run build`, then `node scripts/smoke.mjs <Local: URL>` against `npm start`;
+   `node scripts/controls.mjs` when the change touches a path a `TRIGGERS` entry in
+   `scripts/controls-trigger.mjs` covers, or the fix goes into `main`; and
+   `bash scripts/process-log.sh check` if the fix touches the log. The review rounds run on the
+   fork's diff, their records in the notes; the sweep and the claims check take the notes'
+   draft PR body as their file and no `--skip-issue`. Never press the advisory's "Merge pull
+   request(s)": GitHub's docs say it doesn't enforce the branch's protection rules.
+3. **Ship it.** From the push of the fix's branch the fix is public, until it is deployed: CI's
+   run, and the full controls set on a PR into `main` or one touching a `TRIGGERS` path, about
+   45 s a control. So push only when ready to ship.
+   - Before production, always: a branch off `dev` and a PR into `dev`, whose preview deploys
+     it, wherever else the code is, so plan #9's first merge into `main` keeps its order.
+   - Once production exists, the vulnerable code deployed there: a branch off `main` and a PR
+     into `main`, deployed, then `main` synced into `dev` by a PR (plan step 15b's sync, #462);
+     both rulesets refuse a direct push. Before step 4, check that `dev`'s copy is fixed too,
+     the fix's test passing on `dev` after the sync: a sync can keep `dev`'s changed version of
+     the code, and the next deploy from `dev` would bring the vulnerability back.
+   - Once production exists, the vulnerable code only on `dev`: a branch off `dev` and a PR
+     into `dev`.
+
+   The PR's body says what the fix changes and points to the advisory: the one record public
+   before the advisory.
+4. **Publish the advisory** once the fix is live, or at the time agreed with the reporter if
+   that is later.
+5. **The public records**, then: an issue recording the fix, the PR body's round records, and the
+   process-log rows, dated that day (`add` refuses a date earlier than the last row's), each
+   with the day of its miss in its Miss. The final records check runs again on them. Delete the
+   notes file.
 
 ---
 
