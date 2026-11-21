@@ -15,6 +15,7 @@ issue.
 - [A lost phone](#a-lost-phone)
 - [A leaked key](#a-leaked-key)
 - [A takedown request](#a-takedown-request)
+- [Other requests](#other-requests)
 - [A paused project](#a-paused-project)
 - [A restore](#a-restore)
 
@@ -84,7 +85,10 @@ For a flood of traffic, on Vercel. From Vercel's docs
 ## Exporting evidence
 
 Before anything an incident deletes (sessions, factors, the audit log `retention.sql` trims),
-save it to files, whole. Not through the SQL editor, whose results show at most 100 rows
+save it to files, every row. Sessions and factors by named columns, leaving out the
+credentials: a factor's `secret` (the TOTP seed) and WebAuthn data, and a session's
+`refresh_token_hmac_key`, which `select *` wrote in plain text (`information_schema.columns`
+on the local stack, PR #476). Not through the SQL editor, whose results show at most 100 rows
 ("Limited to only 100 rows"). With the local stack started, through its `psql`, from the
 repo in Git Bash:
 
@@ -98,8 +102,8 @@ else
   mkdir -p "$EXPORT"
   for item in \
     "audit|select * from auth.audit_log_entries order by created_at" \
-    "sessions|select * from auth.sessions order by created_at" \
-    "factors|select * from auth.mfa_factors order by created_at" \
+    "sessions|select id, user_id, created_at, updated_at, factor_id, aal, not_after, refreshed_at, user_agent, ip, tag from auth.sessions order by created_at" \
+    "factors|select id, user_id, friendly_name, factor_type, status, created_at, updated_at, last_challenged_at from auth.mfa_factors order by created_at" \
     "admins|select u.id, a.email, u.is_admin, u.truck_id, u.created_at, a.created_at as auth_created_at from public.users u join auth.users a on a.id = u.id order by u.created_at" \
     "trucks|select * from public.trucks order by created_at"; do
     name=${item%%|*}; query=${item#*|}
@@ -431,7 +435,8 @@ password or an account token, all of these; after the secret key, the first two:
 
 A truck that asks to be removed is removed, company or sole trader (IS #373 (Phase 10)), as
 soon as possible and within a month of the request, as `/integritet` promises (PR #476). An
-objection to the processing is handled the same way, as the page says:
+objection to the processing of a truck's data is handled the same way, as the page says; any
+other request goes to "Other requests":
 
 1. README, "Takedown", steps 1 to 4: find the truck, run `supabase/manual/takedown.sql`, read
    its row, and add the line to the takedown log.
@@ -442,10 +447,58 @@ objection to the processing is handled the same way, as the page says:
    after the hold began ("The weekly routine", "Exporting evidence"); and after a
    restore, the old project's deletion, at most 8 weeks after the restore ("A restore", step
    6). Give the latest date that applies.
-3. Keep the request mail and the reply until the date given has passed, as `/integritet` says. If
-   an incident hold or a restore moves that date later before then, write to the requester with
-   the new date. Then delete both, and delete them from Trash too. The takedown log keeps what a
+3. Keep the request mail and the reply until no copy from before the takedown is left, as
+   `/integritet` says: no dump dated before it in the backups folder or in `hold`, no export
+   from before it in `hold`, and, after a restore, the old project deleted. If that comes later
+   than the date given, for any reason (a `DUMP FAILED` or `PRUNE FAILED` week, a hold, a
+   restore), write to the requester with the new date. Then delete both, and delete them from
+   Trash too. The takedown log keeps what a
    restore needs, the truck's id and the date (README, "Takedown", step 4), not who asked.
+
+---
+
+## Other requests
+
+`/integritet` also offers access, correction and restriction by mail. Answer each as soon as
+possible and within a month (GDPR art. 12(3)), then delete the request and the reply, from
+Trash too.
+
+- **Access:** the truck's rows as CSV files, through the local stack's `psql` as "Exporting
+  evidence" does (the SQL editor shows at most 100 rows). From the repo in Git Bash, with the
+  truck's id from README's "Takedown", step 1, and a folder outside the backups:
+
+  ```bash
+  OUT="<a folder outside the backups>"
+  TRUCK="<the truck's id>"
+  PROD_DB_URL=$(grep '^PROD_DB_URL=' .env.prod-db.local | cut -d= -f2- | tr -d "\r\"'")
+  if [ -z "$PROD_DB_URL" ]; then
+    echo "NO URL: nothing exported"
+  else
+    for item in "trucks|id" "locations|truck_id"; do
+      table=${item%%|*}; column=${item#*|}
+      if docker exec -i supabase_db_whereisfood psql "$PROD_DB_URL" -v ON_ERROR_STOP=1 -c \
+        "\copy (select * from $table where $column = '$TRUCK' order by created_at) to stdout with csv header" \
+        > "$OUT/$table.csv.part"; then
+        mv "$OUT/$table.csv.part" "$OUT/$table.csv"
+        echo "EXPORT OK $table: $(($(wc -l < "$OUT/$table.csv") - 1)) lines after the header"
+      else
+        rm -f "$OUT/$table.csv.part"
+        echo "EXPORT FAILED $table"
+      fi
+    done
+  fi
+  unset PROD_DB_URL
+  ```
+
+  Probed on the local stack (PR #476): a truck with 31 places gave `EXPORT OK` with 1 and 31
+  lines; an id holding a quote gave `EXPORT FAILED` for both and changed nothing. Send both
+  files, say that the backups hold the same rows until they age out, and delete the folder once
+  sent.
+- **Correction:** correct the truck or the place in the admin screen.
+- **Restriction**, while a correction or an objection is settled: enter no new places for the
+  truck, and cancel its upcoming ones in the admin screen, until it is settled.
+- **An objection to anything but a truck's data**, such as a visitor's IP address in Vercel's
+  logs: no takedown reaches it; answer with what the page says about those logs.
 
 ---
 
