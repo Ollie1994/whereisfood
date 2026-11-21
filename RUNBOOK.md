@@ -427,7 +427,8 @@ password or an account token, all of these; after the secret key, the first two:
 
 ## A takedown request
 
-A truck that asks to be removed is removed, company or sole trader (IS #373 (Phase 10)):
+A truck that asks to be removed is removed, company or sole trader (IS #373 (Phase 10)), as
+soon as possible and within a month of the request, as `/integritet` promises (PR #476):
 
 1. README, "Takedown", steps 1 to 4: find the truck, run `supabase/manual/takedown.sql`, read
    its row, and add the line to the takedown log.
