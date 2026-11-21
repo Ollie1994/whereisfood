@@ -362,6 +362,7 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     decisions" (the retention period, the app name, the removal contact, as settled), the
     "Phase 7 #25, #26" carried-forward row (line 1108), whose name is now Väm (IS #452),
     every `/about` and `/map`, now `/om` and `/karta` (#12, IS #478),
+    Q36 in the IS #278 (Phase 10) row (line 1142), which #13 amends (IS #347),
     "Principles and risks"' backups item (the dump count, the restore method, the takedown
     log), the takedown's "clear or delete each `users` row" (lines 474 and 1071), which only
     clears them (round 3 on PR #470), "only the takedown removes history" (line 207) and
