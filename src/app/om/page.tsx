@@ -6,8 +6,8 @@ import { CONTACT } from "@/lib/contact";
 // What the app is (Phase 10 plan, steps 3 and 5d): where everyone but the admin lands during the
 // soft launch, and a page that stays after it. For three readers: people looking for food, truck
 // owners, and developers and employers (IS #483). Static, Swedish (CLAUDE.md, UI Rules), inside
-// `PublicShell`, in its column (`PublicShell`'s comment). The text is the owner's (IS #483: the issue's calls and
-// their answers in its comments); a change to it goes back to them.
+// `PublicShell`, in its column (`PublicShell`'s comment). The text is the owner's (IS #483: the
+// issue's calls and their answers in its comments); a change to it goes back to them.
 export const metadata: Metadata = {
   title: "Om",
 };

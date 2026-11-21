@@ -6,10 +6,10 @@ import { pageTitle } from "@/lib/titles";
 
 // The 404 outside `/admin` (which has its own): Swedish (CLAUDE.md, UI Rules), in the owner's
 // wording (IS #413; the link's text: its comment), styled by classes only, like
-// `admin/not-found.tsx`, inside `PublicShell` and its column (IS #483). Its title (IS #438; its wording
-// `pageTitle`'s, IS #452), through `metadata`, which the root not-found may export (Next's
-// `not-found.md`, 16.4, "Metadata"). `absolute`: the root layout's template doesn't reach its own
-// segment (`src/lib/titles.ts`).
+// `admin/not-found.tsx`, inside `PublicShell` and its column (IS #483). Its title (IS #438; its
+// wording `pageTitle`'s, IS #452), through `metadata`, which the root not-found may export
+// (Next's `not-found.md`, 16.4, "Metadata"). `absolute`: the root layout's template doesn't reach
+// its own segment (`src/lib/titles.ts`).
 export const metadata: Metadata = {
   title: { absolute: pageTitle("Sidan finns inte") },
 };

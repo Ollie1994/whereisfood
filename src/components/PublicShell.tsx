@@ -1,22 +1,24 @@
 import Link from "next/link";
 import ExternalLink from "@/components/ExternalLink";
 import VamLogo from "@/components/VamLogo";
-import { CONTACT, INSTAGRAM_URL } from "@/lib/contact";
+import { CONTACT, INSTAGRAM_HANDLE, INSTAGRAM_URL } from "@/lib/contact";
 import { PRIVACY_PATH } from "@/lib/paths";
 
 // The public pages' frame (IS #483): `/om`, `/integritet` and the root 404, not `/karta` (a
 // full-screen map) or `/admin` (its own header) or `error.tsx`, which an error in the admin
 // layout reaches too (`CLAUDE.md`, "Security headers"). The header's link goes to `/`, which
 // leads to `/om` while the gate stands and to the map after it, so it is no gate site. Classes
-// only, in `globals.css`'s public palette, with `scheme-light-dark` as the admin layout has (its
-// comment says what it does); the browser check of PR #484 looks at it here.
-// The public column, this comment its one copy: `max-w-md px-4` on a phone, `md:max-w-2xl md:px-8`
-// from `md` up, used by the header and footer here and by each page's `<main>`.
-// A limit: outside this frame `body` keeps `--background` (#ffffff, or #0a0a0a in dark mode),
-// which a phone's overscroll shows past the top and bottom of the page.
+// only, in `globals.css`'s public palette. The logo sits inside that link, so the link's name is
+// "Väm Var är maten".
+// The public column, described here and written by hand in five places that must match: the
+// header and footer here and each page's `<main>`, as `max-w-md px-4` on a phone and
+// `md:max-w-2xl md:px-8` from `md` up.
+// Limits: outside this frame `body` keeps `globals.css`'s `--background`, which a phone's
+// overscroll shows past the top and bottom of the page; and `<html>` sets no `color-scheme`, so a
+// browser in dark mode may draw the page's scrollbar light.
 export default function PublicShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex flex-1 flex-col bg-paper text-ink scheme-light-dark">
+    <div className="flex flex-1 flex-col bg-paper text-ink">
       <header className="mx-auto w-full max-w-md px-4 pt-6 md:max-w-2xl md:px-8 md:pt-10">
         <Link href="/" className="inline-flex items-center gap-3 text-lg font-semibold">
           <VamLogo size={40} />
@@ -30,7 +32,7 @@ export default function PublicShell({ children }: { children: React.ReactNode })
             Integritet och borttagning
           </Link>
           <ExternalLink href={INSTAGRAM_URL} className="underline">
-            Instagram @vararmaten
+            Instagram {INSTAGRAM_HANDLE}
           </ExternalLink>
           <a href={`mailto:${CONTACT}`} className="underline">
             {CONTACT}
