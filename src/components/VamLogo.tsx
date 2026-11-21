@@ -1,6 +1,6 @@
 // Väm's temporary logo (IS #481): option A from the owner's logo canvas, "Väm" drawn in lines,
-// the same drawing as `src/app/icon.svg`. Beside the text "Var är maten" (the owner's call), the
-// logo is the only place the name appears, so it is labelled "Väm" for screen readers.
+// the same drawing as `src/app/icon.svg`. Beside the text "Var är maten" (the owner's call), it is
+// the heading's only "Väm", so it is labelled "Väm" for screen readers.
 // Presentation attributes, not `style`, so the admin pages' nonce CSP admits it (`CLAUDE.md`,
 // "Security headers").
 export default function VamLogo({ size }: { size: number }) {
