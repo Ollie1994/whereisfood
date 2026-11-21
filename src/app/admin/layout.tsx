@@ -2,12 +2,13 @@ import type { Metadata } from "next";
 import { connection } from "next/server";
 import AdminNav from "@/components/Admin/AdminNav";
 import LogoutButton from "@/components/Admin/LogoutButton";
-import { ADMIN_TITLE } from "@/lib/titles";
+import { ADMIN_TITLE, adminTitle } from "@/lib/titles";
 
 // Väm, the app's name (Phase 10 plan, open decision 1, IS #452).
 export const metadata: Metadata = {
-  // `absolute`, so the root layout's public template doesn't add itself (`src/lib/titles.ts`).
-  title: { absolute: ADMIN_TITLE },
+  // `absolute`, so the root layout's public template doesn't add itself; `template` for the
+  // admin pages below this segment (`src/lib/titles.ts`).
+  title: { absolute: ADMIN_TITLE, template: adminTitle("%s") },
 };
 
 // Logout on every admin screen, the login included, so a non-admin or an expired
