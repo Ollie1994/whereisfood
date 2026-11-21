@@ -3,8 +3,9 @@
 // The root error page. Its main case is an error in the admin layout, which `admin/error.tsx`
 // can't catch (Next's `error.js` convention, `error.md`, 16.4: a boundary wraps nested
 // layouts, not the layout beside it); the other pages it covers today are `/`, which only
-// redirects, `/about`, which is static, and the root `not-found.tsx`, which an `error.js`
-// wraps (Next's `project-structure.md`, 16.4, "Component hierarchy"); `/map` has its own.
+// redirects, `/about` and `/integritet`, which are static, and the root `not-found.tsx`, which
+// an `error.js` wraps (Next's `project-structure.md`, 16.4, "Component hierarchy"); `/map` has
+// its own.
 // Without it, a throw in the admin layout showed Next's built-in screen, whose inline style
 // the `/admin` CSP blocked, and with it this page, on a full load of `/admin/login` (the
 // owner's browser checks, builds A and B on IS #413's PR); a client-side navigation into

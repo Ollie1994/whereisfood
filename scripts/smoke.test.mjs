@@ -36,6 +36,13 @@ const CASES = [
     wrongShape: { status: 200, contentType: JSON_TYPE, json: {} },
   },
   {
+    path: "/integritet",
+    right: { status: 200, contentType: HTML },
+    // The page missing: the root not-found.
+    wrongStatus: { status: 404, contentType: HTML },
+    wrongShape: { status: 200, contentType: JSON_TYPE, json: {} },
+  },
+  {
     path: "/api/live",
     right: { status: 200, contentType: JSON_TYPE, json: { entries: [] } },
     wrongStatus: { status: 500, contentType: JSON_TYPE, json: { error: "x" } },
@@ -170,6 +177,7 @@ describe("checkHeaders", () => {
 
   it("passes each path's right headers", () => {
     expect(checkHeaders(byPath("/about"), answer(STATIC_CSP))).toEqual([]);
+    expect(checkHeaders(byPath("/integritet"), answer(STATIC_CSP))).toEqual([]);
     expect(checkHeaders(byPath("/api/live"), answer(STATIC_CSP))).toEqual([]);
     expect(checkHeaders(byPath("/api/admin/trucks"), answer(STATIC_CSP))).toEqual([]);
     expect(checkHeaders(byPath("/admin/login"), answer(nonceCsp("abc"), {}, PAGE))).toEqual([]);
