@@ -428,16 +428,21 @@ password or an account token, all of these; after the secret key, the first two:
 ## A takedown request
 
 A truck that asks to be removed is removed, company or sole trader (IS #373 (Phase 10)), as
-soon as possible and within a month of the request, as `/integritet` promises (PR #476):
+soon as possible and within a month of the request, as `/integritet` promises (PR #476). An
+objection to the processing is handled the same way, as the page says:
 
 1. README, "Takedown", steps 1 to 4: find the truck, run `supabase/manual/takedown.sql`, read
    its row, and add the line to the takedown log.
 2. Reply to the requester. The map drops the truck within about three minutes. The backups
    keep its rows until the latest of: about four weeks after the takedown, as the weekly
    dumps from before it age out (README, "Backups"); while an incident hold is open, the held
-   dumps' deletion, at most 8 weeks after the hold began ("The weekly routine"); and after a
+   dumps' deletion, with the evidence export's copy of `trucks` beside them, at most 8 weeks
+   after the hold began ("The weekly routine", "Exporting evidence"); and after a
    restore, the old project's deletion, at most 8 weeks after the restore ("A restore", step
    6). Give the latest date that applies.
+3. Delete the request mail and the reply once the takedown is done, as `/integritet` says: the
+   takedown log keeps what a restore needs, the truck's id and the date (README, "Takedown", step
+   4), not who asked.
 
 ---
 
