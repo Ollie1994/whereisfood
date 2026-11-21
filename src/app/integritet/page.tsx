@@ -26,8 +26,9 @@ import { ABOUT_PATH } from "@/lib/paths";
 // - the visitors' logs' "at most a day": Vercel Hobby's runtime logs 1 hour
 //   (vercel.com/docs/logs/runtime, "Limits") and Observability data 12 hours
 //   (vercel.com/docs/observability/observability-plus, "Limitations"). Supabase Free states 1 day
-//   for its API and database logs (supabase.com/docs/guides/telemetry/logs), none for Auth's, so
-//   the admin's sentence gives no period. All read 2026-11-21, on the plans in use until Phase
+//   for its API and database logs (supabase.com/docs/guides/telemetry/logs); its pricing page's
+//   "Auth Audit Logs: 24 hours" doesn't say which logs it means, so the admin's sentence gives no
+//   period. All read 2026-11-21, on the plans in use until Phase
 //   11; none of the three pages names an IP field, hence "kan innehålla".
 export const metadata: Metadata = {
   title: "Integritet | Var är maten?",
