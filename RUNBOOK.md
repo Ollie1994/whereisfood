@@ -482,7 +482,8 @@ truck (GDPR art. 12(6) allows asking): send a code in a message to the Instagram
 truck's row, and ask for it to be mailed back from the requesting address. Send files only to that
 address. With no handle on the row, or when the handle itself is what's disputed, do the same
 through another channel the truck publishes itself (its website, or a contact in its own posts);
-with none, answer that the request can't be verified, and what would let you verify it. A takedown is confirmed the same way ("A takedown request").
+with none, answer that the request can't be verified, and what would let you verify it. A takedown
+is confirmed the same way ("A takedown request").
 
 - **Access:** the truck's rows as CSV files, through the local stack's `psql` as "Exporting
   evidence" does (the SQL editor shows at most 100 rows). From the repo in Git Bash, with the
