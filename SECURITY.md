@@ -42,4 +42,7 @@ deployment, report what you noticed without probing further.
 
 This project has one maintainer, so there is no fixed response time. You can expect an
 acknowledgement once the report has been read, then an assessment and either a fix or an
-explanation of why no change is made, and credit by your GitHub username if you want it.
+explanation of why no change is made, and credit by your GitHub username if you want it. A
+reported vulnerability, and once the app is in production one the maintainer finds, is fixed
+privately in a GitHub security advisory and made public when the fix ships, together with the
+advisory.

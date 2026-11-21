@@ -263,7 +263,8 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     7, with the date the first retention row comes due). Needs steps 1c and 6–8 and open
     decisions 7 and 8; open decision 9 is settled on this step's issue.
 11. **`SECURITY.md`** (#347): how an in-house finding goes to a GitHub private security
-    advisory until its fix ships (the scope draft's Q36).
+    advisory until its fix ships (the scope draft's Q36), and how a reported one's fix is made
+    (#13); `CLAUDE.md`'s exception to the issue → PR rule.
 12. **#349,** the SonarQube Cloud re-scan: the account with two-factor at creation, each
     finding an issue or a recorded reason. Before step 15.
 
@@ -556,6 +557,15 @@ new constant for the map's path. As history, naming the paths as they were built
 4, 4b, 5 and 9, decisions #2, #5, #6 and #8, the Files lines below their note, step 1a's probe
 criterion and struck open decisions. The Purpose, the Goal, the functions table, the steps
 still to come and the open criteria name the new ones.
+
+### #13 — A private vulnerability is fixed in its advisory and shipped by a public PR
+
+The owner's calls (2026-11-21, IS #347): a privately reported vulnerability, before production
+too, and once production exists one found in-house (Q36), is fixed in its advisory's private fork
+with the local gates and shipped by a normal public PR with CI. The advisory's merge button is
+never used: it bypasses the rulesets, and CI can't run in the fork (GitHub's docs, read
+2026-11-21). The public records follow at disclosure. In-house findings before production stay
+public (Q36).
 
 ---
 

@@ -624,6 +624,16 @@ uncommitted on `dev`. Every doc change then has a reviewable diff and a
   GitHub's stored copy differs. A failure is fixed before the next
   step. Its header lists what GitHub rewrites (probe PR #425) and what the script can't
   see (a review comment on a PR's diff among them).
+- **Exception: a private vulnerability** (Phase 10 plan #13, IS #347). An outside report
+  (`SECURITY.md`), before production too, and once production exists an unfixed vulnerability
+  found in-house (Q36), is worked in its GitHub security advisory, not a public issue or PR. The
+  fix is developed and reviewed in the advisory's temporary private fork, with the local gates
+  (`npx tsc --noEmit`, `npm run test:all`, `npm run build` and smoke), since CI can't run there.
+  Never merge with the advisory's button, which bypasses the rulesets. On the ship date the fix
+  goes through a normal public PR into `dev` and on to `main`, where CI runs and the rulesets
+  hold. It is deployed, and the advisory is published the same day. The public records (the
+  issue, the PR's round records, the process-log rows) are written at disclosure, from notes
+  kept in the advisory.
 
 ---
 
@@ -769,6 +779,9 @@ when the miss is mine:**
 - The same class of problem is caught twice
 - A settled decision gets re-proposed, or a preference is assumed instead of asked
 - A review round finds anything — that is the signal an earlier gate missed it
+
+A private vulnerability's rows are still added, but at its disclosure ("Doc changes", the
+exception).
 
 **Do not** log ordinary bugs found and fixed while writing the code. That is just
 work. The bar is *"this says something about the process."* Bugs belong in GitHub
