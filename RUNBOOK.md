@@ -32,7 +32,8 @@ Once a week, in this order:
    8 weeks** (the owner's call, IS #457): delete the held dumps when the incident is closed,
    or 8 weeks after the hold began, whichever comes first. Held dumps keep the rows of any
    truck taken down before or during the hold until then, past README's "about four weeks":
-   say so in a takedown's reply meanwhile ("A takedown request").
+   say so in a takedown's reply meanwhile, and write to each earlier requester whose date this
+   moves ("A takedown request", steps 2 and 3).
 2. **`supabase/manual/retention.sql`** in production's SQL editor. Its row counts the
    locations and audit-log rows it deleted (52 weeks and 30 days, Phase 10 plan's open
    decisions 2 and 3). The first audit-log rows come due 30 days after the production
@@ -441,9 +442,10 @@ objection to the processing is handled the same way, as the page says:
    after the hold began ("The weekly routine", "Exporting evidence"); and after a
    restore, the old project's deletion, at most 8 weeks after the restore ("A restore", step
    6). Give the latest date that applies.
-3. Delete the request mail and the reply once the takedown is done, as `/integritet` says: the
-   takedown log keeps what a restore needs, the truck's id and the date (README, "Takedown", step
-   4), not who asked.
+3. Keep the request mail and the reply until the date given has passed, as `/integritet` says. If
+   an incident hold or a restore moves that date later before then, write to the requester with
+   the new date. Then delete both, and delete them from Trash too. The takedown log keeps what a
+   restore needs, the truck's id and the date (README, "Takedown", step 4), not who asked.
 
 ---
 
@@ -552,7 +554,8 @@ container. In this order, since the login has to reach the new project:
    delete it when the restore is confirmed or 8 weeks after the restore, whichever comes
    first (the owner's call, IS #457). Until then it still holds every truck's history, a
    takedown or retention run since misses it (a paused project runs no SQL), and its keys
-   still work: say so in a takedown's reply meanwhile ("A takedown request").
+   still work: say so in a takedown's reply meanwhile, and write to each earlier requester whose
+   date this moves ("A takedown request", steps 2 and 3).
 7. **The CLI back to the preview:** resume the preview if you paused it for the slot (step
    6's pause has freed one), then, from the repo root:
 

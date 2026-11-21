@@ -46,6 +46,8 @@ import { createSessionClient, readOnlyCookies } from "@/lib/supabase-session";
 //   rewritten for after the launch.
 // - src/app/not-found.tsx: the link back to "Till kartan" and `/map`, its `ABOUT_PATH` import
 //   gone, and its header's pointer to the link's comment.
+// - src/app/integritet/page.tsx: the link back to "Till kartan" and `/map`, its `ABOUT_PATH`
+//   import gone.
 // - src/lib/supabase-session.ts: `readOnlyCookies`' marked sentence deleted, so the comment says
 //   to use it behind the proxy alone.
 // - README.md: "It redirects to `/map`" ("4. Run") and "the app's `/` only redirects to

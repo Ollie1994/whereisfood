@@ -6,8 +6,8 @@ import { ABOUT_PATH } from "@/lib/paths";
 // removal contact (open decision 4). Static, Swedish (CLAUDE.md, UI Rules), in `/about`'s column
 // on a phone, widened from `md` up to a reading width (`max-w-2xl`), each part a `<section>`. The
 // owner approved this text on IS #456 (2026-11-21), and on PR #476 the removal's "senast inom en
-// månad" (GDPR's one month to answer a request, art. 12(3)) and round 1's changes. Where each
-// fact comes from, so a change there is a change here:
+// månad" (GDPR's one month to answer a request, art. 12(3)) and rounds 1 and 2's changes.
+// Where each fact comes from, so a change there is a change here:
 // - the periods: `supabase/manual/retention.sql` (52 weeks after `ends_at`, 30 days of
 //   `auth.audit_log_entries`, nothing from `trucks`, whose row only `takedown.sql` deletes),
 //   run weekly (`RUNBOOK.md`, "The weekly routine");
@@ -18,15 +18,17 @@ import { ABOUT_PATH } from "@/lib/paths";
 //   weekly routine" and "Exporting evidence"; the old project's 8 weeks after any restore: "A
 //   restore" (the owner's calls on IS #457);
 // - the takedown: `RUNBOOK.md`, "A takedown request" (the reply gives the latest date the
-//   backups keep it; the request mail deleted once handled);
+//   backups keep it; the request mail kept until that date has passed, so a later hold or
+//   restore can be told, then deleted);
 // - the right to object stated on its own: GDPR art. 21(4), for "berättigat intresse";
 // - the hosts: `src/lib/http/csp.ts` (R2's tiles, `protomaps.github.io`'s glyphs and sprites;
 //   no public page calls Supabase from the browser, only the admin's login);
-// - the logs' "at most a day": Vercel Hobby's runtime logs 1 hour (vercel.com/docs/logs/runtime,
-//   "Limits") and Observability data 12 hours (vercel.com/docs/observability/
-//   observability-plus, "Limitations"); Supabase Free's API and database logs 1 day
-//   (supabase.com/docs/guides/telemetry/logs). All read 2026-11-21, on the plans in use until
-//   Phase 11; none of the three names an IP field, hence "kan innehålla".
+// - the visitors' logs' "at most a day": Vercel Hobby's runtime logs 1 hour
+//   (vercel.com/docs/logs/runtime, "Limits") and Observability data 12 hours
+//   (vercel.com/docs/observability/observability-plus, "Limitations"). Supabase Free states 1 day
+//   for its API and database logs (supabase.com/docs/guides/telemetry/logs), none for Auth's, so
+//   the admin's sentence gives no period. All read 2026-11-21, on the plans in use until Phase
+//   11; none of the three pages names an IP field, hence "kan innehålla".
 export const metadata: Metadata = {
   title: "Integritet | Var är maten?",
 };
@@ -85,7 +87,7 @@ export default function PrivacyPage() {
           Bara administratören loggar in. För kontot sparar inloggningstjänsten (Supabase Auth) en
           logg över inloggningar och andra händelser, med IP-adress och e-postadress, för att det
           ska gå att utreda om kontot har kapats. Supabases loggar över inloggningen kan också
-          innehålla administratörens IP-adress, och de som tjänsten kan se sparas i högst ett dygn.
+          innehålla administratörens IP-adress.
         </p>
       </section>
 
@@ -104,8 +106,8 @@ export default function PrivacyPage() {
           </li>
           <li>
             Varje vecka sparas en säkerhetskopia av tjänstens databas (foodtruckarna, deras platser
-            och administratörens användar-id) på administratörens dator. De fyra senaste behålls,
-            så det som raderas finns kvar i säkerhetskopiorna i ungefär fyra veckor till.
+            och administratörens användar-id) på administratörens dator. De fyra senaste behålls, så
+            det som raderas finns kvar i säkerhetskopiorna i ungefär fyra veckor till.
             Säkerhetskopiorna innehåller inte administratörens logg.
           </li>
           <li>
@@ -147,13 +149,15 @@ export default function PrivacyPage() {
           . Varje begäran om borttagning följs, så snart som möjligt och senast inom en månad,
           oavsett om foodtrucken drivs som företag eller av en enskild person. Foodtrucken och alla
           dess platser raderas då på en gång. De finns kvar i säkerhetskopiorna i ungefär fyra
-          veckor, eller längre vid en säkerhetsincident eller en återställning, och svaret du får
-          säger till vilket datum. Om en säkerhetskopia någon gång återställs, raderas foodtrucken
-          igen som en del av återställningen. Mejlet raderas när begäran är klar.
+          veckor. Vid en säkerhetsincident eller en återställning kan kopior av databasen finnas
+          kvar längre, se ovan. Svaret du får säger till vilket datum. Mejlet sparas tills det
+          datumet har passerat, så att du kan få veta om det skulle bli senare, och raderas sedan.
+          Om en säkerhetskopia någon gång återställs, raderas foodtrucken igen som en del av
+          återställningen.
         </p>
         <p>
-          Du har rätt att invända mot att uppgifterna behandlas. En invändning hanteras som en
-          begäran om borttagning.
+          Du har rätt att invända mot att uppgifterna behandlas. En invändning mot att en foodtrucks
+          uppgifter behandlas hanteras som en begäran om borttagning.
         </p>
         <p>
           Du kan också mejla för att få veta vilka uppgifter som finns om dig, få dem rättade eller
@@ -162,6 +166,9 @@ export default function PrivacyPage() {
         <p>Personuppgiftsansvarig: Oliwer Karlsson, som nås på {CONTACT}.</p>
       </section>
 
+      {/* SOFT-LAUNCH GATE (Phase 10 plan #5): to `/about` while `/map` is gated, as "Till
+          startsidan", the 404 page's wording (PR #469); back to "Till kartan" and `/map` at the
+          full launch (the removal list in `src/app/map/page.tsx`). */}
       <Link href={ABOUT_PATH} className="text-sm underline">
         Till startsidan
       </Link>
