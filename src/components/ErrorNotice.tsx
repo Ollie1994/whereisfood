@@ -6,10 +6,10 @@
 // which Next's TS plugin flags).
 //
 // The heading takes focus on mount (`useFocusOnMount`), so a screen reader reads it, and
-// `title` names the page (the owner's choices and wording, IS #438). React's `<title>`: an
-// error page is a Client Component, and `metadata` exports are only supported in Server
-// Components (Next 16.4's `error.md` and `generate-metadata.md`; `error.md` names `<title>`
-// as the alternative for `global-error`).
+// `title` names the page (the owner's choices, IS #438; the wording `src/lib/titles.ts`', IS
+// #452). React's `<title>`: an error page is a Client Component, and `metadata` exports are only
+// supported in Server Components (Next 16.4's `error.md` and `generate-metadata.md`; `error.md`
+// names `<title>` as the alternative for `global-error`).
 //
 // Probed on `/` only (headless Chrome on `npm start`, IS #438's PR; `/admin`'s not retried):
 // a "Försök igen" that threw again mounted this page again, so the heading took focus again;

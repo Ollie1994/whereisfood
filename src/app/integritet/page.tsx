@@ -34,7 +34,7 @@ import { ABOUT_PATH } from "@/lib/paths";
 //   names an IP field, hence "kan innehålla". All read 2026-11-21, on the plans in use until Phase
 //   11.
 export const metadata: Metadata = {
-  title: "Integritet | Var är maten?",
+  title: "Integritet",
 };
 
 const CONTACT = "vararmaten@proton.me";
@@ -47,7 +47,7 @@ export default function PrivacyPage() {
       <header className="flex flex-col gap-3">
         <h1 className="text-2xl font-semibold md:text-3xl">Integritet</h1>
         <p className="md:text-lg">
-          Var är maten? visar var Göteborgs foodtruckar står i dag. Här står vilka uppgifter
+          Väm visar var Göteborgs foodtruckar står i dag. Här står vilka uppgifter
           tjänsten sparar, varför och hur länge, och hur du får dem borttagna.
         </p>
       </header>

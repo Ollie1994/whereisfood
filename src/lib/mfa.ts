@@ -37,8 +37,8 @@ export async function enrollFactor(
 
     const { data, error: enrollError } = await mfa.enroll({
       factorType: "totp",
-      issuer: "WhereIsFood",
-      friendlyName: "WhereIsFood",
+      issuer: "Väm",
+      friendlyName: "Väm",
     });
     if (enrollError) return failed(enrollError);
     return { factorId: data.id, qrCode: data.totp.qr_code, secret: data.totp.secret };

@@ -195,7 +195,7 @@ export function mfaMessage(status: MfaStatus): string | null {
     case "unprepared":
       return "Det gick inte att förbereda inloggningen. Ladda om sidan om en stund.";
     case "wrong-code":
-      return "Fel kod. Kontrollera att koden kommer från WhereIsFood i appen och försök igen.";
+      return "Fel kod. Kontrollera att koden kommer från Väm i appen och försök igen.";
     case "rate-limited":
       return "För många försök. Vänta en stund och försök igen.";
     case "failed":
@@ -227,7 +227,7 @@ export const MFA_TEXTS = {
   secretNote: "Går det inte att skanna? Lägg till kontot i appen med den här nyckeln:",
   codeTitle: "Ange kod",
   unavailableTitle: "Tvåstegsverifiering",
-  codeIntro: "Skriv in den sexsiffriga koden som autentiseringsappen visar för WhereIsFood.",
+  codeIntro: "Skriv in den sexsiffriga koden som autentiseringsappen visar för Väm.",
   codeLabel: "Kod",
   invalidCode: "Koden ska vara sex siffror.",
   loginAgain: "Logga in",

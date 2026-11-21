@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import { connection } from "next/server";
 import AdminNav from "@/components/Admin/AdminNav";
 import LogoutButton from "@/components/Admin/LogoutButton";
+import { ADMIN_TITLE } from "@/lib/titles";
 
-// WhereIsFood is the temporary name until Phase 10, the launch, picks one (Phase 7 plan, #26).
+// Väm, the app's name (Phase 10 plan, open decision 1, IS #452).
 export const metadata: Metadata = {
-  title: "WhereIsFood – admin",
+  // `absolute`, so the root layout's public template doesn't add itself (`src/lib/titles.ts`).
+  title: { absolute: ADMIN_TITLE },
 };
 
 // Logout on every admin screen, the login included, so a non-admin or an expired
@@ -25,7 +27,7 @@ export default async function AdminLayout({ children }: Readonly<{ children: Rea
     <div className="mx-auto flex w-full max-w-md flex-1 flex-col gap-6 px-4 py-6 scheme-light-dark">
       <header className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-4">
-          <span className="text-lg font-semibold">WhereIsFood</span>
+          <span className="text-lg font-semibold">Väm</span>
           <LogoutButton />
         </div>
         <AdminNav />

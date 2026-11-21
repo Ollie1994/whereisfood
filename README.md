@@ -1,4 +1,4 @@
-# WhereIsFood — Gothenburg Food Truck Map
+# Väm (Var är maten) — Gothenburg Food Truck Map
 
 A web map showing where Gothenburg's food trucks are **today**.
 

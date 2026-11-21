@@ -119,9 +119,9 @@ precedes production's enroll (step 16).
   `project-context.md` and README's status parts.
 
 **Settings, not files:** the production Supabase project; Vercel's Production variables and
-Ignored Build Step; R2's CORS rule; `main`'s ruleset (CodeQL's checks); the registrar, if the
-domain is bought (#7). (The alerts' cover, open decision 7, settled with no setting: a look in
-the weekly routine.)
+Ignored Build Step; R2's CORS rule; `main`'s ruleset (CodeQL's checks); the registrar (the
+domain bought at Oderland, IS #452; #7). (The alerts' cover, open decision 7, settled with no
+setting: a look in the weekly routine.)
 
 ---
 
@@ -294,9 +294,9 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     README's checklist leaves at 30 days for Phase 10 to decide (open decision 14), recorded
     there. **Production gets no variables yet** (#9).
 15. **Before the deploy:**
-    - the 2FA re-check of every account, each one's recovery mailbox, and the registrar and
-      removal-contact mailbox if they exist (`CLAUDE.md`, "Secrets"), recorded without an
-      address or secret;
+    - the 2FA re-check of every account, each one's recovery mailbox, the registrar's account
+      (Oderland, IS #452) and the removal-contact mailbox (IS #456) (`CLAUDE.md`, "Secrets"),
+      recorded without an address or secret;
     - every credential that existed before the deploy rotated or replaced (open decision 12),
       listed by name;
     - **the first merge `dev` → `main`** (#9): a PR opened fresh against `main`, never
@@ -352,7 +352,8 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     replaces the IS #278 (Phase 10), IS #373 (Phase 10) and IS #394 markers with #1,
     #2 and #3; rewrites Part 1 for production and the gate, the Roadmap and the Phase map's
     Phase 10 row, "Pre-deploy automation"'s "Before the production deploy" (done), "Open
-    decisions" (the retention period, the app name, the removal contact, as settled),
+    decisions" (the retention period, the app name, the removal contact, as settled), the
+    "Phase 7 #25, #26" carried-forward row (line 1108), whose name is now Väm (IS #452),
     "Principles and risks"' backups item (the dump count, the restore method, the takedown
     log), the takedown's "clear or delete each `users` row" (lines 474 and 1071), which only
     clears them (round 3 on PR #470), "only the takedown removes history" (line 207) and
@@ -615,9 +616,12 @@ would name and rotate the files but is new code to test, for one person once a w
 
 ## Open Decisions
 
-1. **The app name** (Phase 7 plan #26): the UI text and the TOTP entry's label (step 5), and
+1. ~~**The app name** (Phase 7 plan #26): the UI text and the TOTP entry's label (step 5), and
    whether to buy the domain now (#7). Until then the admin screens say WhereIsFood and the
-   public title "Var är maten? | Göteborg".
+   public title "Var är maten? | Göteborg".~~ → **settled** (the owner, 2026-11-21, IS #452):
+   Väm, read as "Var är maten", in every text and the TOTP label; the domain bought now,
+   `vararmaten.se` and `varärmaten.se` at Oderland, whose account has authenticator-app 2FA and
+   joins step 15's re-check; unused until Phase 11's custom domain.
 2. ~~**The retention period for location history** (Phase 7 plan #25; #10), at step 7. Its two
    purposes pull apart: the checklist needs 4 weeks, and the recent places need a truck's last
    entries however old, which a period shorter than a seasonal break deletes. The options: a
