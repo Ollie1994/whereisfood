@@ -29,10 +29,10 @@ import { ABOUT_PATH } from "@/lib/paths";
 //   Framework; supabase.com/legal/dpa names the EU SCCs (2021/914), not the DPF;
 // - the logs: no period, the providers' terms as the criterion (art. 13(2)(a)). Vercel Hobby
 //   states 1 hour of runtime logs and 12 hours of Observability, none for its Firewall's traffic
-//   view, which shows client IPs; Supabase Free
-//   states 1 day for its API and database logs, and "Auth Audit Logs: 24 hours" on its pricing
-//   page without saying which logs. None of these pages names an IP field, hence "kan
-//   innehålla". All read 2026-11-21, on the plans in use until Phase 11.
+//   view, which shows client IPs; Supabase Free states 1 day for its API and database logs, and
+//   "Auth Audit Logs: 24 hours" on its pricing page without saying which logs. None of these pages
+//   names an IP field, hence "kan innehålla". All read 2026-11-21, on the plans in use until Phase
+//   11.
 export const metadata: Metadata = {
   title: "Integritet | Var är maten?",
 };
@@ -106,8 +106,8 @@ export default function PrivacyPage() {
           <li>En plats raderas 52 veckor efter att den har slutat.</li>
           <li>
             Inloggningsloggen raderas efter 30 dagar. Administratörens konto, med e-postadress,
-            sparas så länge kontot finns. Uppgifter om pågående inloggningar och inloggningskoder,
-            med IP-adress, sparas som längst lika länge.
+            sparas så länge kontot finns. Uppgifter om pågående inloggningar och försök att
+            verifiera inloggningen, med IP-adress, sparas som längst lika länge.
           </li>
           <li>
             Raderingen körs en gång i veckan, så det som ska raderas kan finnas kvar upp till en

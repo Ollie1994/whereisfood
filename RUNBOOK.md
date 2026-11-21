@@ -25,18 +25,18 @@ issue.
 
 Once a week, in this order:
 
-1. **The dump:** README, "Backups" → "The weekly dump". Step 2 runs only after `DUMP OK`;
-   step 3 runs whatever the dump answered. A `DUMP FAILED`, `NO URL` or `PRUNE FAILED` week keeps
-   an old dump a week longer: check "A takedown request", step 3, for a requester whose date it
-   moves. **While an incident is being investigated** (a
-   takeover, a leaked key), first move the dumps from before it into a `hold` folder inside
-   the backups folder: the prune deletes only `whereisfood-YYYY-MM-DD.sql` files at the
-   folder's top level, and these may be the only copy of rows an intruder deleted. **At most
-   8 weeks** (the owner's call, IS #457): delete the held dumps when the incident is closed,
-   or 8 weeks after the hold began, whichever comes first. Held dumps keep the rows of any
-   truck taken down before or during the hold until then, past README's "about four weeks":
-   say so in a takedown's reply meanwhile, and write to each earlier requester whose date this
-   moves ("A takedown request", steps 2 and 3).
+1. **The dump:** README, "Backups" → "The weekly dump". Step 2 runs only after `DUMP OK`; step 3
+   runs whatever the dump answered. A week with no new good dump (`DUMP FAILED`, `NO URL`, or the
+   routine skipped) or a prune left undone (`PRUNE FAILED` until the hand deletion) keeps an old
+   dump longer: check "A takedown request", step 4, for a requester whose date it moves. **While an
+   incident is being investigated** (a takeover, a leaked key), first move the dumps from before it
+   into a `hold` folder inside the backups folder: the prune deletes only
+   `whereisfood-YYYY-MM-DD.sql` files at the folder's top level, and these may be the only copy of
+   rows an intruder deleted. **At most 8 weeks** (the owner's call, IS #457): delete the held dumps
+   when the incident is closed, or 8 weeks after the hold began, whichever comes first. Held dumps
+   keep the rows of any truck taken down before or during the hold until then, past README's "about
+   four weeks": say so in a takedown's reply meanwhile, and write to each earlier requester whose
+   date this moves ("A takedown request", steps 3 and 4).
 2. **`supabase/manual/retention.sql`** in production's SQL editor. Its row counts the
    locations and audit-log rows it deleted (52 weeks and 30 days, Phase 10 plan's open
    decisions 2 and 3). The first audit-log rows come due 30 days after the production
@@ -127,13 +127,16 @@ unset PROD_DB_URL
 
 Each file is written as `.part` and renamed only when `psql` succeeds, so a file with its own name
 is a complete export. Probed on the local stack, by its own URL (IS #457; again with these named
-columns, PR #476): each answered `EXPORT OK` with as many lines as its table had rows (audit 54,
-sessions 1, factors 1, admins 1, trucks 23 in IS #457's run); with an unreachable URL, each answered
-`EXPORT FAILED` and left no file; with none, `NO URL`. A line count can exceed the rows if a value
-holds a line break. Run it again later in an incident to export what has changed. The files hold IP
-addresses and emails, and `trucks` holds every truck's row, so it keeps a truck taken down after the
-export: keep them in `hold` with the held dumps, and delete them with those, at most 8 weeks after
-the hold began ("The weekly routine").
+columns, PR #476): each answered `EXPORT OK` with as many lines as its table had rows (PR #476's
+run: audit 54, sessions 1, factors 1, challenges 1, amr 2, admins 1, trucks 23); with an unreachable
+URL, each of IS #457's five answered `EXPORT FAILED` and left no file; with none, `NO URL`. The
+named columns were read on the local stack and the preview, not on production, which has none yet:
+if a table answers `EXPORT FAILED` with `column … does not exist`, take that column out of its query
+and run the block again, never `select *`, which writes the credentials. A line count can exceed the
+rows if a value holds a line break. Run it again later in an incident to export what has changed.
+The files hold IP addresses and emails, and `trucks` holds every truck's row, so it keeps a truck
+taken down after the export: keep them in `hold` with the held dumps, and delete them with those, at
+most 8 weeks after the hold began ("The weekly routine").
 
 ---
 
@@ -443,23 +446,28 @@ soon as possible and within a month of the request, as `/integritet` promises (P
 objection to the processing of a truck's data is handled the same way, as the page says; any
 other request goes to "Other requests":
 
-1. README, "Takedown", steps 1 to 4: find the truck, run `supabase/manual/takedown.sql`, read
+1. Confirm the requester as "Other requests" says, by a code through the truck's Instagram: a
+   takedown deletes the truck's whole history, and every restore re-runs it (the owner's call, round
+   5 on PR #476). With no channel to confirm through at all, remove anyway: an unlisted truck is the
+   safe default.
+2. README, "Takedown", steps 1 to 4: find the truck, run `supabase/manual/takedown.sql`, read
    its row, and add the line to the takedown log.
-2. Reply to the requester. The map drops the truck within about three minutes. The backups
+3. Reply to the requester. The map drops the truck within about three minutes. The backups
    keep its rows until the latest of: about four weeks after the takedown, as the weekly
    dumps from before it age out (README, "Backups"); while an incident hold is open, the held
    dumps' deletion, with the evidence export's copy of `trucks` beside them, at most 8 weeks
    after the hold began ("The weekly routine", "Exporting evidence"); and after a
    restore, the old project's deletion, at most 8 weeks after the restore ("A restore", step
    6). Give the latest date that applies.
-3. Keep the request mail and the reply until no copy from before the takedown is left, as
+4. Keep the request mail and the reply until no copy from before the takedown is left, as
    `/integritet` says: no dump dated on or before its date in the backups folder or in `hold` (a
    dump is named by its UTC date, so one from earlier that day holds the truck), no export dated on
    or before it in `hold`, and, after a restore, the old project deleted. If that comes later than
-   the date given, for any reason (a `DUMP FAILED` or `PRUNE FAILED` week, a hold, a restore), write
-   to the requester with the new date. Then delete both, and delete them from Trash too. The
-   takedown log keeps what a restore needs, the truck's id and the date (README, "Takedown", step
-   4), not who asked.
+   the date given, for any reason (a week with no new good dump (`DUMP FAILED`, `NO URL`, or the
+   routine skipped) or a prune left undone (`PRUNE FAILED` until the hand deletion); a hold; a
+   restore), write to the requester with the new date. Then delete both, and delete them from Trash
+   too. The takedown log keeps what a restore needs, the truck's id and the date (README,
+   "Takedown", step 4), not who asked.
 
 ---
 
@@ -469,10 +477,12 @@ other request goes to "Other requests":
 possible and within a month (GDPR art. 12(3)), then delete the request and the reply, from
 Trash too, once the matter is closed: a restriction's mail stays until it is lifted.
 
-Before sending a truck's data or changing it, confirm the requester is the truck (GDPR art.
-12(6) allows asking): send a message to the Instagram account on the truck's row and ask for
-an answer from it, or for a code sent there to be mailed back. Send the files only to an
-address confirmed that way. A takedown needs no such check: it only removes.
+Before sending a truck's data or changing it, confirm that the requesting address speaks for the
+truck (GDPR art. 12(6) allows asking): send a code in a message to the Instagram account on the
+truck's row, and ask for it to be mailed back from the requesting address. Send files only to that
+address. With no handle on the row, or when the handle itself is what's disputed, do the same
+through another channel the truck publishes itself (its website, or a contact in its own posts);
+with none, answer that the request can't be verified, and what would let you verify it. A takedown is confirmed the same way ("A takedown request").
 
 - **Access:** the truck's rows as CSV files, through the local stack's `psql` as "Exporting
   evidence" does (the SQL editor shows at most 100 rows). From the repo in Git Bash, with the
@@ -510,12 +520,13 @@ address confirmed that way. A takedown needs no such check: it only removes.
   id::text = '` among them, gave `NOT AN ID` and wrote nothing. Send both files, say that the
   backups hold the same rows until they age out, and delete the folder once sent.
 - **Correction:** the truck, or a place that hasn't ended, in the admin screen. A place that
-  has ended can't be edited there (#33), so in production's SQL editor, for example
+  has ended can't be edited there (Phase 7 plan #33), so in production's SQL editor, for example
   `update locations set label = '<the right name>' where id = '<the place's id>' returning *;`
   (the `locations_updated_at` trigger sets `updated_at`). Say that the backups hold the old
   value until they age out.
-- **Restriction**, while a correction or an objection is settled: enter no new places for the
-  truck, and cancel its running and upcoming ones in the admin screen, until it is settled.
+- **Restriction**, while a correction or an objection is settled: enter no new places for the truck,
+  and cancel its running and upcoming ones in the admin screen, until it is settled. A cancel can't
+  be undone, so note each one cancelled and enter it again when the restriction is lifted.
 - **An objection to anything but a truck's data**, such as a visitor's IP address in Vercel's
   logs: no takedown reaches it, and the service can't edit those logs; answer that each
   provider keeps them under its own terms, as the page says.
@@ -628,7 +639,7 @@ container. In this order, since the login has to reach the new project:
    first (the owner's call, IS #457). Until then it still holds every truck's history, a
    takedown or retention run since misses it (a paused project runs no SQL), and its keys
    still work: say so in a takedown's reply meanwhile, and write to each earlier requester whose
-   date this moves ("A takedown request", steps 2 and 3).
+   date this moves ("A takedown request", steps 3 and 4).
 7. **The CLI back to the preview:** resume the preview if you paused it for the slot (step
    6's pause has freed one), then, from the repo root:
 
