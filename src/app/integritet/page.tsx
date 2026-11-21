@@ -16,8 +16,8 @@ import { ABOUT_PATH } from "@/lib/paths";
 // - the incident caps and the export (`auth` rows and `public.trucks`): `RUNBOOK.md`, "The
 //   weekly routine" and "Exporting evidence"; the old project's 8 weeks after any restore: "A
 //   restore" (the owner's calls on IS #457);
-// - the admin's account and sessions: `retention.sql` trims neither `auth.users` nor
-//   `auth.sessions`;
+// - the admin's account, sessions and MFA challenges (`ip_address`): `retention.sql` trims none of
+//   `auth.users`, `auth.sessions` and `auth.mfa_challenges`, so the account's life bounds them;
 // - the takedown: `RUNBOOK.md`, "A takedown request" (the reply gives the latest date the
 //   copies keep it; the request mail kept until no copy from before the takedown is left, so a
 //   later date can be told); other requests' mail: "Other requests";
@@ -27,8 +27,9 @@ import { ABOUT_PATH } from "@/lib/paths";
 // - the transfers: vercel.com/legal/privacy-policy, cloudflare.com/cloudflare-customer-dpa (6.4)
 //   and GitHub's General Privacy Statement each say it complies with the EU-U.S. Data Privacy
 //   Framework; supabase.com/legal/dpa names the EU SCCs (2021/914), not the DPF;
-// - the logs: no period is given. Vercel Hobby states 1 hour of runtime logs and 12 hours of
-//   Observability, none for its Firewall's traffic view, which shows client IPs; Supabase Free
+// - the logs: no period, the providers' terms as the criterion (art. 13(2)(a)). Vercel Hobby
+//   states 1 hour of runtime logs and 12 hours of Observability, none for its Firewall's traffic
+//   view, which shows client IPs; Supabase Free
 //   states 1 day for its API and database logs, and "Auth Audit Logs: 24 hours" on its pricing
 //   page without saying which logs. None of these pages names an IP field, hence "kan
 //   innehålla". All read 2026-11-21, on the plans in use until Phase 11.
@@ -78,11 +79,10 @@ export default function PrivacyPage() {
         <h2 className="text-lg font-semibold md:text-xl">Besökare</h2>
         <p>
           Du behöver inget konto, och tjänsten sätter inga egna kakor. Sidorna levereras av Vercel,
-          vars loggar över förfrågningar kan innehålla din IP-adress. Kartan hämtar kartbilder från
-          Cloudflare och kartans text och symboler från GitHub, som då också ser din IP-adress.
-          Vercel, Cloudflare och GitHub kan dessutom spara uppgifter enligt sina egna villkor.
-          Vercel, Cloudflare och GitHub är amerikanska företag, så din IP-adress kan föras över till
-          USA. Alla tre anger att de följer EU–USA-ramverket för dataskydd (Data Privacy Framework).
+          och kartan hämtar kartbilder från Cloudflare och kartans text och symboler från GitHub. De
+          ser din IP-adress, och deras loggar kan innehålla den. Hur länge styrs av deras egna
+          villkor. Alla tre är amerikanska företag, så din IP-adress kan föras över till USA. Alla
+          tre anger att de följer EU–USA-ramverket för dataskydd (Data Privacy Framework).
         </p>
       </section>
 
@@ -105,8 +105,9 @@ export default function PrivacyPage() {
           </li>
           <li>En plats raderas 52 veckor efter att den har slutat.</li>
           <li>
-            Inloggningsloggen raderas efter 30 dagar. Administratörens konto, med e-postadress, och
-            dess inloggningar sparas så länge kontot finns.
+            Inloggningsloggen raderas efter 30 dagar. Administratörens konto, med e-postadress,
+            sparas så länge kontot finns. Uppgifter om pågående inloggningar och inloggningskoder,
+            med IP-adress, sparas som längst lika länge.
           </li>
           <li>
             Raderingen körs en gång i veckan, så det som ska raderas kan finnas kvar upp till en
@@ -169,8 +170,8 @@ export default function PrivacyPage() {
         </p>
         <p>
           Du kan också mejla för att få veta vilka uppgifter som finns om dig, få dem rättade eller
-          få behandlingen begränsad. Andra mejl raderas när de är besvarade. Du har rätt att klaga
-          hos Integritetsskyddsmyndigheten (IMY).
+          få behandlingen begränsad. Andra mejl raderas när ärendet är avslutat. Du har rätt att
+          klaga hos Integritetsskyddsmyndigheten (IMY).
         </p>
         <p>Personuppgiftsansvarig: Oliwer Karlsson, som nås på {CONTACT}.</p>
       </section>

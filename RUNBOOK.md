@@ -26,7 +26,9 @@ issue.
 Once a week, in this order:
 
 1. **The dump:** README, "Backups" → "The weekly dump". Step 2 runs only after `DUMP OK`;
-   step 3 runs whatever the dump answered. **While an incident is being investigated** (a
+   step 3 runs whatever the dump answered. A `DUMP FAILED`, `NO URL` or `PRUNE FAILED` week keeps
+   an old dump a week longer: check "A takedown request", step 3, for a requester whose date it
+   moves. **While an incident is being investigated** (a
    takeover, a leaked key), first move the dumps from before it into a `hold` folder inside
    the backups folder: the prune deletes only `whereisfood-YYYY-MM-DD.sql` files at the
    folder's top level, and these may be the only copy of rows an intruder deleted. **At most
@@ -84,11 +86,12 @@ For a flood of traffic, on Vercel. From Vercel's docs
 
 ## Exporting evidence
 
-Before anything an incident deletes (sessions, factors, the audit log `retention.sql` trims),
-save it to files, every row. Sessions and factors by named columns, leaving out the
-credentials: a factor's `secret` (the TOTP seed) and WebAuthn data, and a session's
-`refresh_token_hmac_key`, which `select *` wrote in plain text (`information_schema.columns`
-on the local stack, PR #476). Not through the SQL editor, whose results show at most 100 rows
+Before anything an incident deletes (sessions, factors, and the MFA challenges and AMR claims
+their deletion cascades to; the audit log `retention.sql` trims), save it to files, every row.
+Those four by named columns, leaving out the credentials: a factor's `secret` (the TOTP seed),
+`web_authn_credential` and `last_webauthn_challenge_data`, a challenge's `otp_code` and
+`web_authn_session_data`, and a session's `refresh_token_hmac_key`, which `select *` wrote in
+plain text (`information_schema.columns` on the local stack and the preview, PR #476). Not through the SQL editor, whose results show at most 100 rows
 ("Limited to only 100 rows"). With the local stack started, through its `psql`, from the
 repo in Git Bash:
 
@@ -102,8 +105,10 @@ else
   mkdir -p "$EXPORT"
   for item in \
     "audit|select * from auth.audit_log_entries order by created_at" \
-    "sessions|select id, user_id, created_at, updated_at, factor_id, aal, not_after, refreshed_at, user_agent, ip, tag from auth.sessions order by created_at" \
-    "factors|select id, user_id, friendly_name, factor_type, status, created_at, updated_at, last_challenged_at from auth.mfa_factors order by created_at" \
+    "sessions|select id, user_id, created_at, updated_at, factor_id, aal, not_after, refreshed_at, user_agent, ip, tag, oauth_client_id, scopes, refresh_token_counter from auth.sessions order by created_at" \
+    "factors|select id, user_id, friendly_name, factor_type, status, created_at, updated_at, last_challenged_at, phone, web_authn_aaguid from auth.mfa_factors order by created_at" \
+    "challenges|select id, factor_id, created_at, verified_at, ip_address from auth.mfa_challenges order by created_at" \
+    "amr|select id, session_id, created_at, updated_at, authentication_method from auth.mfa_amr_claims order by created_at" \
     "admins|select u.id, a.email, u.is_admin, u.truck_id, u.created_at, a.created_at as auth_created_at from public.users u join auth.users a on a.id = u.id order by u.created_at" \
     "trucks|select * from public.trucks order by created_at"; do
     name=${item%%|*}; query=${item#*|}
@@ -121,9 +126,9 @@ unset PROD_DB_URL
 ```
 
 Each file is written as `.part` and renamed only when `psql` succeeds, so a file with its
-own name is a complete export. Probed on the local stack, by its own URL (IS #457): each
-answered `EXPORT OK` with as many lines as its table had rows (audit 54, sessions 1, factors
-1, admins 1, trucks 23); with an unreachable URL, each answered `EXPORT FAILED` and left no
+own name is a complete export. Probed on the local stack, by its own URL (IS #457; again with
+these named columns, PR #476): each answered `EXPORT OK` with as many lines as its table had
+rows (audit 54, sessions 1, factors 1, admins 1, trucks 23 in IS #457's run); with an unreachable URL, each answered `EXPORT FAILED` and left no
 file; with none, `NO URL`. A line count can exceed the rows if a value holds a line break.
 Run it again later in an incident to export what has changed. The files hold IP addresses
 and emails, and `trucks` holds every truck's row, so it keeps a truck taken down after the
@@ -448,12 +453,12 @@ other request goes to "Other requests":
    restore, the old project's deletion, at most 8 weeks after the restore ("A restore", step
    6). Give the latest date that applies.
 3. Keep the request mail and the reply until no copy from before the takedown is left, as
-   `/integritet` says: no dump dated before it in the backups folder or in `hold`, no export
-   from before it in `hold`, and, after a restore, the old project deleted. If that comes later
+   `/integritet` says: no dump dated on or before its date in the backups folder or in `hold`
+   (a dump is named by its UTC date, so one from earlier that day holds the truck), no export
+   dated on or before it in `hold`, and, after a restore, the old project deleted. If that comes later
    than the date given, for any reason (a `DUMP FAILED` or `PRUNE FAILED` week, a hold, a
    restore), write to the requester with the new date. Then delete both, and delete them from
-   Trash too. The takedown log keeps what a
-   restore needs, the truck's id and the date (README, "Takedown", step 4), not who asked.
+   Trash too. The takedown log keeps what a restore needs, the truck's id and the date (README, "Takedown", step 4), not who asked.
 
 ---
 
@@ -461,7 +466,12 @@ other request goes to "Other requests":
 
 `/integritet` also offers access, correction and restriction by mail. Answer each as soon as
 possible and within a month (GDPR art. 12(3)), then delete the request and the reply, from
-Trash too.
+Trash too, once the matter is closed: a restriction's mail stays until it is lifted.
+
+Before sending a truck's data or changing it, confirm the requester is the truck (GDPR art.
+12(6) allows asking): send a message to the Instagram account on the truck's row and ask for
+an answer from it, or for a code sent there to be mailed back. Send the files only to an
+address confirmed that way. A takedown needs no such check: it only removes.
 
 - **Access:** the truck's rows as CSV files, through the local stack's `psql` as "Exporting
   evidence" does (the SQL editor shows at most 100 rows). From the repo in Git Bash, with the
@@ -473,12 +483,16 @@ Trash too.
   PROD_DB_URL=$(grep '^PROD_DB_URL=' .env.prod-db.local | cut -d= -f2- | tr -d "\r\"'")
   if [ -z "$PROD_DB_URL" ]; then
     echo "NO URL: nothing exported"
+  elif ! [[ "$TRUCK" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]; then
+    echo "NOT AN ID: nothing exported"
   else
-    for item in "trucks|id" "locations|truck_id"; do
-      table=${item%%|*}; column=${item#*|}
+    mkdir -p "$OUT"
+    for item in \
+      "trucks|select * from trucks where id = '$TRUCK'" \
+      "locations|select id, truck_id, latitude, longitude, label, starts_at, ends_at, cancelled_at, source, created_at, updated_at from locations where truck_id = '$TRUCK' order by starts_at"; do
+      table=${item%%|*}; query=${item#*|}
       if docker exec -i supabase_db_whereisfood psql "$PROD_DB_URL" -v ON_ERROR_STOP=1 -c \
-        "\copy (select * from $table where $column = '$TRUCK' order by created_at) to stdout with csv header" \
-        > "$OUT/$table.csv.part"; then
+        "\copy ($query) to stdout with csv header" > "$OUT/$table.csv.part"; then
         mv "$OUT/$table.csv.part" "$OUT/$table.csv"
         echo "EXPORT OK $table: $(($(wc -l < "$OUT/$table.csv") - 1)) lines after the header"
       else
@@ -490,15 +504,20 @@ Trash too.
   unset PROD_DB_URL
   ```
 
-  Probed on the local stack (PR #476): a truck with 31 places gave `EXPORT OK` with 1 and 31
-  lines; an id holding a quote gave `EXPORT FAILED` for both and changed nothing. Send both
-  files, say that the backups hold the same rows until they age out, and delete the folder once
+  `locations` leaves out `created_by`, the admin's user id. Probed on the local stack (PR
+  #476): a truck with 31 places gave `EXPORT OK` with 1 and 31 lines; an id that isn't a UUID,
+  `' or true or id::text = '` among them, gave `NOT AN ID` and wrote nothing. Send both files, say that the backups hold the same rows until they age out, and delete the folder once
   sent.
-- **Correction:** correct the truck or the place in the admin screen.
+- **Correction:** the truck, or a place that hasn't ended, in the admin screen. A place that
+  has ended can't be edited there (#33), so in production's SQL editor, for example
+  `update locations set label = '<the right name>' where id = '<the place's id>' returning *;`
+  (the `locations_updated_at` trigger sets `updated_at`). Say that the backups hold the old
+  value until they age out.
 - **Restriction**, while a correction or an objection is settled: enter no new places for the
-  truck, and cancel its upcoming ones in the admin screen, until it is settled.
+  truck, and cancel its running and upcoming ones in the admin screen, until it is settled.
 - **An objection to anything but a truck's data**, such as a visitor's IP address in Vercel's
-  logs: no takedown reaches it; answer with what the page says about those logs.
+  logs: no takedown reaches it, and the service can't edit those logs; answer that each
+  provider keeps them under its own terms, as the page says.
 
 ---
 
