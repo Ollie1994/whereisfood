@@ -6,8 +6,7 @@ import { ABOUT_PATH } from "@/lib/paths";
 
 // The privacy note (Phase 10 plan, step 9, #8): what is stored, why and for how long, and the
 // removal contact (open decision 4). Static, Swedish (CLAUDE.md, UI Rules), inside `PublicShell`
-// (IS #483), in `/om`'s column on a phone, widened from `md` up to a reading width (`max-w-2xl`),
-// each part a `<section>`. The
+// and its column (IS #483), each part a `<section>`. The
 // owner approved its text (IS #456, PR #476); "senast inom en månad" is GDPR's one month to
 // answer a request (art. 12(3)). Where each fact comes from, so a change there is a change here:
 // - the periods: `supabase/manual/retention.sql` (52 weeks after `ends_at`, 30 days of

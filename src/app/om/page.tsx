@@ -6,7 +6,7 @@ import { CONTACT } from "@/lib/contact";
 // What the app is (Phase 10 plan, steps 3 and 5d): where everyone but the admin lands during the
 // soft launch, and a page that stays after it. For three readers: people looking for food, truck
 // owners, and developers and employers (IS #483). Static, Swedish (CLAUDE.md, UI Rules), inside
-// `PublicShell`, in `/integritet`'s column. The text is the owner's (IS #483: the issue's calls and
+// `PublicShell`, in its column (`PublicShell`'s comment). The text is the owner's (IS #483: the issue's calls and
 // their answers in its comments); a change to it goes back to them.
 export const metadata: Metadata = {
   title: "Om",
@@ -18,7 +18,7 @@ const REPO_URL = "https://github.com/Ollie1994/whereisfood";
 const PROFILES = [
   { label: "GitHub", href: "https://github.com/Ollie1994" },
   { label: "LinkedIn", href: "https://www.linkedin.com/in/oliwer-karlsson-242b38323/" },
-  { label: "Portfolio", href: "https://ambitious-coast-0312a8e0f.7.azurestaticapps.net/" },
+  { label: "Portfölj", href: "https://ambitious-coast-0312a8e0f.7.azurestaticapps.net/" },
 ];
 
 const ROADMAP = [
@@ -35,9 +35,12 @@ export default function AboutPage() {
           <h1 className="text-3xl font-semibold leading-tight md:text-4xl">
             Var står Göteborgs foodtruckar i dag?
           </h1>
+          {/* SOFT-LAUNCH GATE (Phase 10 plan #5): "Snart kan du öppna kartan, … gå och äta"
+              becomes "Öppna kartan, … gå och ät" at the full launch (the owner's call, round 1 on
+              PR #484; the removal list in `src/app/karta/page.tsx`). */}
           <p className="text-lg text-muted md:text-xl">
-            Väm är en karta som visar var Göteborgs foodtruckar står just i dag. Öppna kartan, se
-            vad som finns nära dig och gå och ät.
+            Väm är en karta som visar var Göteborgs foodtruckar står just i dag. Snart kan du
+            öppna kartan, se vad som finns nära dig och gå och äta.
           </p>
         </header>
 
@@ -84,6 +87,9 @@ export default function AboutPage() {
           <ol className="flex flex-col gap-5 border-l-2 border-line pl-6">
             {ROADMAP.map(({ when, what, now }) => (
               <li key={when} className="relative">
+                {/* The dot centres on the `ol`'s line only for these sizes: `pl-6` (24 px) +
+                    half of `border-l-2` (1 px) + half the dot's `w-4` (8 px) = `-left-[33px]`.
+                    A change to any of them moves it. */}
                 <span
                   aria-hidden="true"
                   className={`absolute top-1 -left-[33px] h-4 w-4 rounded-full border-2 border-saffron ${

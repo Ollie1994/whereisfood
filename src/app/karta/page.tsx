@@ -44,8 +44,9 @@ import { createSessionClient, readOnlyCookies } from "@/lib/supabase-session";
 // - scripts/smoke.mjs: `/` expects the redirect to `/karta`, and `/karta` 200, html, the static
 //   CSP.
 // - scripts/smoke.test.mjs: its `/` and `/karta` cases to match.
-// - src/app/om/page.tsx: the "Just nu" card (why the map isn't open) deleted, and "Vägen framåt"
-//   rewritten for after the launch, its "Nu" no longer the soft launch (IS #483).
+// - src/app/om/page.tsx: the intro's "Snart kan du öppna kartan, … gå och äta" back to "Öppna
+//   kartan, … gå och ät"; the "Just nu" card (why the map isn't open) deleted; and "Vägen
+//   framåt" rewritten for after the launch, its "Nu" no longer the soft launch (IS #483).
 // - src/app/not-found.tsx: the link to "Till kartan", its text before the gate, and `/karta`, its
 //   `ABOUT_PATH` import gone, and its header's pointer to the link's comment.
 // - src/app/integritet/page.tsx: the link to "Till kartan" and `/karta`, its `ABOUT_PATH` import
