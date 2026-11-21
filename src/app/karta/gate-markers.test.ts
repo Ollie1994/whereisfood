@@ -15,7 +15,7 @@ import { describe, expect, it } from "vitest";
 
 const MARKER = "SOFT-LAUNCH GATE (Phase 10 plan #5)";
 const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
-const PAGE = "src/app/map/page.tsx";
+const PAGE = "src/app/karta/page.tsx";
 
 // The removal list's paths: each `// - <path>: …` line of `page.tsx` after its "THE REMOVAL
 // LIST" heading, up to the first line that isn't a comment, so a bullet elsewhere in the

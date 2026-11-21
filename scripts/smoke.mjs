@@ -23,14 +23,15 @@ import { resolve } from "node:path";
 //   (`src/lib/http/csp.ts`), "none" for the proxy's bodiless case redirect on `/admin/…`.
 // - `noStore`: `Cache-Control` must hold `no-store` (the proxy's case redirect, `src/proxy.ts`).
 export const EXPECTATIONS = [
-  // SOFT-LAUNCH GATE (Phase 10 plan #5): with no session, `/` and `/map` redirect to `/about`
-  // (307, Next's `redirect()` in a page). At the full launch `/` expects the redirect to `/map`,
-  // and `/map` 200, html, the static CSP (the removal list in src/app/map/page.tsx). Until then
-  // nothing in CI serves `/map`'s page, its HTML or its CSP, which only the admin sees: the
-  // `/map` browser check, signed in as the admin (`CLAUDE.md`, "The soft-launch gate"), covers it.
-  { path: "/", status: 307, shape: "redirect", location: "/about", csp: "static" },
-  { path: "/map", status: 307, shape: "redirect", location: "/about", csp: "static" },
-  { path: "/about", status: 200, shape: "html", csp: "static" },
+  // SOFT-LAUNCH GATE (Phase 10 plan #5): with no session, `/` and `/karta` redirect to `/om`
+  // (307, Next's `redirect()` in a page). At the full launch `/` expects the redirect to
+  // `/karta`, and `/karta` 200, html, the static CSP (the removal list in src/app/karta/page.tsx).
+  // Until then nothing in CI serves `/karta`'s page, its HTML or its CSP, which only the admin
+  // sees: the `/karta` browser check, signed in as the admin (`CLAUDE.md`, "The soft-launch
+  // gate"), covers it.
+  { path: "/", status: 307, shape: "redirect", location: "/om", csp: "static" },
+  { path: "/karta", status: 307, shape: "redirect", location: "/om", csp: "static" },
+  { path: "/om", status: 200, shape: "html", csp: "static" },
   { path: "/integritet", status: 200, shape: "html", csp: "static" },
   { path: "/api/live", status: 200, shape: "entries", csp: "static" },
   { path: "/admin/login", status: 200, shape: "html", csp: "nonce" },
@@ -45,6 +46,9 @@ export const EXPECTATIONS = [
   // A public path no page matches: a 404 with `headers()`' static CSP. The root `not-found.tsx`
   // (IS #413) serves it, but only the status, type and headers are checked, not its text.
   { path: "/finnsinte", status: 404, shape: "html", csp: "static" },
+  // The public pages' old paths, gone with no redirect (the owner's call, IS #478): the same 404.
+  { path: "/about", status: 404, shape: "html", csp: "static" },
+  { path: "/map", status: 404, shape: "html", csp: "static" },
   // Forms the proxy runs on but sets no CSP for (`isAdminPagePath`), so they rest on
   // `headers()`' static one (PR #411, rounds 3 and 4).
   { path: "/admin.json", status: 303, shape: "redirect", location: "/admin/login", csp: "static" },

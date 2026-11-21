@@ -11,8 +11,8 @@ const answer = (path: string) =>
 describe("next.config.ts's headers", () => {
   const every = [
     "/",
-    "/map",
-    "/about",
+    "/karta",
+    "/om",
     "/integritet",
     "/api/live",
     "/api/admin/trucks",
@@ -42,8 +42,8 @@ describe("next.config.ts's headers", () => {
   // it served.
   it.each([
     "/",
-    "/map",
-    "/about",
+    "/karta",
+    "/om",
     "/integritet",
     "/api/live",
     "/api/admin/trucks",
@@ -81,8 +81,8 @@ describe("NOT_ADMIN and isAdminPagePath", () => {
     "/%61dmin/login",
     "/administrator",
     "/api/admin/trucks",
-    "/map",
-    "/about",
+    "/karta",
+    "/om",
     "/integritet",
   ])("agree on %s", async (path) => {
     const hasStatic = (await answer(path)).headers.get("content-security-policy") !== null;

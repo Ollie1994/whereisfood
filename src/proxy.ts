@@ -209,7 +209,7 @@ async function answerFor(request: NextRequest): Promise<NextResponse> {
   }
 }
 
-// `/admin/:path*` matches `/admin` itself too. `/api/live`, `/map` and `/auth/*` stay
+// `/admin/:path*` matches `/admin` itself too. `/api/live`, `/karta` and `/auth/*` stay
 // outside (#10, #28): a cookie written on `/api/live`'s answer would stop Vercel caching
 // it (`CLAUDE.md`, "`/api/live`"). `/dashboard` is the Owners phase's and must not get
 // the `is_admin` check. `src/proxy.test.ts` pins this list.

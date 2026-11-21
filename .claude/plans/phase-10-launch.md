@@ -64,6 +64,8 @@ and gates nothing (#4).
 ## Files
 
 **The public pages and the gate:**
+- Since IS #478 (#12), `/about` is `/om` and `/map` is `/karta`: `src/app/om/` and
+  `src/app/karta/`, moved with their tests. The lines below name the paths as they were built.
 - `src/app/map/page.tsx` (+ test): the gate (#5, #6). `requireAdmin`; anything but `check.ok`
   gets `redirect(ABOUT_PATH)`. Its header holds the gate's removal list, the one copy.
 - `src/app/page.tsx`: `/` redirects to `/about` (a gate site; Phase 11 points it back at
@@ -219,6 +221,9 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
    with the results and no PR.
 5. **The app name** (open decision 1) in the files under "Files". Needs step 4 merged (both
    touch `map/` and the tests).
+5b. **Swedish paths** (#12, IS #478): `/about` → `/om` and `/map` → `/karta`, the folders moved
+   with their tests, every link, test and doc pointed at the new paths; the old paths answer 404,
+   which smoke expects. Before step 13.
 
 **C. Operations**
 
@@ -324,12 +329,12 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     on the phone and the TOTP enroll at `/admin/mfa`, which needs the deployed app (the
     owner's call, round 1 on PR #447).
 17. **The production checks**, on the owner's phone and by headers:
-    - logged out, `/` and `/map` land on `/about`; as the admin at `aal2`, reaching `/map` by
+    - logged out, `/` and `/karta` land on `/om`; as the admin at `aal2`, reaching `/karta` by
       "Karta", the map shows with
       R2's tiles and no CSP violation in the console;
     - `/api/live` goes MISS → HIT;
-    - a logged-out request to `/map` right after the admin's never gets the map, and no `/map`
-      answer shows a cache `HIT`;
+    - a logged-out request to `/karta` right after the admin's never gets the map, and no
+      `/karta` answer shows a cache `HIT`;
     - step 7's rolled-back DELETE on `auth.audit_log_entries` repeated in production's SQL
       editor, in the form step 7 settled, showing one row deleted, recorded beside the
       preview's, since the two projects' grants may differ; here, after step 16's login has
@@ -354,6 +359,7 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     Phase 10 row, "Pre-deploy automation"'s "Before the production deploy" (done), "Open
     decisions" (the retention period, the app name, the removal contact, as settled), the
     "Phase 7 #25, #26" carried-forward row (line 1108), whose name is now Väm (IS #452),
+    every `/about` and `/map`, now `/om` and `/karta` (#12, IS #478),
     "Principles and risks"' backups item (the dump count, the restore method, the takedown
     log), the takedown's "clear or delete each `users` row" (lines 474 and 1071), which only
     clears them (round 3 on PR #470), "only the takedown removes history" (line 207) and
@@ -362,7 +368,7 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     "needs a retention of its own" (line 892), now 30 days (IS #454), Pricing's
     "Supabase Free" item (the paused project, open decision 8); brings README's status parts in
     line; carries forward the decisions that outlive the phase (#5 and #10 at least: #5's row
-    names the removal list in `map/page.tsx`'s header and #5's removal checks, for Phase 11's
+    names the removal list in `karta/page.tsx`'s header and #5's removal checks, for Phase 11's
     plan; the IS #373 (Phase 11) row's marker stays, and its "removes the gate" points to #5's
     row); and sets `CLAUDE.md`'s bold line to none, naming this plan as the last one.
 
@@ -539,6 +545,16 @@ round 3 on PR #447; every one, not those on or after the dump's date, the owner'
 1 on PR #470: the log's UTC date against a dump labelled by local date could skip one). Weighed: `scripts/backup.mjs`, which
 would name and rotate the files but is new code to test, for one person once a week.
 
+### #12 — The public pages' paths are Swedish
+
+The owner's calls (2026-11-21, IS #478): `/about` becomes `/om` and `/map` becomes `/karta`, as
+`/integritet` already was (`CLAUDE.md`, "UI Rules": Swedish throughout), before the production
+deploy, while no link to them has been shared. No redirects: the old paths answer 404, which
+smoke expects. Public pages only: `/admin/…`, `/api/…` and `/auth/…` stay, since only the admin
+sees them and they run through the proxy's, the CSP's and Auth's rules. A rename only, with no
+new constant for the map's path. Steps 3, 4 and 9, decisions #5 and #6 and the criteria already
+met name the paths as they were built; the steps still to come name the new ones.
+
 ---
 
 ## Acceptance Criteria
@@ -603,11 +619,11 @@ would name and rotate the files but is new code to test, for one person once a w
   the controls' full set included, its CodeQL findings each settled; after it, `git
   merge-base --is-ancestor origin/main origin/dev` succeeds (step 15b); CodeQL's checks in
   `main`'s ruleset, read back by `gh api`.
-- [ ] The production checks: logged out on the phone, `/` and `/map` land on `/about`; as the
+- [ ] The production checks: logged out on the phone, `/` and `/karta` land on `/om`; as the
   admin, after the TOTP enroll of step 16 and by "Karta", the map shows with R2's tiles and no
   CSP violation;
   `/api/live` goes MISS → HIT; a
-  logged-out request to `/map` after the admin's gets the redirect, and no `/map` answer shows
+  logged-out request to `/karta` after the admin's gets the redirect, and no `/karta` answer shows
   a cache `HIT`; the rolled-back DELETE removed one `auth.audit_log_entries` row in
   production's SQL editor; the first dump is on the owner's machine.
 - [ ] The closing steps (19, 20) are done: the retrospective, then the reconciliation.

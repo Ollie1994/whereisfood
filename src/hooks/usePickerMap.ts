@@ -44,7 +44,7 @@ export function usePickerMap(
       setFailed(true);
       return;
     }
-    // A limit: with no tiles URL the box stays empty, with no message, as `/map` does.
+    // A limit: with no tiles URL the box stays empty, with no message, as `/karta` does.
     if (!created) return;
     // Latitude first, the app's order (`geo.ts`); MapLibre's `[lng, lat]` stays here.
     created.on("click", (event) => onTapRef.current(event.lngLat.lat, event.lngLat.lng));

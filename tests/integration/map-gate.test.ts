@@ -4,10 +4,10 @@ import { proxy } from "@/proxy";
 import { SESSION_COOKIE, SIGN_IN_TIMEOUT, cookieHeader, localSql, resetTables, sessionUser } from "./helpers";
 
 // SOFT-LAUNCH GATE (Phase 10 plan #5): the gate on the local stack, deleted at the full launch
-// (the removal list in src/app/map/page.tsx). `MapPage` runs with real sessions against the
+// (the removal list in src/app/karta/page.tsx). `MapPage` runs with real sessions against the
 // local Auth and database. Stubbed: what a page gets from Next, the request's cookies
 // (`next/headers`) and `redirect()` (`next/navigation`), and `MapClient`, which this suite
-// doesn't render. The refusal reasons one by one: `src/app/map/page.test.tsx`.
+// doesn't render. The refusal reasons one by one: `src/app/karta/page.test.tsx`.
 
 const request = { jar: new Map<string, string>() };
 vi.mock("next/headers", () => ({
@@ -30,7 +30,7 @@ function MapClientStub() {
 }
 vi.mock("@/components/Map/MapClient", () => ({ default: MapClientStub }));
 
-const { default: MapPage } = await import("@/app/map/page");
+const { default: MapPage } = await import("@/app/karta/page");
 
 // `MapPage`'s answer on `jar`'s cookies: what it rendered, or where it redirected.
 async function answer(jar: Map<string, string>): Promise<{ rendered: unknown } | { redirected: string }> {
@@ -65,8 +65,8 @@ describe("MapPage on the local stack", () => {
     ["no session", () => new Map<string, string>()],
     ["an admin at aal1", () => jars.aal1Admin],
     ["a non-admin at aal2", () => jars.nonAdmin],
-  ])("sends %s to /about", async (_, jar) => {
-    expect(await answer(jar())).toEqual({ redirected: "/about" });
+  ])("sends %s to /om", async (_, jar) => {
+    expect(await answer(jar())).toEqual({ redirected: "/om" });
   });
 });
 
@@ -98,7 +98,7 @@ function withExpiresAt(jar: Map<string, string>, seconds: number): Map<string, s
 // refresh token again. Here the cookie's `expires_at` is moved into the past (auth-js refreshes
 // within 90 s of it) with the JWT itself still valid, as `readOnlyCookies`' first probe did; IS
 // #448's probe ran a truly expired JWT (`jwt_expiry` 60 s), which this test doesn't.
-describe("an expiring admin session on the gated /map, with no proxy before it", () => {
+describe("an expiring admin session on the gated /karta, with no proxy before it", () => {
   it(
     "is admitted on a refresh it can't store, again past refresh_token_reuse_interval, and the proxy then stores one",
     async () => {
