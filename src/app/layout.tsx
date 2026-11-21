@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Var är maten? | Göteborg",
+  title: "Väm | Var är maten i Göteborg?",
   description: "Se var Göteborgs foodtruckar befinner sig just nu.",
 };
 

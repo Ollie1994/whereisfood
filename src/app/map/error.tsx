@@ -22,7 +22,7 @@ export default function MapError({ retry }: { retry: () => void }) {
   const message = useFocusOnMount<HTMLParagraphElement>();
   return (
     <div className="flex h-screen w-full items-start justify-center px-4 pt-4">
-      <title>Något gick fel | Var är maten?</title>
+      <title>Något gick fel | Väm</title>
       <div className={`${MAP_NOTICE} border border-gray-300`}>
         <p ref={message} tabIndex={-1} className="focus:outline-none">
           Något gick fel, och kartan kan inte visas just nu.

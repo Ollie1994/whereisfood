@@ -352,7 +352,8 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     replaces the IS #278 (Phase 10), IS #373 (Phase 10) and IS #394 markers with #1,
     #2 and #3; rewrites Part 1 for production and the gate, the Roadmap and the Phase map's
     Phase 10 row, "Pre-deploy automation"'s "Before the production deploy" (done), "Open
-    decisions" (the retention period, the app name, the removal contact, as settled),
+    decisions" (the retention period, the app name, the removal contact, as settled), the
+    "Phase 7 #25, #26" carried-forward row (line 1108), whose name is now Väm (IS #452),
     "Principles and risks"' backups item (the dump count, the restore method, the takedown
     log), the takedown's "clear or delete each `users` row" (lines 474 and 1071), which only
     clears them (round 3 on PR #470), "only the takedown removes history" (line 207) and

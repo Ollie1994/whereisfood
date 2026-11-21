@@ -7,7 +7,7 @@ import { ABOUT_PATH } from "@/lib/paths";
 // `admin/not-found.tsx`. Its title, the owner's wording (IS #438), through `metadata`, which the
 // root not-found may export (Next's `not-found.md`, 16.4, "Metadata").
 export const metadata: Metadata = {
-  title: "Sidan finns inte | Var är maten?",
+  title: "Sidan finns inte | Väm",
 };
 
 export default function NotFound() {

@@ -6,7 +6,7 @@ import Link from "next/link";
 export default function AdminNotFound() {
   return (
     <>
-      <title>Sidan finns inte – WhereIsFood admin</title>
+      <title>Sidan finns inte – Väm admin</title>
       <h1 className="text-2xl font-semibold">Sidan finns inte</h1>
       <Link href="/admin" className="text-sm underline">
         Till admin
