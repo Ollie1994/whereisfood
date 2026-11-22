@@ -392,7 +392,9 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     "Rows are **never deleted**, except a takedown" (line 503), which the retention delete
     joins, "History is kept" (lines 530 and 673), for 52 weeks now, and the audit log's
     "needs a retention of its own" (line 892), now 30 days (IS #454), Pricing's
-    "Supabase Free" item (the paused project, open decision 8); brings README's status parts in
+    "Supabase Free" item (the paused project, open decision 8), "Two-factor authentication"'s
+    Phase 9 audit (line 773), whose "no SMS anywhere" a Google mailbox's phone step made false
+    until IS #460 removed it; brings README's status parts in
     line; carries forward the decisions that outlive the phase (#5 and #10 at least: #5's row
     names the removal list in `karta/page.tsx`'s header and #5's removal checks, for Phase 11's
     plan; the IS #373 (Phase 11) row's marker stays, and its "removes the gate" points to #5's
@@ -743,8 +745,15 @@ findings before production stay public (Q36).
     "Backups").~~ → **settled** (the owner, 2026-11-20, IS #455): Auth's admin API,
     `POST /auth/v1/admin/users` with the old `id`, before the dump is loaded; probed on the
     local stack, then used in the restore test (README, "Backups").
-12. **Which credentials exist to rotate** (step 15), and whether the preview's keys rotate too
-    or only stay out of production ("reuse nothing from the preview setup").
+12. ~~**Which credentials exist to rotate** (step 15), and whether the preview's keys rotate too
+    or only stay out of production ("reuse nothing from the preview setup").~~ → **settled**
+    (the owner, 2026-11-22, IS #460, whose comments list each credential by name and what was
+    done): production's secret key replaced by one named for its consumer, its database
+    password reset and its legacy JWT keys disabled, the publishable key kept; the Supabase CLI
+    login and the GitHub token replaced, and each account's unused tokens and sessions removed;
+    the preview's credentials not rotated, since they reach only the preview, but its legacy
+    JWT keys disabled; account passwords not rotated, since none was in the repo, a shell or an
+    agent session, and two-factor guards each.
 13. **How the trucks are told** (step 18): the channel and the Swedish text, with a link to
     `/integritet`.
 14. ~~**Production's Deployment Retention Policy** (step 14): README's checklist keeps Production

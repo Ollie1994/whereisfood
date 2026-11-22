@@ -446,7 +446,8 @@ API Keys), in the same variable names as the local ones:
 | `SUPABASE_SERVICE_ROLE_KEY` | the secret key, server only |
 
 They live in Vercel's environment variables and in gitignored files on the owner's
-machine, never in a tracked file (`CLAUDE.md`, Secrets).
+machine, never in a tracked file (`CLAUDE.md`, Secrets). The legacy `anon` and `service_role`
+JWT keys are disabled ("Hosted settings checklist", below).
 
 **Auth** (set in #222's PR, 2026-11-07):
 
@@ -610,7 +611,8 @@ read on 2026-11-18 from the owner's screenshots, except the advisor's table (CLI
 below) and two probes (the Enforce SSL and AAL1 rows), with the results recorded on IS #390.
 The two retention rows were set by the owner on 2026-11-19 and read from their screenshots
 that day, recorded on IS #417; the Toolbar's Production value was set and read on 2026-11-22,
-and the project's retention row read again that day (IS #459). It names settings, never keys
+and the project's retention row read again that day (IS #459); the legacy API keys row was set
+on both Supabase projects on 2026-11-22 (IS #460). It names settings, never keys
 or addresses (`CLAUDE.md`, Secrets).
 
 **Supabase, Authentication:**
@@ -648,6 +650,7 @@ or addresses (`CLAUDE.md`, Secrets).
 | Database → Settings → Enforce SSL on incoming connections | On | Turned on by the owner, 2026-11-18, which restarted the database. It covers Postgres and the poolers; Supabase's HTTP APIs, which the app uses, always enforce SSL (Supabase's docs, SSL Enforcement). After the restart the preview's `/api/live` answered 200 from a fresh read |
 | Database → Settings → Connection logging: Log connections; Log disconnections | Off; off | Kept as found |
 | Database → Settings → Network restrictions | None: every IP allowed | They cover Postgres and the pooler, not the HTTPS APIs the app uses: they "don't apply to HTTPS APIs such as PostgREST, Storage, and Auth" (Supabase's docs, Network Restrictions). A list of the owner's IPs would lock out the linked CLI whenever that IP changes. Read again for production and kept, for the same reason (the owner, 2026-11-22, IS #458) |
+| Project Settings → API Keys → Legacy API Keys (`anon`, `service_role`) | Disabled | Disabled by the owner on the preview and production, 2026-11-22 (IS #460): the app uses the publishable and secret keys ("Keys", above), and the legacy `service_role` key bypasses RLS. They stay valid until disabled (`RUNBOOK.md`, "A leaked key"). Afterwards the preview's `/api/live` answered 200 from a fresh read, and its `/auth/v1/settings` 200 to the publishable key |
 | Integrations → Data API | On; "Automatically expose new tables" off; extra search path `public`, `extensions`; Max rows 1000 | "Hosted preview database", above |
 | Realtime → Settings → Enable Realtime service | Off | Turned off by the owner, 2026-11-18: the app doesn't use Realtime, and public channels were open to anyone with the publishable key |
 | Database → Extensions → `pg_graphql` | Not installed | GraphQL is unused |
