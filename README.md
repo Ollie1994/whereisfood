@@ -283,13 +283,16 @@ Cloudflare dashboard (no API token needed):
     - `whereisfood-theta.vercel.app` has none: it is set to redirect (307) to
       `vararmaten.vercel.app` (Settings → Domains, IS #458), so no page is meant to load on
       it. Until a production deployment exists it answers `404` `DEPLOYMENT_NOT_FOUND`, so the
-      redirect itself hasn't been seen (#464 checks it).
+      redirect itself hasn't been seen (the plan's step 17, #464, checks it).
     - `whereisfood-where-is-food.vercel.app`, the `<project>-<scope-slug>.vercel.app` alias
       Vercel's docs give for CLI deploys and say points to the production deployment once
-      there is one, has none yet: it answers `DEPLOYMENT_NOT_FOUND` too, as an unclaimed name
-      would, and another account could get the same host (a project `whereisfood-where` in a
-      team with the slug `is-food`). If #464 finds it serving this project's `/om`, it gets
-      an origin then (the owner's call, round 3 on PR #486).
+      there is one, has none yet. Its `DEPLOYMENT_NOT_FOUND` tells nothing either way
+      (`vararmaten.vercel.app` answers the same until production exists), and another account
+      could hold the same host, by a project of that name or `whereisfood-where` under the
+      slug `is-food`. Step 17 (#464) checks Vercel's own record, whether it is listed among
+      the production deployment's domains in the project's dashboard, not the page it serves,
+      which anyone could copy; if it is, an issue of its own gives it an origin (the owner's
+      call, round 3 on PR #486).
     - A production deployment's commit-form URL is in the pattern like a preview's.
     - **`whereisfood.vercel.app` is not this project's** and gets no origin: before any
       production deployment existed it answered `200` with another owner's page, titled
@@ -684,7 +687,7 @@ findings, re-read `--linked` on 2026-11-20, the same five:
 | Settings → Security → Git Fork Protection | Enabled | "Preview deploys", below |
 | Team → Build and Deployment → Deployment Retention Policy | Canceled 1 day; Errored 1 day; Pre-Production 1 week; Production 30 days; "Apply this policy to all existing projects" ticked | Set by the owner, 2026-11-19 (IS #417). A project's own policy replaces the team's (Vercel's Deployment Retention docs), so the next row is the one that holds for `whereisfood` |
 | Settings → Build and Deployment → Deployment Retention Policy | The same four values, on the project's page after the team's save | Margin under the team's 10 GB of Deployment Storage on Hobby (3.06 GB on 2026-11-19), over which deploys can be blocked and deployments deleted; Hobby's Alerts and Spend Management aren't offered (IS #389), and the docs' "Usage limit reached" notice covers Fair Use limits, which don't list it. The owner accepted (2026-11-19) that `dev`'s preview isn't shown to be exempt: after a week with no push to `dev` it can be deleted and the preview's login fail, until it is restored or `dev` is pushed. Production stays at 30 days, the Phase 10 plan's open decision 14 (the owner, 2026-11-22, IS #459): production deploys rarely (the ways the docs plan for: a merge into `main`, and a Redeploy in `RUNBOOK.md`'s "A leaked key" and "A restore"; the Ignored Build Step row in "Preview deploys", below, names promotion and a CLI deploy too, neither planned), and Hobby keeps the last 3 Ready production deployments and the one holding the production alias whatever the policy, so the value deletes almost nothing. What counts, the exceptions, the costs and the recovery: IS #417's comment of 2026-11-19 |
-| Settings → General → Vercel Toolbar → Pre-Production Deployments; Production Deployments | Off; Off | Pre-Production: the CSP refused its script, styles and iframe (`CLAUDE.md`, Security headers; IS #387). Production: set Off by the owner on 2026-11-22 (IS #459; the owner's call, round 3 on PR #447), for the same CSP; until then it was Default, the team's setting, on for team members with the Chrome extension or the toolbar menu's opt-in. Vercel applies the change from the next deployment (its message on saving), so the first production build is the first without it |
+| Settings → General → Vercel Toolbar → Pre-Production Deployments; Production Deployments | Off; Off | Pre-Production: the CSP refused its script, styles and iframe (`CLAUDE.md`, Security headers; IS #387). Production: set Off by the owner on 2026-11-22 (IS #459; the owner's call, round 3 on PR #447), for the same CSP; until then it was Default, the team's setting, on for team members with the Chrome extension or the toolbar menu's opt-in. Vercel applies it from the next deployment (its message on saving, in the owner's screenshot on IS #459); no production deployment existed before the change |
 
 ---
 

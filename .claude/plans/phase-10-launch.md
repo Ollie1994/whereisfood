@@ -304,12 +304,12 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
 14. **Vercel and R2:** the Ignored Build Step read as set to cancel a Production build from any
     branch but `main`, and no `vercel.json` `ignoreCommand` and no `vercel.ts` (which may
     override it too, not probed) on `dev` or `main`; R2's CORS rule
-    gains an origin for each production address README names that is shown to be this
-    project's (`vararmaten.vercel.app`, production's domain since IS #458), and each address
-    without one redirects to one that has it (`whereisfood-theta.vercel.app`, set to redirect
-    (307) to it) or waits for #464's check (`<project>-<scope-slug>.vercel.app`, not yet shown
-    to be this project's); never `whereisfood.vercel.app`, another owner's site (IS #459;
-    README, "Get the map tiles"); the Vercel Toolbar
+    gives an origin only to a production address shown to be this project's that serves pages
+    (`vararmaten.vercel.app`, production's domain since IS #458); an address that redirects to
+    one with an origin needs none (`whereisfood-theta.vercel.app`, set to redirect (307) to
+    it); one not yet shown to be this project's waits for step 17's check
+    (`<project>-<scope-slug>.vercel.app`); and never `whereisfood.vercel.app`, another owner's
+    site (IS #459; README, "Get the map tiles"); the Vercel Toolbar
     off for Production deployments, as for pre-production (the owner's call, round 3 on PR
     #447; README's "Hosted settings checklist"); Production's Deployment Retention Policy, which
     README's checklist left at 30 days for Phase 10 to decide (open decision 14, settled at 30
@@ -356,7 +356,12 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
       editor, in the form step 7 settled, showing one row deleted, recorded beside the
       preview's, since the two projects' grants may differ; here, after step 16's login has
       written rows (a new project's table may hold none before);
-    - the first weekly dump is on the owner's machine.
+    - the first weekly dump is on the owner's machine;
+    - by headers, the production addresses step 14 left unseen (IS #459): `whereisfood-theta.vercel.app`
+      answers a 307 to `vararmaten.vercel.app`; and whether `whereisfood-where-is-food.vercel.app`
+      is this project's, by Vercel's own record (listed among the production deployment's domains
+      in the project's dashboard), not by the page it serves, which anyone could copy. If it is,
+      an issue of its own gives it R2's CORS origin.
 
     **This step is the phase's done.**
 
@@ -646,7 +651,8 @@ findings before production stay public (Q36).
   Redirect URLs that host's `/auth/callback` alone; the admin has a long random password.
 - [ ] Vercel and R2: the Ignored Build Step read as set, no `ignoreCommand` or `vercel.ts` on
   `dev` or `main`; R2's CORS rule covers each production address, by an origin or a
-  redirect; the toolbar reads Off for Production; Production's Deployment Retention Policy
+  redirect, but the `<project>-<scope-slug>` alias, which waits for step 17's check (IS #459);
+  the toolbar reads Off for Production; Production's Deployment Retention Policy
   reads the value open decision 14 settled, in README's checklist too; Production's variables
   come only from
   the new project.
