@@ -404,8 +404,9 @@ A secret that reaches a commit, an issue or a PR is rotated, not just deleted (`
   several can exist at once, so in Supabase's Project Settings → API Keys add a new secret
   key, named for its one consumer as `vercel_production` is (IS #460; the name takes lowercase
   letters, digits and underscores; whether two keys may share one wasn't tried, so if the old
-  key's name is refused, add `_2`), put it in Vercel's Production variable, redeploy
-  Production, check the admin screen works, then delete the old key there.
+  key's name is refused, add the date, as `vercel_production_20261122`), put it in Vercel's
+  Production variable, redeploy Production, check the admin screen works, then delete the old
+  key there.
 - **The publishable key** (`NEXT_PUBLIC_SUPABASE_ANON_KEY`): public by design, in every
   browser. How to revoke one wasn't stated on the pages read.
 - **The database password** (in `.env.prod-db.local`): the dashboard's Connect dialog has
@@ -416,26 +417,38 @@ A secret that reaches a commit, an issue or a PR is rotated, not just deleted (`
 - **The legacy keys** (`anon` and `service_role` JWTs): disabled on production and the
   preview since 2026-11-22 (README's "Hosted settings checklist", IS #460). They "stay valid
   until you disable them in the Settings > API Keys section", even where the project uses the
-  new `sb_` keys (#448's 1b), so check they still read disabled on each. Treat keys found on
+  new `sb_` keys (#448's 1b), so check they still read disabled on each. This is read here,
+  during an incident; the weekly routine doesn't read the API Keys page. Treat keys found on
   that you didn't turn on as a sign someone reached the Supabase dashboard (a new project, as
-  a restore makes, has them on until its checklist step: production's did, IS #460). Then
-  secure the Supabase account first, from a device you trust: change its password, revoke
-  every access token (avatar → Account preferences → Access Tokens) and log the CLI in again
-  (`npx supabase login`), and check each organization's members and the account's two-factor;
-  whether a password change ends the account's other sessions wasn't read. Then "A takeover",
-  and "what it left behind" below, as after an account token. Before disabling the keys
-  again, check that the `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` in
-  that project's Vercel variables (Production's, or Preview's for the preview), and for the
-  preview in `.env.preview.local`'s keys, start `sb_publishable_` and `sb_secret_`; if one in
-  Vercel is a legacy JWT, replace it with an `sb_` key and redeploy, or the app stops working.
-  Then disable the legacy keys again. If the
-  legacy JWT secret itself leaked, rotating it signs every user out and needs both legacy keys
-  rotated at once (#448's 1b).
+  a restore makes, has them on until its checklist step: production's did, IS #460). Then:
+  1. Secure the Supabase account, from a device you trust: change its password, revoke every
+     access token (avatar → Account preferences → Access Tokens) and log the CLI in again
+     (`npx supabase login`), and check each organization's members and the account's
+     two-factor. Whether a password change ends the account's other sessions wasn't read.
+  2. Rotate what the dashboard shows or sets, each by its bullet here: the secret key, the
+     database password and the JWT signing key (the next bullet). Then the paragraph after
+     these bullets: "A takeover" and "what it left behind".
+  3. Before disabling the keys again, check that the `NEXT_PUBLIC_SUPABASE_ANON_KEY` and
+     `SUPABASE_SERVICE_ROLE_KEY` in that project's Vercel variables (Production's, or
+     Preview's for the preview), and for the preview `.env.preview.local`'s keys, start
+     `sb_publishable_` and `sb_secret_`. Replace a legacy JWT found in either with the `sb_`
+     key, and in Vercel redeploy, or the app stops working. Then disable the legacy keys
+     again.
+- **The JWT keys** (Project Settings → JWT Keys): production signs Auth's tokens with an ECC
+  (P-256) key, whose private half the dashboard doesn't show, and its legacy JWT secret
+  (HS256) was revoked on 2026-11-22 (IS #460). Its Legacy JWT Secret tab reads "Your project
+  has revoked the legacy JWT secret", and `<project URL>/auth/v1/.well-known/jwks.json` lists
+  only the ECC key's id. A key there you didn't make, or a secret back in use, is treated as
+  the legacy keys found on, above. To rotate the signing key: Create Standby Key, then rotate
+  it into use; "Non-expired access tokens will remain to be accepted, so no users will be
+  forcefully signed out" (#448's 1b). Revoke the old key once its tokens have expired: an
+  access token lives 3600 s (README's checklist). The rotation wasn't tried here. The
+  preview's JWT keys weren't read.
 - **Anything else** (a GitHub token, a CLI login, the Vercel bypass secret): revoke it where
   it was issued, and make a new one.
 
-**After rotating the secret key, a legacy `service_role` key or JWT secret, the database
-password, or a Supabase or Vercel account's token or CLI login**, also
+**After rotating the secret key, a legacy `service_role` key, a JWT signing key or secret, the
+database password, or a Supabase or Vercel account's token or CLI login**, also
 run "A takeover", steps 2 to 4. Supabase's docs don't say a key's rotation ends the sessions a
 thief made with it (#448's 1b: "not stated"), and any of them can change the admin's email,
 factor and sessions with no email sent ("A takeover", step 2's probe). Then hold the weekly

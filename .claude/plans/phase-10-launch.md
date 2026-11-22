@@ -393,14 +393,15 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     joins, "History is kept" (lines 530 and 673), for 52 weeks now, and the audit log's
     "needs a retention of its own" (line 892), now 30 days (IS #454), Pricing's
     "Supabase Free" item (the paused project, open decision 8), "Two-factor authentication"
-    (lines 773–782), which gets IS #460's re-check: its Phase 9 audit's "no SMS anywhere",
-    which a Google mailbox's phone step made false until #460 removed it, its account list and
-    membership sentences, which take #460's two-factor record as the list (the registrar, the
-    removal-contact mailbox, production's admin mailbox and organization), and "No domain or
-    registrar account exists yet", false since IS #452; the carried-forward Phase 6 #4 row
-    (line 1078), whose "every credential" open decision 12 narrows; brings README's status parts in
-    line; carries forward the decisions that outlive the phase (#5 and #10 at least: #5's row
-    names the removal list in `karta/page.tsx`'s header and #5's removal checks, for Phase 11's
+    (lines 773–782), whose dated Phase 9 audit stays as written, with IS #460's re-check added
+    beside it, naming what it corrects: the audit's "no SMS anywhere", which a Google
+    mailbox's phone step made false until #460 removed it; its account list and membership
+    sentences, which take #460's two-factor record as the list (the registrar, the
+    removal-contact mailbox, production's admin mailbox and organization); and "No domain or
+    registrar account exists yet", false since IS #452. Also the carried-forward Phase 6 #4
+    row (line 1078), whose "every credential" open decision 12 narrows. It brings README's
+    status parts in line; carries forward the decisions that outlive the phase (#5 and #10 at
+    least: #5's row names the removal list in `karta/page.tsx`'s header and #5's removal checks, for Phase 11's
     plan; the IS #373 (Phase 11) row's marker stays, and its "removes the gate" points to #5's
     row); and sets `CLAUDE.md`'s bold line to none, naming this plan as the last one.
 
@@ -754,17 +755,19 @@ findings before production stay public (Q36).
 12. ~~**Which credentials exist to rotate** (step 15), and whether the preview's keys rotate too
     or only stay out of production ("reuse nothing from the preview setup").~~ → **settled**
     (the owner, 2026-11-22, IS #460, whose comments list each credential by name and what was
-    done): production's secret key replaced by one named for its consumer, its database
-    password reset and its legacy JWT keys disabled; kept on production, the publishable key
-    (public by design, in every browser), and the admin's password and the JWT signing key or
-    secret (made 2026-11-22, never out of the dashboard or the password manager); the Supabase
-    CLI login and the GitHub token replaced, and each account's unused tokens and sessions
-    removed; Cloudflare's Global API Key kept (it can't be deleted, and viewing it needs an
-    emailed code; the owner doesn't remember viewing it, and no file or issue holds it); the
-    preview's credentials not
-    rotated, since they reach only the preview, but its legacy JWT keys disabled; account
-    passwords not rotated, by the owner's reason that none was in the repo, a shell or an
-    agent session, and two-factor guards each.
+    done): on production, the secret key replaced by one named for its consumer, and replaced
+    again after the old CLI login was revoked, since that full-access token was live while the
+    first replacement existed (round 3 on PR #487); the database password reset; the legacy
+    JWT keys disabled and the legacy JWT secret (HS256) revoked; kept, the publishable key
+    (public by design, in every browser), the current signing key (ECC, whose private half the
+    dashboard doesn't show) and the admin's password (made 2026-11-22, only in the password
+    manager). The Supabase CLI login and the GitHub token replaced, and each account's unused
+    live tokens and sessions removed; the new CLI login is again a full-access token with no
+    expiry (a limit: a scoped one wasn't tried). Cloudflare's Global API Key rolled, and the
+    Vercel bypass secret regenerated, since it also passes protection on Production's
+    deployment URLs. The preview's other credentials not rotated, since they reach only the
+    preview, but its legacy JWT keys disabled. Account passwords not rotated, by the owner's
+    reason that none was in the repo, a shell or an agent session, and two-factor guards each.
 13. **How the trucks are told** (step 18): the channel and the Swedish text, with a link to
     `/integritet`.
 14. ~~**Production's Deployment Retention Policy** (step 14): README's checklist keeps Production
