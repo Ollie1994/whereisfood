@@ -910,8 +910,10 @@ backticks, `$` and apostrophes in the title pass as written. Tried on IS #462 wi
    the full set on a PR into `main` (27 minutes for 65 controls on PR #488's run). Settle each
    CodeQL finding before the merge. One the `CodeQL` check fails on must be fixed, or dismissed
    with a reason, for the check to pass; an issue alone settles only one it passes on. The
-   repository's "Check runs failure threshold" (Settings → Code security) sets which fail, and
-   wasn't read here; PR #489's critical alert failed it.
+   repository's "Check runs failure threshold" sets which fail: security alerts "High or
+   higher", other alerts "Only errors" (read by the owner on 2026-11-22 in Settings → Advanced
+   Security → Code scanning → Protection rules, IS #491). PR #489's critical alert failed
+   it.
 
    Merge with a merge commit, `gh pr merge <n> --merge`, without `--delete-branch`: the PR's
    branch is `dev`. A merge into `main` closes no issue by keyword, since only one into the

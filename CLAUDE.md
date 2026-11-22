@@ -454,8 +454,8 @@ and Gitleaks on the PR's commits and messages in `secret-scan` (#293), which als
 one of those messages, or the merge commit's branch name and title, has a closing keyword
 before an issue reference, as "fixes #348" did (#368); `codeql.yml` runs CodeQL (#294).
 The rulesets on `dev` and `main` require a PR, the branch up to date with its base and, by
-name, `ci.yml`'s checks other than `base`; on `dev` CodeQL's too (`CodeQL` and both
-`analyze` jobs, plan #14), on `main` they join in Phase 10 (plan #11). `main`'s also
+name, `ci.yml`'s checks other than `base`, and CodeQL's (`CodeQL` and both `analyze` jobs,
+plan #14): on `dev` since Phase 8, on `main` since IS #461 (Phase 10, plan #11). `main`'s also
 requires `base (main)`, a job in `ci.yml` named after the base the run was made against: a
 PR retargeted from `dev` to `main` starts no new run, and without it `main`'s ruleset counted
 the run made against `dev` (#298's probe), so it now waits for a run against `main`, from a

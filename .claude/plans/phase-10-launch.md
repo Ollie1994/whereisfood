@@ -384,6 +384,8 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     every `/about` and `/map`, now `/om` and `/karta` (#12, IS #478),
     Q36 in the IS #278 (Phase 10) row (line 1142) and #347's "private until disclosure" in the
     Phase 10 row (line 474) and in "Pre-deploy automation" (line 825), which #13 amends (IS #347),
+    "on `main` they join in Phase 10" (line 802) and the Phase 8 #11 row's "join `main`'s
+    ruleset in Phase 10" (line 1118), done in IS #461,
     the folder tree's `src/app/` (line 304), which gains `icon.svg` and `apple-icon.png`, and its
     `components/`, which gains `VamLogo.tsx` (IS #481),
     "Principles and risks"' backups item (the dump count, the restore method, the takedown
