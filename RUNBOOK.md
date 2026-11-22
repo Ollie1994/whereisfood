@@ -337,10 +337,14 @@ a factor-enrolled, factor-unenrolled or password-changed email you didn't cause 
    the "Duration before an email OTP / link expires" (IS #458).
 2. **Wait an hour, then ask once.** Each link Auth sends spends one of the two; a refused
    request sends none. Only the newest link sent can work: a later link sent to your address,
-   whoever asked for it, voids the earlier one at Auth's `/verify` (`otp_expired`), while a
-   refused request leaves it working (local stack, IS #458: a link opened after a second send
-   answered `otp_expired`, and one opened after a refused `429` request made a session). And
-   each request from your browser, refused or not, replaces its PKCE verifier, so only a link
+   whoever asked for it, voids the earlier one at Auth's `/verify` (`otp_expired`; local stack,
+   IS #458: a link opened after a second send answered `otp_expired`). Whether a request the
+   hourly budget refuses leaves it working is unknown: production refuses only that way (the
+   per-user interval applies only with custom SMTP, README's Rate Limits row), and that refusal
+   wasn't probed; locally, a link still made a session after another client's request was
+   refused by the per-user interval (`max_frequency`). So don't count on an older link while
+   someone is asking. And each request from your browser, refused or not, replaces its PKCE
+   verifier, so only a link
    from your browser's newest request finishes there (`src/lib/login.ts`). So while someone
    keeps asking, even your fresh link can fail with "Inloggningslänken fungerade inte": go on to
    step 3, then step 4, rather than ask again.
@@ -372,8 +376,9 @@ a factor-enrolled, factor-unenrolled or password-changed email you didn't cause 
    ```
 
    `200` means done; a `4xx` or `000` reads as in "A takeover", step 2. Then log in with the new
-   address once an hour has passed since the last link you didn't ask for: the move stops the
-   spending but doesn't refill the budget, so a "För många försök" before then doesn't mean the
+   address once an hour has passed since the last link sent to anyone, yours included (step 3's
+   newest `created_at`): the budget is the project's, not the address's, so the move stops the
+   spending but leaves what was spent, and a "För många försök" before then doesn't mean the
    move failed. Probed on the local stack with a throwaway user that had a verified TOTP factor and
    an `aal2` session (IS #458): the `PUT` answered `200`; the new address held at once, with no
    change left pending, and the identity's email moved with it; no mail went to either address;

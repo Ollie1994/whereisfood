@@ -198,8 +198,8 @@ said otherwise: Phase 4 plan decision #14.
   a CLI login token where the CLI stores it) stay on their machine.
   None goes in a tracked or shared file
 - Every account that can reach the project (GitHub, Supabase, Vercel, Cloudflare, the
-  registrar, their recovery email, and the admin's login mailbox, whose holder can start an
-  admin login, IS #458) uses two-factor authentication by passkey, hardware
+  registrar, the admin's login mailbox, whose holder receives its login links, the first
+  factor, IS #458, and their recovery email) uses two-factor authentication by passkey, hardware
   key or authenticator app, not SMS: set up when the account is created, all checked
   before the production deploy (Phase 6 plan decision #3, IS #176). Which accounts don't
   meet it yet is `project-context.md`'s, "Pre-deploy automation"

@@ -520,8 +520,9 @@ result). It names no key, project ref, database URL or email address (`CLAUDE.md
 Made in the dashboard with the Data API on, "Grant API access to new tables automatically"
 off and "Enable RLS on new tables automatically" off: the migration grants and turns on RLS
 per table. Its database password belongs in the owner's password manager and, inside the
-session pooler URL, in the gitignored `.env.prod-db.local` ("Variables", below), nowhere else
-(`CLAUDE.md`, Secrets): a new password means a new URL there too.
+session pooler URL, in the gitignored `.env.prod-db.local` ("Variables", below), and in a CLI
+link only if one was made with it (`RUNBOOK.md`, "A leaked key"; IS #458's links to production
+were made with none given) (`CLAUDE.md`, Secrets): a new password means a new URL there too.
 
 **Schema.** Migrations only, never the seed: production holds real data entered on `/admin`.
 The CLI is linked to production only for a push or a check, and linked back to the preview
