@@ -892,8 +892,7 @@ with `--body-file <file>`, then `node scripts/post-body.mjs <n> <file>`.
    before step 3's push, from every status on the merge commit, newest first, with its time and
    link. The combined `/status` shows only the latest per context, so it can show another
    branch's build of the same commit (README, "The Ignored Build Step's checks"). A status's
-   description doesn't name the environment, but its link opens the deployment, which Vercel
-   labels Production or Preview:
+   description doesn't name the environment, so open its link to see which deployment it is:
 
    ```bash
    gh api --paginate "repos/{owner}/{repo}/commits/<merge commit>/statuses" \
