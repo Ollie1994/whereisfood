@@ -524,11 +524,11 @@ Secrets).
 
 **Schema.** Migrations only, never the seed: production holds real data entered on `/admin`.
 The CLI is linked to production only for a push or a check, and linked back to the preview
-right after, so a plain `npx supabase db push` can't reach production by mistake. Use
-`RUNBOOK.md`'s guarded blocks: "A restore", step 1, with production's ref (link, dry run,
-push, the advisor), whose commands each run only inside
-`if … grep -qxF '<ref>' supabase/.temp/project-ref; then`; and its step 7, which links back to
-the preview and checks that link the same way.
+right after, so a plain `npx supabase db push` can't reach production by mistake. For a later
+migration, use `RUNBOOK.md`'s "A restore" blocks alone, not its restore steps: step 1's three
+blocks with production's ref (link and dry run, push, the advisor), each of which checks the
+link before it pushes or reads, then step 7's block, which links back to the preview and
+checks that.
 
 The first push applied `0001_baseline.sql` and printed the certificate warning "Hosted preview
 database" describes; `migration list --linked` showed `0001` on both sides. The CLI needed
@@ -540,14 +540,15 @@ production too (the owner's screenshots, read on #458), but URL Configuration: S
 `https://vararmaten.vercel.app/auth/callback`. Data API Max rows was read as 1000, equal to
 `MAX_ROWS` (`src/lib/db/complete.ts`), and Network restrictions was read again and left open,
 for that row's reason. Phase 5 #19's hosted check passed: `sv-SE-x-icu` on
-`trucks.name`, both extensions in `extensions`. The Security Advisor
-(`--type all --level info`) found no ERROR or WARN, and only INFO: the preview's
-`rls_enabled_no_policy` and `unindexed_foreign_keys` findings, and `unused_index` on the three
-`locations` indexes, expected while no query has used them.
-Unlike the preview, it didn't report `auth_leaked_password_protection`, though "Prevent use of
-leaked passwords" reads Off on production too (the owner's screenshot); why, wasn't found. So
-on production that warning, which the advisor table below accepts for the preview, had nothing
-to settle.
+`trucks.name`, both extensions in `extensions`. The Security Advisor, run `--linked` twice
+(RUNBOOK's block, `--type security`, and again with `--type all`, both `--level info
+--fail-on error`), found no ERROR or WARN, and only INFO: `rls_enabled_no_policy` on `trucks`
+and `locations` (security), and `unindexed_foreign_keys`, as on the preview, and `unused_index`
+on the three `locations` indexes, expected while no query has used them (performance, in the
+`--type all` run only). Unlike the preview, neither run reported
+`auth_leaked_password_protection`, though "Prevent use of leaked passwords" reads Off on
+production too (the owner's screenshot); why, wasn't found. So on production that warning,
+which the advisor table below accepts for the preview, had nothing to settle.
 
 **The host.** `vararmaten.vercel.app` is Production's domain in the Vercel project
 `whereisfood` (Settings → Domains), renamed from `whereisfood-theta.vercel.app`, which now
@@ -569,10 +570,10 @@ the names "Hosted preview database" lists, and its session pooler URL into the g
 
 For the owner: the security settings #390 checked in the Supabase and Vercel dashboards,
 and Vercel's deployment retention (IS #417), which live outside the repo, each with its
-value on the preview. Phase 10 applies the list to production (Phase 9 plan #10): its
-Supabase rows on 2026-11-22 ("Production", above). The
-Supabase rows are the preview project's: production's own project has them too, with its own
-Site URL and Redirect URLs ("Production", above). The Vercel rows are the `whereisfood` project's
+value on the preview. The Supabase rows are the preview project's, and so are their dates and
+the notes in "Why" (a date a setting was turned on, the preview's admin password): Phase 10
+applied them to production's own project on 2026-11-22, with its own Site URL and Redirect URLs
+(Phase 9 plan #10; "Production", above, which records production's reading). The Vercel rows are the `whereisfood` project's
 (the `Team →` rows, its team's), which its production deploys share, so the project's
 retention row already holds for production; the project's other settings (the Ignored
 Build Step, the environment variables' scopes) are in "Preview deploys", below. Each row was
