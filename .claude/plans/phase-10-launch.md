@@ -758,15 +758,18 @@ findings before production stay public (Q36).
     done): on production, the secret key replaced by one named for its consumer, and replaced
     again after the old CLI login was revoked, since that full-access token was live while the
     first replacement existed (round 3 on PR #487); the database password reset; the legacy
-    JWT keys disabled and the legacy JWT secret (HS256) revoked; kept, the publishable key
-    (public by design, in every browser), the current signing key (ECC, whose private half the
-    dashboard doesn't show) and the admin's password (made 2026-11-22, only in the password
-    manager). The Supabase CLI login and the GitHub token replaced, and each account's unused
-    live tokens and sessions removed; the new CLI login is again a full-access token with no
+    API keys (`anon`, `service_role`) disabled and the legacy JWT secret (HS256) revoked;
+    kept, the publishable key (public by design, in every browser), the current signing key
+    (ECC, whose private half the dashboard doesn't show) and the admin's password (made
+    2026-11-22, only in the password manager). What that token could have left on production
+    was read afterwards (roles, triggers, policies, grants, Auth's users, factors, sessions and
+    audit log, the advisor), and none showed a change (round 4 on PR #487). The Supabase CLI
+    login and the GitHub token replaced, and each account's unused live tokens and sessions
+    removed; the new CLI login is again a full-access token with no
     expiry (a limit: a scoped one wasn't tried). Cloudflare's Global API Key rolled, and the
     Vercel bypass secret regenerated, since it also passes protection on Production's
     deployment URLs. The preview's other credentials not rotated, since they reach only the
-    preview, but its legacy JWT keys disabled. Account passwords not rotated, by the owner's
+    preview, but its legacy API keys disabled. Account passwords not rotated, by the owner's
     reason that none was in the repo, a shell or an agent session, and two-factor guards each.
 13. **How the trucks are told** (step 18): the channel and the Swedish text, with a link to
     `/integritet`.

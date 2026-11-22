@@ -404,9 +404,10 @@ A secret that reaches a commit, an issue or a PR is rotated, not just deleted (`
   several can exist at once, so in Supabase's Project Settings → API Keys add a new secret
   key, named for its one consumer as `vercel_production` is (IS #460; the name takes lowercase
   letters, digits and underscores; whether two keys may share one wasn't tried, so if the old
-  key's name is refused, add the date, as `vercel_production_20261122`), put it in Vercel's
-  Production variable, redeploy Production, check the admin screen works, then delete the old
-  key there.
+  key's name is refused, add today's date, as `vercel_production_<yyyymmdd>`), put it in
+  Vercel's Production variable, redeploy Production, check the admin screen works, then delete
+  the old key there. This add-before-delete order wasn't tried: #460 deleted the unused old key
+  first.
 - **The publishable key** (`NEXT_PUBLIC_SUPABASE_ANON_KEY`): public by design, in every
   browser. How to revoke one wasn't stated on the pages read.
 - **The database password** (in `.env.prod-db.local`): the dashboard's Connect dialog has
@@ -425,25 +426,36 @@ A secret that reaches a commit, an issue or a PR is rotated, not just deleted (`
      access token (avatar → Account preferences → Access Tokens) and log the CLI in again
      (`npx supabase login`), and check each organization's members and the account's
      two-factor. Whether a password change ends the account's other sessions wasn't read.
-  2. Rotate what the dashboard shows or sets, each by its bullet here: the secret key, the
-     database password and the JWT signing key (the next bullet). Then the paragraph after
-     these bullets: "A takeover" and "what it left behind".
-  3. Before disabling the keys again, check that the `NEXT_PUBLIC_SUPABASE_ANON_KEY` and
-     `SUPABASE_SERVICE_ROLE_KEY` in that project's Vercel variables (Production's, or
-     Preview's for the preview), and for the preview `.env.preview.local`'s keys, start
-     `sb_publishable_` and `sb_secret_`. Replace a legacy JWT found in either with the `sb_`
-     key, and in Vercel redeploy, or the app stops working. Then disable the legacy keys
-     again.
+  2. Disable the legacy keys again at once, since `service_role` bypasses RLS. Just before,
+     check that the `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` in that
+     project's Vercel variables (Production's, or Preview's, branch `dev`, for the preview),
+     and for the preview `.env.preview.local`'s keys, start `sb_publishable_` and
+     `sb_secret_`. Replace a legacy JWT found in either with the `sb_` key, and in Vercel
+     redeploy, or the app stops working.
+  3. Rotate what the dashboard shows or sets: the secret key and the database password by
+     their bullets here, and the JWT keys by the next bullet's incident steps. The bullets
+     name production's places; for the preview, the new secret key goes in its Preview
+     variable (branch `dev`) and `.env.preview.local`'s `PREVIEW_SECRET_KEY`, and the new
+     password in that file's two database URLs. Then the "After rotating" paragraph below:
+     "A takeover", steps 2 to 4, then the checks for use and for what it left behind.
 - **The JWT keys** (Project Settings → JWT Keys): production signs Auth's tokens with an ECC
   (P-256) key, whose private half the dashboard doesn't show, and its legacy JWT secret
   (HS256) was revoked on 2026-11-22 (IS #460). Its Legacy JWT Secret tab reads "Your project
   has revoked the legacy JWT secret", and `<project URL>/auth/v1/.well-known/jwks.json` lists
-  only the ECC key's id. A key there you didn't make, or a secret back in use, is treated as
-  the legacy keys found on, above. To rotate the signing key: Create Standby Key, then rotate
-  it into use; "Non-expired access tokens will remain to be accepted, so no users will be
-  forcefully signed out" (#448's 1b). Revoke the old key once its tokens have expired: an
-  access token lives 3600 s (README's checklist). The rotation wasn't tried here. The
-  preview's JWT keys weren't read.
+  only the ECC key's id.
+  - **In an incident** (a key there you didn't make, a secret back in use, or any key that
+    may have leaked): whoever holds it can sign tokens with any expiry, so don't wait. Create
+    a standby key and rotate it into use, then revoke every other key at once, accepting that
+    every user is signed out. Then treat it as the legacy keys found on, above.
+  - **A routine rotation:** Create Standby Key, then rotate it into use; "Non-expired access
+    tokens will remain to be accepted, so no users will be forcefully signed out" (#448's 1b).
+    Revoke the old key once its tokens have expired: an access token lives 3600 s (README's
+    checklist).
+  - Neither was tried here: #460 only revoked the HS256 secret, already a previous key, after
+    the legacy API keys it signed were disabled, with no user ever signed in.
+  - **The preview's JWT keys weren't read.** If a project still has its legacy JWT secret in
+    use and it leaks, rotating it signs every user out and needs both legacy keys rotated at
+    once (#448's 1b); on a project that signs with a newer key, revoke it, as #460 did.
 - **Anything else** (a GitHub token, a CLI login, the Vercel bypass secret): revoke it where
   it was issued, and make a new one.
 
