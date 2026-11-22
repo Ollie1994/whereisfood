@@ -760,10 +760,15 @@ findings before production stay public (Q36).
     first replacement existed (round 3 on PR #487); the database password reset; the legacy
     API keys (`anon`, `service_role`) disabled and the legacy JWT secret (HS256) revoked;
     kept, the publishable key (public by design, in every browser), the current signing key
-    (ECC, whose private half the dashboard doesn't show) and the admin's password (made
-    2026-11-22, only in the password manager). What that token could have left on production
-    was read afterwards (roles, triggers, policies, grants, Auth's users, factors, sessions and
-    audit log, the advisor), and none showed a change (round 4 on PR #487). The Supabase CLI
+    (ECC, whose private half the dashboard doesn't show, and whose "created at" read the same
+    as the HS256 key's, which came with the project; the owner's screenshot) and the admin's
+    password (made 2026-11-22, only in the password manager). What that token could have left
+    on production was read afterwards (rounds 4 and 5 on PR #487; IS #460's comments):
+    `public`'s schema differs from the migrations' only by the 3 default-privilege lines
+    `RUNBOOK.md` expects; roles and triggers outside `public` match the preview's, which the
+    same token reached, so that is no clean baseline; the admin user shows no change made
+    through Auth, though an edit by SQL can't be ruled out from these reads; the advisor
+    reports no ERROR. Auth's settings and Vercel weren't read again for it. The Supabase CLI
     login and the GitHub token replaced, and each account's unused live tokens and sessions
     removed; the new CLI login is again a full-access token with no
     expiry (a limit: a scoped one wasn't tried). Cloudflare's Global API Key rolled, and the

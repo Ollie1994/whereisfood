@@ -576,8 +576,10 @@ and `locations` (security), and `unindexed_foreign_keys`, as on the preview, and
 on the three `locations` indexes, expected while no query has used them (performance, in the
 `--type all` run only). Unlike the preview, neither run reported
 `auth_leaked_password_protection`, though "Prevent use of leaked passwords" reads Off on
-production too (the owner's screenshot); why, wasn't found. So on production that warning,
-which the advisor table below accepts for the preview, had nothing to settle.
+production too (the owner's screenshot); why, wasn't found. A later run the same day, with the
+CLI linked the same way, did report it as a WARN, beside the two `rls_enabled_no_policy` INFOs
+(IS #460). The checklist's "Prevent use of leaked passwords" row, which holds on production
+too, accepts it (Pro only).
 
 **The host.** `vararmaten.vercel.app` is Production's domain in the Vercel project
 `whereisfood` (Settings → Domains), renamed from `whereisfood-theta.vercel.app`, which is
@@ -653,7 +655,7 @@ or addresses (`CLAUDE.md`, Secrets).
 | Database → Settings → Connection logging: Log connections; Log disconnections | Off; off | Kept as found |
 | Database → Settings → Network restrictions | None: every IP allowed | They cover Postgres and the pooler, not the HTTPS APIs the app uses: they "don't apply to HTTPS APIs such as PostgREST, Storage, and Auth" (Supabase's docs, Network Restrictions). A list of the owner's IPs would lock out the linked CLI whenever that IP changes. Read again for production and kept, for the same reason (the owner, 2026-11-22, IS #458) |
 | Project Settings → API Keys → Legacy API Keys (`anon`, `service_role`) | Disabled | Disabled by the owner on the preview and production, 2026-11-22 (IS #460): the app uses the publishable and secret keys ("Keys", above), and the legacy `service_role` key bypasses RLS. They stay valid until disabled (`RUNBOOK.md`, "A leaked key"). Afterwards, on the preview: `/api/live` answered 200 from a fresh read; `/auth/v1/settings` 200 to the publishable key; Auth's `GET /auth/v1/admin/users?per_page=1` 200 to the secret key as `apikey` alone, as RUNBOOK's admin-API blocks send it; and `migration list --linked`, `db push --dry-run --linked` and `db advisors --linked` each exited 0 |
-| Project Settings → JWT Keys | Production: an ECC (P-256) signing key in use; the legacy JWT secret (HS256) revoked. The preview: not read | Production's secret was revoked by the owner on 2026-11-22 (IS #460): it could sign tokens Auth accepted, and the legacy keys it backed were already off. Afterwards production's `/auth/v1/.well-known/jwks.json` listed only the ECC key, `/auth/v1/settings` answered 200 to the publishable key, and a data API read of `trucks` with it got anon's `42501` |
+| Project Settings → JWT Keys | Production: an ECC (P-256) signing key in use; the legacy JWT secret (HS256) revoked. The preview: not read | Production's secret was revoked by the owner on 2026-11-22 (IS #460): it could sign tokens Auth accepted, and the legacy API keys it signed were already off. Afterwards production's `/auth/v1/.well-known/jwks.json` listed only the ECC key, `/auth/v1/settings` answered 200 to the publishable key, and a data API read of `trucks` with it got anon's `42501` |
 | Integrations → Data API | On; "Automatically expose new tables" off; extra search path `public`, `extensions`; Max rows 1000 | "Hosted preview database", above |
 | Realtime → Settings → Enable Realtime service | Off | Turned off by the owner, 2026-11-18: the app doesn't use Realtime, and public channels were open to anyone with the publishable key |
 | Database → Extensions → `pg_graphql` | Not installed | GraphQL is unused |
