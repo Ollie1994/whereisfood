@@ -1,7 +1,7 @@
 # Phase 6 — Live read path
 
-**Planned:** 2026-10-25 · **Status:** agreed when this plan's PR (step 0) merges; in
-progress from that merge.
+**Planned:** 2026-10-25 · **Status:** done (the reconciliation, step 10, #189);
+`project-context.md` is current again, and this plan's step text is history.
 
 **Source:** `project-context.md` Part 2 ("Phase map", "Read path: `GET /api/live`
 (Phase 6)", "Pricing and upgrade triggers"), Part 1 ("Database": the hosted checks),
@@ -27,7 +27,8 @@ old confidence design gone.
 
 ## Prerequisites
 
-- Node `^20.19.0 || >=22.12.0` and npm ≥ 11 (`CLAUDE.md`, "Dependencies").
+- Node and npm in the ranges `package.json`'s `devEngines` admits (#139; `CLAUDE.md`,
+  "Dependencies").
 - Docker running, for local Supabase and `npm run test:all`.
 - `public/gothenburg.pmtiles` cut locally (README, "Get the map tiles"): step 4 uploads
   it.
@@ -331,12 +332,14 @@ opens, which may be none. Step 7 is the existing issue #139.
    or the names open decision 3 leads to. `NEXT_PUBLIC_PMTILES_URL` (the R2 URL) is
    inlined at build time and `useMapLibre` draws nothing without it;
    `src/lib/supabase.ts` throws at import without the anon key, though nothing uses it
-   before Phase 7; the service-role key is marked Sensitive. The function region near
-   the database (open decision 4). Deployment Protection per open decision 11. On the
-   preview: `x-vercel-cache` MISS → HIT → STALE on `/api/live`, by GET (`curl -s -o
-   /dev/null -D -`), not `curl -I`, which sends HEAD; `/map` in a real
-   browser (basemap from R2, markers, a popup); requests per visit from Vercel's usage
-   dashboard; the build's `node -v` and `npm -v`, recorded on #139. Ride along:
+   before Phase 7; the service-role key is marked Sensitive (type "Secret" since
+   Vercel's changelog of 2026-08-24, #187). The function region near the database
+   (open decision 4). Deployment Protection per open decision 11. On the preview:
+   `x-vercel-cache` MISS → HIT → STALE on `/api/live`, by GET (`curl -s -o /dev/null
+   -D -`), not `curl -I`, which sends HEAD; `/map` in a real browser (basemap from
+   R2, markers, a popup); requests per visit from Vercel's usage dashboard (#187:
+   counted in the browser's Network tab, since the usage page doesn't split them per
+   visit); the build's `node -v` and `npm -v`, recorded on #139. Ride along:
    `README.md`'s preview-deploy notes. *Last of the build steps: it needs all of the
    above.*
 7. **#139: Node and npm minimums in `package.json`.** As that issue describes, with
@@ -358,11 +361,18 @@ opens, which may be none. Step 7 is the existing issue #139.
     the hosted key type), "Tests and gates" (the integration file count), "Versions"
     (the Node/npm line after #139), the Roadmap row; Part 2's "Read path" section,
     which becomes a description of what was built and gains #22's scaling limits, and
-    the Phase map's Phase 8 row
+    the Phase map's Phase 8 row; and Part 2's "Pre-deploy automation (planned)", which
+    gains two Phase 8 checks from README's "Preview deploys" (#187): Production gets
+    its variables only after the Vercel project's Ignored Build Step is confirmed set
+    (it runs when a build starts, so promoting an existing preview isn't covered; a
+    CLI deploy wasn't tried; its cancel case hasn't been seen), and Dependabot's
+    branches would build on Vercel with the Preview variables, which Git Fork
+    Protection doesn't cover
     (tiles on R2 moved here, #7). It replaces each **between phases** marker in
     "Decisions carried forward" with the decision here that took it up (#1–#6), and
     carries forward this plan's decisions that outlive the phase (likely #7, #9–#11,
-    #17, #18).
+    #17, #18, #22, and #23's retirement of the review-row level and limit rule), and
+    "Versions" gains the audit result with its date (#24).
 
 ---
 
@@ -407,7 +417,10 @@ live in Vercel environment variables (marked "Sensitive" where offered), GitHub 
 secrets and Dependabot secrets; a developer's own copies stay on their machine; none in a
 tracked or shared file. In this phase: the preview project's keys go into Vercel's
 preview-scoped variables (step 6) and the owner's `.env.local`, never into `README.md`,
-an issue, a PR or the process log.
+an issue, a PR or the process log. (#186, #187: the owner's copies, the preview
+project's keys and the Vercel bypass secret, are in `.env.preview.local`, also
+gitignored, so `.env.local` keeps the local stack's keys for the integration tests.
+Vercel's "Sensitive" is the type "Secret" since its changelog of 2026-08-24.)
 
 ### #6 — `experimental.agentUpgrade: false` stays
 
@@ -583,6 +596,48 @@ would be hit:
 Considered: writing it into `project-context.md` at once (done first in PR #192, moved
 here by its round 3: `CLAUDE.md` puts a decision settled during a phase in the plan).
 
+### #23 — The Phase 6 retrospective's actions
+
+The owner's calls, 2026-11-03, in the retrospective (#188, PR #201; the process log's
+"Phase 6 retrospective" holds the evidence):
+- **One new action:** `scripts/sweep.sh`, which lists the sweep's candidates (stale
+  copies and restatements), with the claims check's `WORDS` taking the probe words
+  (#200).
+- **The review-row level and limit rule is retired** (PR #201's round 1; #200 removes
+  it from the log's Columns and `CLAUDE.md`). It lapsed after rows 364 and 403 logged
+  it, and again in PR #201's round 1. From row 422 on, a review row records neither the
+  level nor the limit, with no marker, and a "found N" may have been cut by the default
+  limit, as Phase 5 plan decision #20 already accepts; nothing in the log tells which
+  counts were. (The owner's call in PR #201's round 3, replacing round 2's "reopens at
+  another level", which no row could show. Row 423, written before round 4, carries a
+  "not recorded" note.) Step 10 carries this forward.
+- **No action on row 325's repeats** (354, 382): each was caught by `self` from `add`'s
+  output, and the fix was the next commit. Row 354's was before a push ("Not pushed");
+  row 382 doesn't say.
+- **Not taken:** a per-finding record of the command that checked a fix's premise and
+  the one that checked the fix and its neighbouring case (aimed at `overcorrection`); a
+  recorded failing run for every verification command, AC and claims backing (aimed at
+  checks that couldn't fail).
+
+### #24 — Dependabot alert #7 (`minimatch` < 11.0.1) is dismissed
+
+The owner's call, 2026-11-03: dismissed with a comment in GitHub's UI. The advisory
+(GHSA-g3hv-75wg-m249) covers `minimatch` before 11.0.1: 16 moderate findings in `npm
+audit`, and `npm audit --omit=dev` exits 0. The installed copies and the ranges that
+hold them: 3.1.5 under `eslint` 9, `@eslint/config-array` and `@eslint/eslintrc`
+(`^3.1.5`) and under `eslint-config-next` 16.4.3's `import`, `react` and `jsx-a11y`
+plugins (`^3.1.2`); 10.2.5 under `@typescript-eslint/typescript-estree` (`^10.2.2`).
+None admits 11.0.1. Its trigger is an attacker-supplied glob pattern, and ESLint's
+patterns come from the repo's config and CLI arguments. Considered: an `overrides`
+entry forcing 11.x (eight majors past `eslint`'s `^3`); Dependabot's security-update PR
+(automatic PRs are Phase 8's, and `eslint-config-next` is an exact pin moved with
+`next`). Revisit if either reason stops holding: `npm audit --omit=dev` lists the
+advisory (a production dependency pulls `minimatch` before 11.0.1), or a lint run takes
+glob patterns from outside the repo. The advisory clears only when `npm audit` stops
+listing it, which needs all seven holders above to admit 11.0.1 or drop `minimatch`,
+and the lockfile to move. Phase 8's dependency check re-reads it. Step 10 records the
+audit result (#189).
+
 ---
 
 ## Acceptance Criteria
@@ -684,7 +739,8 @@ here by its round 3: `CLAUDE.md` puts a decision settled during a phase in the p
 
 **Preview deploy (step 6)**
 - [ ] The preview builds; every variable `src/lib/supabase.ts` and `useMapLibre` read
-  is set, preview-scoped, and the service-role key is marked Sensitive.
+  is set, preview-scoped, and the service-role key is marked Sensitive ("Secret" since
+  Vercel's changelog of 2026-08-24, #187).
 - [ ] GET requests to `/api/live` (headers dumped, past Deployment Protection per open
   decision 11) show `x-vercel-cache: MISS`, then `HIT` within 60 s, then `STALE`
   between 60 and 120 s, with the output in the PR or issue.
@@ -694,8 +750,9 @@ here by its round 3: `CLAUDE.md` puts a decision settled during a phase in the p
   from its own cache, as it does locally (PR #192's round 1, probed in Chrome).
 - [ ] `/map` on the preview in a real browser shows the basemap from R2, the markers and
   a popup.
-- [ ] Requests per visit, from Vercel's usage dashboard, are recorded with the visit
-  that produced them.
+- [ ] Requests per visit are recorded with the visit that produced them: counted in
+  the browser's Network tab (#187; Vercel's usage dashboard, which step 6 names, can't
+  split them per visit).
 - [ ] The build's `node -v` and `npm -v` are recorded on #139.
 - [ ] The Vercel account has non-SMS 2FA (#3).
 
@@ -741,10 +798,12 @@ here by its round 3: `CLAUDE.md` puts a decision settled during a phase in the p
    `.env.example`'s names and #4's rotation depend on it; decided when the project is
    created, with the variable names revisited if needed.
 4. ~~**Regions (steps 5, 6).**~~ → **Supabase's answered in step 5 (#186), the owner's
-   call, 2026-11-02:** `eu-north-1` (Stockholm). Vercel's function region, and what
-   Hobby allows, stays step 6's (#187). The question as planned: Supabase in
-   `eu-north-1` (Stockholm) and Vercel's function region near it (`arn1`); confirm
-   what Hobby allows.
+   call, 2026-11-02:** `eu-north-1` (Stockholm). **Vercel's in step 6 (#187),
+   2026-11-02:** `arn1` (Stockholm). Hobby allows one function region (Settings →
+   Functions: "You are limited to 1 region on your current Hobby plan"); the preview's
+   `/api/live` answered with `X-Vercel-Id: arn1::arn1::…`. The question as planned:
+   Supabase in `eu-north-1` (Stockholm) and Vercel's function region near it
+   (`arn1`); confirm what Hobby allows.
 5. ~~**`freshnessText` for an update not made today (step 3).**~~ → **answered in step
    1 (#182), the owner's call, 2026-10-31:** by Stockholm calendar days between
    `updated_at` and `now`. The same day (or a later one, a client clock behind the
@@ -778,8 +837,17 @@ here by its round 3: `CLAUDE.md` puts a decision settled during a phase in the p
    its tests), a highlighted selected marker, and a faded marker for an old update (the
    popup's freshness text says it). The question as planned: colour and size of open
    (filled) versus later (outlined), settled at the browser check.
-9. **#139's `onFail`, and whether to pin `engines.node` (step 7).** As that issue
-   describes, from step 6's build log.
+9. ~~**#139's `onFail`, and whether to pin `engines.node` (step 7).**~~ → **answered in
+   step 7 (#139), the owner's call, 2026-11-02:** `onFail: "error"` for both
+   `devEngines` entries, and `engines.node: "26.x"`. Step 6's build ran Node 26.13.0 and
+   npm 11.20.0 (#139's comment), so neither stops the deploy. Locally, npm 10.9.2
+   without the lockfile crashed with `edgesOut`, and with `devEngines` stopped first
+   with `EBADDEVENGINES` naming `>=11.0.0`. Without `devEngines`, its `npm install` and
+   `npm ci` from the lockfile both succeeded; with it, `npm ci` and `npm run` stop too
+   (PR #198). npm before 10.9 doesn't read `devEngines` (`CLAUDE.md`, "Dependencies").
+   Why pin: Vercel maps an open range like `>=22.0.0` to its latest major (its
+   "Supported Node.js versions" docs), so a new major would arrive unreviewed. The
+   question as planned: As that issue describes, from step 6's build log.
 10. ~~**The R2 CORS rule's allowed origins (step 4).**~~ → **answered in step 4
     (#185), the owner's call, 2026-11-02:** the narrowest of the options below,
     `https://whereisfood-*-where-is-food.vercel.app`, plus `http://localhost:3000`,
@@ -802,7 +870,13 @@ here by its round 3: `CLAUDE.md` puts a decision settled during a phase in the p
     is chosen, Phase 8 replaces it with the end state `project-context.md` "Pricing"
     gives (the domain and localhost). Not probed until the bucket exists. Local
     dev's origin is `http://localhost:3000`.
-11. **Deployment Protection on previews (step 6).** With Vercel Authentication on (all
+11. ~~**Deployment Protection on previews (step 6).**~~ → **answered in step 6 (#187),
+    the owner's call, 2026-11-02:** protection stays on (the new project's setting:
+    Vercel Authentication, "Standard Protection"), and the cache check sends a
+    Protection Bypass for Automation secret, generated by Vercel and kept in the
+    owner's gitignored `.env.preview.local`. Why: a public preview would let anyone
+    with its URL run `/api/live` against the preview database. The question as
+    planned: With Vercel Authentication on (all
     plans, Hobby included), a request without its cookie gets a Vercel login redirect,
     not the route, so it has no `x-vercel-cache` (Vercel's docs, read 2026-10-25).
     Vercel's generated-URLs page says a generated URL "is publicly accessible by

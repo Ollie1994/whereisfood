@@ -1,0 +1,36 @@
+#!/bin/sh
+# Refuses a commit whose message holds a value Gitleaks' rules flag (IS #292). The
+# pre-commit hook scans only the staged changes, and `gitleaks git` reads patches, not
+# messages: in a scratch repo it missed a flagged message that `gitleaks stdin` found.
+# The Gitleaks call and checks: `gitleaks-common.sh`.
+#
+# Run: `git commit` (with `-m` or an editor), `--amend`, `git merge -m`, and `rebase -i`'s
+# reword each refused a flagged message here (exit 1). Not run: `cherry-pick` (`-e`
+# too), `am`, a plain `rebase` and `commit --no-verify` each committed one (exit 0).
+# All probed in scratch repos. A clone without `core.hooksPath` doesn't run it either.
+#
+# It scans the whole message file, git's comment lines included. Under `git commit -v`
+# (or `commit.verbose`) that file also holds the staged diff, scanned as text with no
+# path, so a `-v` commit whose diff shows a flagged line is refused: one it removes, or a
+# context line a `paths` allowlist entry (or Gitleaks' default path allowlist, such as
+# lockfiles) lets through in pre-commit. Commit without `-v`. Cutting the diff out
+# instead let flagged values through: text after a scissors line under `-m`, and lines
+# after a look-alike of one (PR #342's probes). So the hook fails closed here.
+
+case $0 in */*) here=${0%/*} ;; *) here=. ;; esac
+if [ ! -r "$here/gitleaks-common.sh" ]; then
+  echo "commit-msg: can't read gitleaks-common.sh beside the hook. Commit refused." >&2
+  exit 1
+fi
+. "$here/gitleaks-common.sh"
+gitleaks_preflight commit-msg
+
+if [ ! -r "$1" ]; then
+  echo "commit-msg: can't read the message file \"$1\". Commit refused." >&2
+  exit 1
+fi
+
+run_gitleaks stdin < "$1" && exit 0
+echo "commit-msg: commit refused, by a find or a gitleaks error (above). Under" >&2
+echo "\`git commit -v\` a find may be in the diff below the message; if so, commit without -v." >&2
+exit 1

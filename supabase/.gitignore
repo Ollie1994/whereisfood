@@ -6,3 +6,6 @@
 .env.keys
 .env.local
 .env.*.local
+
+# Studio saves SQL Editor queries here; they can hold real emails (README step 5)
+snippets

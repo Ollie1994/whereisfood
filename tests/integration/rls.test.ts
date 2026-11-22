@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/lib/supabase";
 import {
   FIXTURE_PLACE,
   FIXTURE_PREFIX,
+  SIGN_IN_TIMEOUT,
   anonClient,
   createFixtureAuthUser,
   dayWindow,
@@ -25,8 +26,9 @@ import {
 // (probed on the local stack's Postgres 17.6, 2026-10-18 and 2026-10-23). If an upgrade
 // drops the hint, these cases fail rather than pass (open decision 4).
 //
-// No `resetTables()` between cases: the fixtures below are made once, because each
-// `signedInClient()` is a sign-in and local Auth rate-limits them (`helpers.ts`).
+// No `resetTables()` between cases: the fixtures below are made once, in `beforeAll`, as
+// `helpers.ts`'s `signInByLink` asks of every sign-in, and `resetTables()` removes
+// fixture users (`removeFixtureUsers`), so a reset between cases would delete them.
 // `setup.ts`'s `afterAll` removes them after the file.
 
 type Table = keyof Database["public"]["Tables"];
@@ -63,7 +65,7 @@ beforeAll(async () => {
   me = await signedInClient();
   other = await signedInClient();
   rowless = await signedInClient({ usersRow: false });
-}, 30_000);
+}, SIGN_IN_TIMEOUT);
 
 // A valid row for `table`, which `service_role` could insert: with the INSERT grant (a
 // control), the case got the RLS message with no hint. Prefixed and on the fixture

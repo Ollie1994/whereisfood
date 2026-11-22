@@ -1,0 +1,152 @@
+import { parseISO } from "date-fns";
+import { isInGothenburg } from "@/lib/geo";
+import { isTimestamp } from "@/lib/timestamp";
+import type { LocationPatch, NewLocation } from "@/lib/types";
+import { BODY_ERRORS, type Parsed, isRecord, refuse, tooLong, unstorable } from "@/lib/validators/body";
+import { isUuid } from "@/lib/validators/uuid";
+
+// A location body from `readJson`, checked and reduced to the keys a client may set. Pure:
+// no clock, no env (`CLAUDE.md`, "Time"). `created_by`, `source` and `cancelled_at` are
+// never read, so a body can't set them (Phase 7 plan, #17); every other unknown key is
+// dropped too. A limit: a dropped key beside a kept one is dropped silently, so a patch
+// holding `truck_id` and `label` changes the label only. The plan's acceptance criteria
+// show the truck read-only on an edit (the form is #227's).
+
+// A new entry as a client sends it: the service adds `created_by` and `source` (#17).
+export type NewLocationInput = Omit<NewLocation, "created_by" | "source">;
+
+// The label's bound, as `truck.ts`'s `MAX_*` (characters, on the trimmed text; the owner's
+// value, IS #379; the app only, no CHECK in the schema). A limit: a label stored longer (by
+// SQL, or before IS #379) is copied as it is into the checklist's suggestion, whose ✓ is
+// then refused with `labelLength` (`checklistRefusal` shows it as it came), and into the
+// form by a recent place (`placeValues` in `admin-form.ts`), whose save is refused until the
+// admin shortens the name.
+export const MAX_LABEL = 100;
+
+export const LOCATION_ERRORS = {
+  body: BODY_ERRORS.body,
+  truck: "Ogiltig foodtruck",
+  position: "Ogiltig position",
+  outside: "Platsen ligger utanför Göteborg",
+  label: "Ogiltigt platsnamn",
+  labelLength: `Platsnamnet får vara högst ${MAX_LABEL} tecken`,
+  startsAt: "Ogiltig starttid",
+  endsAt: "Ogiltig sluttid",
+  order: "Sluttiden måste vara efter starttiden",
+  emptyPatch: BODY_ERRORS.emptyPatch,
+} as const;
+
+// The field checks: each gives the field's value, or undefined to refuse it. An absent key
+// is refused too, except by `label`, which reads it as null; `parseLocationPatch` skips
+// absent keys before calling them.
+
+// A number, not a numeric string.
+function coordinate(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+// Absent, null or blank is no label; not a string, or holding a character the database
+// refuses (`unstorable`, IS #400), is refused. Its length is checked by the callers
+// (`MAX_LABEL`).
+function label(value: unknown): string | null | undefined {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "string" || unstorable(value)) return undefined;
+  return value.trim() || null;
+}
+
+// With an offset, as `isTimestamp` requires: one without would be read in the server's own
+// zone. Its UTC year is 0001–9999, which `toISOString` writes as four digits: local
+// Postgres refused the forms it writes outside that, `0000-12-31T23:30:00.000Z` and
+// `+010000-01-01T00:30:00.000Z`, and took years 0001 and 9999 (PR #238). A limit: that
+// guards the strings, not the dates, so an entry from 0001 to 9999 passes here and would
+// cover every day. Nothing planned bounds an entry's length or far end: the service refuses
+// only one that has already ended (plan #33). Also a limit: `Date` keeps milliseconds,
+// so digits past them are dropped: `…00.0001Z` and `…00.0009Z` both read as `…00.000Z`,
+// and an entry between them is refused as `order` (pinned in the test).
+function timestamp(value: unknown): Date | undefined {
+  if (!isTimestamp(value)) return undefined;
+  const date = parseISO(value);
+  const year = date.getUTCFullYear();
+  return year >= 1 && year <= 9999 ? date : undefined;
+}
+
+// An end at or before the start, compared as instants: the one copy of the order rule.
+function orderError(startsAt: string, endsAt: string): string | null {
+  return Date.parse(endsAt) <= Date.parse(startsAt) ? LOCATION_ERRORS.order : null;
+}
+
+// The checks across fields, for a patch's merged entry in `editEntry`: the pair inside the
+// Gothenburg box, then the order rule, the two `parseNewLocation` makes. The error, or null.
+export function crossFieldError(
+  entry: Pick<NewLocationInput, "latitude" | "longitude" | "starts_at" | "ends_at">,
+): string | null {
+  if (!isInGothenburg(entry.latitude, entry.longitude)) return LOCATION_ERRORS.outside;
+  return orderError(entry.starts_at, entry.ends_at);
+}
+
+export function parseNewLocation(body: unknown): Parsed<NewLocationInput> {
+  if (!isRecord(body)) return refuse(LOCATION_ERRORS.body);
+
+  const truckId = body.truck_id;
+  if (typeof truckId !== "string" || !isUuid(truckId)) return refuse(LOCATION_ERRORS.truck);
+
+  const latitude = coordinate(body.latitude);
+  const longitude = coordinate(body.longitude);
+  if (latitude === undefined || longitude === undefined) return refuse(LOCATION_ERRORS.position);
+  // Before the label and times, so a pin outside the box is named first (pinned in the test).
+  if (!isInGothenburg(latitude, longitude)) return refuse(LOCATION_ERRORS.outside);
+
+  const name = label(body.label);
+  if (name === undefined) return refuse(LOCATION_ERRORS.label);
+  if (tooLong(name, MAX_LABEL)) return refuse(LOCATION_ERRORS.labelLength);
+
+  const startsAt = timestamp(body.starts_at);
+  if (!startsAt) return refuse(LOCATION_ERRORS.startsAt);
+  const endsAt = timestamp(body.ends_at);
+  if (!endsAt) return refuse(LOCATION_ERRORS.endsAt);
+
+  const value = {
+    truck_id: truckId,
+    latitude,
+    longitude,
+    label: name,
+    starts_at: startsAt.toISOString(),
+    ends_at: endsAt.toISOString(),
+  };
+  const error = orderError(value.starts_at, value.ends_at);
+  return error ? refuse(error) : { ok: true, value };
+}
+
+// Each key the patch holds, checked alone. Across fields (the box, the time order) is
+// `editEntry`'s, on the merged row (plan, "Functions and types"). A patch with none of
+// these keys is refused, since the db layer throws on an empty one.
+export function parseLocationPatch(body: unknown): Parsed<LocationPatch> {
+  if (!isRecord(body)) return refuse(LOCATION_ERRORS.body);
+  const patch: LocationPatch = {};
+
+  for (const key of ["latitude", "longitude"] as const) {
+    if (body[key] === undefined) continue;
+    const value = coordinate(body[key]);
+    if (value === undefined) return refuse(LOCATION_ERRORS.position);
+    patch[key] = value;
+  }
+
+  if (body.label !== undefined) {
+    const name = label(body.label);
+    if (name === undefined) return refuse(LOCATION_ERRORS.label);
+    if (tooLong(name, MAX_LABEL)) return refuse(LOCATION_ERRORS.labelLength);
+    patch.label = name;
+  }
+
+  for (const [key, error] of [
+    ["starts_at", LOCATION_ERRORS.startsAt],
+    ["ends_at", LOCATION_ERRORS.endsAt],
+  ] as const) {
+    if (body[key] === undefined) continue;
+    const value = timestamp(body[key]);
+    if (!value) return refuse(error);
+    patch[key] = value.toISOString();
+  }
+
+  return Object.keys(patch).length === 0 ? refuse(LOCATION_ERRORS.emptyPatch) : { ok: true, value: patch };
+}

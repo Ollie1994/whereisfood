@@ -1,0 +1,480 @@
+# The four gates, run by GitHub on every PR into dev or main (Phase 8 plan step 2, IS #285
+# and #286), with a smoke check of the served build and, in `integration`, Supabase's
+# security advisor on the local schema (step 5, IS #290); `npm audit` in `audit` (step 6, IS
+# #291); the process log's check and
+# the schema controls' `--check`, with the full controls on a trigger path or a PR into
+# main (step 3, IS #288); and Gitleaks on the PR's commits and messages in `secret-scan`
+# (step 7, IS #293), with the closing-keyword check on those messages and on the merge
+# commit's branch name and title (IS #368). Each of those jobs is a check the rulesets on
+# dev and main require by its job id (step 12, IS #297; CLAUDE.md, "Testing"); `base`
+# reports under its `name:`, `base (<base branch>)`, and main's ruleset requires `base
+# (main)` (IS #356). Renaming a job, or changing or adding a `name:`, renames its check, and
+# the ruleset waits on the old name as on a check that never runs (below).
+#
+# Hardening (plan #2, Q5): the plain pull-request trigger only, never its target-branch
+# variant; a read-only token; every action pinned to a commit SHA; no path filter on the
+# workflow (a required check that never runs never reports, and the PR waits on it).
+#
+# The default activity types (opened, synchronize, reopened) don't include a change of the
+# PR's base, so a PR retargeted to dev or main gets no new run until its next push or a
+# close and reopen; the results of its last run stay on its head commit, tested against the
+# old base, and a ruleset counts them for the new base (#298's probe, PR #355: retargeted
+# from dev to main, it read `CLEAN` on the dev run, `controls` `--check` only). So main's
+# ruleset also requires `base (main)`, which a run made against dev doesn't report (the
+# `base` job, IS #356). `edited` would start a run, and would also rerun every job on each
+# edit of the PR's title or body (GitHub's docs: `edited` fires on a change of the title,
+# body or base branch).
+name: ci
+
+on:
+  pull_request:
+    branches: [dev, main]
+
+permissions:
+  contents: read
+
+# A new push to a PR cancels that PR's run of this workflow still in progress. The group
+# names the workflow: groups are shared across a repository's workflows, and codeql.yml (IS
+# #294) runs on PRs too (plan step 8).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+# `shell: bash` runs each step as `bash --noprofile --norc -eo pipefail {0}` (GitHub's docs,
+# "jobs.<job_id>.steps[*].shell"), so a failed command on the left of a pipe fails the
+# step; the default without it is `bash -e {0}`.
+defaults:
+  run:
+    shell: bash
+
+# The local Supabase services a job starts without: every one but db, auth, kong, rest and
+# inbucket (Mailpit, at 127.0.0.1:54324, where every integration sign-in reads its link:
+# tests/integration/helpers.ts's requestLink, IS #381). With these
+# excluded, a local `npm run test:all` gave the full stack's counts (supabase CLI 2.109.1,
+# IS #285's PR). That CLI refused `analytics,functions,meta,storage` as names to exclude,
+# though its --help lists them, with a WARNING and exit 0, leaving those containers
+# running; it took the names below. So a CLI bump that renames one only warns.
+env:
+  SUPABASE_EXCLUDE: realtime,imgproxy,studio,edge-runtime,vector,logflare,postgres-meta,storage-api,supavisor
+
+jobs:
+  # The base this run was made against, in the check's name (IS #356): `base (dev)` or
+  # `base (main)`. `main`'s ruleset requires `base (main)`, so a PR retargeted from dev to
+  # main, which starts no new run (the header), waits for a run against main, from a push or
+  # a close and reopen (PR #359: `BLOCKED` after the retarget; after a push, `base (main)`
+  # reported and `controls` took the full set's path; PR #360: a close and reopen with no
+  # push started a run that reported `base (main)`); without it, main's ruleset
+  # counted the run made against dev (#298's probe, PR #355: `CLEAN` after the retarget,
+  # `controls` `--check` only). No `if:`: a job skipped by `if:` reports success (GitHub's
+  # docs on required checks). Limits (CLAUDE.md, "Testing"): it shows that a run against
+  # main reported on the commit, not that each other check's newest result came from it;
+  # and its name comes from the PR's own copy of this file (plan #2's limit).
+  base:
+    name: base (${{ github.base_ref }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - run: echo "This run was made against $BASE."
+        env:
+          BASE: ${{ github.base_ref }}
+
+  typecheck-lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Node from package.json's devEngines.runtime (setup-node v7.1.0's docs, "Node
+      # version file"); its "Environment details" log group prints the Node and npm
+      # versions. Its npm cache is on by default here (devEngines.packageManager is npm): a
+      # run saves it under its PR's ref, so the PR's later pushes restore it, and npm ci
+      # still checks each package against the lockfile's hashes. This workflow never runs
+      # on dev, so it saves no cache there for a new PR's first run (IS #285's PR).
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: package.json
+      - id: install
+        run: npm ci
+      # Next's generated types (.next/types, and next-env.d.ts, which also loads Next's
+      # ambient types) don't exist on a fresh checkout, and tsc checks route handlers
+      # against them only when they do: in a clean worktree a
+      # handler with non-Promise params passed `tsc --noEmit` (exit 0) and failed it after
+      # `next typegen` (exit 2, TS2344 in .next/types/validator.ts) (IS #285's PR).
+      - run: npx next typegen
+      - run: npx tsc --noEmit
+      # Lint runs after a failed typegen or tsc too, once `npm ci` succeeded, unless the run
+      # was cancelled: on probe PR #333, tsc and lint were both red in one run (IS #324).
+      # It needs no typegen output: with .next/ and next-env.d.ts moved aside, as on a fresh
+      # checkout, `npm run lint` exited 0 (PR #334's round 1). A step added to this job after tsc needs this `if:` too, or a red
+      # tsc skips it.
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run lint
+
+  unit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: package.json
+      - run: npm ci
+      - run: npm run test:run
+
+  # npm audit, three runs (plan #12, IS #291). It reads the lockfile and installs nothing:
+  # with only package.json and package-lock.json in a folder, it gave the tree's results
+  # (plan step 6's probe, 2026-11-12). Runs 2 and 3 run after an earlier run failed, unless
+  # the run was cancelled or Node's setup didn't succeed (it is skipped when the checkout
+  # fails). A PR whose run 3 warns gets an issue per
+  # advisory before it merges (CLAUDE.md, "Dependencies").
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # No npm cache: the job installs nothing, so it would restore one for no use. Runs 2
+      # and 3 wait on this step, not only the checkout: after a failed setup they would run on
+      # the runner image's own Node and npm, whose audit output wasn't probed (round 1 on PR
+      # #339, the owner's call).
+      - id: node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: package.json
+          package-manager-cache: false
+      - name: "Audit 1: production dependencies, high and critical"
+        run: npm audit --omit=dev --audit-level=high
+      - name: "Audit 2: every dependency, critical"
+        if: ${{ !cancelled() && steps.node.outcome == 'success' }}
+        run: npm audit --audit-level=critical
+      # npm audit exits 1 when it lists anything at or above its --audit-level, and this run
+      # sets none (a plain `npm audit` on the full tree, 7 moderate, exited 1, 2026-11-14), so
+      # it ignores its exit code and hands the JSON report to scripts/audit-report.mjs, which
+      # warns on each advisory and fails when it can't tell which advisories there are (its
+      # header has the report's shape, and GitHub's limit of 10 warnings a step).
+      - name: "Audit 3: production dependencies, any level (warns)"
+        if: ${{ !cancelled() && steps.node.outcome == 'success' }}
+        run: |
+          npm audit --omit=dev --json > "$RUNNER_TEMP/audit.json" || true
+          echo "::group::the report"; cat "$RUNNER_TEMP/audit.json"; echo "::endgroup::"
+          node scripts/audit-report.mjs "$RUNNER_TEMP/audit.json"
+
+  integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    # The security advisor's database URL, used by its self-test and its run below (IS
+    # #325): the local stack, with pgrst.db_schemas set on the session (the advisor step's
+    # comment says why).
+    env:
+      ADVISOR_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres?options=-c%20pgrst.db_schemas%3Dpublic%2Cgraphql_public
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: package.json
+      - run: npm ci
+      # Its output prints the stack's keys. They're the CLI's shared defaults, not secrets:
+      # the CLI says so under them ("API keys and JWT secrets are shared defaults"), and
+      # this run's keys hashed the same as a local stack's (IS #285's PR).
+      - id: stack
+        run: npx supabase start -x "$SUPABASE_EXCLUDE"
+      # tests/integration/setup.ts reads .env.local, and throws without it. The script
+      # maps README's "3. Environment" table, writes each value quoted, and fails on a
+      # missing or empty value or one a reader would change (its comments say which).
+      - run: npx supabase status -o env | node scripts/write-env-local.mjs
+      # Both projects, keeping test:all's checks: a project that collects zero files
+      # fails, and RUNS must match the projects vitest.config.ts declares. So the unit
+      # project runs here as well as in `unit`, and a failing unit test turns both jobs
+      # red; the log's project label tells them apart.
+      - run: npm run test:all
+      # Supabase's security advisor on the local schema (plan step 5, IS #290): red on a
+      # WARN or ERROR lint; `--level info` prints the INFO ones too (on IS #290's PR, two:
+      # rls_enabled_no_policy on locations and trucks, the design). It runs after the tests
+      # whenever the stack started, so a red test and a red lint both show in one run.
+      # tests/integration/ holds no SQL, DDL or grant (grepped on IS #290's PR): it reaches
+      # the stack through supabase-js and, in auth-routes.test.ts, fetch() of Mailpit and of
+      # Auth's emailed link. After test:all, the advisor printed the same two INFO as before
+      # it (run 43562854682, PR #322).
+      # Not `--local`: CLI 2.109.1's copy of rls_disabled_in_public matches only the schemas
+      # in `current_setting('pgrst.db_schemas')`, unset on the local database (six more of
+      # its lints read that setting), so with `--local` a public table with RLS off and an
+      # anon SELECT grant gave exit 0; with the setting passed on the session, as here,
+      # that table gave ERROR and exit 1 (IS #290's PR, probe PR #321). ADVISOR_DB_URL's
+      # port and schemas copy config.toml's [db] port and [api] schemas;
+      # scripts/ci-advisor.test.mjs checks both, holds this step's `run` and the self-test's
+      # advisor line to the same command, exactly, and both steps to `name`, `if` and `run`
+      # (its header says what it can't see). No step timeout: it took 1 s on
+      # run 43563442098, and a hung connection waits for what is left of the job's
+      # `timeout-minutes: 20`, which counts from the job's start (npm ci, the stack and
+      # test:all ran first).
+      #
+      # The self-test (IS #325): a public table with RLS off and an anon SELECT grant, which
+      # the advisor must report as rls_disabled_in_public and exit 1 on, or the step fails;
+      # then the table is dropped, and a failed drop fails the step too. It covers that one
+      # lint: a CLI bump that blinds one of the six others that read pgrst.db_schemas, and
+      # not this one, passes it. It matches the lint's cache key by value: the CLI printed it
+      # as "cacheKey" in one-line JSON on Windows and "cache_key" pretty-printed in CI (PR
+      # #336), the value the same.
+      - name: Security advisor self-test
+        if: ${{ !cancelled() && steps.stack.outcome == 'success' }}
+        run: |
+          drop() {
+            psql "$ADVISOR_DB_URL" -q -v ON_ERROR_STOP=1 -c "drop table if exists public.advisor_canary" ||
+              { echo "::error::couldn't drop public.advisor_canary, or reach the database"; exit 1; }
+          }
+          trap drop EXIT
+          psql "$ADVISOR_DB_URL" -q -v ON_ERROR_STOP=1 \
+            -c "create table public.advisor_canary (id int primary key)" \
+            -c "grant select on table public.advisor_canary to anon"
+          set +e
+          out="$(npx supabase db advisors --type security --level info --fail-on warn --db-url "$ADVISOR_DB_URL" 2>&1)"
+          code=$?
+          set -e
+          echo "::group::the advisor's output (exit $code)"; echo "$out"; echo "::endgroup::"
+          if [ "$code" -ne 1 ] || ! grep -q '"rls_disabled_in_public_public_advisor_canary"' <<<"$out"; then
+            echo "::error::the advisor didn't report the canary table (exit $code): it may be blind"
+            exit 1
+          fi
+      - name: Security advisor
+        if: ${{ !cancelled() && steps.stack.outcome == 'success' }}
+        run: npx supabase db advisors --type security --level info --fail-on warn --db-url "$ADVISOR_DB_URL"
+
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: package.json
+      - run: npm ci
+      # Its own stack (IS #286, open decision 3): `next build` needs .env.local, since
+      # src/lib/supabase.ts throws at import without its variables, and the smoke check's
+      # /api/live reads the database.
+      - run: npx supabase start -x "$SUPABASE_EXCLUDE"
+      - run: npx supabase status -o env | node scripts/write-env-local.mjs
+      - run: npm run build
+      # `next start` serves the build; smoke.mjs checks its paths at the URL from the
+      # server's own `Local:` line, once it has printed `Ready in` (CLAUDE.md, "Browser
+      # checks: confirm which server answered"). A `next start` that can't bind prints
+      # neither: with port 3000 already taken it printed `EADDRINUSE` and exited, and the
+      # answers came from the other server (IS #286's PR). On a failure the server's log is
+      # printed.
+      - name: Serve the build and smoke-check it
+        run: |
+          npm start > next-start.log 2>&1 &
+          server=$!
+          # `kill -0` only ends the wait early; it doesn't decide the result. In Git Bash on
+          # Windows it ended the wait after 1 s when `npm start` failed at once (a missing
+          # script), and still passed for an `npm start` whose `next start` had exited with
+          # `EADDRINUSE`; on this Ubuntu runner neither was probed. So the `Ready in` and
+          # `Local:` lines decide (IS #286's PR).
+          for _ in $(seq 1 60); do
+            grep -q -e "Ready in" -e "Failed to start server" next-start.log && break
+            kill -0 "$server" 2>/dev/null || break
+            sleep 1
+          done
+          url="$(sed -n 's/^- Local: *\(http[^ ]*\).*/\1/p;T;q' next-start.log)"
+          ok=true
+          if grep -q "Ready in" next-start.log && [ -n "$url" ]; then
+            node scripts/smoke.mjs "$url" || ok=false
+          else
+            echo "::error::next start printed no 'Ready in' and 'Local:' URL"
+            ok=false
+          fi
+          if [ "$ok" != true ]; then
+            echo "::group::next start's log"; cat next-start.log; echo "::endgroup::"
+            exit 1
+          fi
+
+  # The schema controls (CLAUDE.md, "Schema controls"): every control file parsed on every
+  # PR, and the full set, about 45 s a control, when scripts/controls-trigger.mjs says so (a
+  # trigger path changed, or the PR is into main). Its own job and stack (open decision 3),
+  # so `integration` keeps its 20-minute limit. With the stack started on SUPABASE_EXCLUDE,
+  # five controls (red, setup-fails and green, across `schema`, `rls` and `db-trucks`) ran
+  # as listed, their six `db reset`s with no excluded service started (IS #288's PR).
+  controls:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      # Depth 2: the merge commit and both its parents, which changedPaths diffs.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      # No npm cache here: `npm ci` runs only for the full set, and with the cache on, a
+      # `--check`-only run saved an empty cache (670 B) under the key every job shares. It
+      # finished first, so `unit`, `typecheck-lint` and `build` failed to save theirs
+      # ("another job may be creating this cache") and `integration` restored the empty one
+      # (probe PR #319, run 43443375088). The full set's install goes uncached.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: package.json
+          package-manager-cache: false
+      - run: node scripts/controls.mjs --check
+      # The script prints `true` or `false`, and exits 1 when it can't tell (the step then
+      # fails: `-e` applies to the assignment). Imported rather than run, it would print
+      # nothing and exit 0, so any other output fails here (PR #316, rounds 1 and 2).
+      - name: Decide whether the full set runs
+        id: trigger
+        run: |
+          full="$(node scripts/controls-trigger.mjs "$GITHUB_BASE_REF")"
+          case "$full" in
+            true | false) echo "full=$full" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::controls-trigger printed '$full', not true or false"; exit 1 ;;
+          esac
+      # The full set's steps. Each carries this `if:`: a step added here without it also runs
+      # on a PR that doesn't take the full set, where there's no stack and no install.
+      - if: steps.trigger.outputs.full == 'true'
+        run: npm ci
+      - if: steps.trigger.outputs.full == 'true'
+        run: npx supabase start -x "$SUPABASE_EXCLUDE"
+      - if: steps.trigger.outputs.full == 'true'
+        run: npx supabase status -o env | node scripts/write-env-local.mjs
+      - if: steps.trigger.outputs.full == 'true'
+        run: node scripts/controls.mjs
+
+  # The process log's own check (CLAUDE.md, "Process Log"): prints nothing and exits 0 on a
+  # good log. Plain bash; no install. Two PRs that each add the next row number both pass
+  # here, but the second to merge conflicts in the log (`process-log.sh add` inserts after
+  # the last row; probed in a clone, IS #288's PR), and the update that resolves it reruns
+  # this job.
+  process-log:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: bash scripts/process-log.sh check
+
+  # Gitleaks on the PR's commits and their messages (plan step 7, IS #293): what the local
+  # hooks can't see, `--no-verify`, `cherry-pick`, `rebase` and a clone without
+  # `core.hooksPath` (`.githooks/pre-commit`'s header), and most files git treats as
+  # binary (the scan step's comment says which). It
+  # pins the Gitleaks version README gives for the hooks, which pin none themselves, and
+  # runs their flags and checks: it sources `.githooks/gitleaks-common.sh`, so a committed
+  # `.gitleaksignore` fails it too.
+  #
+  # The release binary, not gitleaks/gitleaks-action: the action calls the API with
+  # GITHUB_TOKEN to comment on PRs (its README), and this workflow's token is read-only.
+  # The PR's own copies of this file, `.gitleaks.toml` and the shared script are what run
+  # (plan #2's limit), so a PR that weakens the scan shows it in its diff.
+  secret-scan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      # Full history, so the PR's base and head commits are both present for the range.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      # GITLEAKS_SHA256 is the linux_x64 entry of the release's checksums file for
+      # GITLEAKS_VERSION; for 8.30.1, that file's windows_x64 entry matches the hash in
+      # winget's manifest for Gitleaks.Gitleaks, a copy kept outside the release (IS #293's
+      # PR). A version bump changes both values, and README's version for the hooks.
+      # `--proto '=https'` keeps curl on HTTPS through redirects too: with it, a redirect to
+      # an `http://` URL failed ("Protocol "http" disabled (in redirect)"); without it, curl
+      # followed one (IS #348's PR). The checksum would reject a changed file either way.
+      - name: Install Gitleaks
+        env:
+          GITLEAKS_VERSION: 8.30.1
+          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+        run: |
+          dir="$RUNNER_TEMP/gitleaks"
+          mkdir -p "$dir"
+          curl -fsSL --proto '=https' -o "$dir/gitleaks.tar.gz" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  $dir/gitleaks.tar.gz" | sha256sum --check --strict -
+          tar -xzf "$dir/gitleaks.tar.gz" -C "$dir" gitleaks
+          echo "$dir" >> "$GITHUB_PATH"
+          "$dir/gitleaks" version
+      # `base.sha..head.sha`: the commits reachable from the PR's head and not from the base
+      # commit the event names, so dev's commits merged into the branch up to that commit
+      # aren't scanned again (later ones would be, which adds work, not a gap).
+      #
+      # Patches: with --log-opts, Gitleaks runs `git log -p -U0 <opts>` in place of its
+      # default `--all` (its trace log). `git log -p` shows no diff for a merge, so a value
+      # added in a merge commit itself passed; `--diff-merges=remerge` shows what a merge
+      # adds over git's own merge of its parents, and caught it, while a clean merge of a
+      # branch holding a flagged value showed nothing to scan (`--cc` output went
+      # unparsed: "no leaks found"). With a range or option git rejects, Gitleaks logged
+      # git's error, "0 commits scanned", and exited 0 (IS #293's PR, round 1), so git runs
+      # the same log first and fails the step if it can't. A diff Gitleaks can't parse
+      # isn't caught by that (not probed). On a conflicted merge Gitleaks names the file
+      # `b/<path>` (`.gitleaks.toml` says what that means for `paths`). `--text`: without
+      # it, `git log -p` prints only "Binary files … differ" for a file git counts as binary
+      # (a NUL byte, or `-diff` in `.gitattributes`), and a value in one passed (exit 0);
+      # with it, caught (exit 1). The pre-commit hook has no such option. Gitleaks' default
+      # config still skips some extensions before any scan: with `--text`, a value beside a
+      # NUL byte in `.bin`, `.png` and `.pdf` files passed, and in `.dat`, `.ico`, `.zip`
+      # and `.pmtiles` files was caught. Git's own run costs one more log of the range (1.2
+      # s for the 596 commits of `main..dev`).
+      #
+      # Both scans run even when one fails, and the step fails after them.
+      #
+      # Messages: `gitleaks git` reads patches, not messages (PR #342's C11). Each commit's
+      # stored message (`%B`, after git's cleanup; the commit-msg hook sees the file before
+      # it) goes to a file named for its commit, and one `gitleaks dir` scans them: no hash
+      # or other message joins a message's text, and a find's `File:` names its commit.
+      # One `gitleaks stdin` per commit took about 0.36 s each, about 3.5 min for the 596
+      # commits of `main..dev` (2026-11-15, locally); the folder of 596 took 0.65 s.
+      - name: Scan the PR's commits and their messages
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          . .githooks/gitleaks-common.sh
+          gitleaks_preflight secret-scan
+          n="$(git rev-list --count "$BASE..$HEAD")" \
+            || { echo "::error::the range $BASE..$HEAD isn't in the clone"; exit 1; }
+          echo "Range $BASE..$HEAD: $n commits"
+
+          git log -p -U0 --text --diff-merges=remerge "$BASE..$HEAD" > /dev/null
+          failed=0
+          run_gitleaks git --log-opts="--text --diff-merges=remerge $BASE..$HEAD" . \
+            || { echo "::error::the patch scan failed (a find, or a Gitleaks error above)"; failed=1; }
+
+          msgs="$RUNNER_TEMP/messages"
+          mkdir -p "$msgs"
+          while IFS= read -r -d '' rec; do
+            printf '%s' "${rec#*$'\n'}" > "$msgs/${rec%%$'\n'*}"
+          done < <(git log -z --format='%H%n%B' "$BASE..$HEAD")
+          files="$(find "$msgs" -type f | wc -l)"
+          [ "$files" -eq "$n" ] \
+            || { echo "::error::$files message files for $n commits"; failed=1; }
+          run_gitleaks dir "$msgs" \
+            || { echo "::error::the message scan failed (a find, or a Gitleaks error above)"; failed=1; }
+          exit "$failed"
+      # Closing keywords (IS #368): "fixes #348" in a commit message closes #348 when the
+      # commit lands on `dev`, the default branch, and PR #350's merge closed #348 that way
+      # (process-log row 682). The same range as the scan above, and the PR's branch name and
+      # title, which GitHub's merge commit carries; scripts/closing-keywords.mjs's header has
+      # the pattern, the exempt commits, the merge settings it relies on and what it can't
+      # see. These steps run when the scan fails, so one run shows both. The title and branch
+      # come through `env`, never into the script's text, and the script fails when either is
+      # missing or empty. A title changed after a run isn't read until the next push or a
+      # close and reopen (no `edited` trigger, above). A red result here names a message, or
+      # the branch name and title, not a secret: the step's name and its annotation say which.
+      - id: node
+        if: ${{ !cancelled() }}
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: package.json
+          package-manager-cache: false
+      - name: Closing keywords in the PR's commit messages, branch name and title
+        if: ${{ !cancelled() && steps.node.outcome == 'success' }}
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: git log -z --format='%H%n%B' "$BASE..$HEAD" | node scripts/closing-keywords.mjs

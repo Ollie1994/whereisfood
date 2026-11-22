@@ -1,5 +1,6 @@
 import type { TablesUpdate } from "@/lib/database.types";
 import { MAX_ROWS, assertAllRows } from "@/lib/db/complete";
+import { pick } from "@/lib/db/pick";
 import { supabaseAdmin } from "@/lib/supabase";
 import type { Location, LocationPatch, NewLocation } from "@/lib/types";
 
@@ -56,16 +57,6 @@ const PATCH_KEYS: Record<keyof LocationPatch, true> = {
   ends_at: true,
 };
 
-// A copy of `source` with only the keys `keys` lists. Typed `T`: `keys` names every
-// key of `T`, so each key `source` must have is copied.
-function pick<T extends object>(source: T, keys: Record<keyof T, true>): T {
-  const picked = {} as T;
-  for (const key of Object.keys(keys) as (keyof T)[]) {
-    if (key in source) picked[key] = source[key];
-  }
-  return picked;
-}
-
 // Insert and return the stored row. Raises `23P01` on an overlap with a live row of the
 // same truck, `23514` when `ends_at <= starts_at`.
 export async function insertLocation(location: NewLocation): Promise<Location> {
@@ -79,8 +70,7 @@ export async function insertLocation(location: NewLocation): Promise<Location> {
   return data;
 }
 
-// Update a row that isn't cancelled and return it; null when no such row. The one path
-// for both edits and cancels, so the live-row filter and the select are written once.
+// Update a row that isn't cancelled and return it; null when no such row. The edits' path.
 async function updateLiveRow(
   id: string,
   values: TablesUpdate<"locations">,
@@ -90,6 +80,27 @@ async function updateLiveRow(
     .update(values)
     .eq("id", id)
     .is("cancelled_at", null)
+    .select(LOCATION_COLUMNS)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
+// As `updateLiveRow`, and only while the row's `ends_at` is after `at`, in the same
+// statement, so no write lands between a check and the update. Cancel's and confirm's path:
+// Phase 9 plan #8 keeps this filter out of `updateLiveRow`, which edits use (IS #380).
+async function updateUnendedRow(
+  id: string,
+  values: TablesUpdate<"locations">,
+  at: string,
+): Promise<Location | null> {
+  const { data, error } = await supabaseAdmin
+    .from("locations")
+    .update(values)
+    .eq("id", id)
+    .is("cancelled_at", null)
+    .gt("ends_at", at)
     .select(LOCATION_COLUMNS)
     .maybeSingle();
 
@@ -116,13 +127,42 @@ export async function updateLocation(
   return updateLiveRow(id, picked);
 }
 
-// Cancel a live row: set `cancelled_at` where it is still null. Null when the row is
-// missing or already cancelled, so a second cancel can't move the first's timestamp.
+// Cancel a live row that hasn't ended: set `cancelled_at` where it is still null and
+// `ends_at` is after `cancelledAt`. Null when the row is missing, already cancelled or
+// ended, so a second cancel can't move the first's timestamp and past history can't be
+// cancelled (Phase 9 plan #8). The caller tells those apart.
 export async function cancelLocation(
   id: string,
   cancelledAt: string,
 ): Promise<Location | null> {
-  return updateLiveRow(id, { cancelled_at: cancelledAt });
+  return updateUnendedRow(id, { cancelled_at: cancelledAt }, cancelledAt);
+}
+
+// The row when it isn't cancelled; null for an unknown id or a cancelled row, the same
+// rows `updateLiveRow` finds. It finds an ended row, which `updateUnendedRow` skips: the
+// service tells ended from missing by that difference (Phase 9 plan #8).
+export async function getLocationById(id: string): Promise<Location | null> {
+  const { data, error } = await supabaseAdmin
+    .from("locations")
+    .select(LOCATION_COLUMNS)
+    .eq("id", id)
+    .is("cancelled_at", null)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
+// "Stämmer fortfarande" on a live row: an UPDATE that writes only `updated_at`, and the
+// `locations_updated_at` trigger then stores its own `now()`, not `confirmedAt` (Phase 7
+// plan, #18; `db-locations.test.ts` writes 2000-01-01 and reads back the transaction's
+// time). Null when the row is missing, cancelled, or ended at `confirmedAt` (its `ends_at`
+// not after it; Phase 9 plan #8). The caller tells those apart.
+export async function confirmLocation(
+  id: string,
+  confirmedAt: string,
+): Promise<Location | null> {
+  return updateUnendedRow(id, { updated_at: confirmedAt }, confirmedAt);
 }
 
 // Live rows of every truck overlapping [from, to): `starts_at < to AND ends_at > from`.
@@ -148,6 +188,43 @@ export async function findLocationsOverlapping(from: string, to: string): Promis
   return data;
 }
 
+// The `limit` rule below, for every read that takes one.
+function checkLimit(fn: string, limit: number): void {
+  if (!Number.isInteger(limit) || limit < 1 || limit > MAX_ROWS) {
+    throw new Error(`${fn}: limit must be an integer from 1 to ${MAX_ROWS}, got ${limit}`);
+  }
+}
+
+// One truck's first `limit` live rows overlapping [from, to), by `starts_at`, with
+// `findLocationsOverlapping`'s half-open bounds. For a read that needs a few of the truck's
+// rows, not every truck's: `findLocationsOverlapping` throws once a window holds more than
+// `max_rows` rows, and a window can span years (`validators/location.ts`). `limit` as
+// below, checked before any request.
+//
+// No `id` tie-break: two live rows of one truck can't share a `starts_at`
+// (`db-locations.test.ts` inserts a second at the same start and gets `23P01`).
+export async function findTruckLocationsOverlapping(
+  truckId: string,
+  from: string,
+  to: string,
+  limit: number,
+): Promise<Location[]> {
+  checkLimit("findTruckLocationsOverlapping", limit);
+
+  const { data, error } = await supabaseAdmin
+    .from("locations")
+    .select(LOCATION_COLUMNS)
+    .eq("truck_id", truckId)
+    .is("cancelled_at", null)
+    .lt("starts_at", to)
+    .gt("ends_at", from)
+    .order("starts_at")
+    .limit(limit);
+
+  if (error) throw error;
+  return data;
+}
+
 // The truck's latest `limit` live rows that started before `before`, newest `starts_at`
 // first. `before` is usually now, so future entries don't fill "recent places".
 //
@@ -164,11 +241,7 @@ export async function listRecentLocationsForTruck(
   before: string,
   limit: number,
 ): Promise<Location[]> {
-  if (!Number.isInteger(limit) || limit < 1 || limit > MAX_ROWS) {
-    throw new Error(
-      `listRecentLocationsForTruck: limit must be an integer from 1 to ${MAX_ROWS}, got ${limit}`,
-    );
-  }
+  checkLimit("listRecentLocationsForTruck", limit);
 
   const { data, error } = await supabaseAdmin
     .from("locations")

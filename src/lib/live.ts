@@ -1,12 +1,12 @@
-import { isValid, parseISO } from "date-fns";
-import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
+import { parseISO } from "date-fns";
+import { MAP_UNSUPPORTED } from "@/lib/map-texts";
+import { stockholmDay, stockholmMidnight, stockholmWallClock } from "@/lib/stockholm";
+import { isTimestamp } from "@/lib/timestamp";
 import type { Location, Truck } from "@/lib/types";
 
 // The `/api/live` response contract and the pure helpers the service, the route, the
 // map hooks and the popup share (Phase 6 plan, "Functions and types"). No React, no env
 // and no clock: every function that needs the time takes `now`.
-
-export const TZ = "Europe/Stockholm";
 
 export type TruckId = Truck["id"];
 
@@ -35,26 +35,12 @@ export type FetchState = "loading" | "ok" | "failing";
 
 // --- The guard the client applies to a 2xx body ---------------------------------
 
-// A date, a time with optional fractional seconds, and an offset. PostgREST returns
-// `…T09:00:00+00:00`, and `updated_at` (from `now()`) with microseconds,
-// `…T06:50:08.606373+00:00` (local stack, 2026-10-25). The pattern comes first
-// because `parseISO` alone accepts `"2026"`, and a string with no offset, which it
-// reads in the browser's own time zone. The time's and the offset's hours are bounded
-// here because `isValid(instant(…))` (`parseISO`) accepts `T24:00:00` and `+24:00`; it
-// refuses `+01:60` itself (all pinned in `live.test.ts`).
-const TIMESTAMP =
-  /^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-](?:[01]\d|2[0-3]):\d{2})$/;
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
 function isNullableString(value: unknown): value is string | null {
   return value === null || typeof value === "string";
-}
-
-function isTimestamp(value: unknown): value is string {
-  return typeof value === "string" && TIMESTAMP.test(value) && isValid(instant(value));
 }
 
 // MapLibre's `LngLat` constructor throws outside ±90 latitude and doesn't check
@@ -91,29 +77,14 @@ export function isLiveResponse(body: unknown): body is LiveResponse {
   return isRecord(body) && Array.isArray(body.entries) && body.entries.every(isLiveEntry);
 }
 
-// --- Stockholm calendar days ------------------------------------------------------
+// --- Timestamps ------------------------------------------------------------------
 
-const DAY_MS = 86_400_000;
-
-// Every timestamp string is read here, never by passing the string to `formatInTimeZone`:
-// date-fns-tz's own parser reads `…T24:00:00+00:00` as that day's 00:00 where `parseISO`
-// reads the next day's (probed, PR #190 round 2). The guard refuses hour 24 as well.
+// Every timestamp string is read here, by `parseISO`, never by another parser: given the
+// string, date-fns-tz 3.2.0's `formatInTimeZone` parsed `…T24:00:00+00:00` as that day's
+// 00:00 UTC where `parseISO` reads the next day's (probed, PR #190 round 2). The guard refuses
+// hour 24 as well.
 function instant(timestamp: string): Date {
   return parseISO(timestamp);
-}
-
-// The Stockholm calendar date of `date`, as a count of days since 1970-01-01. Day
-// arithmetic on it is plain integer arithmetic, with no DST in it.
-function stockholmDay(date: Date): number {
-  const [y, m, d] = formatInTimeZone(date, TZ, "yyyy-MM-dd").split("-").map(Number);
-  return Date.UTC(y, m - 1, d) / DAY_MS;
-}
-
-// Midnight in Stockholm at the start of `day`. Not the previous midnight plus 24 h:
-// 2026-03-29 is 23 h long and 2026-10-25 is 25 h (`live.test.ts`'s DST cases).
-function stockholmMidnight(day: number): Date {
-  const date = new Date(day * DAY_MS).toISOString().slice(0, 10);
-  return fromZonedTime(`${date}T00:00:00`, TZ);
 }
 
 function ms(timestamp: string): number {
@@ -186,21 +157,160 @@ export function diffMarkers(
   return diff;
 }
 
-// --- Popup text ------------------------------------------------------------------------
+// --- Markers that share a spot ----------------------------------------------------------
 
-function clock(date: Date): string {
-  return formatInTimeZone(date, TZ, "HH:mm");
+export type PixelOffset = [number, number];
+
+// The marker is 18 px across (`useMapLibre`'s `createMarkerElement`); neighbours in a fan
+// are at least this far apart, centre to centre, after rounding, so 2 px show between them
+// (the owner's choice, IS #248).
+const FAN_SPACING = 20;
+const FAN_MIN_RADIUS = 10;
+
+// Half away from zero, after absorbing float error near .5: `Math.round` rounds -10.5 up to
+// -10, and 21 sin(150°) is 10.500000000000007 where 21 sin(-30°) is -10.5, so a six-truck fan
+// came out 20 px apart on its right and 22 on its left (probed, round 3 on PR #436).
+export function roundPx(value: number): number {
+  return Math.sign(value) * Math.floor(Math.abs(value) + 0.5 + 1e-9) || 0;
 }
 
-// Index = ISO weekday (`i`) - 1, and month (`M`) - 1.
+// `n` whole-pixel points around the spot, mirror-symmetric about the vertical: two left and
+// right; more on a circle from the top (-90°), clockwise on screen (y grows down).
+function fanPoints(n: number, radius: number): PixelOffset[] {
+  return Array.from({ length: n }, (_, i) => {
+    const angle = n === 2 ? Math.PI * (i + 1) : -Math.PI / 2 + (2 * Math.PI * i) / n;
+    return [roundPx(radius * Math.cos(angle)), roundPx(radius * Math.sin(angle))];
+  });
+}
+
+// One collator: `localeCompare` builds one per call. Where an engine has no Swedish data it
+// falls back to its default order (Ö sorting like O), a limit.
+const SWEDISH = new Intl.Collator("sv");
+
+function closestPair(points: readonly PixelOffset[]): number {
+  let closest = Infinity;
+  for (let i = 0; i < points.length; i++) {
+    for (let j = i + 1; j < points.length; j++) {
+      closest = Math.min(closest, Math.hypot(points[i][0] - points[j][0], points[i][1] - points[j][1]));
+    }
+  }
+  return closest;
+}
+
+// The owner's choice on IS #248: markers whose entries have exactly the same coordinates
+// (a known spot from `spots.ts` gives every truck there the same pair) are drawn apart on
+// screen, each at its real coordinates with a pixel offset. Ordered by truck name, Swedish
+// alphabetical, ties by truck id, so the same trucks keep the same places. The radius is
+// the smallest from `FAN_MIN_RADIUS` up, in whole pixels, at which the rounded points keep
+// `FAN_SPACING`. The search starts where that can first happen: `roundPx` moves a coordinate
+// at most 0.5 px plus its 1e-9 epsilon, so a point at most a hair over √2/2 px and a pair a
+// hair over √2 px, and below `(FAN_SPACING - √2 - 1e-6) / (2 sin(π/n))` neighbours are too
+// close however they round. A truck alone gets [0, 0].
+export function fanOffsets(markers: ReadonlyMap<TruckId, MarkerEntry>): Map<TruckId, PixelOffset> {
+  const spots = new Map<string, LiveEntry[]>();
+  for (const { entry } of markers.values()) {
+    const key = `${entry.latitude} ${entry.longitude}`;
+    const group = spots.get(key);
+    if (group) group.push(entry);
+    else spots.set(key, [entry]);
+  }
+  const offsets = new Map<TruckId, PixelOffset>();
+  for (const group of spots.values()) {
+    group.sort(
+      (a, b) =>
+        SWEDISH.compare(a.truck.name, b.truck.name) ||
+        (a.truck.id < b.truck.id ? -1 : a.truck.id > b.truck.id ? 1 : 0),
+    );
+    const n = group.length;
+    if (n === 1) {
+      offsets.set(group[0].truck.id, [0, 0]);
+      continue;
+    }
+    let radius = Math.max(FAN_MIN_RADIUS, Math.ceil((FAN_SPACING - Math.SQRT2 - 1e-6) / (2 * Math.sin(Math.PI / n))));
+    let points = fanPoints(n, radius);
+    while (closestPair(points) < FAN_SPACING) points = fanPoints(n, ++radius);
+    group.forEach((entry, i) => offsets.set(entry.truck.id, points[i]));
+  }
+  return offsets;
+}
+
+// The trucks in both `prev` and `next` whose offset changed. A truck only in `next` is new,
+// and its marker is built with its offset.
+export function changedOffsets(
+  prev: ReadonlyMap<TruckId, PixelOffset>,
+  next: ReadonlyMap<TruckId, PixelOffset>,
+): [TruckId, PixelOffset][] {
+  const changed: [TruckId, PixelOffset][] = [];
+  for (const [truckId, offset] of next) {
+    const before = prev.get(truckId);
+    if (before && (before[0] !== offset[0] || before[1] !== offset[1])) changed.push([truckId, offset]);
+  }
+  return changed;
+}
+
+export type MarkerPlan = Omit<MarkerDiff, "add"> & {
+  // Each new truck's marker entry and its offset.
+  add: [MarkerEntry, PixelOffset][];
+  // The live markers to move: their offset now (`offsetOf`) differs from their new one.
+  move: [TruckId, PixelOffset][];
+};
+
+// What `useMapLibre` applies in one commit. `offsetOf` reads a live marker's offset as
+// MapLibre holds it. A fan's offsets follow its trucks' coordinates and names, which only
+// an add, update or remove changes, so they are recomputed, and live offsets read, only
+// then (and on any update, a status change included, whose offsets come out the same); a
+// tick alone moves nothing. A truck joining or leaving a spot, moving, or a rename that
+// re-sorts a spot moves the others there.
+export function planMarkers(
+  prev: ReadonlyMap<TruckId, MarkerEntry>,
+  next: ReadonlyMap<TruckId, MarkerEntry>,
+  offsetOf: (truckId: TruckId) => PixelOffset | undefined,
+): MarkerPlan {
+  const { add, update, remove } = diffMarkers(prev, next);
+  if (!add.length && !update.length && !remove.length) return { add: [], update, remove, move: [] };
+  const offsets = fanOffsets(next);
+  const current = new Map<TruckId, PixelOffset>();
+  for (const truckId of next.keys()) {
+    const offset = offsetOf(truckId);
+    if (offset) current.set(truckId, offset);
+  }
+  return {
+    // `fanOffsets` keys every truck of `next`, the added ones included.
+    add: add.map((marker): [MarkerEntry, PixelOffset] => [marker, offsets.get(marker.entry.truck.id)!]),
+    update,
+    remove,
+    move: changedOffsets(current, offsets),
+  };
+}
+
+// --- Popup text ------------------------------------------------------------------------
+
+// Stockholm wall time through `stockholm.ts`'s `Intl` reading, not date-fns-tz 3.2.0's
+// `formatInTimeZone`, which was an hour late for a Stockholm wall time inside the host's own
+// DST gap: 2026-03-08 01:30Z read "03:30" on a New York host (IS #239; `live.test.ts`'s
+// host-zone cases).
+function clock(date: Date): string {
+  return stockholmWallClock(date).time;
+}
+
+// Index = ISO weekday - 1 (Monday first), and month - 1.
 const WEEKDAYS = ["måndags", "tisdags", "onsdags", "torsdags", "fredags", "lördags", "söndags"];
 const MONTHS = ["jan", "feb", "mars", "apr", "maj", "juni", "juli", "aug", "sep", "okt", "nov", "dec"];
 
+// The weekday of Stockholm day `day` (`stockholmDay`'s count): day 0, 1970-01-01, was a
+// Thursday.
+function weekday(day: number): string {
+  return WEEKDAYS[(((day + 3) % 7) + 7) % 7];
+}
+
 // "24 okt" in Stockholm, with the year when it isn't `now`'s: "20 dec 2025".
+// The day and month are read from the end of `stockholmWallClock`'s date, not by splitting
+// on "-", which a year before 1 also holds ("-0001-12-31").
 function shortDate(date: Date, now: Date): string {
-  const [year, month, day] = formatInTimeZone(date, TZ, "yyyy-M-d").split("-");
-  const text = `${day} ${MONTHS[Number(month) - 1]}`;
-  return year === formatInTimeZone(now, TZ, "yyyy") ? text : `${text} ${year}`;
+  const wall = stockholmWallClock(date).date;
+  const year = wall.slice(0, -6);
+  const text = `${Number(wall.slice(-2))} ${MONTHS[Number(wall.slice(-5, -3)) - 1]}`;
+  return year === stockholmWallClock(now).date.slice(0, -6) ? text : `${text} ${year}`;
 }
 
 // The word for Stockholm day `day` (the day of `date`), seen from `today`, `now`'s.
@@ -239,13 +349,13 @@ export function statusText(marker: MarkerEntry): string {
 // By Stockholm calendar days between `updated_at` and `now` (plan, open decision 5).
 export function freshnessText(updatedAt: string, now: Date): string {
   const at = instant(updatedAt);
-  const days = stockholmDay(now) - stockholmDay(at);
+  const atDay = stockholmDay(at);
+  const days = stockholmDay(now) - atDay;
   const time = clock(at);
   if (days <= 0) return `Uppdaterad ${time}`;
   if (days === 1) return `Uppdaterad igår ${time}`;
   if (days < 7) {
-    const weekday = WEEKDAYS[Number(formatInTimeZone(at, TZ, "i")) - 1];
-    return `Uppdaterad i ${weekday} ${time}`;
+    return `Uppdaterad i ${weekday(atDay)} ${time}`;
   }
   return `Uppdaterad ${shortDate(at, now)} ${time}`;
 }
@@ -255,7 +365,9 @@ export function freshnessText(updatedAt: string, now: Date): string {
 // Plan, open decisions 6 and 7. Nothing before the first response: an empty map then
 // isn't "no trucks". While polls fail the markers stay (plan #16), so with none showing
 // the notice says nothing could be fetched, and with some it says they may be old.
-export function noticeText(fetchState: FetchState, markerCount: number): string | null {
+// `mapFailed` comes first, over every fetch state (`live.test.ts`, the "map failed" cases).
+export function noticeText(fetchState: FetchState, markerCount: number, mapFailed = false): string | null {
+  if (mapFailed) return MAP_UNSUPPORTED;
   if (fetchState === "failing") {
     return markerCount === 0 ? "Kunde inte hämta foodtrucks. Försöker igen…" : "Kunde inte uppdatera";
   }

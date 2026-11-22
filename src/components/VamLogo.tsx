@@ -1,0 +1,37 @@
+// Väm's temporary logo (IS #481): option A from the owner's logo canvas, "Väm" drawn in lines.
+// The drawing has four copies, kept by hand and checked by nothing: this one, `src/app/icon.svg`,
+// and two rendered from it, `favicon.ico` (16, 32, 48 px) and `apple-icon.png`; a change to the
+// drawing changes all four. In `PublicShell`'s header (inside its link to `/`, IS #483) and the
+// admin header it stands beside "Var är maten" (the owner's call), so it carries the name:
+// labelled "Väm" for screen readers. Presentation attributes, not `style`, which renders as an
+// inline `style=""` that the admin pages' nonce CSP refuses (`CLAUDE.md`, "Security headers");
+// the owner's browser check of `/admin` showed no
+// violation (PR #482).
+export default function VamLogo({ size }: { size: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 100 100"
+      role="img"
+      aria-label="Väm"
+      focusable="false"
+    >
+      <circle cx="50" cy="50" r="50" fill="#17191F" />
+      <g
+        fill="none"
+        stroke="#FFF4E0"
+        strokeWidth="7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <polyline points="14,37 24,64 34,37" />
+        <circle cx="47" cy="55.5" r="8.5" />
+        <line x1="55.5" y1="47" x2="55.5" y2="64" />
+        <path d="M65 64 V53 a6 6 0 0 1 12 0 V64 M77 53 a6 6 0 0 1 12 0 V64" />
+      </g>
+      <circle cx="43" cy="37.5" r="3.4" fill="#F5A524" />
+      <circle cx="52" cy="37.5" r="3.4" fill="#F5A524" />
+    </svg>
+  );
+}

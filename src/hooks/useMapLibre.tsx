@@ -1,36 +1,24 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { flushSync } from "react-dom";
-// Namespace import: MapLibre 6 is ESM-only and has no default export.
+// Namespace import, for the reason `map-setup.ts` gives.
 import * as maplibregl from "maplibre-gl";
-import { Protocol } from "pmtiles";
-import { layers, namedFlavor } from "@protomaps/basemaps";
 import TruckPopup from "@/components/Map/TruckPopup";
-import { diffMarkers, statusText, type MarkerEntry, type TruckId } from "@/lib/live";
-import { workerUrl } from "@/lib/maplibre-worker.mjs";
-
-const GOTHENBURG: [number, number] = [11.9746, 57.7089];
-const PMTILES_URL = process.env.NEXT_PUBLIC_PMTILES_URL;
+import { planMarkers, statusText, type MarkerEntry, type PixelOffset, type TruckId } from "@/lib/live";
+import { NO_WEBGL2, createBaseMap } from "@/lib/map-setup";
 
 // Open is filled, later is outlined (plan, open decision 8). The colour and size are
 // placeholders until the owner has looked at them on the map.
 const MARKER_COLOR = "#16a34a";
-
-// Registered once on the client, lazily inside the effect (never on the server):
-// the `pmtiles://` protocol, and MapLibre 6's worker URL.
-//
-// The worker is a separate file in v6, and it imports a shared chunk. Both are served
-// from `public/maplibre/<version>/`, copied from node_modules by
-// `scripts/copy-maplibre-worker.mjs`. Where, why versioned, and why MapLibre's
-// documented Turbopack form does NOT work here: `src/lib/maplibre-worker.mjs`.
-let mapLibreInitialised = false;
 
 type OpenPopup = { truckId: TruckId; popup: maplibregl.Popup; root: Root };
 
 // What the effects and the click handlers share, in one ref. `map` is the map the
 // init effect built and hasn't removed. `shown` is the `markers` last applied, and
 // `live` holds one `maplibregl.Marker` for each of its trucks. `open` is set exactly
-// while a popup is open: its `close` handler clears it, however the popup closed.
+// while a popup is open: its `close` handler clears it, however the popup closed. A
+// marker's fan offset (`planMarkers`) is held by MapLibre (`getOffset`); an open popup
+// takes a copy when it opens, which the marker effect's move loop keeps in step.
 type MarkerLayer = {
   map: maplibregl.Map | null;
   live: Map<TruckId, maplibregl.Marker>;
@@ -53,6 +41,8 @@ function styleMarkerElement(el: HTMLElement, marker: MarkerEntry) {
 
 // A button for keyboards and screen readers: a tab stop, its name from
 // `styleMarkerElement`, and Enter or Space opening the popup as a click does (`addMarker`).
+// Tab order is the order markers were added, not their place on the map, nor their
+// clockwise name order in a fan at a shared spot (`fanOffsets`): a limit, IS #248.
 function createMarkerElement(marker: MarkerEntry): HTMLDivElement {
   const el = document.createElement("div");
   el.setAttribute("role", "button");
@@ -88,17 +78,19 @@ function closeOpenPopup(layer: MarkerLayer) {
   layer.open?.popup.remove();
 }
 
-function addMarker(map: maplibregl.Map, layer: MarkerLayer, entry: MarkerEntry) {
+function addMarker(map: maplibregl.Map, layer: MarkerLayer, entry: MarkerEntry, offset: PixelOffset) {
   const truckId = entry.entry.truck.id;
   const el = createMarkerElement(entry);
-  layer.live.set(truckId, new maplibregl.Marker({ element: el }).setLngLat(lngLatOf(entry)).addTo(map));
+  const marker = new maplibregl.Marker({ element: el, offset });
+  layer.live.set(truckId, marker.setLngLat(lngLatOf(entry)).addTo(map));
 
   function openPopup() {
     closeOpenPopup(layer);
 
     const content = document.createElement("div");
     const root = createRoot(content);
-    const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: true });
+    // The marker's offset now, which a sibling joining or leaving may have changed.
+    const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: true, offset: marker.getOffset() });
     const open: OpenPopup = { truckId, popup, root };
     popup.on("close", () => {
       if (layer.open === open) layer.open = null;
@@ -139,50 +131,28 @@ function addMarker(map: maplibregl.Map, layer: MarkerLayer, entry: MarkerEntry) 
 }
 
 // Initialises MapLibre + PMTiles on the given container and keeps one marker per entry
-// of `markers` on it, changing only the markers `diffMarkers` names (CLAUDE.md, UI Rules).
+// of `markers` on it, changing only the markers `planMarkers` names: those `diffMarkers`
+// lists, and those whose fan offset changed (CLAUDE.md, UI Rules).
+// True when the browser can't draw the map, for `MapClient` to say so.
 export function useMapLibre(
   containerRef: RefObject<HTMLDivElement | null>,
   markers: ReadonlyMap<TruckId, MarkerEntry>,
   now: Date,
-) {
+): boolean {
   // Counts maps built, so the marker effect re-runs after a build whatever order the
   // effects run in. The map itself is only in the ref.
   const [builds, setBuilds] = useState(0);
+  const [failed, setFailed] = useState(false);
   const layerRef = useRef<MarkerLayer>({ map: null, live: new Map(), shown: new Map(), open: null, now });
 
   useEffect(() => {
     const layer = layerRef.current;
-    if (!containerRef.current || !PMTILES_URL) return;
-
-    if (!mapLibreInitialised) {
-      maplibregl.setWorkerUrl(workerUrl(maplibregl.getVersion()));
-      maplibregl.addProtocol("pmtiles", new Protocol().tile);
-      mapLibreInitialised = true;
-    }
-
-    const created = new maplibregl.Map({
-      container: containerRef.current,
-      center: GOTHENBURG,
-      zoom: 13,
-      style: {
-        version: 8,
-        glyphs:
-          "https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf",
-        sprite: "https://protomaps.github.io/basemaps-assets/sprites/v4/light",
-        sources: {
-          protomaps: {
-            type: "vector",
-            url: `pmtiles://${PMTILES_URL}`,
-            attribution:
-              '<a href="https://protomaps.com">Protomaps</a> © <a href="https://openstreetmap.org">OpenStreetMap</a>',
-          },
-        },
-        // Swedish labels. For Latin-script places (all of Gothenburg) the generated
-        // `text-field` is `name:sv`, then `pgf:name`, then the local `name`; `name:en`
-        // is only a fallback for places in other scripts.
-        layers: layers("protomaps", namedFlavor("light"), { lang: "sv" }),
-      },
-    });
+    if (!containerRef.current) return;
+    const created = createBaseMap(containerRef.current);
+    // Each run's own outcome: a dev re-run (StrictMode, Fast Refresh) that builds a map
+    // clears an earlier failure.
+    setFailed(created === NO_WEBGL2);
+    if (!created || created === NO_WEBGL2) return;
     layer.map = created;
     setBuilds((count) => count + 1);
 
@@ -215,10 +185,14 @@ export function useMapLibre(
     const nowChanged = layer.now !== now;
     layer.now = now;
 
-    const { add, update, remove } = diffMarkers(layer.shown, markers);
+    const offsetOf = (truckId: TruckId): PixelOffset | undefined => {
+      const point = layer.live.get(truckId)?.getOffset();
+      return point && [point.x, point.y];
+    };
+    const { add, update, remove, move } = planMarkers(layer.shown, markers, offsetOf);
     layer.shown = markers;
 
-    for (const entry of add) addMarker(current, layer, entry);
+    for (const [entry, offset] of add) addMarker(current, layer, entry, offset);
     for (const entry of update) {
       const marker = layer.live.get(entry.entry.truck.id);
       marker?.setLngLat(lngLatOf(entry));
@@ -240,6 +214,13 @@ export function useMapLibre(
       layer.live.delete(truckId);
     }
 
+    // Only a marker whose offset changed is moved (`planMarkers` says when), and an open
+    // popup moves with its marker.
+    for (const [truckId, offset] of move) {
+      layer.live.get(truckId)?.setOffset(offset);
+      if (layer.open?.truckId === truckId) layer.open.popup.setOffset(offset);
+    }
+
     // The status, hours and freshness text follow the tick (e.g. across Stockholm
     // midnight); an update moves the popup with its marker.
     const openTruck = layer.open?.truckId;
@@ -247,4 +228,6 @@ export function useMapLibre(
       renderOpenPopup(layer);
     }
   }, [builds, markers, now]);
+
+  return failed;
 }

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   diffMarkers,
+  changedOffsets,
+  planMarkers,
+  roundPx,
+  fanOffsets,
   freshnessText,
   hoursText,
   isLiveEntry,
@@ -145,14 +149,14 @@ describe("isLiveResponse", () => {
     ["a timestamp with no time", top("starts_at", "2026-10-31")],
     // `parseISO` reads this in the runtime's own time zone; the pattern refuses it.
     ["a timestamp with no offset", top("starts_at", "2026-10-31T09:00:00")],
-    // Matches the pattern; only `isValid(instant(…))` refuses it.
+    // Matches the pattern; only `isValid(parseISO(…))` (`timestamp.ts`) refuses it.
     ["an impossible date", top("starts_at", "2026-02-30T09:00:00+00:00")],
-    // `isValid(instant(…))` accepts this one; only the pattern refuses it.
+    // `isValid(parseISO(…))` (`timestamp.ts`) accepts this one; only the pattern refuses it.
     ["an offset of +24:00", top("starts_at", "2026-10-31T09:00:00+24:00")],
     ["an hour of 24 in starts_at", top("starts_at", "2026-10-31T24:00:00+00:00")],
     ["an hour of 24 in ends_at", top("ends_at", "2026-10-31T24:00:00+00:00")],
     ["an hour of 24 in updated_at", top("updated_at", "2026-10-31T24:00:00+00:00")],
-    // The pattern accepts this one; only `isValid(instant(…))` refuses it.
+    // The pattern accepts this one; only `isValid(parseISO(…))` (`timestamp.ts`) refuses it.
     ["an offset of +01:60", top("starts_at", "2026-10-31T09:00:00+01:60")],
   ])("rejects a body whose one entry has %s", (_name, broken) => {
     expect(isLiveResponse({ entries: [broken] })).toBe(false);
@@ -307,6 +311,193 @@ describe("diffMarkers", () => {
   });
 });
 
+describe("fanOffsets", () => {
+  const named = (id: string, name: string, overrides: Partial<LiveEntry> = {}): MarkerEntry => ({
+    entry: truck(id, { ...overrides, truck: { ...entry().truck, name } }),
+    status: "open",
+  });
+  const markers = (...list: MarkerEntry[]) => new Map(list.map((m) => [m.entry.truck.id, m]));
+  const elsewhere = { latitude: 57.7, longitude: 11.96 };
+  // Centre-to-centre distance between two offsets.
+  const apart = (a: number[], b: number[]) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+
+  it("leaves a truck alone at its spot, and trucks at different spots, at [0, 0]", () => {
+    expect(fanOffsets(markers(named("t1", "Tacobilen")))).toEqual(new Map([["t1", [0, 0]]]));
+    expect(fanOffsets(markers(named("t1", "Tacobilen"), named("t2", "Burgarbilen", elsewhere)))).toEqual(
+      new Map([["t1", [0, 0]], ["t2", [0, 0]]]),
+    );
+    expect(fanOffsets(new Map())).toEqual(new Map());
+  });
+
+  it("puts two trucks at one spot side by side, in name order whatever the map's order", () => {
+    const expected = new Map([["t2", [-10, 0]], ["t1", [10, 0]]]);
+    expect(fanOffsets(markers(named("t1", "Tacobilen"), named("t2", "Burgarbilen")))).toEqual(expected);
+    expect(fanOffsets(markers(named("t2", "Burgarbilen"), named("t1", "Tacobilen")))).toEqual(expected);
+  });
+
+  it("orders by Swedish alphabetical order, then by truck id", () => {
+    // In Swedish, Ö sorts after Z; "Öl" comes last.
+    const three = fanOffsets(markers(named("t1", "Öl"), named("t2", "Zebra"), named("t3", "Apa")));
+    expect(three.get("t3")).toEqual([0, -12]); // first: at the top
+    expect(three.get("t2")![0]).toBeGreaterThan(0); // second: clockwise, right
+    expect(three.get("t1")![0]).toBeLessThan(0); // third: left
+    const tie = fanOffsets(markers(named("b", "Samma"), named("a", "Samma")));
+    expect(tie.get("a")).toEqual([-10, 0]);
+    expect(tie.get("b")).toEqual([10, 0]);
+  });
+
+  it("grows the radius only as far as the spacing needs", () => {
+    // Six: the radius 20 that 20 / 2 / sin(30°) gives rounds two neighbours to 19.7 px
+    // apart, so it grows to 21.
+    const six = [...fanOffsets(markers(...Array.from({ length: 6 }, (_, i) => named(`t${i}`, `Bil ${i}`)))).values()];
+    expect(six[0]).toEqual([0, -21]);
+    expect(fanOffsets(markers(named("a", "A"), named("b", "B"))).get("a")).toEqual([-10, 0]);
+  });
+
+  it("keeps every pair 20 px apart at the smallest radius from 10 that does, for 2 to 12 at a spot", () => {
+    // Only the search is independent here: the layout copies the code's (left and right for
+    // two; from the top, clockwise, for more; `roundPx`), so it checks the 20 px and the bound
+    // the search starts at, not the points. The mirror test below checks the points.
+    const layout = (n: number, r: number) =>
+      Array.from({ length: n }, (_, i) => {
+        const a = n === 2 ? Math.PI * (i + 1) : -Math.PI / 2 + (2 * Math.PI * i) / n;
+        return [roundPx(r * Math.cos(a)), roundPx(r * Math.sin(a))];
+      });
+    const ok = (pts: number[][]) => pts.every((p, i) => pts.every((q, j) => j <= i || apart(p, q) >= 20));
+    for (let n = 2; n <= 12; n++) {
+      let r = 10;
+      while (!ok(layout(n, r))) r++;
+      const list = Array.from({ length: n }, (_, i) => named(`t${String(i).padStart(2, "0")}`, `Bil ${String(i).padStart(2, "0")}`));
+      expect([...fanOffsets(markers(...list)).values()]).toEqual(layout(n, r));
+    }
+  });
+
+  it("draws a fan mirror-symmetric about the vertical through the spot, for 2 to 12 at a spot", () => {
+    // Clockwise from the top, point i and point n - i mirror each other (two: left and right).
+    // Why it might not: `roundPx`'s comment.
+    for (let n = 2; n <= 12; n++) {
+      const list = Array.from({ length: n }, (_, i) => named(`t${String(i).padStart(2, "0")}`, `Bil ${String(i).padStart(2, "0")}`));
+      const pts = [...fanOffsets(markers(...list)).values()];
+      if (n === 2) {
+        expect(pts[1]).toEqual([-pts[0][0], pts[0][1]]);
+        continue;
+      }
+      for (let i = 1; i < n; i++) expect(pts[n - i]).toEqual([-pts[i][0] || 0, pts[i][1]]);
+      expect(pts[0][0]).toBe(0);
+    }
+  });
+
+  it("rounds a pixel half away from zero, float error near .5 absorbed, never to -0", () => {
+    expect(roundPx(10.5)).toBe(11);
+    expect(roundPx(-10.5)).toBe(-11);
+    expect(roundPx(10.500000000000007)).toBe(11);
+    expect(roundPx(10.499999999999996)).toBe(11);
+    expect(roundPx(-10.500000000000002)).toBe(-11);
+    expect(roundPx(10.4999)).toBe(10);
+    expect(roundPx(-2.6)).toBe(-3);
+    expect(Object.is(roundPx(-0), 0)).toBe(true);
+    expect(Object.is(roundPx(-1e-17), 0)).toBe(true);
+    expect(Object.is(roundPx(-0.4), 0)).toBe(true);
+  });
+
+  it("fans only the trucks that share a spot: both coordinates equal", () => {
+    const offsets = fanOffsets(
+      markers(
+        named("t1", "Tacobilen"),
+        named("t2", "Burgarbilen"),
+        named("t3", "Pizzabilen", elsewhere),
+        named("t4", "Kebabbilen", { latitude: entry().latitude, longitude: 11.96 }),
+        named("t5", "Fiskbilen", { latitude: 57.7, longitude: entry().longitude }),
+      ),
+    );
+    expect(offsets.get("t3")).toEqual([0, 0]);
+    expect(offsets.get("t4")).toEqual([0, 0]);
+    expect(offsets.get("t5")).toEqual([0, 0]);
+    expect(offsets.get("t2")).toEqual([-10, 0]);
+    expect(offsets.get("t1")).toEqual([10, 0]);
+  });
+});
+
+describe("changedOffsets", () => {
+  const offsets = (...pairs: [string, [number, number]][]) => new Map(pairs);
+
+  it("lists a truck in both whose offset changed, and nothing else", () => {
+    const prev = offsets(["a", [0, 0]], ["b", [-10, 0]], ["gone", [10, 0]]);
+    const next = offsets(["a", [-10, 0]], ["b", [-10, 0]], ["new", [10, 0]]);
+    expect(changedOffsets(prev, next)).toEqual([["a", [-10, 0]]]);
+  });
+
+  it("sees a change in either coordinate", () => {
+    expect(changedOffsets(offsets(["a", [0, -12]]), offsets(["a", [0, -13]]))).toEqual([["a", [0, -13]]]);
+    expect(changedOffsets(offsets(["a", [10, 0]]), offsets(["a", [11, 0]]))).toEqual([["a", [11, 0]]]);
+    expect(changedOffsets(offsets(["a", [10, 0]]), offsets(["a", [10, 0]]))).toEqual([]);
+  });
+});
+
+describe("planMarkers", () => {
+  const at = (id: string, name: string, overrides: Partial<LiveEntry> = {}): MarkerEntry => ({
+    entry: truck(id, { ...overrides, truck: { ...entry().truck, name } }),
+    status: "open",
+  });
+  const markers = (...list: MarkerEntry[]) => new Map(list.map((m) => [m.entry.truck.id, m]));
+  // The live markers' offsets, as the hook reads them, and how many times they were read.
+  const offsetsOf = (...pairs: [string, [number, number]][]) => {
+    const live = new Map(pairs);
+    const read = (id: string) => {
+      read.calls++;
+      return live.get(id);
+    };
+    read.calls = 0;
+    return read;
+  };
+  const elsewhere = { latitude: 57.7, longitude: 11.96 };
+
+  it("does nothing on a tick: no change, no moves, no live offset read", () => {
+    const shown = markers(at("a", "A"), at("b", "B"));
+    const live = offsetsOf(["a", [-10, 0]], ["b", [10, 0]]);
+    expect(planMarkers(shown, markers(at("a", "A"), at("b", "B")), live)).toEqual({ add: [], update: [], remove: [], move: [] });
+    expect(live.calls).toBe(0);
+  });
+
+  it("builds a truck joining a spot with its offset and moves the one already there", () => {
+    const plan = planMarkers(markers(at("t", "Tacobilen")), markers(at("t", "Tacobilen"), at("b", "Burgarbilen")), offsetsOf(["t", [0, 0]]));
+    expect(plan.add.map(([m, offset]) => [m.entry.truck.id, offset])).toEqual([["b", [-10, 0]]]);
+    expect(plan.move).toEqual([["t", [10, 0]]]);
+  });
+
+  it("moves nothing on a status change at a fanned spot", () => {
+    const later: MarkerEntry = { ...at("t", "Tacobilen"), status: "later" };
+    const plan = planMarkers(markers(later, at("b", "Burgarbilen")), markers(at("t", "Tacobilen"), at("b", "Burgarbilen")), offsetsOf(["t", [10, 0]], ["b", [-10, 0]]));
+    expect(plan.update.map((m) => m.entry.truck.id)).toEqual(["t"]);
+    expect(plan.move).toEqual([]);
+  });
+
+  it("moves the one left behind back to the spot when the other leaves", () => {
+    const plan = planMarkers(markers(at("t", "Tacobilen"), at("b", "Burgarbilen")), markers(at("t", "Tacobilen")), offsetsOf(["t", [10, 0]], ["b", [-10, 0]]));
+    expect(plan.remove).toEqual(["b"]);
+    expect(plan.move).toEqual([["t", [0, 0]]]);
+  });
+
+  it("fans both when a truck moves onto another's spot (an update, not an add)", () => {
+    const plan = planMarkers(
+      markers(at("t", "Tacobilen"), at("b", "Burgarbilen", elsewhere)),
+      markers(at("t", "Tacobilen"), at("b", "Burgarbilen")),
+      offsetsOf(["t", [0, 0]], ["b", [0, 0]]),
+    );
+    expect(plan.update.map((m) => m.entry.truck.id)).toEqual(["b"]);
+    expect(new Map(plan.move)).toEqual(new Map([["t", [10, 0]], ["b", [-10, 0]]]));
+  });
+
+  it("swaps a fan when a rename re-sorts it, with nobody joining or leaving", () => {
+    const plan = planMarkers(
+      markers(at("a", "Ankan"), at("b", "Björnen")),
+      markers(at("a", "Örat"), at("b", "Björnen")),
+      offsetsOf(["a", [-10, 0]], ["b", [10, 0]]),
+    );
+    expect(new Map(plan.move)).toEqual(new Map([["a", [10, 0]], ["b", [-10, 0]]]));
+  });
+});
+
 describe("text helpers", () => {
   describe("hoursText", () => {
     it("gives Stockholm start–end for an entry within today", () => {
@@ -346,7 +537,8 @@ describe("text helpers", () => {
   });
 
   it("reads a timestamp with parseISO, as todaysEntries does", () => {
-    // Hour 24 is refused by the guard; date-fns-tz's own parser reads it a day earlier.
+    // Hour 24 is refused by the guard; given the string, date-fns-tz 3.2.0's
+    // `formatInTimeZone` parsed it a day earlier (PR #190 round 2).
     expect(freshnessText("2026-10-30T24:00:00+00:00", at("2026-10-31T12:00:00+01:00"))).toBe("Uppdaterad 01:00");
   });
 
@@ -433,6 +625,67 @@ describe("text helpers", () => {
         "Uppdaterad 20 dec 2025 09:00",
       );
     });
+
+    // `isTimestamp` takes both; `parseISO` reads the first as -000001-12-31T01:00Z. Before
+    // 1893 Stockholm's offset is local mean time, +00:53:28 (`stockholm.ts`).
+    it("a year before 1 keeps its sign, and year 0 its four digits", () => {
+      expect(freshnessText("0000-01-01T00:00:00+23:00", at("2026-11-10T12:00:00+01:00"))).toBe(
+        "Uppdaterad 31 dec -0001 01:53",
+      );
+      expect(freshnessText("0000-06-01T12:00:00+00:00", at("2026-11-10T12:00:00+01:00"))).toBe(
+        "Uppdaterad 1 juni 0000 12:53",
+      );
+    });
+  });
+});
+
+// The popup's times on a host in another zone (IS #239). Each case's instant reads, in
+// Stockholm, as a wall time in its host's own DST gap that day: date-fns-tz 3.2.0's
+// `formatInTimeZone` rebuilt that wall time in the host's zone and was an hour late there
+// (2026-03-08 01:30Z read "03:30" on a New York host, PR #238). Nuuk's is the case where an
+// hour late crosses Stockholm's midnight, so its date and weekday would change too: on that
+// host `formatInTimeZone` read 2026-03-28 22:30Z (Saturday 23:30 in Stockholm) as
+// "2026-3-29 00:30", weekday 7 (probed in PR #252, round 1). Stockholm's own gaps hold no
+// Stockholm wall time, so its host's case is an ordinary one. Each case checks the host's
+// UTC offset at its instant (`getTimezoneOffset`, probed with `process.env.TZ` set
+// in-process, PR #252 round 3), so the zone took hold with no zone name compared. Node
+// reads `process.env.TZ` again when it is assigned, and deleting it leaves the last zone in
+// place, so the zone is assigned back before the variable is (as `stockholm.test.ts` does).
+describe("text helpers on a host in another zone", () => {
+  const HOUR = 3_600_000;
+  const DAY = 24 * HOUR;
+  const iso = (ms: number) => new Date(ms).toISOString();
+
+  it.each([
+    ["America/New_York", 300, "2026-03-08T01:30:00Z", "02:30", "02:30–04:30", "söndags", "8 mars"],
+    ["America/Los_Angeles", 480, "2026-03-08T01:30:00Z", "02:30", "02:30–04:30", "söndags", "8 mars"],
+    ["Australia/Sydney", -660, "2026-10-04T00:30:00Z", "02:30", "02:30–04:30", "söndags", "4 okt"],
+    ["America/Santiago", 240, "2026-09-05T22:30:00Z", "00:30", "00:30–02:30", "söndags", "6 sep"],
+    ["America/Havana", 300, "2026-03-07T23:30:00Z", "00:30", "00:30–02:30", "söndags", "8 mars"],
+    ["America/Nuuk", 120, "2026-03-28T22:30:00Z", "23:30", "23:30–01:30 imorgon", "lördags", "28 mars"],
+    ["Europe/Stockholm", -60, "2026-03-08T01:30:00Z", "02:30", "02:30–04:30", "söndags", "8 mars"],
+  ])("on a host in %s (offset %i), %s reads %s in Stockholm", (zone, offset, startsAt, start, hours, day, date) => {
+    const t = Date.parse(startsAt);
+    const e = entry({ starts_at: startsAt, ends_at: iso(t + 2 * HOUR), updated_at: startsAt });
+    // 15 minutes on: still the start's Stockholm day in every case, Nuuk's 23:30 included.
+    const soon = new Date(t + HOUR / 4);
+    const env = process.env.TZ;
+    const original = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    process.env.TZ = zone;
+    try {
+      expect(new Date(t).getTimezoneOffset()).toBe(offset);
+      expect(hoursText(e, soon)).toBe(hours);
+      expect(statusText({ entry: e, status: "later" })).toBe(`Öppnar ${start}`);
+      expect(freshnessText(startsAt, soon)).toBe(`Uppdaterad ${start}`);
+      expect(freshnessText(startsAt, new Date(t + 3 * DAY))).toBe(`Uppdaterad i ${day} ${start}`);
+      expect(freshnessText(startsAt, new Date(t + 10 * DAY))).toBe(`Uppdaterad ${date} ${start}`);
+    } finally {
+      process.env.TZ = original;
+      if (env === undefined) delete process.env.TZ;
+      else process.env.TZ = env;
+    }
+    expect(Intl.DateTimeFormat().resolvedOptions().timeZone).toBe(original);
+    expect(process.env.TZ).toBe(env);
   });
 });
 
@@ -446,5 +699,17 @@ describe("noticeText", () => {
     ["failing", 0, "Kunde inte hämta foodtrucks. Försöker igen…"],
   ] as const)("%s with %i markers → %s", (fetchState, markerCount, text) => {
     expect(noticeText(fetchState, markerCount)).toBe(text);
+  });
+
+  // A map the browser can't draw wins over every fetch notice, and over none (IS #246).
+  it.each([
+    ["loading", 0],
+    ["loading", 2],
+    ["ok", 0],
+    ["ok", 2],
+    ["failing", 0],
+    ["failing", 2],
+  ] as const)("map failed, %s with %i markers → the map's message", (fetchState, markerCount) => {
+    expect(noticeText(fetchState, markerCount, true)).toBe("Kartan kan inte visas i den här webbläsaren.");
   });
 });

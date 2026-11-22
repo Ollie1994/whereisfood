@@ -1,5 +1,6 @@
--- seed.sql — dev-only seed data (loaded by `supabase db reset` / first `supabase start`).
--- NOT production data. Fixed truck UUIDs so curl commands are copy-pasteable and stable
+-- seed.sql — dev-only seed data, loaded by `supabase db reset` / first `supabase start`
+-- on the local stack, and on a hosted project by its first `supabase db push
+-- --include-seed` (README, "Hosted preview database"). NOT production data. Fixed truck UUIDs so curl commands are copy-pasteable and stable
 -- across resets.
 --
 -- For an EMPTY database only (`npx supabase start` on a fresh stack, or
@@ -21,10 +22,12 @@ values
   ('33333333-3333-3333-3333-333333333333', 'Vintervilan', 'vintervilan', 'Husmanskost',
    'Klassisk husmanskost. Vintervila — öppnar igen till våren.', false);
 
--- History, relative to now() so it never ages out of the checklist's look-back (Phase 5
--- plan, decision #15): the 28 Stockholm days before today, ending yesterday, 11:00–14:00
--- Stockholm time. Taco Loco every day, so "the same weekday last week" always has a row;
--- Burgarbilen on weekdays. Vintervilan gets none: it is the inactive truck, and
+-- History, relative to now() at the load (Phase 5 plan, decision #15): the 28 Stockholm
+-- days before that day, ending the day before, 11:00–14:00 Stockholm time. On the local
+-- stack, right after `npx supabase db reset`, that is the 28 days before today, and Taco
+-- Loco, there every day, has a row on "the same weekday last week". A hosted project seeded
+-- once keeps the history of its load, which doesn't move with the date (README, "Hosted
+-- preview database"). Burgarbilen on weekdays. Vintervilan gets none: it is the inactive truck, and
 -- `findLocationsOverlapping` doesn't filter on `is_active`.
 --
 -- ⚠ `d` is a `date`, and `(d + time '11:00') at time zone 'Europe/Stockholm'` reads that

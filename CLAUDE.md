@@ -3,7 +3,7 @@
 Full project reference: `.claude/context/project-context.md`
 Read it at the start of any non-trivial task.
 
-**Current phase plan: `.claude/plans/phase-6-live-read-path.md`.**
+**Current phase plan: `.claude/plans/phase-10-launch.md`.**
 
 While that line names no plan (between phases, after a reconciliation and before the
 next plan's step 0), the reconciled `project-context.md` is current and wins over the
@@ -46,7 +46,7 @@ No login for consumers. Only the admin logs in; truck owners get accounts later
 Next.js 16.4 (App Router) · React 19 · TypeScript · Tailwind CSS v4
 MapLibre GL JS 6 + Protomaps PMTiles (local file in dev, Cloudflare R2 for deploys)
 Supabase (Postgres + Auth)
-Vitest 4 · date-fns-tz
+Vitest 4 · date-fns (parsing only; Stockholm time is Intl, in src/lib/stockholm.ts)
 ```
 
 **Read the Next docs that ship with the installed version** before writing Next code:
@@ -55,22 +55,41 @@ describe a different one.
 
 **Dependencies**
 - `next`, `eslint-config-next` and `maplibre-gl` are **exact pins**. Upgrade them
-  deliberately, each with a browser check of `/map` (Phase 4 plan decision #10). `next` and
+  deliberately, each with a browser check of `/karta` (Phase 4 plan decision #10). `next` and
   `eslint-config-next` move together, to the same version (PR #135).
-- **Node `^20.19.0 || >=22.12.0`** (vite/rolldown's floor; older 20.x/22.x pass Next's
-  check and fail under vitest) and **npm ≥ 11** (npm 10 crashes resolving vitest 4's
-  optional peers, Phase 4 decision #11). Prose only: `package.json` doesn't enforce either.
+- **The Node and npm versions are the ranges `package.json`'s `devEngines` admits** (IS
+  #139). npm 10.9 and later check them before `install`, `ci`, `run` and `exec` and stop
+  with `EBADDEVENGINES` outside them; `--force` turns that into a warning. Older npm
+  doesn't read the field: npm 10.8.2 ran `npm ci` from the lockfile with no
+  `EBADDEVENGINES`, and every Node before 22.10 bundles npm older than 10.9 (PR #198:
+  probes, and nodejs.org's release index). Why each range: Node's is the major deploys
+  build on, so the gates run on the same major as a deploy (IS #199); npm 10 crashes
+  resolving vitest 4's optional peers when installing without the lockfile (Phase 4
+  decision #11; reproduced on 10.9.2 in PR #198). `engines.node` pins the Node major
+  Vercel deploys with, overriding the project's setting (Phase 6 plan, open decision 9):
+  moving it is a PR with a preview build, and `devEngines`'s Node range changes with it
 - `next.config.ts` sets `agentRules: false`. Don't remove it without the owner
   (Phase 4 decision #12).
 - `next.config.ts` sets `experimental.agentUpgrade: false`. With 16.4's default, an
   agent-run `next build` fails when an advisory covers the installed Next, so a gate's
   result would depend on the advisory feed, not the code. Don't remove it without the
-  owner (the owner's call, 2026-10-24, IS #178)
+  owner (Phase 6 plan decision #6, IS #178)
 - MapLibre's worker is copied into `public/maplibre/<version>/` by the
   `postinstall`/`predev`/`prebuild` hooks. Don't switch to MapLibre's documented
   `setWorkerUrl(new URL(…, import.meta.url))` form: on Next 16.3 the worker 404'd and
   the map drew only its background, with every gate green (Phase 4 decision #13; not
   retested on 16.4, where the copied worker loads, IS #178).
+- **`npm audit` in CI** (`ci.yml`'s `audit` job, Phase 8 plan decision #12) fails on a high
+  or critical advisory in production dependencies, and on a critical one anywhere. Its third
+  run warns on each advisory of any level in production dependencies, one warning apiece up
+  to GitHub's 10 a step (past that, 9 and a count of the rest; the step's log lists them
+  all). It fails when it can't tell which advisories there are: the report has no
+  vulnerability count (the audit couldn't run, or the report is in a form the step can't
+  read), or it counts some but names no advisory. **A PR whose `audit` job shows that
+  warning gets an issue for each advisory it lists before the PR merges.** The issue records
+  the call: fix it, wait for upstream, or accept it with a reason. An advisory that already
+  has an issue needs no second one. The job neither warns nor fails on an advisory below
+  critical in dev dependencies, by design (Q35); run 2's log lists them.
 
 ---
 
@@ -106,22 +125,25 @@ said otherwise: Phase 4 plan decision #14.
 ## Hard Rules
 
 **Supabase**
-- `supabaseAdmin` (service role) — server only, imported by the db layer (`src/lib/db/`)
-  and the integration tests (`tests/integration/`, which `setup.ts` runs only against a
-  local Supabase). Routes and services reach the database through the db layer, never
-  this client directly. Tests create trucks through `seedTruck`, so `resetTables()`
-  can remove them and their rows (`tests/integration/helpers.ts`); a truck made any
-  other way is removed by its own test, as `helpers.test.ts`'s bystanders are
-- `supabaseClient` (anon key) — browser only, and only for Auth (admin login, Phase 7).
-  Never for data: see the next rules
-- Never use `supabaseAdmin` in client components
+- `supabaseAdmin` (service role, `src/lib/supabase.ts`) — server only, imported by the db
+  layer (`src/lib/db/`) and the integration tests (`tests/integration/`, which
+  `setup.ts` runs only against a local Supabase). Routes and services reach the
+  database through the db layer, never this client directly. Tests create trucks
+  through `seedTruck`, so `resetTables()` can remove them and their rows
+  (`tests/integration/helpers.ts`); a truck made any other way is removed by its own
+  test, as `helpers.test.ts`'s bystanders are
+- `supabaseClient` (anon key, `src/lib/supabase-browser.ts`) — browser only, and only for
+  Auth (admin login, Phase 7). Never for data: see the next rules
+- Never use `supabaseAdmin` in client components. `next build` enforces it: see
+  `src/lib/supabase.ts`'s header (IS #221)
 - Never use `NEXT_PUBLIC_` prefix on secret keys
 - **The browser never reads or writes the database.** Public map data comes only from
   `/api/live`; the admin screen reads through its own (uncached) API routes; every
   write goes through an API route. Server-side, all of them go route → service → db
   layer, and only the db layer uses `supabaseAdmin`
-- Anon gets **no SELECT on `trucks` or `locations`**. With history kept, anon access
-  would make every truck's movement history public through Supabase's API
+- Anon gets **no SELECT on `trucks` or `locations`**. With history kept (until the
+  weekly retention run after 52 weeks, "Locations" below), anon access would make every
+  truck's movement history public through Supabase's API
 - RLS on every table, an explicit `GRANT` per table that matches its RLS policies, and
   no owner self-UPDATE on `users` (blocks `is_admin` self-escalation and `truck_id`
   hijack). Every migration grants per table, `service_role` included, after revoking
@@ -130,6 +152,29 @@ said otherwise: Phase 4 plan decision #14.
 - New migrations are numbered after the baseline: `0002_<name>.sql`, `0003_…`, never
   the timestamp names `npx supabase migration new` makes, which would mix two naming
   conventions in one folder (Phase 5 plan decision #23, the owner's call, amending #3)
+- **Secure password change and the password-changed email stay on** (Phase 9 plan step 2,
+  IS #378): `config.toml`'s `secure_password_change = true` and
+  `[auth.email.notification.password_changed]`, which `supabase/config.test.ts` pins;
+  a hosted project's are README's hosted settings checklist's (plan step 12, #390), with "Require
+  current password when updating", which has no `config.toml` key in the CLI (plan #13).
+  **The admin keeps a password** (README, "5. Create the admin user"): GoTrue asks for the
+  current password only from a user who has one, and not in a recovery session (`user.go`),
+  so an admin created without one, or by an invitation, loses that guard; the preview's,
+  made before this rule, was given a long random one (IS #378). Limits: Auth counts a session
+  as recent for 24 hours from its creation (GoTrue's `user.go`), so a stolen session under a
+  day old can still set a password where "Require current password" is off, as locally, or
+  where the thief knows the current one (a leaked password), which the first-factor check
+  makes useless in the app (plan #13); and the email can be suppressed by spending the
+  project's `email_sent` budget first (plan #13, IS #378)
+- **The emailed code is 10 digits and lives 15 minutes** (Phase 9 plan step 8, open decision
+  1, IS #386): `config.toml`'s `otp_length` and `otp_expiry`, which `supabase/config.test.ts`
+  pins and `auth-routes.test.ts` checks on the running stack (the 15 minutes by moving a
+  link's `recovery_sent_at` back by SQL). A hosted project's are README's hosted settings
+  checklist's (#390). No email shows the login code, but Auth accepts it; the length also
+  sets the reauthentication code, which is emailed and typed (`config.toml`). Spending the
+  built-in email's budget so the admin's link doesn't come is accepted until the Owners
+  phase's custom SMTP (Phase 10 plan open decision 6, IS #458); what to do when it happens is
+  `RUNBOOK.md`'s "A login link that doesn't come"
 
 **Secrets** (IS #176; the repo is public)
 - Never commit a `.env*` file except `.env.example`, which holds variable names only.
@@ -141,35 +186,51 @@ said otherwise: Phase 4 plan decision #14.
   and test fixtures such as `helpers.ts`'s `FIXTURE_PASSWORD`
 - A secret that reaches a commit, or issue or PR text, is **rotated**, not just
   deleted: history keeps it, and a public repo's history is readable by anyone
-- **Where secrets live:** a hosted project's secrets for deploys and CI live in
-  Vercel's environment variables (marked "Sensitive" where Vercel offers it), GitHub
-  Actions secrets and, for Dependabot's runs, Dependabot secrets. A developer's own
-  copies (preview-project keys in `.env.local`, a CLI login token where the CLI stores
-  it) stay on their machine. None goes in a tracked or shared file
+- **Where secrets live** (Phase 6 plan decision #5): a hosted project's secrets for
+  deploys and CI live in Vercel's environment variables (type "Secret"; Vercel's
+  changelog of 2026-08-24 turned "Sensitive" into it, IS #187), GitHub Actions secrets
+  and, for Dependabot's runs, Dependabot secrets. A developer's own copies (the preview
+  project's keys, its database URLs and the Vercel bypass secret in the gitignored
+  `.env.preview.local`, IS #186, #187 and #455; production's database URL, the session
+  pooler's, for the weekly dump, in the gitignored `.env.prod-db.local`, a name Next never
+  loads, where a `.env.production.local` would put the URL in every local `next build` and
+  `next start`, Phase 10 plan #11;
+  a CLI login token where the CLI stores it) stay on their machine.
+  None goes in a tracked or shared file
 - Every account that can reach the project (GitHub, Supabase, Vercel, Cloudflare, the
-  registrar, their recovery email) uses two-factor authentication by passkey, hardware
+  registrar, the admin's login mailbox, whose holder receives its login links, the first
+  factor, IS #458, and their recovery email) uses two-factor authentication by passkey, hardware
   key or authenticator app, not SMS: set up when the account is created, all checked
-  before the production deploy (the owner, 2026-10-24, IS #176). Which accounts don't
-  meet it yet is `project-context.md`'s, "Pre-deploy automation (planned)"
+  before the production deploy (Phase 6 plan decision #3, IS #176). Which accounts don't
+  meet it yet is `project-context.md`'s, "Pre-deploy automation"
 - A push that GitHub's push protection blocks is fixed by removing the value from the
   commits, not by bypassing the block (what is switched on: `project-context.md`,
-  "Pre-deploy automation (planned)")
+  "Pre-deploy automation")
+- **The Gitleaks hooks** (IS #292): `.githooks/pre-commit` scans the staged changes and
+  `.githooks/commit-msg` the message. `core.hooksPath` is set by hand in each clone
+  (README, "1. Install"), never by a `prepare` script, which `npm ci` would run in CI too
+  (Phase 8 plan decision #7). A commit they refuse is fixed like a push-protection block:
+  remove the value, or, for a value that isn't a secret, add a `.gitleaks.toml` allowlist
+  entry that names why. Never `--no-verify`, never an inline `gitleaks:allow`, which the
+  hooks ignore, and never a `.gitleaksignore` fingerprint, which names no reason: the hooks
+  refuse every commit they run on while one exists
 
 **db layer (`src/lib/db/`)**
 - It finds and mutates; it decides nothing. Postgres errors propagate unchanged (for
   `23P01`, see Locations below), no function reads the clock (the caller
   passes `cancelledAt`, a window, a `before`), and no function deletes (Phase 5 plan
-  decision #10). The one delete, a takedown, is a manual SQL procedure Phase 8 writes
-  (Phase 5 plan decision #7), not app code
+  decision #10). The two deletes are manual SQL in `supabase/manual/`, not app code: a
+  takedown (`takedown.sql`, Phase 5 plan decision #7) and the weekly retention delete
+  (`retention.sql`, Phase 10 plan #10)
 - Return the selected row **uncast, never `as Location` or `as Truck`**: uncast, `tsc`
   checks that the select has every key of the row type; a cast also compiles when the
   column list leaves one out (Phase 5 plan decision #18). `tsc` doesn't see an *extra*
   column, so a key-set test per table guards that side (`db-locations.test.ts`,
-  `db-trucks.test.ts`), and a new table's reads get one
-- Every select names its columns through its table's constant, `LOCATION_COLUMNS` or
-  `TRUCK_COLUMNS`: one string literal each (a computed string loses supabase-js's
-  row-type inference, issue #48). `LOCATION_COLUMNS` leaves out `created_by` (Phase 5
-  plan decision #8)
+  `db-trucks.test.ts`, `db-users.test.ts`), and a new table's reads get one
+- Every select names its columns through its table's constant, `LOCATION_COLUMNS`,
+  `TRUCK_COLUMNS` or `USER_COLUMNS`: one string literal each (a computed string loses
+  supabase-js's row-type inference, issue #48). `LOCATION_COLUMNS` leaves out `created_by`
+  (Phase 5 plan decision #8)
 - **`max_rows` cuts a list read with no error** (limit 2000 over 1001 rows returned
   1000, `locations.ts`'s probe). So a list read without a `limit` selects with an exact
   count and calls `assertAllRows` (`src/lib/db/complete.ts`), and one with a `limit`
@@ -191,14 +252,99 @@ said otherwise: Phase 4 plan decision #14.
   unnecessary — the proxy always runs on Node.js in Next 16, which is what Supabase
   auth requires. `tsc`/lint/tests all pass with it, so only `next build` catches it.
 - Must export a named function: `export function proxy(request: NextRequest)`
-- Must export `config` with `matcher` to scope to protected routes only
+- Must export `config` with `matcher` to scope to protected routes only: `/admin/:path*`
+  and `/api/admin/:path*`, with `/admin/login` let through in the function. Never
+  `/api/live`, `/karta`, `/auth/*` or `/dashboard`; `src/proxy.test.ts` pins the list
+  (Phase 7 plan, #10, #28)
+- `/admin/mfa` is the one admin page besides `/admin/login` that an `aal1` admin session
+  reaches, for the TOTP enroll and code: every other admin page sends such a session there,
+  and `/admin/mfa` sends an `aal2` one on to `/admin` (Phase 9 plan, open decision 5)
 - The proxy and the admin routes check for a session cookie **before any network or
   DB call**, so a cookie-less flood costs only the function run (Phase 7)
+- The proxy is a first filter, not the only check: every admin route checks again
+  through `withAdmin` (API responses, below)
+
+**Security headers** (Phase 9 plan step 9, open decision 9, IS #387)
+- `next.config.ts`'s `headers()` gives every path the static headers (`csp.ts`'s
+  `STATIC_HEADERS`) and every path but `/admin` and `/admin/…` the static CSP. The proxy gives
+  every answer on those paths (`csp.ts`'s `isAdminPagePath`, which `next.config.test.ts` checks
+  against `headers()`) the nonce CSP, a new nonce per request, set on the request (where Next
+  reads it) and on the answer, so each carries exactly one, but the case redirect below. No
+  `X-Powered-By`.
+  Case variants (`/Admin/…`): under `next start` the proxy doesn't run on them and
+  `experimental.caseSensitiveRoutes` gives them the static CSP; on Vercel, which ignores that
+  flag, the proxy runs on them. Wherever the proxy runs on a path that isn't lower-case
+  (`/Admin/…`, `/API/admin/…`, `/admin/Login`), it sends it to its lower-case path (308,
+  `no-store`, `%XX` escapes kept) before the CSP or any branch, so those, the router and
+  `headers()` see one form of the path. The redirect is bodiless and sets no CSP itself: on
+  `/admin/…` it carries none, like Next's trailing-slash 308 below; on `/api/admin/…`,
+  `headers()`' static one (smoke's `/api/admin/Trucks` under `next start`; on Vercel a proxy
+  answer on `/API/admin/trucks` carried it too, IS #414; PR #415). A write from another origin
+  on a case variant is refused with 403 first, as on its lower-case path. A case variant of a
+  form a server rewrites first (`/Admin.rsc`) is sent to its page path (`proxy.ts`)
+- **Every page under `/admin` renders per request** (`connection()` in the admin layout), its
+  404 included (`admin/[...missing]`, under that layout): a page built at build time carries
+  no nonce, so the CSP blocks its scripts (Next's CSP guide). Its 404 and error pages are
+  its own (`admin/not-found.tsx`, `admin/error.tsx`), styled by classes: Next's built-in
+  ones apply inline styles, which the CSP blocks. An error in the admin layout itself reaches
+  the root's `error.tsx` (classes too; without the admin nav or "Logga ut"), seen in a browser
+  on a full load under the nonce CSP, not on a client-side navigation (IS #413's PR); one in
+  the root layout, or while the root error page itself renders, would reach the built-in
+  screen (no `global-error.tsx`). The build's route table shows each `/admin` page as `ƒ`. In
+  CI only `/admin/login`'s is checked (smoke's nonce check); the others, behind a session, are
+  the route table's and the browser checks'
+- A new host a page loads from or calls (a script, an API, tiles) goes into `csp.ts`, then a
+  browser check reads the console for violations. `smoke.mjs` checks the headers on what it
+  reaches without a session; `next.config.test.ts` which paths get which; `proxy.test.ts` the
+  nonce CSP's answers
+- Limits: the public pages' CSP admits inline scripts (plan #6); no HSTS until the custom
+  domain (Phase 11); `/admin.rsc` and `/_next/data/<id>/admin.json`, which a server turns into
+  `/admin` before the proxy, get both CSPs, of which `next start` sent only the proxy's
+  (`next.config.ts`, `isAdminPagePath`); Next's own trailing-slash redirect (`/admin/login/`, a
+  308 with no body) carries no CSP, since Next answers it before the proxy. On the preview
+  (IS #387's read, 2026-11-18), Vercel sent one CSP on `/admin.rsc` and `/_next/data/…`;
+  its toolbar's `vercel.live` script, styles and iframe were refused, so the owner turned the
+  toolbar off for pre-production deploys (2026-11-18, a comment on #387)
 
 **API responses**
 - All errors return `{ "error": "message" }` with the correct HTTP status code
 - Never expose stack traces or internal errors to the client
 - Every route handler wraps its body in `withErrorHandling()` (`src/lib/http/handler.ts`) so an unexpected throw becomes a 500 `{ error }` instead of Next's default error page. Expected failures are **returned** (`NextResponse.json({ error: msg }, { status: 400 })`), never thrown — returns pass through the wrapper untouched; the catch only intercepts genuine exceptions (e.g. a DB error from the db layer).
+- **Admin routes** (Phase 7 plan, #13, #15, #16, #32): every handler in a `route.ts` under
+  `src/app/api/admin/` wraps its body in `withAdmin()` (`src/lib/http/admin.ts`), which
+  wraps `withErrorHandling` for it. It answers 401 with no valid session, 403 for a
+  non-admin or a write whose `Origin` isn't this origin, and 503 when Auth or the
+  database can't say, never 401 for that; every answer's `Cache-Control` holds `no-store`.
+  `tests/integration/admin-auth.test.ts` finds the routes on disk, so a new one is tested
+  with no edit. A handler reads its body through `readJson()`, never `request.json()`
+- **The admin is at `aal2`, with the magic link as the first factor** (Phase 9 plan step
+  5b, #11, #14): `requireAdmin` reads `aal` and `amr` from the access token Auth has just
+  verified (`getUser(token)`), never from a decoded cookie. An `aal1` admin session gets
+  401 with its own text, told apart from no session (open decision 6). A session whose
+  first factor (the `amr` entry that isn't `totp`) isn't `magiclink` is signed out at
+  Auth (`scope: "local"`) and answered as no session, or as unavailable (503) if that
+  sign-out failed, so a later request tries again
+- **The session time-box, until Phase 11** (Phase 9 plan step 6, #4, open decision 2): a
+  session is refused 12 hours (`SESSION_MAX_AGE_MS`) after its first factor's sign-in, the
+  timestamp of that `amr` entry, never the newest entry, which a later TOTP verify adds. The
+  refusal is the first factor's: signed out at Auth with `scope: "local"`, answered as no
+  session, or as unavailable if the sign-out failed. `requireAdmin` and `mfaStepAllowed` take
+  the caller's `now`, and read the age on it held within the token's `iat` and `exp`, Auth's
+  clock, so a skew either way moves the box by up to a token's life (`admin-auth.ts`).
+  Their integration tests age a sign-in at Auth by SQL, not by moving `now`, which would
+  read as skew. A limit: only a session presented to the app is signed out, so a stolen
+  token used only against Supabase stays good until Phase 11's Pro session timeouts, which
+  replace this
+- **Logout ends every session** (Phase 9 plan step 7, #5): `POST /auth/logout` signs out with
+  `scope: "global"`, so logging out on one device ends the admin's others, then deletes every
+  `sb-*` cookie whatever Auth answered. When the sign-out threw, or answered an error that
+  doesn't say this session is already gone (`isInvalidSession`), it lands on
+  `/admin/login?error=logout`, whose text says other devices may still be signed in. The
+  button stays "Logga ut" (the owner, IS #385). Its limits on a dead session's logout and
+  the warning's reach are the route's comment's. Another: an access token already issued
+  outlives a logout until its `exp` against PostgREST, though Auth and the app refuse it
+  (after a global logout, the old token still read its own `users` row through
+  `users_select_own`, plan #7; the PR for IS #385)
 
 **`/api/live` (the public read path, Phase 6)**
 - An ordinary (dynamic) route, cached by Vercel's CDN through
@@ -212,20 +358,51 @@ said otherwise: Phase 4 plan decision #14.
   column list, never `*`**, so
   `created_by` and future columns can't leak
 
+**The soft-launch gate** (Phase 10 plan #5, #6; until the full launch, Phase 11)
+<!-- SOFT-LAUNCH GATE (Phase 10 plan #5): this section is deleted at the full launch (the removal list in src/app/karta/page.tsx). -->
+- `/karta` shows only to the admin at `aal2` and sends everyone else to `/om`; `/` sends
+  everyone there, the admin included.
+  `MapPage` runs `requireAdmin` with `readOnlyCookies` and no proxy before it (Plan A, IS
+  #448's probe); the proxy's matcher stays as "proxy.ts" above says
+- **The gate hides `/karta`; it protects nothing.** `/karta` renders only what `/api/live`
+  publishes, and `MapPage` passes `MapClient` no props. Nothing admin-only (an edit link,
+  unconfirmed entries, the admin's id) is added to `/karta` or behind the gate while it
+  stands: admin data stays behind `withAdmin` and RLS, so removing the gate opens nothing
+- Every gate site carries the marker `SOFT-LAUNCH GATE (Phase 10 plan #5)` and is on the removal
+  list in `src/app/karta/page.tsx`'s header, its one copy, which says what each becomes;
+  `gate-markers.test.ts` fails on a marked file not listed or a listed file not marked. A new gate
+  site is marked and listed in the PR that adds it
+- The `/karta` browser check ("Testing") is made signed in as the admin at `aal2` (locally: the
+  magic link from Mailpit, then TOTP); signed out, `/karta` only redirects. Nothing in CI serves
+  `/karta`'s page while the gate stands: smoke sees the redirect, and the gate's tests stub
+  `MapClient`
+
 **Locations**
 - Overlapping non-cancelled entries for a truck are refused by the DB exclusion
   constraint (`23P01` → 409, Swedish "överlappar" message). Never auto-resolve,
   replace or delete. The db layer lets `23P01` through unchanged; the service maps it
   (Phase 7)
-- Locations are never deleted (except a takedown, which deletes the truck's whole
-  history). Ended (`ends_at <= now()`) and cancelled (`cancelled_at`) are filters
+- Locations are deleted only by a takedown, which deletes the truck's whole history, and by
+  the weekly retention delete, which deletes those that ended more than 52 weeks ago
+  (`supabase/manual/retention.sql`, Phase 10 plan #10). Until then, ended
+  (`ends_at <= now()`) and cancelled (`cancelled_at`) are filters
 - Foreign keys to `trucks` stay `NO ACTION`, never `ON DELETE CASCADE`: deleting a
   truck with history then fails (`23503`), so no "delete truck" action can wipe its
   history silently (Phase 5 plan decision #7)
 - `starts_at` and `ends_at` are both required; a human always knows the end time
 
 **Time**
-- Timezone handling via `date-fns-tz`, always store UTC, display as `Europe/Stockholm`
+- Always store UTC, display as `Europe/Stockholm`. Stockholm wall time is read and
+  converted through `src/lib/stockholm.ts` (`Intl.DateTimeFormat` with an explicit
+  `timeZone`), not `date-fns-tz`'s zone functions: on a host in another zone,
+  `formatInTimeZone` was an hour late for a wall time inside that host's own DST gap, and
+  `fromZonedTime` picked a repeated hour by the host's zone (date-fns-tz 3.2.0, probed in
+  PR #238; the owner's call). `live.ts`'s popup text reads it through `stockholmWallClock`
+  too (IS #239)
+- A look-back by days (the checklist's same weekday, a week back) counts whole Stockholm
+  days with `stockholm.ts`'s day helpers, never `now - 7 × 24 h`, which reads the wrong
+  weekday across a DST change (Phase 7 plan decision #31). A window measured in hours,
+  like `/api/live`'s 26 h, is another thing and stays in hours
 - Validators stay pure: no `new Date()`, no env. Anything clock-dependent lives in the
   service
 
@@ -253,13 +430,14 @@ said otherwise: Phase 4 plan decision #14.
 
 Vitest, split into two **projects** (`vitest.config.ts`, #61) by what a test needs to
 run — not by what it tests:
-- Unit: everything vitest collects **except** `tests/integration/`. Needs nothing.
+- Unit: everything vitest collects **except** `tests/integration/`. Needs nothing but
+  a git checkout (`scripts/tracked-text.test.mjs` runs `git ls-files`).
   Co-located next to source by convention.
 - Integration: `tests/integration/` only. Needs local Supabase. Runs files
   **sequentially** (`fileParallelism: false` on the project, since vitest 4) because
   they share one database.
 
-Toolchain: the Node floor and npm ≥ 11 under Dependencies.
+Toolchain: the Node and npm ranges under Dependencies.
 
 | Script | Runs | Needs Docker |
 |---|---|---|
@@ -267,26 +445,63 @@ Toolchain: the Node floor and npm ≥ 11 under Dependencies.
 | `npm run test:integration` | integration only (fails if it collects zero files) | yes |
 | `npm run test:all` | **every project in `RUNS`** of `scripts/test-all.mjs` (today `unit` + `integration`), checked against the projects `vitest.config.ts` declares; takes no arguments | yes |
 
-**There is no CI — every gate is manual, until the production deploy.** CI/CD is Phase
-8's work, one piece designed together and built before that phase's production deploy.
-What it holds (the four gates in GitHub Actions, SAST, branch protection, a pre-commit
-and CI secret scan, and more) is `project-context.md`'s "Pre-deploy automation
-(planned)". Don't re-propose it for an earlier phase. Sources: the owner's decision
-"DECISION — Gates stay manual until deploy" (2026-09-06, archived; the note above the
-process log's table says how to read it). That "deploy" means the production deploy is
-the owner's reading of 2026-10-24 (IS #176).
-Until then the gates are the only enforcement, and `tsc` is one of them in its own
-right: vitest strips types and never type-checks, so a green test run says nothing
-about types. The gate list is four commands, and
-`test:run` is *not* one of them once integration tests exist:
+**CI is the gate** (Q10; Phase 8 plan #2 and step 12, IS #297). On each PR into `dev` or
+`main`, `.github/workflows/ci.yml` runs the four gates (`typecheck-lint`, `unit`,
+`integration`, `build`; #285, #286), Supabase's security advisor in `integration` (#290),
+`npm audit` in `audit` (#291), the process log's check in `process-log` and the schema
+controls in `controls` (#288; the full set only on the PRs "Schema controls" below names),
+and Gitleaks on the PR's commits and messages in `secret-scan` (#293), which also fails when
+one of those messages, or the merge commit's branch name and title, has a closing keyword
+before an issue reference, as "fixes #348" did (#368); `codeql.yml` runs CodeQL (#294).
+The rulesets on `dev` and `main` require a PR, the branch up to date with its base and, by
+name, `ci.yml`'s checks other than `base`; on `dev` CodeQL's too (`CodeQL` and both
+`analyze` jobs, plan #14), on `main` they join in Phase 10 (plan #11). `main`'s also
+requires `base (main)`, a job in `ci.yml` named after the base the run was made against: a
+PR retargeted from `dev` to `main` starts no new run, and without it `main`'s ruleset counted
+the run made against `dev` (#298's probe), so it now waits for a run against `main`, from a
+push or from closing and reopening the PR (IS #356). Both rulesets block force-pushes and
+deletion. Neither ruleset has a bypass list, so the rules bind admins: a required check red
+on every PR for a reason outside them (an advisory with no fixed release failing
+`audit`, an outage) blocks every merge into that branch until it passes again (a re-run
+after the outage; a PR that works around the advisory and passes its own checks) or the
+rule is lifted by hand in the repository's settings (plan #11).
+`gh api repos/{owner}/{repo}/rulesets` lists them, and `…/rulesets/<id>` reads one's rules
+back. A PR is reviewed and merged once its checks are green; nothing runs the gates by hand
+for it (but a private vulnerability's fix in its fork: "Doc changes", the exception). What CI
+doesn't cover:
+- the `/karta` browser check, which stays manual (below);
+- what a PR's checks run: a PR runs its own copy of everything its jobs read (workflows,
+  scripts, configs, tests, `package.json` and the lockfile, `.env.example`), so any edit can
+  turn a required check into one that passes whatever the code does, under the same name
+  (plan #2's limit; rulesets' "require workflows" isn't open to a personal account's
+  repository, #297). Read every diff, Dependabot's included, for what it changes in a check,
+  not only in the app;
+- on a PR into `dev`, a change the controls test that no `TRIGGERS` entry covers ("Schema
+  controls" below);
+- which run each check came from: `base (main)` shows that a run against `main` reported on
+  the commit, not that every other check's newest result came from it. A later run against
+  `dev` on the same commit (a PR closed and reopened while it targets `dev`, then retargeted
+  to `main`; two PRs from one branch; a re-run of an older run against `dev`) can mix its
+  results into `main`'s; and `dev`'s ruleset requires no `base (dev)`, so a PR retargeted
+  from `main` to `dev` counts its run against `main` (IS #356's review). Open a PR fresh
+  against the branch it merges into, don't retarget it, and re-run only its newest run.
 
-```
-npx tsc --noEmit      npm run lint      npm run test:all      npm run build
-```
+**Adding a required check** (Phase 8 plan #4, #5, #6, #13). The issue that adds a check is
+done when the check runs and reports correctly and has been seen to fail: on a probe PR that
+breaks it, from a branch named `probe/…`, which the ruleset then blocks, on each branch
+whose ruleset requires it. The probe PR is closed unmerged with its branch deleted, and no
+merge is attempted, `--admin` included. A `secret-scan` probe uses a made-up value Gitleaks
+flags, checked locally first and committed with no local hook, never pushed past push
+protection ("Secrets"). The check's findings get issues of their own. One that would keep
+the check red on `dev` is settled (fixed, dismissed, or allowlisted with a reason) before
+the check becomes required, since a red required check blocks every PR.
 
-Use `test:run` for the fast inner loop with Docker down; use `test:all` before opening
-or merging a PR. `test:run` passing is not evidence the integration suite passes — it
-does not run it.
+Locally, `npx tsc --noEmit`, `npm run test:run` and `npm run lint` are the fast loop, with
+Docker down. `tsc` is a check in its own right: vitest strips types and never type-checks, so
+a green test run says nothing about types. `test:run` passing is not evidence the
+integration suite passes: it doesn't run it. To reproduce a red job, run the failing step's
+command from `ci.yml`: `integration` is `npm run test:all` and the security advisor, `build`
+is `npm run build` and the smoke check of the served build.
 
 ⚠ **Read an exit code unpiped.** `cmd | tail; echo $?` reports `tail`'s status, not the
 command's, and has already produced a confident wrong gate result here (process-log
@@ -298,6 +513,13 @@ the old route until regenerated, so `tsc` and `build` fail with `Cannot find mod
 '…/route.js'`, which reads like a broken import. `rm -rf .next` (gitignored build
 output) and re-run (process-log row 275, PR #133).
 
+**Where an issue's browser checks run** (Phase 7 plan decision #36): in a local browser at
+phone width at `127.0.0.1:3000`, against the local stack. The phone, on `dev`'s preview, is
+for a plan's checkpoint issues: the preview's Redirect URLs admit `dev`'s alias alone, so a
+branch's preview can't finish a login (`README.md`, "Hosted preview database"), and no
+branch but `dev` gets the secret key, so its preview build fails (`README.md`, "Preview
+deploys").
+
 ⚠ **Browser checks: confirm which server answered, and that it is gone afterwards.**
 Stopping `npm start` or `npm run dev` from a background task on Windows ends `npm` but
 leaves its Next child processes running, still holding the port. The next server
@@ -308,20 +530,32 @@ the stale one. So:
   left (`Get-CimInstance Win32_Process -Filter "Name = 'node.exe'"`), and stop any
   that are (process-log row 279, PR #135).
 
+⚠ **`npm run dev` can reload a page in a loop** (IS #304): the page reloads non-stop, and
+the dev server logs a `✓ Compiled in …` line before every request with no file edited. Its
+symptoms match upstream [vercel/next.js#100267](https://github.com/vercel/next.js/issues/100267),
+a Turbopack dev-cache bug reported on 16.4 and a 16.5 canary; #304 couldn't reproduce it.
+Stop the server and its leftover `node` processes (above), and start it again; if it still
+loops, delete `.next/dev/cache`, or all of `.next`, first. Neither step was tested here. For
+a browser check, use `npm run build` + `npm start` instead, reading its `Local:` line
+(above): #304's probe saw no reload loop under `npm start`.
+
 ⚠ **Green gates don't show the map renders.** After a change to the map code, its
-dependencies or the tile file, look at `/map` in a real browser: basemap, markers and
+dependencies or the tile file, look at `/karta` in a real browser: basemap, markers and
 a popup. MapLibre's worker 404'd with all four gates green (process-log row 282).
 Headless Edge on this machine doesn't load the style at all, even on a working build,
 so it is no substitute (PR #138).
 
-**Schema controls: `node scripts/controls.mjs`, not a gate.** Each `tests/controls/*.sql`
+**Schema controls: `node scripts/controls.mjs`.** Each `tests/controls/*.sql`
 removes or narrows one term of a guard in the schema; the runner applies it, runs the
 integration tests its header names, checks they went red (or, for a `green:` control,
-stayed green), and restores the database with `npx supabase db reset`. Run it after a
-change to `supabase/migrations/` or to a test a control names (one file:
-`node scripts/controls.mjs tests/controls/<name>.sql`; `--check` parses the files and
-touches nothing). A new schema guard adds its
-controls by the rule in `.claude/commands/create-issues.md`'s Failure modes. About
+stayed green), and restores the database with `npx supabase db reset`. CI's required
+`controls` check runs the full set on a PR that changes a path a `TRIGGERS` entry in
+`scripts/controls-trigger.mjs` covers, and on every PR into `main`, and `--check` (parses
+the files, touches nothing) on the rest (#288). Run it by hand while writing a control or a
+migration (one file: `node scripts/controls.mjs tests/controls/<name>.sql`), and for a PR
+into `dev` whose change the controls test though no `TRIGGERS` entry covers it (that
+script's header says which changes it can't see), since there the check ran only `--check`.
+A new schema guard adds its controls by the rule in `.claude/commands/create-issues.md`'s Failure modes. About
 45 s a control, mostly the reset (64 took 48 minutes, 2026-10-23); the script's header
 says what it can't see.
 
@@ -341,6 +575,21 @@ doesn't declare). To narrow a run, use vitest directly (`npx vitest run --projec
 while others run) and files whose tests are all skipped. So glance at each project's
 file/test counts when tests are added, moved or deleted.
 
+**Invisible characters in tracked files** (IS #430): `scripts/tracked-text.test.mjs`, in the
+`unit` project, fails on any tracked file holding a character `scripts/post-body.mjs`
+refuses in posted text (raw controls, and its invisible list; an emoji's joiners, and one
+byte-order mark opening the file, kept). Every regular file is read as UTF-8 and scanned
+unless `.gitattributes` marks it `-text`, which excuses it from the scan, though a marked
+file holding text with nothing refused in it is named (IS #432; why `-text` and not
+`binary`, the owner's call on PR #433: `.gitattributes`' comment). A new binary file (an
+image, UTF-16 text) gets a line there, not only in a local attributes file, which CI doesn't
+see; unmarked, it is read as text, so it fails as not valid UTF-8 or on the refused
+characters it decodes to, if any. The test's header lists what else it can't see. The
+tools have turned a written escape into the character itself (process-log row 806); write
+such a character from its code point, or as escape text. A file that must hold one goes on
+the test's `ALLOWED` list with the code points it may hold and the reason; an entry the file
+no longer needs, or with no reason, fails.
+
 ---
 
 ## Doc changes — always issue → branch → PR
@@ -353,14 +602,39 @@ uncommitted on `dev`. Every doc change then has a reviewable diff and a
 `PR #n / IS #n` to point at.
 
 - **Part of tracked work → ride along.** A log row from a review round, a doc claim a
-  fix made stale, a plan tweak while working an issue: commit it on that issue's
-  branch, in its PR, and name it in the PR body.
+  fix made stale (except what the sweep's step 3 leaves for the reconciliation), a plan
+  tweak while working an issue: commit it on that issue's branch, in its PR, and name
+  it in the PR body.
 - **Nothing covers it → open one.** A dedicated issue (same format as the others), a
   branch off `dev`, a PR. That includes a log row written outside any issue's work,
   e.g. a miss found while surveying the repo (IS #131).
 - GitHub issue and PR text is not a repo file, so editing it needs no branch. It is
   still a doc: a corrected claim there gets the same sweep as one in a file ("Review
   rounds" below; process-log rows 269, 271).
+- **Issue and PR text is posted through `scripts/post-body.mjs`** (IS #403), from a file: a
+  body with `node scripts/post-body.mjs <n> <file>` (`--rounds` on a PR body once it has a
+  round section), a new comment with `--comment <n> <file>`, a change to one with
+  `--edit-comment <id> <file>`. A new issue or PR: `--check <file>` first, then `gh issue
+  create` or `gh pr create --body-file` with that file, then the first form on the same
+  file, which reads it back. It refuses, before posting, a raw control character, an
+  invisible character (the script's `INVISIBLE_NAMES`: the no-break space, soft hyphen,
+  zero-width characters, line and paragraph separators, bidi controls, U+FE0F and the
+  byte-order mark; GitHub stores them unchanged, probe PR #428, so no read-back shows them;
+  a joiner or U+FE0F that is part of an emoji, and a byte-order mark opening the file, are
+  kept), the escape text GitHub
+  rewrites (`\u0000` to `\u001F` but `\u0009`, `\u000A`, `\u000B` and `\u000D`: write
+  `\x00`, or the character's name) and a repeated `## ` heading; then it posts and fails if
+  GitHub's stored copy differs. A failure is fixed before the next
+  step. Its header lists what GitHub rewrites (probe PR #425) and what the script can't
+  see (a review comment on a PR's diff among them).
+- **Exception: a private vulnerability** (Phase 10 plan #13, IS #347). An outside report
+  (`SECURITY.md`), before production too, and once production exists an unfixed vulnerability found
+  in-house (Q36), is worked in its GitHub security advisory and the advisory's temporary private
+  fork, not a public issue, and no public PR until it ships, by `RUNBOOK.md`'s "A private
+  vulnerability". The fix ships by a public PR, where CI runs and the rulesets hold, never by the
+  advisory's merge button (GitHub's docs: it doesn't enforce the branch's protection rules). The fix
+  is public from the push of its branch. The issue, the round records and the process-log rows are
+  written when the advisory is published.
 
 ---
 
@@ -370,6 +644,23 @@ Why: the process log's Phase 3 retrospective (its Action 1) and Phase 4 retrospe
 (#149). Before asking for any review round, do the sweep (after a round's fixes) and
 then the claims check (every round, the first included), in that order, so the claims
 check also reads what the sweep changed.
+
+**Applying a finding** (IS #205; Phase 7 plan decisions #1, #2):
+- **Scope.** A fix may always correct what's there, or remove what an earlier fix added.
+  Before it adds a code path, option, output or rule, check what the defect needs: if
+  the PR's normal use reaches it, the issue as it stood before round 1 requires it, the
+  current plan or `CLAUDE.md` requires it, or it risks auth or data, fix it in the PR.
+  Any other case is stated as a limit in the code or doc it limits, or goes in an issue,
+  and the round's section of the PR body says which and why. If it's unclear, ask the
+  owner. Repeating a fix on a sibling (the sweep's step 3) isn't an addition, and a
+  finding a removal reopens gets the same check.
+- **A false or too-broad claim** (history stays as written, the sweep's step 3). In
+  order: delete the sentence if a reader doesn't need what it's about; narrow or correct
+  it to what a probe showed, naming the probe; reword only if neither works.
+- **Approved wording** (IS #207; Phase 7 plan decision #6). A fix that changes wording or
+  a decision the owner approved in this PR or its issue goes back to the owner before it
+  is applied, whatever else in "Review rounds" allows. It doesn't cover text approved in
+  an earlier PR.
 
 **The sweep: after applying a round's fixes** (or whenever a claim is corrected
 outside a review):
@@ -381,22 +672,38 @@ outside a review):
    new text. If `dev` was merged into or rebased under the branch since that commit,
    the diff also holds `dev`'s changes: list only this PR's. **List each code pattern
    a fix guards too** (a read `max_rows` can cut, a query with no tie-break): the same
-   defect in sibling code is a copy no listed claim names (rows 340, 342, 343).
+   defect in sibling code is a copy no listed claim names (rows 340, 342, 343). Then
+   run `bash scripts/sweep.sh "<rev>" --skip-issue <the issue the PR closes> [<PR
+   body>]` with the same commit; its header says what it lists, where it looks and
+   what it can't see. Add its hits to the list; they are a floor, not the list.
 2. **Grep every mention** of each across the tracked docs (`CLAUDE.md`, `README.md`,
    `.claude/`), code comments and tests, **every open issue body**, and the PR body if
-   there is one. For a code pattern, grep the code **and the tests** for its other uses
-   (the call, the query shape) and read each: row 343's copy was in a test helper.
+   there is one, the issue the PR closes included (PR #202's round 3 found #200's
+   "Does not catch" behind the script's header). `sweep.sh`'s hits are already such
+   mentions, of the text itself; grep for the terms as well, since a reworded copy
+   shares no run of words. For a code pattern, grep the code **and the tests** for its
+   other uses (the call, the query shape) and read each: row 343's copy was in a test
+   helper.
 3. **Read every hit.** Fix the stale ones. A sibling with the same defect gets fixed in
    the PR; only one outside the PR's scope gets an issue instead, named in the sweep
    record. Rows 340 and 342: a fix guarded one read, and its siblings were found a round
-   later each. A hit that restates a rule owned elsewhere
-   becomes a pointer to that copy, not a second edit (row 307; rows 294–295 went part
-   of the way). History (process-log rows from earlier work, dated entries) stays as
-   written. A row this PR added records what its round did: fix it if it's false
-   about that round, not to match what a later round changed.
-4. **Record the sweep** where the correction lives: that round's section of the PR
-   body, or a comment on the issue when only an issue body was corrected. Claim or
-   pattern → where it was checked → result.
+   later each. A hit or new text that restates a rule or fact owned elsewhere becomes a
+   pointer to that copy, not a second edit (row 307; rows 294–295 went part of the way),
+   and not a pointer to another pointer. Some restating is meant to stay: a code
+   comment's evidence, an issue's spec, a plan's steps, a log row's summary, a row in
+   "Decisions carried forward", `project-context.md`'s rules with their reasons, and a
+   short README summary (IS #211; Phase 7 plan decision #9). History (process-log rows
+   from earlier work, dated entries) stays as written. A row this PR added records what
+   its round did: fix it if it's false about that round, not to match what a later round
+   changed. While a plan is current, a stale hit or finding in `project-context.md` or
+   `README.md`'s status parts (the process log's "How to use it", part 6, names them) is
+   named in the plan's reconciliation step, and isn't edited unless a step of the plan
+   orders that edit. The reconciliation PR fixes these like any other hit (IS #209; Phase
+   7 plan decision #8).
+4. **Record the sweep** where the correction lives: that round's section of the PR body,
+   or a comment on the issue when only an issue body was corrected. Claim or pattern →
+   where it was checked → result, and `sweep.sh`'s counts with how each of its hits was
+   settled.
 
 Fixing only the lines a finding names is what let one correction miss its copies three
 rounds running; the sweep found the copy no finding had named (process-log row 295).
@@ -421,22 +728,38 @@ hit, do one of three things:
 - back it with a command whose result is in the PR body, and whose output **could
   have shown the claim false** (a read of `default` lines can't show a column with
   none, row 331);
-- reword it: to what a command showed (then back the new wording), or, for a claim
-  no command can check, to what you know. A claim about behaviour that a probe can
-  settle is **probed, not reworded into a hedge** ("could … (not probed)", row 350);
+- apply the claim order in "Applying a finding"; what stays is backed as above or, if
+  no command can check it, says only what you know. A claim about behaviour that a probe
+  can settle is **probed, not reworded into a hedge** ("could … (not probed)", row 350);
 - or note it is a rule, not a claim of fact.
+
+It also prints, as `closing:`, each line of the PR body (and of each other file or `--was`
+<new>) with a closing keyword before an issue reference. In the PR body, confirm each names
+only an issue the PR closes: merging into `dev` closes every one. In an issue body they close
+nothing (IS #368).
 
 Record the hit count and how each was settled in the PR body, under the round the
 check comes before (the first round's goes in the body as opened). The script lists
 claims, it doesn't judge them; its header says what it can't see.
 
 **The round itself: `/code-review` at its default findings limit**, not `--max-findings
-all` (the owner's call, Phase 5 plan decision #20): fix, then repeat, scoped to the
-previous round's fixes or full. A scoped round sees only the fixes: #20 records a
-defect outside them that a scoped round and the full round 1 on PR #168 both missed,
-and a later full round, on PR #169, found (row 349). The log's "Columns" ("What one row
-is", then `Caught by`) say what to ask each round for when it starts and how its row
-records it.
+all` (the owner's call, Phase 5 plan decision #20): fix, then repeat, up to this ceiling:
+full, scoped, full, then stop (Phase 7 plan decisions #4 and #39). If the last full round
+finds a defect in what runs, fix it, run one scoped round on those fixes, and stop. The
+owner can stop sooner or ask for more (IS #207). A scoped round sees only the fixes: #20
+records a defect outside them that a scoped round and the full round 1 on PR #168 both
+missed, and a later full round, on PR #169, found (row 349). The log's "Columns" ("What
+one row is", then `Caught by`) say how a round is recorded as a row.
+
+**The final records check** (IS #207; Phase 7 plan decision #5). Rounds skip the PR body,
+except its summary of what changed, and the PR's log rows: each round's request says so.
+After the last round's fixes, their sweep and claims check, one pass reads each record
+against its own round's diff, the summary against the final diff, and checks any last
+fixes no round saw for correctness. It isn't a round: a miss it finds is a log row like
+any other. Its result, with the last claims record, goes in the PR body. The message
+asking the owner to merge says it ran, what it changed, and any defect left open. Nothing
+reads the pass's own edits. If a commit or a change to the PR body follows the check,
+other than its own edits, it runs again on what the PR changed.
 
 ---
 
@@ -458,6 +781,10 @@ when the miss is mine:**
 - A settled decision gets re-proposed, or a preference is assumed instead of asked
 - A review round finds anything — that is the signal an earlier gate missed it
 
+A private vulnerability's rows are still added, at its disclosure: dated that day (`add`
+refuses a date earlier than the last row's), with the day the miss happened in the Miss. It is
+the one exception to "as it happens" ("Doc changes", the exception).
+
 **Do not** log ordinary bugs found and fixed while writing the code. That is just
 work. The bar is *"this says something about the process."* Bugs belong in GitHub
 issues; this file is for what the bug reveals about how we work.
@@ -474,10 +801,18 @@ says where).
 this paragraph is the procedure's one copy, and the other files point here):
 - A settled decision goes into `project-context.md`'s "Decisions carried forward" table
   as a row whose first cell starts `**between phases**, <date>, IS #<n>`, through an
-  issue and PR like any doc change. A rule also goes into this file in that PR, so it
-  holds at once.
+  issue and PR like any doc change. Several rows from one issue each carry a short label
+  after its number (`IS #278 (D1)`), so a citation names one row. A rule also goes into
+  this file in that PR, so it holds at once.
 - The next plan gives each marked row a decision of its own, one per row, citing the
-  row's IS # (`/create-milestone` adds them to the plan's Rationale).
+  row's IS # (`/create-milestone` adds them to the plan's Rationale). A row whose marker
+  names a later phase (`**between phases**, <date>, IS #<n>, for Phase <N>`) is that
+  phase's plan's instead: earlier plans don't take it, and their reconciliations don't
+  replace its marker, though a stale fact in it is fixed like any other hit (the
+  owner's calls, IS #279; Phase 8 plan #3). Such a row waits through the phases before its
+  own. A between-phases row that a later one replaces is removed in the PR that adds the new
+  row, which keeps what still holds and cites the old row's IS #; the old text stays in
+  its PR (IS #279; Phase 8 plan #3).
 - That plan's reconciliation replaces each marker with the plan decision, and the rule
   text here cites it. When the decision didn't outlive the phase, the reconciliation
   removes the row and the rule text with it.

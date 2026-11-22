@@ -54,8 +54,9 @@ function loadEnvLocal(): void {
     contents = readFileSync(ENV_FILE, "utf8");
   } catch {
     throw new Error(
-      `Integration tests need ${ENV_FILE} (Supabase URL + service role key). ` +
-        "Copy .env.example and run `npx supabase start`.",
+      `Integration tests need ${ENV_FILE} (Supabase URL, anon key and service role key). ` +
+        "Run `npx supabase start`, copy .env.example to .env.local and fill it in from " +
+        "`npx supabase status -o env` (README.md, \"3. Environment\").",
     );
   }
 
@@ -106,6 +107,13 @@ function assertLocal(): void {
 
 loadEnvLocal();
 assertLocal();
+
+// Stops the whole run when the anon key is missing. With this check deleted,
+// `NEXT_PUBLIC_SUPABASE_ANON_KEY= npm run test:integration` ran 5 of 6 files green and
+// failed only `rls.test.ts`, on `anonClient()`'s throw.
+if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+  throw new Error("Integration tests need NEXT_PUBLIC_SUPABASE_ANON_KEY");
+}
 
 // ⚠ CLEAN UP AFTER THE LAST TEST, NOT ONLY BEFORE THE NEXT ONE. Suites call
 // `resetTables()` in `beforeEach`, which leaves the FINAL test's fixtures behind until

@@ -1,3 +1,18 @@
 # Shell scripts must keep LF endings in every checkout: bash outside Git Bash (WSL,
 # Linux) fails on CRLF. core.autocrlf would otherwise convert them on Windows.
+# The git hooks are shell scripts with no `.sh` extension, so they need their own line.
 *.sh text eol=lf
+.githooks/* text eol=lf
+
+# Binary files. scripts/tracked-text.test.mjs skips a file marked `-text` (its header says what else
+# a mark does there; IS #432). Mark a binary file `-text`, not `binary`, the owner's call on PR
+# #433. For a file with no NUL byte, `binary`'s `-diff` made the pre-commit Gitleaks hook see only
+# "Binary files … differ" and miss a made-up token, which it caught under `-text`, though Git then
+# merges such a file as text, writing conflict markers into it. A file with a NUL (every `.ico`) the
+# hook doesn't read under either mark: Git decides binary from the content (all probed on PR #433).
+# A `.png` holds a NUL too, at byte 8, its first chunk's length (`src/app/apple-icon.png`, PR #482),
+# which Git reads as binary too (`git diff --stat` shows it as "Bin"). CI's secret scan, with
+# `--text`, reads both, except in the extensions Gitleaks' default config skips (`.png`, `.pdf` and
+# `.bin` among them: ci.yml's secret-scan comment).
+*.ico -text
+*.png -text

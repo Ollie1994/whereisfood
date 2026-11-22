@@ -2,6 +2,7 @@
 
 import { useRef } from "react";
 import MapView from "@/components/Map/MapView";
+import { MAP_NOTICE } from "@/components/Map/styles";
 import { useLocations } from "@/hooks/useLocations";
 import { useMapLibre } from "@/hooks/useMapLibre";
 import { noticeText } from "@/lib/live";
@@ -9,8 +10,11 @@ import { noticeText } from "@/lib/live";
 export default function MapClient() {
   const containerRef = useRef<HTMLDivElement>(null);
   const { markers, now, fetchState } = useLocations();
-  useMapLibre(containerRef, markers, now);
-  const notice = noticeText(fetchState, markers.size);
+  // A limit: when the map can't be drawn, `useLocations` still polls `/api/live` every
+  // `POLL_MS` while the tab is visible, for markers that can't show; stopping it would be a
+  // change to `useLocations`.
+  const mapFailed = useMapLibre(containerRef, markers, now);
+  const notice = noticeText(fetchState, markers.size, mapFailed);
 
   // The status region is in the first render and stays mounted; only its text changes.
   // MDN, "ARIA live regions": "Establish the live region before updating its content
@@ -25,7 +29,7 @@ export default function MapClient() {
       <MapView ref={containerRef} />
       <div role="status" className="pointer-events-none absolute inset-x-4 top-4 z-10 flex justify-center">
         {notice && (
-          <p className="rounded-md bg-white px-3 py-2 text-center text-sm text-gray-900 shadow">
+          <p className={MAP_NOTICE}>
             {notice}
           </p>
         )}

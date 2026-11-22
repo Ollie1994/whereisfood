@@ -160,7 +160,11 @@ site_url = "http://127.0.0.1:3000"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+additional_redirect_urls = [
+  "https://127.0.0.1:3000",
+  "http://127.0.0.1:3000/auth/callback",
+  "http://localhost:3000/auth/callback",
+]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
@@ -173,7 +177,10 @@ enable_refresh_token_rotation = true
 # Requires enable_refresh_token_rotation = true.
 refresh_token_reuse_interval = 10
 # Allow/disallow new user signups to your project.
-enable_signup = true
+# Off: users are created by hand (README.md, "5. Create the admin user").
+# Here only, never under [auth.email]: there it refuses every email login with
+# `email_provider_disabled` (Phase 7 plan, step 2, probed on the local stack).
+enable_signup = false
 # Allow/disallow anonymous sign-ins to your project.
 enable_anonymous_sign_ins = false
 # Allow/disallow testing manual linking of accounts
@@ -225,13 +232,20 @@ double_confirm_changes = true
 # If enabled, users need to confirm their email address before signing in.
 enable_confirmations = false
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
-secure_password_change = false
+# On: a stolen session over 24 hours old can't set a password (CLAUDE.md, "Supabase"; IS #378).
+secure_password_change = true
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
 max_frequency = "1s"
-# Number of characters used in the email OTP.
-otp_length = 6
-# Number of seconds before the email OTP expires (defaults to 1 hour).
-otp_expiry = 3600
+# Number of characters used in the email OTP. 10: no email shows the login code (the magic link
+# only, Phase 9 plan #14), but Auth still issues and accepts it, so its length sets the odds
+# of guessing it (plan step 8, open decision 1, IS #386). It also sets the reauthentication
+# code, which an email does show and the user types to change a password on a session over
+# 24 hours old (`secure_password_change`): probed, "4945476733 is your verification code".
+otp_length = 10
+# Number of seconds before the email OTP expires (defaults to 1 hour). 15 minutes (IS #386).
+# The magic link's life too: the hosted dashboard's text for this setting is "Duration
+# before an email OTP / link expires" (read 2026-11-18, the owner's screenshot).
+otp_expiry = 900
 
 # Use a production-ready SMTP server
 # [auth.email.smtp]
@@ -248,11 +262,18 @@ otp_expiry = 3600
 # subject = "You have been invited"
 # content_path = "./supabase/templates/invite.html"
 
-# Uncomment to customize notification email template
-# [auth.email.notification.password_changed]
-# enabled = true
-# subject = "Your password has been changed"
-# content_path = "./templates/password_changed_notification.html"
+# The password-changed email, on: tells the admin a password was set (CLAUDE.md, "Supabase";
+# IS #378). The default template, so no subject or content_path.
+[auth.email.notification.password_changed]
+enabled = true
+
+# The factor-enrolled and factor-unenrolled emails, on: tell the admin a TOTP factor was
+# added or removed, the swap Phase 9 plan #13 can only detect (IS #381). Default templates.
+[auth.email.notification.mfa_factor_enrolled]
+enabled = true
+
+[auth.email.notification.mfa_factor_unenrolled]
+enabled = true
 
 [auth.sms]
 # Allow/disallow new user signups via SMS to your project.
@@ -293,15 +314,15 @@ message_service_sid = ""
 # DO NOT commit your Twilio auth token to git. Use environment variable substitution instead:
 auth_token = "env(SUPABASE_AUTH_SMS_TWILIO_AUTH_TOKEN)"
 
-# Multi-factor-authentication is available to Supabase Pro plan.
+# One factor per user: the admin's one TOTP factor fills it, so a stolen session can't add
+# a second beside it (Phase 9 plan #13, IS #381). TOTP, the one MFA method, enroll and
+# verify on.
 [auth.mfa]
-# Control how many MFA factors can be enrolled at once per user.
-max_enrolled_factors = 10
+max_enrolled_factors = 1
 
-# Control MFA via App Authenticator (TOTP)
 [auth.mfa.totp]
-enroll_enabled = false
-verify_enabled = false
+enroll_enabled = true
+verify_enabled = true
 
 # Configure MFA via Phone Messaging
 [auth.mfa.phone]
