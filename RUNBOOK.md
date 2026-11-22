@@ -1,6 +1,7 @@
 # Runbook
 
-What to open in an incident, and the weekly routine (Phase 10 plan, steps 10 and 11, #8 and #13).
+What to open in an incident, the weekly routine (Phase 10 plan, steps 10 and 11, #8 and #13),
+and a release (step 15b).
 The repo is public, so nothing here is a secret. Each value a step needs lives where `CLAUDE.md`'s
 "Where secrets live" says: production's Supabase keys in its dashboard (Project Settings → API Keys)
 and in Vercel's environment variables, and its database URL in the gitignored `.env.prod-db.local`.
@@ -19,6 +20,7 @@ A step that rests on a probe or a doc names it, with its issue.
 - [A private vulnerability](#a-private-vulnerability)
 - [A paused project](#a-paused-project)
 - [A restore](#a-restore)
+- [A release](#a-release)
 
 ---
 
@@ -698,7 +700,7 @@ exists one found in-house, is fixed without a public issue or PR until it ships 
    - Before production, always: a branch off `dev` and a PR into `dev`, whose preview deploys
      it, wherever else the code is, so plan #9's first merge into `main` keeps its order.
    - Once production exists, the vulnerable code deployed there: a branch off `main` and a PR
-     into `main`, deployed, then `main` synced into `dev` by a PR (plan step 15b's sync, #462);
+     into `main`, deployed, then `main` synced into `dev` by a PR ("A release", step 3);
      both rulesets refuse a direct push. Before step 4, check that `dev`'s copy is fixed too,
      the fix's test passing on `dev` after the sync: a sync can keep `dev`'s changed version of
      the code, and the next deploy from `dev` would bring the vulnerability back.
@@ -842,3 +844,60 @@ container. In this order, since the login has to reach the new project:
 
 Not tried: neither the hosted restore nor this move has been run (README, "Restoring",
 Limits).
+
+---
+
+## A release
+
+Production builds from `main`; work lands on `dev` (Phase 10 plan #9 and step 15b). A release
+takes `dev` to `main` by a PR, then brings `main`'s merge commit back to `dev` by another, as
+#461 and #462 did first.
+
+1. **The PR into `main`**, opened fresh from `dev`, never retargeted (`CLAUDE.md`, "Testing"):
+   `gh pr create --base main --head dev`. First run `secret-scan`'s closing-keyword check over
+   every commit it carries, as #461 did over 1093:
+
+   ```bash
+   git fetch origin
+   git log -z --format='%H%n%B' origin/main..origin/dev \
+     | PR_TITLE="<the PR's title>" PR_BRANCH=dev node scripts/closing-keywords.mjs
+   ```
+
+   It needs every check `main`'s ruleset requires, CodeQL's three among them; `controls` runs
+   the full set on a PR into `main` (27 minutes for 65 controls on #488's run). Settle
+   each CodeQL finding before the merge: fixed, an issue, or dismissed with a reason. Merge with
+   a merge commit, `gh pr merge <n> --merge`, without `--delete-branch`: the PR's branch is
+   `dev`. A merge into `main` closes no issue by keyword, since only one into the default
+   branch, `dev`, does: close the release's issue by hand.
+2. **What the merge starts:** a Production build, which the Ignored Build Step lets through for
+   `main` (README, "Preview deploys"), and CodeQL's analysis of `main`. Read the build's result
+   on the merge commit:
+
+   ```bash
+   gh api "repos/{owner}/{repo}/commits/<merge commit>/status" \
+     -q '.statuses[] | "\(.context): \(.state) - \(.description)"'
+   ```
+
+3. **The sync back into `dev`.** `main` now holds a merge commit `dev` lacks, and both rulesets
+   require a PR up to date with its base and refuse a direct push, so the next PR into `main`
+   can't merge until `dev` holds it. A branch off `dev` merges `origin/main` and goes into
+   `dev` by a PR, with its own issue:
+
+   ```bash
+   git fetch origin
+   git checkout -b phase-<N>/sync-main origin/dev
+   git merge origin/main
+   git push -u origin phase-<N>/sync-main
+   ```
+
+   When `dev` has gained nothing since the release, the merge fast-forwards and makes no commit
+   of its own: #462's did (`main`'s merge commit had `dev`'s tip as its second parent, with the
+   same tree). Otherwise it makes a merge commit. A conflict means `main`
+   holds a change `dev` lacks, such as a fix shipped straight to `main` ("A private
+   vulnerability", step 3): resolve it so `dev` keeps that fix. After the PR merges, this
+   prints `dev holds main`:
+
+   ```bash
+   git fetch origin
+   git merge-base --is-ancestor origin/main origin/dev && echo "dev holds main"
+   ```
