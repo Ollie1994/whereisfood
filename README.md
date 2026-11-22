@@ -525,9 +525,10 @@ Secrets).
 **Schema.** Migrations only, never the seed: production holds real data entered on `/admin`.
 The CLI is linked to production only for a push or a check, and linked back to the preview
 right after, so a plain `npx supabase db push` can't reach production by mistake. Use
-`RUNBOOK.md`'s guarded blocks, with production's ref: "A restore", step 1 (link, dry run,
-push, the advisor) and step 7 (link back to the preview), each of which runs its command only
-inside `if … grep -qxF '<ref>' supabase/.temp/project-ref; then`.
+`RUNBOOK.md`'s guarded blocks: "A restore", step 1, with production's ref (link, dry run,
+push, the advisor), whose commands each run only inside
+`if … grep -qxF '<ref>' supabase/.temp/project-ref; then`; and its step 7, which links back to
+the preview and checks that link the same way.
 
 The first push applied `0001_baseline.sql` and printed the certificate warning "Hosted preview
 database" describes; `migration list --linked` showed `0001` on both sides. The CLI needed
