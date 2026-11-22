@@ -314,8 +314,9 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     there. **Production gets no variables yet** (#9).
 15. **Before the deploy:**
     - the 2FA re-check of every account, each one's recovery mailbox, the registrar's account
-      (Oderland, IS #452) and the removal-contact mailbox (IS #456) (`CLAUDE.md`, "Secrets"),
-      recorded without an address or secret;
+      (Oderland, IS #452), the removal-contact mailbox (IS #456) and the admin's login mailbox,
+      with whether it has a recovery address yet (IS #458) (`CLAUDE.md`, "Secrets"), recorded
+      without an address or secret;
     - every credential that existed before the deploy rotated or replaced (open decision 12),
       listed by name;
     - **the first merge `dev` → `main`** (#9): a PR opened fresh against `main`, never

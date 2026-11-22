@@ -328,22 +328,27 @@ the request with 429 (`src/lib/login.ts`). Your own requests spend the budget to
 answer after two of yours in an hour is no sign; nor is the TOTP step's "För många försök. Vänta
 en stund och försök igen.", a limit on codes. That a spent hourly budget answers 429 wasn't
 probed (locally the CLI sets the budget to 360 000, `GOTRUE_RATE_LIMIT_EMAIL_SENT`, IS #377). If
-a factor-added, factor-removed or password-changed email you didn't cause came too, this is
+a factor-enrolled, factor-unenrolled or password-changed email you didn't cause came too
+("MFA method added", "MFA method removed", "Password changed" in README's checklist), this is
 "A takeover", not this section.
 
 1. **Check the mail itself:** the spam folder, and the address typed on the login form. A link
    lives 15 minutes: production's "Email OTP expiration" is 900 s, which the dashboard says is
    the "Duration before an email OTP / link expires" (IS #458).
-2. **Wait an hour, then ask once.** Each request spends one of the two. Only the newest link
-   can work: any later request for your address, from anyone and any browser, voids the
-   earlier link at Auth's `/verify` (`otp_expired`, `src/app/auth/callback/route.ts`'s header),
-   and each request from your browser also replaces its PKCE verifier (`src/lib/login.ts`). So
-   while someone keeps asking, even your fresh link can fail with "Inloggningslänken fungerade
-   inte": go to step 4 rather than spend more requests.
+2. **Wait an hour, then ask once.** Each link Auth sends spends one of the two; a refused
+   request sends none. Only the newest link sent can work: a later link sent to your address,
+   whoever asked for it, voids the earlier one at Auth's `/verify` (`otp_expired`), while a
+   refused request leaves it working (local stack, IS #458: a link opened after a second send
+   answered `otp_expired`, and one opened after a refused `429` request made a session). And
+   each request from your browser, refused or not, replaces its PKCE verifier, so only a link
+   from your browser's newest request finishes there (`src/lib/login.ts`). So while someone
+   keeps asking, even your fresh link can fail with "Inloggningslänken fungerade inte": go on to
+   step 3, then step 4, rather than ask again.
 3. **See who asks**, in production's SQL editor, and save the result (a copy or a screenshot,
    outside the repo): the weekly `retention.sql` deletes audit rows older than 30 days.
-   `select created_at, ip_address from auth.audit_log_entries where payload->>'action' =
-   'user_recovery_requested' order by created_at desc limit 50;`. A link the budget let through
+   `select created_at, payload->>'actor_username' as address, ip_address from
+   auth.audit_log_entries where payload->>'action' = 'user_recovery_requested' order by
+   created_at desc limit 50;`. A link the budget let through
    for an address with an account writes such a row, with the address as `payload`'s
    `actor_username`; a request for an address with no account writes none, and neither does a
    refused one: of three back-to-back requests for one address, the second and third answered
@@ -367,7 +372,9 @@ a factor-added, factor-removed or password-changed email you didn't cause came t
    ```
 
    `200` means done; a `4xx` or `000` reads as in "A takeover", step 2. Then log in with the new
-   address. Probed on the local stack with a throwaway user that had a verified TOTP factor and
+   address once an hour has passed since the last link you didn't ask for: the move stops the
+   spending but doesn't refill the budget, so a "För många försök" before then doesn't mean the
+   move failed. Probed on the local stack with a throwaway user that had a verified TOTP factor and
    an `aal2` session (IS #458): the `PUT` answered `200`; the new address held at once, with no
    change left pending, and the identity's email moved with it; no mail went to either address;
    the factor kept its id and stayed `verified`; the `aal2` session still answered `200` at
