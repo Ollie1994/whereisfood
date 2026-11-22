@@ -861,7 +861,9 @@ runs what is in backticks and expands `$`.
 1. **The PR into `main`.** Before opening it, two checks:
    - **No file that overrides the Ignored Build Step** comes with it. A branch's `vercel.json`
      can (README, "A branch's `vercel.json`"), and plan step 16 requires none on `dev` or
-     `main`. This prints nothing when there is none, with the match README's re-read uses:
+     `main`. README's re-read uses this wide match, and on 2026-11-22 it printed only
+     `public/vercel.svg`, an image (IS #459, and again for IS #462). Read anything else it
+     prints before the merge:
 
      ```bash
      git fetch origin
