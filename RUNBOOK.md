@@ -912,9 +912,8 @@ backticks, `$` and apostrophes in the title pass as written. Tried on IS #462 wi
    with a reason, for the check to pass; an issue alone settles only one it passes on. The
    repository's "Check runs failure threshold" sets which fail: Security alert severity level
    "High or higher", Standard alert severity level "Only errors" (read by the owner on
-   2026-11-22 in Settings → Advanced Security → Code scanning → Protection rules, IS
-   #491).
-   PR #489's critical alert failed it.
+   2026-11-22 in Settings → Advanced Security → Code scanning → Protection rules,
+   IS #491). PR #489's critical alert failed it.
 
    Merge with a merge commit, `gh pr merge <n> --merge`, without `--delete-branch`: the PR's
    branch is `dev`. A merge into `main` closes no issue by keyword, since only one into the
