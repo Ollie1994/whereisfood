@@ -304,9 +304,10 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
 14. **Vercel and R2:** the Ignored Build Step read as set to cancel a Production build from any
     branch but `main`, and no `vercel.json` `ignoreCommand` and no `vercel.ts` (which may
     override it too, not probed) on `dev` or `main`; R2's CORS rule
-    gains an origin for each production address README names (`whereisfood.vercel.app`,
-    `vararmaten.vercel.app`, production's domain since IS #458, `whereisfood-theta.vercel.app`,
-    now a 307 to it, `<project>-<scope-slug>.vercel.app`), or each address
+    gains an origin for each production address README names (`vararmaten.vercel.app`,
+    production's domain since IS #458, `whereisfood-theta.vercel.app`, now a 307 to it,
+    `<project>-<scope-slug>.vercel.app`; not `whereisfood.vercel.app`, another owner's site,
+    IS #459), or each address
     without one redirects to one that has it (README, "Get the map tiles"); the Vercel Toolbar
     off for Production deployments, as for pre-production (the owner's call, round 3 on PR
     #447; README's "Hosted settings checklist"); Production's Deployment Retention Policy, which
@@ -739,6 +740,10 @@ findings before production stay public (Q36).
     or only stay out of production ("reuse nothing from the preview setup").
 13. **How the trucks are told** (step 18): the channel and the Swedish text, with a link to
     `/integritet`.
-14. **Production's Deployment Retention Policy** (step 14): README's checklist keeps Production
+14. ~~**Production's Deployment Retention Policy** (step 14): README's checklist keeps Production
     at 30 days because no Ready production deployment existed (IS #417's comment of
-    2026-11-19); the value against Hobby's 10 GB of Deployment Storage (#417).
+    2026-11-19); the value against Hobby's 10 GB of Deployment Storage (#417).~~ → **settled**
+    (the owner, 2026-11-22, IS #459): 30 days, unchanged. Production deploys only on a `dev` →
+    `main` merge, and Hobby keeps the last 3 Ready production deployments and the one holding
+    the production alias whatever the policy, so the value deletes almost nothing; Deployment
+    Storage read 545 MB of 10 GB that day.
