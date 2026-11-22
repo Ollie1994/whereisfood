@@ -172,8 +172,9 @@ said otherwise: Phase 4 plan decision #14.
   link's `recovery_sent_at` back by SQL). A hosted project's are README's hosted settings
   checklist's (#390). No email shows the login code, but Auth accepts it; the length also
   sets the reauthentication code, which is emailed and typed (`config.toml`). Spending the
-  built-in email's budget so the admin's link doesn't come is accepted for Phase 9 only;
-  Phase 10 decides it again before production (open decision 1)
+  built-in email's budget so the admin's link doesn't come is accepted until the Owners
+  phase's custom SMTP (Phase 10 plan open decision 6, IS #458); what to do when it happens is
+  `RUNBOOK.md`'s "A login link that doesn't come"
 
 **Secrets** (IS #176; the repo is public)
 - Never commit a `.env*` file except `.env.example`, which holds variable names only.
@@ -197,7 +198,8 @@ said otherwise: Phase 4 plan decision #14.
   a CLI login token where the CLI stores it) stay on their machine.
   None goes in a tracked or shared file
 - Every account that can reach the project (GitHub, Supabase, Vercel, Cloudflare, the
-  registrar, their recovery email) uses two-factor authentication by passkey, hardware
+  registrar, the admin's login mailbox, whose holder receives its login links, the first
+  factor, IS #458, and their recovery email) uses two-factor authentication by passkey, hardware
   key or authenticator app, not SMS: set up when the account is created, all checked
   before the production deploy (Phase 6 plan decision #3, IS #176). Which accounts don't
   meet it yet is `project-context.md`'s, "Pre-deploy automation"

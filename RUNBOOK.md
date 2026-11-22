@@ -12,6 +12,7 @@ A step that rests on a probe or a doc names it, with its issue.
 - [Exporting evidence](#exporting-evidence)
 - [A takeover of the admin account](#a-takeover-of-the-admin-account)
 - [A lost phone](#a-lost-phone)
+- [A login link that doesn't come](#a-login-link-that-doesnt-come)
 - [A leaked key](#a-leaked-key)
 - [A takedown request](#a-takedown-request)
 - [Other requests](#other-requests)
@@ -309,6 +310,88 @@ no secret key outside Supabase, no unenroll screen; IS #457):
 Limits: run only on the local stack, not on a hosted project. #454's probe showed the
 preview's SQL editor runs as `postgres` and may delete from an `auth` table
 (`auth.audit_log_entries`). These two tables weren't tried there.
+
+---
+
+## A login link that doesn't come
+
+Production sends through Supabase's built-in email, which allows 2 emails an hour for the whole
+project (README, "Hosted settings checklist", Rate Limits). Anyone who knows the admin's address
+can ask for login links and spend them, so yours doesn't come. That is accepted until the Owners
+phase's custom SMTP (the Phase 10 plan's open decision 6, IS #458). It grants no access: a session
+you already hold keeps working until its 12-hour box (`CLAUDE.md`, "The session time-box").
+
+Signs: **login-link emails you didn't ask for** in the admin's mailbox (Auth sends each link
+someone asks for to your address, while the budget lasts), and the login form answering "För
+många försök. Vänta en stund och skicka sedan en ny länk. …", which it shows when Auth refuses
+the request with 429 (`src/lib/login.ts`). Your own requests spend the budget too, so that
+answer after two of yours in an hour is no sign; nor is the TOTP step's "För många försök. Vänta
+en stund och försök igen.", a limit on codes. That a spent hourly budget answers 429 wasn't
+probed (locally the CLI sets the budget to 360 000, `GOTRUE_RATE_LIMIT_EMAIL_SENT`, IS #377). If
+a factor-enrolled, factor-unenrolled or password-changed email you didn't cause came too
+("MFA method added", "MFA method removed", "Password changed" in README's checklist), this is
+"A takeover", not this section.
+
+1. **Check the mail itself:** the spam folder, and the address typed on the login form. A link
+   lives 15 minutes: production's "Email OTP expiration" is 900 s, which the dashboard says is
+   the "Duration before an email OTP / link expires" (IS #458).
+2. **Wait an hour, then ask once.** Each link Auth sends spends one of the two; a refused
+   request sends none. Only the newest link sent can work: a later link sent to your address,
+   whoever asked for it, voids the earlier one at Auth's `/verify` (`otp_expired`; local stack,
+   IS #458: a link opened after a second send answered `otp_expired`). Whether a request the
+   hourly budget refuses leaves it working is unknown: production refuses only that way (the
+   per-user interval applies only with custom SMTP, README's Rate Limits row), and that refusal
+   wasn't probed; locally, a link still made a session after another client's request was
+   refused by the per-user interval (`max_frequency`). So don't count on an older link while
+   someone is asking. And each request from your browser, refused or not, replaces its PKCE
+   verifier, so only a link
+   from your browser's newest request finishes there (`src/lib/login.ts`). So while someone
+   keeps asking, even your fresh link can fail with "Inloggningslänken fungerade inte": go on to
+   step 3, then step 4, rather than ask again.
+3. **See who asks**, in production's SQL editor, and save the result (a copy or a screenshot,
+   outside the repo): the weekly `retention.sql` deletes audit rows older than 30 days.
+   `select created_at, payload->>'actor_username' as address, ip_address from
+   auth.audit_log_entries where payload->>'action' = 'user_recovery_requested' order by
+   created_at desc limit 50;`. A link the budget let through
+   for an address with an account writes such a row, with the address as `payload`'s
+   `actor_username`; a request for an address with no account writes none, and neither does a
+   refused one: of three back-to-back requests for one address, the second and third answered
+   `429` `over_email_send_rate_limit` (`max_frequency`) and only the first left a row (local
+   stack, IS #458; a refusal by the hourly budget wasn't probed). So the rows count at most the
+   links sent, about two an hour, however many were asked for: few rows doesn't mean few
+   requests. Rows you didn't cause mean someone holds your address. On the local stack their
+   `ip_address` was empty; a hosted project's weren't read.
+4. **If it goes on, move the account to a new address** that no page shows and that can't be
+   guessed from the old one or `/integritet`'s contact, a mailbox with two-factor from its
+   creation (`CLAUDE.md`, "Secrets"). Auth sends a link only to an address that has an account
+   (sign-ups are off), so the old address then spends nothing. In production's SQL editor, check
+   that there is one admin and note its id ("A lost phone", step 2's query). Then, with the
+   secret key read without echoing (`read -rs SECRET_KEY`), as "A takeover", step 2, does:
+
+   ```bash
+   curl -sS -w '\n%{http_code}\n' -X PUT "<project URL>/auth/v1/admin/users/<admin id>" \
+     -H "apikey: $SECRET_KEY" -H "Content-Type: application/json" \
+     -d '{"email":"<new address>","email_confirm":true}'
+   unset SECRET_KEY
+   ```
+
+   `200` means done; a `4xx` or `000` reads as in "A takeover", step 2. Then log in with the new
+   address once an hour has passed since the last link sent to anyone, yours included (step 3's
+   newest `created_at`): the budget is the project's, not the address's, so the move stops the
+   spending but leaves what was spent, and a "För många försök" before then doesn't mean the
+   move failed. Probed on the local stack with a throwaway user that had a verified TOTP factor and
+   an `aal2` session (IS #458): the `PUT` answered `200`; the new address held at once, with no
+   change left pending, and the identity's email moved with it; no mail went to either address;
+   the factor kept its id and stayed `verified`; the `aal2` session still answered `200` at
+   `GET /auth/v1/user`. After it, a link asked for the old address answered `422`
+   `otp_disabled` and sent nothing, one asked for the new address sent one, and a sign-in by the
+   new address reached `aal2` with the same factor. Update the address in your password manager.
+
+**Don't delete the admin and create a new one** to get a new address. `users.id` has no
+`ON DELETE` action, so the `users` row would go first, and deleting the auth user clears
+`created_by` on every location it entered (`on delete set null`) and deletes its factor, which
+the `PUT` keeps (the foreign keys' delete rules in `pg_constraint` on the local stack: `users`
+no action, `locations.created_by` set null, `auth.mfa_factors` cascade; IS #458).
 
 ---
 

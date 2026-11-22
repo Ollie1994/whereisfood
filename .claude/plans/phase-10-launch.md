@@ -305,7 +305,8 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     branch but `main`, and no `vercel.json` `ignoreCommand` and no `vercel.ts` (which may
     override it too, not probed) on `dev` or `main`; R2's CORS rule
     gains an origin for each production address README names (`whereisfood.vercel.app`,
-    `whereisfood-theta.vercel.app`, `<project>-<scope-slug>.vercel.app`), or each address
+    `vararmaten.vercel.app`, production's domain since IS #458, `whereisfood-theta.vercel.app`,
+    now a 307 to it, `<project>-<scope-slug>.vercel.app`), or each address
     without one redirects to one that has it (README, "Get the map tiles"); the Vercel Toolbar
     off for Production deployments, as for pre-production (the owner's call, round 3 on PR
     #447; README's "Hosted settings checklist"); Production's Deployment Retention Policy, which
@@ -313,8 +314,9 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     there. **Production gets no variables yet** (#9).
 15. **Before the deploy:**
     - the 2FA re-check of every account, each one's recovery mailbox, the registrar's account
-      (Oderland, IS #452) and the removal-contact mailbox (IS #456) (`CLAUDE.md`, "Secrets"),
-      recorded without an address or secret;
+      (Oderland, IS #452), the removal-contact mailbox (IS #456) and the admin's login mailbox
+      with its recovery address, if it has one yet (IS #458) (`CLAUDE.md`, "Secrets"), recorded
+      without an address or secret;
     - every credential that existed before the deploy rotated or replaced (open decision 12),
       listed by name;
     - **the first merge `dev` → `main`** (#9): a PR opened fresh against `main`, never
@@ -698,7 +700,13 @@ findings before production stay public (Q36).
    owner, round 6): `retention.sql` is skipped during an incident only until the takeover's
    audit-log export is saved, at most 8 weeks; after a restore into a new project, the old
    one is deleted at most 8 weeks after the restore (`RUNBOOK.md`, "A restore").
-6. **The email-budget lockout** (#3): accepted again, or a mitigation, before step 13.
+6. ~~**The email-budget lockout** (#3): accepted again, or a mitigation, before step 13.~~ →
+   **settled** (the owner, 2026-11-22, IS #458): accepted again, until the Owners phase's custom
+   SMTP; custom SMTP now was weighed and not taken (a new account, a secret, DNS, and it raises
+   the budget rather than removing it). `RUNBOOK.md`'s "A login link that doesn't come" says
+   what to do, ending in moving the admin to a new address by Auth's admin API (probed on the
+   local stack, IS #458). The admin's login address is a mailbox used for that login alone,
+   never the public removal contact (IS #458).
 7. ~~**How the usage, spend and 5xx alerts are covered** on the free plans (Phase 9 plan open
    decision 7): a look at each usage page in the weekly routine; an external free uptime
    monitor on `/api/live` (a new account, with two-factor at creation); or the gap accepted
