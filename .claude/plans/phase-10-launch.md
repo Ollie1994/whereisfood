@@ -311,8 +311,8 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     without one redirects to one that has it (README, "Get the map tiles"); the Vercel Toolbar
     off for Production deployments, as for pre-production (the owner's call, round 3 on PR
     #447; README's "Hosted settings checklist"); Production's Deployment Retention Policy, which
-    README's checklist leaves at 30 days for Phase 10 to decide (open decision 14), recorded
-    there. **Production gets no variables yet** (#9).
+    README's checklist left at 30 days for Phase 10 to decide (open decision 14, settled at 30
+    days, IS #459), recorded there. **Production gets no variables yet** (#9).
 15. **Before the deploy:**
     - the 2FA re-check of every account, each one's recovery mailbox, the registrar's account
       (Oderland, IS #452), the removal-contact mailbox (IS #456) and the admin's login mailbox
@@ -743,7 +743,7 @@ findings before production stay public (Q36).
 14. ~~**Production's Deployment Retention Policy** (step 14): README's checklist keeps Production
     at 30 days because no Ready production deployment existed (IS #417's comment of
     2026-11-19); the value against Hobby's 10 GB of Deployment Storage (#417).~~ → **settled**
-    (the owner, 2026-11-22, IS #459): 30 days, unchanged. Production deploys only on a `dev` →
-    `main` merge, and Hobby keeps the last 3 Ready production deployments and the one holding
+    (the owner, 2026-11-22, IS #459): 30 days, unchanged. Production deploys rarely: on a merge
+    into `main`, or a Redeploy in `RUNBOOK.md`'s key rotation or restore; and Hobby keeps the last 3 Ready production deployments and the one holding
     the production alias whatever the policy, so the value deletes almost nothing; Deployment
     Storage read 545 MB of 10 GB that day.

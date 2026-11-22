@@ -271,7 +271,7 @@ Cloudflare dashboard (no API token needed):
     |---|---|
     | `https://whereisfood-a0v5zskps-where-is-food.vercel.app` (commit form, *real*) | `https://whereisfood-theta.vercel.app` (the domain Vercel gave production, *real*; set to redirect (307) to `vararmaten.vercel.app` since IS #458) |
     | `https://whereisfood-git-phase-6-preview-deploy-where-is-food.vercel.app` (branch form, *real*) | |
-    | `https://whereisfood-abc123-where-is-food.vercel.app` (commit form) | `https://whereisfood-where-is-food.vercel.app` (one hyphen, where the pattern has two) |
+    | `https://whereisfood-abc123-where-is-food.vercel.app` (commit form) | `https://whereisfood-where-is-food.vercel.app` (one hyphen, where the pattern has two; admitted by an origin of its own since IS #459, below) |
     | `https://whereisfood-git-phase-6-tiles-r2-where-is-food.vercel.app` (branch form) | `https://whereisfood.vercel.app` (another owner's site, IS #459) |
     | `https://whereisfood--where-is-food.vercel.app` (empty `*`) | `https://evil-where-is-food.vercel.app` |
     | `https://whereisfood-abc123-x-where-is-food.vercel.app` (another team's slug) | `https://a.whereisfood-x-where-is-food.vercel.app` |
@@ -675,7 +675,7 @@ findings, re-read `--linked` on 2026-11-20, the same five:
 | Team → Deployment Protection → Access Request Permissions | Anyone | Kept as found |
 | Settings → Security → Git Fork Protection | Enabled | "Preview deploys", below |
 | Team → Build and Deployment → Deployment Retention Policy | Canceled 1 day; Errored 1 day; Pre-Production 1 week; Production 30 days; "Apply this policy to all existing projects" ticked | Set by the owner, 2026-11-19 (IS #417). A project's own policy replaces the team's (Vercel's Deployment Retention docs), so the next row is the one that holds for `whereisfood` |
-| Settings → Build and Deployment → Deployment Retention Policy | The same four values, on the project's page after the team's save | Margin under the team's 10 GB of Deployment Storage on Hobby (3.06 GB on 2026-11-19), over which deploys can be blocked and deployments deleted; Hobby's Alerts and Spend Management aren't offered (IS #389), and the docs' "Usage limit reached" notice covers Fair Use limits, which don't list it. The owner accepted (2026-11-19) that `dev`'s preview isn't shown to be exempt: after a week with no push to `dev` it can be deleted and the preview's login fail, until it is restored or `dev` is pushed. Production stays at 30 days, the Phase 10 plan's open decision 14 (the owner, 2026-11-22, IS #459): production deploys only on a `dev` → `main` merge, and Hobby keeps the last 3 Ready production deployments and the one holding the production alias whatever the policy, so the value deletes almost nothing. What counts, the exceptions, the costs and the recovery: IS #417's comment of 2026-11-19 |
+| Settings → Build and Deployment → Deployment Retention Policy | The same four values, on the project's page after the team's save | Margin under the team's 10 GB of Deployment Storage on Hobby (3.06 GB on 2026-11-19), over which deploys can be blocked and deployments deleted; Hobby's Alerts and Spend Management aren't offered (IS #389), and the docs' "Usage limit reached" notice covers Fair Use limits, which don't list it. The owner accepted (2026-11-19) that `dev`'s preview isn't shown to be exempt: after a week with no push to `dev` it can be deleted and the preview's login fail, until it is restored or `dev` is pushed. Production stays at 30 days, the Phase 10 plan's open decision 14 (the owner, 2026-11-22, IS #459): production deploys rarely, on a merge into `main` or a Redeploy in `RUNBOOK.md`'s key rotation or restore, and Hobby keeps the last 3 Ready production deployments and the one holding the production alias whatever the policy, so the value deletes almost nothing. What counts, the exceptions, the costs and the recovery: IS #417's comment of 2026-11-19 |
 | Settings → General → Vercel Toolbar → Pre-Production Deployments; Production Deployments | Off; Off | Pre-Production: the CSP refused its script, styles and iframe (`CLAUDE.md`, Security headers; IS #387). Production: set Off by the owner on 2026-11-22 (IS #459; the owner's call, round 3 on PR #447), for the same CSP; until then it was Default, the team's setting, on for team members with the Chrome extension or the toolbar menu's opt-in |
 
 ---
@@ -755,8 +755,10 @@ below).
   have answered (the owner, 2026-11-13).
 - Read again before production (IS #459, 2026-11-22): Behavior "Custom", and the field's
   command, copied out by the owner, identical to the one above as a string (172
-  characters); neither `origin/dev` nor `origin/main` holds a `vercel.json` or `vercel.ts`
-  (`git ls-tree -r --name-only`).
+  characters); neither `origin/dev` nor `origin/main` holds a `vercel.*` file but
+  `public/vercel.svg`, an image (`git ls-tree -r --name-only` filtered by
+  `grep -E '(^|/)vercel\.[A-Za-z]+$'`). Which file names Vercel reads as project config
+  wasn't looked up, so a wider name match is the check, not a list of names.
 - Not seen: the cancel of a Production build from a branch other than `main`.
 
 **Environment variables**, all four of `.env.example`'s, scoped to **Preview** only
