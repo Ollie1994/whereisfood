@@ -357,7 +357,8 @@ If a factor-added, factor-removed or password-changed email you didn't cause cam
 **Don't delete the admin and create a new one** to get a new address. `users.id` has no
 `ON DELETE` action, so the `users` row would go first, and deleting the auth user clears
 `created_by` on every location it entered (`on delete set null`) and deletes its factor, which
-the `PUT` keeps.
+the `PUT` keeps (the foreign keys' delete rules in `pg_constraint` on the local stack: `users`
+no action, `locations.created_by` set null, `auth.mfa_factors` cascade; IS #458).
 
 ---
 

@@ -519,7 +519,8 @@ result). Nothing here is a key, ref or address (`CLAUDE.md`, Secrets).
 (`vam-production-organization`), separate from the preview's, in `eu-north-1` (Stockholm).
 Made in the dashboard with the Data API on, "Grant API access to new tables automatically"
 off and "Enable RLS on new tables automatically" off: the migration grants and turns on RLS
-per table. Its database password is in the owner's password manager only.
+per table. Its database password belongs in the owner's password manager alone (`CLAUDE.md`,
+Secrets).
 
 **Schema.** Migrations only, never the seed: production holds real data entered on `/admin`.
 The CLI is linked to production only for a push or a check, and linked back to the preview
@@ -535,10 +536,11 @@ database" describes; `migration list --linked` showed `0001` on both sides. The 
 no database password for it (it connects through a temporary login role).
 
 **Settings.** Every Supabase row of the "Hosted settings checklist", below, holds on
-production too, with these differences: Site URL `https://vararmaten.vercel.app` and one
-Redirect URL, `https://vararmaten.vercel.app/auth/callback`; Data API Max rows read as 1000,
-equal to `MAX_ROWS` (`src/lib/db/complete.ts`); Network restrictions read again and left
-open, for that row's reason. Phase 5 #19's hosted check passed: `sv-SE-x-icu` on
+production too (the owner's screenshots, read on #458), but URL Configuration: Site URL
+`https://vararmaten.vercel.app` and one Redirect URL,
+`https://vararmaten.vercel.app/auth/callback`. Data API Max rows was read as 1000, equal to
+`MAX_ROWS` (`src/lib/db/complete.ts`), and Network restrictions was read again and left open,
+for that row's reason. Phase 5 #19's hosted check passed: `sv-SE-x-icu` on
 `trucks.name`, both extensions in `extensions`. The Security Advisor
 (`--type all --level info`) found no ERROR or WARN, and only INFO: the preview's
 `rls_enabled_no_policy` and `unindexed_foreign_keys` findings, and `unused_index` on the three
