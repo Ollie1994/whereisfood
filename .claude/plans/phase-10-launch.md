@@ -319,8 +319,8 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
       (Oderland, IS #452), the removal-contact mailbox (IS #456) and the admin's login mailbox
       with its recovery address, if it has one yet (IS #458) (`CLAUDE.md`, "Secrets"), recorded
       without an address or secret;
-    - every credential that existed before the deploy rotated or replaced, but those open
-      decision 12 keeps, each with its reason; all listed by name;
+    - every credential that existed before the deploy rotated, replaced or disabled, but
+      those open decision 12 keeps, each with its reason; all listed by name;
     - **the first merge `dev` → `main`** (#9): a PR opened fresh against `main`, never
       retargeted (`CLAUDE.md`, "Testing"), running every required check, the controls' full
       set included. With no analysis of `main` to compare with, CodeQL may count old findings
@@ -394,10 +394,11 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     "needs a retention of its own" (line 892), now 30 days (IS #454), Pricing's
     "Supabase Free" item (the paused project, open decision 8), "Two-factor authentication"
     (lines 773–782), which gets IS #460's re-check: its Phase 9 audit's "no SMS anywhere",
-    which a Google mailbox's phone step made false until #460 removed it, its account list,
-    which lacks the registrar and the removal-contact mailbox, and "No domain or registrar
-    account exists yet", false since IS #452; the carried-forward Phase 6 #4 row (line 1078),
-    whose "every credential" open decision 12 narrows; brings README's status parts in
+    which a Google mailbox's phone step made false until #460 removed it, its account list and
+    membership sentences, which take #460's two-factor record as the list (the registrar, the
+    removal-contact mailbox, production's admin mailbox and organization), and "No domain or
+    registrar account exists yet", false since IS #452; the carried-forward Phase 6 #4 row
+    (line 1078), whose "every credential" open decision 12 narrows; brings README's status parts in
     line; carries forward the decisions that outlive the phase (#5 and #10 at least: #5's row
     names the removal list in `karta/page.tsx`'s header and #5's removal checks, for Phase 11's
     plan; the IS #373 (Phase 11) row's marker stays, and its "removes the gate" points to #5's
@@ -666,7 +667,8 @@ findings before production stay public (Q36).
   before the variables, and Production built from a push to `main`, not promoted or
   redeployed; the 2FA re-check
   recorded per account; every earlier credential
-  rotated or replaced, but those open decision 12 keeps with a reason, listed by name; the
+  rotated, replaced or disabled, but those open decision 12 keeps with a reason, listed by
+  name; the
   first merge into `main` ran every required check, the controls' full set included, its
   CodeQL findings each settled; after it, `git merge-base --is-ancestor origin/main
   origin/dev` succeeds (step 15b); CodeQL's checks in
@@ -753,11 +755,16 @@ findings before production stay public (Q36).
     or only stay out of production ("reuse nothing from the preview setup").~~ → **settled**
     (the owner, 2026-11-22, IS #460, whose comments list each credential by name and what was
     done): production's secret key replaced by one named for its consumer, its database
-    password reset and its legacy JWT keys disabled, the publishable key kept; the Supabase CLI
-    login and the GitHub token replaced, and each account's unused tokens and sessions removed;
-    the preview's credentials not rotated, since they reach only the preview, but its legacy
-    JWT keys disabled; account passwords not rotated, by the owner's reason that none was in
-    the repo, a shell or an agent session, and two-factor guards each.
+    password reset and its legacy JWT keys disabled; kept on production, the publishable key
+    (public by design, in every browser), and the admin's password and the JWT signing key or
+    secret (made 2026-11-22, never out of the dashboard or the password manager); the Supabase
+    CLI login and the GitHub token replaced, and each account's unused tokens and sessions
+    removed; Cloudflare's Global API Key kept (it can't be deleted, and viewing it needs an
+    emailed code; the owner doesn't remember viewing it, and no file or issue holds it); the
+    preview's credentials not
+    rotated, since they reach only the preview, but its legacy JWT keys disabled; account
+    passwords not rotated, by the owner's reason that none was in the repo, a shell or an
+    agent session, and two-factor guards each.
 13. **How the trucks are told** (step 18): the channel and the Swedish text, with a link to
     `/integritet`.
 14. ~~**Production's Deployment Retention Policy** (step 14): README's checklist keeps Production

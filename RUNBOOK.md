@@ -416,12 +416,19 @@ A secret that reaches a commit, an issue or a PR is rotated, not just deleted (`
 - **The legacy keys** (`anon` and `service_role` JWTs): disabled on production and the
   preview since 2026-11-22 (README's "Hosted settings checklist", IS #460). They "stay valid
   until you disable them in the Settings > API Keys section", even where the project uses the
-  new `sb_` keys (#448's 1b), so check they still read disabled on each. Keys you didn't turn
-  on again mean someone with dashboard access did: follow "A takeover" too. Before disabling
-  them again, check that the `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY`
-  in that project's Vercel variables (Production's, or Preview's for the preview) start
-  `sb_publishable_` and `sb_secret_`; if either is a legacy JWT, replace it with an `sb_` key
-  and redeploy, or the app stops working. Then disable the legacy keys again. If the
+  new `sb_` keys (#448's 1b), so check they still read disabled on each. Treat keys found on
+  that you didn't turn on as a sign someone reached the Supabase dashboard (a new project, as
+  a restore makes, has them on until its checklist step: production's did, IS #460). Then
+  secure the Supabase account first, from a device you trust: change its password, revoke
+  every access token (avatar → Account preferences → Access Tokens) and log the CLI in again
+  (`npx supabase login`), and check each organization's members and the account's two-factor;
+  whether a password change ends the account's other sessions wasn't read. Then "A takeover",
+  and "what it left behind" below, as after an account token. Before disabling the keys
+  again, check that the `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` in
+  that project's Vercel variables (Production's, or Preview's for the preview), and for the
+  preview in `.env.preview.local`'s keys, start `sb_publishable_` and `sb_secret_`; if one in
+  Vercel is a legacy JWT, replace it with an `sb_` key and redeploy, or the app stops working.
+  Then disable the legacy keys again. If the
   legacy JWT secret itself leaked, rotating it signs every user out and needs both legacy keys
   rotated at once (#448's 1b).
 - **Anything else** (a GitHub token, a CLI login, the Vercel bypass secret): revoke it where
