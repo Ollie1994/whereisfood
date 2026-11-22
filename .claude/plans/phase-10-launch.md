@@ -319,8 +319,8 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
       (Oderland, IS #452), the removal-contact mailbox (IS #456) and the admin's login mailbox
       with its recovery address, if it has one yet (IS #458) (`CLAUDE.md`, "Secrets"), recorded
       without an address or secret;
-    - every credential that existed before the deploy rotated or replaced (open decision 12),
-      listed by name;
+    - every credential that existed before the deploy rotated, replaced or disabled, but
+      those open decision 12 keeps, each with its reason; all listed by name;
     - **the first merge `dev` → `main`** (#9): a PR opened fresh against `main`, never
       retargeted (`CLAUDE.md`, "Testing"), running every required check, the controls' full
       set included. With no analysis of `main` to compare with, CodeQL may count old findings
@@ -392,9 +392,16 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     "Rows are **never deleted**, except a takedown" (line 503), which the retention delete
     joins, "History is kept" (lines 530 and 673), for 52 weeks now, and the audit log's
     "needs a retention of its own" (line 892), now 30 days (IS #454), Pricing's
-    "Supabase Free" item (the paused project, open decision 8); brings README's status parts in
-    line; carries forward the decisions that outlive the phase (#5 and #10 at least: #5's row
-    names the removal list in `karta/page.tsx`'s header and #5's removal checks, for Phase 11's
+    "Supabase Free" item (the paused project, open decision 8), "Two-factor authentication"
+    (lines 773–782), whose dated Phase 9 audit stays as written, with IS #460's re-check added
+    beside it, naming what it corrects: the audit's "no SMS anywhere", which a Google
+    mailbox's phone step made false until #460 removed it; its account list and membership
+    sentences, which take #460's two-factor record as the list (the registrar, the
+    removal-contact mailbox, production's admin mailbox and organization); and "No domain or
+    registrar account exists yet", false since IS #452. Also the carried-forward Phase 6 #4
+    row (line 1078), whose "every credential" open decision 12 narrows. It brings README's
+    status parts in line; carries forward the decisions that outlive the phase (#5 and #10 at
+    least: #5's row names the removal list in `karta/page.tsx`'s header and #5's removal checks, for Phase 11's
     plan; the IS #373 (Phase 11) row's marker stays, and its "removes the gate" points to #5's
     row); and sets `CLAUDE.md`'s bold line to none, naming this plan as the last one.
 
@@ -661,9 +668,11 @@ findings before production stay public (Q36).
   before the variables, and Production built from a push to `main`, not promoted or
   redeployed; the 2FA re-check
   recorded per account; every earlier credential
-  rotated or replaced, listed by name; the first merge into `main` ran every required check,
-  the controls' full set included, its CodeQL findings each settled; after it, `git
-  merge-base --is-ancestor origin/main origin/dev` succeeds (step 15b); CodeQL's checks in
+  rotated, replaced or disabled, but those open decision 12 keeps with a reason, listed by
+  name; the
+  first merge into `main` ran every required check, the controls' full set included, its
+  CodeQL findings each settled; after it, `git merge-base --is-ancestor origin/main
+  origin/dev` succeeds (step 15b); CodeQL's checks in
   `main`'s ruleset, read back by `gh api`.
 - [ ] The production checks: logged out on the phone, `/` and `/karta` land on `/om`; as the
   admin, after the TOTP enroll of step 16 and by "Karta", the map shows with R2's tiles and no
@@ -743,8 +752,30 @@ findings before production stay public (Q36).
     "Backups").~~ → **settled** (the owner, 2026-11-20, IS #455): Auth's admin API,
     `POST /auth/v1/admin/users` with the old `id`, before the dump is loaded; probed on the
     local stack, then used in the restore test (README, "Backups").
-12. **Which credentials exist to rotate** (step 15), and whether the preview's keys rotate too
-    or only stay out of production ("reuse nothing from the preview setup").
+12. ~~**Which credentials exist to rotate** (step 15), and whether the preview's keys rotate too
+    or only stay out of production ("reuse nothing from the preview setup").~~ → **settled**
+    (the owner, 2026-11-22, IS #460, whose comments list each credential by name and what was
+    done): on production, the secret key replaced by one named for its consumer, and replaced
+    again after the old CLI login was revoked, since that full-access token was live while the
+    first replacement existed (round 3 on PR #487); the database password reset; the legacy
+    API keys (`anon`, `service_role`) disabled and the legacy JWT secret (HS256) revoked;
+    kept, the publishable key (public by design, in every browser), the current signing key
+    (ECC, whose private half the dashboard doesn't show, and whose "created at" read the same
+    as the HS256 key's, which came with the project; the owner's screenshot) and the admin's
+    password (made 2026-11-22, only in the password manager). What that token could have left
+    on production was read afterwards (rounds 4 and 5 on PR #487; IS #460's comments):
+    `public`'s schema differs from the migrations' only by the 3 default-privilege lines
+    `RUNBOOK.md` expects; roles and triggers outside `public` match the preview's, which the
+    same token reached, so that is no clean baseline; the admin user shows no change made
+    through Auth, though an edit by SQL can't be ruled out from these reads; the advisor
+    reports no ERROR. Auth's settings and Vercel weren't read again for it. The Supabase CLI
+    login and the GitHub token replaced, and each account's unused live tokens and sessions
+    removed; the new CLI login is again a full-access token with no
+    expiry (a limit: a scoped one wasn't tried). Cloudflare's Global API Key rolled, and the
+    Vercel bypass secret regenerated, since it also passes protection on Production's
+    deployment URLs. The preview's other credentials not rotated, since they reach only the
+    preview, but its legacy API keys disabled. Account passwords not rotated, by the owner's
+    reason that none was in the repo, a shell or an agent session, and two-factor guards each.
 13. **How the trucks are told** (step 18): the channel and the Swedish text, with a link to
     `/integritet`.
 14. ~~**Production's Deployment Retention Policy** (step 14): README's checklist keeps Production

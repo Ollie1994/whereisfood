@@ -446,7 +446,8 @@ API Keys), in the same variable names as the local ones:
 | `SUPABASE_SERVICE_ROLE_KEY` | the secret key, server only |
 
 They live in Vercel's environment variables and in gitignored files on the owner's
-machine, never in a tracked file (`CLAUDE.md`, Secrets).
+machine, never in a tracked file (`CLAUDE.md`, Secrets). The legacy API keys (`anon` and
+`service_role`) are disabled ("Hosted settings checklist", below).
 
 **Auth** (set in #222's PR, 2026-11-07):
 
@@ -562,7 +563,8 @@ database" describes; `migration list --linked` showed `0001` on both sides. The 
 no database password for it (it connects through a temporary login role).
 
 **Settings.** Every Supabase row of the "Hosted settings checklist", below, holds on
-production too (the owner's screenshots, read on #458), but URL Configuration: Site URL
+production too (the owner's screenshots, read on #458; the Legacy API Keys and JWT Keys
+rows', on #460), but URL Configuration: Site URL
 `https://vararmaten.vercel.app` and one Redirect URL,
 `https://vararmaten.vercel.app/auth/callback`. Data API Max rows was read as 1000, equal to
 `MAX_ROWS` (`src/lib/db/complete.ts`), and Network restrictions was read again and left open,
@@ -574,8 +576,10 @@ and `locations` (security), and `unindexed_foreign_keys`, as on the preview, and
 on the three `locations` indexes, expected while no query has used them (performance, in the
 `--type all` run only). Unlike the preview, neither run reported
 `auth_leaked_password_protection`, though "Prevent use of leaked passwords" reads Off on
-production too (the owner's screenshot); why, wasn't found. So on production that warning,
-which the advisor table below accepts for the preview, had nothing to settle.
+production too (the owner's screenshot); why, wasn't found. A later run the same day, with the
+CLI linked the same way, did report it as a WARN, beside the two `rls_enabled_no_policy` INFOs
+(IS #460). The checklist's "Prevent use of leaked passwords" row, which holds on production
+too, accepts it (Pro only).
 
 **The host.** `vararmaten.vercel.app` is Production's domain in the Vercel project
 `whereisfood` (Settings → Domains), renamed from `whereisfood-theta.vercel.app`, which is
@@ -610,7 +614,9 @@ read on 2026-11-18 from the owner's screenshots, except the advisor's table (CLI
 below) and two probes (the Enforce SSL and AAL1 rows), with the results recorded on IS #390.
 The two retention rows were set by the owner on 2026-11-19 and read from their screenshots
 that day, recorded on IS #417; the Toolbar's Production value was set and read on 2026-11-22,
-and the project's retention row read again that day (IS #459). It names settings, never keys
+and the project's retention row read again that day (IS #459). The Legacy API Keys row is both
+Supabase projects', set on 2026-11-22, and the JWT Keys row is production's, set that day (IS
+#460). It names settings, never keys
 or addresses (`CLAUDE.md`, Secrets).
 
 **Supabase, Authentication:**
@@ -648,6 +654,8 @@ or addresses (`CLAUDE.md`, Secrets).
 | Database → Settings → Enforce SSL on incoming connections | On | Turned on by the owner, 2026-11-18, which restarted the database. It covers Postgres and the poolers; Supabase's HTTP APIs, which the app uses, always enforce SSL (Supabase's docs, SSL Enforcement). After the restart the preview's `/api/live` answered 200 from a fresh read |
 | Database → Settings → Connection logging: Log connections; Log disconnections | Off; off | Kept as found |
 | Database → Settings → Network restrictions | None: every IP allowed | They cover Postgres and the pooler, not the HTTPS APIs the app uses: they "don't apply to HTTPS APIs such as PostgREST, Storage, and Auth" (Supabase's docs, Network Restrictions). A list of the owner's IPs would lock out the linked CLI whenever that IP changes. Read again for production and kept, for the same reason (the owner, 2026-11-22, IS #458) |
+| Project Settings → API Keys → Legacy API Keys (`anon`, `service_role`) | Disabled | Disabled by the owner on the preview and production, 2026-11-22 (IS #460): the app uses the publishable and secret keys ("Keys", above), and the legacy `service_role` key bypasses RLS. They stay valid until disabled (`RUNBOOK.md`, "A leaked key"). Afterwards, on the preview: `/api/live` answered 200 from a fresh read; `/auth/v1/settings` 200 to the publishable key; Auth's `GET /auth/v1/admin/users?per_page=1` 200 to the secret key as `apikey` alone, as RUNBOOK's admin-API blocks send it; and `migration list --linked`, `db push --dry-run --linked` and `db advisors --linked` each exited 0 |
+| Project Settings → JWT Keys | Production: an ECC (P-256) signing key in use; the legacy JWT secret (HS256) revoked. The preview: not read | Production's secret was revoked by the owner on 2026-11-22 (IS #460): it could sign tokens Auth accepted, and the legacy API keys it signed were already off. Afterwards production's `/auth/v1/.well-known/jwks.json` listed only the ECC key, `/auth/v1/settings` answered 200 to the publishable key, and a data API read of `trucks` with it got anon's `42501` |
 | Integrations → Data API | On; "Automatically expose new tables" off; extra search path `public`, `extensions`; Max rows 1000 | "Hosted preview database", above |
 | Realtime → Settings → Enable Realtime service | Off | Turned off by the owner, 2026-11-18: the app doesn't use Realtime, and public channels were open to anyone with the publishable key |
 | Database → Extensions → `pg_graphql` | Not installed | GraphQL is unused |
