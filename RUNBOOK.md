@@ -851,11 +851,12 @@ Limits).
 
 Production builds from `main`; work lands on `dev` (Phase 10 plan #9 and step 15b). A release
 takes `dev` to `main` by a PR, then brings `main`'s merge commit back to `dev` by another, as
-#461 and #462 did first.
+IS #461 (PR #488) and IS #462 (PR #490) did first. Post each PR's text through
+`scripts/post-body.mjs` (`CLAUDE.md`, "Doc changes"): `--check <file>`, then `gh pr create`
+with `--body-file <file>`, then `node scripts/post-body.mjs <n> <file>`.
 
-1. **The PR into `main`**, opened fresh from `dev`, never retargeted (`CLAUDE.md`, "Testing"):
-   `gh pr create --base main --head dev`. First run `secret-scan`'s closing-keyword check over
-   every commit it carries, as #461 did over 1093:
+1. **The PR into `main`.** Before opening it, run `secret-scan`'s closing-keyword check over
+   every commit it will carry, as IS #461 did over 1093 before PR #488:
 
    ```bash
    git fetch origin
@@ -863,39 +864,54 @@ takes `dev` to `main` by a PR, then brings `main`'s merge commit back to `dev` b
      | PR_TITLE="<the PR's title>" PR_BRANCH=dev node scripts/closing-keywords.mjs
    ```
 
-   It needs every check `main`'s ruleset requires, CodeQL's three among them; `controls` runs
-   the full set on a PR into `main` (27 minutes for 65 controls on #488's run). Settle
-   each CodeQL finding before the merge: fixed, an issue, or dismissed with a reason. Merge with
-   a merge commit, `gh pr merge <n> --merge`, without `--delete-branch`: the PR's branch is
-   `dev`. A merge into `main` closes no issue by keyword, since only one into the default
-   branch, `dev`, does: close the release's issue by hand.
+   A hit can't be fixed by rewording, since `dev` refuses a force-push. For a commit: a PR into
+   `dev` adds its SHA to the script's `EXEMPT`, with the reason (the script's header). For the
+   title: choose another one. Then open the PR fresh from `dev`, never retargeted (`CLAUDE.md`,
+   "Testing"): `gh pr create --base main --head dev --body-file <file>`.
+
+   It needs every check `main`'s ruleset requires, CodeQL's three among them. `controls` runs
+   the full set on a PR into `main` (27 minutes for 65 controls on PR #488's run). Settle each
+   CodeQL finding before the merge. One the `CodeQL` check fails on must be fixed, or dismissed
+   with a reason, for the check to pass; an issue alone settles only one it passes on. The
+   repository's "Check runs failure threshold" (Settings → Code security) sets which fail, and
+   wasn't read here; PR #489's critical alert failed it.
+
+   Merge with a merge commit, `gh pr merge <n> --merge`, without `--delete-branch`: the PR's
+   branch is `dev`. A merge into `main` closes no issue by keyword, since only one into the
+   default branch, `dev`, does: close the release's issue by hand.
 2. **What the merge starts:** a Production build, which the Ignored Build Step lets through for
    `main` (README, "Preview deploys"), and CodeQL's analysis of `main`. Read the build's result
-   on the merge commit:
+   from every status on the merge commit, newest first, with its time: the combined `/status`
+   shows only the latest per context, so it can show another branch's build of the same commit
+   (README, "The Ignored Build Step's checks"):
 
    ```bash
-   gh api "repos/{owner}/{repo}/commits/<merge commit>/status" \
-     -q '.statuses[] | "\(.context): \(.state) - \(.description)"'
+   gh api --paginate "repos/{owner}/{repo}/commits/<merge commit>/statuses" \
+     -q '.[] | "\(.created_at) \(.context): \(.state) - \(.description)"'
    ```
 
-3. **The sync back into `dev`.** `main` now holds a merge commit `dev` lacks, and both rulesets
+3. **The sync back into `dev`.** `main` now holds a merge commit `dev` lacks. Both rulesets
    require a PR up to date with its base and refuse a direct push, so the next PR into `main`
-   can't merge until `dev` holds it. A branch off `dev` merges `origin/main` and goes into
-   `dev` by a PR, with its own issue:
+   can't merge until `dev` holds it. A branch off `dev`, named with its own issue's number, as
+   remote branches aren't deleted on merge, merges `origin/main` and goes into `dev` by a PR:
 
    ```bash
    git fetch origin
-   git checkout -b phase-<N>/sync-main origin/dev
+   git checkout -b phase-<N>/sync-main-<issue> origin/dev
    git merge origin/main
-   git push -u origin phase-<N>/sync-main
+   git push -u origin phase-<N>/sync-main-<issue>
    ```
 
    When `dev` has gained nothing since the release, the merge fast-forwards and makes no commit
-   of its own: #462's did (`main`'s merge commit had `dev`'s tip as its second parent, with the
-   same tree). Otherwise it makes a merge commit. A conflict means `main`
-   holds a change `dev` lacks, such as a fix shipped straight to `main` ("A private
-   vulnerability", step 3): resolve it so `dev` keeps that fix. After the PR merges, this
-   prints `dev holds main`:
+   of its own, as IS #462's did: `main`'s merge commit had `dev`'s tip as its second parent,
+   with the same tree. Otherwise it makes a merge commit. A conflict means `main` holds a change
+   `dev` lacks, such as a fix shipped straight to `main` ("A private vulnerability", step 3):
+   resolve it so `dev` keeps that fix.
+
+   Merge the sync PR with a merge commit too, `gh pr merge <n> --merge`, **never a rebase**,
+   though `dev`'s ruleset allows one. A rebase writes new commits, so `dev` would still lack
+   `main`'s merge commit, and the next PR into `main` would stay out of date. After the merge,
+   this prints `dev holds main`:
 
    ```bash
    git fetch origin
