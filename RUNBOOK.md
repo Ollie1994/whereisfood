@@ -864,10 +864,18 @@ with `--body-file <file>`, then `node scripts/post-body.mjs <n> <file>`.
      | PR_TITLE="<the PR's title>" PR_BRANCH=dev node scripts/closing-keywords.mjs
    ```
 
-   A hit can't be fixed by rewording, since `dev` refuses a force-push. For a commit: a PR into
-   `dev` adds its SHA to the script's `EXEMPT`, with the reason (the script's header). For the
-   title: choose another one. Then open the PR fresh from `dev`, never retargeted (`CLAUDE.md`,
-   "Testing"): `gh pr create --base main --head dev --body-file <file>`.
+   A hit can't be fixed by rewording, since `dev` refuses a force-push.
+   - **A commit:** a PR into `dev` adds its full 40-character SHA to the script's `EXEMPT`, with
+     the reason (the script's header). The error line prints only 7 characters; `git log
+     --format=%H origin/main..origin/dev` gives the full one. That commit already closed its
+     issue when it landed on `dev`, so reopen the issue if its work isn't done (process-log row
+     682, #348).
+   - **The title:** choose another one.
+
+   Fetch and run the check again until it prints no closing reference, since an `EXEMPT` PR adds
+   commits of its own. Then open the PR fresh from `dev`, never retargeted (`CLAUDE.md`,
+   "Testing"), with the title the check read:
+   `gh pr create --base main --head dev --title "<the PR's title>" --body-file <file>`.
 
    It needs every check `main`'s ruleset requires, CodeQL's three among them. `controls` runs
    the full set on a PR into `main` (27 minutes for 65 controls on PR #488's run). Settle each
@@ -881,13 +889,15 @@ with `--body-file <file>`, then `node scripts/post-body.mjs <n> <file>`.
    default branch, `dev`, does: close the release's issue by hand.
 2. **What the merge starts:** a Production build, which the Ignored Build Step lets through for
    `main` (README, "Preview deploys"), and CodeQL's analysis of `main`. Read the build's result
-   from every status on the merge commit, newest first, with its time: the combined `/status`
-   shows only the latest per context, so it can show another branch's build of the same commit
-   (README, "The Ignored Build Step's checks"):
+   before step 3's push, from every status on the merge commit, newest first, with its time and
+   link. The combined `/status` shows only the latest per context, so it can show another
+   branch's build of the same commit (README, "The Ignored Build Step's checks"). A status's
+   description doesn't name the environment, but its link opens the deployment, which Vercel
+   labels Production or Preview:
 
    ```bash
    gh api --paginate "repos/{owner}/{repo}/commits/<merge commit>/statuses" \
-     -q '.[] | "\(.created_at) \(.context): \(.state) - \(.description)"'
+     -q '.[] | "\(.created_at) \(.context): \(.state) - \(.description) \(.target_url)"'
    ```
 
 3. **The sync back into `dev`.** `main` now holds a merge commit `dev` lacks. Both rulesets
@@ -900,7 +910,11 @@ with `--body-file <file>`, then `node scripts/post-body.mjs <n> <file>`.
    git checkout -b phase-<N>/sync-main-<issue> origin/dev
    git merge origin/main
    git push -u origin phase-<N>/sync-main-<issue>
+   gh pr create --base dev --head phase-<N>/sync-main-<issue> \
+     --title "<title>" --body-file <file>
    ```
+
+   The title and branch name go through `secret-scan`'s closing-keyword check like any PR's.
 
    When `dev` has gained nothing since the release, the merge fast-forwards and makes no commit
    of its own, as IS #462's did: `main`'s merge commit had `dev`'s tip as its second parent,
