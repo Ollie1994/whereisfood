@@ -1,11 +1,12 @@
 # CodeQL on every PR into dev or main and every push to them (Phase 8 plan step 8, IS #294).
 # Plan #2 counts on it to scan Dependabot and fork PRs. On Dependabot's first, PR #366, both
 # analyze jobs succeeded and `CodeQL` posted ("No new alerts"); no fork PR has run it yet.
-# `CodeQL` and both analyze jobs are required on `dev`, whose ruleset has no bypass list: if
-# a job fails or `CodeQL` never posts on such a PR, the PR can't merge until that changes or
-# the rule is lifted by hand. The push runs give a PR its base analysis to compare with; `main` has none before Phase 10 (plan #11). The same pull-request trigger as
-# ci.yml, so a PR retargeted to dev or main gets no new run until its next push or a close
-# and reopen (ci.yml's header). Once CodeQL's checks join `main`'s ruleset (Phase 10),
+# `CodeQL` and both analyze jobs are required on `dev` and, since IS #461, on `main`; neither
+# ruleset has a bypass list: if a job fails or `CodeQL` never posts on such a PR, the PR can't
+# merge until that changes or the rule is lifted by hand. The push runs give a PR its base
+# analysis to compare with; `main` had none until IS #461's merge (plan #11). The same
+# pull-request trigger as ci.yml, so a PR retargeted to dev or main gets no new run until its
+# next push or a close and reopen (ci.yml's header). With CodeQL's checks in `main`'s ruleset,
 # ci.yml's `base (main)` makes a PR retargeted from dev wait for a ci.yml run against main
 # (IS #356), but shows nothing about CodeQL's checks: `CodeQL` posts after its upload, so
 # until then its newest result may be from a run against dev (CLAUDE.md, "Testing").
@@ -18,10 +19,10 @@
 # the probe workflow's token had `contents: write`: with `contents: read` (both set at
 # workflow level) the default queries passed it. It reads success while only one analysis
 # has uploaded, stayed success on PR #326 when the JavaScript job was cancelled, and once
-# ended neutral on "Error when processing the SARIF file". So `dev`'s ruleset requires
-# `CodeQL` and both analyze jobs by name (plan #14, settled in #297). The job's `name:`
-# pattern and the matrix's `language` values make those names: changing either leaves the
-# ruleset waiting on the old ones. A SARIF error with both
+# ended neutral on "Error when processing the SARIF file". So both rulesets require
+# `CodeQL` and both analyze jobs by name (plan #14, settled in #297; `main`'s since IS #461).
+# The job's `name:` pattern and the matrix's `language` values make those names: changing
+# either leaves both rulesets waiting on the old ones. A SARIF error with both
 # jobs green still passes: GitHub's docs count a neutral check as passing.
 #
 # Hardening as in ci.yml (plan #2, Q5): the plain pull-request trigger, never its

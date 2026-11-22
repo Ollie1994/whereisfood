@@ -1020,13 +1020,13 @@ advisor, `npm audit`, the process log's check, the schema controls (the full set
 `TRIGGERS` in `scripts/controls-trigger.mjs` covers changes or the pull request is into
 `main`, `--check` otherwise), Gitleaks, and a check that no commit message, nor the branch
 name and title a merge commit joins, puts a closing keyword before an issue reference ("fixes
-#348"); on `dev` CodeQL too, and on `main` `base (main)`, which makes a pull request
-retargeted from `dev` wait for a run against `main`. It doesn't show which run each other
-check came from, so a pull request is opened fresh against the branch it merges into, not
-retargeted (`CLAUDE.md`, "Testing"). The branch must also be up to date with its base, so
-after another pull request merges, update the branch and let the checks run again. What the
-checks don't cover (the `/karta` browser check, and when the controls need a hand run among
-others) is in `CLAUDE.md`, "Testing". Locally, the fast loop is:
+#348"); CodeQL's on both (on `main` since IS #461), and on `main` `base (main)`, which makes a
+pull request retargeted from `dev` wait for a run against `main`. It doesn't show which run
+each other check came from, so a pull request is opened fresh against the branch it merges
+into, not retargeted (`CLAUDE.md`, "Testing"). The branch must also be up to date with its
+base, so after another pull request merges, update the branch and let the checks run again.
+What the checks don't cover (the `/karta` browser check, and when the controls need a hand run
+among others) is in `CLAUDE.md`, "Testing". Locally, the fast loop is:
 
 ```bash
 npx tsc --noEmit
