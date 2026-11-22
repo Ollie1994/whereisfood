@@ -263,7 +263,7 @@ Cloudflare dashboard (no API token needed):
 
     | Gets `Access-Control-Allow-Origin` | Doesn't |
     |---|---|
-    | `https://whereisfood-a0v5zskps-where-is-food.vercel.app` (commit form, *real*) | `https://whereisfood-theta.vercel.app` (the domain Vercel gave production, *real*) |
+    | `https://whereisfood-a0v5zskps-where-is-food.vercel.app` (commit form, *real*) | `https://whereisfood-theta.vercel.app` (the domain Vercel gave production, *real*; a 307 to `vararmaten.vercel.app` since IS #458) |
     | `https://whereisfood-git-phase-6-preview-deploy-where-is-food.vercel.app` (branch form, *real*) | |
     | `https://whereisfood-abc123-where-is-food.vercel.app` (commit form) | `https://whereisfood-where-is-food.vercel.app` (one hyphen, where the pattern has two) |
     | `https://whereisfood-git-phase-6-tiles-r2-where-is-food.vercel.app` (branch form) | `https://whereisfood.vercel.app` |
@@ -275,10 +275,11 @@ Cloudflare dashboard (no API token needed):
 
   - **Production's short addresses aren't covered.** Vercel's docs give
     `<project>-<scope-slug>.vercel.app` for CLI deploys and say it points to the
-    production deployment once there is one. That URL, `whereisfood.vercel.app` and
-    the domain Vercel assigned this project's production, `whereisfood-theta.vercel.app`
-    (Settings → Environments), get no header, so each needs its own origin in the rule,
-    or a redirect to an address that has one (Phase 10). A production deployment's
+    production deployment once there is one. That URL, `whereisfood.vercel.app`,
+    production's domain `vararmaten.vercel.app` (Settings → Domains; renamed from the
+    `whereisfood-theta.vercel.app` Vercel assigned, which now answers a 307 to it, IS #458)
+    and `whereisfood-theta.vercel.app` itself get no header, so each needs its own origin in
+    the rule, or a redirect to an address that has one (Phase 10, #459). A production deployment's
     commit-form URL is in the pattern like a preview's.
   - **CORS limits which pages can read the tiles, not who downloads them.** A page
     served from any origin the pattern matches can load them, whoever owns it. Any
@@ -509,11 +510,63 @@ Its row stays in the preview's history.
 
 ---
 
+## Production
+
+For the owner. Set up on 2026-11-22 (IS #458, whose comments hold each step's record and
+result). Nothing here is a key, ref or address (`CLAUDE.md`, Secrets).
+
+**The project.** `vam-production-project`, in its own free organization
+(`vam-production-organization`), separate from the preview's, in `eu-north-1` (Stockholm).
+Made in the dashboard with the Data API on, "Grant API access to new tables automatically"
+off and "Enable RLS on new tables automatically" off: the migration grants and turns on RLS
+per table. Its database password is in the owner's password manager only.
+
+**Schema.** Migrations only, never the seed: production holds real data entered on `/admin`.
+The CLI is linked to production only for a push or a check, and linked back to the preview
+right after, so a plain `npx supabase db push` can't reach production by mistake. Each command
+first checks the link, in `RUNBOOK.md`'s "A restore", step 1 form:
+
+```bash
+grep -qxF '<production ref>' supabase/.temp/project-ref || echo "NOT LINKED to production: stop"
+```
+
+The first push applied `0001_baseline.sql` and printed the certificate warning "Hosted preview
+database" describes; `migration list --linked` showed `0001` on both sides. The CLI needed
+no database password for it (it connects through a temporary login role).
+
+**Settings.** Every Supabase row of the "Hosted settings checklist", below, holds on
+production too, with these differences: Site URL `https://vararmaten.vercel.app` and one
+Redirect URL, `https://vararmaten.vercel.app/auth/callback`; Data API Max rows read as 1000,
+equal to `MAX_ROWS` (`src/lib/db/complete.ts`); Network restrictions read again and left
+open, for that row's reason. Phase 5 #19's hosted check passed: `sv-SE-x-icu` on
+`trucks.name`, both extensions in `extensions`. The Security Advisor
+(`--type all --level info`) found no ERROR or WARN, and only INFO: the preview's
+`rls_enabled_no_policy` and `unindexed_foreign_keys` findings, and `unused_index` on the three
+`locations` indexes, expected while no query has used them.
+Unlike the preview, it didn't report `auth_leaked_password_protection`.
+
+**The host.** `vararmaten.vercel.app` is Production's domain in the Vercel project
+`whereisfood` (Settings → Domains), renamed from `whereisfood-theta.vercel.app`, which now
+answers a 307 to it. Log in from it: Auth's Redirect URLs admit no other.
+
+**The admin.** Made as "5. Create the admin user" says, in production's dashboard, with an
+address used for this login alone, never the public removal contact (the Phase 10 plan's open
+decision 6). Its id is in the owner's password manager (`RUNBOOK.md`, "A lost phone"). Its
+TOTP factor is enrolled through the deployed app (#463).
+
+**Variables.** Production's keys go only into Vercel's Production environment variables, in
+the names "Hosted preview database" lists, and its session pooler URL into the gitignored
+`.env.prod-db.local` for the weekly dump ("Backups"). Production gets no variables until
+#463 (the Phase 10 plan, #9).
+
+---
+
 ## Hosted settings checklist
 
 For the owner: the security settings #390 checked in the Supabase and Vercel dashboards,
 and Vercel's deployment retention (IS #417), which live outside the repo, each with its
-value on the preview. Phase 10 applies the list to production (Phase 9 plan #10). The
+value on the preview. Phase 10 applies the list to production (Phase 9 plan #10): its
+Supabase rows on 2026-11-22 ("Production", above). The
 Supabase rows are the preview project's: production's own project gets them in Phase 10,
 with its own Site URL and Redirect URLs. The Vercel rows are the `whereisfood` project's
 (the `Team →` rows, its team's), which its production deploys share, so the project's
@@ -540,7 +593,7 @@ Secrets).
 | Email provider → Email OTP expiration; Email OTP length | 900 s; 10 digits | `CLAUDE.md`, Supabase (IS #386); the same as `config.toml`'s `otp_expiry` and `otp_length` |
 | Email provider → Enable magic links and email OTP | On | The login's first factor is the magic link (Phase 9 plan #14). The same switch keeps the emailed code, which Auth accepts though no email shows it (plan #14): the OTP rows above set its odds |
 | Emails → Security notifications | Password changed, MFA method added and MFA method removed on; the other four off | `CLAUDE.md`, Supabase (IS #378); the MFA ones, IS #381 |
-| Emails → SMTP Settings → Enable custom SMTP | Off | Custom SMTP is planned for the Owners phase (Phase 9 plan #14). Until then every email uses Supabase's default template, which can't be edited without custom SMTP (IS #377), and goes through the built-in sender's budget (Rate Limits: 2 emails an hour), which can be spent so the admin's link doesn't come: accepted for Phase 9 only, and Phase 10 decides it again (`CLAUDE.md`, Supabase; the Phase 9 plan's open decision 1) |
+| Emails → SMTP Settings → Enable custom SMTP | Off | Custom SMTP is planned for the Owners phase (Phase 9 plan #14). Until then every email uses Supabase's default template, which can't be edited without custom SMTP (IS #377), and goes through the built-in sender's budget (Rate Limits: 2 emails an hour), which can be spent so the admin's link doesn't come: accepted until then (`CLAUDE.md`, Supabase; the Phase 10 plan's open decision 6, IS #458; what to do: `RUNBOOK.md`, "A login link that doesn't come") |
 | Multi-Factor → TOTP (App Authenticator); Maximum number of per-user MFA factors | Enabled; 1 | IS #381 |
 | Multi-Factor → Phone | Disabled | Pro only, and unused |
 | Multi-Factor → Limit duration of AAL1 sessions | On | Found on, 2026-11-18, and kept, but not relied on: on the preview, an enrolled admin's `aal1` session still reached the code page at a reload at least 17 minutes after its sign-in (sign-in at 20:12, reload at 20:30, read off a clock in whole minutes; IS #390's probe comment), though the dashboard says such a session "will be terminated unless they verify one of their factors within 15 minutes" |
@@ -559,7 +612,7 @@ Secrets).
 |---|---|---|
 | Database → Settings → Enforce SSL on incoming connections | On | Turned on by the owner, 2026-11-18, which restarted the database. It covers Postgres and the poolers; Supabase's HTTP APIs, which the app uses, always enforce SSL (Supabase's docs, SSL Enforcement). After the restart the preview's `/api/live` answered 200 from a fresh read |
 | Database → Settings → Connection logging: Log connections; Log disconnections | Off; off | Kept as found |
-| Database → Settings → Network restrictions | None: every IP allowed | They cover Postgres and the pooler, not the HTTPS APIs the app uses: they "don't apply to HTTPS APIs such as PostgREST, Storage, and Auth" (Supabase's docs, Network Restrictions). A list of the owner's IPs would lock out the linked CLI whenever that IP changes. Phase 10 reads it again for production (the owner, 2026-11-18) |
+| Database → Settings → Network restrictions | None: every IP allowed | They cover Postgres and the pooler, not the HTTPS APIs the app uses: they "don't apply to HTTPS APIs such as PostgREST, Storage, and Auth" (Supabase's docs, Network Restrictions). A list of the owner's IPs would lock out the linked CLI whenever that IP changes. Read again for production and kept, for the same reason (the owner, 2026-11-22, IS #458) |
 | Integrations → Data API | On; "Automatically expose new tables" off; extra search path `public`, `extensions`; Max rows 1000 | "Hosted preview database", above |
 | Realtime → Settings → Enable Realtime service | Off | Turned off by the owner, 2026-11-18: the app doesn't use Realtime, and public channels were open to anyone with the publishable key |
 | Database → Extensions → `pg_graphql` | Not installed | GraphQL is unused |

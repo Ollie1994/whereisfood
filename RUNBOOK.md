@@ -12,6 +12,7 @@ A step that rests on a probe or a doc names it, with its issue.
 - [Exporting evidence](#exporting-evidence)
 - [A takeover of the admin account](#a-takeover-of-the-admin-account)
 - [A lost phone](#a-lost-phone)
+- [A login link that doesn't come](#a-login-link-that-doesnt-come)
 - [A leaked key](#a-leaked-key)
 - [A takedown request](#a-takedown-request)
 - [Other requests](#other-requests)
@@ -309,6 +310,54 @@ no secret key outside Supabase, no unenroll screen; IS #457):
 Limits: run only on the local stack, not on a hosted project. #454's probe showed the
 preview's SQL editor runs as `postgres` and may delete from an `auth` table
 (`auth.audit_log_entries`). These two tables weren't tried there.
+
+---
+
+## A login link that doesn't come
+
+Production sends through Supabase's built-in email, which allows 2 emails an hour for the whole
+project (README, "Hosted settings checklist", Rate Limits). Anyone who knows the admin's address
+can ask for login links and spend them, so yours doesn't come. That is accepted until the Owners
+phase's custom SMTP (the Phase 10 plan's open decision 6, IS #458). It grants no access: a session
+you already hold keeps working until its 12-hour box (`CLAUDE.md`, "The session time-box").
+
+If a factor-added, factor-removed or password-changed email you didn't cause came too, this is
+"A takeover", not this section.
+
+1. **Check the mail itself:** the spam folder, and the address typed on the login form.
+2. **Wait an hour, then ask once.** Each request spends one of the two.
+3. **See who asks**, from "Exporting evidence"'s `audit.csv`: a link asked for an address with
+   an account writes a row with `payload`'s `action` `user_recovery_requested` and the address as
+   `actor_username`; one asked for an address with no account writes none (local stack, IS #458).
+   Rows you didn't cause mean someone holds your address. On the local stack their
+   `ip_address` was empty; a hosted project's weren't read.
+4. **If it goes on, move the account to a new address** that no page shows and that can't be
+   guessed from the old one or `/integritet`'s contact, a mailbox with two-factor from its
+   creation (`CLAUDE.md`, "Secrets"). Auth sends a link only to an address that has an account
+   (sign-ups are off), so the old address then spends nothing. In production's SQL editor, check
+   that there is one admin and note its id ("A lost phone", step 2's query). Then, with the
+   secret key read without echoing (`read -rs SECRET_KEY`), as "A takeover", step 2, does:
+
+   ```bash
+   curl -sS -w '\n%{http_code}\n' -X PUT "<project URL>/auth/v1/admin/users/<admin id>" \
+     -H "apikey: $SECRET_KEY" -H "Content-Type: application/json" \
+     -d '{"email":"<new address>","email_confirm":true}'
+   unset SECRET_KEY
+   ```
+
+   `200` means done; a `4xx` or `000` reads as in "A takeover", step 2. Then log in with the new
+   address. Probed on the local stack with a throwaway user that had a verified TOTP factor and
+   an `aal2` session (IS #458): the `PUT` answered `200`; the new address held at once, with no
+   change left pending, and the identity's email moved with it; no mail went to either address;
+   the factor kept its id and stayed `verified`; the `aal2` session still answered `200` at
+   `GET /auth/v1/user`. After it, a link asked for the old address answered `422`
+   `otp_disabled` and sent nothing, one asked for the new address sent one, and a sign-in by the
+   new address reached `aal2` with the same factor. Update the address in your password manager.
+
+**Don't delete the admin and create a new one** to get a new address. `users.id` has no
+`ON DELETE` action, so the `users` row would go first, and deleting the auth user clears
+`created_by` on every location it entered (`on delete set null`) and deletes its factor, which
+the `PUT` keeps.
 
 ---
 
