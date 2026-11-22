@@ -403,21 +403,25 @@ A secret that reaches a commit, an issue or a PR is rotated, not just deleted (`
 - **Production's secret key** (`sb_secret_…`, `SUPABASE_SERVICE_ROLE_KEY` in Vercel):
   several can exist at once, so in Supabase's Project Settings → API Keys add a new secret
   key, named for its one consumer as `vercel_production` is (IS #460; the name takes lowercase
-  letters, digits and underscores), put it in Vercel's Production variable, redeploy
+  letters, digits and underscores; whether two keys may share one wasn't tried, so if the old
+  key's name is refused, add `_2`), put it in Vercel's Production variable, redeploy
   Production, check the admin screen works, then delete the old key there.
 - **The publishable key** (`NEXT_PUBLIC_SUPABASE_ANON_KEY`): public by design, in every
   browser. How to revoke one wasn't stated on the pages read.
 - **The database password** (in `.env.prod-db.local`): the dashboard's Connect dialog has
-  **Reset database password** (seen on the preview's, IS #455; how a reset affects anything
-  else wasn't read). Then put the new one into `.env.prod-db.local`, and anywhere else that
+  **Reset database password** (seen on the preview's, IS #455; production's was reset on
+  2026-11-22, IS #460, before anything used it, so how a reset affects anything else still
+  wasn't seen). Then put the new one into `.env.prod-db.local`, and anywhere else that
   stored it (a CLI link made with it). The app doesn't use it.
 - **The legacy keys** (`anon` and `service_role` JWTs): disabled on production and the
   preview since 2026-11-22 (README's "Hosted settings checklist", IS #460). They "stay valid
   until you disable them in the Settings > API Keys section", even where the project uses the
-  new `sb_` keys (#448's 1b), so check they still read disabled there. If they don't, first
-  check that Vercel's Production `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY`
-  start `sb_publishable_` and `sb_secret_`; if either is a legacy JWT, replace it with an `sb_`
-  key and redeploy, or the app stops working. Then disable the legacy keys again. If the
+  new `sb_` keys (#448's 1b), so check they still read disabled on each. Keys you didn't turn
+  on again mean someone with dashboard access did: follow "A takeover" too. Before disabling
+  them again, check that the `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY`
+  in that project's Vercel variables (Production's, or Preview's for the preview) start
+  `sb_publishable_` and `sb_secret_`; if either is a legacy JWT, replace it with an `sb_` key
+  and redeploy, or the app stops working. Then disable the legacy keys again. If the
   legacy JWT secret itself leaked, rotating it signs every user out and needs both legacy keys
   rotated at once (#448's 1b).
 - **Anything else** (a GitHub token, a CLI login, the Vercel bypass secret): revoke it where

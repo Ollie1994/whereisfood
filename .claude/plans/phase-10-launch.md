@@ -319,8 +319,8 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
       (Oderland, IS #452), the removal-contact mailbox (IS #456) and the admin's login mailbox
       with its recovery address, if it has one yet (IS #458) (`CLAUDE.md`, "Secrets"), recorded
       without an address or secret;
-    - every credential that existed before the deploy rotated or replaced (open decision 12),
-      listed by name;
+    - every credential that existed before the deploy rotated or replaced, but those open
+      decision 12 keeps, each with its reason; all listed by name;
     - **the first merge `dev` → `main`** (#9): a PR opened fresh against `main`, never
       retargeted (`CLAUDE.md`, "Testing"), running every required check, the controls' full
       set included. With no analysis of `main` to compare with, CodeQL may count old findings
@@ -392,9 +392,12 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     "Rows are **never deleted**, except a takedown" (line 503), which the retention delete
     joins, "History is kept" (lines 530 and 673), for 52 weeks now, and the audit log's
     "needs a retention of its own" (line 892), now 30 days (IS #454), Pricing's
-    "Supabase Free" item (the paused project, open decision 8), "Two-factor authentication"'s
-    Phase 9 audit (line 773), whose "no SMS anywhere" a Google mailbox's phone step made false
-    until IS #460 removed it; brings README's status parts in
+    "Supabase Free" item (the paused project, open decision 8), "Two-factor authentication"
+    (lines 773–782), which gets IS #460's re-check: its Phase 9 audit's "no SMS anywhere",
+    which a Google mailbox's phone step made false until #460 removed it, its account list,
+    which lacks the registrar and the removal-contact mailbox, and "No domain or registrar
+    account exists yet", false since IS #452; the carried-forward Phase 6 #4 row (line 1078),
+    whose "every credential" open decision 12 narrows; brings README's status parts in
     line; carries forward the decisions that outlive the phase (#5 and #10 at least: #5's row
     names the removal list in `karta/page.tsx`'s header and #5's removal checks, for Phase 11's
     plan; the IS #373 (Phase 11) row's marker stays, and its "removes the gate" points to #5's
@@ -663,9 +666,10 @@ findings before production stay public (Q36).
   before the variables, and Production built from a push to `main`, not promoted or
   redeployed; the 2FA re-check
   recorded per account; every earlier credential
-  rotated or replaced, listed by name; the first merge into `main` ran every required check,
-  the controls' full set included, its CodeQL findings each settled; after it, `git
-  merge-base --is-ancestor origin/main origin/dev` succeeds (step 15b); CodeQL's checks in
+  rotated or replaced, but those open decision 12 keeps with a reason, listed by name; the
+  first merge into `main` ran every required check, the controls' full set included, its
+  CodeQL findings each settled; after it, `git merge-base --is-ancestor origin/main
+  origin/dev` succeeds (step 15b); CodeQL's checks in
   `main`'s ruleset, read back by `gh api`.
 - [ ] The production checks: logged out on the phone, `/` and `/karta` land on `/om`; as the
   admin, after the TOTP enroll of step 16 and by "Karta", the map shows with R2's tiles and no

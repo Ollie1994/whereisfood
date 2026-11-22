@@ -563,7 +563,8 @@ database" describes; `migration list --linked` showed `0001` on both sides. The 
 no database password for it (it connects through a temporary login role).
 
 **Settings.** Every Supabase row of the "Hosted settings checklist", below, holds on
-production too (the owner's screenshots, read on #458), but URL Configuration: Site URL
+production too (the owner's screenshots, read on #458; the Legacy API Keys row's, on #460),
+but URL Configuration: Site URL
 `https://vararmaten.vercel.app` and one Redirect URL,
 `https://vararmaten.vercel.app/auth/callback`. Data API Max rows was read as 1000, equal to
 `MAX_ROWS` (`src/lib/db/complete.ts`), and Network restrictions was read again and left open,
@@ -611,8 +612,8 @@ read on 2026-11-18 from the owner's screenshots, except the advisor's table (CLI
 below) and two probes (the Enforce SSL and AAL1 rows), with the results recorded on IS #390.
 The two retention rows were set by the owner on 2026-11-19 and read from their screenshots
 that day, recorded on IS #417; the Toolbar's Production value was set and read on 2026-11-22,
-and the project's retention row read again that day (IS #459); the legacy API keys row was set
-on both Supabase projects on 2026-11-22 (IS #460). It names settings, never keys
+and the project's retention row read again that day (IS #459). The Legacy API Keys row is both
+Supabase projects', set on 2026-11-22 (IS #460). It names settings, never keys
 or addresses (`CLAUDE.md`, Secrets).
 
 **Supabase, Authentication:**
@@ -650,7 +651,7 @@ or addresses (`CLAUDE.md`, Secrets).
 | Database → Settings → Enforce SSL on incoming connections | On | Turned on by the owner, 2026-11-18, which restarted the database. It covers Postgres and the poolers; Supabase's HTTP APIs, which the app uses, always enforce SSL (Supabase's docs, SSL Enforcement). After the restart the preview's `/api/live` answered 200 from a fresh read |
 | Database → Settings → Connection logging: Log connections; Log disconnections | Off; off | Kept as found |
 | Database → Settings → Network restrictions | None: every IP allowed | They cover Postgres and the pooler, not the HTTPS APIs the app uses: they "don't apply to HTTPS APIs such as PostgREST, Storage, and Auth" (Supabase's docs, Network Restrictions). A list of the owner's IPs would lock out the linked CLI whenever that IP changes. Read again for production and kept, for the same reason (the owner, 2026-11-22, IS #458) |
-| Project Settings → API Keys → Legacy API Keys (`anon`, `service_role`) | Disabled | Disabled by the owner on the preview and production, 2026-11-22 (IS #460): the app uses the publishable and secret keys ("Keys", above), and the legacy `service_role` key bypasses RLS. They stay valid until disabled (`RUNBOOK.md`, "A leaked key"). Afterwards the preview's `/api/live` answered 200 from a fresh read, and its `/auth/v1/settings` 200 to the publishable key |
+| Project Settings → API Keys → Legacy API Keys (`anon`, `service_role`) | Disabled | Disabled by the owner on the preview and production, 2026-11-22 (IS #460): the app uses the publishable and secret keys ("Keys", above), and the legacy `service_role` key bypasses RLS. They stay valid until disabled (`RUNBOOK.md`, "A leaked key"). Afterwards, on the preview: `/api/live` answered 200 from a fresh read; `/auth/v1/settings` 200 to the publishable key; Auth's `GET /auth/v1/admin/users?per_page=1` 200 to the secret key as `apikey` alone, as RUNBOOK's admin-API blocks send it; and `migration list --linked`, `db push --dry-run --linked` and `db advisors --linked` each exited 0 |
 | Integrations → Data API | On; "Automatically expose new tables" off; extra search path `public`, `extensions`; Max rows 1000 | "Hosted preview database", above |
 | Realtime → Settings → Enable Realtime service | Off | Turned off by the owner, 2026-11-18: the app doesn't use Realtime, and public channels were open to anyone with the publishable key |
 | Database → Extensions → `pg_graphql` | Not installed | GraphQL is unused |
