@@ -386,7 +386,8 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     Phase 10 row (line 474) and in "Pre-deploy automation" (line 825), which #13 amends (IS #347),
     the claims that CodeQL's checks aren't required on `main` yet, done in IS #461:
     "`main`'s without CodeQL's until Phase 10" (line 120), the Phase 8 row's "joining
-    `main`'s in Phase 10" (line 472), the Phase 10 row's "CodeQL's checks added to `main`'s
+    `main`'s in Phase 10" (line 472), the Phase 10 row's "whether CodeQL gets a base
+    analysis of `main` before the first PR into it, and CodeQL's checks added to `main`'s
     ruleset once one exists" (line 474), the SAST item's "On `dev` … are required" and "on
     `main` they join in Phase 10" (lines 801–802), the Phase 8 #11 row's "CodeQL's checks join
     `main`'s ruleset in Phase 10" (line 1118) and the Phase 8 #14 row's "on `dev`" (line

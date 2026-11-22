@@ -456,33 +456,31 @@ before an issue reference, as "fixes #348" did (#368); `codeql.yml` runs CodeQL 
 The rulesets on `dev` and `main` require a PR, the branch up to date with its base and, by
 name, `ci.yml`'s checks other than `base`, and CodeQL's, which are `CodeQL` and both
 `analyze` jobs (Phase 8 plan #14): on `dev` since Phase 8, on `main` since IS #461
-(Phase 8 plan #11). `main`'s also requires `base (main)`, a job in `ci.yml` named after the
-base the run was made against: a PR retargeted from `dev` to `main` starts no new run, and
-without it `main`'s ruleset counted the run made against `dev` (#298's probe), so it now
-waits for a run against `main`, from a push or from closing and reopening the PR (IS #356).
-Both rulesets block force-pushes and deletion. Neither ruleset has a bypass list, so the
-rules bind admins: a required check red on every PR for a reason outside them (an advisory
-with no fixed release failing `audit`, an outage) blocks every merge into that branch until
-it passes again (a re-run after the outage; a PR that works around the advisory and passes
-its own checks) or the rule is lifted by hand in the repository's settings (plan #11).
-`gh api repos/{owner}/{repo}/rulesets` lists them, and `…/rulesets/<id>` reads one's rules
-back. A PR is reviewed and merged once its checks are green; nothing runs the gates by hand
-for it (but a private vulnerability's fix in its fork: "Doc changes", the exception). What CI
-doesn't cover:
-- the `/karta` browser check, which stays manual (below);
-- what a PR's checks run: a PR runs its own copy of everything its jobs read (workflows,
-  scripts, configs, tests, `package.json` and the lockfile, `.env.example`), so any edit can
-  turn a required check into one that passes whatever the code does, under the same name
-  (plan #2's limit; rulesets' "require workflows" isn't open to a personal account's
-  repository, #297). Read every diff, Dependabot's included, for what it changes in a check,
-  not only in the app;
-- on a PR into `dev`, a change the controls test that no `TRIGGERS` entry covers ("Schema
-  controls" below);
-- which run each check came from: `base (main)` shows that a run against `main` reported on
-  the commit, not that every other check's newest result came from it. A later run against
-  `dev` on the same commit (a PR closed and reopened while it targets `dev`, then retargeted
-  to `main`; two PRs from one branch; a re-run of an older run against `dev`) can mix its
-  results into `main`'s; and `dev`'s ruleset requires no `base (dev)`, so a PR retargeted
+(Phase 8 plan #11; Phase 10 plan #9). `main`'s also requires `base (main)`, a job in
+`ci.yml` named after the base the run was made against: a PR retargeted from `dev` to `main`
+starts no new run, and without it `main`'s ruleset counted the run made against `dev`
+(#298's probe), so it now waits for a run against `main`, from a push or from closing and
+reopening the PR (IS #356). Both rulesets block force-pushes and deletion. Neither ruleset
+has a bypass list, so the rules bind admins: a required check red on every PR for a reason
+outside them (an advisory with no fixed release failing `audit`, an outage) blocks every
+merge into that branch until it passes again (a re-run after the outage; a PR that works
+around the advisory and passes its own checks) or the rule is lifted by hand in the
+repository's settings (Phase 8 plan #11). `gh api repos/{owner}/{repo}/rulesets` lists them,
+and `…/rulesets/<id>` reads one's rules back. A PR is reviewed and merged once its checks
+are green; nothing runs the gates by hand for it (but a private vulnerability's fix in its
+fork: "Doc changes", the exception). What CI doesn't cover: - the `/karta` browser check,
+which stays manual (below); - what a PR's checks run: a PR runs its own copy of everything
+its jobs read (workflows, scripts, configs, tests, `package.json` and the lockfile,
+`.env.example`), so any edit can turn a required check into one that passes whatever the
+code does, under the same name (plan #2's limit; rulesets' "require workflows" isn't open to
+a personal account's repository, #297). Read every diff, Dependabot's included, for what it
+changes in a check, not only in the app; - on a PR into `dev`, a change the controls test
+that no `TRIGGERS` entry covers ("Schema controls" below); - which run each check came from:
+`base (main)` shows that a run against `main` reported on the commit, not that every other
+check's newest result came from it. A later run against `dev` on the same commit (a PR
+closed and reopened while it targets `dev`, then retargeted to `main`; two PRs from one
+branch; a re-run of an older run against `dev`) can mix its results into `main`'s; and
+`dev`'s ruleset requires no `base (dev)`, so a PR retargeted
   from `main` to `dev` counts its run against `main` (IS #356's review). Open a PR fresh
   against the branch it merges into, don't retarget it, and re-run only its newest run.
 
