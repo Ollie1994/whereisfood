@@ -513,7 +513,7 @@ Its row stays in the preview's history.
 ## Production
 
 For the owner. Set up on 2026-11-22 (IS #458, whose comments hold each step's record and
-result). Nothing here is a key, ref or address (`CLAUDE.md`, Secrets).
+result). It names no key, project ref, database URL or email address (`CLAUDE.md`, Secrets).
 
 **The project.** `vam-production-project`, in its own free organization
 (`vam-production-organization`), separate from the preview's, in `eu-north-1` (Stockholm).
@@ -524,12 +524,10 @@ Secrets).
 
 **Schema.** Migrations only, never the seed: production holds real data entered on `/admin`.
 The CLI is linked to production only for a push or a check, and linked back to the preview
-right after, so a plain `npx supabase db push` can't reach production by mistake. Each command
-first checks the link, in `RUNBOOK.md`'s "A restore", step 1 form:
-
-```bash
-grep -qxF '<production ref>' supabase/.temp/project-ref || echo "NOT LINKED to production: stop"
-```
+right after, so a plain `npx supabase db push` can't reach production by mistake. Use
+`RUNBOOK.md`'s guarded blocks, with production's ref: "A restore", step 1 (link, dry run,
+push, the advisor) and step 7 (link back to the preview), each of which runs its command only
+inside `if … grep -qxF '<ref>' supabase/.temp/project-ref; then`.
 
 The first push applied `0001_baseline.sql` and printed the certificate warning "Hosted preview
 database" describes; `migration list --linked` showed `0001` on both sides. The CLI needed
@@ -545,7 +543,10 @@ for that row's reason. Phase 5 #19's hosted check passed: `sv-SE-x-icu` on
 (`--type all --level info`) found no ERROR or WARN, and only INFO: the preview's
 `rls_enabled_no_policy` and `unindexed_foreign_keys` findings, and `unused_index` on the three
 `locations` indexes, expected while no query has used them.
-Unlike the preview, it didn't report `auth_leaked_password_protection`.
+Unlike the preview, it didn't report `auth_leaked_password_protection`, though "Prevent use of
+leaked passwords" reads Off on production too (the owner's screenshot); why, wasn't found. So
+on production that warning, which the advisor table below accepts for the preview, had nothing
+to settle.
 
 **The host.** `vararmaten.vercel.app` is Production's domain in the Vercel project
 `whereisfood` (Settings → Domains), renamed from `whereisfood-theta.vercel.app`, which now
@@ -569,8 +570,8 @@ For the owner: the security settings #390 checked in the Supabase and Vercel das
 and Vercel's deployment retention (IS #417), which live outside the repo, each with its
 value on the preview. Phase 10 applies the list to production (Phase 9 plan #10): its
 Supabase rows on 2026-11-22 ("Production", above). The
-Supabase rows are the preview project's: production's own project gets them in Phase 10,
-with its own Site URL and Redirect URLs. The Vercel rows are the `whereisfood` project's
+Supabase rows are the preview project's: production's own project has them too, with its own
+Site URL and Redirect URLs ("Production", above). The Vercel rows are the `whereisfood` project's
 (the `Team →` rows, its team's), which its production deploys share, so the project's
 retention row already holds for production; the project's other settings (the Ignored
 Build Step, the environment variables' scopes) are in "Preview deploys", below. Each row was

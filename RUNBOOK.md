@@ -321,16 +321,25 @@ can ask for login links and spend them, so yours doesn't come. That is accepted 
 phase's custom SMTP (the Phase 10 plan's open decision 6, IS #458). It grants no access: a session
 you already hold keeps working until its 12-hour box (`CLAUDE.md`, "The session time-box").
 
-If a factor-added, factor-removed or password-changed email you didn't cause came too, this is
+Signs: **login-link emails you didn't ask for** in the admin's mailbox (Auth sends each link
+someone asks for to your address, while the budget lasts), and the form answering "För många
+försök …", which it shows when Auth refuses the request with 429 (`src/lib/login.ts`); that a
+spent hourly budget answers 429 wasn't probed (locally the CLI sets the budget to 360 000,
+`GOTRUE_RATE_LIMIT_EMAIL_SENT`, IS #377). If a
+factor-added, factor-removed or password-changed email you didn't cause came too, this is
 "A takeover", not this section.
 
 1. **Check the mail itself:** the spam folder, and the address typed on the login form.
-2. **Wait an hour, then ask once.** Each request spends one of the two.
-3. **See who asks**, from "Exporting evidence"'s `audit.csv`: a link asked for an address with
-   an account writes a row with `payload`'s `action` `user_recovery_requested` and the address as
-   `actor_username`; one asked for an address with no account writes none (local stack, IS #458).
-   Rows you didn't cause mean someone holds your address. On the local stack their
-   `ip_address` was empty; a hosted project's weren't read.
+2. **Wait an hour, then ask once.** Each request spends one of the two. Only the newest
+   request's link works in that browser: each request replaces its PKCE verifier, so a link
+   from an earlier one, found later in spam, fails (`src/lib/login.ts`).
+3. **See who asks**, in production's SQL editor:
+   `select created_at, ip_address from auth.audit_log_entries where payload->>'action' =
+   'user_recovery_requested' order by created_at desc limit 50;`. A link asked for an address
+   with an account writes such a row, with the address as `payload`'s `actor_username`; one
+   asked for an address with no account writes none (local stack, IS #458). Rows you didn't
+   cause mean someone holds your address. On the local stack their `ip_address` was empty; a
+   hosted project's weren't read.
 4. **If it goes on, move the account to a new address** that no page shows and that can't be
    guessed from the old one or `/integritet`'s contact, a mailbox with two-factor from its
    creation (`CLAUDE.md`, "Secrets"). Auth sends a link only to an address that has an account
