@@ -743,7 +743,9 @@ findings before production stay public (Q36).
 14. ~~**Production's Deployment Retention Policy** (step 14): README's checklist keeps Production
     at 30 days because no Ready production deployment existed (IS #417's comment of
     2026-11-19); the value against Hobby's 10 GB of Deployment Storage (#417).~~ → **settled**
-    (the owner, 2026-11-22, IS #459): 30 days, unchanged. Production deploys rarely: on a merge
-    into `main`, or a Redeploy in `RUNBOOK.md`'s key rotation or restore; and Hobby keeps the last 3 Ready production deployments and the one holding
-    the production alias whatever the policy, so the value deletes almost nothing; Deployment
-    Storage read 545 MB of 10 GB that day.
+    (the owner, 2026-11-22, IS #459): 30 days, unchanged. Production deploys rarely: the ways
+    the docs plan for are a merge into `main` and a Redeploy in `RUNBOOK.md`'s "A leaked key"
+    and "A restore" (README's Ignored Build Step row names promotion and a CLI deploy too,
+    neither planned); and Hobby keeps the last 3 Ready production deployments and the one
+    holding the production alias whatever the policy, so the value deletes almost nothing;
+    Deployment Storage read 545 MB of 10 GB that day.
