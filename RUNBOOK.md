@@ -700,7 +700,8 @@ exists one found in-house, is fixed without a public issue or PR until it ships 
    - Before production, always: a branch off `dev` and a PR into `dev`, whose preview deploys
      it, wherever else the code is, so plan #9's first merge into `main` keeps its order.
    - Once production exists, the vulnerable code deployed there: a branch off `main` and a PR
-     into `main`, deployed, then `main` synced into `dev` by a PR ("A release", step 3);
+     into `main`, deployed, then `main` synced into `dev` by a PR ("A release", step 3's
+     commands, on a branch named after the fix's, with no issue until step 5's records);
      both rulesets refuse a direct push. Before step 4, check that `dev`'s copy is fixed too,
      the fix's test passing on `dev` after the sync: a sync can keep `dev`'s changed version of
      the code, and the next deploy from `dev` would bring the vulnerability back.
@@ -851,31 +852,49 @@ Limits).
 
 Production builds from `main`; work lands on `dev` (Phase 10 plan #9 and step 15b). A release
 takes `dev` to `main` by a PR, then brings `main`'s merge commit back to `dev` by another, as
-IS #461 (PR #488) and IS #462 (PR #490) did first. Post each PR's text through
-`scripts/post-body.mjs` (`CLAUDE.md`, "Doc changes"): `--check <file>`, then `gh pr create`
-with `--body-file <file>`, then `node scripts/post-body.mjs <n> <file>`.
+IS #461 (PR #488) and IS #462 (PR #490) did first. Each of the two has its own issue, opened
+first. Post each PR's text through `scripts/post-body.mjs` (`CLAUDE.md`, "Doc changes"):
+`--check <file>`, then `gh pr create` with `--body-file <file>`, then `node
+scripts/post-body.mjs <n> <file>`. Write a title in single quotes: inside double quotes, bash
+runs what is in backticks and expands `$`.
 
-1. **The PR into `main`.** Before opening it, run `secret-scan`'s closing-keyword check over
-   every commit it will carry, as IS #461 did over 1093 before PR #488:
+1. **The PR into `main`.** Before opening it, two checks:
+   - **No file that overrides the Ignored Build Step** comes with it. A branch's `vercel.json`
+     can (README, "A branch's `vercel.json`"), and plan step 16 requires none on `dev` or
+     `main`. This prints nothing when there is none, with the match README's re-read uses:
 
-   ```bash
-   git fetch origin
-   git log -z --format='%H%n%B' origin/main..origin/dev \
-     | PR_TITLE="<the PR's title>" PR_BRANCH=dev node scripts/closing-keywords.mjs
-   ```
+     ```bash
+     git fetch origin
+     git ls-tree -r --name-only origin/dev | grep -iE '(^|/)(vercel|now)\.|(^|/)\.vercel/'
+     ```
 
-   A hit can't be fixed by rewording, since `dev` refuses a force-push.
-   - **A commit:** a PR into `dev` adds its full 40-character SHA to the script's `EXEMPT`, with
-     the reason (the script's header). The error line prints only 7 characters; `git log
-     --format=%H origin/main..origin/dev` gives the full one. That commit already closed its
-     issue when it landed on `dev`, so reopen the issue if its work isn't done (process-log row
-     682, #348).
-   - **The title:** choose another one.
+   - **`secret-scan`'s closing-keyword check** over every commit it will carry, as IS #461 did
+     over 1093 before PR #488. It runs `dev`'s copy of the script, from a worktree, since the
+     PR's CI runs that one and a local checkout's `EXEMPT` may differ:
 
-   Fetch and run the check again until it prints no closing reference, since an `EXEMPT` PR adds
-   commits of its own. Then open the PR fresh from `dev`, never retargeted (`CLAUDE.md`,
-   "Testing"), with the title the check read:
-   `gh pr create --base main --head dev --title "<the PR's title>" --body-file <file>`.
+     ```bash
+     git fetch origin
+     W="$(mktemp -d)/dev" && git worktree add -q --detach "$W" origin/dev
+     git log -z --format='%H%n%B' origin/main..origin/dev \
+       | PR_TITLE='<title>' PR_BRANCH=dev node "$W/scripts/closing-keywords.mjs"
+     echo "exit $?"
+     git worktree remove "$W"
+     ```
+
+     The exit code is the script's, since it is the pipeline's last command: 0 clean, 1 a hit,
+     2 input it couldn't read. On a hit, ignore its advice to reword: that is for a PR's own
+     branch, and `dev` refuses a force-push.
+     - **A commit:** a PR into `dev` adds its full 40-character SHA to the script's `EXEMPT`,
+       with the reason (the script's header). The error line prints only 7 characters; `git
+       log --format=%H origin/main..origin/dev` gives the full one. That commit already closed
+       its issue when it landed on `dev`, so reopen the issue if its work isn't done
+       (process-log row 682, #348).
+     - **The title:** choose another one.
+
+     Then run it again, until it exits 0, since an `EXEMPT` PR adds commits of its own.
+
+   Open the PR fresh from `dev`, never retargeted (`CLAUDE.md`, "Testing"), with the title the
+   check read: `gh pr create --base main --head dev --title '<title>' --body-file <file>`.
 
    It needs every check `main`'s ruleset requires, CodeQL's three among them. `controls` runs
    the full set on a PR into `main` (27 minutes for 65 controls on PR #488's run). Settle each
@@ -899,6 +918,10 @@ with `--body-file <file>`, then `node scripts/post-body.mjs <n> <file>`.
      -q '.[] | "\(.created_at) \(.context): \(.state) - \(.description) \(.target_url)"'
    ```
 
+   Wait while it reads `pending`. A failed build changed nothing that serves: after PR #488's,
+   the production domain still answered `404`, as before it. Fix the cause by a PR into `dev`
+   and a new release, never by a Redeploy or a promoted preview, which plan step 16 rules out.
+   The sync in step 3 goes ahead either way.
 3. **The sync back into `dev`.** `main` now holds a merge commit `dev` lacks. Both rulesets
    require a PR up to date with its base and refuse a direct push, so the next PR into `main`
    can't merge until `dev` holds it. A branch off `dev`, named with its own issue's number, as
@@ -910,16 +933,19 @@ with `--body-file <file>`, then `node scripts/post-body.mjs <n> <file>`.
    git merge origin/main
    git push -u origin phase-<N>/sync-main-<issue>
    gh pr create --base dev --head phase-<N>/sync-main-<issue> \
-     --title "<title>" --body-file <file>
+     --title '<title>' --body-file <file>
    ```
 
    The title and branch name go through `secret-scan`'s closing-keyword check like any PR's.
+   After a fix shipped straight to `main` ("A private vulnerability", step 3), that section
+   names the branch and the issue, since its records wait for the advisory.
 
    When `dev` has gained nothing since the release, the merge fast-forwards and makes no commit
    of its own, as IS #462's did: `main`'s merge commit had `dev`'s tip as its second parent,
-   with the same tree. Otherwise it makes a merge commit. A conflict means `main` holds a change
-   `dev` lacks, such as a fix shipped straight to `main` ("A private vulnerability", step 3):
-   resolve it so `dev` keeps that fix.
+   with the same tree. Otherwise it makes a merge commit. Then check that `dev` keeps each
+   change `main` held and `dev` lacked, such as a fix shipped straight to `main`: its test
+   passes on the sync branch. A clean merge can still keep `dev`'s own version of the code
+   around it. Resolve a conflict so `dev` keeps that change.
 
    Merge the sync PR with a merge commit too, `gh pr merge <n> --merge`, **never a rebase**,
    though `dev`'s ruleset allows one. A rebase writes new commits, so `dev` would still lack
