@@ -446,8 +446,8 @@ API Keys), in the same variable names as the local ones:
 | `SUPABASE_SERVICE_ROLE_KEY` | the secret key, server only |
 
 They live in Vercel's environment variables and in gitignored files on the owner's
-machine, never in a tracked file (`CLAUDE.md`, Secrets). The legacy `anon` and `service_role`
-JWT keys are disabled ("Hosted settings checklist", below).
+machine, never in a tracked file (`CLAUDE.md`, Secrets). The legacy API keys (`anon` and
+`service_role`) are disabled ("Hosted settings checklist", below).
 
 **Auth** (set in #222's PR, 2026-11-07):
 
