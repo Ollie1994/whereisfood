@@ -241,7 +241,8 @@ Cloudflare dashboard (no API token needed):
     {
       "AllowedOrigins": [
         "http://localhost:3000",
-        "https://whereisfood-*-where-is-food.vercel.app"
+        "https://whereisfood-*-where-is-food.vercel.app",
+        "https://vararmaten.vercel.app"
       ],
       "AllowedMethods": ["GET", "HEAD"],
       "AllowedHeaders": ["range", "if-match"],
@@ -255,15 +256,17 @@ Cloudflare dashboard (no API token needed):
     in the two forms Vercel's "Generated URLs" docs give for Git deployments,
     `<project>-<hash>-<scope-slug>.vercel.app` and
     `<project>-git-<branch>-<scope-slug>.vercel.app`. Here that is the project
-    `whereisfood` in the team whose slug (not its display name) is `where-is-food`.
-  - What R2 did with `Origin` headers sent to it (PR #194, 2026-11-02; the rows marked
+    `whereisfood` in the team whose slug (not its display name) is `where-is-food`. The
+    third is production's domain (added 2026-11-22, IS #459).
+  - What R2 did with `Origin` headers sent to it, against the first two origins only (PR
+    #194, 2026-11-02; the rows marked
     *real* are the project's own URLs, from #187 the same day). The match is on the
     whole origin: scheme, hostname and port, anchored at both ends. The `*` matches
     any characters, dots included, or none:
 
     | Gets `Access-Control-Allow-Origin` | Doesn't |
     |---|---|
-    | `https://whereisfood-a0v5zskps-where-is-food.vercel.app` (commit form, *real*) | `https://whereisfood-theta.vercel.app` (the domain Vercel gave production, *real*; a 307 to `vararmaten.vercel.app` since IS #458) |
+    | `https://whereisfood-a0v5zskps-where-is-food.vercel.app` (commit form, *real*) | `https://whereisfood-theta.vercel.app` (the domain Vercel gave production, *real*) |
     | `https://whereisfood-git-phase-6-preview-deploy-where-is-food.vercel.app` (branch form, *real*) | |
     | `https://whereisfood-abc123-where-is-food.vercel.app` (commit form) | `https://whereisfood-where-is-food.vercel.app` (one hyphen, where the pattern has two) |
     | `https://whereisfood-git-phase-6-tiles-r2-where-is-food.vercel.app` (branch form) | `https://whereisfood.vercel.app` |
@@ -273,14 +276,34 @@ Cloudflare dashboard (no API token needed):
     | | `http://whereisfood-x-where-is-food.vercel.app`, and the same on `:8443` |
     | | `https://example.com` |
 
-  - **Production's short addresses aren't covered.** Vercel's docs give
-    `<project>-<scope-slug>.vercel.app` for CLI deploys and say it points to the
-    production deployment once there is one. That URL, `whereisfood.vercel.app`,
-    production's domain `vararmaten.vercel.app` (Settings → Domains; renamed from the
-    `whereisfood-theta.vercel.app` Vercel assigned, which now answers a 307 to it, IS #458)
-    and `whereisfood-theta.vercel.app` itself get no header, so each needs its own origin in
-    the rule, or a redirect to an address that has one (Phase 10, #459). A production deployment's
-    commit-form URL is in the pattern like a preview's.
+  - **Production's addresses** (IS #459, 2026-11-22). An address gets an origin only once it
+    is shown to be this project's.
+    - `vararmaten.vercel.app`, production's domain (Settings → Domains; renamed from the
+      `whereisfood-theta.vercel.app` Vercel assigned, IS #458), has its own origin.
+    - `whereisfood-theta.vercel.app` has none: it is set to redirect (307) to
+      `vararmaten.vercel.app` (Settings → Domains, IS #458), so no page is meant to load on
+      it. Until a production deployment exists it answers `404` `DEPLOYMENT_NOT_FOUND`, so the
+      redirect itself hasn't been seen (the plan's step 17, #464, checks it).
+    - `whereisfood-where-is-food.vercel.app`, the `<project>-<scope-slug>.vercel.app` alias
+      Vercel's docs give for CLI deploys and say points to the production deployment once
+      there is one, has none yet. Its `DEPLOYMENT_NOT_FOUND` tells nothing either way
+      (`vararmaten.vercel.app` answers the same until production exists), and another account
+      could hold the same host, by a project of that name or `whereisfood-where` under the
+      slug `is-food`. Step 17 (#464) checks Vercel's own record, whether it is listed among
+      the production deployment's domains in the project's dashboard, not the page it serves,
+      which anyone could copy; if it is, an issue of its own gives it an origin (the owner's
+      call, round 3 on PR #486).
+    - A production deployment's commit-form URL is in the pattern like a preview's.
+    - **`whereisfood.vercel.app` is not this project's** and gets no origin: before any
+      production deployment existed it answered `200` with another owner's page, titled
+      "今天吃啥呢？".
+
+    Checked in the form of the first `curl` below, with `Range: bytes=0-0`, per `Origin`
+    (IS #459, after the rule above was saved): each `206`, with that origin in
+    `Access-Control-Allow-Origin` and `etag` exposed for `vararmaten.vercel.app`, `dev`'s
+    alias (the pattern) and `localhost:3000`; neither header for
+    `whereisfood-where-is-food.vercel.app`, `whereisfood.vercel.app`,
+    `whereisfood-theta.vercel.app` and `evil-where-is-food.vercel.app`.
   - **CORS limits which pages can read the tiles, not who downloads them.** A page
     served from any origin the pattern matches can load them, whoever owns it. Any
     request without a browser's CORS check, such as curl, gets the file too (`206`
@@ -515,8 +538,10 @@ Its row stays in the preview's history.
 For the owner. Set up on 2026-11-22 (IS #458, whose comments hold each step's record and
 result). It names no key, project ref, database URL or email address (`CLAUDE.md`, Secrets).
 
-**The project.** `vam-production-project`, in its own free organization
-(`vam-production-organization`), separate from the preview's, in `eu-north-1` (Stockholm).
+**The project.** `whereisfood-production-project`, in its own free organization
+(`whereisfood-production-organization`; both renamed from `vam-…` on 2026-11-22, IS #458's
+comment: "whereisfood" for internal names, "vararmaten" for public ones), separate from the
+preview's, in `eu-north-1` (Stockholm).
 Made in the dashboard with the Data API on, "Grant API access to new tables automatically"
 off and "Enable RLS on new tables automatically" off: the migration grants and turns on RLS
 per table. Its database password belongs in the owner's password manager and, inside the
@@ -553,8 +578,10 @@ production too (the owner's screenshot); why, wasn't found. So on production tha
 which the advisor table below accepts for the preview, had nothing to settle.
 
 **The host.** `vararmaten.vercel.app` is Production's domain in the Vercel project
-`whereisfood` (Settings → Domains), renamed from `whereisfood-theta.vercel.app`, which now
-answers a 307 to it. Log in from it: Auth's Redirect URLs admit no other.
+`whereisfood` (Settings → Domains), renamed from `whereisfood-theta.vercel.app`, which is
+set to redirect (307) to it. Log in from it: Auth's Redirect URLs admit no other. R2's CORS rule
+admits it ("Get the map tiles"). Vercel's Toolbar is off for Production deployments, and
+their retention stays 30 days (the "Hosted settings checklist" rows, IS #459).
 
 **The admin.** Made as "5. Create the admin user" says, in production's dashboard, with an
 address used for this login alone, never the public removal contact (the Phase 10 plan's open
@@ -582,8 +609,9 @@ Build Step, the environment variables' scopes) are in "Preview deploys", below. 
 read on 2026-11-18 from the owner's screenshots, except the advisor's table (CLI runs,
 below) and two probes (the Enforce SSL and AAL1 rows), with the results recorded on IS #390.
 The two retention rows were set by the owner on 2026-11-19 and read from their screenshots
-that day, recorded on IS #417. It names settings, never keys or addresses (`CLAUDE.md`,
-Secrets).
+that day, recorded on IS #417; the Toolbar's Production value was set and read on 2026-11-22,
+and the project's retention row read again that day (IS #459). It names settings, never keys
+or addresses (`CLAUDE.md`, Secrets).
 
 **Supabase, Authentication:**
 
@@ -658,8 +686,8 @@ findings, re-read `--linked` on 2026-11-20, the same five:
 | Team → Deployment Protection → Access Request Permissions | Anyone | Kept as found |
 | Settings → Security → Git Fork Protection | Enabled | "Preview deploys", below |
 | Team → Build and Deployment → Deployment Retention Policy | Canceled 1 day; Errored 1 day; Pre-Production 1 week; Production 30 days; "Apply this policy to all existing projects" ticked | Set by the owner, 2026-11-19 (IS #417). A project's own policy replaces the team's (Vercel's Deployment Retention docs), so the next row is the one that holds for `whereisfood` |
-| Settings → Build and Deployment → Deployment Retention Policy | The same four values, on the project's page after the team's save | Margin under the team's 10 GB of Deployment Storage on Hobby (3.06 GB on 2026-11-19), over which deploys can be blocked and deployments deleted; Hobby's Alerts and Spend Management aren't offered (IS #389), and the docs' "Usage limit reached" notice covers Fair Use limits, which don't list it. The owner accepted (2026-11-19) that `dev`'s preview isn't shown to be exempt: after a week with no push to `dev` it can be deleted and the preview's login fail, until it is restored or `dev` is pushed. Production stays at 30 days: no Ready production deployment yet, so Phase 10 decides it. What counts, the exceptions, the costs and the recovery: IS #417's comment of 2026-11-19 |
-| Settings → General → Vercel Toolbar → Pre-Production Deployments; Production Deployments | Off; Default (the team's: on) | Pre-Production: the CSP refused its script, styles and iframe (`CLAUDE.md`, Security headers; IS #387). Production: on for team members with the Chrome extension or the toolbar menu's opt-in (the team setting's text); Phase 10 decides it with production's CSP |
+| Settings → Build and Deployment → Deployment Retention Policy | The same four values, on the project's page after the team's save | Margin under the team's 10 GB of Deployment Storage on Hobby (3.06 GB on 2026-11-19), over which deploys can be blocked and deployments deleted; Hobby's Alerts and Spend Management aren't offered (IS #389), and the docs' "Usage limit reached" notice covers Fair Use limits, which don't list it. The owner accepted (2026-11-19) that `dev`'s preview isn't shown to be exempt: after a week with no push to `dev` it can be deleted and the preview's login fail, until it is restored or `dev` is pushed. Production stays at 30 days, the Phase 10 plan's open decision 14 (the owner, 2026-11-22, IS #459): production deploys rarely (the ways the docs plan for: a merge into `main`, and a Redeploy in `RUNBOOK.md`'s "A leaked key" and "A restore"; the Ignored Build Step row in "Preview deploys", below, names promotion and a CLI deploy too, neither planned), and Hobby keeps the last 3 Ready production deployments and the one holding the production alias whatever the policy, so the value deletes almost nothing. What counts, the exceptions, the costs and the recovery: IS #417's comment of 2026-11-19 |
+| Settings → General → Vercel Toolbar → Pre-Production Deployments; Production Deployments | Off; Off | Pre-Production: the CSP refused its script, styles and iframe (`CLAUDE.md`, Security headers; IS #387). Production: set Off by the owner on 2026-11-22 (IS #459; the owner's call, round 3 on PR #447), for the same CSP; until then it was Default, the team's setting, on for team members with the Chrome extension or the toolbar menu's opt-in. Vercel applies it from the next deployment (its message on saving, in the owner's screenshot on IS #459); no production deployment existed before the change |
 
 ---
 
@@ -736,6 +764,12 @@ below).
   install scripts had run. A Redeploy of `dev`'s preview (no build cache) was "Ready" after
   it, and its screenshot showed `/map`'s "Inga foodtrucks idag", which needs `/api/live` to
   have answered (the owner, 2026-11-13).
+- Read again before production (IS #459, 2026-11-22): Behavior "Custom", and the field's
+  command, copied out by the owner, identical to the one above as a string (172
+  characters); `git ls-tree -r --name-only` of `origin/dev` and `origin/main`, filtered by
+  `grep -iE '(^|/)(vercel|now)\.|(^|/)\.vercel/'` (any `vercel.…` or legacy `now.…` file, and a
+  `.vercel/` folder), lists only `public/vercel.svg`, an image. Which file names Vercel reads
+  as project config wasn't looked up, so the check is that wide match, not a list of names.
 - Not seen: the cancel of a Production build from a branch other than `main`.
 
 **Environment variables**, all four of `.env.example`'s, scoped to **Preview** only
