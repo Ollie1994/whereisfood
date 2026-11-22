@@ -752,8 +752,8 @@ findings before production stay public (Q36).
     password reset and its legacy JWT keys disabled, the publishable key kept; the Supabase CLI
     login and the GitHub token replaced, and each account's unused tokens and sessions removed;
     the preview's credentials not rotated, since they reach only the preview, but its legacy
-    JWT keys disabled; account passwords not rotated, since none was in the repo, a shell or an
-    agent session, and two-factor guards each.
+    JWT keys disabled; account passwords not rotated, by the owner's reason that none was in
+    the repo, a shell or an agent session, and two-factor guards each.
 13. **How the trucks are told** (step 18): the channel and the Swedish text, with a link to
     `/integritet`.
 14. ~~**Production's Deployment Retention Policy** (step 14): README's checklist keeps Production
