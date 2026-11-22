@@ -607,8 +607,8 @@ read on 2026-11-18 from the owner's screenshots, except the advisor's table (CLI
 below) and two probes (the Enforce SSL and AAL1 rows), with the results recorded on IS #390.
 The two retention rows were set by the owner on 2026-11-19 and read from their screenshots
 that day, recorded on IS #417; the Toolbar's Production value was set and read on 2026-11-22,
-and the project's retention row read again that day (IS #459). It names settings, never keys or addresses (`CLAUDE.md`,
-Secrets).
+and the project's retention row read again that day (IS #459). It names settings, never keys
+or addresses (`CLAUDE.md`, Secrets).
 
 **Supabase, Authentication:**
 
