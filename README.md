@@ -269,7 +269,7 @@ Cloudflare dashboard (no API token needed):
 
     | Gets `Access-Control-Allow-Origin` | Doesn't |
     |---|---|
-    | `https://whereisfood-a0v5zskps-where-is-food.vercel.app` (commit form, *real*) | `https://whereisfood-theta.vercel.app` (the domain Vercel gave production, *real*; a 307 to `vararmaten.vercel.app` since IS #458) |
+    | `https://whereisfood-a0v5zskps-where-is-food.vercel.app` (commit form, *real*) | `https://whereisfood-theta.vercel.app` (the domain Vercel gave production, *real*; set to redirect (307) to `vararmaten.vercel.app` since IS #458) |
     | `https://whereisfood-git-phase-6-preview-deploy-where-is-food.vercel.app` (branch form, *real*) | |
     | `https://whereisfood-abc123-where-is-food.vercel.app` (commit form) | `https://whereisfood-where-is-food.vercel.app` (one hyphen, where the pattern has two) |
     | `https://whereisfood-git-phase-6-tiles-r2-where-is-food.vercel.app` (branch form) | `https://whereisfood.vercel.app` (another owner's site, IS #459) |
@@ -282,8 +282,10 @@ Cloudflare dashboard (no API token needed):
   - **Production's addresses** (IS #459, 2026-11-22). `vararmaten.vercel.app`, production's
     domain (Settings → Domains; renamed from the `whereisfood-theta.vercel.app` Vercel
     assigned, IS #458), and `whereisfood-where-is-food.vercel.app` have origins of their own.
-    `whereisfood-theta.vercel.app` has none: it answers a 307 to `vararmaten.vercel.app`, so a
-    page never loads on it. A production deployment's commit-form URL is in the pattern like a
+    `whereisfood-theta.vercel.app` has none: it is set to redirect (307) to
+    `vararmaten.vercel.app` (Settings → Domains, IS #458), so no page is meant to load on it;
+    until a production deployment exists it answers `404` `DEPLOYMENT_NOT_FOUND`, so the
+    redirect itself hasn't been seen. A production deployment's commit-form URL is in the pattern like a
     preview's. **`whereisfood.vercel.app` is not this project's** and gets no origin: before
     any production deployment existed it answered `200` with another owner's page, titled
     "今天吃啥呢？". Checked in the form of the first `curl` below, with
@@ -566,8 +568,8 @@ production too (the owner's screenshot); why, wasn't found. So on production tha
 which the advisor table below accepts for the preview, had nothing to settle.
 
 **The host.** `vararmaten.vercel.app` is Production's domain in the Vercel project
-`whereisfood` (Settings → Domains), renamed from `whereisfood-theta.vercel.app`, which now
-answers a 307 to it. Log in from it: Auth's Redirect URLs admit no other. R2's CORS rule
+`whereisfood` (Settings → Domains), renamed from `whereisfood-theta.vercel.app`, which is
+set to redirect (307) to it. Log in from it: Auth's Redirect URLs admit no other. R2's CORS rule
 admits it ("Get the map tiles"). Vercel's Toolbar is off for Production deployments, and
 their retention stays 30 days (the "Hosted settings checklist" rows, IS #459).
 

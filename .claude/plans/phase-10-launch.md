@@ -305,7 +305,7 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     branch but `main`, and no `vercel.json` `ignoreCommand` and no `vercel.ts` (which may
     override it too, not probed) on `dev` or `main`; R2's CORS rule
     gains an origin for each production address README names (`vararmaten.vercel.app`,
-    production's domain since IS #458, `whereisfood-theta.vercel.app`, now a 307 to it,
+    production's domain since IS #458, `whereisfood-theta.vercel.app`, set to redirect (307) to it,
     `<project>-<scope-slug>.vercel.app`; not `whereisfood.vercel.app`, another owner's site,
     IS #459), or each address
     without one redirects to one that has it (README, "Get the map tiles"); the Vercel Toolbar
