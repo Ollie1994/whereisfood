@@ -1012,15 +1012,15 @@ A release at a phase's end, so `main` carries the reconciled docs, is optional. 
 `main` trails `dev`, the more a fix shipped straight to `main` has to merge against in its sync
 ("A private vulnerability"; step 3: "A clean merge can still keep `dev`'s own version").
 
-Post each PR's text through `scripts/post-body.mjs` (`CLAUDE.md`, "Doc changes"):
-`--check <file> --closes <list>`, then `gh pr create` with `--body-file <file>`, then `node
-scripts/post-body.mjs <n> <file> --closes <list>`. The PR into `main` takes `--closes none`:
-a merge into `main` closes no issue, and the release's issue is closed by hand (step 1). The
-sync PR into `dev` takes `--closes <its issue>`, as its body closes it; a sync after a fix
-shipped straight to `main`, which has no issue yet (step 3), takes `--closes none`. Keep each PR's title in a file too, and read it into a
-variable, `TITLE="$(cat <title file>)"`. Bash doesn't expand a variable's value again, so
-backticks, `$` and apostrophes in the title pass as written. Tried on IS #462 with
-``Release `dev`'s work into `main` $HOME``: it reached the script byte for byte.
+Post each PR's text through `scripts/post-body.mjs` (`CLAUDE.md`, "Doc changes"): `--check <file>
+--closes <list>`, then `gh pr create` with `--body-file <file>`, then `node scripts/post-body.mjs
+<n> <file> --closes <list>`. The PR into `main` takes `--closes none`: a merge into `main` closes no
+issue, and the release's issue is closed by hand (step 1). The sync PR into `dev` takes `--closes
+<its issue>`, as its body closes it; a sync after a fix shipped straight to `main`, which has no
+issue yet (step 3), takes `--closes none`. Keep each PR's title in a file too, and read it into a
+variable, `TITLE="$(cat <title file>)"`. Bash doesn't expand a variable's value again, so backticks,
+`$` and apostrophes in the title pass as written. Tried on IS #462 with ``Release `dev`'s work into
+`main` $HOME``: it reached the script byte for byte.
 
 1. **The PR into `main`.** Before opening it, two checks:
    - **No file that overrides the Ignored Build Step** comes with it. A branch's `vercel.json`

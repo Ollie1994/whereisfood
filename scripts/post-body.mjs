@@ -33,21 +33,20 @@
 //     with neither or both), so a check that skips the closing rule says so. --check --issue
 //     makes no `gh` call.
 //
-// The closing rule (IS #513, the Phase 10 retrospective's new action 1): on a PR's body and
-// on --check --closes. A closing keyword before an issue reference in a PR body closes that
-// issue when the PR merges into `dev`; three reached PR bodies in Phase 10 (process-log rows
-// 932 and 954), caught only by the claims check read after the post. --closes lists the
-// issues the PR closes, as numbers with no leading zero separated by commas, or `none`. Each
-// match of closing-keywords.mjs's CLOSING, its number read whole (`closingNumbers`), must
-// name a listed number in this repository: `#<n>`, `GH-<n>`, `<owner>/<name>#<n>` or an
-// issue or pull URL, the owner and name compared case-insensitively with `gh repo view`'s,
-// which is read only when the rule runs, so a private advisory fork reads its own. A
-// reference to another repository fails even with its number listed (an over-match, as
-// CLOSING over-matches), and so does a listed number no reference names (a "Closes #n"
-// dropped while editing). Each fails before anything is posted (exit 1); a failed `gh repo
-// view` is exit 2. --closes on a comment or --edit-comment, --issue outside --check, and a
-// --closes value missing, empty, given twice, written `--closes=<list>` or with a leading
-// zero are bad arguments (exit 2).
+// The closing rule (IS #513, the Phase 10 retrospective's new action 1): on a PR's body and on
+// --check --closes. A closing keyword before an issue reference in a PR body closes that issue when
+// the PR merges into `dev`; three reached PR bodies in Phase 10 (process-log rows 932 and 954),
+// caught only by the claims check, read after the post or run on a draft before the sentence
+// existed. --closes lists the issues the PR closes, as numbers with no leading zero separated by
+// commas, or `none`. Each match of closing-keywords.mjs's CLOSING, its number read whole
+// (`closingNumbers`), must name a listed number in this repository: `#<n>`, `GH-<n>`,
+// `<owner>/<name>#<n>` or an issue or pull URL, the owner and name compared case-insensitively with
+// `gh repo view`'s, which is read only when the rule runs, so a private advisory fork reads its
+// own. A reference to another repository fails even with its number listed (an over-match, as
+// CLOSING over-matches), and so does a listed number no reference names (a "Closes #n" dropped
+// while editing). Each fails before anything is posted (exit 1); a failed `gh repo view` is exit 2.
+// --closes on a comment or --edit-comment, --issue outside --check, and a --closes value missing,
+// empty, given twice, written `--closes=<list>` or with a leading zero are bad arguments (exit 2).
 //
 // The checks, before anything is posted (exit 1, nothing posted): a raw control character
 // (all of C0 but tab, LF and CR); an invisible character (the no-break space, the soft
