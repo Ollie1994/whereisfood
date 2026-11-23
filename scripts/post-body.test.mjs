@@ -450,35 +450,30 @@ describe("main", () => {
       expect(main(["12", file("No closing line here.\n"), "--closes", "511"], { api })).toBe(1);
       expect(console.error).toHaveBeenCalledWith(expect.stringContaining("--closes lists #511, but no closing reference names it"));
     });
-    it("doesn't count a fenced, commented or over-matched form as naming a listed number", () => {
+    it("counts any closing match to a listed number as naming it, so no valid body is refused (round 5)", () => {
       quiet();
       const { api } = pr();
       for (const body of [
-        "```\nCloses #511\n```\n",
-        "<!--\nCloses #511\n-->\n",
-        "<!-- Closes #511 -->\n",
-        "See <!--\nCloses #511\n-->\n",
-        "`Closes #511`\n",
-        "Closes #0511\n",
-        "Closes GH-511\n",
-        "Closes [#511](https://example.test)\n",
-        "Closes <#511>\n",
-        "closes#511\n",
-        "fixes_#511\n",
-        "Closes\n#511\n",
-        "Fixes https://github.com/Ollie1994/whereisfood/issues/511\n",
+        "The check cuts a comment opened mid-line (`See <!--`).\n\nCloses #511\n",
+        "See <!--> x\nCloses #511\n",
+        "**Closes** #511\n",
+        "Closes **#511**\n",
+        "_Fixes_ #511\n",
+        "Closes:#511\n",
+        "<!--\nnote\n--> Closes #511\n",
+        "Closes #511.\n",
+        "  - Closes Ollie1994/whereisfood#511\n",
       ]) {
-        expect(main(["12", file(body), "--closes", "511"], { api }), body).toBe(1);
-      }
-      expect(console.error).toHaveBeenCalledWith(expect.stringContaining('names it as "Closes #511"'));
-      expect(main(["12", file("```\nfixes #12\n```\nCloses #511.\n"), "--closes", "511"], { api }), "a fenced unlisted one").toBe(1);
-      for (const body of ["Closes #511.\n", "- **Fixes:** see below.\nCloses: #511\n", "**Closes #511**\n", "  - Closes Ollie1994/whereisfood#511\n"]) {
         expect(main(["12", file(body), "--closes", "511"], { api }), body).toBe(0);
       }
+      // The stated limit: a quoted or fenced one stands in for a dropped real one.
+      expect(main(["12", file("```\nCloses #511\n```\n"), "--closes", "511"], { api }), "a fenced one counts").toBe(0);
+      expect(main(["12", file("```\nfixes #12\n```\nCloses #511.\n"), "--closes", "511"], { api }), "a fenced unlisted one").toBe(1);
     });
     it("exits 2 when the body form's post fails after the lookup", () => {
       quiet();
       for (const pull of [false, true]) {
+        vi.mocked(console.error).mockClear();
         const calls = [];
         const api = (args) => {
           calls.push(args);
