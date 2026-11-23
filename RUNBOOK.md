@@ -636,9 +636,8 @@ receives removal requests.
    >
    > /Oliwer, Väm
 
-   A DM that is sent counts as told, seen or not, even in the truck's message requests: Instagram
-   lets an account turn read receipts off (IS #511, from memory, not probed). With no other
-   channel, the truck isn't told.
+   A DM that is sent counts as told, seen or not, even in the truck's message requests (the
+   owner's call, IS #511). With no other channel, the truck isn't told.
 4. Add the truck's line to the list of trucks told (below): its name, the date (Stockholm), and
    how it was told (the DM, the other channel) or "not told". Until #465 closes with Phase 10,
    add the date and the count to #465 too, never the name.
