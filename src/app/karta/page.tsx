@@ -59,8 +59,9 @@ import { createSessionClient, readOnlyCookies } from "@/lib/supabase-session";
 // - README.md: "It redirects to `/karta`" ("4. Run") and "the app's `/` only redirects to
 //   `/karta`" ("Hosted preview database"), and their HTML-comment markers removed; and in "Get
 //   the map tiles", the `whereisfood-where-is-food.vercel.app` alias's no-origin call (IS #506)
-//   asked again, since `/karta` then shows the map to anyone who reaches it, and its marker
-//   removed.
+//   taken back to the owner by the full launch's issue, since `/karta` then shows the map to
+//   anyone who reaches it: the alias gets R2's CORS origin, or the paragraph keeps none with
+//   the owner's new reasons; its marker removed either way.
 // - CLAUDE.md: "The soft-launch gate" deleted.
 export const metadata: Metadata = { title: "Karta" };
 

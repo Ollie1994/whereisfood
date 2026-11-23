@@ -307,9 +307,9 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     gives an origin only to a production address shown to be this project's that serves pages
     (`vararmaten.vercel.app`, production's domain since IS #458); an address that redirects to
     one with an origin needs none (`whereisfood-theta.vercel.app`, set to redirect (307) to
-    it); one not yet shown to be this project's waits for step 17's check
-    (`<project>-<scope-slug>.vercel.app`, shown so by #464 and given none by the owner's call on
-    #506, README's "Get the map tiles"); and never `whereisfood.vercel.app`, another owner's
+    it); one not yet shown to be this project's waits for step 17's check (the
+    `<project>-<scope-slug>.vercel.app` alias did, until #464 showed it is; it gets none by the
+    owner's call on #506, README's "Get the map tiles"); and never `whereisfood.vercel.app`, another owner's
     site (IS #459; README, "Get the map tiles"); the Vercel Toolbar
     off for Production deployments, as for pre-production (the owner's call, round 3 on PR
     #447; README's "Hosted settings checklist"); Production's Deployment Retention Policy, which

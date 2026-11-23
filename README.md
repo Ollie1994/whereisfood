@@ -290,14 +290,14 @@ Cloudflare dashboard (no API token needed):
       the page it serves, which anyone could copy. It gets no origin (the owner's call on IS
       #506, replacing round 3 on PR #486's "if it is, an issue of its own gives it an origin"):
       only someone past Vercel's login reaches it (it answers `302` to `vercel.com/sso-api`;
-      today that is the owner alone), and `/karta` shows the map only to the admin at `aal2`.
-      Auth's Redirect URLs admit only `vararmaten.vercel.app`'s callback ("Production"), so a
-      login started on the alias would land there, and an admin session on the alias would take
-      the link's address edited by hand to its `/auth/callback` (neither tried). The worst case is
-      `/karta` on the alias with no tiles, on an address nobody uses. Any of these brings the
-      question back: a change to those Redirect URLs, Vercel Authentication changed for
-      production, or the gate's removal (Phase 11), when `/karta` shows the map to anyone who
-      reaches the alias.
+      today that is the owner alone), or a request carrying the project's bypass secret
+      ("Preview deploys"; with it, `/om` and `/api/live` answered `200` there, `302` without, PR
+      #508), and `/karta` shows the map only to the admin at `aal2`. The worst
+      case is `/karta` on the alias with no tiles, on an address nobody uses. Any of these
+      brings the question back: a change to Auth's Redirect URLs ("Production"), Vercel
+      Authentication changed for production, a Shareable Link or a Deployment Protection
+      Exception (the "Hosted settings checklist" row), or the gate's removal (Phase 11), when
+      `/karta` shows the map to anyone who reaches the alias.
       <!-- SOFT-LAUNCH GATE (Phase 10 plan #5): the alias's no-origin call is asked again at the full launch (the removal list in src/app/karta/page.tsx). -->
     - A production deployment's commit-form URL is in the pattern like a preview's.
     - **`whereisfood.vercel.app` is not this project's** and gets no origin: before any
