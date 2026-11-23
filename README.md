@@ -997,7 +997,8 @@ it. The steps, tested once on the local stack (IS #455's record):
 5. **Log in and enroll TOTP at once.** The dump holds no `auth` schema, so the admin comes
    back with no factor: the login shows the enroll QR code, and until it is done any `aal1`
    session, a guessed code's included, can fill the free slot (Phase 9 plan #13). Delete the
-   authenticator app's old entry.
+   authenticator app's old entry. The next link after this login and enroll can be refused for
+   about an hour (`RUNBOOK.md`, "A login link that doesn't come").
 
 Limits: moving the live app to a new project after a hosted restore (Vercel's variables, the
 hosted settings checklist, the Redirect URLs) isn't covered here or tried; `RUNBOOK.md`'s
