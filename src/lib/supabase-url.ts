@@ -15,7 +15,7 @@
 //   supabase-js's own `validateSupabaseUrl` test, `/^https?:\/\//i` on the trimmed value,
 //   which it would refuse after with "Invalid supabaseUrl: …" (`dist/index.cjs`). The checks
 //   read the trimmed value, as supabase-js does;
-// - `http://` for any host but the local stack's: supabase-js sends the key in an `apikey`
+// - `http://` for any host but the local stack's (`LOCAL_HOSTS`): supabase-js sends the key in an `apikey`
 //   header on every request (`dist/index.cjs`), so a hosted project's secret key would go
 //   out unencrypted.
 //
@@ -25,7 +25,8 @@
 const NOT_HTTP =
   "Bad env: NEXT_PUBLIC_SUPABASE_URL is not an http(s) URL; it must be the project URL alone, https://<ref>.supabase.co";
 
-const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost"]);
+// The local hosts `tests/integration/setup.ts` admits.
+const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 
 export function supabaseProjectUrl(value: string | undefined): string {
   if (!value) throw new Error("Missing env: NEXT_PUBLIC_SUPABASE_URL");

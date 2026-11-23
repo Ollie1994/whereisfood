@@ -12,6 +12,7 @@ describe("supabaseProjectUrl", () => {
     );
     expect(supabaseProjectUrl("http://127.0.0.1:54321")).toBe("http://127.0.0.1:54321");
     expect(supabaseProjectUrl("http://localhost:54321")).toBe("http://localhost:54321");
+    expect(supabaseProjectUrl("http://[::1]:54321")).toBe("http://[::1]:54321");
   });
 
   // Checked on the trimmed value, as supabase-js does, and returned as given. Written from
