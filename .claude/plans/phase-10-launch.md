@@ -413,7 +413,8 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     row (line 1078), whose "every credential" open decision 12 narrows. It brings README's
     status parts in line; carries forward the decisions that outlive the phase (#5 and #10 at
     least: #5's row names the removal list in `karta/page.tsx`'s header and #5's removal checks, for Phase 11's
-    plan; the IS #373 (Phase 11) row's marker stays, and its "removes the gate" points to #5's
+    plan; open decision 13's procedure, which #511 puts in the runbook; the IS #373 (Phase 11)
+    row's marker stays, and its "removes the gate" points to #5's
     row); and sets `CLAUDE.md`'s bold line to none, naming this plan as the last one.
 
 ---
@@ -791,10 +792,17 @@ findings before production stay public (Q36).
 13. ~~**How the trucks are told** (step 18): the channel and the Swedish text, with a link to
     `/integritet`.~~ → **settled** (the owner, 2026-11-23, IS #465): an Instagram DM from
     @vararmaten on the day a truck is first entered, signed "/Oliwer, Väm", in the text #465's
-    comment records; email (`/integritet`'s contact) stays the fallback and the removal
-    address, and a removal asked for by DM is honoured like one by email (#2). The text's "Kartan
-    är inte öppen för alla ännu" holds while the soft-launch gate stands (#5) and goes at the
-    full launch. Each truck told is recorded on #465 by name and date.
+    comment 7102728788 records (`issuecomment-7102728788`). With no Instagram account, or a DM
+    that can't be seen, another public channel the truck itself publishes (a website's email,
+    Facebook), as `RUNBOOK.md`'s "Other requests" allows; with none, the truck is recorded as
+    not told. A truck may write back by DM or to `/integritet`'s email; a removal asked for by DM
+    is honoured like one by email (#2), and #511 covers DM requests in `/integritet` and the
+    runbook, and adds this procedure there, before the first DM goes out. #465 records only
+    dates and counts, never names (round 1 on PR #510): a public issue would keep a removed
+    truck's name; the names go in the owner's private list off the repo, next to the takedown
+    log, whose line a removal deletes too. The text's "Kartan är inte öppen för alla ännu"
+    holds while the soft-launch gate stands (#5) and goes at the full launch (the gate's
+    removal list names it).
 14. ~~**Production's Deployment Retention Policy** (step 14): README's checklist keeps Production
     at 30 days because no Ready production deployment existed (IS #417's comment of
     2026-11-19); the value against Hobby's 10 GB of Deployment Storage (#417).~~ → **settled**

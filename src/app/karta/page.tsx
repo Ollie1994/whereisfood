@@ -63,6 +63,10 @@ import { createSessionClient, readOnlyCookies } from "@/lib/supabase-session";
 //   anyone who reaches it: the alias gets R2's CORS origin, or the paragraph keeps none with
 //   the owner's new reasons; its marker removed either way.
 // - CLAUDE.md: "The soft-launch gate" deleted.
+// - The DM that tells a new truck it's listed (Phase 10 plan, open decision 13; IS #465's
+//   comment 7102728788, and the runbook once IS #511 adds it): its sentence "Kartan är inte
+//   öppen för alla ännu, den öppnar när fler foodtruckar är med." deleted, the owner approving
+//   the new text.
 export const metadata: Metadata = { title: "Karta" };
 
 export default async function MapPage() {
