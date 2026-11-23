@@ -703,7 +703,7 @@ findings, re-read `--linked` on 2026-11-20, the same five:
 |---|---|
 | WARN `auth_leaked_password_protection` | Accepted: Pro only, and the admin's password is long and random (IS #378) |
 | INFO `rls_enabled_no_policy` on `public.trucks` and `public.locations` | By design: anon and authenticated hold no grant on them (`role_table_grants` on the preview, 2026-11-18: only `authenticated`'s `SELECT` on `users`); for anon it is `CLAUDE.md`'s rule (Supabase) |
-| INFO `unindexed_foreign_keys`: `locations_created_by_fkey`, `users_truck_id_fkey` | Accepted on tables this small; production's run reported it too ("Production", above), and it is read again once production holds data |
+| INFO `unindexed_foreign_keys`: `locations_created_by_fkey`, `users_truck_id_fkey` | Accepted on tables this small; production's `--type all` run reported it too ("Production", above). Not scheduled to be read again: RUNBOOK's runs are `--type security`, which doesn't report this performance lint |
 
 **Vercel** (project `whereisfood`):
 
@@ -732,7 +732,8 @@ preview, except a `dependabot/` or `probe/` branch, which the Ignored Build Step
 cancels. Only `dev`'s build gets the secret key; another branch's build, with today's
 code, fails without it (both below). One push built as Production instead (the mislabelled first deployment,
 below). Production builds from `main`, which was
-created at `dev`'s commit and built nothing until Phase 10's first merge into it (IS #461).
+created at `dev`'s commit and built nothing until IS #463's release (PR #494): the first merge's
+build (IS #461) failed without variables, as the Phase 10 plan's #9 expected.
 
 **Project settings** (set in #187, 2026-11-02):
 
@@ -805,9 +806,9 @@ below).
   as project config wasn't looked up, so the check is that wide match, not a list of names.
 - Not seen: the cancel of a Production build from a branch other than `main`.
 
-**Environment variables**, all four of `.env.example`'s, scoped to **Preview** (none in
-Development; Production's own are "Production"'s, above), the secret key to `dev`'s previews
-alone:
+**Environment variables**, all four of `.env.example`'s, scoped to **Preview** (none in Development;
+Production's own, each scoped to Production with the secret key typed Secret, are IS #463's record
+and "Production", above), the secret key to `dev`'s previews alone:
 
 | Variable | Vercel type | Scope | Value |
 |---|---|---|---|
@@ -822,16 +823,17 @@ the production branch was already `main`, so it got no variables and failed with
 `Missing env: NEXT_PUBLIC_SUPABASE_URL`; the next push to the branch built as a
 Preview (#187's PR). Why Vercel labelled it Production wasn't found.
 
-**Production had no variables until Phase 10.** "Standard Protection" is, in Vercel's
-API, `prod_deployment_urls_and_all_previews` (its docs, "Vercel Authentication"): the
-production domain isn't in it and stays public. That mislabelled branch build failed
-instead of serving on `whereisfood-theta.vercel.app` only because Production had no
-variables then and `src/lib/supabase.ts` throws at import without them; with Production's
-variables set, the Ignored Build Step is what stops such a build. The Ignored Build
-Step above is set to cancel such a build by its branch (what has been seen of it: "The
-Ignored Build Step's checks"). Phase 10 gave Production its variables after checking that it
-was still set and that no `vercel.json` overrode it ("A branch's `vercel.json`", above; IS
-#463), and a branch preview is never promoted to Production (`project-context.md`,
+**Production had no variables until Phase 10.** "Standard Protection" is, in Vercel's API,
+`prod_deployment_urls_and_all_previews` (its docs, "Vercel Authentication"): the production domain
+isn't in it and stays public. That mislabelled branch build failed instead of serving on
+`whereisfood-theta.vercel.app` only because Production had no variables then and
+`src/lib/supabase.ts` throws at import without them; with Production's variables set, the Ignored
+Build Step is set to cancel such a build, though its cancel of a Production build from another
+branch hasn't been seen ("The Ignored Build Step's checks"), and a branch's `vercel.json` can
+override it. The Ignored Build Step above is set to cancel such a build by its branch (what has been
+seen of it: "The Ignored Build Step's checks"). Phase 10 gave Production its variables after
+checking that it was still set and that no `vercel.json` overrode it ("A branch's `vercel.json`",
+above; IS #463), and a branch preview is never promoted to Production (`project-context.md`,
 "Pre-deploy automation").
 
 **Checking the CDN cache.** With protection on, a request without a login gets
