@@ -413,7 +413,7 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     row (line 1078), whose "every credential" open decision 12 narrows. It brings README's
     status parts in line; carries forward the decisions that outlive the phase (#5 and #10 at
     least: #5's row names the removal list in `karta/page.tsx`'s header and #5's removal checks, for Phase 11's
-    plan; open decision 13's procedure, which #511 puts in the runbook, with the second DM at the
+    plan; open decision 13's procedure, which #511 puts in the runbook, with the second message at the
     full launch, for Phase 11's launch issue (IS #511); the IS #373 (Phase 11)
     row's marker stays, and its "removes the gate" points to #5's
     row); and sets `CLAUDE.md`'s bold line to none, naming this plan as the last one.
@@ -820,7 +820,7 @@ findings before production stay public (Q36).
     date go on a private do-not-list until it asks to be listed again (its objection); a truck is
     entered only with its handle, by that rule alone, with no code change; a DM that can't be
     seen is one Instagram won't send, and a sent one counts as told; the trucks told get one
-    short second DM when the map opens, its text approved in Phase 11's launch issue; after #465
+    short second message when the map opens, its text approved in Phase 11's launch issue; after #465
     the count is the private list's alone; and two-factor on @vararmaten, by authenticator app,
     comes before the first DM.
 14. ~~**Production's Deployment Retention Policy** (step 14): README's checklist keeps Production
