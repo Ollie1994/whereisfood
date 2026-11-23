@@ -853,7 +853,17 @@ Limits).
 Production builds from `main`; work lands on `dev` (Phase 10 plan #9 and step 15b). A release
 takes `dev` to `main` by a PR, then brings `main`'s merge commit back to `dev` by another, as
 IS #461 (PR #488) and IS #462 (PR #490) did first. Each of the two has its own issue, opened
-first. Post each PR's text through `scripts/post-body.mjs` (`CLAUDE.md`, "Doc changes"):
+first.
+
+**When.** Release when production needs a change: code, a dependency or anything else the
+build reads, or a new build, such as one that takes a corrected `NEXT_PUBLIC_` variable, which
+the build compiles in (IS #463, where plan step 16 ruled out a Redeploy). Not after each issue:
+each release is two PRs, and the one into `main` runs the full controls set (27 minutes for 65
+on PR #488's run), while the docs are read from `dev`, the default branch, and production
+doesn't read them. A release at a phase's end, so `main` carries the reconciled docs, is
+optional (the owner's call, 2026-11-23, IS #500).
+
+Post each PR's text through `scripts/post-body.mjs` (`CLAUDE.md`, "Doc changes"):
 `--check <file>`, then `gh pr create` with `--body-file <file>`, then `node
 scripts/post-body.mjs <n> <file>`. Keep each PR's title in a file too, and read it into a
 variable, `TITLE="$(cat <title file>)"`. Bash doesn't expand a variable's value again, so
