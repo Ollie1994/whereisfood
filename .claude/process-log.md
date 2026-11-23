@@ -2937,7 +2937,8 @@ and 954's, each at the post that carried it. The owner's call, 2026-11-23.
 that names a hosted service (Vercel, Supabase, R2, the dashboard), to be backed by a probe on
 the real target. It would have flagged 884 (RUNBOOK's `--db-url` lines) and 915 (README's
 address list, in PR #194). It would not have flagged 936 (steps given in chat) or 920 (the
-owner's reading). It would hit dozens of lines in a RUNBOOK PR. The owner took none
+owner's reading). In PR #473's RUNBOOK diff alone it would list 49 added lines (`git diff`
+of its merge, grepped for the four names case-insensitively). The owner took none
 (2026-11-23), since each of the four was fixed where it arose (above).
 
 ### Follow-ups
