@@ -413,7 +413,8 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     row (line 1078), whose "every credential" open decision 12 narrows. It brings README's
     status parts in line; carries forward the decisions that outlive the phase (#5 and #10 at
     least: #5's row names the removal list in `karta/page.tsx`'s header and #5's removal checks, for Phase 11's
-    plan; the IS #373 (Phase 11) row's marker stays, and its "removes the gate" points to #5's
+    plan; open decision 13's procedure, which #511 puts in the runbook; the IS #373 (Phase 11)
+    row's marker stays, and its "removes the gate" points to #5's
     row); and sets `CLAUDE.md`'s bold line to none, naming this plan as the last one.
 
 ---
@@ -788,8 +789,28 @@ findings before production stay public (Q36).
     deployment URLs. The preview's other credentials not rotated, since they reach only the
     preview, but its legacy API keys disabled. Account passwords not rotated, by the owner's
     reason that none was in the repo, a shell or an agent session, and two-factor guards each.
-13. **How the trucks are told** (step 18): the channel and the Swedish text, with a link to
-    `/integritet`.
+13. ~~**How the trucks are told** (step 18): the channel and the Swedish text, with a link to
+    `/integritet`.~~ → **settled** (the owner, 2026-11-23, IS #465): an Instagram DM from
+    @vararmaten on the day a truck is first entered, signed "/Oliwer, Väm", in the text #465's
+    comment 7102728788 records (`issuecomment-7102728788`). Only a truck with Instagram is
+    listed, since its data comes from its own posts (`/integritet`). If its DM can't be seen,
+    another channel it publishes itself (its website, or a contact in its own posts: the channels
+    `RUNBOOK.md`'s "Other requests" uses to confirm a requester), with a version of the text for
+    that channel the owner approves in #511; with none, it is recorded as not told (the owner's
+    call, narrowed after round 2 on PR #510). A truck may write back by DM or to `/integritet`'s
+    email; a removal asked for by DM is honoured like one by email (#2). #511 covers DM requests
+    and the private list below in `/integritet` and the runbook, and adds this procedure there;
+    it blocks #465, so no DM goes out before it, and a truck entered before #511 merges is told on
+    the day it merges. #511 also settles, with the owner, what this decision leaves open: a record
+    that a removed truck asked to stay off, so it isn't entered and told again; whether a truck is
+    entered only with its Instagram handle; what "a DM that can't be seen" means; two-factor on
+    @vararmaten; and telling the trucks already told once the map opens. #465 counts the trucks
+    told through Phase 10, and #511 names where later counts go. #465 records only dates and
+    counts, never names (round 1 on PR #510): a public issue would keep a removed truck's name. The names go in the
+    owner's private list off the repo; a removal deletes the truck's line from that list, and
+    adds one to the takedown log as README's "Takedown" says. The text's "Kartan är inte öppen
+    för alla ännu" holds while the soft-launch gate stands (#5) and goes at the full launch (the
+    gate's removal list names it).
 14. ~~**Production's Deployment Retention Policy** (step 14): README's checklist keeps Production
     at 30 days because no Ready production deployment existed (IS #417's comment of
     2026-11-19); the value against Hobby's 10 GB of Deployment Storage (#417).~~ → **settled**
