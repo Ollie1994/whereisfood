@@ -640,8 +640,10 @@ not SMS: it receives removal requests.
    A message that is sent counts as told, by DM or by this channel, seen or not, even in the
    truck's message requests (the owner's call, IS #511). With no other channel, the truck isn't
    entered. For a truck told this way, "its DM thread" below and in "A takedown request" and
-   "Other requests" means this message and its replies: a mail, or a copy a contact form sent to
-   the mailbox, is deleted from the mailbox and its Trash.
+   "Other requests" means this message, its replies and the full launch's second message (below),
+   but a request in them, which is kept as a request mail is: a mail, or a copy a contact form
+   sent to the mailbox, is deleted from the mailbox and its Trash, and a message sent any other
+   way where it was sent.
 4. Add its line to the list of trucks told (below) once the message is sent: its name and the
    date (Stockholm). Then enter it in the admin screen at once, since the text says it is listed;
    the text is ahead of the entry by that gap alone. Until #465 closes with Phase 10, add the date
@@ -649,9 +651,9 @@ not SMS: it receives removal requests.
 5. A reply asking for removal, or objecting, goes to "A takedown request"; one that comes before
    the truck is entered means it isn't: delete its line from the list of trucks told, add its
    handle and the date to the do-not-list, answer, then delete the DM thread, and a request mail
-   and the reply, from Trash too: no copy holds the truck. A request about the truck's data, a
-   correction of it included, goes to "Other requests"; a tip (a place or a time it posted) to the
-   admin screen.
+   and every reply to it, from Trash too, at once: no backup holds the truck. A request about the
+   truck's data, a correction of it included, goes to "Other requests"; a tip (a place or a time
+   it posted) to the admin screen.
 
 <!-- SOFT-LAUNCH GATE (Phase 10 plan #5): both texts' "Kartan är inte öppen för alla ännu, den öppnar när fler foodtruckar är med." deleted at the full launch, the owner approving the new texts (the removal list in src/app/karta/page.tsx). -->
 
@@ -665,9 +667,12 @@ the owner's machine (README, "Takedown", step 4), never in the repo, the databas
 - **The do-not-list:** the Instagram handle of a truck that asked to be removed, taken down or
   never entered (step 5), and the date, no name, so it isn't told and entered again. Kept until
   the truck itself asks to be listed again: it honours the truck's objection (GDPR art. 21; IS
-  #511). Confirm such a request as "Other requests" confirms a requester, then delete the line;
-  the truck is then told and entered by steps 2 to 4. A line matches the handle it was written
-  with, so an account that later changes its handle isn't matched.
+  #511). Confirm such a request through the line's handle, as "Other requests" confirms through
+  a row's: a DM from it needs no code, a mail gets a code sent to it, to be mailed back, and when
+  the handle is what's disputed, the channels "Other requests" names. Then delete the line, and
+  the truck is told and entered by steps 2 to 4; delete the request and the reply once it is
+  answered, mail from Trash too. A line matches the handle it was written with, so an account
+  that later changes its handle isn't matched.
 
 The DM thread with a truck stays at most while it is listed, or, when the truck asks by DM to be
 removed, as long as a removal mail, as `/integritet` says: "Other requests" deletes it once a
