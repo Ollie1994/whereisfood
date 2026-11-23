@@ -11,17 +11,16 @@ themselves later.
 It fills a real gap: Gothenburg has had no central food-truck map since Streetkäk
 shut down in 2017.
 
-> **Status: Phase 10 of 11 (launch) done; Phase 11 (full launch) next.** Väm runs in
-> production at `vararmaten.vercel.app` as a soft launch: the map is shown only to the
-> admin, and everyone else sees a page about it (`/om`) and the privacy note
-> (`/integritet`). The map shows today's entries from the database through
-> `GET /api/live`. One admin logs in with an emailed link and a code from an authenticator
-> app, and keeps the map up to date from a phone-first admin screen; production holds no
-> trucks yet. Every pull request into `dev` or `main` runs the checks in GitHub Actions,
-> which must pass before it merges, and [`RUNBOOK.md`](RUNBOOK.md) is how production is run.
-> Phase 4 removed the old design (automatic ingestion from Make.com and email, plus a
-> Swedish text parser), and Phase 5 replaced its database schema; see
-> [Project status](#project-status).
+> **Status: Phase 10 of 11 (launch) done; Phase 11 (full launch) next.** Väm runs in production at
+> `vararmaten.vercel.app` as a soft launch, from `main`, which trails `dev` between releases: the
+> map is shown only to the admin, and everyone else sees a page about it (`/om`) and the privacy
+> note (`/integritet`). The map shows today's entries from the database through `GET /api/live`. One
+> admin logs in with an emailed link and a code from an authenticator app, and keeps the map up to
+> date from a phone-first admin screen; production holds no trucks yet. Every pull request into
+> `dev` or `main` runs the checks in GitHub Actions, which must pass before it merges, and
+> [`RUNBOOK.md`](RUNBOOK.md) is how production is run. Phase 4 removed the old design (automatic
+> ingestion from Make.com and email, plus a Swedish text parser), and Phase 5 replaced its database
+> schema; see [Project status](#project-status).
 
 ---
 
@@ -154,7 +153,7 @@ branch and tag.
 - The database layer (`src/lib/db/`), which the live read path and the admin use.
 - Unit tests, and integration tests against a local Supabase for the schema (its
   constraints, grants and row-level security), the database layer, `/api/live`, the
-  login routes and every admin route.
+  login routes, every admin route, the soft-launch gate, and `takedown.sql` and `retention.sql`.
 - **CI.** On every pull request into `dev` or `main`, GitHub Actions runs the four gates,
   `npm audit`, the schema controls, the process log's check, a secret scan and CodeQL,
   and the branches' rules require them, with no bypass ("Scripts"). Dependabot opens pull
@@ -732,8 +731,8 @@ preview, except a `dependabot/` or `probe/` branch, which the Ignored Build Step
 cancels. Only `dev`'s build gets the secret key; another branch's build, with today's
 code, fails without it (both below). One push built as Production instead (the mislabelled first deployment,
 below). Production builds from `main`, which was
-created at `dev`'s commit and built nothing until IS #463's release (PR #494): the first merge's
-build (IS #461) failed without variables, as the Phase 10 plan's #9 expected.
+created at `dev`'s commit and served nothing until IS #463's release (PR #494): its first build,
+from the first merge (IS #461), failed without variables, as the Phase 10 plan's #9 expected.
 
 **Project settings** (set in #187, 2026-11-02):
 
@@ -830,11 +829,9 @@ isn't in it and stays public. That mislabelled branch build failed instead of se
 `src/lib/supabase.ts` throws at import without them; with Production's variables set, the Ignored
 Build Step is set to cancel such a build, though its cancel of a Production build from another
 branch hasn't been seen ("The Ignored Build Step's checks"), and a branch's `vercel.json` can
-override it. The Ignored Build Step above is set to cancel such a build by its branch (what has been
-seen of it: "The Ignored Build Step's checks"). Phase 10 gave Production its variables after
-checking that it was still set and that no `vercel.json` overrode it ("A branch's `vercel.json`",
-above; IS #463), and a branch preview is never promoted to Production (`project-context.md`,
-"Pre-deploy automation").
+override it. Phase 10 gave Production its variables after checking that it was still set and that no
+`vercel.json` overrode it ("A branch's `vercel.json`", above; IS #463), and a branch preview is
+never promoted to Production (`project-context.md`, "Pre-deploy automation").
 
 **Checking the CDN cache.** With protection on, a request without a login gets
 Vercel's login redirect, not the route. The bypass secret is made under Settings →

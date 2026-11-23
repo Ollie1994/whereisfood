@@ -601,11 +601,12 @@ password or an account token, all of these; after the secret key, the first two:
 
 ## Telling a new truck
 
-Every truck is told it's listed on the day it is first entered, just before it is entered, and
-one that can't be told isn't entered (Phase 10 plan, open decision 13, settled on IS #465; the
-owner's calls and the approved texts on IS #511, comment 7103734194; tell first, the owner's call
-on round 1 of PR #512). Before the first DM, @vararmaten has two-factor by authenticator app,
-not SMS: it receives removal requests.
+Every truck is told it's listed on the day it is first entered, just before it is entered, and one
+that can't be told isn't entered (Phase 10 plan, open decision 13, settled on IS #465; the owner's
+calls and the approved texts on IS #511, comment 7103734194; tell first, the owner's call on round 1
+of PR #512). Before the first DM, @vararmaten has two-factor by authenticator app, not SMS: it
+receives removal requests. And production's `/integritet` names DM requests and the two private
+lists: IS #511 merged after the last release (PR #503), so a release ("A release") ships them first.
 
 1. Pick a truck only by its Instagram handle: its data comes from its own posts, as
    `/integritet` says. A handle on the do-not-list (below) is neither told nor entered.
