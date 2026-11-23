@@ -595,7 +595,11 @@ TOTP factor is enrolled through the deployed app (#463).
 **Variables.** Production's keys go only into Vercel's Production environment variables, in
 the names "Hosted preview database" lists, and its session pooler URL into the gitignored
 `.env.prod-db.local` for the weekly dump ("Backups"). Production gets no variables until
-#463 (the Phase 10 plan, #9).
+#463 (the Phase 10 plan, #9). `NEXT_PUBLIC_SUPABASE_URL` is the project URL alone,
+`https://<project-ref>.supabase.co`: the Data API page's "API URL" ends in `/rest/v1/`, and
+copied whole it made `/api/live` answer 500 on #463's first build. A path in the URL,
+`http://` for any host but the local stack's, or whitespace at either end (a trailing space
+or newline included) now fails the build (`src/lib/supabase-url.ts`, IS #497).
 
 ---
 
@@ -785,7 +789,7 @@ below).
 
 | Variable | Vercel type | Scope | Value |
 |---|---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Config | Preview | the hosted preview project's URL |
+| `NEXT_PUBLIC_SUPABASE_URL` | Config | Preview | the hosted preview project's URL alone, `https://<project-ref>.supabase.co` ("Production", "Variables", says why) |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Config | Preview | its publishable key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Secret | Preview, branch `dev` (set 2026-11-13, PR #311: a branch's `vercel.json` can override the Ignored Build Step, above) | its secret key |
 | `NEXT_PUBLIC_PMTILES_URL` | Config | Preview | the R2 file's URL |

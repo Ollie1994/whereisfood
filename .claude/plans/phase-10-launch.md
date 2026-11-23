@@ -393,7 +393,8 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     `main`'s ruleset in Phase 10" (line 1118) and the Phase 8 #14 row's "on `dev`" (line
     1120), and README's "CodeQL's on `dev` only until Phase 10" (line 151, a status part),
     the folder tree's `src/app/` (line 304), which gains `icon.svg` and `apple-icon.png`, and its
-    `components/`, which gains `VamLogo.tsx` (IS #481),
+    `components/`, which gains `VamLogo.tsx` (IS #481), and its `src/lib/` clients' line (line
+    336), which gains `supabase-url.ts` (+ test) (IS #497),
     "Principles and risks"' backups item (the dump count, the restore method, the takedown
     log), the takedown's "clear or delete each `users` row" (lines 474 and 1071), which only
     clears them (round 3 on PR #470), "only the takedown removes history" (line 207) and
