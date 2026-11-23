@@ -459,7 +459,8 @@ applies production's settings.
 
 The owner's call (2026-11-20). Done is step 17. Telling the trucks depends on replies the plan
 can't control, so it starts once production holds their data and the privacy note exists, and
-blocks neither the retrospective nor the reconciliation. Phase 11's coverage target, not this
+blocks neither the retrospective nor the reconciliation. (Since round 1 on PR #512, each truck is
+told just before its data is entered: open decision 13.) Phase 11's coverage target, not this
 phase, measures daily use.
 
 ### #5 — The soft-launch gate is temporary, and removable without a hole
@@ -815,7 +816,8 @@ findings before production stay public (Q36).
     för alla ännu" holds while the soft-launch gate stands (#5) and goes at the full launch (the
     gate's removal list names it). What it left open, the owner settled on #511 (2026-11-23,
     comment 7103734194), and `RUNBOOK.md`'s "Telling a new truck" holds the procedure: a
-    taken-down truck's handle and date go on a private do-not-list until it asks to be listed
+    the handle of a truck that asked to be removed, taken down or refused before entry, and the
+    date go on a private do-not-list until it asks to be listed
     again (its objection); a truck is entered only with its handle, by that rule alone, with no
     code change; a DM that can't be seen is one Instagram won't send, and a sent one counts as
     told; the trucks told get one short second DM when the map opens, its text approved in Phase

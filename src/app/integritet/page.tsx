@@ -170,25 +170,26 @@ export default function PrivacyPage() {
             <a className="underline" href={`mailto:${CONTACT}`}>
               {CONTACT}
             </a>{" "}
-            eller skriv till {INSTAGRAM_HANDLE} på Instagram. Varje begäran om borttagning följs, så snart som möjligt och senast inom en månad,
-            oavsett om foodtrucken drivs som företag eller av en enskild person. Foodtrucken och alla
-            dess platser raderas då på en gång. De finns kvar i säkerhetskopiorna i ungefär fyra
-            veckor. Vid en säkerhetsincident eller en återställning kan kopior av databasen finnas
-            kvar längre, se ovan. Svaret du får säger till vilket datum. Mejlet eller meddelandet sparas
-            tills uppgifterna har försvunnit även ur kopiorna, så att du kan få veta om det skulle
-            dröja längre, och raderas sedan. Vid borttagningen sparas foodtruckens Instagramkonto och
-            datumet på en egen lista, så att den inte läggs in igen, tills foodtrucken själv ber om
-            att få vara med. Om en säkerhetskopia någon gång återställs, raderas foodtrucken
-            igen som en del av återställningen.
+            eller skriv till {INSTAGRAM_HANDLE} på Instagram. Varje begäran om borttagning följs, så
+            snart som möjligt och senast inom en månad, oavsett om foodtrucken drivs som företag
+            eller av en enskild person. Foodtrucken och alla dess platser raderas då på en gång. De
+            finns kvar i säkerhetskopiorna i ungefär fyra veckor. Vid en säkerhetsincident eller en
+            återställning kan kopior av databasen finnas kvar längre, se ovan. Svaret du får säger
+            till vilket datum. Mejlet eller meddelandet sparas tills uppgifterna har försvunnit även
+            ur kopiorna, så att du kan få veta om det skulle dröja längre, och raderas sedan. Vid
+            borttagningen sparas foodtruckens Instagramkonto och datumet på en egen lista, så att
+            den inte läggs in igen, tills foodtrucken själv ber om att få vara med. Om en
+            säkerhetskopia någon gång återställs, raderas foodtrucken igen som en del av
+            återställningen.
           </p>
           <p>
             Du har rätt att invända mot att uppgifterna behandlas. En invändning mot att en foodtrucks
             uppgifter behandlas hanteras som en begäran om borttagning.
           </p>
           <p>
-            Du kan också mejla eller skriva för att få veta vilka uppgifter som finns om dig, få dem rättade eller
-            få behandlingen begränsad. Andra mejl och meddelanden raderas när ärendet är avslutat. Du har rätt att
-            klaga hos Integritetsskyddsmyndigheten (IMY).
+            Du kan också mejla eller skriva för att få veta vilka uppgifter som finns om dig, få dem
+            rättade eller få behandlingen begränsad. Andra mejl och meddelanden raderas när ärendet
+            är avslutat. Du har rätt att klaga hos Integritetsskyddsmyndigheten (IMY).
           </p>
           <p>Personuppgiftsansvarig: Oliwer Karlsson, som nås på {CONTACT}.</p>
         </section>
