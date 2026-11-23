@@ -361,7 +361,8 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
       answers a 307 to `vararmaten.vercel.app`; and whether `whereisfood-where-is-food.vercel.app`
       is this project's, by Vercel's own record (listed among the production deployment's domains
       in the project's dashboard), not by the page it serves, which anyone could copy. If it is,
-      an issue of its own gives it R2's CORS origin.
+      an issue of its own gives it R2's CORS origin. (It is, #464; the owner's call on #506: no
+      origin, since no admin login completes on it, README's "Get the map tiles".)
 
     **This step is the phase's done.**
 

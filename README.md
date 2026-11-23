@@ -282,17 +282,16 @@ Cloudflare dashboard (no API token needed):
       `whereisfood-theta.vercel.app` Vercel assigned, IS #458), has its own origin.
     - `whereisfood-theta.vercel.app` has none: it is set to redirect (307) to
       `vararmaten.vercel.app` (Settings → Domains, IS #458), so no page is meant to load on
-      it. Until a production deployment exists it answers `404` `DEPLOYMENT_NOT_FOUND`, so the
-      redirect itself hasn't been seen (the plan's step 17, #464, checks it).
+      it. Seen once production existed: `307` to `https://vararmaten.vercel.app/` (IS #464,
+      2026-11-23).
     - `whereisfood-where-is-food.vercel.app`, the `<project>-<scope-slug>.vercel.app` alias
-      Vercel's docs give for CLI deploys and say points to the production deployment once
-      there is one, has none yet. Its `DEPLOYMENT_NOT_FOUND` tells nothing either way
-      (`vararmaten.vercel.app` answers the same until production exists), and another account
-      could hold the same host, by a project of that name or `whereisfood-where` under the
-      slug `is-food`. Step 17 (#464) checks Vercel's own record, whether it is listed among
-      the production deployment's domains in the project's dashboard, not the page it serves,
-      which anyone could copy; if it is, an issue of its own gives it an origin (the owner's
-      call, round 3 on PR #486).
+      Vercel's docs give for CLI deploys, is this project's: Vercel lists it under "Assigned
+      Domains" on the production deployment (IS #464, 2026-11-23), Vercel's own record, not
+      the page it serves, which anyone could copy. It gets no origin (the owner's call on IS
+      #506, replacing round 3 on PR #486's "if it is, an issue of its own gives it an origin"):
+      it answers `302` to Vercel's login (`vercel.com/sso-api`), and Auth's Redirect URLs admit
+      only `vararmaten.vercel.app`'s callback, so no admin login completes on it and `/karta`
+      never shows the map there. A change to those Redirect URLs brings the question back.
     - A production deployment's commit-form URL is in the pattern like a preview's.
     - **`whereisfood.vercel.app` is not this project's** and gets no origin: before any
       production deployment existed it answered `200` with another owner's page, titled
