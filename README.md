@@ -289,17 +289,19 @@ Cloudflare dashboard (no API token needed):
       Domains" on the production deployment (IS #464, 2026-11-23), Vercel's own record, not
       the page it serves, which anyone could copy. It gets no origin (the owner's call on IS
       #506, replacing round 3 on PR #486's "if it is, an issue of its own gives it an origin"):
-      only someone past Vercel's login reaches it (it answers `302` to `vercel.com/sso-api`;
-      today that is the owner alone), or a request carrying the project's bypass secret
+      only someone past Vercel's login, today the owner alone, reaches it (without it, it
+      answers `302` to `vercel.com/sso-api`), or a request carrying the project's bypass secret
       ("Preview deploys"; with it, `/om` and `/api/live` answered `200` there, `302` without, PR
-      #508), and `/karta` shows the map only to the admin at `aal2`. The worst
-      case is `/karta` on the alias with no tiles, on an address nobody uses. Any of these
-      brings the question back: a change to Auth's Redirect URLs ("Production"), Vercel
-      Authentication changed for production, a Shareable Link or a Deployment Protection
-      Exception (the "Hosted settings checklist" row), or the gate's removal (Phase 11), when
-      `/karta` shows the map to anyone who reaches the alias.
+      #508), and `/karta` shows the map only to the admin at `aal2`. The worst case is `/karta`
+      on the alias with no tiles, on an address nobody uses. Any of these brings the question
+      back: Vercel Authentication turned off, or set to a mode that leaves production deployment
+      URLs public; a Shareable Link or a Deployment Protection Exception (both in the "Hosted
+      settings checklist", which points here); or the gate's removal (Phase 11), when `/karta`
+      shows the map to anyone who reaches the alias.
       <!-- SOFT-LAUNCH GATE (Phase 10 plan #5): the alias's no-origin call is asked again at the full launch (the removal list in src/app/karta/page.tsx). -->
-    - A production deployment's commit-form URL is in the pattern like a preview's.
+    - A production deployment's commit-form URL is in the pattern like a preview's, and so is
+      its branch form, `whereisfood-git-main-where-is-food.vercel.app` (listed on the
+      deployment, IS #464).
     - **`whereisfood.vercel.app` is not this project's** and gets no origin: before any
       production deployment existed it answered `200` with another owner's page, titled
       "今天吃啥呢？".
@@ -694,9 +696,9 @@ findings, re-read `--linked` on 2026-11-20, the same five:
 
 | Setting | Value | Why |
 |---|---|---|
-| Deployment Protection → Vercel Authentication | On, Standard Protection | Standard Protection leaves the production domain public ("Preview deploys", below) |
+| Deployment Protection → Vercel Authentication | On, Standard Protection | Standard Protection leaves the production domain public ("Preview deploys", below). Turning it off, or to a mode that leaves production deployment URLs public, reopens the `whereisfood-where-is-food.vercel.app` alias's CORS call ("Get the map tiles", IS #506) |
 | Deployment Protection → Protection Bypass for Automation | One secret, the system variable | "Preview deploys", below; the value stays out of the repo |
-| Deployment Protection → Shareable Links; Deployment Protection Exceptions | None; none | A link or an exception would open a deployment without a Vercel login |
+| Deployment Protection → Shareable Links; Deployment Protection Exceptions | None; none | A link or an exception would open a deployment without a Vercel login, and reopens the `whereisfood-where-is-food.vercel.app` alias's CORS call ("Get the map tiles", IS #506) |
 | Deployment Protection → OPTIONS Allowlist; Protected Sourcemaps | Off; On | Kept as found |
 | Deployment Protection → Password Protection; Trusted IPs | Off; off | Not on Hobby: Password Protection is Pro, Trusted IPs Enterprise |
 | Deployment Protection → Trusted Sources | This project: all its tokens reach their own environment, and its `development` tokens reach `preview` | Kept as found |
