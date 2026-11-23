@@ -26,13 +26,13 @@ describe("supabaseProjectUrl", () => {
   });
 
   it("refuses a value that isn't an http(s) URL, naming the variable", () => {
-    // A host pasted without its scheme: `new URL` can't parse it.
+    // Each of the first three fails the scheme test. A host pasted without its scheme:
     expect(() => supabaseProjectUrl("abcdefghijklmnopqrst.supabase.co")).toThrow(
       "Bad env: NEXT_PUBLIC_SUPABASE_URL is not an http(s) URL",
     );
-    // Parsed, as the scheme `localhost:`, and refused for it.
+    // one `new URL` would read as the scheme `localhost:`:
     expect(() => supabaseProjectUrl("localhost:54321")).toThrow("is not an http(s) URL");
-    // Another scheme, whose empty path the path check alone would read as `""`.
+    // another scheme, whose empty path the path check alone would read as `""`.
     expect(() => supabaseProjectUrl("foo://abcdefghijklmnopqrst.supabase.co")).toThrow(
       "is not an http(s) URL",
     );
