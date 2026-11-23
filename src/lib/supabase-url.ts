@@ -10,21 +10,24 @@
 // which `next build` runs while collecting page data, so such a URL now fails the build
 // (IS #497's PR has the build's output).
 //
-// A value that isn't an `http:` or `https:` URL (a host pasted without its scheme) is refused
-// here first, naming the variable, as supabase-js's own `validateSupabaseUrl` would refuse it
-// after ("Invalid supabaseUrl: …", `dist/index.cjs`).
+// A value that isn't an `http://` or `https://` URL (a host pasted without its scheme) is
+// refused here first, naming the variable, as supabase-js's own `validateSupabaseUrl` would
+// refuse it after, by the same `/^https?:\/\//i` test on the trimmed value ("Invalid
+// supabaseUrl: …", `dist/index.cjs`).
 const NOT_HTTP =
   "Bad env: NEXT_PUBLIC_SUPABASE_URL is not an http(s) URL; it must be the project URL alone, https://<ref>.supabase.co";
 
 export function supabaseProjectUrl(value: string | undefined): string {
   if (!value) throw new Error("Missing env: NEXT_PUBLIC_SUPABASE_URL");
+  // supabase-js's own test, so `https:host` (no `//`), which `new URL` reads as `https://host/`,
+  // is refused here too.
+  if (!/^https?:\/\//i.test(value.trim())) throw new Error(NOT_HTTP);
   let url: URL;
   try {
     url = new URL(value);
   } catch {
     throw new Error(NOT_HTTP);
   }
-  if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error(NOT_HTTP);
   if (url.pathname !== "/") {
     throw new Error(
       `Bad env: NEXT_PUBLIC_SUPABASE_URL has the path "${url.pathname}"; it must be the project URL alone, https://<ref>.supabase.co`,

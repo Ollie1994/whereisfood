@@ -36,6 +36,12 @@ describe("supabaseProjectUrl", () => {
     expect(() => supabaseProjectUrl("foo://abcdefghijklmnopqrst.supabase.co")).toThrow(
       "is not an http(s) URL",
     );
+    // The scheme alone: it passes the scheme test, and `new URL` can't parse it.
+    expect(() => supabaseProjectUrl("https://")).toThrow("is not an http(s) URL");
+    // `//` dropped: `new URL` reads it as `https://<host>/`, supabase-js refuses it.
+    expect(() => supabaseProjectUrl("https:abcdefghijklmnopqrst.supabase.co")).toThrow(
+      "is not an http(s) URL",
+    );
   });
 
   it("says the variable is missing when it is empty or unset", () => {
