@@ -854,7 +854,39 @@ Limits).
 Production builds from `main`; work lands on `dev` (Phase 10 plan #9 and step 15b). A release
 takes `dev` to `main` by a PR, then brings `main`'s merge commit back to `dev` by another, as
 IS #461 (PR #488) and IS #462 (PR #490) did first. Each of the two has its own issue, opened
-first. Post each PR's text through `scripts/post-body.mjs` (`CLAUDE.md`, "Doc changes"):
+first.
+
+**When.** The owner's call (2026-11-23, IS #500): release when production needs a change, not
+after each issue. Each release is two PRs, and the one into `main` runs the full controls set
+(step 1's timing), while the docs are read from `dev`, the default branch, and production
+doesn't read them. So release for code, a dependency or anything else the build reads, and for
+a new build with nothing else changed, as #463's needed after a corrected `NEXT_PUBLIC_`
+variable, which the build compiles in. With no commit on `dev` that `main` lacks (`git fetch
+origin`, then `git log --oneline origin/main..origin/dev` prints nothing), the release
+carries a one-line doc change through its own issue, as plan step 16 says. A workflow that
+runs on pushes to `main` (`codeql.yml`) reaches `main` only by a PR into it, so a change to one
+goes with the next release; `ci.yml` runs on PRs only, from the PR's copy.
+
+Two other ways to a new build: a Redeploy, and a CLI deploy, never tried (README's Ignored
+Build Step row); this runbook uses no CLI deploy. Plan step 16 ruled the Redeploy out for
+production's first deploys, since its path through the Ignored Build Step hasn't been read, and
+step 2 below keeps that for a failed release. "A leaked key" and "A restore" accept it in
+recovery, where a variable change must take effect at once (it applies only to the next
+deployment, README, "Preview deploys"). Outside recovery, a changed Production variable goes
+out by a release.
+
+A migration reaches production by a push, not a release (README, "Production", "Schema"), and a
+release carries all of `dev`. So while `dev` holds code that needs a migration production
+hasn't had, no release goes out before that push. A limit, not settled here: how close before
+the release the push comes, a migration `main`'s code can't run against, and a release
+production needs while a migration waits. None has gone to production since
+`0001_baseline.sql`.
+
+A release at a phase's end, so `main` carries the reconciled docs, is optional. The longer
+`main` trails `dev`, the more a fix shipped straight to `main` has to merge against in its sync
+("A private vulnerability"; step 3: "A clean merge can still keep `dev`'s own version").
+
+Post each PR's text through `scripts/post-body.mjs` (`CLAUDE.md`, "Doc changes"):
 `--check <file>`, then `gh pr create` with `--body-file <file>`, then `node
 scripts/post-body.mjs <n> <file>`. Keep each PR's title in a file too, and read it into a
 variable, `TITLE="$(cat <title file>)"`. Bash doesn't expand a variable's value again, so
@@ -938,7 +970,8 @@ backticks, `$` and apostrophes in the title pass as written. Tried on IS #462 wi
    - **Retry without a Redeploy or a promoted preview,** which plan step 16 rules out.
    - **A cause in the code:** a PR into `dev`, then a new release.
    - **Nothing to change** (an outage on Vercel's side): a new release carrying a one-line doc
-     change through its own issue, as plan step 16 does when `dev` has nothing new.
+     change through its own issue, as plan step 16 does when `dev` has nothing new ("When"
+     above says how to tell).
    - **A fix shipped straight to `main`** ("A private vulnerability", step 3): a new PR into
      `main`.
 
