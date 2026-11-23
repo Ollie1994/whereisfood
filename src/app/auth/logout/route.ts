@@ -37,8 +37,8 @@ export async function POST(request: NextRequest) {
 
     const response = redirectTo("/admin/login", 303);
 
-    // Outside the `try`: a missing variable is a 500 from `withErrorHandling`, as
-    // `createSessionClient` says, not a logout that never reached Auth.
+    // Outside the `try`: a missing variable, or a bad URL, is a 500 from `withErrorHandling`,
+    // as `createSessionClient` says, not a logout that never reached Auth.
     const supabase = createSessionClient(writingCookies(request, response));
     let failed = false;
     try {
