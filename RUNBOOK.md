@@ -328,8 +328,15 @@ someone asks for to your address, while the budget lasts), and the login form an
 många försök. Vänta en stund och skicka sedan en ny länk. …", which it shows when Auth refuses
 the request with 429 (`src/lib/login.ts`). Your own requests spend the budget too, so that
 answer after two of yours in an hour is no sign; nor is the TOTP step's "För många försök. Vänta
-en stund och försök igen.", a limit on codes. That a spent hourly budget answers 429 wasn't
-probed (locally the CLI sets the budget to 360 000, `GOTRUE_RATE_LIMIT_EMAIL_SENT`, IS #377). If
+en stund och försök igen.", a limit on codes. A spent hourly budget answers 429 (seen on
+production, IS #464, 2026-11-23; locally the CLI sets the budget to 360 000,
+`GOTRUE_RATE_LIMIT_EMAIL_SENT`, IS #377): a request 9 to 20 minutes after a phone login was
+refused so (between #464's comments 1 and 2), and the form showed that text. In that hour the
+audit log holds one link sent (12:13:55 Stockholm time) and the TOTP enroll's verify (12:15:54,
+`verification_attempted`), after which the owner got the "MFA method added" email (IS #507's
+read). So that notification likely spends the
+budget too, and the first link asked for within an hour of a login and an enroll ("A
+takeover", step 4; "A lost phone", step 4) can be refused: wait out the hour before asking. If
 a factor-enrolled, factor-unenrolled or password-changed email you didn't cause came too
 ("MFA method added", "MFA method removed", "Password changed" in README's checklist), this is
 "A takeover", not this section.
@@ -359,10 +366,13 @@ a factor-enrolled, factor-unenrolled or password-changed email you didn't cause 
    `actor_username`; a request for an address with no account writes none, and neither does a
    refused one: of three back-to-back requests for one address, the second and third answered
    `429` `over_email_send_rate_limit` (`max_frequency`) and only the first left a row (local
-   stack, IS #458; a refusal by the hourly budget wasn't probed). So the rows count at most the
+   stack, IS #458). On production a request the hourly budget refused left none either: no row
+   lies between the enroll at 12:15:54 and the next link at 13:31:54, Stockholm time, though one
+   was refused in that span (IS #464; IS #507's read). So the rows count at most the
    links sent, about two an hour, however many were asked for: few rows doesn't mean few
-   requests. Rows you didn't cause mean someone holds your address. On the local stack their
-   `ip_address` was empty; a hosted project's weren't read.
+   requests. Rows you didn't cause mean someone holds your address. Their `ip_address` was
+   empty on the local stack and on production (IS #507's read, 2026-11-23), so a row doesn't
+   tell who asked.
 4. **If it goes on, move the account to a new address** that no page shows and that can't be
    guessed from the old one or `/integritet`'s contact, a mailbox with two-factor from its
    creation (`CLAUDE.md`, "Secrets"). Auth sends a link only to an address that has an account
