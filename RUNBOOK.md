@@ -855,22 +855,30 @@ takes `dev` to `main` by a PR, then brings `main`'s merge commit back to `dev` b
 IS #461 (PR #488) and IS #462 (PR #490) did first. Each of the two has its own issue, opened
 first.
 
-**When** (the owner's call, 2026-11-23, IS #500): when production needs a change, not after
-each issue. Each release is two PRs, and the one into `main` runs the full controls set (step
-1's timing), while the docs are read from `dev`, the default branch, and production doesn't
-read them. So release for:
+**When** (the owner's call, 2026-11-23, IS #500): when production, or what runs on `main`,
+needs a change, not after each issue. Each release is two PRs, and the one into `main` runs the
+full controls set (step 1's timing), while the docs are read from `dev`, the default branch,
+and production doesn't read them. So release for:
 - **code, a dependency or anything else the build reads**;
-- **a migration's code:** a migration reaches production by a push, not a release (README,
-  "Production", "Schema"), so the code that needs it goes out by the release that follows the
-  push, and the push waits until the code on `main` works with the migrated schema;
 - **a workflow that runs on pushes to `main`** (`codeql.yml`): `main` runs its own copy, which
-  only a release updates. `ci.yml` runs on PRs only, from the PR's copy;
+  only a PR into `main` updates. `ci.yml` runs on PRs only, from the PR's copy;
 - **a new build with nothing else changed**, as #463's needed after a corrected `NEXT_PUBLIC_`
-  variable, which the build compiles in, where plan step 16 ruled out a Redeploy. With nothing
-  new on `dev`, the release carries a one-line doc change through its own issue, as step 2's
-  "Nothing to change" does. Recovery still redeploys: a variable change applies only to the
-  next deployment (README, "Preview deploys"), and "A leaked key" and "A restore" redeploy
-  Production on purpose.
+  variable, which the build compiles in. With no file change on `dev` since the last release
+  (`git diff origin/main origin/dev` prints nothing; a sync leaves a merge commit, not a
+  change), the release carries a one-line doc change through its own issue, as step 2's
+  "Nothing to change" does.
+
+A Redeploy is the other way to a new build. Plan step 16 ruled it out for production's first
+deploys, since its path through the Ignored Build Step hasn't been read, and step 2 below keeps
+that for a failed release. "A leaked key" and "A restore" accept it in recovery, where a variable
+change must take effect at once (it applies only to the next deployment, README, "Preview
+deploys"). Outside recovery, a changed variable goes out by a release.
+
+A migration reaches production by a push, not a release (README, "Production", "Schema"), and a
+release carries all of `dev`. So while `dev` holds code that needs a migration production
+hasn't had, no release goes out before that push. The order of the push and the release, and a
+migration `main`'s code can't run against, aren't settled here: none has gone to production
+since `0001_baseline.sql`.
 
 A release at a phase's end, so `main` carries the reconciled docs, is optional. The longer
 `main` trails `dev`, the more a fix shipped straight to `main` has to merge against in its sync
