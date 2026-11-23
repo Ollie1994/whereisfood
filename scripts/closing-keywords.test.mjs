@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { EXEMPT, check, closingRefs, parseRecords } from "./closing-keywords.mjs";
+import { EXEMPT, check, closingNumbers, closingRefs, parseRecords } from "./closing-keywords.mjs";
 
 const SCRIPT = fileURLToPath(new URL("./closing-keywords.mjs", import.meta.url));
 const SHA = "a".repeat(40);
@@ -207,5 +207,32 @@ describe("the command line", () => {
 
   it("refuses an unknown argument", () => {
     expect(run(["--nope"]).status).toBe(2);
+  });
+});
+
+// closingNumbers, for post-body.mjs's --closes (IS #513): each reference form, read whole.
+describe("closingNumbers", () => {
+  const REPO = "Ollie1994/whereisfood";
+  const read = (text) => closingNumbers(text, REPO).map(({ line, number }) => [line, number]);
+  it("reads #n, GH-n, owner/name#n and the issue, pull and www. URLs, each number whole", () => {
+    expect(read("Closes #511.")).toEqual([[1, 511]]);
+    expect(read("Fixes GH-77")).toEqual([[1, 77]]);
+    expect(read("Resolves Ollie1994/whereisfood#123")).toEqual([[1, 123]]);
+    expect(read("Fixes https://github.com/Ollie1994/whereisfood/issues/44")).toEqual([[1, 44]]);
+    expect(read("Fixes https://github.com/Ollie1994/whereisfood/pull/33")).toEqual([[1, 33]]);
+    expect(read("Fixes https://www.github.com/Ollie1994/whereisfood/issues/22")).toEqual([[1, 22]]);
+    expect(read("Closes [#910](https://example.test)")).toEqual([[1, 910]]);
+  });
+  it("gives null for another repository, by name or URL, and compares this one's in any case", () => {
+    expect(read("Closes other/repo#5")).toEqual([[1, null]]);
+    expect(read("Fixes https://github.com/other/repo/pull/5")).toEqual([[1, null]]);
+    expect(read("Fixes OLLIE1994/WhereIsFood#5")).toEqual([[1, 5]]);
+  });
+  it("reads a keyword joined to the owner by an underscore as this repository's", () => {
+    expect(read("fixes_Ollie1994/whereisfood#5")).toEqual([[1, 5]]);
+  });
+  it("counts lines at LF, CRLF and a lone CR, and prints a split reference on one line", () => {
+    expect(read("a\nb\r\nc\rFixes #12")).toEqual([[4, 12]]);
+    expect(closingNumbers("Closes\n#7", REPO)[0].ref).toBe("Closes #7");
   });
 });

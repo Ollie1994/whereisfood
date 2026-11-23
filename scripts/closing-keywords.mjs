@@ -63,6 +63,8 @@ const OWNER = String.raw`[A-Za-z0-9][\w.-]*`;
 const REPO = String.raw`[\w.-]+`;
 const REFERENCE = String.raw`(?:#\d|GH-\d|${OWNER}\/${REPO}#\d|https?:\/\/(?:www\.)?github\.com\/${OWNER}\/${REPO}\/(?:issues|pull)\/\d)`;
 export const CLOSING = new RegExp(String.raw`${KEYWORD}[*_~]*:?[*_~\s]*[[<]?${REFERENCE}`, "gi");
+// What comes before a reference in a CLOSING match, so closingNumbers reads the reference alone.
+const BEFORE_REFERENCE = new RegExp(String.raw`^${KEYWORD}[*_~]*:?[*_~\s]*[[<]?`, "i");
 
 // Commits on `dev` this check lets stay, each with why: those from before it, and any that
 // reach `dev` past it (the header's way back). A PR into `main` reads `main..dev`, which
@@ -94,21 +96,29 @@ export function closingRefs(text) {
 // for post-body.mjs's --closes (IS #513). `REFERENCE` ends at the reference's first digit,
 // so a match holds one ("fixes #12" matches as "fixes #1"); the digits after the match are
 // read too, so `number` is the whole one. `number` is null for a reference to a repository
-// other than `repo` ("owner/name", compared case-insensitively, as GitHub reads names).
+// other than `repo` ("owner/name", compared case-insensitively, as GitHub reads names). The
+// reference is read after the keyword and what follows it, so a keyword joined to an owner by
+// `_` ("fixes_owner/name#5") isn't read as part of the owner. Lines are counted at LF, CRLF
+// and a lone CR, as post-body.mjs's `lines()` splits them; `ref`'s blanks are collapsed, so
+// a reference split across lines prints on one.
 export function closingNumbers(text, repo) {
   const starts = [0];
-  for (let i = 0; i < text.length; i++) if (text[i] === "\n") starts.push(i + 1);
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === "\n" || (text[i] === "\r" && text[i + 1] !== "\n")) starts.push(i + 1);
+  }
   const here = repo.toLowerCase();
   const found = [];
   for (const match of text.matchAll(CLOSING)) {
     const end = match.index + match[0].length;
     const ref = match[0] + /^\d*/.exec(text.slice(end))[0];
+    const target = ref.replace(BEFORE_REFERENCE, "");
     let line = starts.length;
     while (starts[line - 1] > match.index) line--;
-    const url = /github\.com\/([^/]+\/[^/]+)\/(?:issues|pull)\/(\d+)$/i.exec(ref);
-    const named = url ?? /([A-Za-z0-9][\w.-]*\/[\w.-]+)#(\d+)$/.exec(ref);
-    const number = Number((named ?? /(\d+)$/.exec(ref)).at(-1));
-    found.push({ line, ref: ref.trim(), number: named && named[1].toLowerCase() !== here ? null : number });
+    const named =
+      /^https?:\/\/(?:www\.)?github\.com\/([^/]+\/[^/]+)\/(?:issues|pull)\/(\d+)$/i.exec(target) ??
+      /^([A-Za-z0-9][\w.-]*\/[\w.-]+)#(\d+)$/.exec(target);
+    const number = Number((named ?? /(\d+)$/.exec(target)).at(-1));
+    found.push({ line, ref: ref.trim().replace(/\s+/g, " "), number: named && named[1].toLowerCase() !== here ? null : number });
   }
   return found;
 }

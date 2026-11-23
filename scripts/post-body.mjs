@@ -73,7 +73,9 @@
 // the ends of lines or of the text. Exits 2 on bad arguments (a number with a leading zero
 // among them), an unreadable file or log, or a failed `gh` call; 0 when all is well.
 //
-// Does not catch: for the closing rule, a listed number that is the wrong issue, a closing
+// Does not catch: for the closing rule, a missing --closes on a PR body whose text checks
+// already failed (those exit 1 first, before the lookup that tells a PR from an issue, so the
+// next run names it), a listed number that is the wrong issue, a closing
 // reference in a commit message (secret-scan's job), and a keyword GitHub reads that CLOSING
 // doesn't match (its header's limit); a wrong or stale statement (the claims check and the
 // rounds read those); text
