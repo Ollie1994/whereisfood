@@ -418,7 +418,9 @@ for it: the login's code verifier is a cookie there.
 The link leads to `/admin/mfa`, the second factor (Phase 9 plan step 5). The first time,
 it shows a QR code: scan it with an authenticator app on your phone (Google Authenticator,
 Microsoft Authenticator or another TOTP app), or type in the key shown under it, then enter
-the six-digit code the app shows. Every later login asks for the code only. A QR code left
+the six-digit code the app shows. Every later login asks for the code only. On a hosted
+project, the next link after this first login and enroll can be refused for about an hour
+(`RUNBOOK.md`, "A login link that doesn't come"). A QR code left
 unused is replaced by a new one the next time the page opens. The factor is deleted with
 the user, so after a `npx supabase db reset` the next login enrolls again; delete the
 app's old entry then.

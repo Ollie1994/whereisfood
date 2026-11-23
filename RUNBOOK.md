@@ -191,7 +191,7 @@ plan's #13. Its order:
    factor alone ends no session (IS #381).
 4. **Re-enroll at once:** log in with the link, which shows the enroll QR code. Until then any
    `aal1` session can fill the free factor slot (#13). If the login form answers "För många
-   försök. Vänta en stund och skicka sedan en ny länk.", the thief's links and notices may have
+   försök. Vänta en stund och skicka sedan en ny länk. …", the thief's links and notices may have
    spent the email budget: "A login link that doesn't come" says how long to wait. The next link
    after your enroll can be refused too.
 5. **See what happened**, from "Exporting evidence"'s files (run it first if step 3 didn't):
@@ -341,7 +341,8 @@ one a single request then fits (locally the CLI sets it to 360 000,
 link sent (12:13:55) and the TOTP enroll's verify (12:15:54, the first `verification_attempted`
 after its `factor_in_progress`), after which the owner got the "MFA method added" email (IS
 #507's read). So that notice likely spends the budget too, and after a login and an enroll ("A
-takeover", step 4; "A lost phone", step 4; "A restore", step 5) the next link can be refused:
+takeover", step 4; "A lost phone", step 4; "A restore", step 5; README's first login, "5.
+Create the admin user", on a hosted project) the next link can be refused:
 wait about an hour after your last email, the link or the notice. How the budget frees a slot
 wasn't probed; a link asked for at 13:31:54 went through. If a factor-enrolled, factor-unenrolled or
 password-changed email you didn't cause came too
@@ -351,7 +352,8 @@ password-changed email you didn't cause came too
 1. **Check the mail itself:** the spam folder, and the address typed on the login form. A link
    lives 15 minutes: production's "Email OTP expiration" is 900 s, which the dashboard says is
    the "Duration before an email OTP / link expires" (IS #458).
-2. **Wait an hour, then ask once.** Each email Auth sends spends one of the two: a link, and
+2. **Wait about an hour after the last email sent** (step 4's query shows it), **then ask
+   once.** Each email Auth sends spends one of the two: a link, and
    likely a notice (Signs, above); a refused request sends none. Only the newest link sent can
    work: a later link sent to your address, whoever asked for it, voids the earlier one at
    Auth's `/verify` (`otp_expired`; local stack, IS #458: a link opened after a second send
@@ -374,7 +376,8 @@ password-changed email you didn't cause came too
    `actor_username`; a request for an address with no account writes none, and neither does a
    refused one: of three back-to-back requests for one address, the second and third answered
    `429` `over_email_send_rate_limit` (`max_frequency`) and only the first left a row (local
-   stack, IS #458). On production a request the hourly budget refused left none either: no row
+   stack, IS #458). On production a request refused with 429 (likely the hourly budget's, Signs)
+   left none either: no row
    lies between the enroll at 12:15:54 and the next link at 13:31:54, Stockholm time, though one
    was refused in that span (IS #464; IS #507's read). So the rows count at most the
    links sent, about two an hour, however many were asked for: few rows doesn't mean few
@@ -396,13 +399,13 @@ password-changed email you didn't cause came too
    ```
 
    `200` means done; a `4xx` or `000` reads as in "A takeover", step 2. Then log in with the new
-   address about an hour after the last email sent to anyone, yours included. `select
-   created_at, payload->>'action' as action from auth.audit_log_entries order by created_at desc
-   limit 30;` shows them: a link is `user_recovery_requested`; an enroll's notice follows the
-   first `verification_attempted` after a factor's `factor_in_progress` (later ones are TOTP
-   logins; IS #507); an unenroll's or a password change's rows weren't read. The
-   budget is the project's, not the address's, so the move stops the
-   spending but leaves what was spent, and a "För många försök" before then doesn't mean the
+   address about an hour after the last email sent to anyone, yours included. `select created_at
+   at time zone 'Europe/Stockholm' as stockholm, payload->>'action' as action from
+   auth.audit_log_entries where created_at > now() - interval '2 hours' order by created_at
+   desc;` shows them, in Stockholm time: a link is `user_recovery_requested`; an enroll's notice
+   follows the first `verification_attempted` after a factor's `factor_in_progress` (later ones
+   are TOTP logins; IS #507); an unenroll's or a password change's rows weren't read. The budget
+   is the project's, not the address's, so the move stops the spending but leaves what was spent, and a "För många försök" before then doesn't mean the
    move failed. Probed on the local stack with a throwaway user that had a verified TOTP factor and
    an `aal2` session (IS #458): the `PUT` answered `200`; the new address held at once, with no
    change left pending, and the identity's email moved with it; no mail went to either address;
