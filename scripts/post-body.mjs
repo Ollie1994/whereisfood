@@ -15,16 +15,40 @@
 // - A fill script duplicated half of PR #398's body (row 735), and another inserted no round
 //   sections into PRs #408 and #409 (row 769).
 //
-//   node scripts/post-body.mjs <issue-or-PR-number> <file> [--rounds]
-//     Replaces the issue's or PR's body with the file.
+//   node scripts/post-body.mjs <issue-number> <file>
+//   node scripts/post-body.mjs <PR-number> <file> --closes <n,...|none> [--rounds]
+//     Replaces the issue's or PR's body with the file. Whether the number is a PR is read
+//     from its issue record after the text checks, before anything is posted (GitHub gives a
+//     PR's a `pull_request` key): a PR's body needs --closes, and an issue's takes none (exit
+//     2 otherwise, nothing posted).
 //   node scripts/post-body.mjs --comment <issue-or-PR-number> <file>
 //     Adds the file as a new comment. If anything fails after the comment is made, the
 //     message names its id and URL, to fix with --edit-comment rather than post another.
 //   node scripts/post-body.mjs --edit-comment <comment-id> <file>
 //     Replaces an existing comment's text with the file.
-//   node scripts/post-body.mjs --check <file>
-//     Runs the checks below and posts nothing: for a new issue or PR, before `gh issue create`
-//     or `gh pr create --body-file`; then the first form, on the same file, reads it back.
+//   node scripts/post-body.mjs --check <file> --closes <n,...|none>
+//   node scripts/post-body.mjs --check <file> --issue
+//     Runs the checks below and posts nothing: for a new PR with --closes, before `gh pr
+//     create --body-file`, and for a new issue with --issue, before `gh issue create`; then
+//     the first form, on the same file, reads it back. One of the two is required (exit 2
+//     with neither or both), so a check that skips the closing rule says so. --check --issue
+//     makes no `gh` call.
+//
+// The closing rule (IS #513, the Phase 10 retrospective's new action 1): on a PR's body and on
+// --check --closes. A closing keyword before an issue reference in a PR body closes that issue when
+// the PR merges into `dev`; three reached PR bodies in Phase 10 (process-log rows 932 and 954),
+// caught only by the claims check, read after the post or run on a draft before the sentence
+// existed. --closes lists the issues the PR closes, as numbers with no leading zero separated by
+// commas, or `none`. Each match of closing-keywords.mjs's CLOSING, its number read whole
+// (`closingNumbers`), must name a listed number in this repository: `#<n>`, `GH-<n>`,
+// `<owner>/<name>#<n>` or an issue or pull URL, the owner and name compared case-insensitively with
+// `gh repo view`'s, which is read only when the rule runs, so a private advisory fork reads its
+// own. A reference to another repository fails even with its number listed (an over-match, as
+// CLOSING over-matches), and so does a listed number no reference names (a "Closes #n" dropped
+// while editing), any closing match to it counting as naming it (`closingProblems`' comment). Each
+// fails before anything is posted (exit 1); a failed `gh repo view` is exit 2. --closes on a
+// comment or --edit-comment, --issue outside --check, and a --closes value missing, empty, given
+// twice, written `--closes=<list>` or with a leading zero are bad arguments (exit 2).
 //
 // The checks, before anything is posted (exit 1, nothing posted): a raw control character
 // (all of C0 but tab, LF and CR); an invisible character (the no-break space, the soft
@@ -51,18 +75,27 @@
 // the ends of lines or of the text. Exits 2 on bad arguments (a number with a leading zero
 // among them), an unreadable file or log, or a failed `gh` call; 0 when all is well.
 //
-// Does not catch: a wrong or stale statement (the claims check and the rounds read those); text
-// posted in the browser, or by `gh` without this script (CLAUDE.md's rule); a review comment
-// on a PR's diff (it posts only issue and PR comments); invisible characters off the list,
-// though GitHub keeps them too (probe PR #428: the text presentation selector U+FE0E, the
-// narrow no-break space U+202F, a tag character U+E0041); a setext heading (text over `--`),
-// which no heading check reads; a round heading with a number word past "ten"; a round
-// section that is present but empty; a round recorded in the log in another form (rows
-// before the log's review-form-from-row).
+// Does not catch: for the closing rule, a dropped "Closes #n" whose number another closing match
+// names (a quote, a fence, an over-matched form: `closingProblems`' comment), the PR's base and
+// state (a PR into `main` closes nothing by keyword, as RUNBOOK's release steps say, and whether a
+// keyword added to a merged PR's body closes its issue is unprobed; `--closes none` is RUNBOOK's
+// rule for both, and a list there is checked against the body as on any PR, but nothing checks that
+// it closes anything), a missing or extra --closes (a PR's body without it, an issue's with it)
+// when the text checks already failed (those exit 1 first, before the lookup that tells a PR from
+// an issue, so the next run names it), a listed number that is the wrong issue, a closing reference
+// in a commit message (secret-scan's job), and a keyword GitHub reads that CLOSING doesn't match
+// (its header's limit); a wrong or stale statement (the claims check and the rounds read those);
+// text posted in the browser, or by `gh` without this script (CLAUDE.md's rule); a review comment
+// on a PR's diff (it posts only issue and PR comments); invisible characters off the list, though
+// GitHub keeps them too (probe PR #428: the text presentation selector U+FE0E, the narrow no-break
+// space U+202F, a tag character U+E0041); a setext heading (text over `--`), which no heading check
+// reads; a round heading with a number word past "ten"; a round section that is present but empty;
+// a round recorded in the log in another form (rows before the log's review-form-from-row).
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { closingNumbers } from "./closing-keywords.mjs";
 
 // PROCESS_LOG overrides it, read when --rounds runs, as for process-log.sh, so a control can
 // use a scratch copy; the success line names the log read.
@@ -301,22 +334,59 @@ function gh(args, input) {
 }
 
 const USAGE = [
-  "usage: node scripts/post-body.mjs <issue-or-PR-number> <file> [--rounds]",
+  "usage: node scripts/post-body.mjs <issue-number> <file>",
+  "       node scripts/post-body.mjs <PR-number> <file> --closes <n,...|none> [--rounds]",
   "       node scripts/post-body.mjs --comment <issue-or-PR-number> <file>",
   "       node scripts/post-body.mjs --edit-comment <comment-id> <file>",
-  "       node scripts/post-body.mjs --check <file>",
+  "       node scripts/post-body.mjs --check <file> --closes <n,...|none>   (a new PR's body)",
+  "       node scripts/post-body.mjs --check <file> --issue                 (a new issue's body)",
 ].join("\n");
 const MODES = { "--comment": "comment", "--edit-comment": "edit-comment", "--check": "check" };
+// --closes' value: issue numbers with no leading zero, separated by commas, or `none`.
+const CLOSES_VALUE = /^(?:none|[1-9]\d*(?:,[1-9]\d*)*)$/;
+
+/** The problems with a text's closing references against the numbers --closes lists
+ * (IS #513): one to an unlisted number or another repository, and a listed number no
+ * reference names. Any CLOSING match to a listed number counts as naming it, its over-matches
+ * and a quoted or fenced one included: the owner's call on round 5 of PR #515, after rounds 3
+ * to 5 found that parsing Markdown to count only the forms GitHub reads refused valid bodies
+ * (an unclosed `<!--` in a code span, `<!-->`, a bold keyword). So a quoted "Closes #n" can
+ * stand in for a dropped real one, and that issue stays open: a limit that fails safe, and
+ * `closingIssuesReferences` shows it before the merge. */
+export function closingProblems(text, listed, repo) {
+  const problems = [];
+  const named = new Set();
+  for (const { line, ref, number } of closingNumbers(text, repo)) {
+    if (number === null) problems.push(`line ${line}: "${ref}" closes an issue in another repository`);
+    else if (!listed.has(number)) problems.push(`line ${line}: "${ref}" would close #${number}, which --closes doesn't list`);
+    else named.add(number);
+  }
+  for (const n of listed) if (!named.has(n)) problems.push(`--closes lists #${n}, but no closing reference names it`);
+  return problems;
+}
 
 export function main(argv, { readLog = () => readFileSync(logPath(), "utf8"), api = gh } = {}) {
-  const flags = new Set(argv.filter((a) => a.startsWith("--")));
-  const args = argv.filter((a) => !a.startsWith("--"));
+  // --closes takes the next argument as its value; every other `--` argument is a flag.
+  const flags = new Set();
+  const args = [];
+  let closes = null;
+  let bad = false;
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === "--closes") {
+      const value = argv[++i];
+      if (closes !== null || value === undefined || !CLOSES_VALUE.test(value)) bad = true;
+      else closes = value === "none" ? new Set() : new Set(value.split(",").map(Number));
+    } else if (argv[i].startsWith("--")) flags.add(argv[i]);
+    else args.push(argv[i]);
+  }
   const modeFlags = [...flags].filter((f) => f in MODES);
   const mode = modeFlags.length ? MODES[modeFlags[0]] : "body";
-  const bad =
-    [...flags].some((f) => !(f in MODES) && f !== "--rounds") ||
+  bad ||=
+    [...flags].some((f) => !(f in MODES) && f !== "--rounds" && f !== "--issue") ||
     modeFlags.length > 1 ||
     (flags.has("--rounds") && mode !== "body") ||
+    (mode === "check" ? (closes !== null) === flags.has("--issue") : flags.has("--issue")) ||
+    ((mode === "comment" || mode === "edit-comment") && closes !== null) ||
     (mode === "check" ? args.length !== 1 : args.length !== 2 || !/^[1-9]\d*$/.test(args[0]));
   if (bad) {
     console.error(USAGE);
@@ -345,6 +415,36 @@ export function main(argv, { readLog = () => readFileSync(logPath(), "utf8"), ap
     for (const p of problems) console.error(`post-body: ${p}`);
     console.error("post-body: nothing posted");
     return 1;
+  }
+  // The closing rule (IS #513): on a PR's body, and on --check --closes. Whether <n> is a PR
+  // comes from its issue record, which GitHub gives a `pull_request` key; the repository is
+  // read only when the rule runs, so --check --issue makes no call.
+  try {
+    if (mode === "body") {
+      const isPr = Boolean(JSON.parse(api(["api", `repos/{owner}/{repo}/issues/${n}`])).pull_request);
+      if (isPr !== (closes !== null)) {
+        console.error(
+          isPr
+            ? `post-body: #${n} is a pull request: name the issues its body closes with --closes <n,...|none>`
+            : `post-body: #${n} is an issue, whose body closes nothing: drop --closes`,
+        );
+        console.error("post-body: nothing posted");
+        return 2;
+      }
+    }
+    if (closes !== null) {
+      const repo = api(["repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"]).trim();
+      const closing = closingProblems(text, closes, repo);
+      if (closing.length) {
+        for (const p of closing) console.error(`post-body: ${p}`);
+        console.error("post-body: nothing posted");
+        return 1;
+      }
+    }
+  } catch (e) {
+    console.error(`post-body: ${e.message}`);
+    console.error("post-body: nothing posted");
+    return 2;
   }
   if (mode === "check") {
     console.log(`post-body: ${file} passes the checks (nothing posted)`);

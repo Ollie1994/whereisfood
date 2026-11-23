@@ -263,7 +263,7 @@ For each issue:
    issue from it, then post it again through the script, which reads it back
    (CLAUDE.md, "Doc changes"):
    ```bash
-   node scripts/post-body.mjs --check "<path/to/issue-body.md>"
+   node scripts/post-body.mjs --check "<path/to/issue-body.md>" --issue
    gh issue create \
      --title "<verb-phrase title, no 'Issue N —' prefix>" \
      --body-file "<path/to/issue-body.md>" \

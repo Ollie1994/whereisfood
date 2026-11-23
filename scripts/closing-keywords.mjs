@@ -33,8 +33,9 @@
 // it, so an italic keyword counts, and so does one ending a snake_case name ("auto_close"
 // before an issue number): an over-match, kept for the italic one (round 2 on PR #371).
 //
-// Does not catch: a form GitHub reads that the page doesn't list; a keyword in a PR body
-// (`--lines` lists those); a title changed after the run that read it, since ci.yml has no
+// Does not catch: a form GitHub reads that the page doesn't list; a keyword in a PR body,
+// which post-body.mjs's --closes refuses at the post unless the PR closes that issue (IS #513;
+// `--lines` still lists them); a title changed after the run that read it, since ci.yml has no
 // `edited` trigger (its header says why), though GitHub's merge commit carries the title as
 // it is at merge. Nothing refuses a message at commit time: the commit-msg hook runs Gitleaks
 // only (the owner's call, round 1 on PR #371). A red check is fixed on the PR's branch:
@@ -62,6 +63,8 @@ const OWNER = String.raw`[A-Za-z0-9][\w.-]*`;
 const REPO = String.raw`[\w.-]+`;
 const REFERENCE = String.raw`(?:#\d|GH-\d|${OWNER}\/${REPO}#\d|https?:\/\/(?:www\.)?github\.com\/${OWNER}\/${REPO}\/(?:issues|pull)\/\d)`;
 export const CLOSING = new RegExp(String.raw`${KEYWORD}[*_~]*:?[*_~\s]*[[<]?${REFERENCE}`, "gi");
+// What comes before a reference in a CLOSING match, so closingNumbers reads the reference alone.
+const BEFORE_REFERENCE = new RegExp(String.raw`^${KEYWORD}[*_~]*:?[*_~\s]*[[<]?`, "i");
 
 // Commits on `dev` this check lets stay, each with why: those from before it, and any that
 // reach `dev` past it (the header's way back). A PR into `main` reads `main..dev`, which
@@ -71,22 +74,61 @@ export const EXEMPT = new Map([
   ["365bdd968443c746a3eb98d2e93f3f99cb08d203", "row 682: closed #348 on PR #350's merge; #348 was reopened and closed by PR #351"],
 ]);
 
+// Where each line of a text starts, its lines broken at LF, CRLF and a lone CR, as
+// post-body.mjs's `lines()` breaks them, so closingRefs and closingNumbers name one line.
+function lineStarts(text) {
+  const starts = [0];
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === "\n" || (text[i] === "\r" && text[i + 1] !== "\n")) starts.push(i + 1);
+  }
+  return starts;
+}
+// The 1-based line holding offset `at`.
+const lineAt = (starts, at) => {
+  let line = starts.length;
+  while (starts[line - 1] > at) line--;
+  return line;
+};
+
 // Pure. Each closing reference in a text, as { line, text }, one per line holding one. A
 // reference split across lines is found on the line its keyword starts.
 export function closingRefs(text) {
-  const lines = text.split(/\r?\n/);
-  const starts = [];
-  for (let i = 0, at = 0; i < lines.length; i++) {
-    starts.push(at);
-    at += lines[i].length + (text.startsWith("\r\n", at + lines[i].length) ? 2 : 1);
-  }
+  const lines = text.split(/\r\n|\r|\n/);
+  const starts = lineStarts(text);
   const found = new Map();
   for (const match of text.matchAll(CLOSING)) {
-    let i = starts.length - 1;
-    while (starts[i] > match.index) i--;
-    if (!found.has(i)) found.set(i, { line: i + 1, text: lines[i].trim() });
+    const line = lineAt(starts, match.index);
+    if (!found.has(line)) found.set(line, { line, text: lines[line - 1].trim() });
   }
   return [...found.values()];
+}
+
+// Pure. Each closing reference in a text with the issue it names, as { line, ref, target,
+// number } (`target` the reference alone, the keyword and what follows it cut),
+// for post-body.mjs's --closes (IS #513). `REFERENCE` ends at the reference's first digit,
+// so a match holds one ("fixes #12" matches as "fixes #1"); the digits after the match are
+// read too, so `number` is the whole one. `number` is null for a reference to a repository
+// other than `repo` ("owner/name", compared case-insensitively, as GitHub reads names). The
+// reference is read after the keyword and what follows it, so a keyword joined to an owner by
+// `_` ("fixes_owner/name#5") isn't read as part of the owner. Lines are counted at LF, CRLF
+// and a lone CR, as post-body.mjs's `lines()` splits them; `ref`'s blanks are collapsed, so
+// a reference split across lines prints on one.
+export function closingNumbers(text, repo) {
+  const starts = lineStarts(text);
+  const here = repo.toLowerCase();
+  const found = [];
+  for (const match of text.matchAll(CLOSING)) {
+    const end = match.index + match[0].length;
+    const ref = match[0] + /^\d*/.exec(text.slice(end))[0];
+    const target = ref.replace(BEFORE_REFERENCE, "");
+    const line = lineAt(starts, match.index);
+    const named =
+      /^https?:\/\/(?:www\.)?github\.com\/([^/]+\/[^/]+)\/(?:issues|pull)\/(\d+)$/i.exec(target) ??
+      /^([A-Za-z0-9][\w.-]*\/[\w.-]+)#(\d+)$/.exec(target);
+    const number = Number((named ?? /(\d+)$/.exec(target)).at(-1));
+    found.push({ line, ref: ref.trim().replace(/\s+/g, " "), target, number: named && named[1].toLowerCase() !== here ? null : number });
+  }
+  return found;
 }
 
 // Pure. `git log -z --format='%H%n%B'` output as [{ sha, message }], or { error }.

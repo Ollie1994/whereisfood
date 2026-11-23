@@ -833,13 +833,15 @@ exists one found in-house, is fixed without a public issue or PR until it ships 
      into `dev`.
 
    The PR's body says what the fix changes and points to the advisory: the one record public
-   before the advisory.
+   before the advisory. With no issue yet, its `post-body.mjs` posts take `--closes none`.
 4. **Publish the advisory** once the fix is live, or at the time agreed with the reporter if
    that is later.
-5. **The public records**, then: an issue recording the fix, the PR body's round records, and the
-   process-log rows, dated that day (`add` refuses a date earlier than the last row's), each
-   with the day of its miss in its Miss. The final records check runs again on them. Delete the
-   notes file.
+5. **The public records**, then: an issue recording the fix, the PR body's round records (its
+   repost takes `--closes none`, since the PR has merged), and the process-log rows, dated that
+   day (`add` refuses a date earlier than the last row's), each with the day of its miss in its
+   Miss. The rows go in by their own PR (`CLAUDE.md`, "Doc changes"), whose body closes the
+   record issue (`--closes <record issue>`). The final records check runs again on them. Delete
+   the notes file.
 
 ---
 
@@ -1012,10 +1014,13 @@ A release at a phase's end, so `main` carries the reconciled docs, is optional. 
 ("A private vulnerability"; step 3: "A clean merge can still keep `dev`'s own version").
 
 Post each PR's text through `scripts/post-body.mjs` (`CLAUDE.md`, "Doc changes"):
-`--check <file>`, then `gh pr create` with `--body-file <file>`, then `node
-scripts/post-body.mjs <n> <file>`. Keep each PR's title in a file too, and read it into a
-variable, `TITLE="$(cat <title file>)"`. Bash doesn't expand a variable's value again, so
-backticks, `$` and apostrophes in the title pass as written. Tried on IS #462 with
+`--check <file> --closes <list>`, then `gh pr create` with `--body-file <file>`, then
+`node scripts/post-body.mjs <n> <file> --closes <list>`. The PR into `main` takes `--closes none`: a
+merge into `main` closes no issue, and the release's issue is closed by hand (step 1). The sync PR
+into `dev` takes `--closes <its issue>`, as its body closes it; a sync after a fix shipped straight
+to `main`, which has no issue yet (step 3), takes `--closes none`. Keep each PR's title in a file
+too, and read it into a variable, `TITLE="$(cat <title file>)"`. Bash doesn't expand a variable's
+value again, so backticks, `$` and apostrophes in the title pass as written. Tried on IS #462 with
 ``Release `dev`'s work into `main` $HOME``: it reached the script byte for byte.
 
 1. **The PR into `main`.** Before opening it, two checks:
