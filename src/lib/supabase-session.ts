@@ -7,7 +7,7 @@ import { supabaseProjectUrl } from "@/lib/supabase-url";
 // (Phase 7 plan, #12). One client per request, never shared. For Auth calls only; the
 // server reads data through the db layer (`CLAUDE.md`, "Supabase").
 //
-// The variables are read per call, not at import, so a missing one, or a URL with a path
+// The variables are read per call, not at import, so a missing one, or a bad URL
 // (`supabase-url.ts`), throws inside the route's `withErrorHandling` and answers 500
 // `{ error }`.
 export function createSessionClient(cookies: CookieMethodsServer) {
