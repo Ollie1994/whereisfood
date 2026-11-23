@@ -413,7 +413,8 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     row (line 1078), whose "every credential" open decision 12 narrows. It brings README's
     status parts in line; carries forward the decisions that outlive the phase (#5 and #10 at
     least: #5's row names the removal list in `karta/page.tsx`'s header and #5's removal checks, for Phase 11's
-    plan; open decision 13's procedure, which #511 puts in the runbook; the IS #373 (Phase 11)
+    plan; open decision 13's procedure, which #511 puts in the runbook, with the second message at the
+    full launch, for Phase 11's launch issue (IS #511); the IS #373 (Phase 11)
     row's marker stays, and its "removes the gate" points to #5's
     row); and sets `CLAUDE.md`'s bold line to none, naming this plan as the last one.
 
@@ -457,8 +458,9 @@ applies production's settings.
 ### #4 — Done at the deploy; telling the trucks runs alongside
 
 The owner's call (2026-11-20). Done is step 17. Telling the trucks depends on replies the plan
-can't control, so it starts once production holds their data and the privacy note exists, and
-blocks neither the retrospective nor the reconciliation. Phase 11's coverage target, not this
+can't control, so it starts once production and the privacy note exist (each truck told just
+before its data is entered, open decision 13, since round 1 on PR #512), and blocks neither the
+retrospective nor the reconciliation. Phase 11's coverage target, not this
 phase, measures daily use.
 
 ### #5 — The soft-launch gate is temporary, and removable without a hole
@@ -796,13 +798,15 @@ findings before production stay public (Q36).
     listed, since its data comes from its own posts (`/integritet`). If its DM can't be seen,
     another channel it publishes itself (its website, or a contact in its own posts: the channels
     `RUNBOOK.md`'s "Other requests" uses to confirm a requester), with a version of the text for
-    that channel the owner approves in #511; with none, it is recorded as not told (the owner's
-    call, narrowed after round 2 on PR #510). A truck may write back by DM or to `/integritet`'s
+    that channel the owner approves in #511; with none, it isn't entered (the owner's call,
+    narrowed after round 2 on PR #510; told just before it is entered, round 1 on PR #512, since
+    `/integritet` says each truck entered is told). A truck may write back by DM or to `/integritet`'s
     email; a removal asked for by DM is honoured like one by email (#2). #511 covers DM requests
     and the private list below in `/integritet` and the runbook, and adds this procedure there;
     it blocks #465, so no DM goes out before it, and a truck entered before #511 merges is told on
-    the day it merges. #511 also settles, with the owner, what this decision leaves open: a record
-    that a removed truck asked to stay off, so it isn't entered and told again; whether a truck is
+    the day it merges, the one exception to telling first (production held none, 2026-11-23).
+    #511 also settles, with the owner, what this decision leaves open: a record that a removed
+    truck asked to stay off, so it isn't entered and told again; whether a truck is
     entered only with its Instagram handle; what "a DM that can't be seen" means; two-factor on
     @vararmaten; and telling the trucks already told once the map opens. #465 counts the trucks
     told through Phase 10, and #511 names where later counts go. #465 records only dates and
@@ -810,7 +814,15 @@ findings before production stay public (Q36).
     owner's private list off the repo; a removal deletes the truck's line from that list, and
     adds one to the takedown log as README's "Takedown" says. The text's "Kartan är inte öppen
     för alla ännu" holds while the soft-launch gate stands (#5) and goes at the full launch (the
-    gate's removal list names it).
+    gate's removal list names it). What it left open, the owner settled on #511 (2026-11-23,
+    comment 7103734194), and `RUNBOOK.md`'s "Telling a new truck" holds the procedure: the
+    handle of a truck that asked to be removed, whether taken down or not yet entered, and the
+    date go on a private do-not-list until it asks to be listed again (its objection); a truck is
+    entered only with its handle, by that rule alone, with no code change; a DM that can't be
+    seen is one Instagram won't send, and a sent one counts as told; the trucks told get one
+    short second message when the map opens, its text approved in Phase 11's launch issue; after #465
+    the count is the private list's alone; and two-factor on @vararmaten, by authenticator app,
+    comes before the first DM.
 14. ~~**Production's Deployment Retention Policy** (step 14): README's checklist keeps Production
     at 30 days because no Ready production deployment existed (IS #417's comment of
     2026-11-19); the value against Hobby's 10 GB of Deployment Storage (#417).~~ → **settled**

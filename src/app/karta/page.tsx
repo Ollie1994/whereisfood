@@ -63,11 +63,10 @@ import { createSessionClient, readOnlyCookies } from "@/lib/supabase-session";
 //   anyone who reaches it: the alias gets R2's CORS origin, or the paragraph keeps none with
 //   the owner's new reasons; its marker removed either way.
 // - CLAUDE.md: "The soft-launch gate" deleted.
-// - The DM that tells a new truck it's listed (Phase 10 plan, open decision 13; IS #465's
-//   comment 7102728788): its sentence "Kartan är inte öppen för alla ännu, den öppnar när fler
-//   foodtruckar är med." deleted, the owner approving the new text. Not a file, so it carries no
-//   marker and `gate-markers.test.ts` doesn't check it; IS #511, which puts the text in
-//   RUNBOOK.md, marks it there and turns this line into RUNBOOK.md's.
+// - RUNBOOK.md: in "Telling a new truck", both texts that tell a new truck it's listed (Phase
+//   10 plan, open decision 13; IS #511) lose "Kartan är inte öppen för alla ännu, den öppnar när
+//   fler foodtruckar är med.", the owner approving the new texts; its HTML-comment marker
+//   removed.
 export const metadata: Metadata = { title: "Karta" };
 
 export default async function MapPage() {
