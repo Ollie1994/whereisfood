@@ -800,8 +800,13 @@ findings before production stay public (Q36).
     call, narrowed after round 2 on PR #510). A truck may write back by DM or to `/integritet`'s
     email; a removal asked for by DM is honoured like one by email (#2). #511 covers DM requests
     and the private list below in `/integritet` and the runbook, and adds this procedure there;
-    it blocks #465, so no DM goes out before it. #465 records only dates and counts, never names
-    (round 1 on PR #510): a public issue would keep a removed truck's name. The names go in the
+    it blocks #465, so no DM goes out before it, and a truck entered before #511 merges is told on
+    the day it merges. #511 also settles, with the owner, what this decision leaves open: a record
+    that a removed truck asked to stay off, so it isn't entered and told again; whether a truck is
+    entered only with its Instagram handle; what "a DM that can't be seen" means; two-factor on
+    @vararmaten; and telling the trucks already told once the map opens. #465 counts the trucks
+    told through Phase 10, and #511 names where later counts go. #465 records only dates and
+    counts, never names (round 1 on PR #510): a public issue would keep a removed truck's name. The names go in the
     owner's private list off the repo; a removal deletes the truck's line from that list, and
     adds one to the takedown log as README's "Takedown" says. The text's "Kartan är inte öppen
     för alla ännu" holds while the soft-launch gate stands (#5) and goes at the full launch (the
