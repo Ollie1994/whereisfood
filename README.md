@@ -290,8 +290,9 @@ Cloudflare dashboard (no API token needed):
       the page it serves, which anyone could copy. It gets no origin (the owner's call on IS
       #506, replacing round 3 on PR #486's "if it is, an issue of its own gives it an origin"):
       it answers `302` to Vercel's login (`vercel.com/sso-api`), and Auth's Redirect URLs admit
-      only `vararmaten.vercel.app`'s callback, so no admin login completes on it and `/karta`
-      never shows the map there. A change to those Redirect URLs brings the question back.
+      only `vararmaten.vercel.app`'s callback ("Production"), so the admin session `/karta`
+      needs to show the map has no login route on it (not tried on that host). A change to
+      those Redirect URLs brings the question back.
     - A production deployment's commit-form URL is in the pattern like a preview's.
     - **`whereisfood.vercel.app` is not this project's** and gets no origin: before any
       production deployment existed it answered `200` with another owner's page, titled
