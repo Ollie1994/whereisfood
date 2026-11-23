@@ -418,7 +418,9 @@ for it: the login's code verifier is a cookie there.
 The link leads to `/admin/mfa`, the second factor (Phase 9 plan step 5). The first time,
 it shows a QR code: scan it with an authenticator app on your phone (Google Authenticator,
 Microsoft Authenticator or another TOTP app), or type in the key shown under it, then enter
-the six-digit code the app shows. Every later login asks for the code only. A QR code left
+the six-digit code the app shows. Every later login asks for the code only. On a hosted
+project, the next link after this first login and enroll can be refused for about an hour
+(`RUNBOOK.md`, "A login link that doesn't come"). A QR code left
 unused is replaced by a new one the next time the page opens. The factor is deleted with
 the user, so after a `npx supabase db reset` the next login enrolls again; delete the
 app's old entry then.
@@ -997,7 +999,8 @@ it. The steps, tested once on the local stack (IS #455's record):
 5. **Log in and enroll TOTP at once.** The dump holds no `auth` schema, so the admin comes
    back with no factor: the login shows the enroll QR code, and until it is done any `aal1`
    session, a guessed code's included, can fill the free slot (Phase 9 plan #13). Delete the
-   authenticator app's old entry.
+   authenticator app's old entry. The next link after this login and enroll can be refused for
+   about an hour (`RUNBOOK.md`, "A login link that doesn't come").
 
 Limits: moving the live app to a new project after a hosted restore (Vercel's variables, the
 hosted settings checklist, the Redirect URLs) isn't covered here or tried; `RUNBOOK.md`'s

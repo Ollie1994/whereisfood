@@ -190,7 +190,10 @@ plan's #13. Its order:
    after the password and the factor, or the thief signs straight back in (#13). Deleting the
    factor alone ends no session (IS #381).
 4. **Re-enroll at once:** log in with the link, which shows the enroll QR code. Until then any
-   `aal1` session can fill the free factor slot (#13).
+   `aal1` session can fill the free factor slot (#13). If the login form answers "För många
+   försök. Vänta en stund och skicka sedan en ny länk. …", the thief's links and notices may have
+   spent the email budget: "A login link that doesn't come" says how long to wait. The next link
+   after your enroll can be refused too.
 5. **See what happened**, from "Exporting evidence"'s files (run it first if step 3 didn't):
    `audit.csv` by `created_at`, `payload`'s `action` and `ip_address`; `admins.csv` and
    `trucks.csv` against what you know, an admin you don't know included. For locations, the
@@ -307,7 +310,8 @@ no secret key outside Supabase, no unenroll screen; IS #457):
    tokens and sign-in records at `0` inside it.
 4. **Log in at once** and enroll the new phone from the QR code. Until then any `aal1`
    session can fill the free slot (Phase 9 plan #13). Delete the old phone's entry if the app
-   synced it.
+   synced it. The next link after this login and enroll can be refused for about an hour ("A
+   login link that doesn't come", its Signs).
 
 Limits: run only on the local stack, not on a hosted project. #454's probe showed the
 preview's SQL editor runs as `postgres` and may delete from an `auth` table
@@ -326,24 +330,37 @@ you already hold keeps working until its 12-hour box (`CLAUDE.md`, "The session 
 Signs: **login-link emails you didn't ask for** in the admin's mailbox (Auth sends each link
 someone asks for to your address, while the budget lasts), and the login form answering "För
 många försök. Vänta en stund och skicka sedan en ny länk. …", which it shows when Auth refuses
-the request with 429 (`src/lib/login.ts`). Your own requests spend the budget too, so that
-answer after two of yours in an hour is no sign; nor is the TOTP step's "För många försök. Vänta
-en stund och försök igen.", a limit on codes. That a spent hourly budget answers 429 wasn't
-probed (locally the CLI sets the budget to 360 000, `GOTRUE_RATE_LIMIT_EMAIL_SENT`, IS #377). If
-a factor-enrolled, factor-unenrolled or password-changed email you didn't cause came too
+the request with 429 (`src/lib/login.ts`). Your own emails spend the budget too, so that answer
+after two of yours in an hour (two links, or a link and an enroll's notice, below) is no sign;
+nor is the TOTP step's "För många försök. Vänta en stund och försök igen.", a limit on codes.
+On production a request got 429 and that text within about 20 minutes of a phone login's link:
+between the enroll at 12:15:54 and #464's comment 2 at 12:34:19, Stockholm time (IS #464,
+2026-11-23). Its error code wasn't read; of README's Rate Limits, the 2 emails an hour is the
+one a single request then fits (locally the CLI sets it to 360 000,
+`GOTRUE_RATE_LIMIT_EMAIL_SENT`, IS #377). In the hour before the refusal the audit log holds one
+link sent (12:13:55) and the TOTP enroll's verify (12:15:54, the first `verification_attempted`
+after its `factor_in_progress`), after which the owner got the "MFA method added" email (IS
+#507's read). So that notice likely spends the budget too, and after a login and an enroll ("A
+takeover", step 4; "A lost phone", step 4; "A restore", step 5; README's first login, "5.
+Create the admin user", on a hosted project) the next link can be refused:
+wait about an hour after your last email, the link or the notice. How the budget frees a slot
+wasn't probed; a link asked for at 13:31:54 went through. If a factor-enrolled, factor-unenrolled or
+password-changed email you didn't cause came too
 ("MFA method added", "MFA method removed", "Password changed" in README's checklist), this is
 "A takeover", not this section.
 
 1. **Check the mail itself:** the spam folder, and the address typed on the login form. A link
    lives 15 minutes: production's "Email OTP expiration" is 900 s, which the dashboard says is
    the "Duration before an email OTP / link expires" (IS #458).
-2. **Wait an hour, then ask once.** Each link Auth sends spends one of the two; a refused
-   request sends none. Only the newest link sent can work: a later link sent to your address,
-   whoever asked for it, voids the earlier one at Auth's `/verify` (`otp_expired`; local stack,
-   IS #458: a link opened after a second send answered `otp_expired`). Whether a request the
-   hourly budget refuses leaves it working is unknown: production refuses only that way (the
-   per-user interval applies only with custom SMTP, README's Rate Limits row), and that refusal
-   wasn't probed; locally, a link still made a session after another client's request was
+2. **Wait about an hour after the last email sent** (step 4's query shows it), **then ask
+   once.** Each email Auth sends spends one of the two: a link, and
+   likely a notice (Signs, above); a refused request sends none. Only the newest link sent can
+   work: a later link sent to your address, whoever asked for it, voids the earlier one at
+   Auth's `/verify` (`otp_expired`; local stack, IS #458: a link opened after a second send
+   answered `otp_expired`). Whether a request the hourly budget refuses leaves it working is
+   unknown: production refuses only that way (the per-user interval applies only with custom
+   SMTP, README's Rate Limits row), and no probe has looked (a 429 was seen, likely the hourly
+   budget's, Signs); locally, a link still made a session after another client's request was
    refused by the per-user interval (`max_frequency`). So don't count on an older link while
    someone is asking. And each request from your browser, refused or not, replaces its PKCE
    verifier, so only a link
@@ -359,10 +376,14 @@ a factor-enrolled, factor-unenrolled or password-changed email you didn't cause 
    `actor_username`; a request for an address with no account writes none, and neither does a
    refused one: of three back-to-back requests for one address, the second and third answered
    `429` `over_email_send_rate_limit` (`max_frequency`) and only the first left a row (local
-   stack, IS #458; a refusal by the hourly budget wasn't probed). So the rows count at most the
+   stack, IS #458). On production a request refused with 429 (likely the hourly budget's, Signs)
+   left none either: no row
+   lies between the enroll at 12:15:54 and the next link at 13:31:54, Stockholm time, though one
+   was refused in that span (IS #464; IS #507's read). So the rows count at most the
    links sent, about two an hour, however many were asked for: few rows doesn't mean few
-   requests. Rows you didn't cause mean someone holds your address. On the local stack their
-   `ip_address` was empty; a hosted project's weren't read.
+   requests. Rows you didn't cause mean someone holds your address. Their `ip_address` was
+   empty on the local stack and on production (IS #507's read, 2026-11-23), so a row doesn't
+   tell who asked.
 4. **If it goes on, move the account to a new address** that no page shows and that can't be
    guessed from the old one or `/integritet`'s contact, a mailbox with two-factor from its
    creation (`CLAUDE.md`, "Secrets"). Auth sends a link only to an address that has an account
@@ -378,9 +399,13 @@ a factor-enrolled, factor-unenrolled or password-changed email you didn't cause 
    ```
 
    `200` means done; a `4xx` or `000` reads as in "A takeover", step 2. Then log in with the new
-   address once an hour has passed since the last link sent to anyone, yours included (step 3's
-   newest `created_at`): the budget is the project's, not the address's, so the move stops the
-   spending but leaves what was spent, and a "För många försök" before then doesn't mean the
+   address about an hour after the last email sent to anyone, yours included. `select created_at
+   at time zone 'Europe/Stockholm' as stockholm, payload->>'action' as action from
+   auth.audit_log_entries where created_at > now() - interval '2 hours' order by created_at
+   desc;` shows them, in Stockholm time: a link is `user_recovery_requested`; an enroll's notice
+   follows the first `verification_attempted` after a factor's `factor_in_progress` (later ones
+   are TOTP logins; IS #507); an unenroll's or a password change's rows weren't read. The budget
+   is the project's, not the address's, so the move stops the spending but leaves what was spent, and a "För många försök" before then doesn't mean the
    move failed. Probed on the local stack with a throwaway user that had a verified TOTP factor and
    an `aal2` session (IS #458): the `PUT` answered `200`; the new address held at once, with no
    change left pending, and the identity's email moved with it; no mail went to either address;
@@ -820,7 +845,8 @@ container. In this order, since the login has to reach the new project:
    the URL the project URL alone (README's "Production", "Variables"). Then redeploy
    Production.
 5. **Log in and enroll TOTP at once** (README's "Restoring", step 5), now that the app points
-   at the new project. Then look at `/karta`.
+   at the new project. Then look at `/karta`. The next link after this login and enroll can be
+   refused for about an hour ("A login link that doesn't come", its Signs).
 6. **The old project:** pause it now that the new one works, which also frees its slot, and
    delete it when the restore is confirmed or 8 weeks after the restore, whichever comes
    first (the owner's call, IS #457). Until then it still holds every truck's history, a
