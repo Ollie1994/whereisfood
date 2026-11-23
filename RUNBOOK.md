@@ -968,7 +968,8 @@ backticks, `$` and apostrophes in the title pass as written. Tried on IS #462 wi
    - **Retry without a Redeploy or a promoted preview,** which plan step 16 rules out.
    - **A cause in the code:** a PR into `dev`, then a new release.
    - **Nothing to change** (an outage on Vercel's side): a new release carrying a one-line doc
-     change through its own issue, as plan step 16 does when `dev` has nothing new.
+     change through its own issue, as plan step 16 does when `dev` has nothing new (no file
+     change since the last release, "When" above).
    - **A fix shipped straight to `main`** ("A private vulnerability", step 3): a new PR into
      `main`.
 
