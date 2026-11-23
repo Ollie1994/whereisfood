@@ -614,21 +614,21 @@ uncommitted on `dev`. Every doc change then has a reviewable diff and a
   rounds" below; process-log rows 269, 271).
 - **Issue and PR text is posted through `scripts/post-body.mjs`** (IS #403), from a file: a body
   with `node scripts/post-body.mjs <n> <file>` (on a PR's body, `--closes <n,...|none>` naming the
-  issues it closes, and `--rounds` once it has a round section), a new comment with `--comment <n>
-  <file>`, a change to one with `--edit-comment <id> <file>`. A new issue or PR: `--check <file>
-  --issue` or `--check <file> --closes <list>` first, then `gh issue create` or `gh pr create
-  --body-file` with that file, then the first form on the same file, which reads it back. On a PR's
-  body it refuses a closing keyword before an issue it wasn't told the PR closes, another
-  repository's, and a listed issue no keyword names outside a fence (IS #513). It refuses, before
-  posting, a raw control character, an invisible character (the script's `INVISIBLE_NAMES`: the
-  no-break space, soft hyphen, zero-width characters, line and paragraph separators, bidi controls,
-  U+FE0F and the byte-order mark; GitHub stores them unchanged, probe PR #428, so no read-back shows
-  them; a joiner or U+FE0F that is part of an emoji, and a byte-order mark opening the file, are
-  kept), the escape text GitHub rewrites (`\u0000` to `\u001F` but `\u0009`, `\u000A`, `\u000B` and
-  `\u000D`: write `\x00`, or the character's name) and a repeated `## ` heading; then it posts and
-  fails if GitHub's stored copy differs. A failure is fixed before the next step. Its header lists
-  what GitHub rewrites (probe PR #425) and what the script can't see (a review comment on a PR's
-  diff among them).
+  issues it closes, and `--rounds` once it has a round section), a new comment with
+  `--comment <n> <file>`, a change to one with `--edit-comment <id> <file>`. A new issue or PR:
+  `--check <file> --issue` or `--check <file> --closes <list>` first, then `gh issue create` or
+  `gh pr create --body-file` with that file, then the first form on the same file, which reads it
+  back. On a PR's body it refuses a closing keyword before an issue it wasn't told the PR closes,
+  another repository's, and a listed issue no "Closes #n" names in the form its header's `NAMING`
+  comment gives (IS #513). It refuses, before posting, a raw control character, an invisible
+  character (the script's `INVISIBLE_NAMES`: the no-break space, soft hyphen, zero-width characters,
+  line and paragraph separators, bidi controls, U+FE0F and the byte-order mark; GitHub stores them
+  unchanged, probe PR #428, so no read-back shows them; a joiner or U+FE0F that is part of an emoji,
+  and a byte-order mark opening the file, are kept), the escape text GitHub rewrites (`\u0000` to
+  `\u001F` but `\u0009`, `\u000A`, `\u000B` and `\u000D`: write `\x00`, or the character's name) and
+  a repeated `## ` heading; then it posts and fails if GitHub's stored copy differs. A failure is
+  fixed before the next step. Its header lists what GitHub rewrites (probe PR #425) and what the
+  script can't see (a review comment on a PR's diff among them).
 - **Exception: a private vulnerability** (Phase 10 plan #13, IS #347). An outside report
   (`SECURITY.md`), before production too, and once production exists an unfixed vulnerability found
   in-house (Q36), is worked in its GitHub security advisory and the advisory's temporary private

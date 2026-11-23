@@ -453,22 +453,44 @@ describe("main", () => {
     it("doesn't count a fenced, commented or over-matched form as naming a listed number", () => {
       quiet();
       const { api } = pr();
-      for (const body of ["```\nCloses #511\n```\n", "<!--\nCloses #511\n-->\n", "Closes #0511\n", "Closes GH-511\n"]) {
+      for (const body of [
+        "```\nCloses #511\n```\n",
+        "<!--\nCloses #511\n-->\n",
+        "<!-- Closes #511 -->\n",
+        "See <!--\nCloses #511\n-->\n",
+        "`Closes #511`\n",
+        "Closes #0511\n",
+        "Closes GH-511\n",
+        "Closes [#511](https://example.test)\n",
+        "Closes <#511>\n",
+        "closes#511\n",
+        "fixes_#511\n",
+        "Closes\n#511\n",
+        "Fixes https://github.com/Ollie1994/whereisfood/issues/511\n",
+      ]) {
         expect(main(["12", file(body), "--closes", "511"], { api }), body).toBe(1);
       }
+      expect(console.error).toHaveBeenCalledWith(expect.stringContaining('names it as "Closes #511"'));
       expect(main(["12", file("```\nfixes #12\n```\nCloses #511.\n"), "--closes", "511"], { api }), "a fenced unlisted one").toBe(1);
-      expect(main(["12", file("Closes [#511](https://example.test)\n"), "--closes", "511"], { api }), "the link form").toBe(0);
+      for (const body of ["Closes #511.\n", "- **Fixes:** see below.\nCloses: #511\n", "**Closes #511**\n", "  - Closes Ollie1994/whereisfood#511\n"]) {
+        expect(main(["12", file(body), "--closes", "511"], { api }), body).toBe(0);
+      }
     });
     it("exits 2 when the body form's post fails after the lookup", () => {
       quiet();
-      const failPatch = (args) => {
-        if (args.includes("PATCH")) throw new Error("gh api failed");
-        if (args[0] === "repo") return "Ollie1994/whereisfood\n";
-        return JSON.stringify({ id: 12, body: "" });
-      };
-      expect(main(["12", file("text\n")], { api: failPatch })).toBe(2);
-      const failPrPatch = (args) => (args[0] === "api" && !args.includes("PATCH") ? JSON.stringify({ pull_request: {} }) : failPatch(args));
-      expect(main(["12", file("Closes #511.\n"), "--closes", "511"], { api: failPrPatch })).toBe(2);
+      for (const pull of [false, true]) {
+        const calls = [];
+        const api = (args) => {
+          calls.push(args);
+          if (args.includes("PATCH")) throw new Error("gh api PATCH failed");
+          if (args[0] === "repo") return "Ollie1994/whereisfood\n";
+          return JSON.stringify({ id: 12, body: "", ...(pull ? { pull_request: {} } : {}) });
+        };
+        const argv = pull ? ["12", file("Closes #511.\n"), "--closes", "511"] : ["12", file("text\n")];
+        expect(main(argv, { api }), String(pull)).toBe(2);
+        expect(calls.at(-1), String(pull)).toContain("PATCH");
+        expect(console.error).toHaveBeenCalledWith(expect.stringContaining("gh api PATCH failed"));
+      }
     });
     it("exits 2 on --issue outside --check", () => {
       quiet();

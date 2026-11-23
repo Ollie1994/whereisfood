@@ -45,11 +45,10 @@
 // `gh repo view`'s, which is read only when the rule runs, so a private advisory fork reads its
 // own. A reference to another repository fails even with its number listed (an over-match, as
 // CLOSING over-matches), and so does a listed number no reference names (a "Closes #n" dropped
-// while editing), where only `#n`, `owner/name#n` or a URL, outside fences and HTML comments and
-// with no leading zero, counts as naming one (`NAMING`). Each fails before anything is posted (exit
-// 1); a failed `gh repo view` is exit 2. --closes on a comment or --edit-comment, --issue outside
-// --check, and a --closes value missing, empty, given twice, written `--closes=<list>` or with a
-// leading zero are bad arguments (exit 2).
+// while editing), where only the documented form counts as naming one (`NAMING`'s comment). Each
+// fails before anything is posted (exit 1); a failed `gh repo view` is exit 2. --closes on a
+// comment or --edit-comment, --issue outside --check, and a --closes value missing, empty, given
+// twice, written `--closes=<list>` or with a leading zero are bad arguments (exit 2).
 //
 // The checks, before anything is posted (exit 1, nothing posted): a raw control character
 // (all of C0 but tab, LF and CR); an invisible character (the no-break space, the soft
@@ -76,20 +75,21 @@
 // the ends of lines or of the text. Exits 2 on bad arguments (a number with a leading zero
 // among them), an unreadable file or log, or a failed `gh` call; 0 when all is well.
 //
-// Does not catch: for the closing rule, the PR's base and state (a PR into `main` closes nothing
-// by keyword, as RUNBOOK's release steps say, and whether a keyword added to a merged PR's body
-// closes its issue is unprobed; `--closes none` is RUNBOOK's rule for both, and a list there
-// passes unchecked), a missing or extra --closes (a PR's body without it, an issue's with it) when the
-// text checks already failed (those exit 1 first, before the lookup that tells a PR from an issue,
-// so the next run names it), a listed number that is the wrong issue, a closing reference in a
-// commit message (secret-scan's job), and a keyword GitHub reads that CLOSING doesn't match (its
-// header's limit); a wrong or stale statement (the claims check and the rounds read those); text
-// posted in the browser, or by `gh` without this script (CLAUDE.md's rule); a review comment on a
-// PR's diff (it posts only issue and PR comments); invisible characters off the list, though GitHub
-// keeps them too (probe PR #428: the text presentation selector U+FE0E, the narrow no-break space
-// U+202F, a tag character U+E0041); a setext heading (text over `--`), which no heading check
-// reads; a round heading with a number word past "ten"; a round section that is present but empty;
-// a round recorded in the log in another form (rows before the log's review-form-from-row).
+// Does not catch: for the closing rule, the PR's base and state (a PR into `main` closes nothing by
+// keyword, as RUNBOOK's release steps say, and whether a keyword added to a merged PR's body closes
+// its issue is unprobed; `--closes none` is RUNBOOK's rule for both, and a list there is checked
+// against the body as on any PR, but nothing checks that it closes anything), a missing or extra
+// --closes (a PR's body without it, an issue's with it) when the text checks already failed (those
+// exit 1 first, before the lookup that tells a PR from an issue, so the next run names it), a
+// listed number that is the wrong issue, a closing reference in a commit message (secret-scan's
+// job), and a keyword GitHub reads that CLOSING doesn't match (its header's limit); a wrong or
+// stale statement (the claims check and the rounds read those); text posted in the browser, or by
+// `gh` without this script (CLAUDE.md's rule); a review comment on a PR's diff (it posts only issue
+// and PR comments); invisible characters off the list, though GitHub keeps them too (probe PR #428:
+// the text presentation selector U+FE0E, the narrow no-break space U+202F, a tag character
+// U+E0041); a setext heading (text over `--`), which no heading check reads; a round heading with a
+// number word past "ten"; a round section that is present but empty; a round recorded in the log in
+// another form (rows before the log's review-form-from-row).
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -344,27 +344,67 @@ const MODES = { "--comment": "comment", "--edit-comment": "edit-comment", "--che
 // --closes' value: issue numbers with no leading zero, separated by commas, or `none`.
 const CLOSES_VALUE = /^(?:none|[1-9]\d*(?:,[1-9]\d*)*)$/;
 
-// The forms that count as naming a listed number: `#n`, `owner/name#n` or an issue or pull
-// URL, with no leading zero. Every CLOSING match is refused when it isn't listed, its
-// over-matches included, but only these count toward "a listed number no reference names", so
-// an over-matched form (`GH-n`, `#0n`) can't stand in for a real "Closes #n" (round 3 on PR
-// #515).
-const NAMING = /^(?:#[1-9]\d*|[A-Za-z0-9][\w.-]*\/[\w.-]+#[1-9]\d*|https?:\/\/(?:www\.)?github\.com\/[^/]+\/[^/]+\/(?:issues|pull)\/[1-9]\d*)$/i;
+// What counts as naming a listed number (rounds 3 and 4 on PR #515): the form GitHub's page
+// documents, the keyword, an optional colon, a space or tab, then `#n` or `owner/name#n` with
+// no leading zero, all on one line, read in the text left once fences, HTML comments (one-line
+// and opened mid-line included) and inline code spans are cut. Every CLOSING match is refused
+// when it isn't listed, its over-matches included, but only this form counts toward "a listed
+// number no reference names", so a quoted, fenced, linked or over-matched form can't stand in
+// for a dropped real one. An indented code line (four spaces) isn't cut: a nested list item is
+// indented too.
+const NAMING = /^(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?):?[ \t]+(?:#[1-9]\d*|[A-Za-z0-9][\w.-]*\/[\w.-]+#[1-9]\d*)$/i;
+
+/** The text a reader sees as prose: `unfenced`'s lines, with HTML comments (a comment opened
+ * mid-line runs on to its `-->`) and inline code spans cut, each line kept at its number. */
+function prose(text) {
+  const out = [];
+  let inComment = false;
+  for (const { line, n } of unfenced(text)) {
+    let rest = line;
+    let kept = "";
+    while (rest) {
+      if (inComment) {
+        const end = rest.indexOf("-->");
+        if (end < 0) rest = "";
+        else {
+          rest = rest.slice(end + 3);
+          inComment = false;
+        }
+      } else {
+        const start = rest.indexOf("<!--");
+        if (start < 0) {
+          kept += rest;
+          rest = "";
+        } else {
+          kept += rest.slice(0, start);
+          rest = rest.slice(start + 4);
+          inComment = true;
+        }
+      }
+    }
+    out.push({ n, line: kept.replace(/(`+)[^`]*?\1/g, "") });
+  }
+  return out;
+}
 
 /** The problems with a text's closing references against the numbers --closes lists
  * (IS #513): one to an unlisted number or another repository, and a listed number no
- * reference names. A reference inside a fenced block or an HTML comment (`unfenced`'s) is
- * refused like any other when unlisted, but doesn't count as naming one. */
+ * reference names in the form NAMING reads. */
 export function closingProblems(text, listed, repo) {
   const problems = [];
   const named = new Set();
-  const open = new Set(unfenced(text).map(({ n }) => n));
-  for (const { line, ref, target, number } of closingNumbers(text, repo)) {
+  for (const { line, ref, number } of closingNumbers(text, repo)) {
     if (number === null) problems.push(`line ${line}: "${ref}" closes an issue in another repository`);
     else if (!listed.has(number)) problems.push(`line ${line}: "${ref}" would close #${number}, which --closes doesn't list`);
-    else if (open.has(line) && NAMING.test(target)) named.add(number);
   }
-  for (const n of listed) if (!named.has(n)) problems.push(`--closes lists #${n}, but no closing reference names it`);
+  for (const { line } of prose(text)) {
+    for (const { ref, number } of closingNumbers(line, repo)) if (number !== null && NAMING.test(ref)) named.add(number);
+  }
+  for (const n of listed) {
+    if (!named.has(n)) {
+      problems.push(`--closes lists #${n}, but no closing reference names it as "Closes #${n}" (or owner/name#${n}) on one line, outside code and comments`);
+    }
+  }
   return problems;
 }
 

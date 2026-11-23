@@ -228,6 +228,15 @@ describe("closingNumbers", () => {
     expect(read("Fixes https://github.com/other/repo/pull/5")).toEqual([[1, null]]);
     expect(read("Fixes OLLIE1994/WhereIsFood#5")).toEqual([[1, 5]]);
   });
+  it("gives each reference alone as `target`, the keyword and what follows it cut", () => {
+    const target = (text) => closingNumbers(text, REPO).map((r) => r.target);
+    expect(target("Closes #511.")).toEqual(["#511"]);
+    expect(target("Fixes: GH-77")).toEqual(["GH-77"]);
+    expect(target("Resolves Ollie1994/whereisfood#5")).toEqual(["Ollie1994/whereisfood#5"]);
+    expect(target("Fixes https://github.com/Ollie1994/whereisfood/issues/44")).toEqual(["https://github.com/Ollie1994/whereisfood/issues/44"]);
+    expect(target("Closes [#910](x) and Closes <#911>")).toEqual(["#910", "#911"]);
+    expect(target("Closes\n#7")).toEqual(["#7"]);
+  });
   it("reads a keyword joined to the owner by an underscore as this repository's", () => {
     expect(read("fixes_Ollie1994/whereisfood#5")).toEqual([[1, 5]]);
   });
