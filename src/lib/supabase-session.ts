@@ -1,17 +1,18 @@
 import { createServerClient, type CookieMethodsServer } from "@supabase/ssr";
 import type { NextRequest, NextResponse } from "next/server";
 import type { Database } from "@/lib/database.types";
+import { supabaseProjectUrl } from "@/lib/supabase-url";
 
 // The per-request session client: the anon key plus the request's session cookies
 // (Phase 7 plan, #12). One client per request, never shared. For Auth calls only; the
 // server reads data through the db layer (`CLAUDE.md`, "Supabase").
 //
-// The variables are read per call, not at import, so a missing one throws inside the
-// route's `withErrorHandling` and answers 500 `{ error }`.
+// The variables are read per call, not at import, so a missing one, or a URL with a path
+// (`supabase-url.ts`), throws inside the route's `withErrorHandling` and answers 500
+// `{ error }`.
 export function createSessionClient(cookies: CookieMethodsServer) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const url = supabaseProjectUrl(process.env.NEXT_PUBLIC_SUPABASE_URL);
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url) throw new Error("Missing env: NEXT_PUBLIC_SUPABASE_URL");
   if (!anonKey) throw new Error("Missing env: NEXT_PUBLIC_SUPABASE_ANON_KEY");
 
   return createServerClient<Database>(url, anonKey, { cookies });

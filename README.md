@@ -595,7 +595,10 @@ TOTP factor is enrolled through the deployed app (#463).
 **Variables.** Production's keys go only into Vercel's Production environment variables, in
 the names "Hosted preview database" lists, and its session pooler URL into the gitignored
 `.env.prod-db.local` for the weekly dump ("Backups"). Production gets no variables until
-#463 (the Phase 10 plan, #9).
+#463 (the Phase 10 plan, #9). `NEXT_PUBLIC_SUPABASE_URL` is the project URL alone,
+`https://<project-ref>.supabase.co`: the Data API page's "API URL" ends in `/rest/v1/`, and
+copied whole it made `/api/live` answer 500 on #463's first build. A path in the URL now
+fails the build (`src/lib/supabase-url.ts`, IS #497).
 
 ---
 
