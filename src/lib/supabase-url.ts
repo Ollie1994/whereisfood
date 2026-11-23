@@ -15,13 +15,13 @@
 //   supabase-js's own `validateSupabaseUrl` test, `/^https?:\/\//i` on the trimmed value,
 //   which it would refuse after with "Invalid supabaseUrl: …" (`dist/index.cjs`). The checks
 //   read the trimmed value, as supabase-js does;
-// - `http://` for any host but the local stack's (`LOCAL_HOSTS`): supabase-js sends the key in an `apikey`
-//   header on every request (`dist/index.cjs`), so a hosted project's secret key would go
-//   out unencrypted.
+// - `http://` for any host but the local stack's (`LOCAL_HOSTS`): supabase-js sends the key
+//   in an `apikey` header on every request (`dist/index.cjs`), so a hosted project's secret
+//   key would go out unencrypted.
 //
 // A limit: a URL holding a user or password passes, and every request then fails at run time
 // (`new Request` refuses such a URL, "Request cannot be constructed from a URL that includes
-// credentials", Node 26, PR for IS #497). No dashboard shows one.
+// credentials", Node 26, PR for IS #497).
 const NOT_HTTP =
   "Bad env: NEXT_PUBLIC_SUPABASE_URL is not an http(s) URL; it must be the project URL alone, https://<ref>.supabase.co";
 
