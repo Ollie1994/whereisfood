@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import PublicShell from "@/components/PublicShell";
-import { CONTACT } from "@/lib/contact";
+import { CONTACT, INSTAGRAM_HANDLE } from "@/lib/contact";
 import { ABOUT_PATH } from "@/lib/paths";
 
 // The privacy note (Phase 10 plan, step 9, #8): what is stored, why and for how long, and the
@@ -21,8 +21,10 @@ import { ABOUT_PATH } from "@/lib/paths";
 // - the admin's account, sessions and MFA challenges (`ip_address`): `retention.sql` trims none of
 //   `auth.users`, `auth.sessions` and `auth.mfa_challenges`, so the account's life bounds them;
 // - the takedown: `RUNBOOK.md`, "A takedown request" (the reply gives the latest date the
-//   copies keep it; the request mail kept until no copy from before the takedown is left, so a
-//   later date can be told); other requests' mail: "Other requests";
+//   copies keep it; the request mail or DM kept until no copy from before the takedown is left,
+//   so a later date can be told); other requests' mail and DMs: "Other requests";
+// - telling a truck, the list of trucks told and the do-not-list: `RUNBOOK.md`, "Telling a new
+//   truck" (Phase 10 plan, open decision 13; the owner's calls and approved text on IS #511);
 // - the right to object stated on its own: GDPR art. 21(4), for "berättigat intresse";
 // - the hosts: `src/lib/http/csp.ts` (R2's tiles, `protomaps.github.io`'s glyphs and sprites;
 //   no public page calls Supabase from the browser, only the admin's login);
@@ -74,6 +76,12 @@ export default function PrivacyPage() {
             behandlas med stöd av berättigat intresse: att visa allmänheten var foodtruckarna står,
             med uppgifter som foodtruckarna själva har publicerat.
           </p>
+          <p>
+            När en foodtruck läggs in får den ett meddelande om det på Instagram, eller i en annan
+            kanal som foodtrucken själv har publicerat om meddelandet inte går att skicka där.
+            Administratören för en egen lista utanför tjänsten med foodtruckens namn och datumet då
+            den fick meddelandet.
+          </p>
         </section>
 
         <section className="flex flex-col gap-3">
@@ -103,6 +111,10 @@ export default function PrivacyPage() {
             <li>
               Foodtruckens namn, Instagramkonto, typ av mat och beskrivning sparas tills foodtrucken
               ber om att bli borttagen.
+            </li>
+            <li>
+              Listan över meddelanden och meddelandena till foodtrucken sparas så länge foodtrucken
+              är med.
             </li>
             <li>En plats raderas 52 veckor efter att den har slutat.</li>
             <li>
@@ -155,14 +167,16 @@ export default function PrivacyPage() {
             Mejla{" "}
             <a className="underline" href={`mailto:${CONTACT}`}>
               {CONTACT}
-            </a>
-            . Varje begäran om borttagning följs, så snart som möjligt och senast inom en månad,
+            </a>{" "}
+            eller skriv till {INSTAGRAM_HANDLE} på Instagram. Varje begäran om borttagning följs, så snart som möjligt och senast inom en månad,
             oavsett om foodtrucken drivs som företag eller av en enskild person. Foodtrucken och alla
             dess platser raderas då på en gång. De finns kvar i säkerhetskopiorna i ungefär fyra
             veckor. Vid en säkerhetsincident eller en återställning kan kopior av databasen finnas
-            kvar längre, se ovan. Svaret du får säger till vilket datum. Mejlet sparas tills
-            uppgifterna har försvunnit även ur kopiorna, så att du kan få veta om det skulle dröja
-            längre, och raderas sedan. Om en säkerhetskopia någon gång återställs, raderas foodtrucken
+            kvar längre, se ovan. Svaret du får säger till vilket datum. Mejlet eller meddelandet sparas
+            tills uppgifterna har försvunnit även ur kopiorna, så att du kan få veta om det skulle
+            dröja längre, och raderas sedan. Foodtruckens Instagramkonto och datumet sparas sedan på
+            en egen lista, så att den inte läggs in igen, tills foodtrucken själv ber om att få vara
+            med. Om en säkerhetskopia någon gång återställs, raderas foodtrucken
             igen som en del av återställningen.
           </p>
           <p>
@@ -170,8 +184,8 @@ export default function PrivacyPage() {
             uppgifter behandlas hanteras som en begäran om borttagning.
           </p>
           <p>
-            Du kan också mejla för att få veta vilka uppgifter som finns om dig, få dem rättade eller
-            få behandlingen begränsad. Andra mejl raderas när ärendet är avslutat. Du har rätt att
+            Du kan också mejla eller skriva för att få veta vilka uppgifter som finns om dig, få dem rättade eller
+            få behandlingen begränsad. Andra mejl och meddelanden raderas när ärendet är avslutat. Du har rätt att
             klaga hos Integritetsskyddsmyndigheten (IMY).
           </p>
           <p>Personuppgiftsansvarig: Oliwer Karlsson, som nås på {CONTACT}.</p>
