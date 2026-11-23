@@ -77,10 +77,9 @@
 // an issue's with it) when the text checks already failed (those exit 1 first, before the
 // lookup that tells a PR from an issue, so the next run names it), a listed number that is the
 // wrong issue, a closing reference in a commit message (secret-scan's job), and a keyword
-// GitHub reads that CLOSING doesn't match (its header's limit); a wrong or stale statement (the claims check and the
-// rounds read those); text
-// posted in the browser, or by `gh` without this script (CLAUDE.md's rule); a review comment
-// on a PR's diff (it posts only issue and PR comments); invisible characters off the list,
+// GitHub reads that CLOSING doesn't match (its header's limit); a wrong or stale statement (the
+// claims check and the rounds read those); text posted in the browser, or by `gh` without this
+// script (CLAUDE.md's rule); a review comment on a PR's diff (it posts only issue and PR comments); invisible characters off the list,
 // though GitHub keeps them too (probe PR #428: the text presentation selector U+FE0E, the
 // narrow no-break space U+202F, a tag character U+E0041); a setext heading (text over `--`),
 // which no heading check reads; a round heading with a number word past "ten"; a round
