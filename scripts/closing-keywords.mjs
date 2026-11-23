@@ -103,7 +103,8 @@ export function closingRefs(text) {
   return [...found.values()];
 }
 
-// Pure. Each closing reference in a text with the issue it names, as { line, ref, number },
+// Pure. Each closing reference in a text with the issue it names, as { line, ref, target,
+// number } (`target` the reference alone, the keyword and what follows it cut),
 // for post-body.mjs's --closes (IS #513). `REFERENCE` ends at the reference's first digit,
 // so a match holds one ("fixes #12" matches as "fixes #1"); the digits after the match are
 // read too, so `number` is the whole one. `number` is null for a reference to a repository
@@ -125,7 +126,7 @@ export function closingNumbers(text, repo) {
       /^https?:\/\/(?:www\.)?github\.com\/([^/]+\/[^/]+)\/(?:issues|pull)\/(\d+)$/i.exec(target) ??
       /^([A-Za-z0-9][\w.-]*\/[\w.-]+)#(\d+)$/.exec(target);
     const number = Number((named ?? /(\d+)$/.exec(target)).at(-1));
-    found.push({ line, ref: ref.trim().replace(/\s+/g, " "), number: named && named[1].toLowerCase() !== here ? null : number });
+    found.push({ line, ref: ref.trim().replace(/\s+/g, " "), target, number: named && named[1].toLowerCase() !== here ? null : number });
   }
   return found;
 }

@@ -450,6 +450,26 @@ describe("main", () => {
       expect(main(["12", file("No closing line here.\n"), "--closes", "511"], { api })).toBe(1);
       expect(console.error).toHaveBeenCalledWith(expect.stringContaining("--closes lists #511, but no closing reference names it"));
     });
+    it("doesn't count a fenced, commented or over-matched form as naming a listed number", () => {
+      quiet();
+      const { api } = pr();
+      for (const body of ["```\nCloses #511\n```\n", "<!--\nCloses #511\n-->\n", "Closes #0511\n", "Closes GH-511\n"]) {
+        expect(main(["12", file(body), "--closes", "511"], { api }), body).toBe(1);
+      }
+      expect(main(["12", file("```\nfixes #12\n```\nCloses #511.\n"), "--closes", "511"], { api }), "a fenced unlisted one").toBe(1);
+      expect(main(["12", file("Closes [#511](https://example.test)\n"), "--closes", "511"], { api }), "the link form").toBe(0);
+    });
+    it("exits 2 when the body form's post fails after the lookup", () => {
+      quiet();
+      const failPatch = (args) => {
+        if (args.includes("PATCH")) throw new Error("gh api failed");
+        if (args[0] === "repo") return "Ollie1994/whereisfood\n";
+        return JSON.stringify({ id: 12, body: "" });
+      };
+      expect(main(["12", file("text\n")], { api: failPatch })).toBe(2);
+      const failPrPatch = (args) => (args[0] === "api" && !args.includes("PATCH") ? JSON.stringify({ pull_request: {} }) : failPatch(args));
+      expect(main(["12", file("Closes #511.\n"), "--closes", "511"], { api: failPrPatch })).toBe(2);
+    });
     it("exits 2 on --issue outside --check", () => {
       quiet();
       const { api, calls } = pr();
@@ -470,7 +490,7 @@ describe("main", () => {
       quiet();
       const { api, calls } = pr();
       expect(main(["12", file("Closes #511.\n"), "--closes", "511"], { api })).toBe(0);
-      expect(calls.slice(0, 2)).toEqual([GET12, REPO]);
+      expect(calls).toEqual([GET12, REPO, ["api", "-X", "PATCH", "repos/{owner}/{repo}/issues/12", "--input", "-"], GET12]);
       expect(main(["12", file("No closing line.\n"), "--closes", "none"], { api })).toBe(0);
       expect(main(["12", file("Fixes #12.\nCloses #14.\n"), "--closes", "12,14"], { api })).toBe(0);
       expect(main(["12", file("Closes ollie1994/WhereIsFood#511\n"), "--closes", "511"], { api })).toBe(0);
