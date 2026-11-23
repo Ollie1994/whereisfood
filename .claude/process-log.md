@@ -2824,8 +2824,8 @@ below).
 
 The text-posting class (746, 747 and 769 in Phase 9) has no row labelled `merged` in this range.
 801 is that class: raw backspaces stored in PR #252's and #331's text, seen only by a
-control-character scan. It is labelled `n/a`, but Phase 9's 746, text stored in a merged PR's
-body, was labelled `merged`, so by that precedent the class has one row past merge.
+control-character scan. It is labelled `n/a`, but Phase 9's 746, text stored in three PRs' and
+issues' bodies, was labelled `merged`, so by that precedent the class has one row past merge.
 
 ### Review rounds
 
