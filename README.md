@@ -613,14 +613,14 @@ address used for this login alone, never the public removal contact (the Phase 1
 decision 6). Its id is in the owner's password manager (`RUNBOOK.md`, "A lost phone"). Its
 TOTP factor is enrolled through the deployed app (#463).
 
-**Variables.** Production's keys go only into Vercel's Production environment variables, in
-the names "Hosted preview database" lists, and its session pooler URL into the gitignored
-`.env.prod-db.local` for the weekly dump ("Backups"). Production gets no variables until
-#463 (the Phase 10 plan, #9). `NEXT_PUBLIC_SUPABASE_URL` is the project URL alone,
-`https://<project-ref>.supabase.co`: the Data API page's "API URL" ends in `/rest/v1/`, and
-copied whole it made `/api/live` answer 500 on #463's first build. A path in the URL,
-`http://` for any host but the local stack's, or whitespace at either end (a trailing space
-or newline included) now fails the build (`src/lib/supabase-url.ts`, IS #497).
+**Variables.** Production's keys go only into Vercel's Production environment variables, in the
+names "Hosted preview database" lists, and its session pooler URL into the gitignored
+`.env.prod-db.local` for the weekly dump ("Backups"). Production got its variables in #463, after
+the first merge into `main` (the Phase 10 plan, #9). `NEXT_PUBLIC_SUPABASE_URL` is the project URL
+alone, `https://<project-ref>.supabase.co`: the Data API page's "API URL" ends in `/rest/v1/`, and
+copied whole it made `/api/live` answer 500 on #463's first build. A path in the URL, `http://` for
+any host but the local stack's, or whitespace at either end (a trailing space or newline included)
+now fails the build (`src/lib/supabase-url.ts`, IS #497).
 
 ---
 
@@ -703,7 +703,7 @@ findings, re-read `--linked` on 2026-11-20, the same five:
 |---|---|
 | WARN `auth_leaked_password_protection` | Accepted: Pro only, and the admin's password is long and random (IS #378) |
 | INFO `rls_enabled_no_policy` on `public.trucks` and `public.locations` | By design: anon and authenticated hold no grant on them (`role_table_grants` on the preview, 2026-11-18: only `authenticated`'s `SELECT` on `users`); for anon it is `CLAUDE.md`'s rule (Supabase) |
-| INFO `unindexed_foreign_keys`: `locations_created_by_fkey`, `users_truck_id_fkey` | Accepted on tables this small; Phase 10 reads it again with production's data |
+| INFO `unindexed_foreign_keys`: `locations_created_by_fkey`, `users_truck_id_fkey` | Accepted on tables this small; production's run reported it too ("Production", above), and it is read again once production holds data |
 
 **Vercel** (project `whereisfood`):
 
@@ -732,7 +732,7 @@ preview, except a `dependabot/` or `probe/` branch, which the Ignored Build Step
 cancels. Only `dev`'s build gets the secret key; another branch's build, with today's
 code, fails without it (both below). One push built as Production instead (the mislabelled first deployment,
 below). Production builds from `main`, which was
-created at `dev`'s commit and built nothing; the next push to `main` is Phase 10's.
+created at `dev`'s commit and built nothing until Phase 10's first merge into it (IS #461).
 
 **Project settings** (set in #187, 2026-11-02):
 
@@ -805,8 +805,9 @@ below).
   as project config wasn't looked up, so the check is that wide match, not a list of names.
 - Not seen: the cancel of a Production build from a branch other than `main`.
 
-**Environment variables**, all four of `.env.example`'s, scoped to **Preview** only
-(none in Production or Development), the secret key to `dev`'s previews alone:
+**Environment variables**, all four of `.env.example`'s, scoped to **Preview** (none in
+Development; Production's own are "Production"'s, above), the secret key to `dev`'s previews
+alone:
 
 | Variable | Vercel type | Scope | Value |
 |---|---|---|---|
@@ -824,8 +825,9 @@ Preview (#187's PR). Why Vercel labelled it Production wasn't found.
 **Production had no variables until Phase 10.** "Standard Protection" is, in Vercel's
 API, `prod_deployment_urls_and_all_previews` (its docs, "Vercel Authentication"): the
 production domain isn't in it and stays public. That mislabelled branch build failed
-instead of serving on `whereisfood-theta.vercel.app` only because Production has no
-variables and `src/lib/supabase.ts` throws at import without them. The Ignored Build
+instead of serving on `whereisfood-theta.vercel.app` only because Production had no
+variables then and `src/lib/supabase.ts` throws at import without them; with Production's
+variables set, the Ignored Build Step is what stops such a build. The Ignored Build
 Step above is set to cancel such a build by its branch (what has been seen of it: "The
 Ignored Build Step's checks"). Phase 10 gave Production its variables after checking that it
 was still set and that no `vercel.json` overrode it ("A branch's `vercel.json`", above; IS
