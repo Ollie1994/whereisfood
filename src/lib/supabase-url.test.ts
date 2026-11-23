@@ -15,12 +15,13 @@ describe("supabaseProjectUrl", () => {
     expect(supabaseProjectUrl("http://[::1]:54321")).toBe("http://[::1]:54321");
   });
 
-  // `csp.ts` reads the raw value, so one supabase-js would trim still breaks the `/admin` CSP.
+  // `csp.ts` reads the raw value: of these, `new URL` throws on the leading byte-order mark, so
+  // the `/admin` CSP would lose Supabase's origin; the others go with it (`supabase-url.ts`).
   // Written from code points, not as the characters (`CLAUDE.md`, "Invisible characters").
-  it("refuses anything trim() removes at an end: a space, a byte-order mark, a no-break space", () => {
+  it("refuses whitespace at an end, what trim() removes", () => {
     const bom = String.fromCodePoint(0xfeff);
     const nbsp = String.fromCodePoint(0xa0);
-    const message = "Bad env: NEXT_PUBLIC_SUPABASE_URL has a space or an invisible character at an end";
+    const message = "Bad env: NEXT_PUBLIC_SUPABASE_URL has whitespace at an end";
     expect(() => supabaseProjectUrl(`${bom}https://abcdefghijklmnopqrst.supabase.co`)).toThrow(message);
     expect(() => supabaseProjectUrl(`https://abcdefghijklmnopqrst.supabase.co/${nbsp}`)).toThrow(message);
     expect(() => supabaseProjectUrl(" https://abcdefghijklmnopqrst.supabase.co")).toThrow(message);
@@ -77,8 +78,9 @@ describe("supabaseProjectUrl", () => {
     );
   });
 
-  it("says the variable is missing when it is empty or unset", () => {
+  it("says the variable is missing when it is empty, whitespace or unset", () => {
     expect(() => supabaseProjectUrl("")).toThrow("Missing env: NEXT_PUBLIC_SUPABASE_URL");
+    expect(() => supabaseProjectUrl(" \n")).toThrow("Missing env: NEXT_PUBLIC_SUPABASE_URL");
     expect(() => supabaseProjectUrl(undefined)).toThrow("Missing env: NEXT_PUBLIC_SUPABASE_URL");
   });
 });

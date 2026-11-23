@@ -597,9 +597,9 @@ the names "Hosted preview database" lists, and its session pooler URL into the g
 `.env.prod-db.local` for the weekly dump ("Backups"). Production gets no variables until
 #463 (the Phase 10 plan, #9). `NEXT_PUBLIC_SUPABASE_URL` is the project URL alone,
 `https://<project-ref>.supabase.co`: the Data API page's "API URL" ends in `/rest/v1/`, and
-copied whole it made `/api/live` answer 500 on #463's first build. A path in the URL, or
-`http://` for any host but the local stack's, now fails the build (`src/lib/supabase-url.ts`,
-IS #497).
+copied whole it made `/api/live` answer 500 on #463's first build. A path in the URL,
+`http://` for any host but the local stack's, or whitespace at either end (a trailing space
+or newline included) now fails the build (`src/lib/supabase-url.ts`, IS #497).
 
 ---
 

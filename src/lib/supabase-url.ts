@@ -11,10 +11,13 @@
 // (IS #497's PR has the build's output).
 //
 // Also refused here, naming the variable:
-// - a value with anything `trim()` removes at an end (a space, a byte-order mark, a no-break
-//   space): supabase-js trims it (`validateSupabaseUrl`, `dist/index.cjs`), but `csp.ts` reads
-//   the raw value, and `new URL` throws on a leading byte-order mark, so the `/admin` CSP would
-//   leave Supabase's origin out and block the login (round 4 on PR #498, a node probe);
+// - a value with whitespace at an end, what `trim()` removes (a space, a newline, a byte-order
+//   mark, a no-break space): supabase-js trims it (`validateSupabaseUrl`, `dist/index.cjs`), but
+//   `csp.ts` reads the raw value. `new URL` throws on a leading byte-order mark or no-break
+//   space, or a no-break space right after the host, so the `/admin` CSP would leave Supabase's
+//   origin out and block the login; it read a leading or trailing space, a trailing newline or
+//   byte-order mark, and a no-break space after `/` as the right origin (node probes, rounds 4
+//   and 5 on PR #498). One rule refuses the whole class;
 // - a value that isn't an `http://` or `https://` URL (a host pasted without its scheme), by
 //   supabase-js's own test, `/^https?:\/\//i`, which it would refuse after with "Invalid
 //   supabaseUrl: …" (`dist/index.cjs`);
@@ -29,13 +32,14 @@ const NOT_HTTP =
   "Bad env: NEXT_PUBLIC_SUPABASE_URL is not an http(s) URL; it must be the project URL alone, https://<ref>.supabase.co";
 
 // The local hosts `tests/integration/setup.ts` admits; `supabase-url.test.ts` compares the two.
-export const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
+export const LOCAL_HOSTS: ReadonlySet<string> = new Set(["127.0.0.1", "localhost", "[::1]"]);
 
 export function supabaseProjectUrl(value: string | undefined): string {
-  if (!value) throw new Error("Missing env: NEXT_PUBLIC_SUPABASE_URL");
+  // Whitespace alone is as good as unset.
+  if (!value?.trim()) throw new Error("Missing env: NEXT_PUBLIC_SUPABASE_URL");
   if (value !== value.trim()) {
     throw new Error(
-      "Bad env: NEXT_PUBLIC_SUPABASE_URL has a space or an invisible character at an end; it must be the project URL alone, https://<ref>.supabase.co",
+      "Bad env: NEXT_PUBLIC_SUPABASE_URL has whitespace at an end (a space, a newline, a byte-order mark, a no-break space); it must be the project URL alone, https://<ref>.supabase.co",
     );
   }
   // `https:host` (no `//`), which `new URL` reads as `https://host/`, fails this test too.
