@@ -875,9 +875,9 @@ until it is deleted, at most 8 weeks after the restore. The rows go at the lates
 dates (`RUNBOOK.md`, "A takedown request").
 
 `tests/integration/takedown.test.ts` runs the file on the local stack, as `postgres`. The
-preview's SQL editor runs as `postgres` too (IS #454's probe), but hasn't run this file, and
-production's role isn't probed yet (#464). An error in either editor changes nothing, as in
-step 3.
+preview's SQL editor runs as `postgres` too (IS #454's probe), and so does production's (IS
+#464's repeat of it, 2026-11-23); neither has run this file. An error in either editor
+changes nothing, as in step 3.
 
 ---
 

@@ -19,7 +19,8 @@
 -- a role that may delete from it but has no BYPASSRLS and doesn't own it deletes none of its
 -- rows with no error (one made so on the local stack: 0 rows). The preview's SQL editor runs
 -- as `postgres`, which deleted one of them in a rolled-back probe (IS #454, 2026-11-20);
--- production's is #464's.
+-- production's did the same (IS #464, 2026-11-23), and showed `0 | 0` running this file whole
+-- after the first weekly dump.
 --
 -- `tests/integration/retention.test.ts` runs it on the local stack, as `postgres`.
 with deleted_locations as (
