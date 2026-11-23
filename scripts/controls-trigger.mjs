@@ -57,6 +57,7 @@ export const TRIGGERS = [
   "src/lib/db/",
   "src/lib/supabase.ts",
   "src/lib/supabase-session.ts",
+  "src/lib/supabase-url.ts",
   "src/lib/database.types.ts",
   "src/lib/types.ts",
   "package.json",

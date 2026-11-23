@@ -816,8 +816,9 @@ container. In this order, since the login has to reach the new project:
    ```
 
 4. **Vercel's Production variables:** `NEXT_PUBLIC_SUPABASE_URL`,
-   `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` set to the new project's.
-   Then redeploy Production.
+   `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` set to the new project's,
+   the URL the project URL alone (README's "Production", "Variables"). Then redeploy
+   Production.
 5. **Log in and enroll TOTP at once** (README's "Restoring", step 5), now that the app points
    at the new project. Then look at `/karta`.
 6. **The old project:** pause it now that the new one works, which also frees its slot, and
