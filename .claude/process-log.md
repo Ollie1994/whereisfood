@@ -1256,6 +1256,7 @@ Old rows that point at them are now pointing there: "see note" (rows 14, 15, 17,
 | 963 | 2026-11-23 | PR #514 / IS #466 | `process-log` | `/code-review` round 1 on #514, full, found 10 (5 important, 5 nits); all applied. **The retrospective miscounted from hits it hadn't read whole: 803, 808 and 810 called "other things" though each records a check that couldn't fail; 935 left out of the claims check's catches; 920 called unchecked. And #513's spec reused `CLOSING`, which matches one digit, and left `--check` without `--closes`, so a new PR body posted unchecked.** Also: the parser; `closing-keywords.mjs`'s header; "new" escapes; the mid-phase issues; "fixed where it arose". | `code-review` r1 on PR #514, full | `pre-merge` | `imprecise-claim` | Five checks that couldn't fail; 935 added; 920 as a check that stopped short; #513 reads the number whole, requires `--closes` or `--issue` on `--check`, names the parser and the header; `production` the first; the parts reworded; each escape's finder and fix named. |
 | 964 | 2026-11-23 | PR #514 / IS #466 | `process-log` | `/code-review` round 2 on #514, scoped to round 1's fixes, found 10 (3 important, 7 nits); all applied. **Round 1's required `--closes` or `--issue` would break the two documented calls that run the script bare (`/create-issues` Step 7, RUNBOOK's release posting), which #513 left out; its three-and-one split named no row and was wrong, as 936's own check stopped short too; and "went back to `--fail-on error`" named a form that never existed.** Also: 936's finder; 920's fix; 794; listed numbers unreferenced; `--issue` elsewhere; case; the action's rule. | `code-review` r2 on PR #514, scoped to `9adcb9b..332dc10` | `pre-merge` | `overcorrection` | #513's Files gain `create-issues.md` and RUNBOOK; two without a check (884, 915), two that stopped short (936, 920); "became"; `curl` for 936; 920's three removals; 794 as 635's probe; an unreferenced listed number fails; `--issue` only on `--check`; owner and repo case-insensitive. |
 | 965 | 2026-11-23 | PR #514 / IS #466 | `process-log` | `/code-review` round 3 on #514, full, found 8 (2 important, 6 nits); all applied. **Round 2's `--closes none` for RUNBOOK's sync PR would refuse its "Closes #<sync issue>", which every sync so far carried (#490, #496, #505), with its reason true only of the PR into `main`; and the section put Phase 9's #419 among issues outside any milestone.** Also: part 5's bare `--check`; the repository's source in #513; 935 and 936 as checks that couldn't show it; 801 unnamed; 854 misfiled; long lines. | `code-review` r3 on PR #514, full | `pre-merge` | `overcorrection` | The sync PR takes `--closes <its issue>`, `none` only for a fix's sync; #419 with Phase 9's work; part 5 in #513's Files; `gh repo view` as the source, with a case; 7 rows that couldn't fail; 801 named as `n/a`; 854 with what runs; lines rewrapped. |
+| 966 | 2026-11-23 | PR #514 / IS #466 | `process-log` | `/code-review` round 4 on #514, scoped to round 3's fixes, found 7 (2 important, 5 nits); all applied. **Round 3's `gh repo view` source disagreed with Files' literal repository, and made `--check --issue` fail offline though it applies no rule; and its reason for 801's `n/a` contradicted 746's `merged` precedent.** Also: 936 under two labels with its search unnamed and 842 unsettled; 854's four sites cut to two; a short line; RUNBOOK's private-vulnerability posts. | `code-review` r4 on PR #514, scoped to `04e1486..bd31221` | `pre-merge` | `overcorrection` | Files writes `<owner>/<name>`; the repository read only when a rule applies, with a case; 801 labelled `n/a` with 746's precedent stated; the second search named, 842 ruled out, 936 one label; 854's four sites; reflowed; RUNBOOK's steps 3 and 5 in #513. |
 
 ---
 
@@ -2817,13 +2818,14 @@ Each was found after merge, by a later check on the real target, and then fixed:
   address were removed.
 
 Who found them: `self` for 884, 915 and 936; `user` for 920. No review found any of them
-before merge. The Phase 9 retrospective
-offered a stand-ins field for this class, and it wasn't taken (#422). This one offered
-`hosted:` lines in `claims.sh`, also not taken ("New actions", below).
+before merge. The Phase 9 retrospective offered a stand-ins field for this class, and it wasn't
+taken (#422). This one offered `hosted:` lines in `claims.sh`, also not taken ("New actions",
+below).
 
-The text-posting class (746, 747 and 769 in Phase 9) has no `merged` row in this range. 801 is
-that class: raw backspaces stored in PR #252's and #331's text, seen only by a control-character
-scan. It is `n/a`, since it came from #403's own PR, before the helper merged.
+The text-posting class (746, 747 and 769 in Phase 9) has no row labelled `merged` in this range.
+801 is that class: raw backspaces stored in PR #252's and #331's text, seen only by a
+control-character scan. It is labelled `n/a`, but Phase 9's 746, text stored in a merged PR's
+body, was labelled `merged`, so by that precedent the class has one row past merge.
 
 ### Review rounds
 
@@ -2890,10 +2892,12 @@ was to keep all eight unchanged.
   - 803, a fence test (PR #426), and 808, two tests, and 810, an edge test (PR #429), all in
     `post-body.mjs`'s work.
 
-  794 matches for row 635's probe, a Phase 8 row outside the range. Two more say it in other
-  words the grep doesn't match: 935 (`git diff --word-diff`, which "compares words, and every
-  word was unchanged") and 936 (a check that "read only the ref's first letters, which can't show
-  a path"). So 7 rows, a floor (Phase 9: 2 by the grep, and 763 in other words).
+  794 matches for row 635's probe, a Phase 8 row outside the range. A second search of the Miss
+  cells, for `can.t show|showed nothing`, finds 842, 935 and 936. 935 is such a check (`git diff
+  --word-diff`, which "compares words, and every word was unchanged"), and so is 936, the check
+  that stopped short above (it "read only the ref's first letters, which can't show a path"). 842
+  is a dropped limit, not a check. So 7 rows, a floor (Phase 9: 2 by the grep, and 763 in other
+  words).
 
 **3. `scripts/process-log.sh check`. Keep, unchanged.** No row in the range records a commit
 made without waiting on `add` or `check`. A grep of the Miss cells for `process-log.sh`,
@@ -2923,11 +2927,11 @@ cells ("Review rounds" above).
   #473 (rounds 5–8, 880–883), #476 (round 5, 893), #487 (round 5, 926) and #498 (round 5, 942).
 - **What those rounds found,** by each row's headline:
   - in procedures and plan steps that would have run: 854 (gate sites that missed the root 404's
-    link and the matcher's entry), 856 (two of the plan's choices on
-    unread behaviour), 857 (a release step that couldn't merge), 880–883 (a restore and a
-    leak that left the old project live, unchecked leftovers, evidence not exported), 893 (a
-    takedown exempt from the identity check) and 926 (incident steps that rotated before
-    securing the account);
+    link to `/map`, the matcher entry and `proxy.test.ts`'s case, with README's two sentences
+    on `/`, a claim, beside them), 856 (two of the plan's choices on unread behaviour), 857 (a
+    release step that couldn't merge), 880–883 (a restore and a leak that left the old project
+    live, unchecked leftovers, evidence not exported), 893 (a takedown exempt from the identity
+    check) and 926 (incident steps that rotated before securing the account);
   - in claims and records: 815, 849 and 942.
 - **And one escape came from them.** Round 6 on #473 introduced the `--db-url` form that merged
   untried (884). Neither measure shows whether a dropped round would have prevented a `merged`
@@ -2943,9 +2947,9 @@ cells ("Review rounds" above).
   New action 1 adds a refusal in the post itself.
 
 **8. The posting helper, `scripts/post-body.mjs` (#403). Keep, unchanged.**
-- **What it caught.** No text-posting miss merged (Phase 9: 746, 747, 769); 801, from #403's own
-  PR, is `n/a` ("By `Caught by`" above). #427 widened its checks, and #430 applied them to
-  tracked files.
+- **What it caught.** No text-posting row is labelled `merged` (Phase 9: 746, 747, 769); 801 is
+  `n/a`, though 746's precedent would count it ("By `Caught by`" above). #427 widened its
+  checks, and #430 applied them to tracked files.
 - **Two limits seen:**
   - 848, a placeholder posted, since a placeholder is ordinary text;
   - 867, the helper bypassed by `gh issue close --comment`.
