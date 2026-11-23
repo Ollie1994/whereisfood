@@ -282,18 +282,26 @@ Cloudflare dashboard (no API token needed):
       `whereisfood-theta.vercel.app` Vercel assigned, IS #458), has its own origin.
     - `whereisfood-theta.vercel.app` has none: it is set to redirect (307) to
       `vararmaten.vercel.app` (Settings → Domains, IS #458), so no page is meant to load on
-      it. Until a production deployment exists it answers `404` `DEPLOYMENT_NOT_FOUND`, so the
-      redirect itself hasn't been seen (the plan's step 17, #464, checks it).
+      it. Seen once production existed: `307` to `https://vararmaten.vercel.app/` (IS #464,
+      2026-11-23).
     - `whereisfood-where-is-food.vercel.app`, the `<project>-<scope-slug>.vercel.app` alias
-      Vercel's docs give for CLI deploys and say points to the production deployment once
-      there is one, has none yet. Its `DEPLOYMENT_NOT_FOUND` tells nothing either way
-      (`vararmaten.vercel.app` answers the same until production exists), and another account
-      could hold the same host, by a project of that name or `whereisfood-where` under the
-      slug `is-food`. Step 17 (#464) checks Vercel's own record, whether it is listed among
-      the production deployment's domains in the project's dashboard, not the page it serves,
-      which anyone could copy; if it is, an issue of its own gives it an origin (the owner's
-      call, round 3 on PR #486).
-    - A production deployment's commit-form URL is in the pattern like a preview's.
+      Vercel's docs give for CLI deploys, is this project's: Vercel lists it under "Assigned
+      Domains" on the production deployment (IS #464, 2026-11-23), Vercel's own record, not
+      the page it serves, which anyone could copy. It gets no origin (the owner's call on IS
+      #506, replacing round 3 on PR #486's "if it is, an issue of its own gives it an origin"):
+      only someone past Vercel's login, today the owner alone, reaches it (without it, it
+      answers `302` to `vercel.com/sso-api`), or a request carrying the project's bypass secret
+      ("Preview deploys"; with it, `/om` and `/api/live` answered `200` there, `302` without, PR
+      #508), and `/karta` shows the map only to the admin at `aal2`. The worst case is `/karta`
+      on the alias with no tiles, on an address nobody uses. Any of these brings the question
+      back: Vercel Authentication turned off, or set to a mode that leaves production deployment
+      URLs public; a Shareable Link or a Deployment Protection Exception (both in the "Hosted
+      settings checklist", which points here); or the gate's removal (Phase 11), when `/karta`
+      shows the map to anyone who reaches the alias.
+      <!-- SOFT-LAUNCH GATE (Phase 10 plan #5): the alias's no-origin call is asked again at the full launch (the removal list in src/app/karta/page.tsx). -->
+    - A production deployment's commit-form URL is in the pattern like a preview's, and so is
+      its branch form, `whereisfood-git-main-where-is-food.vercel.app` (listed on the
+      deployment, IS #464).
     - **`whereisfood.vercel.app` is not this project's** and gets no origin: before any
       production deployment existed it answered `200` with another owner's page, titled
       "今天吃啥呢？".
@@ -688,9 +696,9 @@ findings, re-read `--linked` on 2026-11-20, the same five:
 
 | Setting | Value | Why |
 |---|---|---|
-| Deployment Protection → Vercel Authentication | On, Standard Protection | Standard Protection leaves the production domain public ("Preview deploys", below) |
+| Deployment Protection → Vercel Authentication | On, Standard Protection | Standard Protection leaves the production domain public ("Preview deploys", below). Turning it off, or to a mode that leaves production deployment URLs public, reopens the `whereisfood-where-is-food.vercel.app` alias's CORS call ("Get the map tiles", IS #506) |
 | Deployment Protection → Protection Bypass for Automation | One secret, the system variable | "Preview deploys", below; the value stays out of the repo |
-| Deployment Protection → Shareable Links; Deployment Protection Exceptions | None; none | A link or an exception would open a deployment without a Vercel login |
+| Deployment Protection → Shareable Links; Deployment Protection Exceptions | None; none | A link or an exception would open a deployment without a Vercel login, and reopens the `whereisfood-where-is-food.vercel.app` alias's CORS call ("Get the map tiles", IS #506) |
 | Deployment Protection → OPTIONS Allowlist; Protected Sourcemaps | Off; On | Kept as found |
 | Deployment Protection → Password Protection; Trusted IPs | Off; off | Not on Hobby: Password Protection is Pro, Trusted IPs Enterprise |
 | Deployment Protection → Trusted Sources | This project: all its tokens reach their own environment, and its `development` tokens reach `preview` | Kept as found |
@@ -876,9 +884,9 @@ until it is deleted, at most 8 weeks after the restore. The rows go at the lates
 dates (`RUNBOOK.md`, "A takedown request").
 
 `tests/integration/takedown.test.ts` runs the file on the local stack, as `postgres`. The
-preview's SQL editor runs as `postgres` too (IS #454's probe), but hasn't run this file, and
-production's role isn't probed yet (#464). An error in either editor changes nothing, as in
-step 3.
+preview's SQL editor runs as `postgres` too (IS #454's probe), and so does production's (IS
+#464's repeat of it, 2026-11-23); neither has run this file. An error in either editor
+changes nothing, as in step 3.
 
 ---
 
