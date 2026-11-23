@@ -15,16 +15,39 @@
 // - A fill script duplicated half of PR #398's body (row 735), and another inserted no round
 //   sections into PRs #408 and #409 (row 769).
 //
-//   node scripts/post-body.mjs <issue-or-PR-number> <file> [--rounds]
-//     Replaces the issue's or PR's body with the file.
+//   node scripts/post-body.mjs <issue-number> <file>
+//   node scripts/post-body.mjs <PR-number> <file> --closes <n,...|none> [--rounds]
+//     Replaces the issue's or PR's body with the file. Whether the number is a PR is read
+//     from its issue record first (GitHub gives a PR's a `pull_request` key): a PR's body
+//     needs --closes, and an issue's takes none (exit 2 otherwise, nothing posted).
 //   node scripts/post-body.mjs --comment <issue-or-PR-number> <file>
 //     Adds the file as a new comment. If anything fails after the comment is made, the
 //     message names its id and URL, to fix with --edit-comment rather than post another.
 //   node scripts/post-body.mjs --edit-comment <comment-id> <file>
 //     Replaces an existing comment's text with the file.
-//   node scripts/post-body.mjs --check <file>
-//     Runs the checks below and posts nothing: for a new issue or PR, before `gh issue create`
-//     or `gh pr create --body-file`; then the first form, on the same file, reads it back.
+//   node scripts/post-body.mjs --check <file> --closes <n,...|none>
+//   node scripts/post-body.mjs --check <file> --issue
+//     Runs the checks below and posts nothing: for a new PR with --closes, before `gh pr
+//     create --body-file`, and for a new issue with --issue, before `gh issue create`; then
+//     the first form, on the same file, reads it back. One of the two is required (exit 2
+//     with neither or both), so a check that skips the closing rule says so. --check --issue
+//     makes no `gh` call.
+//
+// The closing rule (IS #513, the Phase 10 retrospective's new action 1): on a PR's body and
+// on --check --closes. A closing keyword before an issue reference in a PR body closes that
+// issue when the PR merges into `dev`; three reached PR bodies in Phase 10 (process-log rows
+// 932 and 954), caught only by the claims check read after the post. --closes lists the
+// issues the PR closes, as numbers with no leading zero separated by commas, or `none`. Each
+// match of closing-keywords.mjs's CLOSING, its number read whole (`closingNumbers`), must
+// name a listed number in this repository: `#<n>`, `GH-<n>`, `<owner>/<name>#<n>` or an
+// issue or pull URL, the owner and name compared case-insensitively with `gh repo view`'s,
+// which is read only when the rule runs, so a private advisory fork reads its own. A
+// reference to another repository fails even with its number listed (an over-match, as
+// CLOSING over-matches), and so does a listed number no reference names (a "Closes #n"
+// dropped while editing). Each fails before anything is posted (exit 1); a failed `gh repo
+// view` is exit 2. --closes on a comment or --edit-comment, --issue outside --check, and a
+// --closes value missing, empty, given twice, written `--closes=<list>` or with a leading
+// zero are bad arguments (exit 2).
 //
 // The checks, before anything is posted (exit 1, nothing posted): a raw control character
 // (all of C0 but tab, LF and CR); an invisible character (the no-break space, the soft
@@ -51,7 +74,10 @@
 // the ends of lines or of the text. Exits 2 on bad arguments (a number with a leading zero
 // among them), an unreadable file or log, or a failed `gh` call; 0 when all is well.
 //
-// Does not catch: a wrong or stale statement (the claims check and the rounds read those); text
+// Does not catch: for the closing rule, a listed number that is the wrong issue, a closing
+// reference in a commit message (secret-scan's job), and a keyword GitHub reads that CLOSING
+// doesn't match (its header's limit); a wrong or stale statement (the claims check and the
+// rounds read those); text
 // posted in the browser, or by `gh` without this script (CLAUDE.md's rule); a review comment
 // on a PR's diff (it posts only issue and PR comments); invisible characters off the list,
 // though GitHub keeps them too (probe PR #428: the text presentation selector U+FE0E, the

@@ -33,8 +33,9 @@
 // it, so an italic keyword counts, and so does one ending a snake_case name ("auto_close"
 // before an issue number): an over-match, kept for the italic one (round 2 on PR #371).
 //
-// Does not catch: a form GitHub reads that the page doesn't list; a keyword in a PR body
-// (`--lines` lists those); a title changed after the run that read it, since ci.yml has no
+// Does not catch: a form GitHub reads that the page doesn't list; a keyword in a PR body,
+// which post-body.mjs's --closes refuses at the post unless the PR closes that issue (IS #513;
+// `--lines` still lists them); a title changed after the run that read it, since ci.yml has no
 // `edited` trigger (its header says why), though GitHub's merge commit carries the title as
 // it is at merge. Nothing refuses a message at commit time: the commit-msg hook runs Gitleaks
 // only (the owner's call, round 1 on PR #371). A red check is fixed on the PR's branch:

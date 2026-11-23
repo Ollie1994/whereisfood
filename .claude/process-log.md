@@ -104,7 +104,7 @@ quoting the one-line rule this replaced.)
    adjusting or retiring an old one) becomes an issue: written in the `/create-issues`
    issue format, checked against its Step 5 list (Failure modes included: an action is
    a mechanism, so usually a guard), and created through its Steps 6–7 (pre-flight
-   checks, `post-body.mjs --check`, `--body-file`, then the script on the same file). Its
+   checks, `post-body.mjs --check --issue`, `--body-file`, then the script on the same file). Its
    Steps 1–4 don't apply: there is no plan to break down.
    One issue may carry several small changes, as #142 carried #128's.
 6. **Order, blocking and closing.** A plan's closing steps are this retrospective and

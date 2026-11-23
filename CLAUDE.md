@@ -613,11 +613,14 @@ uncommitted on `dev`. Every doc change then has a reviewable diff and a
   still a doc: a corrected claim there gets the same sweep as one in a file ("Review
   rounds" below; process-log rows 269, 271).
 - **Issue and PR text is posted through `scripts/post-body.mjs`** (IS #403), from a file: a
-  body with `node scripts/post-body.mjs <n> <file>` (`--rounds` on a PR body once it has a
-  round section), a new comment with `--comment <n> <file>`, a change to one with
-  `--edit-comment <id> <file>`. A new issue or PR: `--check <file>` first, then `gh issue
+  body with `node scripts/post-body.mjs <n> <file>` (on a PR's body, `--closes <n,...|none>`
+  naming the issues it closes, and `--rounds` once it has a round section), a new comment
+  with `--comment <n> <file>`, a change to one with `--edit-comment <id> <file>`. A new issue
+  or PR: `--check <file> --issue` or `--check <file> --closes <list>` first, then `gh issue
   create` or `gh pr create --body-file` with that file, then the first form on the same
-  file, which reads it back. It refuses, before posting, a raw control character, an
+  file, which reads it back. On a PR's body it refuses a closing keyword before an issue it
+  wasn't told the PR closes, another repository's, and a listed issue no keyword names (IS
+  #513). It refuses, before posting, a raw control character, an
   invisible character (the script's `INVISIBLE_NAMES`: the no-break space, soft hyphen,
   zero-width characters, line and paragraph separators, bidi controls, U+FE0F and the
   byte-order mark; GitHub stores them unchanged, probe PR #428, so no read-back shows them;
@@ -736,8 +739,9 @@ hit, do one of three things:
 
 It also prints, as `closing:`, each line of the PR body (and of each other file or `--was`
 <new>) with a closing keyword before an issue reference. In the PR body, confirm each names
-only an issue the PR closes: merging into `dev` closes every one. In an issue body they close
-nothing (IS #368).
+only an issue the PR closes: merging into `dev` closes every one. `post-body.mjs --closes`
+now refuses an unlisted one in a PR body before posting (IS #513); the `closing:` lines are
+still read for the other files. In an issue body they close nothing (IS #368).
 
 Record the hit count and how each was settled in the PR body, under the round the
 check comes before (the first round's goes in the body as opened). The script lists
