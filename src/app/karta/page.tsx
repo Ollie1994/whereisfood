@@ -19,8 +19,9 @@ import { createSessionClient, readOnlyCookies } from "@/lib/supabase-session";
 //   keeps its cookies, which `readOnlyCookies` can't delete, until something clears them, as
 //   `admin-auth.ts`'s time-box limit says; so each `/karta` load till then asks Auth again
 //   (`requireAdmin`'s `getUser`) before redirecting.
-// - `createSessionClient` throws on a missing Supabase URL or anon key before any check, so
-//   `/karta` then answers its error page, not the redirect; the rest of the app needs them too.
+// - `createSessionClient` throws on a missing Supabase URL or anon key, or a bad URL
+//   (`supabase-url.ts`), before any check, so `/karta` then answers its error page, not the
+//   redirect; the rest of the app needs them too.
 // - `/karta` is a function run per request now, not a static page. A request with a cookie named
 //   like a session (`hasSessionCookie`) gets past the cookie check and costs Auth calls
 //   (`getSession`, which refreshes a cookie past its `expires_at`, then `getUser`), as it does

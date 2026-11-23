@@ -193,11 +193,12 @@ async function answerFor(request: NextRequest): Promise<NextResponse> {
     // method and body at the login page (as logout's comment says, #28).
     return carry(written, NextResponse.redirect(new URL(LOGIN, request.url), 303));
   } catch (err) {
-    // `withErrorHandling` doesn't wrap the proxy, so a throw (a missing variable) would
-    // otherwise be Next's error page (#32). A limit: a page then shows the "try again in a
-    // moment" page even when the cause is lasting, such as a missing variable; the
-    // server's log names it. Its "Logga ut" doesn't help then: `/auth/logout` builds the
-    // same session client outside its `try` and answers 500 `{ error }`.
+    // `withErrorHandling` doesn't wrap the proxy, so a throw (a missing variable, or a bad
+    // Supabase URL, `supabase-url.ts`) would otherwise be Next's error page (#32). A limit: a
+    // page then shows the "try again in a moment" page even when the cause is lasting, such
+    // as a missing variable or a bad URL; the server's log names it. Its "Logga ut" doesn't
+    // help then: `/auth/logout` builds the same session client outside its `try` and answers
+    // 500 `{ error }`.
     console.error("[proxy] unhandled error:", err);
     if (isApi) {
       return NextResponse.json(

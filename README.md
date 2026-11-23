@@ -788,7 +788,7 @@ below).
 
 | Variable | Vercel type | Scope | Value |
 |---|---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Config | Preview | the hosted preview project's URL |
+| `NEXT_PUBLIC_SUPABASE_URL` | Config | Preview | the hosted preview project's URL alone, `https://<project-ref>.supabase.co` ("Production", "Variables", says why) |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Config | Preview | its publishable key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Secret | Preview, branch `dev` (set 2026-11-13, PR #311: a branch's `vercel.json` can override the Ignored Build Step, above) | its secret key |
 | `NEXT_PUBLIC_PMTILES_URL` | Config | Preview | the R2 file's URL |
