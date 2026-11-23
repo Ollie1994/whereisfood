@@ -1254,6 +1254,7 @@ Old rows that point at them are now pointing there: "see note" (rows 14, 15, 17,
 | 961 | 2026-11-23 | PR #512 / IS #511 | `docs` | `/code-review` round 4 on #512, scoped to round 3's fixes, found 9 (2 important, 7 nits); all applied. **Step 3's "DM thread" took in a removal request mailed back to it, which a mail takedown then deleted at once, before the copies aged out; and a re-listing request was confirmed through a row a do-not-listed truck no longer has.** Also: a stray "a" in #13; step 5's one reply; "no copy holds the truck"; other channels and the second message; "refused before entry"; the re-listing mail kept; #4 contradicting its note. | `code-review` r4 on PR #512, scoped to `ccce76b..8667ea0` | `pre-merge` | `overcorrection` | A request in step 3's thread is kept as a request mail; re-listing confirmed through the line's handle, its mail deleted once answered; #13 rewrapped; step 5 every reply, "no backup"; any channel and the second message covered; "whether taken down or not yet entered"; #4 amended. |
 | 962 | 2026-11-23 | PR #514 / IS #466 | `process-log` | Correcting #514's claims record for its missed `closing:` line, I wrote "none in the body" for the body's claims hits without running the check on the body; it lists the owner's calls and the record's own lines. The same class as rows 819 and 958 (a check's result written before the check ran), a third time (819 on 2026-11-19, 958 today), in the retrospective that counts them. | `self`, re-running the claims check on the body right after posting the correction | `pre-merge` | `gate-skipped` | The record names the body's hits and how each is backed, and points here; the body reposted before round 1. |
 | 963 | 2026-11-23 | PR #514 / IS #466 | `process-log` | `/code-review` round 1 on #514, full, found 10 (5 important, 5 nits); all applied. **The retrospective miscounted from hits it hadn't read whole: 803, 808 and 810 called "other things" though each records a check that couldn't fail; 935 left out of the claims check's catches; 920 called unchecked. And #513's spec reused `CLOSING`, which matches one digit, and left `--check` without `--closes`, so a new PR body posted unchecked.** Also: the parser; `closing-keywords.mjs`'s header; "new" escapes; the mid-phase issues; "fixed where it arose". | `code-review` r1 on PR #514, full | `pre-merge` | `imprecise-claim` | Five checks that couldn't fail; 935 added; 920 as a check that stopped short; #513 reads the number whole, requires `--closes` or `--issue` on `--check`, names the parser and the header; `production` the first; the parts reworded; each escape's finder and fix named. |
+| 964 | 2026-11-23 | PR #514 / IS #466 | `process-log` | `/code-review` round 2 on #514, scoped to round 1's fixes, found 10 (3 important, 7 nits); all applied. **Round 1's required `--closes` or `--issue` would break the two documented calls that run the script bare (`/create-issues` Step 7, RUNBOOK's release posting), which #513 left out; its three-and-one split named no row and was wrong, as 936's own check stopped short too; and "went back to `--fail-on error`" named a form that never existed.** Also: 936's finder; 920's fix; 794; listed numbers unreferenced; `--issue` elsewhere; case; the action's rule. | `code-review` r2 on PR #514, scoped to `9adcb9b..332dc10` | `pre-merge` | `overcorrection` | #513's Files gain `create-issues.md` and RUNBOOK; two without a check (884, 915), two that stopped short (936, 920); "became"; `curl` for 936; 920's three removals; 794 as 635's probe; an unreferenced listed number fails; `--issue` only on `--check`; owner and repo case-insensitive. |
 
 ---
 
@@ -2793,8 +2794,9 @@ The two parts:
 
 `merged` fell from 7 of 93 (7.5%) to 2 of 169 (1.2%), but `production`, the log's first, and
 `crossed-phase`, absent in Phase 9 (8 rows before it, `tally 8 1 792`), appear. All four rows
-past merge are claims about a hosted service, or about an account's settings. Three were made
-without a check on the real thing, and one with a check that stopped short:
+past merge are claims about a hosted service, or about an account's settings. Two were made
+without a check on the real thing (884, 915), and two with one that stopped short (936, whose
+check read only the ref's first letters; 920, a reading compared with nothing):
 - 884: round 6 on PR #473 moved RUNBOOK's Security Advisor runs to `--db-url` without trying
   it on a hosted project; on the preview it missed a table with RLS off;
 - 915: README, the plan and #459 named `whereisfood.vercel.app` as production's from Vercel's
@@ -2805,11 +2807,12 @@ without a check on the real thing, and one with a check that stopped short:
   that no one compared with the methods Google lists.
 
 Each was found after merge, by a later check on the real target, and then fixed:
-- 884 by #474's control on the preview; both runs went back to `--linked --fail-on error`;
+- 884 by #474's control on the preview; both runs became `--linked --fail-on error`;
 - 915 by `curl` of each address while starting #459; the alias got no origin;
-- 936 by production's own 500; the URL was corrected, and #497's build check (`supabase-url.ts`)
+- 936 by `curl` of production's `/api/live`, which answered 500; the URL was corrected, and #497's build check (`supabase-url.ts`)
   refuses a URL with a path;
-- 920 by the owner's re-check in #460; the phone step was removed.
+- 920 by the owner's re-check in #460; the phone step, the recovery phone and the recovery
+  address were removed.
 
 Who found them: `self` for 884, 915 and 936; `user` for 920. No review found any of them before merge. The Phase 9 retrospective
 offered a stand-ins field for this class, and it wasn't taken (#422). This one offered
@@ -2882,7 +2885,7 @@ was to keep all eight unchanged.
   - 803, a fence test (PR #426), and 808, two tests, and 810, an edge test (PR #429), all in
     `post-body.mjs`'s work.
 
-  794 matches its words for another thing. A floor (Phase 9: 2).
+  794 matches for row 635's probe, a Phase 8 row outside the range. A floor (Phase 9: 2).
 
 **3. `scripts/process-log.sh check`. Keep, unchanged.** No row in the range records a commit
 made without waiting on `add` or `check`. A grep of the Miss cells for `process-log.sh`,
@@ -2942,7 +2945,8 @@ cells ("Review rounds" above).
 
 **1. `post-body.mjs` refuses an unlisted closing keyword in a PR body (#513).** A new
 `--closes <list>` flag, required on a PR body and on a new PR's `--check`, names the issues
-the PR closes. Any `CLOSING` match to another number fails before anything is posted. It
+the PR closes. Any `CLOSING` match to an unlisted number or another repository, and a listed
+number no match references, fails before anything is posted. It
 would have refused rows 932's two and 954's, each at the post that carried it. The owner's
 call, 2026-11-23.
 
