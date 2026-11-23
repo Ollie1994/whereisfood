@@ -788,8 +788,13 @@ findings before production stay public (Q36).
     deployment URLs. The preview's other credentials not rotated, since they reach only the
     preview, but its legacy API keys disabled. Account passwords not rotated, by the owner's
     reason that none was in the repo, a shell or an agent session, and two-factor guards each.
-13. **How the trucks are told** (step 18): the channel and the Swedish text, with a link to
-    `/integritet`.
+13. ~~**How the trucks are told** (step 18): the channel and the Swedish text, with a link to
+    `/integritet`.~~ → **settled** (the owner, 2026-11-23, IS #465): an Instagram DM from
+    @vararmaten on the day a truck is first entered, signed "/Oliwer, Väm", in the text #465's
+    comment records; email (`/integritet`'s contact) stays the fallback and the removal
+    address, and a removal asked for by DM is honoured like one by email (#2). The text's "Kartan
+    är inte öppen för alla ännu" holds while the soft-launch gate stands (#5) and goes at the
+    full launch. Each truck told is recorded on #465 by name and date.
 14. ~~**Production's Deployment Retention Policy** (step 14): README's checklist keeps Production
     at 30 days because no Ready production deployment existed (IS #417's comment of
     2026-11-19); the value against Hobby's 10 GB of Deployment Storage (#417).~~ → **settled**
