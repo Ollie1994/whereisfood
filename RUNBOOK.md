@@ -660,8 +660,9 @@ the owner's machine (README, "Takedown", step 4), never in the repo, the databas
   when the truck is taken down ("A takedown request", step 4). A count of trucks told is read
   from it; after #465, no public record keeps one (IS #511).
 - **The do-not-list:** the Instagram handle of a truck that asked to be removed, taken down or
-  never entered (step 5), and the date, no name, so it isn't told and entered again. Kept until the truck itself asks to be listed again: it
-  honours the truck's objection (GDPR art. 21; IS #511).
+  never entered (step 5), and the date, no name, so it isn't told and entered again. Kept until
+  the truck itself asks to be listed again: it honours the truck's objection (GDPR art. 21; IS
+  #511).
 
 The DM thread with a truck stays at most while it is listed, or, when the truck asks by DM to be
 removed, as long as a removal mail, as `/integritet` says: "Other requests" deletes it once a

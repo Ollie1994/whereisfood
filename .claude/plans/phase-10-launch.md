@@ -803,8 +803,8 @@ findings before production stay public (Q36).
     email; a removal asked for by DM is honoured like one by email (#2). #511 covers DM requests
     and the private list below in `/integritet` and the runbook, and adds this procedure there;
     it blocks #465, so no DM goes out before it, and a truck entered before #511 merges is told on
-    the day it merges, the one exception to telling first (production held none, 2026-11-23). #511 also settles, with the owner, what this decision leaves open: a record
-    that a removed truck asked to stay off, so it isn't entered and told again; whether a truck is
+    the day it merges, the one exception to telling first (production held none, 2026-11-23).
+    #511 also settles, with the owner, what this decision leaves open: a record that a removed truck asked to stay off, so it isn't entered and told again; whether a truck is
     entered only with its Instagram handle; what "a DM that can't be seen" means; two-factor on
     @vararmaten; and telling the trucks already told once the map opens. #465 counts the trucks
     told through Phase 10, and #511 names where later counts go. #465 records only dates and
