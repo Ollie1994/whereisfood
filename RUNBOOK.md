@@ -855,34 +855,30 @@ takes `dev` to `main` by a PR, then brings `main`'s merge commit back to `dev` b
 IS #461 (PR #488) and IS #462 (PR #490) did first. Each of the two has its own issue, opened
 first.
 
-**When** (the owner's call, 2026-11-23, IS #500): when production, or what runs on `main`,
-needs a change, not after each issue. Each release is two PRs, and the one into `main` runs the
-full controls set (step 1's timing), while the docs are read from `dev`, the default branch,
-and production doesn't read them. So release for:
-- **code, a dependency or anything else the build reads**;
-- **a workflow that runs on pushes to `main`** (`codeql.yml`): `main` runs its own copy, which
-  only a PR into `main` updates. `ci.yml` runs on PRs only, from the PR's copy;
-- **a new build with nothing else changed**, as #463's needed after a corrected `NEXT_PUBLIC_`
-  variable, which the build compiles in. With no file change on `dev` since the last release
-  (`git diff origin/main origin/dev` prints nothing; a sync leaves a merge commit, not a
-  change), the release carries a one-line doc change through its own issue, as step 2's
-  "Nothing to change" does.
+**When** (the owner's call, 2026-11-23, IS #500): when production needs a change, not after
+each issue. Each release is two PRs, and the one into `main` runs the full controls set (step
+1's timing), while the docs are read from `dev`, the default branch, and production doesn't
+read them. So release for code, a dependency or anything else the build reads, and for a new
+build with nothing else changed, as #463's needed after a corrected `NEXT_PUBLIC_` variable,
+which the build compiles in. A workflow that runs on pushes to `main` (`codeql.yml`) reaches
+`main` only by a PR into it, so a change to one rides with the next release.
 
-A Redeploy is the other way to a new build. Plan step 16 ruled it out for production's first
-deploys, since its path through the Ignored Build Step hasn't been read, and step 2 below keeps
-that for a failed release. "A leaked key" and "A restore" accept it in recovery, where a variable
-change must take effect at once (it applies only to the next deployment, README, "Preview
-deploys"). Outside recovery, a changed variable goes out by a release.
+One other way to a new build is a Redeploy (README's Ignored Build Step row names a CLI deploy
+too, not tried). Plan step 16 ruled it out for production's first deploys,
+since its path through the Ignored Build Step hasn't been read, and step 2 below keeps that for
+a failed release. "A leaked key" and "A restore" accept it in recovery, where a variable change
+must take effect at once (it applies only to the next deployment, README, "Preview deploys").
+Outside recovery, a changed Production variable goes out by a release.
 
 A migration reaches production by a push, not a release (README, "Production", "Schema"), and a
 release carries all of `dev`. So while `dev` holds code that needs a migration production
-hasn't had, no release goes out before that push. The order of the push and the release, and a
-migration `main`'s code can't run against, aren't settled here: none has gone to production
-since `0001_baseline.sql`.
+hasn't had, no release goes out before that push. A limit: the order of the push and the
+release, a migration `main`'s code can't run against, and a release production needs while one
+is waiting aren't settled here; none has gone to production since `0001_baseline.sql`.
 
 A release at a phase's end, so `main` carries the reconciled docs, is optional. The longer
 `main` trails `dev`, the more a fix shipped straight to `main` has to merge against in its sync
-("A private vulnerability", and step 3's warning below).
+("A private vulnerability"; step 3: "A clean merge can still keep `dev`'s own version").
 
 Post each PR's text through `scripts/post-body.mjs` (`CLAUDE.md`, "Doc changes"):
 `--check <file>`, then `gh pr create` with `--body-file <file>`, then `node
@@ -968,8 +964,7 @@ backticks, `$` and apostrophes in the title pass as written. Tried on IS #462 wi
    - **Retry without a Redeploy or a promoted preview,** which plan step 16 rules out.
    - **A cause in the code:** a PR into `dev`, then a new release.
    - **Nothing to change** (an outage on Vercel's side): a new release carrying a one-line doc
-     change through its own issue, as plan step 16 does when `dev` has nothing new (no file
-     change since the last release, "When" above).
+     change through its own issue, as plan step 16 does when `dev` has nothing new.
    - **A fix shipped straight to `main`** ("A private vulnerability", step 3): a new PR into
      `main`.
 
