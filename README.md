@@ -11,15 +11,16 @@ themselves later.
 It fills a real gap: Gothenburg has had no central food-truck map since Streetkäk
 shut down in 2017.
 
-> **Status: Phase 9 of 11 (security) done; Phase 10 (launch) next.** The map shows
-> today's entries from the database through `GET /api/live`, locally against a local
-> Supabase and on protected Vercel previews against a hosted one. One admin logs in with
-> an emailed link and a code from an authenticator app, and keeps the map up to date from
-> a phone-first admin screen. Every pull request into `dev` or `main` runs the checks in
-> GitHub Actions, which must pass before it merges. There is no production deploy yet.
-> Phase 4 removed the old design (automatic ingestion from Make.com and email, plus a
-> Swedish text parser), and Phase 5 replaced its database schema; see
-> [Project status](#project-status).
+> **Status: Phase 10 of 11 (launch) done; Phase 11 (full launch) next.** Väm runs in production at
+> `vararmaten.vercel.app` as a soft launch, from `main`, which trails `dev` between releases: the
+> map is shown only to the admin, and everyone else sees a page about it (`/om`) and the privacy
+> note (`/integritet`). The map shows today's entries from the database through `GET /api/live`. One
+> admin logs in with an emailed link and a code from an authenticator app, and keeps the map up to
+> date from a phone-first admin screen; production holds no trucks yet. Every pull request into
+> `dev` or `main` runs the checks in GitHub Actions, which must pass before it merges, and
+> [`RUNBOOK.md`](RUNBOOK.md) is how production is run. Phase 4 removed the old design (automatic
+> ingestion from Make.com and email, plus a Swedish text parser), and Phase 5 replaced its database
+> schema; see [Project status](#project-status).
 
 ---
 
@@ -45,11 +46,11 @@ Consumers are always anonymous. All user-facing text is in Swedish.
 
 ## How it's designed to work
 
-This is the design. Phases 5 to 9 built the schema, the public read path (the map, its
+This is the design. Phases 5 to 10 built the schema, the public read path (the map, its
 polling and cache, the popup's freshness text), the admin screen with its entry flow,
-CI/CD, and security (the admin's second factor, session limits, security headers); the
-first production deploy is Phase 10's, as a soft launch with the map shown only to the
-admin, and the full launch Phase 11's.
+CI/CD, security (the admin's second factor, session limits, security headers) and the
+first production deploy, a soft launch with the map shown only to the admin; the full
+launch is Phase 11's.
 
 - **The admin enters every location by hand.** A pin comes from a map tap, a known
   Gothenburg spot, a recently used place, or the phone's GPS. Start and end times are
@@ -58,9 +59,10 @@ admin, and the full launch Phase 11's.
 - **Overlaps are refused, not resolved.** A database constraint rejects a second
   entry for the same truck in an overlapping time window, and the admin edits the
   existing one instead. Nothing is replaced or deleted automatically.
-- **Nothing is deleted.** Cancelling an entry marks it cancelled, and an ended entry
-  simply stops matching the "today" filter. The only real delete is a takedown on a
-  truck's request.
+- **Nothing is deleted by the app.** Cancelling an entry marks it cancelled, and an ended
+  entry simply stops matching the "today" filter. The only real deletes are a takedown on a
+  truck's request and the weekly retention run, which deletes entries that ended more than
+  52 weeks ago, both manual SQL ("Takedown", "Backups").
 - **One public read path.** The map polls `GET /api/live` every 60 seconds. It's an
   ordinary route that Vercel's CDN caches for 60 seconds, so normal polling costs the
   database about one query a minute per region, however many people have the map
@@ -103,8 +105,8 @@ The working rules live in [`CLAUDE.md`](CLAUDE.md) and the design reference in
 | 7 · Admin            | Admin login, location entry, truck management, the morning checklist | ✅ Done |
 | 8 · CI/CD            | The checks in GitHub Actions, secret scanning, CodeQL, Dependabot, branch protection | ✅ Done |
 | 9 · Security         | Admin MFA, session limits, security headers, the 2FA audit; the free plans' alerts and logs read (no usage, spend or 5xx alert can be set on them) | ✅ Done |
-| 10 · Launch          | Production deploy, a soft launch: the map shown only to the admin, an about page for everyone else | ⬜ Next |
-| 11 · Full launch     | The map public, a custom domain for the tiles, paid plans | ⬜ Not started |
+| 10 · Launch          | Production deploy, a soft launch: the map shown only to the admin, an about page and a privacy note for everyone else, the runbook | ✅ Done |
+| 11 · Full launch     | The map public, a custom domain for the tiles, paid plans | ⬜ Next |
 
 Phases 2 and 3 built automatic ingestion: Make.com webhooks and Mailgun email, run
 through a Swedish parser that turned captions into locations. It was dropped for the
@@ -113,8 +115,14 @@ branch and tag.
 
 ### What works today
 
+- **Production, a soft launch** (Phase 10; "Production" below): `vararmaten.vercel.app`, on
+  Supabase Free with its own project. `/` leads to `/om`, a Swedish page about Väm, and
+  `/karta`, the map, shows only to the admin until the full launch; `/integritet` says what is
+  stored, why and for how long, and how to have it removed. [`RUNBOOK.md`](RUNBOOK.md) holds
+  the weekly routine (a data-only backup, then the retention run), incidents, requests and
+  takedowns, telling a new truck, and a release (`dev` into `main`).
 - The map renders in the browser, centred on Gothenburg, with Swedish place names:
-  from a local tile file in dev, from Cloudflare R2 on a preview.
+  from a local tile file in dev, from Cloudflare R2 on a deploy.
 - One marker per truck with an entry today, filled while it is open and outlined when
   it opens later today, from `GET /api/live` (cached by Vercel's CDN for 60 s, checked
   on a preview, "Preview deploys"). The map polls every 60 s while the tab is visible
@@ -145,18 +153,20 @@ branch and tag.
 - The database layer (`src/lib/db/`), which the live read path and the admin use.
 - Unit tests, and integration tests against a local Supabase for the schema (its
   constraints, grants and row-level security), the database layer, `/api/live`, the
-  login routes and every admin route.
+  login routes, every admin route, the soft-launch gate, and `takedown.sql` and `retention.sql`.
 - **CI.** On every pull request into `dev` or `main`, GitHub Actions runs the four gates,
   `npm audit`, the schema controls, the process log's check, a secret scan and CodeQL,
-  and the branches' rules require them, with no bypass (CodeQL's on `dev` only until Phase
-  10; "Scripts"). Dependabot opens pull
+  and the branches' rules require them, with no bypass ("Scripts"). Dependabot opens pull
   requests for GitHub Actions updates and npm security fixes.
+- **Previews.** A push to a branch other than `main` starts a preview build, except on
+  `dependabot/` and `probe/` branches; only `dev`'s gets the secret key, so another branch's
+  build fails with today's code ("Preview deploys").
 
 ### What does not exist yet
 
-- A production deploy (Phase 10). A push to a branch other than `main` starts a preview
-  build, except on `dependabot/` and `probe/` branches; only `dev`'s gets the secret key, so
-  another branch's build fails with today's code (see "Preview deploys")
+- The map open to everyone, and the rest of the full launch (Phase 11): Supabase Pro with
+  backups and session timeouts, a custom domain for the tiles, Vercel Pro.
+- Trucks in production: on 2026-11-23 it held none; finding them is IS #499.
 
 ---
 
@@ -602,14 +612,14 @@ address used for this login alone, never the public removal contact (the Phase 1
 decision 6). Its id is in the owner's password manager (`RUNBOOK.md`, "A lost phone"). Its
 TOTP factor is enrolled through the deployed app (#463).
 
-**Variables.** Production's keys go only into Vercel's Production environment variables, in
-the names "Hosted preview database" lists, and its session pooler URL into the gitignored
-`.env.prod-db.local` for the weekly dump ("Backups"). Production gets no variables until
-#463 (the Phase 10 plan, #9). `NEXT_PUBLIC_SUPABASE_URL` is the project URL alone,
-`https://<project-ref>.supabase.co`: the Data API page's "API URL" ends in `/rest/v1/`, and
-copied whole it made `/api/live` answer 500 on #463's first build. A path in the URL,
-`http://` for any host but the local stack's, or whitespace at either end (a trailing space
-or newline included) now fails the build (`src/lib/supabase-url.ts`, IS #497).
+**Variables.** Production's keys go only into Vercel's Production environment variables, in the
+names "Hosted preview database" lists, and its session pooler URL into the gitignored
+`.env.prod-db.local` for the weekly dump ("Backups"). Production got its variables in #463, after
+the first merge into `main` (the Phase 10 plan, #9). `NEXT_PUBLIC_SUPABASE_URL` is the project URL
+alone, `https://<project-ref>.supabase.co`: the Data API page's "API URL" ends in `/rest/v1/`, and
+copied whole it made `/api/live` answer 500 on #463's first build. A path in the URL, `http://` for
+any host but the local stack's, or whitespace at either end (a trailing space or newline included)
+now fails the build (`src/lib/supabase-url.ts`, IS #497).
 
 ---
 
@@ -692,7 +702,7 @@ findings, re-read `--linked` on 2026-11-20, the same five:
 |---|---|
 | WARN `auth_leaked_password_protection` | Accepted: Pro only, and the admin's password is long and random (IS #378) |
 | INFO `rls_enabled_no_policy` on `public.trucks` and `public.locations` | By design: anon and authenticated hold no grant on them (`role_table_grants` on the preview, 2026-11-18: only `authenticated`'s `SELECT` on `users`); for anon it is `CLAUDE.md`'s rule (Supabase) |
-| INFO `unindexed_foreign_keys`: `locations_created_by_fkey`, `users_truck_id_fkey` | Accepted on tables this small; Phase 10 reads it again with production's data |
+| INFO `unindexed_foreign_keys`: `locations_created_by_fkey`, `users_truck_id_fkey` | Accepted on tables this small; production's `--type all` run reported it too ("Production", above). Not scheduled to be read again: RUNBOOK's runs are `--type security`, which doesn't report this performance lint |
 
 **Vercel** (project `whereisfood`):
 
@@ -721,7 +731,8 @@ preview, except a `dependabot/` or `probe/` branch, which the Ignored Build Step
 cancels. Only `dev`'s build gets the secret key; another branch's build, with today's
 code, fails without it (both below). One push built as Production instead (the mislabelled first deployment,
 below). Production builds from `main`, which was
-created at `dev`'s commit and built nothing; the next push to `main` is Phase 10's.
+created at `dev`'s commit and served nothing until IS #463's release (PR #494): its first build,
+from the first merge (IS #461), failed without variables, as the Phase 10 plan's #9 expected.
 
 **Project settings** (set in #187, 2026-11-02):
 
@@ -794,8 +805,9 @@ below).
   as project config wasn't looked up, so the check is that wide match, not a list of names.
 - Not seen: the cancel of a Production build from a branch other than `main`.
 
-**Environment variables**, all four of `.env.example`'s, scoped to **Preview** only
-(none in Production or Development), the secret key to `dev`'s previews alone:
+**Environment variables**, all four of `.env.example`'s, scoped to **Preview** (none in Development;
+Production's own, each scoped to Production with the secret key typed Secret, are IS #463's record
+and "Production", above), the secret key to `dev`'s previews alone:
 
 | Variable | Vercel type | Scope | Value |
 |---|---|---|---|
@@ -810,16 +822,16 @@ the production branch was already `main`, so it got no variables and failed with
 `Missing env: NEXT_PUBLIC_SUPABASE_URL`; the next push to the branch built as a
 Preview (#187's PR). Why Vercel labelled it Production wasn't found.
 
-**Production keeps no variables until Phase 10.** "Standard Protection" is, in Vercel's
-API, `prod_deployment_urls_and_all_previews` (its docs, "Vercel Authentication"): the
-production domain isn't in it and stays public. That mislabelled branch build failed
-instead of serving on `whereisfood-theta.vercel.app` only because Production has no
-variables and `src/lib/supabase.ts` throws at import without them. The Ignored Build
-Step above is set to cancel such a build by its branch (what has been seen of it: "The
-Ignored Build Step's checks"). Phase 10 adds Production's variables after checking that it
-is still set and that no `vercel.json` overrides it ("A branch's `vercel.json`", above), and
-doesn't promote a branch preview to Production (Phase 6 plan step 10 carries this to
-`project-context.md`).
+**Production had no variables until Phase 10.** "Standard Protection" is, in Vercel's API,
+`prod_deployment_urls_and_all_previews` (its docs, "Vercel Authentication"): the production domain
+isn't in it and stays public. That mislabelled branch build failed instead of serving on
+`whereisfood-theta.vercel.app` only because Production had no variables then and
+`src/lib/supabase.ts` throws at import without them; with Production's variables set, the Ignored
+Build Step is set to cancel such a build, though its cancel of a Production build from another
+branch hasn't been seen ("The Ignored Build Step's checks"), and a branch's `vercel.json` can
+override it. Phase 10 gave Production its variables after checking that it was still set and that no
+`vercel.json` overrode it ("A branch's `vercel.json`", above; IS #463), and a branch preview is
+never promoted to Production (`project-context.md`, "Pre-deploy automation").
 
 **Checking the CDN cache.** With protection on, a request without a login gets
 Vercel's login redirect, not the route. The bypass secret is made under Settings →

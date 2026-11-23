@@ -601,11 +601,14 @@ password or an account token, all of these; after the secret key, the first two:
 
 ## Telling a new truck
 
-Every truck is told it's listed on the day it is first entered, just before it is entered, and
-one that can't be told isn't entered (Phase 10 plan, open decision 13, settled on IS #465; the
-owner's calls and the approved texts on IS #511, comment 7103734194; tell first, the owner's call
-on round 1 of PR #512). Before the first DM, @vararmaten has two-factor by authenticator app,
-not SMS: it receives removal requests.
+Every truck is told it's listed on the day it is first entered, just before it is entered, and one
+that can't be told isn't entered (Phase 10 plan, open decision 13, settled on IS #465; the owner's
+calls and the approved texts on IS #511, comment 7103734194; tell first, the owner's call on round 1
+of PR #512). Before the first DM, @vararmaten has two-factor by authenticator app, not SMS: it
+receives removal requests. And check that production serves IS #511's `/integritet` text, which the
+DM links to: the page says "eller skriv till @vararmaten på Instagram" and names the two private
+lists. If it doesn't, a release ("A release") ships it first: on 2026-11-23 production ran `main` at
+PR #503, before PR #512 put the text on `dev` (IS #517 is that release).
 
 1. Pick a truck only by its Instagram handle: its data comes from its own posts, as
    `/integritet` says. A handle on the do-not-list (below) is neither told nor entered.
@@ -664,8 +667,8 @@ the owner's machine (README, "Takedown", step 4), never in the repo, the databas
 - **Trucks told:** one line per truck, its name and the date it was told. Its line is deleted
   when the truck is taken down ("A takedown request", step 4). A count of trucks told is read
   from it; after #465, no public record keeps one (IS #511).
-- **The do-not-list:** the Instagram handle of a truck that asked to be removed, taken down or
-  never entered (step 5), and the date, no name, so it isn't told and entered again. Kept until
+- **The do-not-list:** the Instagram handle of a truck that asked to be removed (taken down, or
+  never entered: step 5), and the date, no name, so it isn't told and entered again. Kept until
   the truck itself asks to be listed again: it honours the truck's objection (GDPR art. 21; IS
   #511). Confirm such a request through the line's handle, as "Other requests" confirms through
   a row's: a DM from it needs no code, a mail gets a code sent to it, to be mailed back, and when
