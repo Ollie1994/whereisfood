@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { compareBodies, main, repeatedHeadings, roundProblems, roundsFromLog, textProblems } from "./post-body.mjs";
+import { closingProblems, compareBodies, main, repeatedHeadings, roundProblems, roundsFromLog, textProblems } from "./post-body.mjs";
 
 const BS = "\\";
 const row = (n, where, caught, miss = "A miss.") =>
@@ -236,25 +236,34 @@ describe("main", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.spyOn(console, "log").mockImplementation(() => {});
   };
-  // A fake `gh api`: a PATCH or POST stores the JSON body through `store`; a GET returns it.
-  const fakeApi = (store = (b) => b) => {
+  // A fake `gh`: a PATCH or POST stores the JSON body through `store`; a GET returns it,
+  // with a `pull_request` key when `pr` is set; `repo view` answers `repo`, or throws
+  // when it is null.
+  const fakeApi = (store = (b) => b, { pr = false, repo = "Ollie1994/whereisfood" } = {}) => {
     const calls = [];
     let body;
     const api = (args, input) => {
       calls.push(args);
+      if (args[0] === "repo") {
+        if (repo === null) throw new Error("gh repo view failed");
+        return `${repo}\n`;
+      }
       if (args.includes("PATCH") || args.includes("POST")) body = store(JSON.parse(input).body);
-      return JSON.stringify({ id: 99, body });
+      return JSON.stringify({ id: 99, body, ...(pr ? { pull_request: {} } : {}) });
     };
     return { api, calls };
   };
+  const GET12 = ["api", "repos/{owner}/{repo}/issues/12"];
+  const REPO = ["repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"];
 
   it("posts a body and passes when it reads back the same", () => {
     quiet();
     const { api, calls } = fakeApi((b) => b.replace(/\n/g, "\r\n"));
     expect(main(["12", file("## A\ntext\n")], { api })).toBe(0);
     expect(calls).toEqual([
+      GET12,
       ["api", "-X", "PATCH", "repos/{owner}/{repo}/issues/12", "--input", "-"],
-      ["api", "repos/{owner}/{repo}/issues/12"],
+      GET12,
     ]);
   });
   it("posts a comment and reads it back by its id", () => {
@@ -318,13 +327,13 @@ describe("main", () => {
     expect(main(["--comment", "12", file(`${BS}u0001`)], { api })).toBe(1);
     expect(calls).toEqual([]);
   });
-  it("--check runs the checks and never calls gh", () => {
+  it("--check --issue runs the checks and never calls gh", () => {
     quiet();
     const { api, calls } = fakeApi();
-    expect(main(["--check", file("## A\ntext\n")], { api })).toBe(0);
-    expect(main(["--check", file(`${String.fromCodePoint(0xfeff)}## A\ntext\n`)], { api }), "a BOM opening the file").toBe(0);
-    expect(main(["--check", file(`## A\nte${String.fromCodePoint(0xfeff)}xt\n`)], { api }), "a BOM inside it").toBe(1);
-    expect(main(["--check", file("## A\n## A\n")], { api })).toBe(1);
+    expect(main(["--check", file("## A\ntext\n"), "--issue"], { api })).toBe(0);
+    expect(main(["--check", file(`${String.fromCodePoint(0xfeff)}## A\ntext\n`), "--issue"], { api }), "a BOM opening the file").toBe(0);
+    expect(main(["--check", file(`## A\nte${String.fromCodePoint(0xfeff)}xt\n`), "--issue"], { api }), "a BOM inside it").toBe(1);
+    expect(main(["--check", file("## A\n## A\n"), "--issue"], { api })).toBe(1);
     expect(calls).toEqual([]);
   });
   it("checks rounds against the log with --rounds, and only then", () => {
@@ -336,6 +345,8 @@ describe("main", () => {
     expect(calls).toEqual([]);
     expect(main(["12", f], { api, readLog })).toBe(0);
     expect(main(["12", file("## Round 1 (full)\n## Round 2 (scoped)\n"), "--rounds"], { api, readLog })).toBe(0);
+    const { api: prApi } = fakeApi(undefined, { pr: true });
+    expect(main(["12", file("## Round 1 (full)\n## Round 2 (scoped)\n"), "--rounds", "--closes", "none"], { api: prApi, readLog })).toBe(0);
   });
   it("reads the log PROCESS_LOG names, when --rounds runs", () => {
     quiet();
@@ -362,5 +373,123 @@ describe("main", () => {
     expect(main(["12", join(tmpdir(), "post-body-none", "missing.md")], { api })).toBe(2);
     expect(main(["12", f, "--rounds"], { api, readLog: () => { throw new Error("no log"); } })).toBe(2);
     expect(main(["12", f], { api: () => { throw new Error("gh api failed"); } })).toBe(2);
+  });
+
+  // --closes (IS #513): each case of the issue's Failure modes, in its order.
+  describe("--closes", () => {
+    const pr = () => fakeApi(undefined, { pr: true });
+    const posted = (calls) => calls.some((c) => c.includes("PATCH"));
+    it("refuses a closing reference to an unlisted issue, naming the line, and posts nothing", () => {
+      quiet();
+      const { api, calls } = pr();
+      expect(main(["12", file("A record.\nIt fixes #12 here.\n"), "--closes", "511"], { api })).toBe(1);
+      expect(console.error).toHaveBeenCalledWith(expect.stringContaining('line 2: "fixes #12" would close #12'));
+      expect(posted(calls)).toBe(false);
+    });
+    it("refuses the Phase 10 forms: a keyword opening the next line (row 954) and Fixed: (row 932)", () => {
+      quiet();
+      const { api, calls } = pr();
+      expect(main(["12", file("Closes #511.\nthis PR doesn't\nclose #465\n"), "--closes", "511"], { api })).toBe(1);
+      expect(main(["12", file("Closes #511.\nFixed: #14 is closed.\n"), "--closes", "511"], { api })).toBe(1);
+      expect(posted(calls)).toBe(false);
+    });
+    it("refuses a URL or owner/repo form to an unlisted number", () => {
+      quiet();
+      const { api } = pr();
+      expect(main(["12", file("Closes #511.\nFixes https://github.com/Ollie1994/whereisfood/issues/7\n"), "--closes", "511"], { api })).toBe(1);
+      expect(main(["12", file("Closes #511.\nResolves Ollie1994/whereisfood#7\n"), "--closes", "511"], { api })).toBe(1);
+    });
+    it("refuses another repository's reference even with its number listed", () => {
+      quiet();
+      const { api } = pr();
+      expect(main(["12", file("Closes other/repo#511\n"), "--closes", "511"], { api })).toBe(1);
+      expect(console.error).toHaveBeenCalledWith(expect.stringContaining("another repository"));
+    });
+    it("exits 2 on a PR body with no --closes, and on --closes for an issue body or a comment", () => {
+      quiet();
+      const { api, calls } = pr();
+      expect(main(["12", file("text\n")], { api })).toBe(2);
+      expect(main(["12", file("text\n"), "--closes", "none"], { api: fakeApi().api })).toBe(2);
+      expect(main(["--comment", "12", file("text\n"), "--closes", "none"], { api })).toBe(2);
+      expect(main(["--edit-comment", "5", file("text\n"), "--closes", "none"], { api })).toBe(2);
+      expect(posted(calls)).toBe(false);
+    });
+    it("reads a number whole: #12 isn't #1, and #511 isn't #5", () => {
+      quiet();
+      const { api } = pr();
+      expect(main(["12", file("fixes #12\n"), "--closes", "1"], { api })).toBe(1);
+      expect(main(["12", file("Closes #511.\n"), "--closes", "5"], { api })).toBe(1);
+    });
+    it("exits 2 on --check with neither --closes nor --issue, or both", () => {
+      quiet();
+      const { api, calls } = fakeApi();
+      expect(main(["--check", file("text\n")], { api })).toBe(2);
+      expect(main(["--check", file("text\n"), "--issue", "--closes", "none"], { api })).toBe(2);
+      expect(calls).toEqual([]);
+    });
+    it("exits 2 on a bad --closes value: missing, empty, --closes=, a leading zero, given twice", () => {
+      quiet();
+      const { api, calls } = pr();
+      const f = file("text\n");
+      for (const argv of [
+        ["12", f, "--closes"],
+        ["12", f, "--closes", ""],
+        ["12", f, "--closes=511"],
+        ["12", f, "--closes", "0511"],
+        ["12", f, "--closes", "511,"],
+        ["12", f, "--closes", "--rounds"],
+        ["12", f, "--closes", "1", "--closes", "2"],
+      ]) {
+        expect(main(argv, { api }), argv.join(" ")).toBe(2);
+      }
+      expect(calls).toEqual([]);
+    });
+    it("refuses a listed number no reference names", () => {
+      quiet();
+      const { api } = pr();
+      expect(main(["12", file("No closing line here.\n"), "--closes", "511"], { api })).toBe(1);
+      expect(console.error).toHaveBeenCalledWith(expect.stringContaining("--closes lists #511, but no closing reference names it"));
+    });
+    it("exits 2 on --issue outside --check", () => {
+      quiet();
+      const { api, calls } = pr();
+      const f = file("text\n");
+      for (const argv of [["12", f, "--issue"], ["--comment", "12", f, "--issue"], ["--edit-comment", "5", f, "--issue"]]) {
+        expect(main(argv, { api }), argv.join(" ")).toBe(2);
+      }
+      expect(calls).toEqual([]);
+    });
+    it("exits 2 when the repository can't be read, and posts nothing", () => {
+      quiet();
+      const { api, calls } = fakeApi(undefined, { pr: true, repo: null });
+      expect(main(["--check", file("Closes #511.\n"), "--closes", "511"], { api })).toBe(2);
+      expect(main(["12", file("Closes #511.\n"), "--closes", "511"], { api })).toBe(2);
+      expect(posted(calls)).toBe(false);
+    });
+    it("passes a listed reference, none with --closes none, several listed, and another case of this repository", () => {
+      quiet();
+      const { api, calls } = pr();
+      expect(main(["12", file("Closes #511.\n"), "--closes", "511"], { api })).toBe(0);
+      expect(calls.slice(0, 2)).toEqual([GET12, REPO]);
+      expect(main(["12", file("No closing line.\n"), "--closes", "none"], { api })).toBe(0);
+      expect(main(["12", file("Fixes #12.\nCloses #14.\n"), "--closes", "12,14"], { api })).toBe(0);
+      expect(main(["12", file("Closes ollie1994/WhereIsFood#511\n"), "--closes", "511"], { api })).toBe(0);
+    });
+    it("checks a new PR's draft with --check --closes, and a new issue's with --check --issue and no gh call", () => {
+      quiet();
+      const { api, calls } = fakeApi(undefined, { repo: null });
+      expect(main(["--check", file("Fixes #12 in an issue body.\n"), "--issue"], { api })).toBe(0);
+      expect(calls).toEqual([]);
+      const { api: ok, calls: okCalls } = fakeApi();
+      expect(main(["--check", file("Closes #511.\n"), "--closes", "511"], { api: ok })).toBe(0);
+      expect(main(["--check", file("Closes #511.\nfixes #12\n"), "--closes", "511"], { api: ok })).toBe(1);
+      expect(okCalls).toEqual([REPO, REPO]);
+    });
+  });
+});
+
+describe("closingProblems", () => {
+  it("names nothing when the references and the list agree", () => {
+    expect(closingProblems("Closes #511.\n", new Set([511]), "Ollie1994/whereisfood")).toEqual([]);
   });
 });

@@ -89,6 +89,29 @@ export function closingRefs(text) {
   return [...found.values()];
 }
 
+// Pure. Each closing reference in a text with the issue it names, as { line, ref, number },
+// for post-body.mjs's --closes (IS #513). `REFERENCE` ends at the reference's first digit,
+// so a match holds one ("fixes #12" matches as "fixes #1"); the digits after the match are
+// read too, so `number` is the whole one. `number` is null for a reference to a repository
+// other than `repo` ("owner/name", compared case-insensitively, as GitHub reads names).
+export function closingNumbers(text, repo) {
+  const starts = [0];
+  for (let i = 0; i < text.length; i++) if (text[i] === "\n") starts.push(i + 1);
+  const here = repo.toLowerCase();
+  const found = [];
+  for (const match of text.matchAll(CLOSING)) {
+    const end = match.index + match[0].length;
+    const ref = match[0] + /^\d*/.exec(text.slice(end))[0];
+    let line = starts.length;
+    while (starts[line - 1] > match.index) line--;
+    const url = /github\.com\/([^/]+\/[^/]+)\/(?:issues|pull)\/(\d+)$/i.exec(ref);
+    const named = url ?? /([A-Za-z0-9][\w.-]*\/[\w.-]+)#(\d+)$/.exec(ref);
+    const number = Number((named ?? /(\d+)$/.exec(ref)).at(-1));
+    found.push({ line, ref: ref.trim(), number: named && named[1].toLowerCase() !== here ? null : number });
+  }
+  return found;
+}
+
 // Pure. `git log -z --format='%H%n%B'` output as [{ sha, message }], or { error }.
 export function parseRecords(input) {
   const records = [];

@@ -63,6 +63,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { closingNumbers } from "./closing-keywords.mjs";
 
 // PROCESS_LOG overrides it, read when --rounds runs, as for process-log.sh, so a control can
 // use a scratch copy; the success line names the log read.
@@ -301,22 +302,54 @@ function gh(args, input) {
 }
 
 const USAGE = [
-  "usage: node scripts/post-body.mjs <issue-or-PR-number> <file> [--rounds]",
+  "usage: node scripts/post-body.mjs <issue-number> <file>",
+  "       node scripts/post-body.mjs <PR-number> <file> --closes <n,...|none> [--rounds]",
   "       node scripts/post-body.mjs --comment <issue-or-PR-number> <file>",
   "       node scripts/post-body.mjs --edit-comment <comment-id> <file>",
-  "       node scripts/post-body.mjs --check <file>",
+  "       node scripts/post-body.mjs --check <file> --closes <n,...|none>   (a new PR's body)",
+  "       node scripts/post-body.mjs --check <file> --issue                 (a new issue's body)",
 ].join("\n");
 const MODES = { "--comment": "comment", "--edit-comment": "edit-comment", "--check": "check" };
+// --closes' value: issue numbers with no leading zero, separated by commas, or `none`.
+const CLOSES_VALUE = /^(?:none|[1-9]\d*(?:,[1-9]\d*)*)$/;
+
+/** The problems with a text's closing references against the numbers --closes lists
+ * (IS #513): one to an unlisted number or another repository, and a listed number none
+ * names. */
+export function closingProblems(text, listed, repo) {
+  const problems = [];
+  const named = new Set();
+  for (const { line, ref, number } of closingNumbers(text, repo)) {
+    if (number === null) problems.push(`line ${line}: "${ref}" closes an issue in another repository`);
+    else if (!listed.has(number)) problems.push(`line ${line}: "${ref}" would close #${number}, which --closes doesn't list`);
+    else named.add(number);
+  }
+  for (const n of listed) if (!named.has(n)) problems.push(`--closes lists #${n}, but no closing reference names it`);
+  return problems;
+}
 
 export function main(argv, { readLog = () => readFileSync(logPath(), "utf8"), api = gh } = {}) {
-  const flags = new Set(argv.filter((a) => a.startsWith("--")));
-  const args = argv.filter((a) => !a.startsWith("--"));
+  // --closes takes the next argument as its value; every other `--` argument is a flag.
+  const flags = new Set();
+  const args = [];
+  let closes = null;
+  let bad = false;
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === "--closes") {
+      const value = argv[++i];
+      if (closes !== null || value === undefined || !CLOSES_VALUE.test(value)) bad = true;
+      else closes = value === "none" ? new Set() : new Set(value.split(",").map(Number));
+    } else if (argv[i].startsWith("--")) flags.add(argv[i]);
+    else args.push(argv[i]);
+  }
   const modeFlags = [...flags].filter((f) => f in MODES);
   const mode = modeFlags.length ? MODES[modeFlags[0]] : "body";
-  const bad =
-    [...flags].some((f) => !(f in MODES) && f !== "--rounds") ||
+  bad ||=
+    [...flags].some((f) => !(f in MODES) && f !== "--rounds" && f !== "--issue") ||
     modeFlags.length > 1 ||
     (flags.has("--rounds") && mode !== "body") ||
+    (mode === "check" ? (closes !== null) === flags.has("--issue") : flags.has("--issue")) ||
+    ((mode === "comment" || mode === "edit-comment") && closes !== null) ||
     (mode === "check" ? args.length !== 1 : args.length !== 2 || !/^[1-9]\d*$/.test(args[0]));
   if (bad) {
     console.error(USAGE);
@@ -345,6 +378,36 @@ export function main(argv, { readLog = () => readFileSync(logPath(), "utf8"), ap
     for (const p of problems) console.error(`post-body: ${p}`);
     console.error("post-body: nothing posted");
     return 1;
+  }
+  // The closing rule (IS #513): on a PR's body, and on --check --closes. Whether <n> is a PR
+  // comes from its issue record, which GitHub gives a `pull_request` key; the repository is
+  // read only when the rule runs, so --check --issue makes no call.
+  try {
+    if (mode === "body") {
+      const isPr = Boolean(JSON.parse(api(["api", `repos/{owner}/{repo}/issues/${n}`])).pull_request);
+      if (isPr !== (closes !== null)) {
+        console.error(
+          isPr
+            ? `post-body: #${n} is a pull request: name the issues its body closes with --closes <n,...|none>`
+            : `post-body: #${n} is an issue, whose body closes nothing: drop --closes`,
+        );
+        console.error("post-body: nothing posted");
+        return 2;
+      }
+    }
+    if (closes !== null) {
+      const repo = api(["repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"]).trim();
+      const closing = closingProblems(text, closes, repo);
+      if (closing.length) {
+        for (const p of closing) console.error(`post-body: ${p}`);
+        console.error("post-body: nothing posted");
+        return 1;
+      }
+    }
+  } catch (e) {
+    console.error(`post-body: ${e.message}`);
+    console.error("post-body: nothing posted");
+    return 2;
   }
   if (mode === "check") {
     console.log(`post-body: ${file} passes the checks (nothing posted)`);
