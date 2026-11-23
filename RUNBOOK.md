@@ -601,14 +601,15 @@ password or an account token, all of these; after the secret key, the first two:
 
 ## Telling a new truck
 
-Every truck entered is told it's listed, on the day it is first entered (Phase 10 plan, open
-decision 13, settled on IS #465; the owner's calls and the approved texts on IS #511, comment
-7103734194). Before the first DM, @vararmaten has two-factor by authenticator app, not SMS: it
+Every truck is told it's listed on the day it is first entered, just before it is entered, and
+one that can't be told isn't entered (Phase 10 plan, open decision 13, settled on IS #465; the
+owner's calls and the approved texts on IS #511, comment 7103734194; tell first, the owner's call
+on round 1 of PR #512). Before the first DM, @vararmaten has two-factor by authenticator app, not SMS: it
 receives removal requests.
 
 1. Enter a truck only with its Instagram handle: its data comes from its own posts, as
    `/integritet` says. A handle on the do-not-list (below) isn't entered.
-2. The same day, DM it from @vararmaten, with `[truckens namn]` filled in:
+2. DM it from @vararmaten, with `[truckens namn]` filled in:
 
    > Hej! Jag driver Väm – Var är maten?, en karta över var Göteborgs foodtruckar står i dag: vararmaten.vercel.app
    >
@@ -637,12 +638,13 @@ receives removal requests.
    > /Oliwer, Väm
 
    A DM that is sent counts as told, seen or not, even in the truck's message requests (the
-   owner's call, IS #511). With no other channel, the truck isn't told.
-4. Add the truck's line to the list of trucks told (below): its name, the date (Stockholm), and
-   how it was told (the DM, the other channel) or "not told". Until #465 closes with Phase 10,
-   add the date and the count to #465 too, never the name.
-5. A reply asking for removal, or objecting, goes to "A takedown request"; any other request to
-   "Other requests"; a correction or a tip to the admin screen.
+   owner's call, IS #511). With no other channel, the truck isn't entered.
+4. Once it is told, enter it in the admin screen the same day, since the text says it is listed,
+   and add its line to the list of trucks told (below): its name and the date (Stockholm). Until
+   #465 closes with Phase 10, add the date and the count to #465 too, never the name.
+5. A reply asking for removal, or objecting, goes to "A takedown request"; a request about the
+   truck's data, a correction of it included, to "Other requests"; a tip (a place or a time it
+   posted) to the admin screen.
 
 <!-- SOFT-LAUNCH GATE (Phase 10 plan #5): both texts' "Kartan är inte öppen för alla ännu, den öppnar när fler foodtruckar är med." deleted at the full launch, the owner approving the new texts (the removal list in src/app/karta/page.tsx). -->
 
@@ -657,13 +659,14 @@ the owner's machine (README, "Takedown", step 4), never in the repo, the databas
   it isn't entered and told again. Kept until the truck itself asks to be listed again: it
   honours the truck's objection (GDPR art. 21; IS #511).
 
-The DM thread with a truck stays at most while it is listed, as `/integritet` says: "Other
-requests" deletes it once a request in it is closed, and "A takedown request", step 4, after the
-takedown.
+The DM thread with a truck stays at most while it is listed, or, when the truck asks by DM to be
+removed, as long as a removal mail, as `/integritet` says: "Other requests" deletes it once a
+request in it is closed, and "A takedown request", step 4, once no copy from before the takedown
+is left.
 
-At the full launch (Phase 11), each truck on the list of trucks told gets one short second DM
-saying the map is open, with the `/integritet` link; its text is approved in that phase's launch
-issue (IS #511).
+At the full launch (Phase 11), each truck on the list of trucks told gets one short second
+message saying the map is open, with the `/integritet` link, by DM, or by step 3's channel if
+Instagram won't send it; its text is approved in that phase's launch issue (IS #511).
 
 ---
 
@@ -675,9 +678,10 @@ objection to the processing of a truck's data is handled the same way, as the pa
 other request goes to "Other requests":
 
 1. Confirm the requester as "Other requests" says, by a code through the truck's Instagram (a
-   DM from the handle on the truck's row needs none): a takedown deletes the truck's whole
-   history, and every restore re-runs it (the owner's call, round 5 on PR #476). With no channel
-   to confirm through at all, remove anyway: an unlisted truck is the safe default.
+   DM from the handle on the truck's row needs none, unless the handle is what's disputed): a
+   takedown deletes the truck's whole history, and every restore re-runs it (the owner's call,
+   round 5 on PR #476). With no channel to confirm through at all, remove anyway: an unlisted
+   truck is the safe default.
 2. README, "Takedown", steps 1 to 4: find the truck, run `supabase/manual/takedown.sql`, read
    its row, and add the line to the takedown log.
 3. Reply to the requester. The map drops the truck within about three minutes. The backups
@@ -708,13 +712,14 @@ other request goes to "Other requests":
 Answer each as soon as possible and within a month (GDPR art. 12(3)), then delete the request and
 the reply once the matter is closed, mail from Trash too, and a DM thread with Instagram's "Delete
 chat" in @vararmaten's inbox, though it also holds the DM that told the truck: the list of trucks
-told keeps that record ("Telling a new truck"). A restriction's stay until it is lifted.
+told keeps that record ("Telling a new truck"). A restriction's mail or DM thread stays until it
+is lifted.
 
 Before sending a truck's data or changing it, confirm that the requesting address speaks for the
 truck (GDPR art. 12(6) allows asking): send a code in a message to the Instagram account on the
 truck's row, and ask for it to be mailed back from the requesting address. Send files only to that
-address. A DM from that account needs no code; ask it for an address to send any files to, and
-confirm that address the same way. With no handle on the row, or when the handle itself is what's disputed, do the same
+address. A DM from that account needs no code, unless the handle is what's disputed; ask it for
+an address to send any files to, and confirm that address the same way. With no handle on the row, or when the handle itself is what's disputed, do the same
 through another channel the truck publishes itself (its website, or a contact in its own posts);
 with none, answer that the request can't be verified, and what would let you verify it. A takedown
 is confirmed the same way ("A takedown request").

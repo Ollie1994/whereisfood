@@ -110,11 +110,13 @@ export default function PrivacyPage() {
           <ul className="flex list-disc flex-col gap-2 pl-5">
             <li>
               Foodtruckens namn, Instagramkonto, typ av mat och beskrivning sparas tills foodtrucken
-              ber om att bli borttagen.
+              ber om att bli borttagen. Därefter sparas Instagramkontot på en egen lista (se Få
+              uppgifter borttagna).
             </li>
             <li>
               Listan över meddelanden och meddelandena till foodtrucken sparas så länge foodtrucken
-              är med.
+              är med. Ber foodtrucken om att bli borttagen i ett meddelande sparas meddelandena lika
+              länge som ett mejl om borttagning (se nedan).
             </li>
             <li>En plats raderas 52 veckor efter att den har slutat.</li>
             <li>
@@ -174,9 +176,9 @@ export default function PrivacyPage() {
             veckor. Vid en säkerhetsincident eller en återställning kan kopior av databasen finnas
             kvar längre, se ovan. Svaret du får säger till vilket datum. Mejlet eller meddelandet sparas
             tills uppgifterna har försvunnit även ur kopiorna, så att du kan få veta om det skulle
-            dröja längre, och raderas sedan. Foodtruckens Instagramkonto och datumet sparas sedan på
-            en egen lista, så att den inte läggs in igen, tills foodtrucken själv ber om att få vara
-            med. Om en säkerhetskopia någon gång återställs, raderas foodtrucken
+            dröja längre, och raderas sedan. Vid borttagningen sparas foodtruckens Instagramkonto och
+            datumet på en egen lista, så att den inte läggs in igen, tills foodtrucken själv ber om
+            att få vara med. Om en säkerhetskopia någon gång återställs, raderas foodtrucken
             igen som en del av återställningen.
           </p>
           <p>

@@ -818,7 +818,10 @@ findings before production stay public (Q36).
     code change; a DM that can't be seen is one Instagram won't send, and a sent one counts as
     told; the trucks told get one short second DM when the map opens, its text approved in Phase
     11's launch issue; after #465 the count is the private list's alone; and two-factor on
-    @vararmaten, by authenticator app, comes before the first DM.
+    @vararmaten, by authenticator app, comes before the first DM. The truck is told just before
+    it is entered, and one with no channel that works isn't entered, so none is recorded as not
+    told (the owner's call, round 1 on PR #512, since `/integritet` says each truck entered is
+    told).
 14. ~~**Production's Deployment Retention Policy** (step 14): README's checklist keeps Production
     at 30 days because no Ready production deployment existed (IS #417's comment of
     2026-11-19); the value against Hobby's 10 GB of Deployment Storage (#417).~~ → **settled**
