@@ -740,8 +740,9 @@ hit, do one of three things:
 It also prints, as `closing:`, each line of the PR body (and of each other file or `--was`
 <new>) with a closing keyword before an issue reference. In the PR body, each must name only
 an issue the PR closes: merging into `dev` closes every one. `post-body.mjs --closes` refuses
-any other before posting (IS #513), so a body posted through it holds none; confirm a draft's
-lines the same way before it is posted. In an issue body they close nothing (IS #368).
+any other its pattern matches before posting (IS #513; its header names what it can't see),
+and the `closing:` lines are still confirmed, a draft's before it is posted. In an issue body
+they close nothing (IS #368).
 
 Record the hit count and how each was settled in the PR body, under the round the
 check comes before (the first round's goes in the body as opened). The script lists

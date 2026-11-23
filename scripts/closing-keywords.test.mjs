@@ -231,8 +231,9 @@ describe("closingNumbers", () => {
   it("reads a keyword joined to the owner by an underscore as this repository's", () => {
     expect(read("fixes_Ollie1994/whereisfood#5")).toEqual([[1, 5]]);
   });
-  it("counts lines at LF, CRLF and a lone CR, and prints a split reference on one line", () => {
+  it("counts lines at LF, CRLF and a lone CR, as closingRefs does, and joins a split reference", () => {
     expect(read("a\nb\r\nc\rFixes #12")).toEqual([[4, 12]]);
+    expect(closingRefs("a\nb\r\nc\rFixes #12")).toEqual([{ line: 4, text: "Fixes #12" }]);
     expect(closingNumbers("Closes\n#7", REPO)[0].ref).toBe("Closes #7");
   });
 });

@@ -74,20 +74,31 @@ export const EXEMPT = new Map([
   ["365bdd968443c746a3eb98d2e93f3f99cb08d203", "row 682: closed #348 on PR #350's merge; #348 was reopened and closed by PR #351"],
 ]);
 
+// Where each line of a text starts, its lines broken at LF, CRLF and a lone CR, as
+// post-body.mjs's `lines()` breaks them, so closingRefs and closingNumbers name one line.
+function lineStarts(text) {
+  const starts = [0];
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === "\n" || (text[i] === "\r" && text[i + 1] !== "\n")) starts.push(i + 1);
+  }
+  return starts;
+}
+// The 1-based line holding offset `at`.
+const lineAt = (starts, at) => {
+  let line = starts.length;
+  while (starts[line - 1] > at) line--;
+  return line;
+};
+
 // Pure. Each closing reference in a text, as { line, text }, one per line holding one. A
 // reference split across lines is found on the line its keyword starts.
 export function closingRefs(text) {
-  const lines = text.split(/\r?\n/);
-  const starts = [];
-  for (let i = 0, at = 0; i < lines.length; i++) {
-    starts.push(at);
-    at += lines[i].length + (text.startsWith("\r\n", at + lines[i].length) ? 2 : 1);
-  }
+  const lines = text.split(/\r\n|\r|\n/);
+  const starts = lineStarts(text);
   const found = new Map();
   for (const match of text.matchAll(CLOSING)) {
-    let i = starts.length - 1;
-    while (starts[i] > match.index) i--;
-    if (!found.has(i)) found.set(i, { line: i + 1, text: lines[i].trim() });
+    const line = lineAt(starts, match.index);
+    if (!found.has(line)) found.set(line, { line, text: lines[line - 1].trim() });
   }
   return [...found.values()];
 }
@@ -102,18 +113,14 @@ export function closingRefs(text) {
 // and a lone CR, as post-body.mjs's `lines()` splits them; `ref`'s blanks are collapsed, so
 // a reference split across lines prints on one.
 export function closingNumbers(text, repo) {
-  const starts = [0];
-  for (let i = 0; i < text.length; i++) {
-    if (text[i] === "\n" || (text[i] === "\r" && text[i + 1] !== "\n")) starts.push(i + 1);
-  }
+  const starts = lineStarts(text);
   const here = repo.toLowerCase();
   const found = [];
   for (const match of text.matchAll(CLOSING)) {
     const end = match.index + match[0].length;
     const ref = match[0] + /^\d*/.exec(text.slice(end))[0];
     const target = ref.replace(BEFORE_REFERENCE, "");
-    let line = starts.length;
-    while (starts[line - 1] > match.index) line--;
+    const line = lineAt(starts, match.index);
     const named =
       /^https?:\/\/(?:www\.)?github\.com\/([^/]+\/[^/]+)\/(?:issues|pull)\/(\d+)$/i.exec(target) ??
       /^([A-Za-z0-9][\w.-]*\/[\w.-]+)#(\d+)$/.exec(target);

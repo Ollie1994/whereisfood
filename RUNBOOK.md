@@ -837,10 +837,11 @@ exists one found in-house, is fixed without a public issue or PR until it ships 
 4. **Publish the advisory** once the fix is live, or at the time agreed with the reporter if
    that is later.
 5. **The public records**, then: an issue recording the fix, the PR body's round records (its
-   repost takes `--closes none`: the PR has merged, so close the record issue by hand rather
-   than by a keyword in its body), and the process-log rows, dated that day (`add` refuses a
-   date earlier than the last row's), each with the day of its miss in its Miss. The final records check runs again on them. Delete the
-   notes file.
+   repost takes `--closes none`, since the PR has merged), and the process-log rows, dated that
+   day (`add` refuses a date earlier than the last row's), each with the day of its miss in its
+   Miss. The rows go in by their own PR (`CLAUDE.md`, "Doc changes"), whose body closes the
+   record issue (`--closes <record issue>`). The final records check runs again on them. Delete
+   the notes file.
 
 ---
 
