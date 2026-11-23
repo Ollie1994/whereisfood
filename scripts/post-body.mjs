@@ -45,9 +45,11 @@
 // `gh repo view`'s, which is read only when the rule runs, so a private advisory fork reads its
 // own. A reference to another repository fails even with its number listed (an over-match, as
 // CLOSING over-matches), and so does a listed number no reference names (a "Closes #n" dropped
-// while editing). Each fails before anything is posted (exit 1); a failed `gh repo view` is exit 2.
-// --closes on a comment or --edit-comment, --issue outside --check, and a --closes value missing,
-// empty, given twice, written `--closes=<list>` or with a leading zero are bad arguments (exit 2).
+// while editing), where only `#n`, `owner/name#n` or a URL, outside fences and HTML comments and
+// with no leading zero, counts as naming one (`NAMING`). Each fails before anything is posted (exit
+// 1); a failed `gh repo view` is exit 2. --closes on a comment or --edit-comment, --issue outside
+// --check, and a --closes value missing, empty, given twice, written `--closes=<list>` or with a
+// leading zero are bad arguments (exit 2).
 //
 // The checks, before anything is posted (exit 1, nothing posted): a raw control character
 // (all of C0 but tab, LF and CR); an invisible character (the no-break space, the soft
