@@ -64,9 +64,10 @@ import { createSessionClient, readOnlyCookies } from "@/lib/supabase-session";
 //   the owner's new reasons; its marker removed either way.
 // - CLAUDE.md: "The soft-launch gate" deleted.
 // - The DM that tells a new truck it's listed (Phase 10 plan, open decision 13; IS #465's
-//   comment 7102728788, and the runbook once IS #511 adds it): its sentence "Kartan är inte
-//   öppen för alla ännu, den öppnar när fler foodtruckar är med." deleted, the owner approving
-//   the new text.
+//   comment 7102728788): its sentence "Kartan är inte öppen för alla ännu, den öppnar när fler
+//   foodtruckar är med." deleted, the owner approving the new text. Not a file, so it carries no
+//   marker and `gate-markers.test.ts` doesn't check it; IS #511, which puts the text in
+//   RUNBOOK.md, marks it there and turns this line into RUNBOOK.md's.
 export const metadata: Metadata = { title: "Karta" };
 
 export default async function MapPage() {

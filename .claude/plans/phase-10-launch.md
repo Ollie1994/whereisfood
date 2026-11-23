@@ -792,17 +792,20 @@ findings before production stay public (Q36).
 13. ~~**How the trucks are told** (step 18): the channel and the Swedish text, with a link to
     `/integritet`.~~ → **settled** (the owner, 2026-11-23, IS #465): an Instagram DM from
     @vararmaten on the day a truck is first entered, signed "/Oliwer, Väm", in the text #465's
-    comment 7102728788 records (`issuecomment-7102728788`). With no Instagram account, or a DM
-    that can't be seen, another public channel the truck itself publishes (a website's email,
-    Facebook), as `RUNBOOK.md`'s "Other requests" allows; with none, the truck is recorded as
-    not told. A truck may write back by DM or to `/integritet`'s email; a removal asked for by DM
-    is honoured like one by email (#2), and #511 covers DM requests in `/integritet` and the
-    runbook, and adds this procedure there, before the first DM goes out. #465 records only
-    dates and counts, never names (round 1 on PR #510): a public issue would keep a removed
-    truck's name; the names go in the owner's private list off the repo, next to the takedown
-    log, whose line a removal deletes too. The text's "Kartan är inte öppen för alla ännu"
-    holds while the soft-launch gate stands (#5) and goes at the full launch (the gate's
-    removal list names it).
+    comment 7102728788 records (`issuecomment-7102728788`). Only a truck with Instagram is
+    listed, since its data comes from its own posts (`/integritet`). If its DM can't be seen,
+    another channel it publishes itself (its website, or a contact in its own posts: the channels
+    `RUNBOOK.md`'s "Other requests" uses to confirm a requester), with a version of the text for
+    that channel the owner approves in #511; with none, it is recorded as not told (the owner's
+    call, narrowed after round 2 on PR #510). A truck may write back by DM or to `/integritet`'s
+    email; a removal asked for by DM is honoured like one by email (#2). #511 covers DM requests
+    and the private list below in `/integritet` and the runbook, and adds this procedure there;
+    it blocks #465, so no DM goes out before it. #465 records only dates and counts, never names
+    (round 1 on PR #510): a public issue would keep a removed truck's name. The names go in the
+    owner's private list off the repo; a removal deletes the truck's line from that list, and
+    adds one to the takedown log as README's "Takedown" says. The text's "Kartan är inte öppen
+    för alla ännu" holds while the soft-launch gate stands (#5) and goes at the full launch (the
+    gate's removal list names it).
 14. ~~**Production's Deployment Retention Policy** (step 14): README's checklist keeps Production
     at 30 days because no Ready production deployment existed (IS #417's comment of
     2026-11-19); the value against Hobby's 10 GB of Deployment Storage (#417).~~ → **settled**
