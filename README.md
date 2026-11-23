@@ -289,10 +289,16 @@ Cloudflare dashboard (no API token needed):
       Domains" on the production deployment (IS #464, 2026-11-23), Vercel's own record, not
       the page it serves, which anyone could copy. It gets no origin (the owner's call on IS
       #506, replacing round 3 on PR #486's "if it is, an issue of its own gives it an origin"):
-      it answers `302` to Vercel's login (`vercel.com/sso-api`), and Auth's Redirect URLs admit
-      only `vararmaten.vercel.app`'s callback ("Production"), so the admin session `/karta`
-      needs to show the map has no login route on it (not tried on that host). A change to
-      those Redirect URLs brings the question back.
+      only someone past Vercel's login reaches it (it answers `302` to `vercel.com/sso-api`;
+      today that is the owner alone), and `/karta` shows the map only to the admin at `aal2`.
+      Auth's Redirect URLs admit only `vararmaten.vercel.app`'s callback ("Production"), so a
+      login started on the alias would land there, and an admin session on the alias would take
+      the link's address edited by hand to its `/auth/callback` (neither tried). The worst case is
+      `/karta` on the alias with no tiles, on an address nobody uses. Any of these brings the
+      question back: a change to those Redirect URLs, Vercel Authentication changed for
+      production, or the gate's removal (Phase 11), when `/karta` shows the map to anyone who
+      reaches the alias.
+      <!-- SOFT-LAUNCH GATE (Phase 10 plan #5): the alias's no-origin call is asked again at the full launch (the removal list in src/app/karta/page.tsx). -->
     - A production deployment's commit-form URL is in the pattern like a preview's.
     - **`whereisfood.vercel.app` is not this project's** and gets no origin: before any
       production deployment existed it answered `200` with another owner's page, titled

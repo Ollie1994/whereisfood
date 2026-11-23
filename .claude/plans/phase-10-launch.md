@@ -308,7 +308,8 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     (`vararmaten.vercel.app`, production's domain since IS #458); an address that redirects to
     one with an origin needs none (`whereisfood-theta.vercel.app`, set to redirect (307) to
     it); one not yet shown to be this project's waits for step 17's check
-    (`<project>-<scope-slug>.vercel.app`); and never `whereisfood.vercel.app`, another owner's
+    (`<project>-<scope-slug>.vercel.app`, shown so by #464 and given none by the owner's call on
+    #506, README's "Get the map tiles"); and never `whereisfood.vercel.app`, another owner's
     site (IS #459; README, "Get the map tiles"); the Vercel Toolbar
     off for Production deployments, as for pre-production (the owner's call, round 3 on PR
     #447; README's "Hosted settings checklist"); Production's Deployment Retention Policy, which
@@ -362,7 +363,7 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
       is this project's, by Vercel's own record (listed among the production deployment's domains
       in the project's dashboard), not by the page it serves, which anyone could copy. If it is,
       an issue of its own gives it R2's CORS origin. (It is, #464; the owner's call on #506: no
-      origin, since no admin login completes on it, README's "Get the map tiles".)
+      origin, for the reasons README's "Get the map tiles" gives.)
 
     **This step is the phase's done.**
 
@@ -668,7 +669,8 @@ findings before production stay public (Q36).
   Redirect URLs that host's `/auth/callback` alone; the admin has a long random password.
 - [ ] Vercel and R2: the Ignored Build Step read as set, no `ignoreCommand` or `vercel.ts` on
   `dev` or `main`; R2's CORS rule covers each production address, by an origin or a
-  redirect, but the `<project>-<scope-slug>` alias, which waits for step 17's check (IS #459);
+  redirect, but the `<project>-<scope-slug>` alias, which waited for step 17's check (IS #459)
+  and has none by the owner's call on #506;
   the toolbar reads Off for Production; Production's Deployment Retention Policy
   reads the value open decision 14 settled, in README's checklist too; Production's variables
   come only from
