@@ -71,10 +71,11 @@ launch is Phase 11's.
 - **CI is the gate.** Every pull request runs type-checking and lint, unit tests,
   integration tests against a local Supabase, a production build with a smoke check of the
   served app, `npm audit`, a secret scan and CodeQL. The **schema controls** go further:
-  each of 65 SQL files removes or narrows one guard in the schema, and the tests meant to
-  catch it must go red (a few check instead that removing a guard another one already covers
-  changes nothing, or that a suite's setup fails). CI runs the full set on a pull request that
-  touches the schema, the tests the controls run, or the code and config those rest on, and
+  each SQL file in `tests/controls/` removes or narrows one guard in the schema, and the tests
+  meant to catch it must go red (a few check instead that removing a guard another one
+  already covers changes nothing, or that a suite's setup fails). CI runs the full set on a
+  pull request that touches a path `scripts/controls-trigger.mjs` lists (the schema, the
+  controls and their runner, the tests they run, the code and config those rest on, CI), and
   on every one into `main`; the others only check that the files parse. Branch rulesets
   require the checks, with no bypass, not even for the owner.
 
@@ -83,16 +84,17 @@ launch is Phase 11's.
 Väm is built with [Claude Code](https://claude.com/claude-code), under a process that
 treats its own mistakes as data:
 
-- **Plans with numbered decisions.** Each phase has a plan in [`.claude/plans/`](.claude/plans/),
-  and every settled question becomes a numbered decision with its reasons, so it isn't
-  argued again a session later. [`CLAUDE.md`](CLAUDE.md) holds the working rules that
-  outlive a phase.
+- **Plans with numbered decisions.** Since Phase 3, each phase's plan in
+  [`.claude/plans/`](.claude/plans/) records every settled question as a numbered decision
+  with its reasons, so it isn't argued again a session later (one settled between phases
+  waits as a row in `project-context.md`'s "Decisions carried forward").
+  [`CLAUDE.md`](CLAUDE.md) holds the working rules that outlive a phase.
 - **A log of misses.** [`.claude/process-log.md`](.claude/process-log.md) records every time
   the process got something wrong: a gate that let a defect through, a stale rule, a fix
-  that broke something else. Each row has a cause from a fixed list, and each phase ends
-  with a retrospective that counts them.
-- **Review rounds with checks of their own.** Every pull request gets review rounds up to a
-  fixed ceiling. After each round's fixes, a sweep looks for every copy of what they
+  that broke something else. Each row has a cause from a fixed list, and each phase since
+  Phase 3 ends with a retrospective that counts them.
+- **Review rounds with checks of their own.** Every pull request Claude writes gets review
+  rounds, up to a default ceiling the owner can lower or raise. After each round's fixes, a sweep looks for every copy of what they
   changed, and before every round a claims check lists each "every", "only" and "always" the
   change added, to be backed by a command or narrowed.
 
@@ -127,8 +129,9 @@ Consumers are always anonymous. All user-facing text is in Swedish.
 | 10 · Launch          | Production deploy, a soft launch: the map shown only to the admin, an about page and a privacy note for everyone else, the runbook | ✅ Done |
 | 11 · Full launch     | The map public, a custom domain for the tiles, paid plans | ⬜ Next |
 
-Phases 2 and 3 built the automatic ingestion that [Why it exists](#why-it-exists) describes. The code is
-archived on the `archive/parser-lanes` branch and tag.
+Phases 2 and 3 built the email and webhook lanes and most of the caption parser that
+[Why it exists](#why-it-exists) describes; they were never joined before the design was
+dropped. The code is archived on the `archive/parser-lanes` branch and tag.
 
 ## More
 
