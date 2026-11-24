@@ -4,8 +4,8 @@ How to set up Väm: a local copy for development ("Getting started", "Scripts"),
 projects it runs on (the tiles on Cloudflare R2, the preview's and production's Supabase
 projects, the hosted settings checklist, Vercel's preview deploys). Operating it (the weekly
 routine and backups, requests and takedowns, incidents, a marker check, a migration and a
-release) is [`RUNBOOK.md`](RUNBOOK.md); the rules
-for working on the code are [`CLAUDE.md`](CLAUDE.md).
+release) is [`RUNBOOK.md`](RUNBOOK.md); the rules for working on the code are
+[`CLAUDE.md`](CLAUDE.md).
 
 These sections were in `README.md` until IS #264, when "Takedown" and "Backups" moved to
 `RUNBOOK.md`, and the R2 and CORS part of "Get the map tiles" became "Map tiles on R2". The
@@ -437,8 +437,9 @@ were made with none given) (`CLAUDE.md`, Secrets): a new password means a new UR
 
 **Schema.** Migrations only, never the seed: production holds real data entered on `/admin`.
 The CLI is linked to production only for a push or a check, and linked back to the preview
-right after, so a plain `npx supabase db push` can't reach production by mistake. A later
-migration's push is `RUNBOOK.md`'s "A migration".
+right after. A failed `link` leaves the CLI where it was, so the relink is checked
+(`RUNBOOK.md`, "A restore", step 7's block), and a later migration's push checks the link
+before it pushes (`RUNBOOK.md`, "A migration").
 
 The first push applied `0001_baseline.sql` and printed the certificate warning "Hosted preview
 database" describes; `migration list --linked` showed `0001` on both sides. The CLI needed

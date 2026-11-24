@@ -1167,8 +1167,9 @@ container. In this order, since the login has to reach the new project:
 
    Run this after a stop too (a failed push, a restore broken off), not only at the end.
 
-   "A migration"'s plain `npx supabase db push` for the preview, below, assumes the preview;
-   left linked to production, the next migration would skip it.
+   A plain `npx supabase db push` goes to whichever project the CLI is linked to: left linked
+   to production, it would push there, past the checks of step 1's blocks. "A migration"'s
+   preview push, below, checks the link first.
 
 Not tried: neither the hosted restore nor this move has been run ("Restoring",
 Limits, above).
@@ -1187,7 +1188,8 @@ after a cancel (`/api/live`'s cache, `project-context.md`, "Read path"). Cancel 
 "Ställ in" and the route refuses a cancel (Phase 9 plan #8, IS #380). Until it's cancelled,
 even after it ends, it refuses the truck's overlapping entries, drops any of the truck's
 checklist suggestions that overlap it, and makes a by-hand insert like IS #254's pass over
-the truck (Phase 7 plan #38's rule; both in `SETUP.md`, "Hosted preview database"). For up
+the truck (Phase 7 plan #38's rule, in `.claude/plans/phase-7-admin.md`; the insert in
+`SETUP.md`, "Hosted preview database"). For up
 to 4 weeks, it can also take the place of the truck's real suggestions on that weekday
 (`getChecklist`). Once it's cancelled, it does none of these: cancelled rows aren't read.
 After its end, cancel it in the preview's SQL Editor: find its id with
@@ -1206,15 +1208,26 @@ Its row stays in the preview's history.
 
 ## A migration
 
-A later migration goes up by a push from the CLI, never with the seed (`SETUP.md`,
-"Production", "Schema"):
+A later migration goes up by a push from the CLI to each project, without `--include-seed`:
 
-- **The preview:** with the CLI linked to the preview project (`SETUP.md`, "Hosted preview
-  database"), a plain `npx supabase db push`.
-- **Production:** "A restore"'s blocks alone, above, not its restore steps: step 1's three
-  blocks with production's ref (link and dry run, push, the advisor), each of which checks the
-  link before it pushes or reads, then step 7's block, which links back to the preview and
-  checks that.
+- **The preview** (`SETUP.md`, "Hosted preview database"), from the repo root. A plain
+  `npx supabase db push` goes to whichever project the CLI is linked to, so the block pushes
+  only while the link is the preview's; if it isn't, run "A restore"'s step 7 block, above,
+  first:
+
+  ```bash
+  if grep -qxF '<preview project ref>' supabase/.temp/project-ref; then
+    if npx supabase db push; then echo "PUSH OK"
+    else echo "PUSH FAILED (or declined at its prompt): nothing else until it succeeds"; fi
+  else
+    echo "NOT LINKED to the preview: nothing pushed"
+  fi
+  ```
+
+- **Production**, never the seed (`SETUP.md`, "Production", "Schema"): "A restore"'s blocks
+  alone, above, not its restore steps: step 1's three blocks with production's ref (link and
+  dry run, push, the advisor), each of which checks the link before it pushes or reads, then
+  step 7's block, which links back to the preview and checks that.
 
 A release that needs the migration goes out only after production's push ("A release",
 below).
