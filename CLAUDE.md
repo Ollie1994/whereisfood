@@ -557,11 +557,12 @@ migration (one file: `node scripts/controls.mjs tests/controls/<name>.sql`), and
 into `dev` whose change the controls test though no `TRIGGERS` entry covers it (that
 script's header says which changes it can't see), since there the check ran only `--check`.
 A new schema guard adds its controls by the rule in `.claude/commands/create-issues.md`'s
-Failure modes. A full run's cost, the one copy: locally about 45 s a control, mostly the reset (64
-took 48 minutes, 2026-10-23). In CI, for 65 controls, the `Run node scripts/controls.mjs` step
-took 25 to 31 minutes, about 23 to 29 s a control, and the whole `controls` job, its setup
-and the stack's start included, 27 to 38 minutes (the runs of PRs #488, #494, #503 and #520,
-2026-11-22 to 24). The script's header says what it can't see.
+Failure modes. A full run's cost, the one copy: locally about 45 s a control, mostly the
+reset (64 took 48 minutes, 2026-10-23). In CI, for 65 controls, the `Run node
+scripts/controls.mjs` step took 25 to 31 minutes, about 23 to 29 s a control, and the whole
+`controls` job, its setup and the stack's start included, 27 to 38 minutes (the full runs of
+PRs #488, #489, #494, #498, #503 and #520, 2026-11-22 to 24). The script's header says what
+it can't see.
 
 **`test:all` fails if any project collects zero test files** (fixed by #99). Vitest's
 empty-match check is per-**run**, not per-project, so `test:all` (`scripts/test-all.mjs`)
