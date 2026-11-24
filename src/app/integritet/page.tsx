@@ -82,7 +82,7 @@ export default function PrivacyPage() {
             kanal som foodtrucken själv har publicerat om meddelandet inte går att skicka där.
             Administratören för en egen lista utanför tjänsten med foodtruckens namn, datumet då den
             fick meddelandet och, om meddelandet inte skickades på Instagram, vilket slags kanal det
-            skickades i (till exempel mejl eller sms) men inte adressen.
+            skickades i (till exempel mejl eller Facebook), men inte adressen.
           </p>
         </section>
 

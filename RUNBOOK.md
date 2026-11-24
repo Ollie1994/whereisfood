@@ -185,11 +185,11 @@ Once a week, at most 7 days after the last run, in this order:
    - the removal mailbox `/integritet` names, its spam folder included;
    - the app's Instagram DMs, with the message requests and the hidden requests, which
      Instagram keeps apart from the main inbox;
-   - the inbox of each other channel kind the list of trucks told names ("The two private
-     lists", below), its spam and message-request folders included, on the one account that
-     kind is sent from ("Telling a new truck", step 3), while the truck's line is on the list
-     and while a request made there is kept ("A takedown request", step 4). A mail or a
-     contact form is answered into the removal mailbox (the same step 3).
+   - the inbox of every other account "Telling a new truck", step 3, has sent from (one per
+     kind), its spam and message-request folders included, whatever the list of trucks told
+     holds now: a takedown deletes a truck's line while its request is still kept (the owner's
+     call on round 2 of PR #531). A mail or a contact form is answered into the removal
+     mailbox (the same step 3).
 
    `/integritet` promises a removal within a month. With runs at most 7 days apart, a
    request in these inboxes is seen within 7 days of its arrival, inside that month. A late
@@ -418,9 +418,10 @@ release).
    "Other requests" confirms through. Send a mail from vararmaten@proton.me, and give that address
    as a contact form's reply address, so a reply comes to the removal mailbox; a form that can't
    take it as its reply address isn't used. Send each other kind from one account of the owner's
-   (one Facebook account, one phone), so the kind on the list says which inbox the weekly routine
-   checks, and give that account two-factor as @vararmaten has before its first message: it
-   receives removal requests too (the owner's calls on round 1 of PR #531):
+   (one Facebook account, say), which the weekly routine checks, and give that account two-factor
+   by authenticator app or passkey, not SMS, before its first message: it receives removal
+   requests too (the owner's calls on round 1 of PR #531). Never by sms or a call: a phone number
+   can't take that two-factor (the owner's call on round 2):
 
    > Hej! Jag driver Väm – Var är maten?, en karta över var Göteborgs foodtruckar står i dag: vararmaten.vercel.app
    >
@@ -443,7 +444,7 @@ release).
    way where it was sent.
 4. Add its line to the list of trucks told (below) once the message is sent: its name and the
    date (Stockholm), and for a truck told by step 3, the channel's kind (`mejl`,
-   `kontaktformulär`, `Facebook`, `sms`), never its address (the owner's call, IS #527).
+   `kontaktformulär`, `Facebook`), never its address (the owner's call, IS #527).
    Then enter it in the admin screen at once, since the text says it is listed; the text is
    ahead of the entry by that gap alone. Until #465 closes with Phase 10, add the date and the
    count to #465 too, never the name.
@@ -461,8 +462,8 @@ the owner's machine ("Takedown", step 4, below), never in the repo, the database
 `/integritet` names both:
 
 - **Trucks told:** one line per truck, its name and the date it was told, and for a truck told
-  outside Instagram the channel's kind (step 4), whose inbox the weekly routine checks ("The
-  weekly routine", step 4). Its line is deleted when the truck is taken down ("A takedown
+  outside Instagram the channel's kind (step 4); the weekly routine checks every account step 3
+  sends from ("The weekly routine", step 4). Its line is deleted when the truck is taken down ("A takedown
   request", step 4). A count of trucks told is read from it; after #465, no public record keeps
   one (IS #511).
 - **The do-not-list:** the Instagram handle of a truck that asked to be removed (taken down, or
