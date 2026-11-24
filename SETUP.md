@@ -7,7 +7,8 @@ routine, backups, takedowns, incidents and releases) is [`RUNBOOK.md`](RUNBOOK.m
 for working on the code are [`CLAUDE.md`](CLAUDE.md).
 
 These sections were in `README.md` until IS #264, when "Takedown" and "Backups" moved to
-`RUNBOOK.md`. The phase plans, `transition.md` and the process log's rows from before it name
+`RUNBOOK.md`, and the R2 and CORS part of "Get the map tiles" became "Map tiles on R2". The
+phase plans, `.claude/drafts/`, `transition.md` and the process log's rows from before it name
 them in `README.md`.
 
 ---
@@ -25,7 +26,7 @@ them in `README.md`.
   major deploys build on, `engines.node`, so the gates run on the same major as a deploy.
 - **Docker**, for the local Supabase stack. The basemap draws without it; the map's
   markers and the integration tests need it.
-- **The `pmtiles` CLI**, to cut the map tiles (next section). It's a single binary
+- **The `pmtiles` CLI**, to cut the map tiles ("2. Get the map tiles"). It's a single binary
   from [go-pmtiles releases](https://github.com/protomaps/go-pmtiles/releases).
 - **Gitleaks 8.30.1**, for the git hooks' secret scan: the version the hooks were checked
   on. On Windows: `winget install --id Gitleaks.Gitleaks -e --version 8.30.1` (winget
@@ -68,8 +69,8 @@ Replace `YYYYMMDD` with a recent build date from
 [maps.protomaps.com/builds](https://maps.protomaps.com/builds/), which lists one row
 per daily build. Only recent builds are kept, so an old date returns 404. **Don't use
 that page's "download" link:** it's the whole planet (about 140 GB). The extract
-command fetches only the tiles inside the box. `--maxzoom=14` matches the file deploys
-use (below): it was cut that way and is 11.6 MB (its header says `maxzoom` 14).
+command fetches only the tiles inside the box. `--maxzoom=14` matches the file deploys use
+("Map tiles on R2", below): it was cut that way and is 11.6 MB (its header says `maxzoom` 14).
 Without the flag the file is larger, with more street-level detail.
 
 ### 3. Environment
@@ -594,9 +595,9 @@ findings, re-read `--linked` on 2026-11-20, the same five:
 
 | Setting | Value | Why |
 |---|---|---|
-| Deployment Protection → Vercel Authentication | On, Standard Protection | Standard Protection leaves the production domain public ("Preview deploys", below). Turning it off, or to a mode that leaves production deployment URLs public, reopens the `whereisfood-where-is-food.vercel.app` alias's CORS call ("Get the map tiles", IS #506) |
+| Deployment Protection → Vercel Authentication | On, Standard Protection | Standard Protection leaves the production domain public ("Preview deploys", below). Turning it off, or to a mode that leaves production deployment URLs public, reopens the `whereisfood-where-is-food.vercel.app` alias's CORS call ("Map tiles on R2", IS #506) |
 | Deployment Protection → Protection Bypass for Automation | One secret, the system variable | "Preview deploys", below; the value stays out of the repo |
-| Deployment Protection → Shareable Links; Deployment Protection Exceptions | None; none | A link or an exception would open a deployment without a Vercel login, and reopens the `whereisfood-where-is-food.vercel.app` alias's CORS call ("Get the map tiles", IS #506) |
+| Deployment Protection → Shareable Links; Deployment Protection Exceptions | None; none | A link or an exception would open a deployment without a Vercel login, and reopens the `whereisfood-where-is-food.vercel.app` alias's CORS call ("Map tiles on R2", IS #506) |
 | Deployment Protection → OPTIONS Allowlist; Protected Sourcemaps | Off; On | Kept as found |
 | Deployment Protection → Password Protection; Trusted IPs | Off; off | Not on Hobby: Password Protection is Pro, Trusted IPs Enterprise |
 | Deployment Protection → Trusted Sources | This project: all its tokens reach their own environment, and its `development` tokens reach `preview` | Kept as found |

@@ -5,8 +5,8 @@
 -- Its two inputs, in `input` below, keeping the quotes: TRUCK_ID, the truck's id, and
 -- TRUCK_NAME, its name exactly as `trucks.name` holds it (a quote in it doubled). Both must
 -- match one truck, so an id and a name from different trucks change nothing; two trucks with
--- the same name are told apart only by the id (RUNBOOK.md, "Takedown", step 1). Left as it is, TRUCK_ID
--- isn't a uuid, so the statement fails (22P02) and changes nothing.
+-- the same name are told apart only by the id (RUNBOOK.md, "Takedown", steps 1 and 2). Left
+-- as it is, TRUCK_ID isn't a uuid, so the statement fails (22P02) and changes nothing.
 --
 -- One statement, so all of it happens or none: the truck's locations deleted, each `users`
 -- row pointing at it cleared (`truck_id` set to null: the account stays, as deleting one is

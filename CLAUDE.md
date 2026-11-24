@@ -596,11 +596,15 @@ no longer needs, or with no reason, fails.
 ## Doc changes — always issue → branch → PR
 
 Every change to a tracked doc goes through an issue, a branch and a PR into `dev`,
-exactly like code. Tracked docs are `CLAUDE.md`, `README.md`, `SETUP.md`, `RUNBOOK.md`
-and everything under `.claude/` (plans, `project-context.md`, `transition.md`, commands
-and **`process-log.md`**). Never commit one straight to `dev`, and never leave one sitting
-uncommitted on `dev`. Every doc change then has a reviewable diff and a
-`PR #n / IS #n` to point at.
+exactly like code. Tracked docs are `CLAUDE.md`, `README.md`, `SETUP.md`, `RUNBOOK.md`,
+`SECURITY.md` and everything under `.claude/` (plans, `project-context.md`,
+`transition.md`, commands and **`process-log.md`**). Never commit one straight to `dev`,
+and never leave one sitting uncommitted on `dev`. Every doc change then has a reviewable
+diff and a `PR #n / IS #n` to point at.
+
+**What goes where** (between phases, IS #264): `README.md` shows off the project and holds
+no how-to; setting it up, locally and on the hosted projects, is `SETUP.md`; operating it
+(the routines, requests, incidents and releases) is `RUNBOOK.md`.
 
 - **Part of tracked work → ride along.** A log row from a review round, a doc claim a
   fix made stale (except what the sweep's step 3 leaves for the reconciliation), a plan
@@ -679,7 +683,8 @@ outside a review):
    body>]` with the same commit; its header says what it lists, where it looks and
    what it can't see. Add its hits to the list; they are a floor, not the list.
 2. **Grep every mention** of each across the tracked docs (`CLAUDE.md`, `README.md`,
-   `SETUP.md`, `RUNBOOK.md`, `.claude/`), code comments and tests, **every open issue body**, and the PR body if
+   `SETUP.md`, `RUNBOOK.md`, `SECURITY.md`, `.claude/`), code comments and tests, **every
+   open issue body**, and the PR body if
    there is one, the issue the PR closes included (PR #202's round 3 found #200's
    "Does not catch" behind the script's header). `sweep.sh`'s hits are already such
    mentions, of the text itself; grep for the terms as well, since a reworded copy
