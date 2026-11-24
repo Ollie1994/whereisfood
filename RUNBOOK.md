@@ -1,9 +1,9 @@
 # Runbook
 
-The operator's book, in the order its parts are opened: the weekly routine and its backups
-(Phase 10 plan, steps 10 and 11, #8 and #13); requests, from telling a new truck (open decision
-13) to a takedown; incidents; and checks and changes, from a marker check on the preview to a
-release (step 15b). The daily routine comes with #523.
+The operator's book, in four groups: the weekly routine and its backups (Phase 10 plan, steps
+10 and 11, #8 and #13); requests, from telling a new truck (open decision 13) to other
+requests; incidents; and checks and changes, from a marker check on the preview to a migration
+and a release (step 15b). The daily routine comes with #523.
 The repo is public, so nothing here is a secret. Each value a step needs lives where `CLAUDE.md`'s
 "Where secrets live" says: production's Supabase keys in its dashboard (Project Settings → API Keys)
 and in Vercel's environment variables, and its database URL in the gitignored `.env.prod-db.local`.
@@ -1167,7 +1167,7 @@ container. In this order, since the login has to reach the new project:
 
    Run this after a stop too (a failed push, a restore broken off), not only at the end.
 
-   `SETUP.md`'s "Later migrations go up with plain `npx supabase db push`" assumes the preview;
+   "A migration"'s plain `npx supabase db push` for the preview, below, assumes the preview;
    left linked to production, the next migration would skip it.
 
 Not tried: neither the hosted restore nor this move has been run ("Restoring",
@@ -1177,20 +1177,20 @@ Limits, above).
 
 ## A marker check on the preview
 
-Before checking a preview's markers, add an entry on `/admin`,
-logged in from `dev`'s alias: fill in the "Ny post" form with an active truck that has no
-entry today, a known spot and times that cover now, and press "Spara". It goes through the
-API like any admin entry, so an overlap is refused with the form's message. The map shows
-it within about 3 minutes, and drops it within about 3 after a cancel (`/api/live`'s cache,
-`project-context.md`, "Read path"). Cancel it with "Ställ in" as soon as the check is done,
-before it ends: from its end the list shows no "Ställ in" and the route refuses a cancel
-(Phase 9 plan #8, IS #380). Until it's cancelled, even after it ends, it refuses the truck's
-overlapping entries, drops any of the truck's checklist suggestions that overlap it, and
-makes a by-hand insert like IS #254's pass over the truck (#38's rule, `SETUP.md`, "Hosted
-preview database"). For up to 4 weeks, it can also take the place of the truck's real
-suggestions on that weekday
+Before checking a preview's markers, add an entry on `/admin`, logged in from `dev`'s alias
+(`SETUP.md`, "Hosted preview database", says why only there): fill in the "Ny post" form
+with an active truck that has no entry today, a known spot and times that cover now, and
+press "Spara". It goes through the API like any admin entry, so an overlap is refused with
+the form's message. The map shows it within about 3 minutes, and drops it within about 3
+after a cancel (`/api/live`'s cache, `project-context.md`, "Read path"). Cancel it with
+"Ställ in" as soon as the check is done, before it ends: from its end the list shows no
+"Ställ in" and the route refuses a cancel (Phase 9 plan #8, IS #380). Until it's cancelled,
+even after it ends, it refuses the truck's overlapping entries, drops any of the truck's
+checklist suggestions that overlap it, and makes a by-hand insert like IS #254's pass over
+the truck (Phase 7 plan #38's rule; both in `SETUP.md`, "Hosted preview database"). For up
+to 4 weeks, it can also take the place of the truck's real suggestions on that weekday
 (`getChecklist`). Once it's cancelled, it does none of these: cancelled rows aren't read.
-After its end, cancel it in the SQL Editor: find its id with
+After its end, cancel it in the preview's SQL Editor: find its id with
 
 ```sql
 select id, starts_at, ends_at from locations
@@ -1206,12 +1206,18 @@ Its row stays in the preview's history.
 
 ## A migration
 
-A migration reaches production by a push from the CLI, never with the seed (`SETUP.md`,
-"Production", "Schema"). Use "A restore"'s blocks alone, above, not its restore steps: step
-1's three blocks with production's ref (link and dry run, push, the advisor), each of which
-checks the link before it pushes or reads, then step 7's block, which links back to the
-preview and checks that. A release that needs the migration goes out only after this push
-("A release", below).
+A later migration goes up by a push from the CLI, never with the seed (`SETUP.md`,
+"Production", "Schema"):
+
+- **The preview:** with the CLI linked to the preview project (`SETUP.md`, "Hosted preview
+  database"), a plain `npx supabase db push`.
+- **Production:** "A restore"'s blocks alone, above, not its restore steps: step 1's three
+  blocks with production's ref (link and dry run, push, the advisor), each of which checks the
+  link before it pushes or reads, then step 7's block, which links back to the preview and
+  checks that.
+
+A release that needs the migration goes out only after production's push ("A release",
+below).
 
 ---
 

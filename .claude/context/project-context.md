@@ -105,8 +105,8 @@ save-triggered cache purges, grey markers) without a concrete problem that needs
 - **Production** (Phase 10) runs on Vercel at `vararmaten.vercel.app`, built from `main`, against
   its own Supabase Free project, with the tiles on R2. `SETUP.md`'s "Production" is the one
   description of that setup, and `RUNBOOK.md` of operating it: the weekly routine (a data-only dump
-  of `public`, then `supabase/manual/retention.sql`), incidents, requests and takedowns, and a
-  release (`dev` into `main` by a PR, then `main` synced back into `dev`). Production runs `main`,
+  of `public`, then `supabase/manual/retention.sql`), incidents, requests and takedowns, a
+  migration's push, and a release (`dev` into `main` by a PR, then `main` synced back into `dev`). Production runs `main`,
   which trails `dev`: on 2026-11-23 it was at PR #503, before IS #511's `/integritet` text (DM
   requests, the list of trucks told and the do-not-list), which a release ships before the first
   truck is told (`RUNBOOK.md`, "Telling a new truck"; IS #517). On 2026-11-23 it held the admin and
@@ -383,8 +383,9 @@ public/                           ← gothenburg.pmtiles (development; deploys r
 .githooks/                        ← pre-commit, commit-msg, gitleaks-common.sh (set through
                                     core.hooksPath, by hand)
 next.config.ts                    ← (+ test: which paths get which CSP, IS #387)
-RUNBOOK.md                        ← operating production: the weekly routine, incidents, requests,
-                                    a release (Phase 10 plan #8)
+RUNBOOK.md                        ← operating production and the preview: the weekly routine,
+                                    requests, incidents, a marker check, a migration, a release
+                                    (Phase 10 plan #8, IS #519)
 SECURITY.md, .gitleaks.toml       ← how to report a vulnerability; Gitleaks' config
 .gitattributes                    ← the files marked `-text`, which tracked-text.test.mjs skips
 ```

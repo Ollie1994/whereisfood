@@ -3,7 +3,8 @@
 How to set up Väm: a local copy for development ("Getting started", "Scripts"), and the hosted
 projects it runs on (the tiles on Cloudflare R2, the preview's and production's Supabase
 projects, the hosted settings checklist, Vercel's preview deploys). Operating it (the weekly
-routine, backups, takedowns, incidents and releases) is [`RUNBOOK.md`](RUNBOOK.md); the rules
+routine and backups, requests and takedowns, incidents, a marker check, a migration and a
+release) is [`RUNBOOK.md`](RUNBOOK.md); the rules
 for working on the code are [`CLAUDE.md`](CLAUDE.md).
 
 These sections were in `README.md` until IS #264, when "Takedown" and "Backups" moved to
@@ -382,7 +383,7 @@ npx supabase db push --include-seed --dry-run   # lists what it would apply
 npx supabase db push --include-seed
 ```
 
-Later migrations go up with plain `npx supabase db push`. On the first push, CLI
+A later migration's push is `RUNBOOK.md`'s "A migration". On the first push, CLI
 2.109.1 printed `Warning: failed to cache migrations catalog` (a missing certificate
 file) and still applied the migration: `npx supabase migration list --linked` showed
 `0001` on both sides.
