@@ -93,13 +93,16 @@ Once a week, at most 7 days after the last run, in this order:
      Observability 12 hours, and Supabase's logs keep 1 day (Phase 9 plan open decision 7),
      so this sees only recent errors. A 5xx between looks goes unalerted: accepted while the
      admin uses the app daily during the soft launch (open decision 7).
-4. **The request inboxes** (the owner's calls, IS #525 and PR #526):
+4. **The request inboxes** (the owner's calls on #525, 2026-11-24):
    - the removal mailbox `/integritet` names, its spam folder included;
    - the app's Instagram DMs, with the message requests and the hidden requests, which
      Instagram keeps apart from the main inbox.
 
    `/integritet` promises a removal within a month. With runs at most 7 days apart, a
-   request is seen within 7 days of its arrival, inside that month; a late run, or a
+   request in these two inboxes is seen within 7 days of its arrival, inside that month. A
+   limit: a reply on another channel a truck was told through ("Telling a new truck", step
+   3, below) isn't checked here, since nothing records that channel; #527 settles it. A late
+   run, or a
    confirmation that waits for a reply, uses more of it. A reply from a truck already told
    goes as "Telling a new truck", step 5, says; a request to be listed again as its "The two
    private lists" says; any other removal or objection to "A takedown request", below; the
@@ -273,15 +276,17 @@ To refresh it:
    admin at `aal2`, with an entry for today entered on the local `/admin` so a marker shows.
    Check the basemap, the marker and its popup. A new daily build can draw differently, and
    the `curl` checks can't see that. Then stop the server, and check that no `node` process
-   with this repo in its command line is left (`CLAUDE.md`, "Testing").
+   with this repo in its command line is left, and stop any that are (`CLAUDE.md`, "Testing").
 4. Upload it to the bucket under the same name, and run the two `curl` checks, both as
    `SETUP.md`'s "Map tiles on R2" says.
-5. Look at production's `/karta` the same way, in the window already signed in, with the
-   cache bypassed (a hard reload, or DevTools' "Disable cache") so no cached tile answers
-   (`CLAUDE.md`, "Green gates don't show the map renders"). A new window would need a new
-   login link, and production sends 2 emails an hour ("A login link that doesn't come",
-   below). If it draws wrong, upload the kept file under the same name, and run step 4's
-   checks and this look again.
+5. Look at production's `/karta`: the basemap and any real markers, with no test entry, since
+   `/api/live` publishes every entry. Use the window already signed in, with DevTools open and
+   "Disable cache" ticked, and check in its Network tab that the `.pmtiles` responses don't
+   come from the cache (`CLAUDE.md`, "Green gates don't show the map renders"). A session is
+   refused 12 hours after its sign-in, and a private window has none, so either needs a new
+   login link: production sends 2 emails an hour ("A login link that doesn't come", below).
+   If it draws wrong, upload the kept file under the same name, and run step 4's checks and
+   this look again.
 
 ---
 
