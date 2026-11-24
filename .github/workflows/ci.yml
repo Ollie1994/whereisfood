@@ -296,8 +296,8 @@ jobs:
           fi
 
   # The schema controls (CLAUDE.md, "Schema controls", which gives their cost): every control
-  # file parsed on every PR, and the full set, about 30 s a control here, when
-  # scripts/controls-trigger.mjs says so (a trigger path changed, or the PR is into main).
+  # file parsed on every PR, and the full set when scripts/controls-trigger.mjs says so (a
+  # trigger path changed, or the PR is into main).
   # Its own job and stack (open decision 3), so `integration` keeps its 20-minute limit.
   # With the stack started on SUPABASE_EXCLUDE, five controls (red, setup-fails and green,
   # across `schema`, `rls` and `db-trucks`) ran as listed, their six `db reset`s with no

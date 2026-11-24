@@ -1190,8 +1190,7 @@ exists one found in-house, is fixed without a public issue or PR until it ships 
    request(s)": GitHub's docs say it doesn't enforce the branch's protection rules.
 3. **Ship it.** From the push of the fix's branch the fix is public, until it is deployed: CI's
    run, and the full controls set on a PR into `main` or one touching a `TRIGGERS` path, whose
-   `controls` job runs about 40 minutes (`CLAUDE.md`, "Schema controls"). So push only when
-   ready to ship.
+   time `CLAUDE.md`'s "Schema controls" gives. So push only when ready to ship.
    - Before production, always: a branch off `dev` and a PR into `dev`, whose preview deploys
      it, wherever else the code is, so plan #9's first merge into `main` keeps its order.
    - Once production exists, the vulnerable code deployed there: a branch off `main` and a PR
@@ -1503,9 +1502,8 @@ value again, so backticks, `$` and apostrophes in the title pass as written. Tri
    check read: `gh pr create --base main --head dev --title "$TITLE" --body-file <file>`.
 
    It needs every check `main`'s ruleset requires, CodeQL's three among them. `controls` runs
-   the full set on a PR into `main`, about 40 minutes of the job (`CLAUDE.md`, "Schema
-   controls"). Settle each
-   CodeQL finding before the merge. One the `CodeQL` check fails on must be fixed, or dismissed
+   the full set on a PR into `main`, whose time `CLAUDE.md`'s "Schema controls" gives. Settle
+   each CodeQL finding before the merge. One the `CodeQL` check fails on must be fixed, or dismissed
    with a reason, for the check to pass; an issue alone settles only one it passes on. The
    repository's "Check runs failure threshold" sets which fail: Security alert severity level
    "High or higher", Standard alert severity level "Only errors" (read by the owner on

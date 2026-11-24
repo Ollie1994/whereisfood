@@ -112,7 +112,8 @@ review's additions.
   `src/lib/db/` outright: the db layer has none of either today (`grep`). A row
   post-filter there then takes another form, or a disable that names this rule.
 - **Schema controls:** `node scripts/controls.mjs --check` on every PR; the full run (~45 s
-  a control, 64 took 48 min on 2026-10-23) when one of these changes: `supabase/migrations/`
+  a control locally, 64 took 48 min on 2026-10-23; CI's: `CLAUDE.md`, "Schema controls")
+  when one of these changes: `supabase/migrations/`
   or a test a control's header names (`CLAUDE.md`'s "Schema controls" names these two);
   `tests/controls/` and `scripts/controls.mjs` (the owner, round 4 on PR #280); and the
   files the controls' runs depend on, `tests/integration/helpers.ts`,

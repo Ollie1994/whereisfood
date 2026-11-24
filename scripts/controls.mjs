@@ -37,8 +37,8 @@
 // than removed terms; the hosted project (Phase 6); and one term of decision #6 with no
 // control: the stack's default TRUNCATE, REFERENCES, TRIGGER and MAINTAIN that
 // `revoke all` removes, which the plan's `relacl` acceptance criterion checks (PR #174
-// says why it has no control). Locally about 45 s a control: one `db reset` (41 s, measured
-// 2026-10-23) and one integration file. CI's times are CLAUDE.md's ("Schema controls").
+// says why it has no control). A control costs one `db reset` (41 s, measured 2026-10-23)
+// and one integration file; CLAUDE.md ("Schema controls") gives the totals, local and in CI.
 //
 // CI's required `controls` check runs it (CLAUDE.md, "Schema controls" under "Testing",
 // which says when to run it by hand).
