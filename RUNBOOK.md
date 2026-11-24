@@ -186,10 +186,10 @@ Once a week, at most 7 days after the last run, in this order:
    - the app's Instagram DMs, with the message requests and the hidden requests, which
      Instagram keeps apart from the main inbox;
    - the inbox of every other account "Telling a new truck", step 3, has sent from (one per
-     kind), its spam and message-request folders included, whatever the list of trucks told
-     holds now: a takedown deletes a truck's line while its request is still kept (the owner's
-     call on round 2 of PR #531). A mail or a contact form is answered into the removal
-     mailbox (the same step 3).
+     kind, named on the list of trucks told's first line), its spam and message-request folders
+     included, whatever the list's truck lines hold now: a takedown deletes a truck's line while
+     its request is still kept (the owner's calls on rounds 2 and 3 of PR #531). A mail or a
+     contact form is answered into the removal mailbox (the same step 3).
 
    `/integritet` promises a removal within a month. With runs at most 7 days apart, a
    request in these inboxes is seen within 7 days of its arrival, inside that month. A late
@@ -416,12 +416,15 @@ release).
 3. If Instagram won't send it (DMs closed to @vararmaten, or an error), send this through another
    channel the truck publishes itself, its website or a contact in its own posts, the channels
    "Other requests" confirms through. Send a mail from vararmaten@proton.me, and give that address
-   as a contact form's reply address, so a reply comes to the removal mailbox; a form that can't
-   take it as its reply address isn't used. Send each other kind from one account of the owner's
-   (one Facebook account, say), which the weekly routine checks, and give that account two-factor
-   by authenticator app or passkey, not SMS, before its first message: it receives removal
-   requests too (the owner's calls on round 1 of PR #531). Never by sms or a call: a phone number
-   can't take that two-factor (the owner's call on round 2):
+   as a contact form's reply address, so a reply comes to the removal mailbox, and fill in no phone
+   number; a form that can't take it as its reply address, or requires a phone number, isn't used.
+   Send each other kind from one account of the owner's (one Facebook account, say), which the
+   weekly routine checks, and give that account two-factor by authenticator app or passkey, with
+   no SMS method or recovery phone and its recovery codes kept offline, before its first message:
+   it receives removal requests too (the owner's calls on round 1 of PR #531). When it sends its
+   first message, add its kind to the list of trucks told's first line ("The two private lists",
+   below). Never by sms or a call: a phone number can't take that two-factor (the owner's call on
+   round 2):
 
    > Hej! Jag driver Väm – Var är maten?, en karta över var Göteborgs foodtruckar står i dag: vararmaten.vercel.app
    >
@@ -436,12 +439,12 @@ release).
    > /Oliwer, Väm
 
    A message that is sent counts as told, by DM or by this channel, seen or not, even in the
-   truck's message requests (the owner's call, IS #511). With no other channel, the truck isn't
-   entered. For a truck told this way, "its DM thread" below and in "A takedown request" and
-   "Other requests" means this message, its replies and the full launch's second message (below),
-   but a request in them, which is kept as a request mail is: a mail, or a copy a contact form
-   sent to the mailbox, is deleted from the mailbox and its Trash, and a message sent any other
-   way where it was sent.
+   truck's message requests (the owner's call, IS #511). With no other channel this step can use,
+   the truck isn't entered. For a truck told this way, "its DM thread" below and in "A takedown
+   request" and "Other requests" means this message, its replies and the full launch's second
+   message (below), but a request in them, which is kept as a request mail is: a mail, or a copy a
+   contact form sent to the mailbox, is deleted from the mailbox and its Trash, and a message sent
+   any other way where it was sent.
 4. Add its line to the list of trucks told (below) once the message is sent: its name and the
    date (Stockholm), and for a truck told by step 3, the channel's kind (`mejl`,
    `kontaktformulär`, `Facebook`), never its address (the owner's call, IS #527).
@@ -462,10 +465,11 @@ the owner's machine ("Takedown", step 4, below), never in the repo, the database
 `/integritet` names both:
 
 - **Trucks told:** one line per truck, its name and the date it was told, and for a truck told
-  outside Instagram the channel's kind (step 4); the weekly routine checks every account step 3
-  sends from ("The weekly routine", step 4). Its line is deleted when the truck is taken down ("A takedown
-  request", step 4). A count of trucks told is read from it; after #465, no public record keeps
-  one (IS #511).
+  outside Instagram the channel's kind (step 4). A truck's line is deleted when the truck is taken
+  down ("A takedown request", step 4). A count of trucks told is read from it; after #465, no
+  public record keeps one (IS #511). Its first line names, by kind, each account step 3 has sent
+  from, which the weekly routine checks ("The weekly routine", step 4), and a takedown never
+  deletes it: it names only the owner's accounts (the owner's call on round 3 of PR #531).
 - **The do-not-list:** the Instagram handle of a truck that asked to be removed (taken down, or
   never entered: step 5), and the date, no name, so it isn't told and entered again. Kept until
   the truck itself asks to be listed again: it honours the truck's objection (GDPR art. 21; IS
@@ -590,11 +594,13 @@ Before sending a truck's data or changing it, confirm that the requesting addres
 truck (GDPR art. 12(6) allows asking): send a code in a message to the Instagram account on the
 truck's row, and ask for it to be mailed back from the requesting address. Send files only to that
 address. A DM from that account needs no code, unless the handle is what's disputed; ask it for
-an address to send any files to, and confirm that address the same way. With no handle on the
-row, or when the handle itself is what's disputed, do the same through another channel the truck
-publishes itself (its website, or a contact in its own posts); with none, answer that the request
-can't be verified, and what would let you verify it. A takedown is confirmed the same way ("A
-takedown request").
+an address to send any files to, and confirm that address the same way. A message to an account
+"Telling a new truck", step 3, sends from is confirmed like a mail, the code sent back in its
+thread instead of mailed, and any files go to an address confirmed the same way. With no handle
+on the row, or when the handle itself is what's disputed, do the same through another channel the
+truck publishes itself (its website, or a contact in its own posts); with none, answer that the
+request can't be verified, and what would let you verify it. A takedown is confirmed the same way
+("A takedown request").
 
 - **Access:** the truck's rows as CSV files, through the local stack's `psql` as "Exporting
   evidence" does (the SQL editor shows at most 100 rows). From the repo in Git Bash, with the
