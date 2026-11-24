@@ -93,14 +93,10 @@ Once a week, at most 7 days after the last run, in this order:
      Observability 12 hours, and Supabase's logs keep 1 day (Phase 9 plan open decision 7),
      so this sees only recent errors. A 5xx between looks goes unalerted: accepted while the
      admin uses the app daily during the soft launch (open decision 7).
-4. **The request inboxes** (weekly: the owner's call on IS #525; the folders and the third
-   bullet: proposed in #526, for the owner's approval):
+4. **The request inboxes** (the owner's calls, IS #525 and PR #526):
    - the removal mailbox `/integritet` names, its spam folder included;
    - the app's Instagram DMs, with the message requests and the hidden requests, which
-     Instagram keeps apart from the main inbox;
-   - for each truck told through another channel ("Telling a new truck", step 3, below),
-     that channel, for as long as the truck is listed: a reply asking for removal can come
-     back there. A code "Other requests" sends comes back by mail or DM, above.
+     Instagram keeps apart from the main inbox.
 
    `/integritet` promises a removal within a month. With runs at most 7 days apart, a
    request is seen within 7 days of its arrival, inside that month; a late run, or a
@@ -249,8 +245,8 @@ date.
 
 **The first time,** before any yearly run: read the renewal date at Oderland and set a reminder
 a month ahead of it, for the domains and the map tiles' look ("Refreshing the map tiles",
-below). Nothing else prompts the first run, around November 2027. Then, each year at that
-reminder:
+below). Nothing else prompts the first run: the first renewal comes around November 2027, so
+that reminder falls around October 2027. Then, each year at that reminder:
 
 1. Log in to Oderland, whose account has two-factor (`CLAUDE.md`, "Secrets"), and read each
    domain's renewal date, and that automatic renewal is still on.
@@ -276,12 +272,16 @@ To refresh it:
    `npm start`, at the URL its `Local:` line prints (`CLAUDE.md`, "Testing"), signed in as the
    admin at `aal2`, with an entry for today entered on the local `/admin` so a marker shows.
    Check the basemap, the marker and its popup. A new daily build can draw differently, and
-   the `curl` checks can't see that.
+   the `curl` checks can't see that. Then stop the server, and check that no `node` process
+   with this repo in its command line is left (`CLAUDE.md`, "Testing").
 4. Upload it to the bucket under the same name, and run the two `curl` checks, both as
    `SETUP.md`'s "Map tiles on R2" says.
-5. Look at production's `/karta` the same way, in a private window so no cached tile answers
-   (`CLAUDE.md`, "Green gates don't show the map renders"). If it draws wrong, upload the
-   kept file under the same name, and run step 4's checks and this look again.
+5. Look at production's `/karta` the same way, in the window already signed in, with the
+   cache bypassed (a hard reload, or DevTools' "Disable cache") so no cached tile answers
+   (`CLAUDE.md`, "Green gates don't show the map renders"). A new window would need a new
+   login link, and production sends 2 emails an hour ("A login link that doesn't come",
+   below). If it draws wrong, upload the kept file under the same name, and run step 4's
+   checks and this look again.
 
 ---
 

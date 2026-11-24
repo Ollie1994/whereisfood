@@ -204,7 +204,8 @@ Cloudflare dashboard (no API token needed):
 
 - **Storage:** an R2 bucket with the Standard storage class. Upload
   `public/gothenburg.pmtiles` under the same name from the bucket's Objects tab. A new
-  extract is uploaded the same way, replacing the old one.
+  extract replaces it by `RUNBOOK.md`'s "Refreshing the map tiles", which keeps the old file
+  and checks the new one before and after the upload.
 - **Public access:** the bucket's *Public Development URL* (`https://pub-<id>.r2.dev`),
   under Settings. Deploys set `NEXT_PUBLIC_PMTILES_URL` to
   `https://pub-<id>.r2.dev/gothenburg.pmtiles`. Cloudflare rate-limits `r2.dev` and
