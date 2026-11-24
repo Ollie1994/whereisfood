@@ -155,9 +155,9 @@ said otherwise: Phase 4 plan decision #14.
 - **Secure password change and the password-changed email stay on** (Phase 9 plan step 2,
   IS #378): `config.toml`'s `secure_password_change = true` and
   `[auth.email.notification.password_changed]`, which `supabase/config.test.ts` pins;
-  a hosted project's are README's hosted settings checklist's (plan step 12, #390), with "Require
+  a hosted project's are SETUP.md's hosted settings checklist's (plan step 12, #390), with "Require
   current password when updating", which has no `config.toml` key in the CLI (plan #13).
-  **The admin keeps a password** (README, "5. Create the admin user"): GoTrue asks for the
+  **The admin keeps a password** (SETUP.md, "5. Create the admin user"): GoTrue asks for the
   current password only from a user who has one, and not in a recovery session (`user.go`),
   so an admin created without one, or by an invitation, loses that guard; the preview's,
   made before this rule, was given a long random one (IS #378). Limits: Auth counts a session
@@ -169,7 +169,7 @@ said otherwise: Phase 4 plan decision #14.
 - **The emailed code is 10 digits and lives 15 minutes** (Phase 9 plan step 8, open decision
   1, IS #386): `config.toml`'s `otp_length` and `otp_expiry`, which `supabase/config.test.ts`
   pins and `auth-routes.test.ts` checks on the running stack (the 15 minutes by moving a
-  link's `recovery_sent_at` back by SQL). A hosted project's are README's hosted settings
+  link's `recovery_sent_at` back by SQL). A hosted project's are SETUP.md's hosted settings
   checklist's (#390). No email shows the login code, but Auth accepts it; the length also
   sets the reauthentication code, which is emailed and typed (`config.toml`). Spending the
   built-in email's budget so the admin's link doesn't come is accepted until the Owners
@@ -208,7 +208,7 @@ said otherwise: Phase 4 plan decision #14.
   "Pre-deploy automation")
 - **The Gitleaks hooks** (IS #292): `.githooks/pre-commit` scans the staged changes and
   `.githooks/commit-msg` the message. `core.hooksPath` is set by hand in each clone
-  (README, "1. Install"), never by a `prepare` script, which `npm ci` would run in CI too
+  (SETUP.md, "1. Install"), never by a `prepare` script, which `npm ci` would run in CI too
   (Phase 8 plan decision #7). A commit they refuse is fixed like a push-protection block:
   remove the value, or, for a value that isn't a secret, add a `.gitleaks.toml` allowlist
   entry that names why. Never `--no-verify`, never an inline `gitleaks:allow`, which the
@@ -517,8 +517,8 @@ output) and re-run (process-log row 275, PR #133).
 **Where an issue's browser checks run** (Phase 7 plan decision #36): in a local browser at
 phone width at `127.0.0.1:3000`, against the local stack. The phone, on `dev`'s preview, is
 for a plan's checkpoint issues: the preview's Redirect URLs admit `dev`'s alias alone, so a
-branch's preview can't finish a login (`README.md`, "Hosted preview database"), and no
-branch but `dev` gets the secret key, so its preview build fails (`README.md`, "Preview
+branch's preview can't finish a login (`SETUP.md`, "Hosted preview database"), and no
+branch but `dev` gets the secret key, so its preview build fails (`SETUP.md`, "Preview
 deploys").
 
 ⚠ **Browser checks: confirm which server answered, and that it is gone afterwards.**
@@ -596,9 +596,9 @@ no longer needs, or with no reason, fails.
 ## Doc changes — always issue → branch → PR
 
 Every change to a tracked doc goes through an issue, a branch and a PR into `dev`,
-exactly like code. Tracked docs are `CLAUDE.md`, `README.md` and everything under
-`.claude/` (plans, `project-context.md`, `transition.md`, commands and
-**`process-log.md`**). Never commit one straight to `dev`, and never leave one sitting
+exactly like code. Tracked docs are `CLAUDE.md`, `README.md`, `SETUP.md`, `RUNBOOK.md`
+and everything under `.claude/` (plans, `project-context.md`, `transition.md`, commands
+and **`process-log.md`**). Never commit one straight to `dev`, and never leave one sitting
 uncommitted on `dev`. Every doc change then has a reviewable diff and a
 `PR #n / IS #n` to point at.
 
@@ -679,7 +679,7 @@ outside a review):
    body>]` with the same commit; its header says what it lists, where it looks and
    what it can't see. Add its hits to the list; they are a floor, not the list.
 2. **Grep every mention** of each across the tracked docs (`CLAUDE.md`, `README.md`,
-   `.claude/`), code comments and tests, **every open issue body**, and the PR body if
+   `SETUP.md`, `RUNBOOK.md`, `.claude/`), code comments and tests, **every open issue body**, and the PR body if
    there is one, the issue the PR closes included (PR #202's round 3 found #200's
    "Does not catch" behind the script's header). `sweep.sh`'s hits are already such
    mentions, of the text itself; grep for the terms as well, since a reworded copy

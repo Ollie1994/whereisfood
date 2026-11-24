@@ -1,7 +1,7 @@
 # Runbook
 
-What to open in an incident, the weekly routine (Phase 10 plan, steps 10 and 11, #8 and #13),
-telling a new truck (open decision 13) and a release (step 15b).
+What to open in an incident, the weekly routine and its backups (Phase 10 plan, steps 10 and 11,
+#8 and #13), a takedown, telling a new truck (open decision 13) and a release (step 15b).
 The repo is public, so nothing here is a secret. Each value a step needs lives where `CLAUDE.md`'s
 "Where secrets live" says: production's Supabase keys in its dashboard (Project Settings → API Keys)
 and in Vercel's environment variables, and its database URL in the gitignored `.env.prod-db.local`.
@@ -9,6 +9,7 @@ and in Vercel's environment variables, and its database URL in the gitignored `.
 A step that rests on a probe or a doc names it, with its issue.
 
 - [The weekly routine](#the-weekly-routine)
+- [Backups](#backups)
 - [Attack Mode](#attack-mode)
 - [Exporting evidence](#exporting-evidence)
 - [A takeover of the admin account](#a-takeover-of-the-admin-account)
@@ -17,6 +18,7 @@ A step that rests on a probe or a doc names it, with its issue.
 - [A leaked key](#a-leaked-key)
 - [Telling a new truck](#telling-a-new-truck)
 - [A takedown request](#a-takedown-request)
+- [Takedown](#takedown)
 - [Other requests](#other-requests)
 - [A private vulnerability](#a-private-vulnerability)
 - [A paused project](#a-paused-project)
@@ -29,7 +31,7 @@ A step that rests on a probe or a doc names it, with its issue.
 
 Once a week, in this order:
 
-1. **The dump:** README, "Backups" → "The weekly dump". Step 2 runs only after `DUMP OK`; step 3
+1. **The dump:** "Backups" → "The weekly dump", below. Step 2 runs only after `DUMP OK`; step 3
    runs whatever the dump answered. A week with no new good dump (`DUMP FAILED`, `NO URL`, or the
    routine skipped) or a prune left undone (`PRUNE FAILED` until the hand deletion) keeps an old
    dump longer: check "A takedown request", step 4, for a requester whose date it moves. **While an
@@ -38,7 +40,7 @@ Once a week, in this order:
    `whereisfood-YYYY-MM-DD.sql` files at the folder's top level, and these may be the only copy of
    rows an intruder deleted. **At most 8 weeks** (the owner's call, IS #457): delete the held dumps
    when the incident is closed, or 8 weeks after the hold began, whichever comes first. Held dumps
-   keep the rows of any truck taken down before or during the hold until then, past README's "about
+   keep the rows of any truck taken down before or during the hold until then, past the Backups section's "about
    four weeks": say so in a takedown's reply meanwhile, and write to each earlier requester whose
    date this moves ("A takedown request", steps 3 and 4).
 2. **`supabase/manual/retention.sql`** in production's SQL editor. Its row counts the
@@ -49,7 +51,7 @@ Once a week, in this order:
    then it answers `0` for that count, which is expected. **During an incident** (a
    takeover, a leaked key), **skip it until "Exporting evidence" has printed `EXPORT OK
    audit`, and never more than 8 weeks** (the owner's call, IS #457): it deletes the audit
-   rows that export saves, and no dump holds them (the dumps hold `public` only). README's
+   rows that export saves, and no dump holds them (the dumps hold `public` only). "The weekly dump"'s
    `DUMP OK` line doesn't know about an incident; this rule does.
 3. **The usage look**, which stands in for the alerts neither free plan offers (open decision
    7, IS #457):
@@ -65,6 +67,130 @@ Once a week, in this order:
 
 The routine is also the project's weekly activity, though it may not be enough to keep a
 Free project from pausing ("A paused project", below).
+
+---
+
+## Backups
+
+Supabase Free has no backups, so until Pro (Phase 11) the backup is a weekly dump of the
+`public` schema's data, made by hand (Phase 10 plan, #11). Never the `auth` schema: its
+sessions and refresh tokens are credentials. The dumps live on the owner's machine outside
+the repo, next to the takedown log ("Takedown", step 4), and **the newest four are kept**
+(open decision 5), so a takedown or a retention delete leaves the backups about four weeks
+later; while an incident hold keeps older dumps aside, or after a restore into a new project
+while the old one is kept, at the latest of these, each at most 8 weeks ("A
+takedown request", below).
+
+**The connection string** is the production project's **Session pooler** one (dashboard →
+Connect → Direct → Session pooler → URI, the password filled in, every character of it other
+than a letter, a digit or `-._~` percent-encoded), in the gitignored `.env.prod-db.local` as
+`PROD_DB_URL=…` (`CLAUDE.md`, "Where secrets live"). The Direct connection uses IPv6
+unless the paid IPv4 add-on is on (the dashboard's note), and from the owner's machine it was
+refused; the session pooler worked (the preview, IS #455). The Transaction pooler wasn't
+tried.
+
+### The weekly dump
+
+With Docker running (the CLI runs `pg_dump` in a container), from the repo, in Git Bash:
+
+```bash
+BACKUPS="<backups folder>"
+FILE="$BACKUPS/whereisfood-$(date -u +%Y-%m-%d).sql"
+PROD_DB_URL=$(grep '^PROD_DB_URL=' .env.prod-db.local | cut -d= -f2- | tr -d "\r\"'")
+rm -f "$BACKUPS"/whereisfood-*.sql.part
+if [ -z "$PROD_DB_URL" ]; then
+  echo "NO URL: no PROD_DB_URL=<url> line read from .env.prod-db.local; no dump made"
+elif npx supabase db dump --db-url "$PROD_DB_URL" --data-only --schema public -f "$FILE.part" \
+  && tail -n 1 "$FILE.part" | grep -qx 'RESET ALL;' && mv "$FILE.part" "$FILE"; then
+  echo "DUMP OK: now run retention.sql"
+  ls -1 "$BACKUPS"/whereisfood-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].sql \
+    | sort | head -n -4 | xargs -d '\n' -r rm -- \
+    || echo "PRUNE FAILED: the dump is good; delete all but the newest four by hand"
+else
+  rm -f "$FILE.part"
+  echo "DUMP FAILED: nothing kept from this run, old dumps untouched; don't run retention.sql"
+fi
+unset PROD_DB_URL
+```
+
+- The line in `.env.prod-db.local` is exactly `PROD_DB_URL=<url>`: no spaces around the `=` and
+  no comment after it. The read drops double and single quotes and Windows line endings. With
+  no such line (the file missing or misnamed, a byte-order mark before the line), the block
+  stops at `NO URL`: given an empty URL, the CLI would try a database on `localhost`.
+- A complete dump ends with the CLI's `RESET ALL;`. A failed one exits non-zero and leaves a
+  short file without it: an unreachable database left 41 bytes (IS #455). The dump is written
+  to `<name>.part`, which the deletion doesn't match. It takes the dated name only after that
+  check passes, and a failed run's `.part` is removed. So a failed run never counts as one of
+  the four, and never replaces a good dump of the same day. Each run first removes every
+  `.part` an interrupted run left, whatever its date.
+- The deletion keeps the newest four dated dumps (`whereisfood-YYYY-MM-DD.sql`) and touches
+  nothing else in the folder: the takedown log, and any other file, `whereisfood-` or not,
+  stay and take no place among the four. If it fails, the new dump is still good.
+
+After `DUMP OK`, run [`supabase/manual/retention.sql`](supabase/manual/retention.sql) in the SQL
+editor: the weekly routine runs it after the dump (Phase 10 plan, #10), except while an
+incident is being investigated, when the dumps from before it are also moved aside
+("The weekly routine", above). After `DUMP FAILED` or
+`NO URL`, don't run it: fix the cause and run the block again.
+
+### Restoring
+
+A restore always goes into a **fresh** database, with the migrations applied, **no seed** and
+no `auth` users: on the local stack `npx supabase db reset --no-seed`; on a new hosted project
+`npx supabase db push` without `--include-seed` (not tried). The seed's trucks have ids no
+production dump holds, so a dump would load beside them with no error, mixing them in. Check
+first that `select count(*) from trucks` and `select count(*) from auth.users` both answer 0.
+A database that still holds data or users, production with some rows lost included, isn't a
+target for these steps: emptying a live database by hand is untested, so restore into a fresh
+one instead. (Of the checks, the first catches data and the second any user; step 1 also
+answers `422 email_exists` when the admin's email is already there, probed.) A restore brings
+back what was deleted after its dump, so the takedowns and `retention.sql` run again after
+it. The steps, tested once on the local stack (IS #455's record):
+
+1. **The admin, by its old id**, before the data: `users.id` and `locations.created_by`
+   reference `auth.users`, and the dump loads with its foreign keys unchecked (`replica`),
+   so a new id would leave both pointing at nobody. Studio's "Add user" can't set an id;
+   Auth's admin API can (Phase 10 plan, open decision 11). The old id is the `users` row with
+   `is_admin` `true` in the dump. With the project's secret key read without echoing (`read -rs
+   SECRET_KEY`) and a long random password the admin never needs (`CLAUDE.md`, "Supabase"):
+
+   ```bash
+   PASSWORD=$(node -e 'console.log(require("crypto").randomBytes(32).toString("base64url"))')
+   curl -sS -w '\n%{http_code}\n' -X POST "<project URL>/auth/v1/admin/users" \
+     -H "apikey: $SECRET_KEY" -H "Content-Type: application/json" \
+     -d "{\"id\":\"<old id>\",\"email\":\"<admin email>\",\"password\":\"$PASSWORD\",\"email_confirm\":true}"
+   unset PASSWORD SECRET_KEY
+   ```
+
+   It prints Auth's answer, then the status. `200` means it was made, and
+   `select id from auth.users` in the SQL editor shows the old id. A `4xx` gives its reason in
+   the answer. For anything else, such as `000`, a dropped connection, check `auth.users`
+   before running it again, and `read -rs SECRET_KEY` first: the block has cleared it.
+2. **The data:** load the dump with `psql` in one transaction (`-1`), so a load that fails
+   partway leaves nothing behind and can be run again. On the local stack:
+   `docker exec -i supabase_db_whereisfood psql -U postgres -v ON_ERROR_STOP=1 -1 < <dump file>`.
+   Probed: a copy of a dump whose second statement failed, a duplicate `users` key, left its
+   first insert behind without `-1` and nothing with it.
+3. **Every takedown in the log**, whatever its date, each with its name read from the
+   restored database ("Takedown", steps 1 to 4).
+4. **`retention.sql`**, once.
+5. **Log in and enroll TOTP at once.** The dump holds no `auth` schema, so the admin comes
+   back with no factor: the login shows the enroll QR code, and until it is done any `aal1`
+   session, a guessed code's included, can fill the free slot (Phase 9 plan #13). Delete the
+   authenticator app's old entry. The next link after this login and enroll can be refused for
+   about an hour ("A login link that doesn't come", below).
+
+Limits: moving the live app to a new project after a hosted restore (Vercel's variables, the
+hosted settings checklist, the Redirect URLs) isn't covered here or tried; "A restore",
+below, takes it (#457). Steps 1 and 2 were run only on the local stack (its API URL and
+`sb_secret_` key; its `postgres`, which may set `session_replication_role`). On a hosted
+project neither the admin API call nor the load has been tried, and a hosted restore needs a
+new project in a free slot (two active free projects; pausing another frees one). The secret
+key, the admin's password and the database URL are on command lines while the commands run,
+which other processes of this user can read; the variables keep them out of the shell's
+history only. The CLI also hands the database URL's parts to its `pg_dump` container: its
+script exports `PGPASSWORD` there (`--dry-run`), so whoever can reach Docker could read it
+while the dump runs (not seen in `docker inspect`).
 
 ---
 
@@ -160,8 +286,8 @@ plan's #13. Its order:
    who held the mailbox may have moved it to theirs, and step 4's link goes to that address.
    Two rows: shut the other out as "A lost phone", step 2, says (it tells yours by its id,
    not the email), then come back to this step with yours. "A leaked key" comes after step 5.
-   Then, with the secret key read without echoing (`read -rs SECRET_KEY`), as README's
-   restore step 1 does, and `<your email>` in place:
+   Then, with the secret key read without echoing (`read -rs SECRET_KEY`), as "Restoring"
+   step 1 does, and `<your email>` in place:
 
    ```bash
    PASSWORD=$(node -e 'console.log(require("crypto").randomBytes(32).toString("base64url"))')
@@ -185,7 +311,7 @@ plan's #13. Its order:
    made one (IS #457, local stack). So a thief's pending link can't fill the free slot after
    step 3. The admin never needs the password, but must have one (`CLAUDE.md`, "Supabase").
    The key and the password are on `curl`'s command line while it runs, where other
-   processes of this user can read them (README, "Restoring", Limits): on a machine you
+   processes of this user can read them ("Restoring", Limits): on a machine you
    suspect, run it from another.
 3. **Delete the factor and end every session:** "A lost phone", steps 2 and 3. Sessions end
    after the password and the factor, or the thief signs straight back in (#13). Deleting the
@@ -241,7 +367,7 @@ no secret key outside Supabase, no unenroll screen; IS #457):
    a second admin, which a signed-in user can't do with their own session, but a key or the
    database password can. **Tell yours by its id**, not the email, which a thief may have
    changed: the `users` row with `is_admin` true in the newest weekly dump from before the
-   incident (the id README's restore calls the old id). Keep that id in your password manager
+   incident (the id "Restoring" calls the old id). Keep that id in your password manager
    from production's setup on: if every kept dump already shows both admins, the noted id
    decides. Without it, stop and compare each `auth_created_at` with when you created the
    production admin, or with the last restore's date, since a restore recreates the admin and
@@ -323,7 +449,7 @@ preview's SQL editor runs as `postgres` and may delete from an `auth` table
 ## A login link that doesn't come
 
 Production sends through Supabase's built-in email, which allows 2 emails an hour for the whole
-project (README, "Hosted settings checklist", Rate Limits). Anyone who knows the admin's address
+project (`SETUP.md`, "Hosted settings checklist", Rate Limits). Anyone who knows the admin's address
 can ask for login links and spend them, so yours doesn't come. That is accepted until the Owners
 phase's custom SMTP (the Phase 10 plan's open decision 6, IS #458). It grants no access: a session
 you already hold keeps working until its 12-hour box (`CLAUDE.md`, "The session time-box").
@@ -336,18 +462,18 @@ after two of yours in an hour (two links, or a link and an enroll's notice, belo
 nor is the TOTP step's "För många försök. Vänta en stund och försök igen.", a limit on codes.
 On production a request got 429 and that text within about 20 minutes of a phone login's link:
 between the enroll at 12:15:54 and #464's comment 2 at 12:34:19, Stockholm time (IS #464,
-2026-11-23). Its error code wasn't read; of README's Rate Limits, the 2 emails an hour is the
+2026-11-23). Its error code wasn't read; of `SETUP.md`'s Rate Limits, the 2 emails an hour is the
 one a single request then fits (locally the CLI sets it to 360 000,
 `GOTRUE_RATE_LIMIT_EMAIL_SENT`, IS #377). In the hour before the refusal the audit log holds one
 link sent (12:13:55) and the TOTP enroll's verify (12:15:54, the first `verification_attempted`
 after its `factor_in_progress`), after which the owner got the "MFA method added" email (IS
 #507's read). So that notice likely spends the budget too, and after a login and an enroll ("A
-takeover", step 4; "A lost phone", step 4; "A restore", step 5; README's first login, "5.
+takeover", step 4; "A lost phone", step 4; "A restore", step 5; `SETUP.md`'s first login, "5.
 Create the admin user", on a hosted project) the next link can be refused:
 wait about an hour after your last email, the link or the notice. How the budget frees a slot
 wasn't probed; a link asked for at 13:31:54 went through. If a factor-enrolled, factor-unenrolled or
 password-changed email you didn't cause came too
-("MFA method added", "MFA method removed", "Password changed" in README's checklist), this is
+("MFA method added", "MFA method removed", "Password changed" in `SETUP.md`'s checklist), this is
 "A takeover", not this section.
 
 1. **Check the mail itself:** the spam folder, and the address typed on the login form. A link
@@ -360,7 +486,7 @@ password-changed email you didn't cause came too
    Auth's `/verify` (`otp_expired`; local stack, IS #458: a link opened after a second send
    answered `otp_expired`). Whether a request the hourly budget refuses leaves it working is
    unknown: production refuses only that way (the per-user interval applies only with custom
-   SMTP, README's Rate Limits row), and no probe has looked (a 429 was seen, likely the hourly
+   SMTP, `SETUP.md`'s Rate Limits row), and no probe has looked (a 429 was seen, likely the hourly
    budget's, Signs); locally, a link still made a session after another client's request was
    refused by the per-user interval (`max_frequency`). So don't count on an older link while
    someone is asking. And each request from your browser, refused or not, replaces its PKCE
@@ -444,7 +570,7 @@ A secret that reaches a commit, an issue or a PR is rotated, not just deleted (`
   wasn't seen). Then put the new one into `.env.prod-db.local`, and anywhere else that
   stored it (a CLI link made with it). The app doesn't use it.
 - **The legacy API keys** (`anon` and `service_role` JWTs): disabled on production and the
-  preview since 2026-11-22 (README's "Hosted settings checklist", IS #460). They "stay valid
+  preview since 2026-11-22 (`SETUP.md`'s "Hosted settings checklist", IS #460). They "stay valid
   until you disable them in the Settings > API Keys section", even where the project uses the
   new `sb_` keys (#448's 1b), so check they still read disabled on each. This is read here,
   during an incident; the weekly routine doesn't read the API Keys page. Treat keys found on
@@ -484,7 +610,7 @@ A secret that reaches a commit, an issue or a PR is rotated, not just deleted (`
        database password by their bullets, and run the "After rotating" paragraph below.
   - **A routine rotation:** Create Standby Key, then rotate it into use; "Non-expired access
     tokens will remain to be accepted, so no users will be forcefully signed out" (#448's 1b).
-    Revoke the old key once its tokens have expired: an access token lives 3600 s (README's
+    Revoke the old key once its tokens have expired: an access token lives 3600 s (`SETUP.md`'s
     checklist).
   - Neither was tried here: #460 only revoked the HS256 secret, already a previous key, after
     the legacy API keys it signed were disabled, with no user ever signed in.
@@ -524,7 +650,7 @@ password or an account token, all of these; after the secret key, the first two:
 - **Keys and accounts:** the API Keys page, for a key you didn't make (delete it), and Auth's
   users, for one you didn't make (ban it and end its sessions, as "A lost phone", step 2,
   does).
-- **Settings:** README's "Hosted settings checklist", row by row, Auth's sign-ups and Redirect
+- **Settings:** `SETUP.md`'s "Hosted settings checklist", row by row, Auth's sign-ups and Redirect
   URLs included; Vercel's Production variables and its recent deployments.
 - **The database's `public` schema,** compared whole with the migrations': dump production's
   and the local stack's schema (the local stack started, no data needed) and diff them:
@@ -661,7 +787,7 @@ PR #503, before PR #512 put the text on `dev` (IS #517 is that release).
 <!-- SOFT-LAUNCH GATE (Phase 10 plan #5): both texts' "Kartan är inte öppen för alla ännu, den öppnar när fler foodtruckar är med." deleted at the full launch, the owner approving the new texts (the removal list in src/app/karta/page.tsx). -->
 
 **The two private lists** are plain text files kept with the weekly dumps and the takedown log on
-the owner's machine (README, "Takedown", step 4), never in the repo, the database or an issue.
+the owner's machine ("Takedown", step 4, below), never in the repo, the database or an issue.
 `/integritet` names both:
 
 - **Trucks told:** one line per truck, its name and the date it was told. Its line is deleted
@@ -700,11 +826,11 @@ other request goes to "Other requests":
    takedown deletes the truck's whole history, and every restore re-runs it (the owner's call,
    round 5 on PR #476). With no channel to confirm through at all, remove anyway: an unlisted
    truck is the safe default.
-2. README, "Takedown", steps 1 to 4: find the truck, run `supabase/manual/takedown.sql`, read
+2. "Takedown", below, steps 1 to 4: find the truck, run `supabase/manual/takedown.sql`, read
    its row, and add the line to the takedown log.
 3. Reply to the requester. The map drops the truck within about three minutes. The backups
    keep its rows until the latest of: about four weeks after the takedown, as the weekly
-   dumps from before it age out (README, "Backups"); while an incident hold is open, the held
+   dumps from before it age out ("Backups", above); while an incident hold is open, the held
    dumps' deletion, with the evidence export's copy of `trucks` beside them, at most 8 weeks
    after the hold began ("The weekly routine", "Exporting evidence"); and after a
    restore, the old project's deletion, at most 8 weeks after the restore ("A restore", step
@@ -722,7 +848,58 @@ other request goes to "Other requests":
    request came by mail, delete the truck's DM thread right after the takedown, since
    `/integritet` keeps a truck's messages only while it is listed. A takedown ends any restriction
    ("Other requests"), so its mail and thread are deleted with these. The takedown log keeps what
-   a restore needs, the truck's id and the date (README, "Takedown", step 4), not who asked.
+   a restore needs, the truck's id and the date ("Takedown", step 4, below), not who asked.
+
+---
+
+## Takedown
+
+A truck that asks to be removed is deleted with its whole history by
+[`supabase/manual/takedown.sql`](supabase/manual/takedown.sql), by hand: no app code deletes
+(`CLAUDE.md`, "db layer"). It is one statement: the truck's locations deleted, each `users`
+row pointing at it cleared (the account stays), then the truck, all or nothing. Its header
+says why one statement works under the `NO ACTION` foreign keys.
+
+1. In the project's SQL editor (the dashboard's for a hosted project, Studio's at
+   `http://127.0.0.1:54323` locally), find the truck, whose id the admin screen doesn't show.
+   Names needn't be unique, so read the rest of the row too:
+   `select id, name, instagram_handle, created_at from trucks order by name;`.
+2. Paste the file there and replace `TRUCK_ID` with the id and `TRUCK_NAME` with the name
+   exactly as that row shows it, keeping the quotes (a quote in the name is doubled). Both
+   must match one truck, so an id and a name from different trucks change nothing. Two
+   trucks with the same name are told apart only by the id: check it against the row's other
+   columns. Left unedited, it fails and changes nothing.
+3. Run it, and read its one row. `taken down` gives the truck's name and the counts removed.
+   Anything else changed nothing: `no truck with this id` (also a truck already taken down,
+   so a second run is safe), `the name does not match this id` (the row shows the name the
+   id has; a typo, or `TRUCK_NAME` left in), or an error. A foreign-key error (`23503`) names
+   the table still pointing at the truck, which the file then needs to handle before it is
+   run again.
+4. Add a line to **the takedown log**: the truck's id and the date (UTC), nothing else. It is
+   a plain text file kept with the weekly dumps on the owner's machine, never in the repo or
+   the database, since a restore replaces the database. A restore from a dump re-runs every
+   takedown the log holds, whatever its date (Phase 10 plan, step 8), reading each truck's
+   name from step 1's query on the restored database. A logged id that query doesn't list was
+   taken down before the dump and needs no run (run anyway, it answers `no truck with this
+   id`); `the name does not match this id` means it wasn't taken down: fix the name and run it
+   again.
+
+An open map drops the truck within about three minutes while its polls succeed and its tab
+is visible (a failed poll keeps the last markers, and a hidden tab doesn't poll): `/api/live`
+is cached for 60 s and may be served stale for 60 s more (`CLAUDE.md`, "`/api/live`"), and the map polls it every
+60 s (`POLL_MS`, `src/hooks/useLocations.ts`). Until the dumps from before the
+takedown age out, they still hold the truck's rows: about four weeks, as four are kept
+("Backups", above). During an incident hold, held dumps keep them until the hold ends, at
+most 8 weeks after it began, as does the evidence export's copy of `trucks`, which holds the
+truck's own row, not its places, if it was taken down after the export ("Exporting
+evidence", above); after a restore into a new project, the old one keeps them
+until it is deleted, at most 8 weeks after the restore. The rows go at the latest of these
+dates ("A takedown request", above).
+
+`tests/integration/takedown.test.ts` runs the file on the local stack, as `postgres`. The
+preview's SQL editor runs as `postgres` too (IS #454's probe), and so does production's (IS
+#464's repeat of it, 2026-11-23); neither has run this file. An error in either editor
+changes nothing, as in step 3.
 
 ---
 
@@ -747,7 +924,7 @@ takedown request").
 
 - **Access:** the truck's rows as CSV files, through the local stack's `psql` as "Exporting
   evidence" does (the SQL editor shows at most 100 rows). From the repo in Git Bash, with the
-  truck's id from README's "Takedown", step 1, and a folder outside the backups:
+  truck's id from "Takedown", step 1, above, and a folder outside the backups:
 
   ```bash
   OUT="<a folder outside the backups>"
@@ -805,8 +982,8 @@ exists one found in-house, is fixed without a public issue or PR until it ships 
    description is public once it is published, so write it on purpose; keep working notes (what
    was found, each review round's record, each miss the process log will need) in a file
    outside the repo, like the backups, not in the advisory. Start its temporary private fork and
-   clone it. In that clone, before the first commit: set `core.hooksPath` (README, "1.
-   Install") and create `.env.local` (README, "3. Environment").
+   clone it. In that clone, before the first commit: set `core.hooksPath` (`SETUP.md`, "1.
+   Install") and create `.env.local` (`SETUP.md`, "3. Environment").
 2. **The fix**, in the fork, with `ci.yml`'s gates run by hand, since CI can't reach the fork
    (GitHub's docs). First stop the main clone's local stack (`npx supabase stop` there) and run
    `npx supabase start` and `npx supabase db reset` from the fork's clone: both clones share
@@ -870,7 +1047,7 @@ warning email "roughly one week before", and activity after it prevents the paus
 
 ## A restore
 
-From a weekly dump, following README's "Backups" → "Restoring". It goes only into a fresh
+From a weekly dump, following "Backups" → "Restoring", above. It goes only into a fresh
 database, so on a hosted project into a **new** project, in a free slot: Free allows two
 active projects, and pausing another frees one. A paused project keeps its data and users,
 so it isn't fresh. **Skip the weekly dump until step 3's load is done**: from step 2 on, its
@@ -879,7 +1056,7 @@ Start the local stack first (`npx supabase start`): step 3's load runs through i
 container. In this order, since the login has to reach the new project:
 
 1. **The new project:** link the CLI to it first, since a push goes to whichever project the
-   CLI is linked to (README, "Hosted preview database", links the preview), then push the
+   CLI is linked to (`SETUP.md`, "Hosted preview database", links the preview), then push the
    migrations without `--include-seed`:
 
    ```bash
@@ -902,7 +1079,7 @@ container. In this order, since the login has to reach the new project:
    fi
    ```
 
-   After `PUSH OK`: README's "Hosted settings checklist", every Supabase row, with
+   After `PUSH OK`: `SETUP.md`'s "Hosted settings checklist", every Supabase row, with
    production's Site URL and Redirect URLs (its `/auth/callback` only, no wildcard), and
    Phase 5 #19's hosted check, which the Phase 10 plan's step 13 runs on a new production
    project (the `sv-SE-x-icu` collation, both extensions in `extensions`, the Data API's Max
@@ -930,9 +1107,9 @@ container. In this order, since the login has to reach the new project:
    land instead.
 2. **`.env.prod-db.local`:** the new project's session pooler URL, before the load, so
    nothing reaches the old project by mistake.
-3. **The data:** README's "Restoring" against the new project: its check that `trucks` and
+3. **The data:** "Restoring", above, against the new project: its check that `trucks` and
    `auth.users` both count 0, then its steps 1 to 4 (the admin by their old id, the load, the
-   takedowns and `retention.sql`). README shows the load on the local stack; against the new
+   takedowns and `retention.sql`). "Restoring" shows the load on the local stack; against the new
    project, the same `psql` through the local stack's container reads the URL instead (not
    tried):
 
@@ -946,9 +1123,9 @@ container. In this order, since the login has to reach the new project:
 
 4. **Vercel's Production variables:** `NEXT_PUBLIC_SUPABASE_URL`,
    `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` set to the new project's,
-   the URL the project URL alone (README's "Production", "Variables"). Then redeploy
+   the URL the project URL alone (`SETUP.md`'s "Production", "Variables"). Then redeploy
    Production.
-5. **Log in and enroll TOTP at once** (README's "Restoring", step 5), now that the app points
+5. **Log in and enroll TOTP at once** ("Restoring", step 5), now that the app points
    at the new project. Then look at `/karta`. The next link after this login and enroll can be
    refused for about an hour ("A login link that doesn't come", its Signs).
 6. **The old project:** pause it now that the new one works, which also frees its slot, and
@@ -971,10 +1148,10 @@ container. In this order, since the login has to reach the new project:
 
    Run this after a stop too (a failed push, a restore broken off), not only at the end.
 
-   README's "Later migrations go up with plain `npx supabase db push`" assumes the preview;
+   `SETUP.md`'s "Later migrations go up with plain `npx supabase db push`" assumes the preview;
    left linked to production, the next migration would skip it.
 
-Not tried: neither the hosted restore nor this move has been run (README, "Restoring",
+Not tried: neither the hosted restore nor this move has been run ("Restoring",
 Limits).
 
 ---
@@ -997,15 +1174,15 @@ carries a one-line doc change through its own issue, as plan step 16 says. A wor
 runs on pushes to `main` (`codeql.yml`) reaches `main` only by a PR into it, so a change to one
 goes with the next release; `ci.yml` runs on PRs only, from the PR's copy.
 
-Two other ways to a new build: a Redeploy, and a CLI deploy, never tried (README's Ignored
+Two other ways to a new build: a Redeploy, and a CLI deploy, never tried (`SETUP.md`'s Ignored
 Build Step row); this runbook uses no CLI deploy. Plan step 16 ruled the Redeploy out for
 production's first deploys, since its path through the Ignored Build Step hasn't been read, and
 step 2 below keeps that for a failed release. "A leaked key" and "A restore" accept it in
 recovery, where a variable change must take effect at once (it applies only to the next
-deployment, README, "Preview deploys"). Outside recovery, a changed Production variable goes
+deployment, `SETUP.md`, "Preview deploys"). Outside recovery, a changed Production variable goes
 out by a release.
 
-A migration reaches production by a push, not a release (README, "Production", "Schema"), and a
+A migration reaches production by a push, not a release (`SETUP.md`, "Production", "Schema"), and a
 release carries all of `dev`. So while `dev` holds code that needs a migration production
 hasn't had, no release goes out before that push. A limit, not settled here: how close before
 the release the push comes, a migration `main`'s code can't run against, and a release
@@ -1028,8 +1205,8 @@ value again, so backticks, `$` and apostrophes in the title pass as written. Tri
 
 1. **The PR into `main`.** Before opening it, two checks:
    - **No file that overrides the Ignored Build Step** comes with it. A branch's `vercel.json`
-     can (README, "A branch's `vercel.json`"), and plan step 16 requires none on `dev` or
-     `main`. README's re-read uses this wide match, and on 2026-11-22 it printed only
+     can (`SETUP.md`, "A branch's `vercel.json`"), and plan step 16 requires none on `dev` or
+     `main`. `SETUP.md`'s re-read uses this wide match, and on 2026-11-22 it printed only
      `public/vercel.svg`, an image (IS #459, and again for IS #462). Read anything else it
      prints. Run it again just before the merge, since `dev` can gain commits meanwhile:
 
@@ -1085,10 +1262,10 @@ value again, so backticks, `$` and apostrophes in the title pass as written. Tri
    branch is `dev`. A merge into `main` closes no issue by keyword, since only one into the
    default branch, `dev`, does: close the release's issue by hand.
 2. **What the merge starts:** a Production build, which the Ignored Build Step lets through for
-   `main` (README, "Preview deploys"), and CodeQL's analysis of `main`. Read the build's result
+   `main` (`SETUP.md`, "Preview deploys"), and CodeQL's analysis of `main`. Read the build's result
    before step 3's push, from every status on the merge commit, newest first, with its time and
    link. The combined `/status` shows only the latest per context, so it can show another
-   branch's build of the same commit (README, "The Ignored Build Step's checks"). A status's
+   branch's build of the same commit (`SETUP.md`, "The Ignored Build Step's checks"). A status's
    description doesn't name the environment, so open its link to see which deployment it is:
 
    ```bash

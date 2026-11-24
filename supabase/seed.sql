@@ -1,6 +1,6 @@
 -- seed.sql — dev-only seed data, loaded by `supabase db reset` / first `supabase start`
 -- on the local stack, and on a hosted project by its first `supabase db push
--- --include-seed` (README, "Hosted preview database"). NOT production data. Fixed truck UUIDs so curl commands are copy-pasteable and stable
+-- --include-seed` (SETUP.md, "Hosted preview database"). NOT production data. Fixed truck UUIDs so curl commands are copy-pasteable and stable
 -- across resets.
 --
 -- For an EMPTY database only (`npx supabase start` on a fresh stack, or
@@ -26,7 +26,7 @@ values
 -- days before that day, ending the day before, 11:00–14:00 Stockholm time. On the local
 -- stack, right after `npx supabase db reset`, that is the 28 days before today, and Taco
 -- Loco, there every day, has a row on "the same weekday last week". A hosted project seeded
--- once keeps the history of its load, which doesn't move with the date (README, "Hosted
+-- once keeps the history of its load, which doesn't move with the date (SETUP.md, "Hosted
 -- preview database"). Burgarbilen on weekdays. Vintervilan gets none: it is the inactive truck, and
 -- `findLocationsOverlapping` doesn't filter on `is_active`.
 --

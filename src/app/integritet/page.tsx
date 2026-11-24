@@ -13,7 +13,7 @@ import { ABOUT_PATH } from "@/lib/paths";
 //   `auth.audit_log_entries`, nothing from `trucks`, whose row only `takedown.sql` deletes),
 //   run weekly (`RUNBOOK.md`, "The weekly routine");
 // - the purpose of old places: plan #10 (the checklist's look-back and the recent places);
-// - the backups: README, "Backups" (the newest 4 weekly dumps of `public`: `trucks`,
+// - the backups: RUNBOOK.md, "Backups" (the newest 4 weekly dumps of `public`: `trucks`,
 //   `locations`, `users`, the admin's id);
 // - the incident caps and the export (`auth` rows and `public.trucks`): `RUNBOOK.md`, "The
 //   weekly routine" and "Exporting evidence"; the old project's 8 weeks after any restore: "A

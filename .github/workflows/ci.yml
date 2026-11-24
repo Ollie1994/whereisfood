@@ -185,7 +185,7 @@ jobs:
       - id: stack
         run: npx supabase start -x "$SUPABASE_EXCLUDE"
       # tests/integration/setup.ts reads .env.local, and throws without it. The script
-      # maps README's "3. Environment" table, writes each value quoted, and fails on a
+      # maps SETUP.md's "3. Environment" table, writes each value quoted, and fails on a
       # missing or empty value or one a reader would change (its comments say which).
       - run: npx supabase status -o env | node scripts/write-env-local.mjs
       # Both projects, keeping test:all's checks: a project that collects zero files
@@ -360,7 +360,7 @@ jobs:
   # hooks can't see, `--no-verify`, `cherry-pick`, `rebase` and a clone without
   # `core.hooksPath` (`.githooks/pre-commit`'s header), and most files git treats as
   # binary (the scan step's comment says which). It
-  # pins the Gitleaks version README gives for the hooks, which pin none themselves, and
+  # pins the Gitleaks version SETUP.md gives for the hooks, which pin none themselves, and
   # runs their flags and checks: it sources `.githooks/gitleaks-common.sh`, so a committed
   # `.gitleaksignore` fails it too.
   #
@@ -380,7 +380,7 @@ jobs:
       # GITLEAKS_SHA256 is the linux_x64 entry of the release's checksums file for
       # GITLEAKS_VERSION; for 8.30.1, that file's windows_x64 entry matches the hash in
       # winget's manifest for Gitleaks.Gitleaks, a copy kept outside the release (IS #293's
-      # PR). A version bump changes both values, and README's version for the hooks.
+      # PR). A version bump changes both values, and SETUP.md's version for the hooks.
       # `--proto '=https'` keeps curl on HTTPS through redirects too: with it, a redirect to
       # an `http://` URL failed ("Protocol "http" disabled (in redirect)"); without it, curl
       # followed one (IS #348's PR). The checksum would reject a changed file either way.

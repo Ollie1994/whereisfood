@@ -123,8 +123,8 @@ quoting the one-line rule this replaced.)
    marked "between phases" are handled as CLAUDE.md's "Process Log" says. **The
    reconciliation also brings `README.md`'s status parts in line (Phase 7 plan #7), and fixes the stale
    hits and findings named in the plan's reconciliation step; its issue lists the parts
-   and points to that step.** The status parts are the README's status banner, "Project
-   status" with its subsections, and the phase sentence in "How it's designed to work".
+   and points to that step.** The status parts are the README's status banner, its "Project
+   status" table, and the phase sentence in "How it's designed to work" (IS #264).
    **The
    reconciliation also sets CLAUDE.md's bold "Current phase plan" line to none**,
    naming the finished plan as the last one (`/create-milestone`'s step 0 sets it
