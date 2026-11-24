@@ -2,9 +2,10 @@
 
 How to set up Väm: a local copy for development ("Getting started", "Scripts"), and the hosted
 projects it runs on (the tiles on Cloudflare R2, the preview's and production's Supabase
-projects, the hosted settings checklist, Vercel's preview deploys). Operating it (the weekly
-routine, backups, takedowns, incidents and releases) is [`RUNBOOK.md`](RUNBOOK.md); the rules
-for working on the code are [`CLAUDE.md`](CLAUDE.md).
+projects, the hosted settings checklist, Vercel's preview deploys), with the checks of that
+setup (the hosted Security Advisor, the CDN cache). Operating it (the weekly routine and
+backups, requests and takedowns, incidents, a marker check, a migration and a release) is
+[`RUNBOOK.md`](RUNBOOK.md); the rules for working on the code are [`CLAUDE.md`](CLAUDE.md).
 
 These sections were in `README.md` until IS #264, when "Takedown" and "Backups" moved to
 `RUNBOOK.md`, and the R2 and CORS part of "Get the map tiles" became "Map tiles on R2". The
@@ -377,12 +378,28 @@ instead of Studio.
 **Schema and seed.** With the CLI logged in (`npx supabase login`):
 
 ```bash
-npx supabase link --project-ref <project-ref>
-npx supabase db push --include-seed --dry-run   # lists what it would apply
-npx supabase db push --include-seed
+if npx supabase link --project-ref <project-ref> \
+  && grep -qxF '<project-ref>' supabase/.temp/project-ref; then
+  npx supabase db push --include-seed --dry-run   # lists what it would apply
+else
+  echo "NOT LINKED to <project-ref>: nothing run"
+fi
 ```
 
-Later migrations go up with plain `npx supabase db push`. On the first push, CLI
+Read the dry run, then push, still linked to the preview project:
+
+```bash
+if grep -qxF '<project-ref>' supabase/.temp/project-ref; then
+  npx supabase db push --include-seed
+else
+  echo "NOT LINKED to <project-ref>: nothing pushed"
+fi
+```
+
+A failed `link` leaves the CLI linked where it was, which can be production, so each block
+checks the link before it runs (`RUNBOOK.md`, "A leaked key", has the probe).
+
+A later migration's push is `RUNBOOK.md`'s "A migration". On the first push, CLI
 2.109.1 printed `Warning: failed to cache migrations catalog` (a missing certificate
 file) and still applied the migration: `npx supabase migration list --linked` showed
 `0001` on both sides.
@@ -414,29 +431,7 @@ Stockholm time, whose window (an hour before to 12 hours after one moment) is th
 that snippet wrote. The owner cancelled that Taco Loco entry, and the second run wrote the
 pair (IS #257).
 
-**An entry for a marker check.** Before checking a preview's markers, add one on `/admin`,
-logged in from `dev`'s alias: fill in the "Ny post" form with an active truck that has no
-entry today, a known spot and times that cover now, and press "Spara". It goes through the
-API like any admin entry, so an overlap is refused with the form's message. The map shows
-it within about 3 minutes, and drops it within about 3 after a cancel (`/api/live`'s cache,
-`project-context.md`, "Read path"). Cancel it with "Ställ in" as soon as the check is done,
-before it ends: from its end the list shows no "Ställ in" and the route refuses a cancel
-(Phase 9 plan #8, IS #380). Until it's cancelled, even after it ends, it refuses the truck's
-overlapping entries, drops any of the truck's checklist suggestions that overlap it, and
-makes a by-hand insert like IS #254's pass over the truck (#38's rule, above). For up to 4
-weeks, it can also take the place of the truck's real suggestions on that weekday
-(`getChecklist`). Once it's cancelled, it does none of these: cancelled rows aren't read.
-After its end, cancel it in the SQL Editor: find its id with
-
-```sql
-select id, starts_at, ends_at from locations
-where truck_id = '<truck id>' and cancelled_at is null
-order by starts_at desc limit 5;
-```
-
-then run
-`update locations set cancelled_at = now() where id = '<id>' and cancelled_at is null;`.
-Its row stays in the preview's history.
+**An entry for a marker check:** `RUNBOOK.md`, "A marker check on the preview".
 
 ---
 
@@ -458,11 +453,9 @@ were made with none given) (`CLAUDE.md`, Secrets): a new password means a new UR
 
 **Schema.** Migrations only, never the seed: production holds real data entered on `/admin`.
 The CLI is linked to production only for a push or a check, and linked back to the preview
-right after, so a plain `npx supabase db push` can't reach production by mistake. For a later
-migration, use `RUNBOOK.md`'s "A restore" blocks alone, not its restore steps: step 1's three
-blocks with production's ref (link and dry run, push, the advisor), each of which checks the
-link before it pushes or reads, then step 7's block, which links back to the preview and
-checks that.
+right after. A failed `link` leaves the CLI where it was, so the relink is checked
+(`RUNBOOK.md`, "A restore", step 7's block), and a later migration's push checks the link
+before it pushes (`RUNBOOK.md`, "A migration").
 
 The first push applied `0001_baseline.sql` and printed the certificate warning "Hosted preview
 database" describes; `migration list --linked` showed `0001` on both sides. The CLI needed
