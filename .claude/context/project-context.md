@@ -104,7 +104,8 @@ save-triggered cache purges, grey markers) without a concrete problem that needs
   describes it, server and client: the markers, the popup, polling and failure.
 - **Production** (Phase 10) runs on Vercel at `vararmaten.vercel.app`, built from `main`, against
   its own Supabase Free project, with the tiles on R2. `SETUP.md`'s "Production" is the one
-  description of that setup, and `RUNBOOK.md` of operating it and the preview: the weekly routine
+  description of that setup, and `RUNBOOK.md` of operating it and the preview: the daily routine
+  (logging in, the checklist, the entries, the trucks), the weekly routine
   (a data-only dump of `public`, then `supabase/manual/retention.sql`, the usage look and the
   request inboxes), the yearly upkeep (the
   domains, the map tiles), requests and takedowns, incidents, a marker check on the preview, a
@@ -386,9 +387,10 @@ public/                           ← gothenburg.pmtiles (development; deploys r
 .githooks/                        ← pre-commit, commit-msg, gitleaks-common.sh (set through
                                     core.hooksPath, by hand)
 next.config.ts                    ← (+ test: which paths get which CSP, IS #387)
-RUNBOOK.md                        ← operating production and the preview: the weekly routine,
-                                    the yearly upkeep, requests, incidents, a marker check, a
-                                    migration, a release (Phase 10 plan #8, IS #519, #525)
+RUNBOOK.md                        ← operating production and the preview: the daily and weekly
+                                    routines, the yearly upkeep, requests, incidents, a marker
+                                    check, a migration, a release (Phase 10 plan #8, IS #519,
+                                    #523, #525)
 SECURITY.md, .gitleaks.toml       ← how to report a vulnerability; Gitleaks' config
 .gitattributes                    ← the files marked `-text`, which tracked-text.test.mjs skips
 ```
@@ -1195,3 +1197,4 @@ says.
 | **between phases**, 2026-11-24, IS #525 (D2) | At 50% of any Supabase or Vercel limit, an issue decides between reducing the usage and the paid plan, replacing Vercel's "Pro at ~50%"; one issue per figure; Supabase's half ends with Pro at the full launch (the owner's calls on #525, 2026-11-24) | `RUNBOOK.md` "The weekly routine", step 3; "Pricing and upgrade triggers" |
 | **between phases**, 2026-11-24, IS #525 (D3) | The domains renew automatically at Oderland, and their invoice is paid by hand once a year (the owner's call) | `RUNBOOK.md` "Renewing the domains"; "Pricing and upgrade triggers" |
 | **between phases**, 2026-11-24, IS #525 (D4) | The map tiles are looked at once a year, with the domains (the owner's call on #525, 2026-11-24). The refresh's steps are RUNBOOK's | `RUNBOOK.md` "Refreshing the map tiles" |
+| **between phases**, 2026-11-24, IS #523 | The daily routine is written from the admin screens as they are, before the first real truck, so it can be followed from the start, and #529 revises it after real mornings (the owner's call) | `RUNBOOK.md` "The daily routine" |

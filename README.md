@@ -137,6 +137,6 @@ dropped. The code is archived on the `archive/parser-lanes` branch and tag.
 ## More
 
 - [`SETUP.md`](SETUP.md): setting it up, locally and on the hosted projects
-- [`RUNBOOK.md`](RUNBOOK.md): running it, from the weekly routine to a release
+- [`RUNBOOK.md`](RUNBOOK.md): running it, from the daily routine to a release
 - [`CLAUDE.md`](CLAUDE.md): the working rules
 - [`.claude/context/project-context.md`](.claude/context/project-context.md): the design reference

@@ -1,10 +1,10 @@
 # Runbook
 
-The operator's book, in five groups: the weekly routine and its backups (Phase 10 plan, steps
-10 and 11, #8 and #13); the yearly upkeep, the domains and the map tiles (IS #525); requests,
-from telling a new truck (open decision 13) to other requests; incidents; and checks and
-changes, from a marker check on the preview to a migration and a release (step 15b). The
-daily routine comes with #523.
+The operator's book, in six groups: the daily routine (IS #523); the weekly routine and its
+backups (Phase 10 plan, steps 10 and 11, #8 and #13); the yearly upkeep, the domains and the
+map tiles (IS #525); requests, from telling a new truck (open decision 13) to other requests;
+incidents; and checks and changes, from a marker check on the preview to a migration and a
+release (step 15b).
 The repo is public, so nothing here is a secret. Each value a step needs lives where `CLAUDE.md`'s
 "Where secrets live" says: production's Supabase keys in its dashboard (Project Settings → API Keys)
 and in Vercel's environment variables, and its database URL in the gitignored `.env.prod-db.local`.
@@ -14,6 +14,10 @@ project's, never production's.
 A step that rests on a probe or a doc names it, with its issue.
 "Backups" and "Takedown" were in `README.md` until IS #264, so the phase plans and the process log's
 rows from before it name them there; the setup steps then went to [`SETUP.md`](SETUP.md).
+
+**Daily**
+
+- [The daily routine](#the-daily-routine)
 
 **Weekly**
 
@@ -49,6 +53,89 @@ rows from before it name them there; the setup steps then went to [`SETUP.md`](S
 - [A marker check on the preview](#a-marker-check-on-the-preview)
 - [A migration](#a-migration)
 - [A release](#a-release)
+
+---
+
+## The daily routine
+
+Written on 2026-11-24 from the admin screens as they are, before the first real truck, so it
+can be followed from the start (the owner's call on #523). #529 revises it once real mornings
+show what changes. The labels are the screens' own.
+
+1. **Log in** at `/admin/login`: the admin's login address in "E-postadress", then "Skicka
+   inloggningslänk". The mail's link works only in the browser that asked for it: on the
+   phone, copy it and paste it into that browser's address
+   bar rather than tapping it in the mail app, as the screen says. Then type the six-digit code
+   the authenticator app shows for Väm, and "Bekräfta". Step 7's logout ends the day, so every
+   morning starts here; the app also refuses a session 12 hours after its sign-in (`CLAUDE.md`,
+   "The session time-box"). Asking for a new link stops the one already sent, even when the
+   ask is refused, and production sends 2 emails an hour: wait for the first link, and ask
+   again only when it can't be used ("A login link that doesn't come", below).
+2. **The morning checklist** ("Checklista" on "Poster"): for each active truck, the most
+   recent same weekday in the last 4 weeks it had an entry, with all of that day's entries, so a
+   lunch and a dinner both show. A suggestion already ended, or overlapping an entry the truck
+   has now, is left out. Check the truck's posts and Stories first. "✓ Stämmer" enters the
+   suggestion as it was, the same place and times, so press it only when today's post matches
+   both. Out at another place or other hours: "✗ Inte idag" and a new entry (step 3), or "✓"
+   and then "Ändra" (step 4). "✗ Inte idag" only hides the suggestion on this device today. A
+   truck cancelled today can be suggested again: "✗" hides it. A refused "✓" shows step 3's
+   overlap texts, those that would change this entry ending "Lägg in en annan tid med
+   formuläret." (use step 3); one whose time has passed answers "Tiden har redan passerat"; one
+   for a truck set inactive since answers "Foodtrucken finns inte eller är inte aktiv" (step
+   6). Each refusal starts with the truck's name.
+   With nothing to suggest it says "Inga förslag idag."
+3. **New entries,** in the "Ny post" form, for a truck the checklist didn't suggest, or one
+   not out as it suggested (step 2). After "Spara" the form keeps the truck and the date for
+   the next entry, so check both each time:
+   - the truck ("Välj foodtruck"; only active trucks are listed). A new truck, or one set
+     inactive, is added or brought back in step 6 first: while no truck is added, the list
+     is empty;
+   - the place: "Välj känd plats", one of "Senaste platser", "Välj på kartan" (tap where the
+     truck stands, then "Klar"), or "Jag är här nu". A map tap or the GPS changes only the
+     pin and keeps whatever name "Platsnamn (valfritt)" already holds, a spot's picked
+     before or an edited entry's: check it, and type the place's name. With none, the popup
+     shows no place and the list "Okänd plats";
+   - "Datum", "Från" and "Till": 11:00 and 13:00 to start with, but a recent place brings its
+     last entry's times, so check them. An end at or before the start reads "Slutar imorgon";
+   - then "Spara".
+
+   An overlap is refused with "Överlappar med" and the other entry's times. Do what the screen
+   says: "— redigera den istället" means change that entry instead; "som redan har slutat" or
+   "som pågår nu", with "Ändra tiden på den här posten.", means change this one's times
+   (`CLAUDE.md`, "Locations": overlaps are refused, never resolved for you). "Överlappar med en
+   annan post för samma foodtruck", with no times, means the other entry changed meanwhile:
+   look at the list and try again.
+4. **Through the day,** as trucks post, on the list of entries from today and the next 13
+   days:
+   - "Stämmer fortfarande" when a truck confirms: it moves the "Uppdaterad" time the map's
+     popup shows, and changes nothing else;
+   - "Ändra" when its place or hours change. It fills the form above the list, so scroll up to
+     "Ändra post"; a new entry half filled in there is dropped, so save it first. The truck
+     can't be changed (a wrong truck means "Ställ in" and a new entry), a recent place brings
+     its own times and a map tap keeps the old name, so check the name and the times before
+     "Spara", or back out with "Avbryt". When the form says "Den här postens tider kan inte
+     ändras här. Ställ in den och lägg in en ny.", do that. After "Spara" or "Avbryt", the
+     form starts empty, with no truck and today's date;
+   - "Ställ in" when it cancels. The screen asks first ("Ställa in den här posten? Den
+     försvinner från kartan."). The entry leaves the map and the list and stays in the
+     history, and the screen can't undo it: a cancel by mistake means a new entry.
+
+   All three go once an entry has ended ("Har slutat").
+5. **A look at the map** ("Karta"), signed in (`CLAUDE.md`, "The soft-launch gate"), about 3
+   minutes after the morning's entries, and again after a change through the day: a save, a
+   confirm or a cancel reaches the map within about 3 minutes (`/api/live`'s cache; "A marker
+   check on the preview", below). It shows one marker per truck: today's entry open now, else
+   its next one today, so tomorrow's entries and a dinner after a lunch don't show yet.
+6. **Trucks, when needed,** on "Foodtrucks". A new truck only after it has been told ("Telling
+   a new truck", below): fill in the "Ny foodtruck" form, "Namn" and the handle in "Instagram
+   (valfritt)", since only a truck with its handle is entered, then "Spara". "Ändra" to correct
+   one. "Sätt inaktiv" for a truck that has stopped for a while, the winter for one, keeps it
+   off the map and out of the checklist and the form. Its entries stay, so cancel its future
+   ones first: "Aktivera" brings it back with any that haven't ended. The list shows only 14
+   days, so an entry saved further ahead ("Posten är mer än två veckor fram…") can be
+   cancelled only once it comes into the list.
+7. **Log out** with "Logga ut" when done. It signs out every device, not only this one, or
+   says it couldn't (`CLAUDE.md`, "Logout ends every session").
 
 ---
 
