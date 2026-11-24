@@ -94,9 +94,10 @@ treats its own mistakes as data:
   that broke something else. Each row has a cause from a fixed list, and each phase since
   Phase 3 ends with a retrospective that counts them.
 - **Review rounds with checks of their own.** Every pull request Claude writes gets review
-  rounds, up to a default ceiling the owner can lower or raise. After each round's fixes, a sweep looks for every copy of what they
-  changed, and before every round a claims check lists each "every", "only" and "always" the
-  change added, to be backed by a command or narrowed.
+  rounds, up to a default ceiling the owner can lower or raise. After each round's fixes, a
+  sweep looks for every copy of what they changed, and before every round a claims check
+  lists each "every", "only" and "always" the change added, to be backed by a command or
+  narrowed.
 
 ## Tech stack
 
