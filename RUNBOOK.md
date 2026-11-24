@@ -393,12 +393,13 @@ that can't be told isn't entered (Phase 10 plan, open decision 13, settled on IS
 calls and the approved texts on IS #511, comment 7103734194; tell first, the owner's call on round 1
 of PR #512). Before the first DM, @vararmaten has two-factor by authenticator app, with no SMS
 method or recovery phone and its recovery codes kept offline: it receives removal requests (the
-owner, IS #511 and round 4 of PR #531). And check that production serves IS #511's and IS #527's
-`/integritet` text, which the DM links to: the page says "eller skriv till @vararmaten på
-Instagram", names the two private lists, and says the list of trucks told records the kind of
-channel ("vilket slags kanal det skickades i"). If it doesn't, a release ("A release") ships it
-first: on 2026-11-23 production ran `main` at PR #503, before PRs #512 and #531 put the text on
-`dev` (IS #517 is that release).
+owner, IS #511 and round 4 of PR #531). And check that production serves IS #511's, IS #527's
+and IS #532's `/integritet` text, which the DM links to: the page says "eller skriv till
+@vararmaten på Instagram", names the two private lists, says the list of trucks told records the
+kind of channel ("vilket slags kanal det skickades i"), and says where the messages are held ("Mejl
+och meddelanden"). If it doesn't, a release ("A release") ships it first: on 2026-11-23 production
+ran `main` at PR #503, before PRs #512, #531 and #533 put the text on `dev` (IS #517 is that
+release).
 
 1. Pick a truck only by its Instagram handle: its data comes from its own posts, as
    `/integritet` says. A handle on the do-not-list (below) is neither told nor entered.

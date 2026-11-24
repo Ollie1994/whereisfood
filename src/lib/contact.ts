@@ -2,8 +2,10 @@
 // decision 4, IS #456) and the Instagram account the public pages' footer links to. A change here
 // is a change to the owner-approved text that shows it (`/integritet`, PR #476; `/om`, IS #483)
 // and to `PublicShell`'s footer: `git grep -n "CONTACT\|INSTAGRAM_" src` lists them. The handle
-// and the URL name the same account, so they change together. `RUNBOOK.md` writes the address
-// and the handle out (IS #511): `git grep -n "@vararmaten\|vararmaten@" -- RUNBOOK.md` lists them.
+// and the URL name the same account, so they change together. `/integritet`'s "Mejl och
+// meddelanden" names Proton and Meta as the hosts of this mailbox and account (IS #532): a move
+// to another provider changes that text too. `RUNBOOK.md` writes the address and the handle out
+// (IS #511): `git grep -n "@vararmaten\|vararmaten@" -- RUNBOOK.md` lists them.
 export const CONTACT = "vararmaten@proton.me";
 export const INSTAGRAM_HANDLE = "@vararmaten";
 export const INSTAGRAM_URL = "https://www.instagram.com/vararmaten/";

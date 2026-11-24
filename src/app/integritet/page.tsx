@@ -32,6 +32,24 @@ import { ABOUT_PATH } from "@/lib/paths";
 // - the transfers: vercel.com/legal/privacy-policy, cloudflare.com/cloudflare-customer-dpa (6.4)
 //   and GitHub's General Privacy Statement each say it complies with the EU-U.S. Data Privacy
 //   Framework; supabase.com/legal/dpa names the EU SCCs (2021/914), not the DPF;
+// - "Mejl och meddelanden" (the owner's approved text on IS #532, PR #533): the mail is the removal
+//   mailbox, `CONTACT` in `src/lib/contact.ts`, at Proton, and the messages are @vararmaten's, on
+//   Instagram, and step 3's accounts (`RUNBOOK.md`, "Telling a new truck"). The retention list's
+//   "som längst så länge foodtrucken är med" for mail and messages to and from a truck: RUNBOOK's
+//   "The DM thread with a truck stays at most while it is listed", step 3's "this message, its
+//   replies". Meta's privacy policy as served to EU users
+//   (mbasic.facebook.com/privacy/policy/printable/, Swedish locale, effective 23 July 2026) covers
+//   "Facebook, Instagram, Messenger och AI hos Meta"; names Meta Platforms Ireland Limited the
+//   controller, data stored among other places in the USA, and the EU-U.S. Data Privacy Framework
+//   for transfers to Meta Platforms, Inc., otherwise the Commission's SCCs or adequacy decisions;
+//   and keeps data as long as it needs it, a deletion taking up to 90 days and 90 more for backups.
+//   Not read: privacycenter.instagram.com/policy/ and the DPF list (each returned only a title or a
+//   JavaScript shell). proton.me/mail/privacy-policy (last modified 14 September 2026) stores mail
+//   on servers "exclusively located in Switzerland, Germany or Norway"; the Commission's
+//   adequacy-decisions page lists Switzerland (2000/518/EC); Datatilsynet's regulations page
+//   (datatilsynet.no/en/regulations-and-tools/regulations/): "Norway is a member of the European
+//   Economic Area (EEA)" and the GDPR "became applicable in Norway on 20 July 2018"; Germany is an
+//   EU member state (not fetched). The rest read 2026-11-24;
 // - the logs: no period, the providers' terms as the criterion (art. 13(2)(a)). Vercel Hobby
 //   states 1 hour of runtime logs and 12 hours of Observability, none for its Firewall's traffic
 //   view, which shows client IPs; Supabase Free states 1 day for its API and database logs, and
@@ -108,6 +126,22 @@ export default function PrivacyPage() {
         </section>
 
         <section className="flex flex-col gap-3">
+          <h2 className="text-lg font-semibold md:text-xl">Mejl och meddelanden</h2>
+          <p>
+            Mejl och meddelanden till och från foodtruckarna, och till och från den som skriver till
+            kontakten nedan, finns hos tjänsterna de skickas med och hos mottagarens egen tjänst.
+            Instagram och Facebook drivs av Meta, som är personuppgiftsansvarig för sin egen
+            behandling av uppgifterna där, kan föra över dem till USA och anger EU–USA-ramverket för
+            dataskydd (Data Privacy Framework) och EU-kommissionens standardavtalsklausuler för det.
+            Mejl finns hos Proton, på servrar i Schweiz, Tyskland eller Norge. Tyskland och Norge
+            ligger inom EES, och för Schweiz har EU-kommissionen beslutat att skyddsnivån är
+            adekvat. Ett meddelande som skickas på något annat sätt finns hos den tjänsten. Tiderna
+            nedan för mejl och meddelanden gäller administratörens egna kopior. Tjänsterna kan spara
+            dem längre enligt sina egna villkor.
+          </p>
+        </section>
+
+        <section className="flex flex-col gap-3">
           <h2 className="text-lg font-semibold md:text-xl">Hur länge uppgifterna sparas</h2>
           <ul className="flex list-disc flex-col gap-2 pl-5">
             <li>
@@ -116,9 +150,9 @@ export default function PrivacyPage() {
               uppgifter borttagna).
             </li>
             <li>
-              Listan över meddelanden och meddelandena till foodtrucken sparas så länge foodtrucken
-              är med. Ber foodtrucken om att bli borttagen i ett meddelande sparas meddelandena lika
-              länge som ett mejl om borttagning (se nedan).
+              Listan över meddelanden, och mejl och meddelanden till och från foodtrucken, sparas som
+              längst så länge foodtrucken är med. Ber foodtrucken om att bli borttagen i ett
+              meddelande sparas meddelandena lika länge som ett mejl om borttagning (se nedan).
             </li>
             <li>En plats raderas 52 veckor efter att den har slutat.</li>
             <li>
