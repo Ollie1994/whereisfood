@@ -471,34 +471,42 @@ the owner's machine ("Takedown", step 4, below), never in the repo, the database
 - **The do-not-list:** the Instagram handle of a truck that asked to be removed (taken down, or
   never entered: step 5), and the date, no name, so it isn't told and entered again. Kept until
   the truck itself asks to be listed again: it honours the truck's objection (GDPR art. 21; IS
-  #511). Confirm such a request through the line's handle, as "Other requests" confirms through
-  a row's: a DM from it needs no code, a mail gets a code sent to it, to be mailed back, and when
-  the handle is what's disputed, the channels "Other requests" names. Then delete the line, and
+  #511). Confirm such a request as "Other requests" does, through the line's handle where it uses
+  a row's. Then delete the line, and
   the truck is told and entered by steps 2 to 4; delete the request and the reply once it is
   answered, mail from Trash too. A line matches the handle it was written with, so an account
   that later changes its handle isn't matched.
 
 A third file kept with them, **the step-3 accounts**, names each account step 3 has sent from but
-the removal mailbox, one per line, the account itself: the owner's own, not a truck's data, so
-`/integritet` doesn't name it. The weekly routine checks each ("The weekly routine", step 4). A
-line is kept while its account is used, or while a request made on it is kept (the owner's call on
-round 4 of PR #531).
+the removal mailbox, one line per kind (step 3 sends each kind from one account), the account
+itself: the owner's own, not a truck's data, so `/integritet` doesn't name it. Its kind is written
+as the trucks' lines write it (`Facebook`), which links a truck to the account that told it. The
+weekly routine checks each ("The weekly routine", step 4). A line is kept while a truck whose line
+names its kind is on the list of trucks told, or while a thread or a request on the account is
+kept (the owner's calls on rounds 4 and 5 of PR #531).
 
 **What the files look like** (the owner's call on round 4 of PR #531): one entry per line, its
-fields separated by ` | `, with no header, comment or blank line, so the count of lines in
-`trucks-told.txt` is the count of trucks told. Dates are written `YYYY-MM-DD`. The `<…>` parts
-are filled in; the brackets aren't kept:
+fields separated by ` | `, with no header, comment or blank line, so `grep -c . trucks-told.txt`
+(the non-empty lines, a last line with no newline included) is the count of trucks told. Dates are
+Stockholm dates, written `YYYY-MM-DD`. The `<…>` parts are filled in; the brackets aren't kept.
+
+`trucks-told.txt`:
 
 ```text
-trucks-told.txt
 <truck name> | <date told>
 <truck name> | <date told> | <kind, for a truck told by step 3: mejl, kontaktformulär, Facebook>
+```
 
-do-not-list.txt
+`do-not-list.txt`:
+
+```text
 <@handle> | <date added>
+```
 
-step-3-accounts.txt
-<kind> | <the account, by the name it is logged in to with>
+`step-3-accounts.txt`:
+
+```text
+<kind, as the trucks' lines write it> | <the account, by the name it is logged in to with>
 ```
 
 The DM thread with a truck stays at most while it is listed, or, when the truck asks by DM to be
@@ -520,8 +528,7 @@ soon as possible and within a month of the request, as `/integritet` promises (P
 objection to the processing of a truck's data is handled the same way, as the page says; any
 other request goes to "Other requests":
 
-1. Confirm the requester as "Other requests" says, by a code through the truck's Instagram (a
-   DM from the handle on the truck's row needs none, unless the handle is what's disputed): a
+1. Confirm the requester as "Other requests" says, which names when no code is needed: a
    takedown deletes the truck's whole history, and every restore re-runs it (the owner's call,
    round 5 on PR #476). With no channel to confirm through at all, remove anyway: an unlisted
    truck is the safe default.
@@ -616,9 +623,12 @@ truck (GDPR art. 12(6) allows asking): send a code in a message to the Instagram
 truck's row, and ask for it to be mailed back from the requesting address. Send files only to that
 address. A DM from that account needs no code, unless the handle is what's disputed; ask it for
 an address to send any files to, and confirm that address the same way. A reply in the thread of
-the message "Telling a new truck", step 3, sent, on the channel the truck publishes itself, is
-treated the same (the owner's call on round 4 of PR #531). Any other message to a step-3 account
-is confirmed like a mail, the code sent back in its thread instead of mailed. With no handle on
+the message "Telling a new truck", step 3, sent, on a platform that shows who wrote it (a Facebook
+thread, say), is treated like a DM from the row's account: no code unless the handle is what's
+disputed, and an address for files confirmed the same way. A reply by mail, to step 3's mail or
+contact form, gets a code as any mail does, since a mail's sender can be forged (the owner's calls
+on rounds 4 and 5 of PR #531). Any other message to a step-3 account is confirmed like a mail, the
+code sent back in its thread instead of mailed. With no handle on
 the row, when Instagram won't send the code, or when the handle itself is what's disputed, do
 the same through another channel the truck publishes itself (its website, or a contact in its own
 posts); with none, answer that the request can't be verified, and what would let you verify it. A
