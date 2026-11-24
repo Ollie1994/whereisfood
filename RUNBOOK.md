@@ -181,20 +181,22 @@ Once a week, at most 7 days after the last run, in this order:
      Observability 12 hours, and Supabase's logs keep 1 day (Phase 9 plan open decision 7),
      so this sees only recent errors. A 5xx between looks goes unalerted: accepted while the
      admin uses the app daily during the soft launch (open decision 7).
-4. **The request inboxes** (the owner's calls on #525, 2026-11-24):
+4. **The request inboxes** (the owner's calls on #525 and #527, 2026-11-24):
    - the removal mailbox `/integritet` names, its spam folder included;
    - the app's Instagram DMs, with the message requests and the hidden requests, which
-     Instagram keeps apart from the main inbox.
+     Instagram keeps apart from the main inbox;
+   - the inbox of each account in the file of step-3 accounts ("The two private lists",
+     below), its spam and message-request folders included, whatever the list of trucks told
+     holds now: a takedown deletes a truck's line while its request is still kept (the owner's
+     calls on rounds 2 to 4 of PR #531). A mail or a contact form sent by "Telling a new
+     truck", step 3, is answered into the removal mailbox.
 
    `/integritet` promises a removal within a month. With runs at most 7 days apart, a
-   request in these two inboxes is seen within 7 days of its arrival, inside that month. A
-   limit: a truck told through another channel ("Telling a new truck", step 3, below) is asked
-   to answer by mail or on Instagram, both checked here, but a reply that comes back on that
-   channel itself (its website form, a contact in its posts) isn't, since nothing records the
-   channel; #527 settles it. A late run, or a confirmation that waits for a reply, uses more
-   of it. A reply from a truck already told goes as "Telling a new truck", step 5, says; a
-   request to be listed again as its "The two private lists" says; any other removal or
-   objection to "A takedown request", below; the rest to "Other requests", below.
+   request in these inboxes is seen within 7 days of its arrival, inside that month. A late
+   run, or a confirmation that waits for a reply, uses more of it. A reply from a truck
+   already told goes as "Telling a new truck", step 5, says; a request to be listed again as
+   its "The two private lists" says; any other removal or objection to "A takedown request",
+   below; the rest to "Other requests", below.
 
 The routine is also the project's weekly activity, though it may not be enough to keep a
 Free project from pausing ("A paused project", below).
@@ -389,11 +391,14 @@ To refresh it:
 Every truck is told it's listed on the day it is first entered, just before it is entered, and one
 that can't be told isn't entered (Phase 10 plan, open decision 13, settled on IS #465; the owner's
 calls and the approved texts on IS #511, comment 7103734194; tell first, the owner's call on round 1
-of PR #512). Before the first DM, @vararmaten has two-factor by authenticator app, not SMS: it
-receives removal requests. And check that production serves IS #511's `/integritet` text, which the
-DM links to: the page says "eller skriv till @vararmaten på Instagram" and names the two private
-lists. If it doesn't, a release ("A release") ships it first: on 2026-11-23 production ran `main` at
-PR #503, before PR #512 put the text on `dev` (IS #517 is that release).
+of PR #512). Before the first DM, @vararmaten has two-factor by authenticator app, with no SMS
+method or recovery phone and its recovery codes kept offline: it receives removal requests (the
+owner, IS #511 and round 4 of PR #531). And check that production serves IS #511's and IS #527's
+`/integritet` text, which the DM links to: the page says "eller skriv till @vararmaten på
+Instagram", names the two private lists, and says the list of trucks told records the kind of
+channel ("vilket slags kanal det skickades i"). If it doesn't, a release ("A release") ships it
+first: on 2026-11-23 production ran `main` at PR #503, before PRs #512 and #531 put the text on
+`dev` (IS #517 is that release).
 
 1. Pick a truck only by its Instagram handle: its data comes from its own posts, as
    `/integritet` says. A handle on the do-not-list (below) is neither told nor entered.
@@ -411,7 +416,15 @@ PR #503, before PR #512 put the text on `dev` (IS #517 is that release).
 
 3. If Instagram won't send it (DMs closed to @vararmaten, or an error), send this through another
    channel the truck publishes itself, its website or a contact in its own posts, the channels
-   "Other requests" confirms through:
+   "Other requests" confirms through. Send a mail from vararmaten@proton.me, and give that address
+   as a contact form's reply address, so a reply comes to the removal mailbox, and fill in no phone
+   number; a form that can't take it as its reply address, or requires a phone number, isn't used.
+   Send each other kind from one account of the owner's (one Facebook account, say), which the
+   weekly routine checks, and give that account two-factor by authenticator app or passkey, with
+   no SMS method or recovery phone and its recovery codes kept offline, before its first message:
+   it receives removal requests too (the owner's calls on round 1 of PR #531). When it sends its
+   first message, add it to the file of step-3 accounts ("The two private lists", below). Never by
+   sms or a call: a phone number can't take that two-factor (the owner's call on round 2):
 
    > Hej! Jag driver Väm – Var är maten?, en karta över var Göteborgs foodtruckar står i dag: vararmaten.vercel.app
    >
@@ -426,16 +439,18 @@ PR #503, before PR #512 put the text on `dev` (IS #517 is that release).
    > /Oliwer, Väm
 
    A message that is sent counts as told, by DM or by this channel, seen or not, even in the
-   truck's message requests (the owner's call, IS #511). With no other channel, the truck isn't
-   entered. For a truck told this way, "its DM thread" below and in "A takedown request" and
-   "Other requests" means this message, its replies and the full launch's second message (below),
-   but a request in them, which is kept as a request mail is: a mail, or a copy a contact form
-   sent to the mailbox, is deleted from the mailbox and its Trash, and a message sent any other
-   way where it was sent.
+   truck's message requests (the owner's call, IS #511). With no other channel this step can use,
+   the truck isn't entered. For a truck told this way, "its DM thread" below and in "A takedown
+   request" and "Other requests" means this message, its replies and the full launch's second
+   message (below), but a request in them, which is kept as a request mail is: a mail, or a copy a
+   contact form sent to the mailbox, is deleted from the mailbox and its Trash, and a message sent
+   any other way where it was sent.
 4. Add its line to the list of trucks told (below) once the message is sent: its name and the
-   date (Stockholm). Then enter it in the admin screen at once, since the text says it is listed;
-   the text is ahead of the entry by that gap alone. Until #465 closes with Phase 10, add the date
-   and the count to #465 too, never the name.
+   date (Stockholm), and for a truck told by step 3, the channel's kind (`mejl`,
+   `kontaktformulär`, `Facebook`), never its address (the owner's call, IS #527).
+   Then enter it in the admin screen at once, since the text says it is listed; the text is
+   ahead of the entry by that gap alone. Until #465 closes with Phase 10, add the date and the
+   count to #465 too, never the name.
 5. A reply asking for removal, or objecting, goes to "A takedown request"; one that comes before
    the truck is entered means it isn't: delete its line from the list of trucks told, add its
    handle and the date to the do-not-list, answer, then delete the DM thread, and a request mail
@@ -449,18 +464,50 @@ PR #503, before PR #512 put the text on `dev` (IS #517 is that release).
 the owner's machine ("Takedown", step 4, below), never in the repo, the database or an issue.
 `/integritet` names both:
 
-- **Trucks told:** one line per truck, its name and the date it was told. Its line is deleted
-  when the truck is taken down ("A takedown request", step 4). A count of trucks told is read
-  from it; after #465, no public record keeps one (IS #511).
+- **Trucks told:** one line per truck, its name and the date it was told, and for a truck told
+  outside Instagram the channel's kind (step 4). A truck's line is deleted when the truck is taken
+  down ("A takedown request", step 4). A count of trucks told is read from it; after #465, no
+  public record keeps one (IS #511).
 - **The do-not-list:** the Instagram handle of a truck that asked to be removed (taken down, or
   never entered: step 5), and the date, no name, so it isn't told and entered again. Kept until
   the truck itself asks to be listed again: it honours the truck's objection (GDPR art. 21; IS
-  #511). Confirm such a request through the line's handle, as "Other requests" confirms through
-  a row's: a DM from it needs no code, a mail gets a code sent to it, to be mailed back, and when
-  the handle is what's disputed, the channels "Other requests" names. Then delete the line, and
+  #511). Confirm such a request as "Other requests" does, through the line's handle where it uses
+  a row's. Then delete the line, and
   the truck is told and entered by steps 2 to 4; delete the request and the reply once it is
   answered, mail from Trash too. A line matches the handle it was written with, so an account
   that later changes its handle isn't matched.
+
+A third file kept with them, **the step-3 accounts**, names each account step 3 has sent from but
+the removal mailbox, one line per kind (step 3 sends each kind from one account), the account
+itself: the owner's own, not a truck's data, so `/integritet` doesn't name it. Its kind is written
+as the trucks' lines write it (`Facebook`), which links a truck to the account that told it. The
+weekly routine checks each ("The weekly routine", step 4). A line is kept while a truck whose line
+names its kind is on the list of trucks told, or while a thread or a request on the account is
+kept (the owner's calls on rounds 4 and 5 of PR #531).
+
+**What the files look like** (the owner's call on round 4 of PR #531): one entry per line, its
+fields separated by ` | `, with no header, comment or blank line, so `grep -c . trucks-told.txt`
+(the non-empty lines, a last line with no newline included) is the count of trucks told. Dates are
+Stockholm dates, written `YYYY-MM-DD`. The `<…>` parts are filled in; the brackets aren't kept.
+
+`trucks-told.txt`:
+
+```text
+<truck name> | <date told>
+<truck name> | <date told> | <kind, for a truck told by step 3: mejl, kontaktformulär, Facebook>
+```
+
+`do-not-list.txt`:
+
+```text
+<@handle> | <date added>
+```
+
+`step-3-accounts.txt`:
+
+```text
+<kind, as the trucks' lines write it> | <the account, by the name it is logged in to with>
+```
 
 The DM thread with a truck stays at most while it is listed, or, when the truck asks by DM to be
 removed, as long as a removal mail, as `/integritet` says: "Other requests" deletes it once a
@@ -469,7 +516,8 @@ request made by DM, once no copy from before the takedown is left.
 
 At the full launch (Phase 11), each truck on the list of trucks told gets one short second
 message saying the map is open, with the `/integritet` link, by DM, or by step 3's channel if
-Instagram won't send it; its text is approved in that phase's launch issue (IS #511).
+Instagram won't send it, its address found again in what the truck publishes, since the list
+keeps only its kind; its text is approved in that phase's launch issue (IS #511).
 
 ---
 
@@ -480,8 +528,7 @@ soon as possible and within a month of the request, as `/integritet` promises (P
 objection to the processing of a truck's data is handled the same way, as the page says; any
 other request goes to "Other requests":
 
-1. Confirm the requester as "Other requests" says, by a code through the truck's Instagram (a
-   DM from the handle on the truck's row needs none, unless the handle is what's disputed): a
+1. Confirm the requester as "Other requests" says, which names when no code is needed: a
    takedown deletes the truck's whole history, and every restore re-runs it (the owner's call,
    round 5 on PR #476). With no channel to confirm through at all, remove anyway: an unlisted
    truck is the safe default.
@@ -575,11 +622,17 @@ Before sending a truck's data or changing it, confirm that the requesting addres
 truck (GDPR art. 12(6) allows asking): send a code in a message to the Instagram account on the
 truck's row, and ask for it to be mailed back from the requesting address. Send files only to that
 address. A DM from that account needs no code, unless the handle is what's disputed; ask it for
-an address to send any files to, and confirm that address the same way. With no handle on the
-row, or when the handle itself is what's disputed, do the same through another channel the truck
-publishes itself (its website, or a contact in its own posts); with none, answer that the request
-can't be verified, and what would let you verify it. A takedown is confirmed the same way ("A
-takedown request").
+an address to send any files to, and confirm that address the same way. A reply in the thread of
+the message "Telling a new truck", step 3, sent, on a platform that shows who wrote it (a Facebook
+thread, say), is treated like a DM from the row's account: no code unless the handle is what's
+disputed, and an address for files confirmed the same way. A reply by mail, to step 3's mail or
+contact form, gets a code as any mail does, since a mail's sender can be forged (the owner's calls
+on rounds 4 and 5 of PR #531). Any other message to a step-3 account is confirmed like a mail, the
+code sent back in its thread instead of mailed. With no handle on
+the row, when Instagram won't send the code, or when the handle itself is what's disputed, do
+the same through another channel the truck publishes itself (its website, or a contact in its own
+posts); with none, answer that the request can't be verified, and what would let you verify it. A
+takedown is confirmed the same way ("A takedown request").
 
 - **Access:** the truck's rows as CSV files, through the local stack's `psql` as "Exporting
   evidence" does (the SQL editor shows at most 100 rows). From the repo in Git Bash, with the
