@@ -59,10 +59,11 @@ rows from before it name them there; the setup steps then went to [`SETUP.md`](S
 ## The daily routine
 
 Written on 2026-11-24 from the admin screens as they are, before the first real truck, so it
-can be followed from the start (the owner's call on #523). A later issue revises it once real
-mornings show what changes. The labels are the screens' own.
+can be followed from the start (the owner's call on #523). #529 revises it once real mornings
+show what changes. The labels are the screens' own.
 
-1. **Log in** at `/admin/login` with "Skicka inloggningslänk". The mail's link works only in
+1. **Log in** at `/admin/login`: the admin's login address in "E-postadress", then "Skicka
+   inloggningslänk". The mail's link works only in
    the browser that asked for it: on the phone, copy it and paste it into that browser's address
    bar rather than tapping it in the mail app, as the screen says. Then type the six-digit code
    the authenticator app shows for Väm, and "Bekräfta". Step 7's logout ends the day, so every
@@ -77,13 +78,16 @@ mornings show what changes. The labels are the screens' own.
    suggestion as it was, the same place and times, so press it only when today's post matches
    both. Out at another place or other hours: "✗ Inte idag" and a new entry (step 3), or "✓"
    and then "Ändra" (step 4). "✗ Inte idag" only hides the suggestion on this device today. A
-   truck cancelled today can be suggested again: "✗" hides it. A "✓" the truck's other entry
-   refuses ends "Lägg in en annan tid med formuläret.": use step 3. With nothing to suggest it
-   says "Inga förslag idag."
+   truck cancelled today can be suggested again: "✗" hides it. A refused "✓" shows step 3's
+   overlap texts, those that would change this entry ending "Lägg in en annan tid med
+   formuläret." (use step 3); one whose time has passed answers "Tiden har redan passerat".
+   With nothing to suggest it says "Inga förslag idag."
 3. **New entries,** in the "Ny post" form, for a truck the checklist didn't suggest, or one
    not out as it suggested (step 2). After "Spara" the form keeps the truck and the date for
    the next entry, so check both each time:
-   - the truck ("Välj foodtruck"; only active trucks are listed);
+   - the truck ("Välj foodtruck"; only active trucks are listed). A new truck, or one set
+     inactive, is added or brought back in step 6 first: on the first morning the list is
+     empty;
    - the place: "Välj känd plats", one of "Senaste platser", "Välj på kartan" (tap where the
      truck stands, then "Klar"), or "Jag är här nu". A map tap or the GPS changes only the
      pin and keeps whatever name "Platsnamn (valfritt)" already holds, a spot's picked
@@ -103,15 +107,18 @@ mornings show what changes. The labels are the screens' own.
    days:
    - "Stämmer fortfarande" when a truck confirms: it moves the "Uppdaterad" time the map's
      popup shows, and changes nothing else;
-   - "Ändra" when its place or hours change. It opens step 3's form on the entry: a recent
-     place brings its own times and a map tap keeps the old name, so check the name and the
-     times before "Spara";
+   - "Ändra" when its place or hours change. It opens the form as "Ändra post", in place of
+     a new entry half filled in: the truck can't be changed (a wrong truck means "Ställ in"
+     and a new entry), a recent place brings its own times and a map tap keeps the old name,
+     so check the name and the times before "Spara", or back out with "Avbryt". After
+     either, the form starts empty, with no truck and today's date;
    - "Ställ in" when it cancels. The screen asks first ("Ställa in den här posten? Den
      försvinner från kartan."). The entry leaves the map and the list and stays in the
      history, and the screen can't undo it: a cancel by mistake means a new entry.
 
    All three go once an entry has ended ("Har slutat").
-5. **A look at the map** ("Karta"), signed in (`CLAUDE.md`, "The soft-launch gate"). It shows
+5. **A look at the map** ("Karta"), signed in (`CLAUDE.md`, "The soft-launch gate"), after
+   the morning's entries and again after a change through the day, not only at its end. It shows
    one marker per truck: today's entry open now, else its next one today, so tomorrow's entries
    and a dinner after a lunch don't show yet. A save, a confirm or a cancel reaches the map
    within about 3 minutes (`/api/live`'s cache; "A marker check on the preview", below).
