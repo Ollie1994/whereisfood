@@ -1,25 +1,103 @@
 # Väm (Var är maten) — Gothenburg Food Truck Map
 
-A web map showing where Gothenburg's food trucks are **today**.
-
-Hungry people open the map (no login, no tracking) and see which trucks are out,
-where, and until when. At launch every location is entered by hand by one admin, who
-follows each truck on Instagram with post and Story notifications on, and updates the
-map from a phone-first admin screen. Truck owners get to claim their listing and post
-themselves later.
-
-It fills a real gap: Gothenburg has had no central food-truck map since Streetkäk
-shut down in 2017.
+A phone-first web map of where Gothenburg's food trucks are **today**: who is out, where,
+and until when. No login, no tracking.
 
 > **Status: Phase 10 of 11 (launch) done; Phase 11 (full launch) next.** Väm runs in production at
 > `vararmaten.vercel.app` as a soft launch: the map is shown only to the admin, and everyone else
 > sees a page about it (`/om`) and the privacy note (`/integritet`). Production holds no trucks yet.
 > See [Project status](#project-status), and [`RUNBOOK.md`](RUNBOOK.md) for how it is run.
 
----
+## Why it exists
 
-<img width="1354" height="850" alt="image" src="https://github.com/user-attachments/assets/7d91fa96-509e-49a0-b867-821d1f7079b5" />
+Gothenburg's food trucks announce where they'll be on Instagram and Facebook, one post or
+Story at a time. There has been no central map since Streetkäk shut down in 2017.
 
+Väm's answer is deliberately low-tech: **one admin enters every location by hand**, from a
+phone, after following each truck with post and Story notifications on. An earlier design
+tried to do it automatically, with webhooks and email feeding a Swedish caption parser. It
+was dropped: a parser can't see image-only posts, Stories or schedule graphics, and a wrong
+pin costs more users than a missing one. Truck owners get to claim their listing and post
+themselves later.
+
+## How it works
+
+This is the design. Phases 5 to 10 built the schema, the public read path (the map, its
+polling and cache, the popup's freshness text), the admin screen with its entry flow,
+CI/CD, security (the admin's second factor, session limits, security headers) and the
+first production deploy, a soft launch with the map shown only to the admin; the full
+launch is Phase 11's.
+
+- **The admin enters every location by hand.** A pin comes from a map tap, a known
+  Gothenburg spot, a recently used place, or the phone's GPS. Start and end times are
+  pre-filled and always required. A morning checklist suggests what each truck did on the
+  same weekday recently. Nothing reaches the map until the admin confirms it.
+- **Honest freshness.** Only trucks with an entry today appear. The popup says when the
+  entry was last updated and, when the truck has one, links to its Instagram, so people can
+  check.
+- **Overlaps are refused, not resolved.** A second entry for the same truck in an
+  overlapping time window is rejected, and the admin edits the existing one instead.
+- **Nothing is deleted by the app.** A cancelled entry is marked cancelled, and an ended one
+  stops matching the "today" filter. The only deletes are a takedown on a truck's request
+  and a weekly retention run for entries that ended more than 52 weeks ago, both manual SQL.
+
+## How it's built
+
+- **One public read path, and the browser never touches the database.** The map polls
+  `GET /api/live` every 60 seconds while the tab is visible. It's an ordinary route that
+  Vercel's CDN caches for 60 seconds, so polling costs the database about one query a minute
+  per region however many people have the map open (each new made-up query string
+  misses the cache and costs one small query, which is accepted). The public API roles get no
+  access to the trucks' tables, so the public can't pull a truck's location history through
+  Supabase's API.
+- **The database enforces the rules.** An exclusion constraint refuses overlapping entries.
+  Every table has row-level security and explicit grants per table, and the server reaches
+  the data through a database layer that finds and changes rows but decides nothing.
+- **A locked-down admin.** The one admin signs in with an emailed magic link and then a code
+  from an authenticator app. The app refuses a session 12 hours after its sign-in, logging
+  out on one device signs out the others, or says it couldn't, and every admin route checks
+  the session, the role and the second factor again on its own. The admin pages get a
+  content security policy with a new nonce per request.
+- **Strict layering.** Route handlers only speak HTTP, services hold the logic, and only
+  the database layer talks to Postgres:
+
+  ```
+  app/api/*/route.ts   → HTTP only, no business logic
+  src/lib/services/    → all business logic, no HTTP knowledge
+  src/lib/db/          → database access only
+  src/lib/validators/  → input validation
+  ```
+
+- **CI is the gate.** Every pull request runs type-checking and lint, unit tests,
+  integration tests against a local Supabase, a production build with a smoke check of the
+  served app, `npm audit`, a secret scan and CodeQL. The **schema controls** go further:
+  each SQL file in `tests/controls/` removes or narrows one guard in the schema, and the tests
+  meant to catch it must go red (a few check instead that removing a guard another one
+  already covers changes nothing, or that a suite's setup fails). CI runs the full set on a
+  pull request that touches a path `scripts/controls-trigger.mjs` lists (the schema, the
+  controls and their runner, the tests they run, the code and config those rest on, CI), and
+  on every one into `main`; the others only check that the files parse. Branch rulesets
+  require the checks, with no bypass, not even for the owner.
+
+## How it's made
+
+Väm is built with [Claude Code](https://claude.com/claude-code), under a process that
+treats its own mistakes as data:
+
+- **Plans with numbered decisions.** Since Phase 3, each phase's plan in
+  [`.claude/plans/`](.claude/plans/) records every settled question as a numbered decision
+  with its reasons, so it isn't argued again a session later (one settled between phases
+  waits as a row in `project-context.md`'s "Decisions carried forward").
+  [`CLAUDE.md`](CLAUDE.md) holds the working rules that outlive a phase.
+- **A log of misses.** [`.claude/process-log.md`](.claude/process-log.md) records every time
+  the process got something wrong: a gate that let a defect through, a stale rule, a fix
+  that broke something else. Each row has a cause from a fixed list, and each phase since
+  Phase 3 ends with a retrospective that counts them.
+- **Review rounds with checks of their own.** Every pull request Claude writes gets review
+  rounds, up to a default ceiling the owner can lower or raise. After each round's fixes, a
+  sweep looks for every copy of what they changed, and before every round a claims check
+  lists each "every", "only" and "always" the change added, to be backed by a command or
+  narrowed.
 
 ## Tech stack
 
@@ -35,56 +113,6 @@ shut down in 2017.
 | Deployment | Vercel |
 
 Consumers are always anonymous. All user-facing text is in Swedish.
-
----
-
-## How it's designed to work
-
-This is the design. Phases 5 to 10 built the schema, the public read path (the map, its
-polling and cache, the popup's freshness text), the admin screen with its entry flow,
-CI/CD, security (the admin's second factor, session limits, security headers) and the
-first production deploy, a soft launch with the map shown only to the admin; the full
-launch is Phase 11's.
-
-- **The admin enters every location by hand.** A pin comes from a map tap, a known
-  Gothenburg spot, a recently used place, or the phone's GPS. Start and end times are
-  pre-filled and always required. A morning checklist suggests what each truck did
-  on the same weekday recently. Nothing reaches the map until the admin confirms it.
-- **Overlaps are refused, not resolved.** A database constraint rejects a second
-  entry for the same truck in an overlapping time window, and the admin edits the
-  existing one instead. Nothing is replaced or deleted automatically.
-- **Nothing is deleted by the app.** Cancelling an entry marks it cancelled, and an ended
-  entry simply stops matching the "today" filter. The only real deletes are a takedown on a
-  truck's request and the weekly retention run, which deletes entries that ended more than
-  52 weeks ago, both manual SQL (`RUNBOOK.md`, "Takedown" and "The weekly routine").
-- **One public read path.** The map polls `GET /api/live` every 60 seconds. It's an
-  ordinary route that Vercel's CDN caches for 60 seconds, so normal polling costs the
-  database about one query a minute per region, however many people have the map
-  open. (A request with a made-up query string skips the cache and costs one small
-  query; that's accepted.) The browser never talks to the database, so no one can
-  pull a truck's location history.
-- **Honest freshness.** Only trucks with an entry today appear. The popup says when
-  the entry was last updated and links to the truck's Instagram so people can check.
-
----
-
-## Architecture
-
-Strict layering. Never mix layers:
-
-```
-app/api/*/route.ts   → HTTP only, no business logic
-src/lib/services/    → all business logic, no HTTP knowledge
-src/lib/db/          → database access only
-src/lib/validators/  → input validation
-```
-
-Route handlers call services. Services call the DB layer.
-
-The working rules live in [`CLAUDE.md`](CLAUDE.md) and the design reference in
-[`.claude/context/project-context.md`](.claude/context/project-context.md).
-
----
 
 ## Project status
 
@@ -102,11 +130,13 @@ The working rules live in [`CLAUDE.md`](CLAUDE.md) and the design reference in
 | 10 · Launch          | Production deploy, a soft launch: the map shown only to the admin, an about page and a privacy note for everyone else, the runbook | ✅ Done |
 | 11 · Full launch     | The map public, a custom domain for the tiles, paid plans | ⬜ Next |
 
-Phases 2 and 3 built automatic ingestion: Make.com webhooks and Mailgun email, run
-through a Swedish parser that turned captions into locations. It was dropped for the
-admin-populated design above. The code is archived on the `archive/parser-lanes`
-branch and tag.
+Phases 2 and 3 built the email and webhook lanes and most of the caption parser that
+[Why it exists](#why-it-exists) describes; they were never joined before the design was
+dropped. The code is archived on the `archive/parser-lanes` branch and tag.
 
----
+## More
 
-Setting it up: [`SETUP.md`](SETUP.md). Running it: [`RUNBOOK.md`](RUNBOOK.md).
+- [`SETUP.md`](SETUP.md): setting it up, locally and on the hosted projects
+- [`RUNBOOK.md`](RUNBOOK.md): running it, from the weekly routine to incidents
+- [`CLAUDE.md`](CLAUDE.md): the working rules
+- [`.claude/context/project-context.md`](.claude/context/project-context.md): the design reference
