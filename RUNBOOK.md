@@ -86,8 +86,9 @@ Once a week, at most 7 days after the last run, in this order:
    - **Vercel:** the team's Usage page, the same way. Deployment Storage was the one figure
      over 10% of its limit when Phase 9 read it (#417).
    - **At 50% of any limit,** on either page, open an issue that decides between reducing
-     the usage (as #417 does for Deployment Storage) and the paid plan (the owner's call, IS
-     #525; `project-context.md`, "Pricing and upgrade triggers"). One issue per figure: a
+     the usage (as #417 does for Deployment Storage) and the paid plan (the owner's calls on
+     #525, 2026-11-24; `project-context.md`, "Pricing and upgrade triggers"). One issue per
+     figure: a
      figure already in an open issue needs no second one.
    - **Errors:** Vercel's Logs, filtered to 5xx. Hobby keeps runtime logs 1 hour and
      Observability 12 hours, and Supabase's logs keep 1 day (Phase 9 plan open decision 7),
@@ -100,10 +101,11 @@ Once a week, at most 7 days after the last run, in this order:
 
    `/integritet` promises a removal within a month. With runs at most 7 days apart, a
    request in these two inboxes is seen within 7 days of its arrival, inside that month. A
-   limit: a reply on another channel a truck was told through ("Telling a new truck", step
-   3, below) isn't checked here, since nothing records that channel; #527 settles it. A late
-   run, or a
-   confirmation that waits for a reply, uses more of it. A reply from a truck already told
+   limit: a truck told through another channel ("Telling a new truck", step 3, below) is asked
+   to answer by mail or on Instagram, both checked here, but a reply that comes back on that
+   channel itself (its website form, a contact in its posts) isn't, since nothing records the
+   channel; #527 settles it. A late run, or a confirmation that waits for a reply, uses more
+   of it. A reply from a truck already told
    goes as "Telling a new truck", step 5, says; a request to be listed again as its "The two
    private lists" says; any other removal or objection to "A takedown request", below; the
    rest to "Other requests", below.
@@ -270,6 +272,8 @@ To refresh it:
 1. Keep the file production serves: download R2's object from the bucket's public URL
    (`SETUP.md`, "Map tiles on R2") to a dated name outside the repo, next to the dumps. The
    local `public/gothenburg.pmtiles` may be a different cut, and the upload replaces R2's copy.
+   Note the `etag` R2 answers for it now: `curl -sI "https://pub-<id>.r2.dev/gothenburg.pmtiles"
+   | grep -i etag`.
 2. Cut a new extract as `SETUP.md`'s "2. Get the map tiles" says.
 3. Look at `/karta` on the local stack first, with the new local file: `npm run build`, then
    `npm start`, at the URL its `Local:` line prints (`CLAUDE.md`, "Testing"), signed in as the
@@ -278,15 +282,19 @@ To refresh it:
    the `curl` checks can't see that. Then stop the server, and check that no `node` process
    with this repo in its command line is left, and stop any that are (`CLAUDE.md`, "Testing").
 4. Upload it to the bucket under the same name, and run the two `curl` checks, both as
-   `SETUP.md`'s "Map tiles on R2" says.
-5. Look at production's `/karta`: the basemap and any real markers, with no test entry, since
-   `/api/live` publishes today's entries. Use the window already signed in, with DevTools open and
-   "Disable cache" ticked, and check in its Network tab that the `.pmtiles` responses don't
-   come from the cache (`CLAUDE.md`, "Green gates don't show the map renders"). A session is
-   refused 12 hours after its sign-in, and a private window has none, so either needs a new
-   login link: production sends 2 emails an hour ("A login link that doesn't come", below).
-   If it draws wrong, upload the kept file under the same name, and run step 4's checks and
-   this look again.
+   `SETUP.md`'s "Map tiles on R2" says. They pass with the old file too, so also run step 1's
+   `etag` command again: it must answer a different `etag`, or R2 still serves the old object.
+5. Look at production's `/karta` in the window already signed in: open DevTools, tick "Disable
+   cache", then reload `/karta`, so the map loads afresh, and check in the Network tab that the
+   `.pmtiles` responses don't come from the cache (`CLAUDE.md`, "Green gates don't show the map
+   renders"). Check the basemap, and a real marker's popup if there is one: make no test entry,
+   since `/api/live` publishes to anyone every entry overlapping the next 26 hours, and the
+   entry stays in the history and the dumps. With no real entry, step 3 was the check of the
+   markers and popups. A session past the time-box (12 hours until Phase 11, `CLAUDE.md`, "The
+   session time-box") or a private window needs a new login, the link and then the TOTP code;
+   production sends 2 emails an hour ("A login link that doesn't come", below). If it draws
+   wrong, upload the kept file under the same name, and run step 4's checks (its `etag` now
+   step 1's again) and this look again.
 
 ---
 
