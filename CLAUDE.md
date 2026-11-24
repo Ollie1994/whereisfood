@@ -639,8 +639,9 @@ diff and a `PR #n / IS #n` to point at.
   written when the advisory is published.
 
 **What goes where** (between phases, IS #264): `README.md` shows off the project and holds
-no how-to; setting it up, locally and on the hosted projects, and checking that setup (the
-Security Advisor, the CDN cache), is `SETUP.md`; operating it is `RUNBOOK.md`.
+no how-to; setting it up, locally and on the hosted projects, and checking that setup
+(`SETUP.md`'s "The hosted Security Advisor" and "Checking the CDN cache"), is `SETUP.md`;
+operating it, an operating step's own advisor run included, is `RUNBOOK.md`.
 
 ---
 

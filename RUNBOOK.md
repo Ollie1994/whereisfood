@@ -157,7 +157,7 @@ incident is being investigated, when the dumps from before it are also moved asi
 A restore always goes into a **fresh** database, with the migrations applied, **no seed** and
 no `auth` users: on the local stack `npx supabase db reset --no-seed`; on a new hosted project
 "A restore"'s step 1 blocks, below, which check the link and push without `--include-seed`
-(not tried). The seed's trucks have ids no
+(a hosted restore as a whole is untried: "Limits", below). The seed's trucks have ids no
 production dump holds, so a dump would load beside them with no error, mixing them in. Check
 first that `select count(*) from trucks` and `select count(*) from auth.users` both answer 0.
 A database that still holds data or users, production with some rows lost included, isn't a
@@ -1122,9 +1122,9 @@ container. In this order, since the login has to reach the new project:
    `Would push these migrations:` and the file, and not that line. It exited 0 both times, so
    the line, not the exit code, is the test. No ERROR, each WARN fixed or accepted; why
    `--linked`, not a URL, is "A leaked key"'s. Each block runs from the repo root, with the
-   new project resumed if paused. A failed `link` leaves the CLI linked to whichever project
-   it was before ("A leaked key", the advisor's checks), where a push or an advisor run would
-   land instead.
+   CLI logged in (`npx supabase login`) and the new project resumed if paused. A failed
+   `link` leaves the CLI linked to whichever project it was before ("A leaked key", the
+   advisor's checks), where a push or an advisor run would land instead.
 2. **`.env.prod-db.local`:** the new project's session pooler URL, before the load, so
    nothing reaches the old project by mistake.
 3. **The data:** "Restoring", above, against the new project: its check that `trucks` and
@@ -1192,8 +1192,8 @@ checklist suggestions that overlap it, and makes a by-hand insert like IS #254's
 the truck (Phase 7 plan #38's rule, in `.claude/plans/phase-7-admin.md`; the insert in
 `SETUP.md`, "Hosted preview database"). For up to 4 weeks, it can also take the place of the
 truck's real suggestions on that weekday (`getChecklist`). Once it's cancelled, it does none
-of these: cancelled rows aren't read.
-After its end, cancel it in the preview's SQL Editor: find its id with
+of these: cancelled rows aren't read. After its end, cancel it in the preview's SQL Editor:
+find its id with
 
 ```sql
 select id, starts_at, ends_at from locations
@@ -1211,7 +1211,8 @@ Its row stays in the preview's history.
 
 A later migration goes up by a push from the CLI to each project, without `--include-seed`:
 
-- **The preview** (`SETUP.md`, "Hosted preview database"), from the repo root. A plain
+- **The preview** (`SETUP.md`, "Hosted preview database"), from the repo root with the CLI
+  logged in. A plain
   `npx supabase db push` goes to whichever project the CLI is linked to, so the block pushes
   only while the link is the preview's; if it isn't, run "A restore"'s step 7 block, above,
   first:
@@ -1228,9 +1229,9 @@ A later migration goes up by a push from the CLI to each project, without `--inc
 - **Production**, never the seed (`SETUP.md`, "Production", "Schema"): "A restore"'s blocks
   alone, above, not its restore steps: step 1's three blocks with production's ref (link and
   dry run, push, the advisor), each of which checks the link before it pushes or reads, then
-  step 7's block, which links back to the preview and checks that. Run them from the repo
-  root, with the CLI logged in (`npx supabase login`) and production not paused; their
-  messages say "the new project", which here is production.
+  step 7's block, which links back to the preview and checks that. Run them as step 1 says
+  (the repo root, the CLI logged in, the project not paused); their messages say "the new
+  project", which here is production.
 
 A release that needs the migration goes out only after production's push ("A release",
 below).
