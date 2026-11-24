@@ -7,5 +7,5 @@
 .env.local
 .env.*.local
 
-# Studio saves SQL Editor queries here; they can hold real emails (README step 5)
+# Studio saves SQL Editor queries here; they can hold real emails (SETUP.md, "5. Create the admin user")
 snippets

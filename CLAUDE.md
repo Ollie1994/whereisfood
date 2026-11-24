@@ -3,7 +3,7 @@
 Full project reference: `.claude/context/project-context.md`
 Read it at the start of any non-trivial task.
 
-**Current phase plan: `.claude/plans/phase-10-launch.md`.**
+**Current phase plan: none (the last one: `.claude/plans/phase-10-launch.md`).**
 
 While that line names no plan (between phases, after a reconciliation and before the
 next plan's step 0), the reconciled `project-context.md` is current and wins over the
@@ -155,9 +155,9 @@ said otherwise: Phase 4 plan decision #14.
 - **Secure password change and the password-changed email stay on** (Phase 9 plan step 2,
   IS #378): `config.toml`'s `secure_password_change = true` and
   `[auth.email.notification.password_changed]`, which `supabase/config.test.ts` pins;
-  a hosted project's are README's hosted settings checklist's (plan step 12, #390), with "Require
+  a hosted project's are SETUP.md's hosted settings checklist's (plan step 12, #390), with "Require
   current password when updating", which has no `config.toml` key in the CLI (plan #13).
-  **The admin keeps a password** (README, "5. Create the admin user"): GoTrue asks for the
+  **The admin keeps a password** (SETUP.md, "5. Create the admin user"): GoTrue asks for the
   current password only from a user who has one, and not in a recovery session (`user.go`),
   so an admin created without one, or by an invitation, loses that guard; the preview's,
   made before this rule, was given a long random one (IS #378). Limits: Auth counts a session
@@ -169,7 +169,7 @@ said otherwise: Phase 4 plan decision #14.
 - **The emailed code is 10 digits and lives 15 minutes** (Phase 9 plan step 8, open decision
   1, IS #386): `config.toml`'s `otp_length` and `otp_expiry`, which `supabase/config.test.ts`
   pins and `auth-routes.test.ts` checks on the running stack (the 15 minutes by moving a
-  link's `recovery_sent_at` back by SQL). A hosted project's are README's hosted settings
+  link's `recovery_sent_at` back by SQL). A hosted project's are SETUP.md's hosted settings
   checklist's (#390). No email shows the login code, but Auth accepts it; the length also
   sets the reauthentication code, which is emailed and typed (`config.toml`). Spending the
   built-in email's budget so the admin's link doesn't come is accepted until the Owners
@@ -208,7 +208,7 @@ said otherwise: Phase 4 plan decision #14.
   "Pre-deploy automation")
 - **The Gitleaks hooks** (IS #292): `.githooks/pre-commit` scans the staged changes and
   `.githooks/commit-msg` the message. `core.hooksPath` is set by hand in each clone
-  (README, "1. Install"), never by a `prepare` script, which `npm ci` would run in CI too
+  (SETUP.md, "1. Install"), never by a `prepare` script, which `npm ci` would run in CI too
   (Phase 8 plan decision #7). A commit they refuse is fixed like a push-protection block:
   remove the value, or, for a value that isn't a secret, add a `.gitleaks.toml` allowlist
   entry that names why. Never `--no-verify`, never an inline `gitleaks:allow`, which the
@@ -517,8 +517,8 @@ output) and re-run (process-log row 275, PR #133).
 **Where an issue's browser checks run** (Phase 7 plan decision #36): in a local browser at
 phone width at `127.0.0.1:3000`, against the local stack. The phone, on `dev`'s preview, is
 for a plan's checkpoint issues: the preview's Redirect URLs admit `dev`'s alias alone, so a
-branch's preview can't finish a login (`README.md`, "Hosted preview database"), and no
-branch but `dev` gets the secret key, so its preview build fails (`README.md`, "Preview
+branch's preview can't finish a login (`SETUP.md`, "Hosted preview database"), and no
+branch but `dev` gets the secret key, so its preview build fails (`SETUP.md`, "Preview
 deploys").
 
 ⚠ **Browser checks: confirm which server answered, and that it is gone afterwards.**
@@ -556,9 +556,13 @@ the files, touches nothing) on the rest (#288). Run it by hand while writing a c
 migration (one file: `node scripts/controls.mjs tests/controls/<name>.sql`), and for a PR
 into `dev` whose change the controls test though no `TRIGGERS` entry covers it (that
 script's header says which changes it can't see), since there the check ran only `--check`.
-A new schema guard adds its controls by the rule in `.claude/commands/create-issues.md`'s Failure modes. About
-45 s a control, mostly the reset (64 took 48 minutes, 2026-10-23); the script's header
-says what it can't see.
+A new schema guard adds its controls by the rule in `.claude/commands/create-issues.md`'s
+Failure modes. A full run's cost, the one copy: locally about 45 s a control, mostly the
+reset (64 took 48 minutes, 2026-10-23). In CI, for 65 controls, the `Run node
+scripts/controls.mjs` step took 25 to 31 minutes, about 23 to 29 s a control, and the whole
+`controls` job, its setup and the stack's start included, 27 to 38 minutes (the full runs of
+PRs #488, #489, #494, #498, #503 and #520, 2026-11-22 to 24). The script's header says what
+it can't see.
 
 **`test:all` fails if any project collects zero test files** (fixed by #99). Vitest's
 empty-match check is per-**run**, not per-project, so `test:all` (`scripts/test-all.mjs`)
@@ -596,11 +600,11 @@ no longer needs, or with no reason, fails.
 ## Doc changes — always issue → branch → PR
 
 Every change to a tracked doc goes through an issue, a branch and a PR into `dev`,
-exactly like code. Tracked docs are `CLAUDE.md`, `README.md` and everything under
-`.claude/` (plans, `project-context.md`, `transition.md`, commands and
-**`process-log.md`**). Never commit one straight to `dev`, and never leave one sitting
-uncommitted on `dev`. Every doc change then has a reviewable diff and a
-`PR #n / IS #n` to point at.
+exactly like code. Tracked docs are `CLAUDE.md`, `README.md`, `SETUP.md`, `RUNBOOK.md`,
+`SECURITY.md` and everything under `.claude/` (plans, `project-context.md`,
+`transition.md`, commands and **`process-log.md`**). Never commit one straight to `dev`,
+and never leave one sitting uncommitted on `dev`. Every doc change then has a reviewable
+diff and a `PR #n / IS #n` to point at.
 
 - **Part of tracked work → ride along.** A log row from a review round, a doc claim a
   fix made stale (except what the sweep's step 3 leaves for the reconciliation), a plan
@@ -612,22 +616,23 @@ uncommitted on `dev`. Every doc change then has a reviewable diff and a
 - GitHub issue and PR text is not a repo file, so editing it needs no branch. It is
   still a doc: a corrected claim there gets the same sweep as one in a file ("Review
   rounds" below; process-log rows 269, 271).
-- **Issue and PR text is posted through `scripts/post-body.mjs`** (IS #403), from a file: a
-  body with `node scripts/post-body.mjs <n> <file>` (`--rounds` on a PR body once it has a
-  round section), a new comment with `--comment <n> <file>`, a change to one with
-  `--edit-comment <id> <file>`. A new issue or PR: `--check <file>` first, then `gh issue
-  create` or `gh pr create --body-file` with that file, then the first form on the same
-  file, which reads it back. It refuses, before posting, a raw control character, an
-  invisible character (the script's `INVISIBLE_NAMES`: the no-break space, soft hyphen,
-  zero-width characters, line and paragraph separators, bidi controls, U+FE0F and the
-  byte-order mark; GitHub stores them unchanged, probe PR #428, so no read-back shows them;
-  a joiner or U+FE0F that is part of an emoji, and a byte-order mark opening the file, are
-  kept), the escape text GitHub
-  rewrites (`\u0000` to `\u001F` but `\u0009`, `\u000A`, `\u000B` and `\u000D`: write
-  `\x00`, or the character's name) and a repeated `## ` heading; then it posts and fails if
-  GitHub's stored copy differs. A failure is fixed before the next
-  step. Its header lists what GitHub rewrites (probe PR #425) and what the script can't
-  see (a review comment on a PR's diff among them).
+- **Issue and PR text is posted through `scripts/post-body.mjs`** (IS #403), from a file: a body
+  with `node scripts/post-body.mjs <n> <file>` (on a PR's body, `--closes <n,...|none>` naming the
+  issues it closes, and `--rounds` once it has a round section), a new comment with
+  `--comment <n> <file>`, a change to one with `--edit-comment <id> <file>`. A new issue or PR:
+  `--check <file> --issue` or `--check <file> --closes <list>` first, then `gh issue create` or
+  `gh pr create --body-file` with that file, then the first form on the same file, which reads it
+  back. On a PR's body it refuses a closing keyword before an issue it wasn't told the PR closes,
+  another repository's, and a listed issue no closing keyword names (IS #513). It refuses, before
+  posting, a raw control character, an invisible character (the script's `INVISIBLE_NAMES`: the
+  no-break space, soft hyphen, zero-width characters, line and paragraph separators, bidi controls,
+  U+FE0F and the byte-order mark; GitHub stores them unchanged, probe PR #428, so no read-back shows
+  them; a joiner or U+FE0F that is part of an emoji, and a byte-order mark opening the file, are
+  kept), the escape text GitHub rewrites (`\u0000` to `\u001F` but `\u0009`, `\u000A`, `\u000B` and
+  `\u000D`: write `\x00`, or the character's name) and a repeated `## ` heading; then it posts and
+  fails if GitHub's stored copy differs. A failure is fixed before the next step. Its header lists
+  what GitHub rewrites (probe PR #425) and what the script can't see (a review comment on a PR's
+  diff among them).
 - **Exception: a private vulnerability** (Phase 10 plan #13, IS #347). An outside report
   (`SECURITY.md`), before production too, and once production exists an unfixed vulnerability found
   in-house (Q36), is worked in its GitHub security advisory and the advisory's temporary private
@@ -636,6 +641,11 @@ uncommitted on `dev`. Every doc change then has a reviewable diff and a
   advisory's merge button (GitHub's docs: it doesn't enforce the branch's protection rules). The fix
   is public from the push of its branch. The issue, the round records and the process-log rows are
   written when the advisory is published.
+
+**What goes where** (between phases, IS #264): `README.md` shows off the project and holds
+no how-to; setting it up, locally and on the hosted projects, and checking that setup
+(`SETUP.md`'s "The hosted Security Advisor" and "Checking the CDN cache"), is `SETUP.md`;
+operating it, an operating step's own advisor run included, is `RUNBOOK.md`.
 
 ---
 
@@ -678,7 +688,8 @@ outside a review):
    body>]` with the same commit; its header says what it lists, where it looks and
    what it can't see. Add its hits to the list; they are a floor, not the list.
 2. **Grep every mention** of each across the tracked docs (`CLAUDE.md`, `README.md`,
-   `.claude/`), code comments and tests, **every open issue body**, and the PR body if
+   `SETUP.md`, `RUNBOOK.md`, `SECURITY.md`, `.claude/`), code comments and tests, **every
+   open issue body**, and the PR body if
    there is one, the issue the PR closes included (PR #202's round 3 found #200's
    "Does not catch" behind the script's header). `sweep.sh`'s hits are already such
    mentions, of the text itself; grep for the terms as well, since a reworded copy
@@ -735,9 +746,11 @@ hit, do one of three things:
 - or note it is a rule, not a claim of fact.
 
 It also prints, as `closing:`, each line of the PR body (and of each other file or `--was`
-<new>) with a closing keyword before an issue reference. In the PR body, confirm each names
-only an issue the PR closes: merging into `dev` closes every one. In an issue body they close
-nothing (IS #368).
+<new>) with a closing keyword before an issue reference. In the PR body, each must name only
+an issue the PR closes: merging into `dev` closes every one. `post-body.mjs --closes` refuses
+any other its pattern matches before posting (IS #513; its header names what it can't see),
+and the `closing:` lines are still confirmed, a draft's before it is posted. In an issue body
+they close nothing (IS #368).
 
 Record the hit count and how each was settled in the PR body, under the round the
 check comes before (the first round's goes in the body as opened). The script lists

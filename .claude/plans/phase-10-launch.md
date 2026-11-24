@@ -307,8 +307,9 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     gives an origin only to a production address shown to be this project's that serves pages
     (`vararmaten.vercel.app`, production's domain since IS #458); an address that redirects to
     one with an origin needs none (`whereisfood-theta.vercel.app`, set to redirect (307) to
-    it); one not yet shown to be this project's waits for step 17's check
-    (`<project>-<scope-slug>.vercel.app`); and never `whereisfood.vercel.app`, another owner's
+    it); one not yet shown to be this project's waits for step 17's check (the
+    `<project>-<scope-slug>.vercel.app` alias did, until #464 showed it is; it gets none by the
+    owner's call on #506, README's "Get the map tiles"); and never `whereisfood.vercel.app`, another owner's
     site (IS #459; README, "Get the map tiles"); the Vercel Toolbar
     off for Production deployments, as for pre-production (the owner's call, round 3 on PR
     #447; README's "Hosted settings checklist"); Production's Deployment Retention Policy, which
@@ -361,7 +362,8 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
       answers a 307 to `vararmaten.vercel.app`; and whether `whereisfood-where-is-food.vercel.app`
       is this project's, by Vercel's own record (listed among the production deployment's domains
       in the project's dashboard), not by the page it serves, which anyone could copy. If it is,
-      an issue of its own gives it R2's CORS origin.
+      an issue of its own gives it R2's CORS origin. (It is, #464; the owner's call on #506: no
+      origin, for the reasons README's "Get the map tiles" gives.)
 
     **This step is the phase's done.**
 
@@ -411,7 +413,9 @@ whose decisions blocks only the step that needs it; step 18 runs alongside from 
     row (line 1078), whose "every credential" open decision 12 narrows. It brings README's
     status parts in line; carries forward the decisions that outlive the phase (#5 and #10 at
     least: #5's row names the removal list in `karta/page.tsx`'s header and #5's removal checks, for Phase 11's
-    plan; the IS #373 (Phase 11) row's marker stays, and its "removes the gate" points to #5's
+    plan; open decision 13's procedure, which #511 puts in the runbook, with the second message at the
+    full launch, for Phase 11's launch issue (IS #511); the IS #373 (Phase 11)
+    row's marker stays, and its "removes the gate" points to #5's
     row); and sets `CLAUDE.md`'s bold line to none, naming this plan as the last one.
 
 ---
@@ -454,8 +458,9 @@ applies production's settings.
 ### #4 — Done at the deploy; telling the trucks runs alongside
 
 The owner's call (2026-11-20). Done is step 17. Telling the trucks depends on replies the plan
-can't control, so it starts once production holds their data and the privacy note exists, and
-blocks neither the retrospective nor the reconciliation. Phase 11's coverage target, not this
+can't control, so it starts once production and the privacy note exist (each truck told just
+before its data is entered, open decision 13, since round 1 on PR #512), and blocks neither the
+retrospective nor the reconciliation. Phase 11's coverage target, not this
 phase, measures daily use.
 
 ### #5 — The soft-launch gate is temporary, and removable without a hole
@@ -667,7 +672,8 @@ findings before production stay public (Q36).
   Redirect URLs that host's `/auth/callback` alone; the admin has a long random password.
 - [ ] Vercel and R2: the Ignored Build Step read as set, no `ignoreCommand` or `vercel.ts` on
   `dev` or `main`; R2's CORS rule covers each production address, by an origin or a
-  redirect, but the `<project>-<scope-slug>` alias, which waits for step 17's check (IS #459);
+  redirect, but the `<project>-<scope-slug>` alias, which waited for step 17's check (IS #459)
+  and has none by the owner's call on #506;
   the toolbar reads Off for Production; Production's Deployment Retention Policy
   reads the value open decision 14 settled, in README's checklist too; Production's variables
   come only from
@@ -785,8 +791,38 @@ findings before production stay public (Q36).
     deployment URLs. The preview's other credentials not rotated, since they reach only the
     preview, but its legacy API keys disabled. Account passwords not rotated, by the owner's
     reason that none was in the repo, a shell or an agent session, and two-factor guards each.
-13. **How the trucks are told** (step 18): the channel and the Swedish text, with a link to
-    `/integritet`.
+13. ~~**How the trucks are told** (step 18): the channel and the Swedish text, with a link to
+    `/integritet`.~~ → **settled** (the owner, 2026-11-23, IS #465): an Instagram DM from
+    @vararmaten on the day a truck is first entered, signed "/Oliwer, Väm", in the text #465's
+    comment 7102728788 records (`issuecomment-7102728788`). Only a truck with Instagram is
+    listed, since its data comes from its own posts (`/integritet`). If its DM can't be seen,
+    another channel it publishes itself (its website, or a contact in its own posts: the channels
+    `RUNBOOK.md`'s "Other requests" uses to confirm a requester), with a version of the text for
+    that channel the owner approves in #511; with none, it isn't entered (the owner's call,
+    narrowed after round 2 on PR #510; told just before it is entered, round 1 on PR #512, since
+    `/integritet` says each truck entered is told). A truck may write back by DM or to `/integritet`'s
+    email; a removal asked for by DM is honoured like one by email (#2). #511 covers DM requests
+    and the private list below in `/integritet` and the runbook, and adds this procedure there;
+    it blocks #465, so no DM goes out before it, and a truck entered before #511 merges is told on
+    the day it merges, the one exception to telling first (production held none, 2026-11-23).
+    #511 also settles, with the owner, what this decision leaves open: a record that a removed
+    truck asked to stay off, so it isn't entered and told again; whether a truck is
+    entered only with its Instagram handle; what "a DM that can't be seen" means; two-factor on
+    @vararmaten; and telling the trucks already told once the map opens. #465 counts the trucks
+    told through Phase 10, and #511 names where later counts go. #465 records only dates and
+    counts, never names (round 1 on PR #510): a public issue would keep a removed truck's name. The names go in the
+    owner's private list off the repo; a removal deletes the truck's line from that list, and
+    adds one to the takedown log as README's "Takedown" says. The text's "Kartan är inte öppen
+    för alla ännu" holds while the soft-launch gate stands (#5) and goes at the full launch (the
+    gate's removal list names it). What it left open, the owner settled on #511 (2026-11-23,
+    comment 7103734194), and `RUNBOOK.md`'s "Telling a new truck" holds the procedure: the
+    handle of a truck that asked to be removed, whether taken down or not yet entered, and the
+    date go on a private do-not-list until it asks to be listed again (its objection); a truck is
+    entered only with its handle, by that rule alone, with no code change; a DM that can't be
+    seen is one Instagram won't send, and a sent one counts as told; the trucks told get one
+    short second message when the map opens, its text approved in Phase 11's launch issue; after #465
+    the count is the private list's alone; and two-factor on @vararmaten, by authenticator app,
+    comes before the first DM.
 14. ~~**Production's Deployment Retention Policy** (step 14): README's checklist keeps Production
     at 30 days because no Ready production deployment existed (IS #417's comment of
     2026-11-19); the value against Hobby's 10 GB of Deployment Storage (#417).~~ → **settled**

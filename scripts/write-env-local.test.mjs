@@ -41,7 +41,7 @@ describe("parseEnv", () => {
 });
 
 describe("envLocalText", () => {
-  it("maps the status and .env.example as README's table does, each value quoted", () => {
+  it("maps the status and .env.example as SETUP.md's table does, each value quoted", () => {
     expect(envLocalText(STATUS, EXAMPLE)).toBe(
       [
         'NEXT_PUBLIC_SUPABASE_URL="http://127.0.0.1:54321"',

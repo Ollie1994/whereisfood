@@ -56,7 +56,7 @@ function loadEnvLocal(): void {
     throw new Error(
       `Integration tests need ${ENV_FILE} (Supabase URL, anon key and service role key). ` +
         "Run `npx supabase start`, copy .env.example to .env.local and fill it in from " +
-        "`npx supabase status -o env` (README.md, \"3. Environment\").",
+        "`npx supabase status -o env` (SETUP.md, \"3. Environment\").",
     );
   }
 

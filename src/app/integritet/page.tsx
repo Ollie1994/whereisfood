@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import PublicShell from "@/components/PublicShell";
-import { CONTACT } from "@/lib/contact";
+import { CONTACT, INSTAGRAM_HANDLE } from "@/lib/contact";
 import { ABOUT_PATH } from "@/lib/paths";
 
 // The privacy note (Phase 10 plan, step 9, #8): what is stored, why and for how long, and the
@@ -13,7 +13,7 @@ import { ABOUT_PATH } from "@/lib/paths";
 //   `auth.audit_log_entries`, nothing from `trucks`, whose row only `takedown.sql` deletes),
 //   run weekly (`RUNBOOK.md`, "The weekly routine");
 // - the purpose of old places: plan #10 (the checklist's look-back and the recent places);
-// - the backups: README, "Backups" (the newest 4 weekly dumps of `public`: `trucks`,
+// - the backups: RUNBOOK.md, "Backups" (the newest 4 weekly dumps of `public`: `trucks`,
 //   `locations`, `users`, the admin's id);
 // - the incident caps and the export (`auth` rows and `public.trucks`): `RUNBOOK.md`, "The
 //   weekly routine" and "Exporting evidence"; the old project's 8 weeks after any restore: "A
@@ -21,14 +21,35 @@ import { ABOUT_PATH } from "@/lib/paths";
 // - the admin's account, sessions and MFA challenges (`ip_address`): `retention.sql` trims none of
 //   `auth.users`, `auth.sessions` and `auth.mfa_challenges`, so the account's life bounds them;
 // - the takedown: `RUNBOOK.md`, "A takedown request" (the reply gives the latest date the
-//   copies keep it; the request mail kept until no copy from before the takedown is left, so a
-//   later date can be told); other requests' mail: "Other requests";
+//   copies keep it; the request mail or DM kept until no copy from before the takedown is left,
+//   so a later date can be told); other requests' mail and DMs: "Other requests";
+// - telling a truck, the list of trucks told and the do-not-list: `RUNBOOK.md`, "Telling a new
+//   truck" (Phase 10 plan, open decision 13; the owner's calls and approved text on IS #511; the
+//   channel's kind on the list, the owner's calls and approved text on IS #527);
 // - the right to object stated on its own: GDPR art. 21(4), for "berättigat intresse";
 // - the hosts: `src/lib/http/csp.ts` (R2's tiles, `protomaps.github.io`'s glyphs and sprites;
 //   no public page calls Supabase from the browser, only the admin's login);
 // - the transfers: vercel.com/legal/privacy-policy, cloudflare.com/cloudflare-customer-dpa (6.4)
 //   and GitHub's General Privacy Statement each say it complies with the EU-U.S. Data Privacy
 //   Framework; supabase.com/legal/dpa names the EU SCCs (2021/914), not the DPF;
+// - "Mejl och meddelanden" (the owner's approved text on IS #532, PR #533): the mail is the removal
+//   mailbox, `CONTACT` in `src/lib/contact.ts`, at Proton, and the messages are @vararmaten's, on
+//   Instagram, and step 3's accounts (`RUNBOOK.md`, "Telling a new truck"). The retention list's
+//   "som längst så länge foodtrucken är med" for mail and messages to and from a truck: RUNBOOK's
+//   "The DM thread with a truck stays at most while it is listed", step 3's "this message, its
+//   replies". Meta's privacy policy as served to EU users
+//   (mbasic.facebook.com/privacy/policy/printable/, Swedish locale, effective 23 July 2026) covers
+//   "Facebook, Instagram, Messenger och AI hos Meta"; names Meta Platforms Ireland Limited the
+//   controller, data stored among other places in the USA, and the EU-U.S. Data Privacy Framework
+//   for transfers to Meta Platforms, Inc., otherwise the Commission's SCCs or adequacy decisions;
+//   and keeps data as long as it needs it, a deletion taking up to 90 days and 90 more for backups.
+//   Not read: privacycenter.instagram.com/policy/ and the DPF list (each returned only a title or a
+//   JavaScript shell). proton.me/mail/privacy-policy (last modified 14 September 2026) stores mail
+//   on servers "exclusively located in Switzerland, Germany or Norway"; the Commission's
+//   adequacy-decisions page lists Switzerland (2000/518/EC); Datatilsynet's regulations page
+//   (datatilsynet.no/en/regulations-and-tools/regulations/): "Norway is a member of the European
+//   Economic Area (EEA)" and the GDPR "became applicable in Norway on 20 July 2018"; Germany is an
+//   EU member state (not fetched). The rest read 2026-11-24;
 // - the logs: no period, the providers' terms as the criterion (art. 13(2)(a)). Vercel Hobby
 //   states 1 hour of runtime logs and 12 hours of Observability, none for its Firewall's traffic
 //   view, which shows client IPs; Supabase Free states 1 day for its API and database logs, and
@@ -74,6 +95,13 @@ export default function PrivacyPage() {
             behandlas med stöd av berättigat intresse: att visa allmänheten var foodtruckarna står,
             med uppgifter som foodtruckarna själva har publicerat.
           </p>
+          <p>
+            När en foodtruck läggs in får den ett meddelande om det på Instagram, eller i en annan
+            kanal som foodtrucken själv har publicerat om meddelandet inte går att skicka där.
+            Administratören för en egen lista utanför tjänsten med foodtruckens namn, datumet då den
+            fick meddelandet och, om meddelandet inte skickades på Instagram, vilket slags kanal det
+            skickades i (till exempel mejl eller Facebook), men inte adressen.
+          </p>
         </section>
 
         <section className="flex flex-col gap-3">
@@ -98,11 +126,33 @@ export default function PrivacyPage() {
         </section>
 
         <section className="flex flex-col gap-3">
+          <h2 className="text-lg font-semibold md:text-xl">Mejl och meddelanden</h2>
+          <p>
+            Mejl och meddelanden till och från foodtruckarna, och till och från den som skriver till
+            kontakten nedan, finns hos tjänsterna de skickas med och hos mottagarens egen tjänst.
+            Instagram och Facebook drivs av Meta, som är personuppgiftsansvarig för sin egen
+            behandling av uppgifterna där, kan föra över dem till USA och anger EU–USA-ramverket för
+            dataskydd (Data Privacy Framework) och EU-kommissionens standardavtalsklausuler för det.
+            Mejl finns hos Proton, på servrar i Schweiz, Tyskland eller Norge. Tyskland och Norge
+            ligger inom EES, och för Schweiz har EU-kommissionen beslutat att skyddsnivån är
+            adekvat. Ett meddelande som skickas på något annat sätt finns hos den tjänsten. Tiderna
+            nedan för mejl och meddelanden gäller administratörens egna kopior. Tjänsterna kan spara
+            dem längre enligt sina egna villkor.
+          </p>
+        </section>
+
+        <section className="flex flex-col gap-3">
           <h2 className="text-lg font-semibold md:text-xl">Hur länge uppgifterna sparas</h2>
           <ul className="flex list-disc flex-col gap-2 pl-5">
             <li>
               Foodtruckens namn, Instagramkonto, typ av mat och beskrivning sparas tills foodtrucken
-              ber om att bli borttagen.
+              ber om att bli borttagen. Därefter sparas Instagramkontot på en egen lista (se Få
+              uppgifter borttagna).
+            </li>
+            <li>
+              Listan över meddelanden, och mejl och meddelanden till och från foodtrucken, sparas som
+              längst så länge foodtrucken är med. Ber foodtrucken om att bli borttagen i ett
+              meddelande sparas meddelandena lika länge som ett mejl om borttagning (se nedan).
             </li>
             <li>En plats raderas 52 veckor efter att den har slutat.</li>
             <li>
@@ -155,24 +205,27 @@ export default function PrivacyPage() {
             Mejla{" "}
             <a className="underline" href={`mailto:${CONTACT}`}>
               {CONTACT}
-            </a>
-            . Varje begäran om borttagning följs, så snart som möjligt och senast inom en månad,
-            oavsett om foodtrucken drivs som företag eller av en enskild person. Foodtrucken och alla
-            dess platser raderas då på en gång. De finns kvar i säkerhetskopiorna i ungefär fyra
-            veckor. Vid en säkerhetsincident eller en återställning kan kopior av databasen finnas
-            kvar längre, se ovan. Svaret du får säger till vilket datum. Mejlet sparas tills
-            uppgifterna har försvunnit även ur kopiorna, så att du kan få veta om det skulle dröja
-            längre, och raderas sedan. Om en säkerhetskopia någon gång återställs, raderas foodtrucken
-            igen som en del av återställningen.
+            </a>{" "}
+            eller skriv till {INSTAGRAM_HANDLE} på Instagram. Varje begäran om borttagning följs, så
+            snart som möjligt och senast inom en månad, oavsett om foodtrucken drivs som företag
+            eller av en enskild person. Foodtrucken och alla dess platser raderas då på en gång. De
+            finns kvar i säkerhetskopiorna i ungefär fyra veckor. Vid en säkerhetsincident eller en
+            återställning kan kopior av databasen finnas kvar längre, se ovan. Svaret du får säger
+            till vilket datum. Mejlet eller meddelandet sparas tills uppgifterna har försvunnit även
+            ur kopiorna, så att du kan få veta om det skulle dröja längre, och raderas sedan. Vid
+            borttagningen sparas foodtruckens Instagramkonto och datumet på en egen lista, så att
+            den inte läggs in igen, tills foodtrucken själv ber om att få vara med. Om en
+            säkerhetskopia någon gång återställs, raderas foodtrucken igen som en del av
+            återställningen.
           </p>
           <p>
             Du har rätt att invända mot att uppgifterna behandlas. En invändning mot att en foodtrucks
             uppgifter behandlas hanteras som en begäran om borttagning.
           </p>
           <p>
-            Du kan också mejla för att få veta vilka uppgifter som finns om dig, få dem rättade eller
-            få behandlingen begränsad. Andra mejl raderas när ärendet är avslutat. Du har rätt att
-            klaga hos Integritetsskyddsmyndigheten (IMY).
+            Du kan också mejla eller skriva för att få veta vilka uppgifter som finns om dig, få dem
+            rättade eller få behandlingen begränsad. Andra mejl och meddelanden raderas när ärendet
+            är avslutat. Du har rätt att klaga hos Integritetsskyddsmyndigheten (IMY).
           </p>
           <p>Personuppgiftsansvarig: Oliwer Karlsson, som nås på {CONTACT}.</p>
         </section>

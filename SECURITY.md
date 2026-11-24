@@ -34,7 +34,7 @@ scanners without a way to reproduce the problem.
 
 ## Testing
 
-Use your own local copy (the README's "Getting started" sets one up), not a deployment,
+Use your own local copy (`SETUP.md`'s "Getting started" sets one up), not a deployment,
 and don't access, change or delete data that isn't yours. If you notice a problem on a
 deployment, report what you noticed without probing further.
 

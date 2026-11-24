@@ -1,7 +1,7 @@
 // `npx supabase status -o env | node scripts/write-env-local.mjs` — writes `.env.local`
 // from the local Supabase stack. Every CI job that starts the stack runs it (IS #286).
 //
-// The mapping is README's "3. Environment" table: the CLI's `API_URL`, `ANON_KEY` and
+// The mapping is SETUP.md's "3. Environment" table: the CLI's `API_URL`, `ANON_KEY` and
 // `SERVICE_ROLE_KEY`, and `NEXT_PUBLIC_PMTILES_URL` from `.env.example`. The values are
 // the local stack's, which aren't secrets (CLAUDE.md, "Secrets"). Each is written in double
 // quotes. A missing or empty value, or one holding `"`, `$`, a backslash or a line break
