@@ -54,7 +54,7 @@ rows from before it name them there; the setup steps then went to [`SETUP.md`](S
 
 ## The weekly routine
 
-Once a week, in this order:
+Once a week, at most 7 days after the last run, in this order:
 
 1. **The dump:** "Backups" → "The weekly dump", below. Step 2 runs only after `DUMP OK`; steps 3
    and 4 run whatever the dump answered. A week with no new good dump (`DUMP FAILED`, `NO URL`, or the
@@ -93,15 +93,17 @@ Once a week, in this order:
      Observability 12 hours, and Supabase's logs keep 1 day (Phase 9 plan open decision 7),
      so this sees only recent errors. A 5xx between looks goes unalerted: accepted while the
      admin uses the app daily during the soft launch (open decision 7).
-4. **The request inboxes** (the owner's call, IS #525):
+4. **The request inboxes** (weekly: the owner's call on IS #525; the folders and the third
+   bullet: proposed in #526, for the owner's approval):
    - the removal mailbox `/integritet` names, its spam folder included;
-   - the app's Instagram DMs, with the message requests and the hidden requests, where a first
-     message from an account the app hasn't written to lands;
-   - every other channel a truck was told through ("Telling a new truck", step 3, below) or
-     a code was sent through ("Other requests", below), while a reply is awaited there.
+   - the app's Instagram DMs, with the message requests and the hidden requests, which
+     Instagram keeps apart from the main inbox;
+   - for each truck told through another channel ("Telling a new truck", step 3, below),
+     that channel, for as long as the truck is listed: a reply asking for removal can come
+     back there. A code "Other requests" sends comes back by mail or DM, above.
 
-   `/integritet` promises a removal within a month. While the routine runs every week, a
-   request is seen within 7 days of its arrival, inside that month; a skipped week, or a
+   `/integritet` promises a removal within a month. With runs at most 7 days apart, a
+   request is seen within 7 days of its arrival, inside that month; a late run, or a
    confirmation that waits for a reply, uses more of it. A reply from a truck already told
    goes as "Telling a new truck", step 5, says; a request to be listed again as its "The two
    private lists" says; any other removal or objection to "A takedown request", below; the
@@ -243,15 +245,18 @@ while the dump runs (not seen in `docker inspect`).
 11. Oderland renews them automatically, but payment is by hand (the owner, 2026-11-24, IS
 #525), so each renewal sends an invoice to pay. They were settled as bought on 2026-11-21
 (IS #452), so the renewal comes around November each year; Oderland's account shows the exact
-date. Each year, before it:
+date.
+
+**The first time,** before any yearly run: read the renewal date at Oderland and set a reminder
+a month ahead of it, for the domains and the map tiles' look ("Refreshing the map tiles",
+below). Nothing else prompts the first run, around November 2027. Then, each year at that
+reminder:
 
 1. Log in to Oderland, whose account has two-factor (`CLAUDE.md`, "Secrets"), and read each
    domain's renewal date, and that automatic renewal is still on.
 2. Pay the renewal invoice for both, before its due date.
-3. Note the next renewal date wherever you keep reminders, outside the repo.
-
-**The first time,** before any yearly run: read the renewal date at Oderland and set that
-reminder now, a month ahead of it. Nothing else prompts the first run, around November 2027.
+3. Set the next reminder the same way, a month ahead of the next renewal date, wherever you
+   keep reminders, outside the repo.
 
 ---
 
@@ -263,16 +268,20 @@ the map lacks, signed in as the admin at `aal2` (the magic link, then the TOTP c
 soft-launch gate stands, anyone else is sent to `/om` (`CLAUDE.md`, "The soft-launch gate").
 To refresh it:
 
-1. Keep the current file: copy `public/gothenburg.pmtiles` to a dated name outside `public/`,
-   since the next step writes over it and the upload replaces R2's copy.
+1. Keep the file production serves: download R2's object from the bucket's public URL
+   (`SETUP.md`, "Map tiles on R2") to a dated name outside the repo, next to the dumps. The
+   local `public/gothenburg.pmtiles` may be a different cut, and the upload replaces R2's copy.
 2. Cut a new extract as `SETUP.md`'s "2. Get the map tiles" says.
-3. Look at `/karta` on the local stack first (`npm run dev`, the local file; signed in as the
-   admin at `aal2`): the basemap, the markers and a popup. A new daily build can draw
-   differently, and the `curl` checks can't see that.
+3. Look at `/karta` on the local stack first, with the new local file: `npm run build`, then
+   `npm start`, at the URL its `Local:` line prints (`CLAUDE.md`, "Testing"), signed in as the
+   admin at `aal2`, with an entry for today entered on the local `/admin` so a marker shows.
+   Check the basemap, the marker and its popup. A new daily build can draw differently, and
+   the `curl` checks can't see that.
 4. Upload it to the bucket under the same name, and run the two `curl` checks, both as
    `SETUP.md`'s "Map tiles on R2" says.
-5. Look at production's `/karta` the same way (`CLAUDE.md`, "Green gates don't show the map
-   renders"). If it draws wrong, upload the kept file under the same name.
+5. Look at production's `/karta` the same way, in a private window so no cached tile answers
+   (`CLAUDE.md`, "Green gates don't show the map renders"). If it draws wrong, upload the
+   kept file under the same name, and run step 4's checks and this look again.
 
 ---
 
