@@ -3,12 +3,6 @@
 A phone-first web map of where Gothenburg's food trucks are **today**: who is out, where,
 and until when. No login, no tracking.
 
-<p align="center">
-  <img src="docs/screenshots/karta.png" width="300" alt="The map at phone width, with a truck's popup open: its place, its hours and when the entry was last updated">
-  &nbsp;&nbsp;
-  <img src="docs/screenshots/admin.png" width="300" alt="The admin screen at phone width: the morning checklist and the form for a new entry">
-</p>
-
 > **Status: Phase 10 of 11 (launch) done; Phase 11 (full launch) next.** Väm runs in production at
 > `vararmaten.vercel.app` as a soft launch: the map is shown only to the admin, and everyone else
 > sees a page about it (`/om`) and the privacy note (`/integritet`). Production holds no trucks yet.
@@ -39,7 +33,8 @@ launch is Phase 11's.
   pre-filled and always required. A morning checklist suggests what each truck did on the
   same weekday recently. Nothing reaches the map until the admin confirms it.
 - **Honest freshness.** Only trucks with an entry today appear. The popup says when the
-  entry was last updated and links to the truck's Instagram, so people can check.
+  entry was last updated and, when the truck has one, links to its Instagram, so people can
+  check.
 - **Overlaps are refused, not resolved.** A second entry for the same truck in an
   overlapping time window is rejected, and the admin edits the existing one instead.
 - **Nothing is deleted by the app.** A cancelled entry is marked cancelled, and an ended one
@@ -51,14 +46,16 @@ launch is Phase 11's.
 - **One public read path, and the browser never touches the database.** The map polls
   `GET /api/live` every 60 seconds while the tab is visible. It's an ordinary route that
   Vercel's CDN caches for 60 seconds, so polling costs the database about one query a minute
-  per region however many people have the map open. The public API roles get no access to
-  the trucks' tables, so no one can pull a truck's location history.
+  per region however many people have the map open (a request with a made-up query string
+  skips the cache and costs one small query, which is accepted). The public API roles get no
+  access to the trucks' tables, so the public can't pull a truck's location history through
+  Supabase's API.
 - **The database enforces the rules.** An exclusion constraint refuses overlapping entries.
   Every table has row-level security and explicit grants per table, and the server reaches
   the data through a database layer that finds and changes rows but decides nothing.
 - **A locked-down admin.** The one admin signs in with an emailed magic link and then a code
   from an authenticator app. A session is refused 12 hours after its sign-in, logging out on
-  one device ends every session, and every admin route checks the session, the role and the
+  one device signs out the others, and every admin route checks the session, the role and the
   second factor again on its own. The admin pages get a content security policy with a new
   nonce per request.
 - **Strict layering.** Route handlers only speak HTTP, services hold the logic, and only
@@ -74,9 +71,11 @@ launch is Phase 11's.
 - **CI is the gate.** Every pull request runs type-checking and lint, unit tests,
   integration tests against a local Supabase, a production build with a smoke check of the
   served app, `npm audit`, a secret scan and CodeQL. The **schema controls** go further:
-  each of 65 SQL files removes or narrows one guard in the schema, and CI checks that the
-  tests meant to catch it go red (or, for three, stay green). Branch rulesets require the
-  checks, with no bypass, not even for the owner.
+  each of 65 SQL files removes or narrows one guard in the schema, and the tests meant to
+  catch it must go red (a few check instead that they stay green, or that a suite's setup
+  fails). CI runs the full set on a pull request that touches the schema, its tests or the
+  code and config they rest on, and on every one into `main`; the others only check that the
+  files parse. Branch rulesets require the checks, with no bypass, not even for the owner.
 
 ## How it's made
 
@@ -92,9 +91,9 @@ treats its own mistakes as data:
   that broke something else. Each row has a cause from a fixed list, and each phase ends
   with a retrospective that counts them.
 - **Review rounds with checks of their own.** Every pull request gets review rounds up to a
-  fixed ceiling. Before each round, a sweep looks for every copy of what the last fixes
-  changed, and a claims check lists each "every", "only" and "always" the change added, to
-  be backed by a command or narrowed.
+  fixed ceiling. After each round's fixes, a sweep looks for every copy of what they
+  changed, and before every round a claims check lists each "every", "only" and "always" the
+  change added, to be backed by a command or narrowed.
 
 ## Tech stack
 
@@ -127,10 +126,8 @@ Consumers are always anonymous. All user-facing text is in Swedish.
 | 10 · Launch          | Production deploy, a soft launch: the map shown only to the admin, an about page and a privacy note for everyone else, the runbook | ✅ Done |
 | 11 · Full launch     | The map public, a custom domain for the tiles, paid plans | ⬜ Next |
 
-Phases 2 and 3 built automatic ingestion: Make.com webhooks and Mailgun email, run
-through a Swedish parser that turned captions into locations. It was dropped for the
-admin-populated design above. The code is archived on the `archive/parser-lanes`
-branch and tag.
+Phases 2 and 3 built the automatic ingestion that "Why it exists" describes. The code is
+archived on the `archive/parser-lanes` branch and tag.
 
 ## More
 
