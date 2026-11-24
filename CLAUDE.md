@@ -602,10 +602,6 @@ exactly like code. Tracked docs are `CLAUDE.md`, `README.md`, `SETUP.md`, `RUNBO
 and never leave one sitting uncommitted on `dev`. Every doc change then has a reviewable
 diff and a `PR #n / IS #n` to point at.
 
-**What goes where** (between phases, IS #264): `README.md` shows off the project and holds
-no how-to; setting it up, locally and on the hosted projects, is `SETUP.md`; operating it
-(the routines, requests, incidents and releases) is `RUNBOOK.md`.
-
 - **Part of tracked work → ride along.** A log row from a review round, a doc claim a
   fix made stale (except what the sweep's step 3 leaves for the reconciliation), a plan
   tweak while working an issue: commit it on that issue's branch, in its PR, and name
@@ -641,6 +637,10 @@ no how-to; setting it up, locally and on the hosted projects, is `SETUP.md`; ope
   advisory's merge button (GitHub's docs: it doesn't enforce the branch's protection rules). The fix
   is public from the push of its branch. The issue, the round records and the process-log rows are
   written when the advisory is published.
+
+**What goes where** (between phases, IS #264): `README.md` shows off the project and holds
+no how-to; setting it up, locally and on the hosted projects, is `SETUP.md`; operating it is
+`RUNBOOK.md`.
 
 ---
 

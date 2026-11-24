@@ -8,8 +8,7 @@ for working on the code are [`CLAUDE.md`](CLAUDE.md).
 
 These sections were in `README.md` until IS #264, when "Takedown" and "Backups" moved to
 `RUNBOOK.md`, and the R2 and CORS part of "Get the map tiles" became "Map tiles on R2". The
-phase plans, `.claude/drafts/`, `transition.md` and the process log's rows from before it name
-them in `README.md`.
+phase plans and the process log's rows from before it name them in `README.md`.
 
 ---
 

@@ -7,6 +7,8 @@ The repo is public, so nothing here is a secret. Each value a step needs lives w
 and in Vercel's environment variables, and its database URL in the gitignored `.env.prod-db.local`.
 `<project URL>` and `<admin id>` stand for production's own; in "A restore", for the new project's.
 A step that rests on a probe or a doc names it, with its issue.
+"Backups" and "Takedown" were in `README.md` until IS #264, so the phase plans and the process log's
+rows from before it name them there; the setup steps then went to [`SETUP.md`](SETUP.md).
 
 - [The weekly routine](#the-weekly-routine)
 - [Backups](#backups)
