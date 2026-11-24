@@ -4,7 +4,8 @@ How to set up Väm: a local copy for development ("Getting started", "Scripts"),
 projects it runs on (the tiles on Cloudflare R2, the preview's and production's Supabase
 projects, the hosted settings checklist, Vercel's preview deploys), with the checks of that
 setup (the hosted Security Advisor, the CDN cache). Operating it (the weekly routine and
-backups, requests and takedowns, incidents, a marker check, a migration and a release) is
+backups, the yearly upkeep, requests and takedowns, incidents, a marker check, a migration and
+a release) is
 [`RUNBOOK.md`](RUNBOOK.md); the rules for working on the code are [`CLAUDE.md`](CLAUDE.md).
 
 These sections were in `README.md` until IS #264, when "Takedown" and "Backups" moved to

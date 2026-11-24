@@ -1,9 +1,10 @@
 # Runbook
 
-The operator's book, in four groups: the weekly routine and its backups (Phase 10 plan, steps
-10 and 11, #8 and #13); requests, from telling a new truck (open decision 13) to other
-requests; incidents; and checks and changes, from a marker check on the preview to a migration
-and a release (step 15b). The daily routine comes with #523.
+The operator's book, in five groups: the weekly routine and its backups (Phase 10 plan, steps
+10 and 11, #8 and #13); the yearly upkeep, the domains and the map tiles (IS #525); requests,
+from telling a new truck (open decision 13) to other requests; incidents; and checks and
+changes, from a marker check on the preview to a migration and a release (step 15b). The
+daily routine comes with #523.
 The repo is public, so nothing here is a secret. Each value a step needs lives where `CLAUDE.md`'s
 "Where secrets live" says: production's Supabase keys in its dashboard (Project Settings → API Keys)
 and in Vercel's environment variables, and its database URL in the gitignored `.env.prod-db.local`.
@@ -18,6 +19,11 @@ rows from before it name them there; the setup steps then went to [`SETUP.md`](S
 
 - [The weekly routine](#the-weekly-routine)
 - [Backups](#backups)
+
+**Yearly**
+
+- [Renewing the domains](#renewing-the-domains)
+- [Refreshing the map tiles](#refreshing-the-map-tiles)
 
 **On request**
 
@@ -79,10 +85,18 @@ Once a week, in this order:
      unresponsive or enter read only mode" (its Billing page, Phase 9 plan open decision 7).
    - **Vercel:** the team's Usage page, the same way. Deployment Storage was the one figure
      over 10% of its limit when Phase 9 read it (#417).
+   - **At 50% of any limit,** on either page, open an issue that decides between reducing
+     the usage (as #417 does for Deployment Storage) and the paid plan (the owner's call, IS
+     #525; `project-context.md`, "Pricing and upgrade triggers"). One issue per figure: a
+     figure already in an open issue needs no second one.
    - **Errors:** Vercel's Logs, filtered to 5xx. Hobby keeps runtime logs 1 hour and
      Observability 12 hours, and Supabase's logs keep 1 day (Phase 9 plan open decision 7),
      so this sees only recent errors. A 5xx between looks goes unalerted: accepted while the
      admin uses the app daily during the soft launch (open decision 7).
+4. **The request inboxes:** the removal mailbox `/integritet` names and the app's Instagram
+   DMs (the owner's call, IS #525). `/integritet` promises a removal within a month, and a
+   weekly look sees each request within 7 days of its arrival. A removal or an objection
+   goes to "A takedown request", below; anything else to "Other requests", below.
 
 The routine is also the project's weekly activity, though it may not be enough to keep a
 Free project from pausing ("A paused project", below).
@@ -211,6 +225,35 @@ which other processes of this user can read; the variables keep them out of the 
 history only. The CLI also hands the database URL's parts to its `pg_dump` container: its
 script exports `PGPASSWORD` there (`--dry-run`), so whoever can reach Docker could read it
 while the dump runs (not seen in `docker inspect`).
+
+---
+
+## Renewing the domains
+
+`vararmaten.se` and `varärmaten.se` are registered at Oderland (IS #452), unused until Phase
+11. Oderland renews them automatically, but payment is by hand (the owner, 2026-11-24, IS
+#525), so each renewal sends an invoice to pay. They were settled as bought on 2026-11-21
+(IS #452), so the renewal comes around November each year; Oderland's account shows the exact
+date. Each year, before it:
+
+1. Log in to Oderland, whose account has two-factor (`CLAUDE.md`, "Secrets"), and read each
+   domain's renewal date, and that automatic renewal is still on.
+2. Pay the renewal invoice for both, before its due date.
+3. Note the next renewal date wherever you keep reminders, outside the repo.
+
+---
+
+## Refreshing the map tiles
+
+The basemap is one extract of a Protomaps daily build, uploaded to R2. Nothing replaces it on
+its own, so once a year, with the domains, look at `/karta` for streets or places the map
+lacks. To refresh it:
+
+1. Cut a new extract as `SETUP.md`'s "2. Get the map tiles" says.
+2. Upload it to the bucket under the same name, and run the two `curl` checks, both as
+   `SETUP.md`'s "Map tiles on R2" says.
+3. Look at `/karta` in a browser: the basemap, the markers and a popup (`CLAUDE.md`, "Green
+   gates don't show the map renders").
 
 ---
 
