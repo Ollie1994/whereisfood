@@ -67,9 +67,9 @@ mornings show what changes. The labels are the screens' own.
    bar rather than tapping it in the mail app, as the screen says. Then type the six-digit code
    the authenticator app shows for Väm, and "Bekräfta". Step 7's logout ends the day, so every
    morning starts here; the app also refuses a session 12 hours after its sign-in (`CLAUDE.md`,
-   "The session time-box"). A new link makes the one before it stop working, and production
-   sends 2 emails an hour, so ask for another only when the last can't be used: "A login link
-   that doesn't come", below.
+   "The session time-box"). Asking for a new link stops the one already sent, even when the
+   ask is refused, and production sends 2 emails an hour: wait for the first link, and ask
+   again only when it can't be used ("A login link that doesn't come", below).
 2. **The morning checklist** ("Checklista" on "Poster"): for each active truck, the most
    recent same weekday in the last 4 weeks it had an entry, with all of that day's entries, so a
    lunch and a dinner both show. A suggestion already ended, or overlapping an entry the truck
@@ -77,14 +77,18 @@ mornings show what changes. The labels are the screens' own.
    suggestion as it was, the same place and times, so press it only when today's post matches
    both. Out at another place or other hours: "✗ Inte idag" and a new entry (step 3), or "✓"
    and then "Ändra" (step 4). "✗ Inte idag" only hides the suggestion on this device today. A
-   truck cancelled today can be suggested again: "✗" hides it. With nothing to suggest it says
-   "Inga förslag idag."
-3. **New entries,** in the "Ny post" form, for a truck the checklist didn't suggest:
+   truck cancelled today can be suggested again: "✗" hides it. A "✓" the truck's other entry
+   refuses ends "Lägg in en annan tid med formuläret.": use step 3. With nothing to suggest it
+   says "Inga förslag idag."
+3. **New entries,** in the "Ny post" form, for a truck the checklist didn't suggest, or one
+   not out as it suggested (step 2). After "Spara" the form keeps the truck and the date for
+   the next entry, so check both each time:
    - the truck ("Välj foodtruck"; only active trucks are listed);
    - the place: "Välj känd plats", one of "Senaste platser", "Välj på kartan" (tap where the
-     truck stands, then "Klar"), or "Jag är här nu". A map tap or the GPS gives a pin only, so
-     name the place in "Platsnamn (valfritt)": without it the popup shows no place, and the
-     list "Okänd plats";
+     truck stands, then "Klar"), or "Jag är här nu". A map tap or the GPS changes only the
+     pin and keeps whatever name "Platsnamn (valfritt)" already holds, a spot's picked
+     before or an edited entry's: check it, and type the place's name. With none, the popup
+     shows no place and the list "Okänd plats";
    - "Datum", "Från" and "Till": 11:00 and 13:00 to start with, but a recent place brings its
      last entry's times, so check them. An end at or before the start reads "Slutar imorgon";
    - then "Spara".
@@ -92,12 +96,16 @@ mornings show what changes. The labels are the screens' own.
    An overlap is refused with "Överlappar med" and the other entry's times. Do what the screen
    says: "— redigera den istället" means change that entry instead; "som redan har slutat" or
    "som pågår nu", with "Ändra tiden på den här posten.", means change this one's times
-   (`CLAUDE.md`, "Locations": overlaps are refused, never resolved for you).
+   (`CLAUDE.md`, "Locations": overlaps are refused, never resolved for you). "Överlappar med en
+   annan post för samma foodtruck", with no times, means the other entry changed meanwhile:
+   look at the list and try again.
 4. **Through the day,** as trucks post, on the list of entries from today and the next 13
    days:
    - "Stämmer fortfarande" when a truck confirms: it moves the "Uppdaterad" time the map's
      popup shows, and changes nothing else;
-   - "Ändra" when its place or hours change;
+   - "Ändra" when its place or hours change. It opens step 3's form on the entry: a recent
+     place brings its own times and a map tap keeps the old name, so check the name and the
+     times before "Spara";
    - "Ställ in" when it cancels. The screen asks first ("Ställa in den här posten? Den
      försvinner från kartan."). The entry leaves the map and the list and stays in the
      history, and the screen can't undo it: a cancel by mistake means a new entry.
@@ -112,7 +120,9 @@ mornings show what changes. The labels are the screens' own.
    (valfritt)", since only a truck with its handle is entered, then "Spara". "Ändra" to correct
    one. "Sätt inaktiv" for a truck that has stopped for a while, the winter for one, keeps it
    off the map and out of the checklist and the form. Its entries stay, so cancel its future
-   ones first: "Aktivera" brings it back with any that haven't ended.
+   ones first: "Aktivera" brings it back with any that haven't ended. The list shows only 14
+   days, so an entry saved further ahead ("Posten är mer än två veckor fram…") can be
+   cancelled only once it comes into the list.
 7. **Log out** with "Logga ut" when done. It signs out every device, not only this one, or
    says it couldn't (`CLAUDE.md`, "Logout ends every session").
 
