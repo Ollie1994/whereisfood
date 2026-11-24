@@ -5,7 +5,8 @@ What to open in an incident, the weekly routine and its backups (Phase 10 plan, 
 The repo is public, so nothing here is a secret. Each value a step needs lives where `CLAUDE.md`'s
 "Where secrets live" says: production's Supabase keys in its dashboard (Project Settings → API Keys)
 and in Vercel's environment variables, and its database URL in the gitignored `.env.prod-db.local`.
-`<project URL>` and `<admin id>` stand for production's own; in "A restore", for the new project's.
+`<project URL>` and `<admin id>` stand for production's own; in "A restore", for the new project's; in
+"Backups" → "Restoring", for the fresh database's, the local stack's or a new project's, never production's.
 A step that rests on a probe or a doc names it, with its issue.
 "Backups" and "Takedown" were in `README.md` until IS #264, so the phase plans and the process log's
 rows from before it name them there; the setup steps then went to [`SETUP.md`](SETUP.md).
@@ -288,8 +289,8 @@ plan's #13. Its order:
    who held the mailbox may have moved it to theirs, and step 4's link goes to that address.
    Two rows: shut the other out as "A lost phone", step 2, says (it tells yours by its id,
    not the email), then come back to this step with yours. "A leaked key" comes after step 5.
-   Then, with the secret key read without echoing (`read -rs SECRET_KEY`), as "Restoring"
-   step 1 does, and `<your email>` in place:
+   Then, with the secret key read without echoing (`read -rs SECRET_KEY`), as "Restoring",
+   above, step 1 does, and `<your email>` in place:
 
    ```bash
    PASSWORD=$(node -e 'console.log(require("crypto").randomBytes(32).toString("base64url"))')
@@ -313,7 +314,7 @@ plan's #13. Its order:
    made one (IS #457, local stack). So a thief's pending link can't fill the free slot after
    step 3. The admin never needs the password, but must have one (`CLAUDE.md`, "Supabase").
    The key and the password are on `curl`'s command line while it runs, where other
-   processes of this user can read them ("Restoring", Limits): on a machine you
+   processes of this user can read them ("Restoring", Limits, above): on a machine you
    suspect, run it from another.
 3. **Delete the factor and end every session:** "A lost phone", steps 2 and 3. Sessions end
    after the password and the factor, or the thief signs straight back in (#13). Deleting the
@@ -369,7 +370,7 @@ no secret key outside Supabase, no unenroll screen; IS #457):
    a second admin, which a signed-in user can't do with their own session, but a key or the
    database password can. **Tell yours by its id**, not the email, which a thief may have
    changed: the `users` row with `is_admin` true in the newest weekly dump from before the
-   incident (the id "Restoring" calls the old id). Keep that id in your password manager
+   incident (the id "Restoring", above, calls the old id). Keep that id in your password manager
    from production's setup on: if every kept dump already shows both admins, the noted id
    decides. Without it, stop and compare each `auth_created_at` with when you created the
    production admin, or with the last restore's date, since a restore recreates the admin and
@@ -1127,7 +1128,7 @@ container. In this order, since the login has to reach the new project:
    `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` set to the new project's,
    the URL the project URL alone (`SETUP.md`'s "Production", "Variables"). Then redeploy
    Production.
-5. **Log in and enroll TOTP at once** ("Restoring", step 5), now that the app points
+5. **Log in and enroll TOTP at once** ("Restoring", step 5, above), now that the app points
    at the new project. Then look at `/karta`. The next link after this login and enroll can be
    refused for about an hour ("A login link that doesn't come", its Signs).
 6. **The old project:** pause it now that the new one works, which also frees its slot, and
@@ -1154,7 +1155,7 @@ container. In this order, since the login has to reach the new project:
    left linked to production, the next migration would skip it.
 
 Not tried: neither the hosted restore nor this move has been run ("Restoring",
-Limits).
+Limits, above).
 
 ---
 

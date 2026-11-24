@@ -56,7 +56,7 @@ launch is Phase 11's.
 - **Nothing is deleted by the app.** Cancelling an entry marks it cancelled, and an ended
   entry simply stops matching the "today" filter. The only real deletes are a takedown on a
   truck's request and the weekly retention run, which deletes entries that ended more than
-  52 weeks ago, both manual SQL (`RUNBOOK.md`, "Takedown" and "Backups").
+  52 weeks ago, both manual SQL (`RUNBOOK.md`, "Takedown" and "The weekly routine").
 - **One public read path.** The map polls `GET /api/live` every 60 seconds. It's an
   ordinary route that Vercel's CDN caches for 60 seconds, so normal polling costs the
   database about one query a minute per region, however many people have the map
