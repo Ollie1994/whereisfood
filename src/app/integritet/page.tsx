@@ -131,11 +131,12 @@ export default function PrivacyPage() {
             kontakten nedan, finns hos tjänsterna de skickas med och hos mottagarens egen tjänst.
             Instagram och Facebook drivs av Meta, som är personuppgiftsansvarig för sin egen
             behandling av uppgifterna där, kan föra över dem till USA och anger EU–USA-ramverket för
-            dataskydd (Data Privacy Framework) och EU-kommissionens standardavtalsklausuler för det. Mejl finns hos Proton, på servrar i
-            Schweiz, Tyskland eller Norge. Tyskland och Norge ligger inom EES, och för Schweiz har
-            EU-kommissionen beslutat att skyddsnivån är adekvat. Ett meddelande som skickas på något
-            annat sätt finns hos den tjänsten. Tiderna nedan för mejl och meddelanden gäller
-            administratörens egna kopior. Tjänsterna kan spara dem längre enligt sina egna villkor.
+            dataskydd (Data Privacy Framework) och EU-kommissionens standardavtalsklausuler för det.
+            Mejl finns hos Proton, på servrar i Schweiz, Tyskland eller Norge. Tyskland och Norge
+            ligger inom EES, och för Schweiz har EU-kommissionen beslutat att skyddsnivån är
+            adekvat. Ett meddelande som skickas på något annat sätt finns hos den tjänsten. Tiderna
+            nedan för mejl och meddelanden gäller administratörens egna kopior. Tjänsterna kan spara
+            dem längre enligt sina egna villkor.
           </p>
         </section>
 
