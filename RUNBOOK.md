@@ -63,8 +63,8 @@ can be followed from the start (the owner's call on #523). #529 revises it once 
 show what changes. The labels are the screens' own.
 
 1. **Log in** at `/admin/login`: the admin's login address in "E-postadress", then "Skicka
-   inloggningslänk". The mail's link works only in
-   the browser that asked for it: on the phone, copy it and paste it into that browser's address
+   inloggningslänk". The mail's link works only in the browser that asked for it: on the
+   phone, copy it and paste it into that browser's address
    bar rather than tapping it in the mail app, as the screen says. Then type the six-digit code
    the authenticator app shows for Väm, and "Bekräfta". Step 7's logout ends the day, so every
    morning starts here; the app also refuses a session 12 hours after its sign-in (`CLAUDE.md`,
