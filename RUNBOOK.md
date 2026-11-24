@@ -181,20 +181,21 @@ Once a week, at most 7 days after the last run, in this order:
      Observability 12 hours, and Supabase's logs keep 1 day (Phase 9 plan open decision 7),
      so this sees only recent errors. A 5xx between looks goes unalerted: accepted while the
      admin uses the app daily during the soft launch (open decision 7).
-4. **The request inboxes** (the owner's calls on #525, 2026-11-24):
+4. **The request inboxes** (the owner's calls on #525 and #527, 2026-11-24):
    - the removal mailbox `/integritet` names, its spam folder included;
    - the app's Instagram DMs, with the message requests and the hidden requests, which
-     Instagram keeps apart from the main inbox.
+     Instagram keeps apart from the main inbox;
+   - the inbox of each other channel kind the list of trucks told names ("The two private
+     lists", below), on the account the message was sent from, while the truck's line is on
+     the list. A mail or a contact form is answered into the removal mailbox ("Telling a new
+     truck", step 3).
 
    `/integritet` promises a removal within a month. With runs at most 7 days apart, a
-   request in these two inboxes is seen within 7 days of its arrival, inside that month. A
-   limit: a truck told through another channel ("Telling a new truck", step 3, below) is asked
-   to answer by mail or on Instagram, both checked here, but a reply that comes back on that
-   channel itself (its website form, a contact in its posts) isn't, since nothing records the
-   channel; #527 settles it. A late run, or a confirmation that waits for a reply, uses more
-   of it. A reply from a truck already told goes as "Telling a new truck", step 5, says; a
-   request to be listed again as its "The two private lists" says; any other removal or
-   objection to "A takedown request", below; the rest to "Other requests", below.
+   request in these inboxes is seen within 7 days of its arrival, inside that month. A late
+   run, or a confirmation that waits for a reply, uses more of it. A reply from a truck
+   already told goes as "Telling a new truck", step 5, says; a request to be listed again as
+   its "The two private lists" says; any other removal or objection to "A takedown request",
+   below; the rest to "Other requests", below.
 
 The routine is also the project's weekly activity, though it may not be enough to keep a
 Free project from pausing ("A paused project", below).
@@ -391,8 +392,9 @@ that can't be told isn't entered (Phase 10 plan, open decision 13, settled on IS
 calls and the approved texts on IS #511, comment 7103734194; tell first, the owner's call on round 1
 of PR #512). Before the first DM, @vararmaten has two-factor by authenticator app, not SMS: it
 receives removal requests. And check that production serves IS #511's `/integritet` text, which the
-DM links to: the page says "eller skriv till @vararmaten på Instagram" and names the two private
-lists. If it doesn't, a release ("A release") ships it first: on 2026-11-23 production ran `main` at
+DM links to: the page says "eller skriv till @vararmaten på Instagram", names the two private
+lists, and says the list of trucks told records the channel ("vilken kanal det skickades i", IS
+#527). If it doesn't, a release ("A release") ships it first: on 2026-11-23 production ran `main` at
 PR #503, before PR #512 put the text on `dev` (IS #517 is that release).
 
 1. Pick a truck only by its Instagram handle: its data comes from its own posts, as
@@ -411,7 +413,8 @@ PR #503, before PR #512 put the text on `dev` (IS #517 is that release).
 
 3. If Instagram won't send it (DMs closed to @vararmaten, or an error), send this through another
    channel the truck publishes itself, its website or a contact in its own posts, the channels
-   "Other requests" confirms through:
+   "Other requests" confirms through. Send a mail from vararmaten@proton.me, and give that address
+   as a contact form's reply address, so a reply comes to the removal mailbox:
 
    > Hej! Jag driver Väm – Var är maten?, en karta över var Göteborgs foodtruckar står i dag: vararmaten.vercel.app
    >
@@ -433,9 +436,11 @@ PR #503, before PR #512 put the text on `dev` (IS #517 is that release).
    sent to the mailbox, is deleted from the mailbox and its Trash, and a message sent any other
    way where it was sent.
 4. Add its line to the list of trucks told (below) once the message is sent: its name and the
-   date (Stockholm). Then enter it in the admin screen at once, since the text says it is listed;
-   the text is ahead of the entry by that gap alone. Until #465 closes with Phase 10, add the date
-   and the count to #465 too, never the name.
+   date (Stockholm), and for a truck told by step 3, the channel's kind (`mejl`,
+   `kontaktformulär`, `Facebook`, `sms`), never its address (the owner's call, IS #527).
+   Then enter it in the admin screen at once, since the text says it is listed; the text is
+   ahead of the entry by that gap alone. Until #465 closes with Phase 10, add the date and the
+   count to #465 too, never the name.
 5. A reply asking for removal, or objecting, goes to "A takedown request"; one that comes before
    the truck is entered means it isn't: delete its line from the list of trucks told, add its
    handle and the date to the do-not-list, answer, then delete the DM thread, and a request mail
@@ -449,9 +454,11 @@ PR #503, before PR #512 put the text on `dev` (IS #517 is that release).
 the owner's machine ("Takedown", step 4, below), never in the repo, the database or an issue.
 `/integritet` names both:
 
-- **Trucks told:** one line per truck, its name and the date it was told. Its line is deleted
-  when the truck is taken down ("A takedown request", step 4). A count of trucks told is read
-  from it; after #465, no public record keeps one (IS #511).
+- **Trucks told:** one line per truck, its name and the date it was told, and for a truck told
+  outside Instagram the channel's kind (step 4), whose inbox the weekly routine checks while the
+  line is there ("The weekly routine", step 4). Its line is deleted when the truck is taken down
+  ("A takedown request", step 4). A count of trucks told is read from it; after #465, no public
+  record keeps one (IS #511).
 - **The do-not-list:** the Instagram handle of a truck that asked to be removed (taken down, or
   never entered: step 5), and the date, no name, so it isn't told and entered again. Kept until
   the truck itself asks to be listed again: it honours the truck's objection (GDPR art. 21; IS

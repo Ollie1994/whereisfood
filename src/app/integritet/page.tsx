@@ -24,7 +24,8 @@ import { ABOUT_PATH } from "@/lib/paths";
 //   copies keep it; the request mail or DM kept until no copy from before the takedown is left,
 //   so a later date can be told); other requests' mail and DMs: "Other requests";
 // - telling a truck, the list of trucks told and the do-not-list: `RUNBOOK.md`, "Telling a new
-//   truck" (Phase 10 plan, open decision 13; the owner's calls and approved text on IS #511);
+//   truck" (Phase 10 plan, open decision 13; the owner's calls and approved text on IS #511; the
+//   channel's kind on the list, the owner's calls and approved text on IS #527);
 // - the right to object stated on its own: GDPR art. 21(4), for "berättigat intresse";
 // - the hosts: `src/lib/http/csp.ts` (R2's tiles, `protomaps.github.io`'s glyphs and sprites;
 //   no public page calls Supabase from the browser, only the admin's login);
@@ -79,8 +80,9 @@ export default function PrivacyPage() {
           <p>
             När en foodtruck läggs in får den ett meddelande om det på Instagram, eller i en annan
             kanal som foodtrucken själv har publicerat om meddelandet inte går att skicka där.
-            Administratören för en egen lista utanför tjänsten med foodtruckens namn och datumet då
-            den fick meddelandet.
+            Administratören för en egen lista utanför tjänsten med foodtruckens namn, datumet då den
+            fick meddelandet och, om meddelandet inte skickades på Instagram, vilken kanal det
+            skickades i.
           </p>
         </section>
 
