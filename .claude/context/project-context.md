@@ -104,7 +104,8 @@ save-triggered cache purges, grey markers) without a concrete problem that needs
   describes it, server and client: the markers, the popup, polling and failure.
 - **Production** (Phase 10) runs on Vercel at `vararmaten.vercel.app`, built from `main`, against
   its own Supabase Free project, with the tiles on R2. `SETUP.md`'s "Production" is the one
-  description of that setup, and `RUNBOOK.md` of operating it and the preview: the weekly routine
+  description of that setup, and `RUNBOOK.md` of operating it and the preview: the daily routine
+  (logging in, the checklist, the entries, the trucks), the weekly routine
   (a data-only dump of `public`, then `supabase/manual/retention.sql`, the usage look and the
   request inboxes), the yearly upkeep (the
   domains, the map tiles), requests and takedowns, incidents, a marker check on the preview, a
@@ -386,9 +387,10 @@ public/                           ← gothenburg.pmtiles (development; deploys r
 .githooks/                        ← pre-commit, commit-msg, gitleaks-common.sh (set through
                                     core.hooksPath, by hand)
 next.config.ts                    ← (+ test: which paths get which CSP, IS #387)
-RUNBOOK.md                        ← operating production and the preview: the weekly routine,
-                                    the yearly upkeep, requests, incidents, a marker check, a
-                                    migration, a release (Phase 10 plan #8, IS #519, #525)
+RUNBOOK.md                        ← operating production and the preview: the daily and weekly
+                                    routines, the yearly upkeep, requests, incidents, a marker
+                                    check, a migration, a release (Phase 10 plan #8, IS #519,
+                                    #523, #525)
 SECURITY.md, .gitleaks.toml       ← how to report a vulnerability; Gitleaks' config
 .gitattributes                    ← the files marked `-text`, which tracked-text.test.mjs skips
 ```

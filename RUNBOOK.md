@@ -1,10 +1,10 @@
 # Runbook
 
-The operator's book, in five groups: the weekly routine and its backups (Phase 10 plan, steps
-10 and 11, #8 and #13); the yearly upkeep, the domains and the map tiles (IS #525); requests,
-from telling a new truck (open decision 13) to other requests; incidents; and checks and
-changes, from a marker check on the preview to a migration and a release (step 15b). The
-daily routine comes with #523.
+The operator's book, in six groups: the daily routine (IS #523); the weekly routine and its
+backups (Phase 10 plan, steps 10 and 11, #8 and #13); the yearly upkeep, the domains and the
+map tiles (IS #525); requests, from telling a new truck (open decision 13) to other requests;
+incidents; and checks and changes, from a marker check on the preview to a migration and a
+release (step 15b).
 The repo is public, so nothing here is a secret. Each value a step needs lives where `CLAUDE.md`'s
 "Where secrets live" says: production's Supabase keys in its dashboard (Project Settings → API Keys)
 and in Vercel's environment variables, and its database URL in the gitignored `.env.prod-db.local`.
@@ -14,6 +14,10 @@ project's, never production's.
 A step that rests on a probe or a doc names it, with its issue.
 "Backups" and "Takedown" were in `README.md` until IS #264, so the phase plans and the process log's
 rows from before it name them there; the setup steps then went to [`SETUP.md`](SETUP.md).
+
+**Daily**
+
+- [The daily routine](#the-daily-routine)
 
 **Weekly**
 
@@ -49,6 +53,50 @@ rows from before it name them there; the setup steps then went to [`SETUP.md`](S
 - [A marker check on the preview](#a-marker-check-on-the-preview)
 - [A migration](#a-migration)
 - [A release](#a-release)
+
+---
+
+## The daily routine
+
+Written on 2026-11-24 from the admin screens as they are, before the first real truck, so it
+can be followed from the start (the owner's call on #523). A later issue revises it once real
+mornings show what changes. The labels are the screens' own.
+
+1. **Log in** at `/admin/login` with "Skicka inloggningslänk". Open the link from the mail in
+   the same browser that asked for it, then type the six-digit code the authenticator app
+   shows for Väm. The app refuses a session 12 hours after its sign-in (`CLAUDE.md`, "The
+   session time-box"), so most mornings start here. A new link makes the one before it stop
+   working. If no link comes: "A login link that doesn't come", below.
+2. **The morning checklist** ("Checklista" on "Poster"): for each active truck, the most
+   recent same weekday in the last 4 weeks it had an entry, with all of that day's entries, so a
+   lunch and a dinner both show. A suggestion already ended, or overlapping an entry the truck
+   has now, is left out. Check the truck's posts and Stories first, then press "✓ Stämmer" if
+   it is out there today, which enters it as an ordinary entry, or "✗ Inte idag", which only
+   hides the suggestion on this device today. A truck cancelled today can be suggested again:
+   "✗" hides it. With nothing to suggest it says "Inga förslag idag."
+3. **New entries** ("Ny post"), for a truck the checklist didn't suggest, or not as it posted:
+   pick the truck ("Välj foodtruck"; only active trucks are listed), then the place: "Välj
+   känd plats", one of "Senaste platser", "Välj på kartan" (tap where the truck stands, then
+   "Klar"), or "Jag är här nu". Check "Datum", "Från" and "Till" (11:00 and 13:00 to start
+   with; an end before the start reads "Slutar imorgon"), then "Spara". "Överlappar med en
+   annan post för samma foodtruck" means the truck already has an entry then: change that one
+   instead (`CLAUDE.md`, "Locations": overlaps are refused, never resolved for you).
+4. **Through the day,** as trucks post, on the list of entries from today and the next 13
+   days:
+   - "Stämmer fortfarande" when a truck confirms: it moves the "Uppdaterad" time the map's
+     popup shows, and changes nothing else;
+   - "Ändra" when its place or hours change;
+   - "Ställ in" when it cancels: the entry leaves the map and stays in the history.
+
+   All three go once an entry has ended ("Har slutat").
+5. **A look at the map:** `/karta`, signed in (`CLAUDE.md`, "The soft-launch gate"), to see
+   that the markers match the entries.
+6. **Trucks, when needed,** on "Foodtrucks": "Ny foodtruck" only after the truck has been
+   told ("Telling a new truck", below); "Ändra"; "Sätt inaktiv" for a truck that has stopped
+   for a while, the winter for one, which keeps it off the map and out of the checklist and the
+   form; "Aktivera" to bring it back.
+7. **Log out** with "Logga ut" when done. It signs out every device, not only this one, or
+   says it couldn't (`CLAUDE.md`, "Logout ends every session").
 
 ---
 
