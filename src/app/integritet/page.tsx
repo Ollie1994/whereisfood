@@ -32,6 +32,13 @@ import { ABOUT_PATH } from "@/lib/paths";
 // - the transfers: vercel.com/legal/privacy-policy, cloudflare.com/cloudflare-customer-dpa (6.4)
 //   and GitHub's General Privacy Statement each say it complies with the EU-U.S. Data Privacy
 //   Framework; supabase.com/legal/dpa names the EU SCCs (2021/914), not the DPF;
+// - where the messages to and from the trucks are held (the owner's call and approved text on IS
+//   #532): Meta's privacy policy as served to EU users (mbasic.facebook.com/privacy/policy/printable/,
+//   Swedish locale, effective 23 July 2026) names Meta Platforms Ireland Limited the controller, data
+//   stored among other places in the USA, and the EU-U.S. Data Privacy Framework for transfers to
+//   Meta Platforms, Inc., otherwise the Commission's SCCs; the DPF list itself wasn't read (it needs
+//   JavaScript). proton.me/mail/privacy-policy (last modified 14 September 2026) stores mail on
+//   servers "exclusively located in Switzerland, Germany or Norway". Both read 2026-11-24;
 // - the logs: no period, the providers' terms as the criterion (art. 13(2)(a)). Vercel Hobby
 //   states 1 hour of runtime logs and 12 hours of Observability, none for its Firewall's traffic
 //   view, which shows client IPs; Supabase Free states 1 day for its API and database logs, and
@@ -83,6 +90,12 @@ export default function PrivacyPage() {
             Administratören för en egen lista utanför tjänsten med foodtruckens namn, datumet då den
             fick meddelandet och, om meddelandet inte skickades på Instagram, vilket slags kanal det
             skickades i (till exempel mejl eller Facebook), men inte adressen.
+          </p>
+          <p>
+            Meddelandena finns hos tjänsterna de skickas med. Instagram och Facebook drivs av Meta,
+            som kan föra över uppgifter till USA och anger EU–USA-ramverket för dataskydd (Data
+            Privacy Framework) och EU-kommissionens standardavtalsklausuler för det. Mejl finns hos
+            Proton, på servrar i Schweiz, Tyskland eller Norge.
           </p>
         </section>
 
