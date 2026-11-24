@@ -56,8 +56,8 @@ rows from before it name them there; the setup steps then went to [`SETUP.md`](S
 
 Once a week, in this order:
 
-1. **The dump:** "Backups" → "The weekly dump", below. Step 2 runs only after `DUMP OK`; step 3
-   runs whatever the dump answered. A week with no new good dump (`DUMP FAILED`, `NO URL`, or the
+1. **The dump:** "Backups" → "The weekly dump", below. Step 2 runs only after `DUMP OK`; steps 3
+   and 4 run whatever the dump answered. A week with no new good dump (`DUMP FAILED`, `NO URL`, or the
    routine skipped) or a prune left undone (`PRUNE FAILED` until the hand deletion) keeps an old
    dump longer: check "A takedown request", step 4, for a requester whose date it moves. **While an
    incident is being investigated** (a takeover, a leaked key), first move the dumps from before it
@@ -93,10 +93,19 @@ Once a week, in this order:
      Observability 12 hours, and Supabase's logs keep 1 day (Phase 9 plan open decision 7),
      so this sees only recent errors. A 5xx between looks goes unalerted: accepted while the
      admin uses the app daily during the soft launch (open decision 7).
-4. **The request inboxes:** the removal mailbox `/integritet` names and the app's Instagram
-   DMs (the owner's call, IS #525). `/integritet` promises a removal within a month, and a
-   weekly look sees each request within 7 days of its arrival. A removal or an objection
-   goes to "A takedown request", below; anything else to "Other requests", below.
+4. **The request inboxes** (the owner's call, IS #525):
+   - the removal mailbox `/integritet` names, its spam folder included;
+   - the app's Instagram DMs, with the message requests and the hidden requests, where a first
+     message from an account the app hasn't written to lands;
+   - every other channel a truck was told through ("Telling a new truck", step 3, below) or
+     a code was sent through ("Other requests", below), while a reply is awaited there.
+
+   `/integritet` promises a removal within a month. While the routine runs every week, a
+   request is seen within 7 days of its arrival, inside that month; a skipped week, or a
+   confirmation that waits for a reply, uses more of it. A reply from a truck already told
+   goes as "Telling a new truck", step 5, says; a request to be listed again as its "The two
+   private lists" says; any other removal or objection to "A takedown request", below; the
+   rest to "Other requests", below.
 
 The routine is also the project's weekly activity, though it may not be enough to keep a
 Free project from pausing ("A paused project", below).
@@ -241,19 +250,29 @@ date. Each year, before it:
 2. Pay the renewal invoice for both, before its due date.
 3. Note the next renewal date wherever you keep reminders, outside the repo.
 
+**The first time,** before any yearly run: read the renewal date at Oderland and set that
+reminder now, a month ahead of it. Nothing else prompts the first run, around November 2027.
+
 ---
 
 ## Refreshing the map tiles
 
 The basemap is one extract of a Protomaps daily build, uploaded to R2. Nothing replaces it on
-its own, so once a year, with the domains, look at `/karta` for streets or places the map
-lacks. To refresh it:
+its own, so once a year, with the domains, look at production's `/karta` for streets or places
+the map lacks, signed in as the admin at `aal2` (the magic link, then the TOTP code): while the
+soft-launch gate stands, anyone else is sent to `/om` (`CLAUDE.md`, "The soft-launch gate").
+To refresh it:
 
-1. Cut a new extract as `SETUP.md`'s "2. Get the map tiles" says.
-2. Upload it to the bucket under the same name, and run the two `curl` checks, both as
+1. Keep the current file: copy `public/gothenburg.pmtiles` to a dated name outside `public/`,
+   since the next step writes over it and the upload replaces R2's copy.
+2. Cut a new extract as `SETUP.md`'s "2. Get the map tiles" says.
+3. Look at `/karta` on the local stack first (`npm run dev`, the local file; signed in as the
+   admin at `aal2`): the basemap, the markers and a popup. A new daily build can draw
+   differently, and the `curl` checks can't see that.
+4. Upload it to the bucket under the same name, and run the two `curl` checks, both as
    `SETUP.md`'s "Map tiles on R2" says.
-3. Look at `/karta` in a browser: the basemap, the markers and a popup (`CLAUDE.md`, "Green
-   gates don't show the map renders").
+5. Look at production's `/karta` the same way (`CLAUDE.md`, "Green gates don't show the map
+   renders"). If it draws wrong, upload the kept file under the same name.
 
 ---
 
