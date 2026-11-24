@@ -378,10 +378,26 @@ instead of Studio.
 **Schema and seed.** With the CLI logged in (`npx supabase login`):
 
 ```bash
-npx supabase link --project-ref <project-ref>
-npx supabase db push --include-seed --dry-run   # lists what it would apply
-npx supabase db push --include-seed
+if npx supabase link --project-ref <project-ref> \
+  && grep -qxF '<project-ref>' supabase/.temp/project-ref; then
+  npx supabase db push --include-seed --dry-run   # lists what it would apply
+else
+  echo "NOT LINKED to <project-ref>: nothing run"
+fi
 ```
+
+Read the dry run, then push, still linked to the preview project:
+
+```bash
+if grep -qxF '<project-ref>' supabase/.temp/project-ref; then
+  npx supabase db push --include-seed
+else
+  echo "NOT LINKED to <project-ref>: nothing pushed"
+fi
+```
+
+A failed `link` leaves the CLI linked where it was, which can be production, so each block
+checks the link before it runs (`RUNBOOK.md`, "A leaked key", has the probe).
 
 A later migration's push is `RUNBOOK.md`'s "A migration". On the first push, CLI
 2.109.1 printed `Warning: failed to cache migrations catalog` (a missing certificate
