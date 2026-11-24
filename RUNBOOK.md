@@ -280,7 +280,7 @@ To refresh it:
 4. Upload it to the bucket under the same name, and run the two `curl` checks, both as
    `SETUP.md`'s "Map tiles on R2" says.
 5. Look at production's `/karta`: the basemap and any real markers, with no test entry, since
-   `/api/live` publishes every entry. Use the window already signed in, with DevTools open and
+   `/api/live` publishes today's entries. Use the window already signed in, with DevTools open and
    "Disable cache" ticked, and check in its Network tab that the `.pmtiles` responses don't
    come from the cache (`CLAUDE.md`, "Green gates don't show the map renders"). A session is
    refused 12 hours after its sign-in, and a private window has none, so either needs a new
