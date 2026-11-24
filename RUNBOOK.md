@@ -5,8 +5,9 @@ What to open in an incident, the weekly routine and its backups (Phase 10 plan, 
 The repo is public, so nothing here is a secret. Each value a step needs lives where `CLAUDE.md`'s
 "Where secrets live" says: production's Supabase keys in its dashboard (Project Settings → API Keys)
 and in Vercel's environment variables, and its database URL in the gitignored `.env.prod-db.local`.
-`<project URL>` and `<admin id>` stand for production's own; in "A restore", for the new project's; in
-"Backups" → "Restoring", for the fresh database's, the local stack's or a new project's, never production's.
+`<project URL>` and `<admin id>` stand for production's own; in "A restore", for the new project's.
+In "Backups" → "Restoring", `<project URL>` is the fresh database's, the local stack's or a new
+project's, never production's.
 A step that rests on a probe or a doc names it, with its issue.
 "Backups" and "Takedown" were in `README.md` until IS #264, so the phase plans and the process log's
 rows from before it name them there; the setup steps then went to [`SETUP.md`](SETUP.md).
@@ -78,7 +79,7 @@ Free project from pausing ("A paused project", below).
 Supabase Free has no backups, so until Pro (Phase 11) the backup is a weekly dump of the
 `public` schema's data, made by hand (Phase 10 plan, #11). Never the `auth` schema: its
 sessions and refresh tokens are credentials. The dumps live on the owner's machine outside
-the repo, next to the takedown log ("Takedown", step 4), and **the newest four are kept**
+the repo, next to the takedown log ("Takedown", step 4, below), and **the newest four are kept**
 (open decision 5), so a takedown or a retention delete leaves the backups about four weeks
 later; while an incident hold keeps older dumps aside, or after a restore into a new project
 while the old one is kept, at the latest of these, each at most 8 weeks ("A
@@ -175,7 +176,7 @@ it. The steps, tested once on the local stack (IS #455's record):
    Probed: a copy of a dump whose second statement failed, a duplicate `users` key, left its
    first insert behind without `-1` and nothing with it.
 3. **Every takedown in the log**, whatever its date, each with its name read from the
-   restored database ("Takedown", steps 1 to 4).
+   restored database ("Takedown", steps 1 to 4, below).
 4. **`retention.sql`**, once.
 5. **Log in and enroll TOTP at once.** The dump holds no `auth` schema, so the admin comes
    back with no factor: the login shows the enroll QR code, and until it is done any `aal1`
@@ -269,7 +270,7 @@ and run the block again, never `select *`, which writes the credentials. A line 
 rows if a value holds a line break. Run it again later in an incident to export what has changed.
 The files hold IP addresses and emails, and `trucks` holds every truck's row, so it keeps a truck
 taken down after the export: keep them in `hold` with the held dumps, and delete them with those, at
-most 8 weeks after the hold began ("The weekly routine").
+most 8 weeks after the hold began ("The weekly routine", above).
 
 ---
 
@@ -631,7 +632,7 @@ database password, or a Supabase or Vercel account's token or CLI login**, also
 run "A takeover", steps 2 to 4. Supabase's docs don't say a key's rotation ends the sessions a
 thief made with it (#448's 1b: "not stated"), and any of them can change the admin's email,
 factor and sessions with no email sent ("A takeover", step 2's probe). Then hold the weekly
-routine as an incident ("The weekly routine").
+routine as an incident ("The weekly routine", above).
 
 Then look for use of the key, knowing how little shows:
 
