@@ -80,14 +80,16 @@ show what changes. The labels are the screens' own.
    and then "Ändra" (step 4). "✗ Inte idag" only hides the suggestion on this device today. A
    truck cancelled today can be suggested again: "✗" hides it. A refused "✓" shows step 3's
    overlap texts, those that would change this entry ending "Lägg in en annan tid med
-   formuläret." (use step 3); one whose time has passed answers "Tiden har redan passerat".
+   formuläret." (use step 3); one whose time has passed answers "Tiden har redan passerat"; one
+   for a truck set inactive since answers "Foodtrucken finns inte eller är inte aktiv" (step
+   6). Each refusal starts with the truck's name.
    With nothing to suggest it says "Inga förslag idag."
 3. **New entries,** in the "Ny post" form, for a truck the checklist didn't suggest, or one
    not out as it suggested (step 2). After "Spara" the form keeps the truck and the date for
    the next entry, so check both each time:
    - the truck ("Välj foodtruck"; only active trucks are listed). A new truck, or one set
-     inactive, is added or brought back in step 6 first: on the first morning the list is
-     empty;
+     inactive, is added or brought back in step 6 first: while no truck is added, the list
+     is empty;
    - the place: "Välj känd plats", one of "Senaste platser", "Välj på kartan" (tap where the
      truck stands, then "Klar"), or "Jag är här nu". A map tap or the GPS changes only the
      pin and keeps whatever name "Platsnamn (valfritt)" already holds, a spot's picked
@@ -107,21 +109,23 @@ show what changes. The labels are the screens' own.
    days:
    - "Stämmer fortfarande" when a truck confirms: it moves the "Uppdaterad" time the map's
      popup shows, and changes nothing else;
-   - "Ändra" when its place or hours change. It opens the form as "Ändra post", in place of
-     a new entry half filled in: the truck can't be changed (a wrong truck means "Ställ in"
-     and a new entry), a recent place brings its own times and a map tap keeps the old name,
-     so check the name and the times before "Spara", or back out with "Avbryt". After
-     either, the form starts empty, with no truck and today's date;
+   - "Ändra" when its place or hours change. It fills the form above the list, so scroll up to
+     "Ändra post"; a new entry half filled in there is dropped, so save it first. The truck
+     can't be changed (a wrong truck means "Ställ in" and a new entry), a recent place brings
+     its own times and a map tap keeps the old name, so check the name and the times before
+     "Spara", or back out with "Avbryt". When the form says "Den här postens tider kan inte
+     ändras här. Ställ in den och lägg in en ny.", do that. After "Spara" or "Avbryt", the
+     form starts empty, with no truck and today's date;
    - "Ställ in" when it cancels. The screen asks first ("Ställa in den här posten? Den
      försvinner från kartan."). The entry leaves the map and the list and stays in the
      history, and the screen can't undo it: a cancel by mistake means a new entry.
 
    All three go once an entry has ended ("Har slutat").
-5. **A look at the map** ("Karta"), signed in (`CLAUDE.md`, "The soft-launch gate"), after
-   the morning's entries and again after a change through the day, not only at its end. It shows
-   one marker per truck: today's entry open now, else its next one today, so tomorrow's entries
-   and a dinner after a lunch don't show yet. A save, a confirm or a cancel reaches the map
-   within about 3 minutes (`/api/live`'s cache; "A marker check on the preview", below).
+5. **A look at the map** ("Karta"), signed in (`CLAUDE.md`, "The soft-launch gate"), about 3
+   minutes after the morning's entries, and again after a change through the day: a save, a
+   confirm or a cancel reaches the map within about 3 minutes (`/api/live`'s cache; "A marker
+   check on the preview", below). It shows one marker per truck: today's entry open now, else
+   its next one today, so tomorrow's entries and a dinner after a lunch don't show yet.
 6. **Trucks, when needed,** on "Foodtrucks". A new truck only after it has been told ("Telling
    a new truck", below): fill in the "Ny foodtruck" form, "Namn" and the handle in "Instagram
    (valfritt)", since only a truck with its handle is entered, then "Spara". "Ändra" to correct
