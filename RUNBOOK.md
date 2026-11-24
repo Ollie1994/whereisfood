@@ -156,7 +156,8 @@ incident is being investigated, when the dumps from before it are also moved asi
 
 A restore always goes into a **fresh** database, with the migrations applied, **no seed** and
 no `auth` users: on the local stack `npx supabase db reset --no-seed`; on a new hosted project
-`npx supabase db push` without `--include-seed` (not tried). The seed's trucks have ids no
+"A restore"'s step 1 blocks, below, which check the link and push without `--include-seed`
+(not tried). The seed's trucks have ids no
 production dump holds, so a dump would load beside them with no error, mixing them in. Check
 first that `select count(*) from trucks` and `select count(*) from auth.users` both answer 0.
 A database that still holds data or users, production with some rows lost included, isn't a
@@ -1189,9 +1190,9 @@ after a cancel (`/api/live`'s cache, `project-context.md`, "Read path"). Cancel 
 even after it ends, it refuses the truck's overlapping entries, drops any of the truck's
 checklist suggestions that overlap it, and makes a by-hand insert like IS #254's pass over
 the truck (Phase 7 plan #38's rule, in `.claude/plans/phase-7-admin.md`; the insert in
-`SETUP.md`, "Hosted preview database"). For up
-to 4 weeks, it can also take the place of the truck's real suggestions on that weekday
-(`getChecklist`). Once it's cancelled, it does none of these: cancelled rows aren't read.
+`SETUP.md`, "Hosted preview database"). For up to 4 weeks, it can also take the place of the
+truck's real suggestions on that weekday (`getChecklist`). Once it's cancelled, it does none
+of these: cancelled rows aren't read.
 After its end, cancel it in the preview's SQL Editor: find its id with
 
 ```sql
@@ -1227,7 +1228,9 @@ A later migration goes up by a push from the CLI to each project, without `--inc
 - **Production**, never the seed (`SETUP.md`, "Production", "Schema"): "A restore"'s blocks
   alone, above, not its restore steps: step 1's three blocks with production's ref (link and
   dry run, push, the advisor), each of which checks the link before it pushes or reads, then
-  step 7's block, which links back to the preview and checks that.
+  step 7's block, which links back to the preview and checks that. Run them from the repo
+  root, with the CLI logged in (`npx supabase login`) and production not paused; their
+  messages say "the new project", which here is production.
 
 A release that needs the migration goes out only after production's push ("A release",
 below).
