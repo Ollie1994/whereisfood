@@ -1186,8 +1186,9 @@ it within about 3 minutes, and drops it within about 3 after a cancel (`/api/liv
 before it ends: from its end the list shows no "Ställ in" and the route refuses a cancel
 (Phase 9 plan #8, IS #380). Until it's cancelled, even after it ends, it refuses the truck's
 overlapping entries, drops any of the truck's checklist suggestions that overlap it, and
-makes a by-hand insert like IS #254's pass over the truck (#38's rule, `SETUP.md`, "Hosted preview database"). For up to 4
-weeks, it can also take the place of the truck's real suggestions on that weekday
+makes a by-hand insert like IS #254's pass over the truck (#38's rule, `SETUP.md`, "Hosted
+preview database"). For up to 4 weeks, it can also take the place of the truck's real
+suggestions on that weekday
 (`getChecklist`). Once it's cancelled, it does none of these: cancelled rows aren't read.
 After its end, cancel it in the SQL Editor: find its id with
 
