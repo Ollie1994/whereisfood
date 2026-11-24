@@ -81,8 +81,8 @@ export default function PrivacyPage() {
             När en foodtruck läggs in får den ett meddelande om det på Instagram, eller i en annan
             kanal som foodtrucken själv har publicerat om meddelandet inte går att skicka där.
             Administratören för en egen lista utanför tjänsten med foodtruckens namn, datumet då den
-            fick meddelandet och, om meddelandet inte skickades på Instagram, vilken kanal det
-            skickades i.
+            fick meddelandet och, om meddelandet inte skickades på Instagram, vilket slags kanal det
+            skickades i (till exempel mejl eller sms) men inte adressen.
           </p>
         </section>
 
