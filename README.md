@@ -46,18 +46,18 @@ launch is Phase 11's.
 - **One public read path, and the browser never touches the database.** The map polls
   `GET /api/live` every 60 seconds while the tab is visible. It's an ordinary route that
   Vercel's CDN caches for 60 seconds, so polling costs the database about one query a minute
-  per region however many people have the map open (a request with a made-up query string
-  skips the cache and costs one small query, which is accepted). The public API roles get no
+  per region however many people have the map open (each new made-up query string
+  misses the cache and costs one small query, which is accepted). The public API roles get no
   access to the trucks' tables, so the public can't pull a truck's location history through
   Supabase's API.
 - **The database enforces the rules.** An exclusion constraint refuses overlapping entries.
   Every table has row-level security and explicit grants per table, and the server reaches
   the data through a database layer that finds and changes rows but decides nothing.
 - **A locked-down admin.** The one admin signs in with an emailed magic link and then a code
-  from an authenticator app. A session is refused 12 hours after its sign-in, logging out on
-  one device signs out the others, and every admin route checks the session, the role and the
-  second factor again on its own. The admin pages get a content security policy with a new
-  nonce per request.
+  from an authenticator app. The app refuses a session 12 hours after its sign-in, logging
+  out on one device signs out the others, or says it couldn't, and every admin route checks
+  the session, the role and the second factor again on its own. The admin pages get a
+  content security policy with a new nonce per request.
 - **Strict layering.** Route handlers only speak HTTP, services hold the logic, and only
   the database layer talks to Postgres:
 
@@ -72,10 +72,11 @@ launch is Phase 11's.
   integration tests against a local Supabase, a production build with a smoke check of the
   served app, `npm audit`, a secret scan and CodeQL. The **schema controls** go further:
   each of 65 SQL files removes or narrows one guard in the schema, and the tests meant to
-  catch it must go red (a few check instead that they stay green, or that a suite's setup
-  fails). CI runs the full set on a pull request that touches the schema, its tests or the
-  code and config they rest on, and on every one into `main`; the others only check that the
-  files parse. Branch rulesets require the checks, with no bypass, not even for the owner.
+  catch it must go red (a few check instead that removing a guard another one already covers
+  changes nothing, or that a suite's setup fails). CI runs the full set on a pull request that
+  touches the schema, the tests the controls run, or the code and config those rest on, and
+  on every one into `main`; the others only check that the files parse. Branch rulesets
+  require the checks, with no bypass, not even for the owner.
 
 ## How it's made
 
@@ -126,7 +127,7 @@ Consumers are always anonymous. All user-facing text is in Swedish.
 | 10 · Launch          | Production deploy, a soft launch: the map shown only to the admin, an about page and a privacy note for everyone else, the runbook | ✅ Done |
 | 11 · Full launch     | The map public, a custom domain for the tiles, paid plans | ⬜ Next |
 
-Phases 2 and 3 built the automatic ingestion that "Why it exists" describes. The code is
+Phases 2 and 3 built the automatic ingestion that [Why it exists](#why-it-exists) describes. The code is
 archived on the `archive/parser-lanes` branch and tag.
 
 ## More
