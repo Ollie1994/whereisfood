@@ -1,6 +1,6 @@
 #!/bin/sh
 # Refuses a commit whose staged changes hold a value Gitleaks' rules flag (IS #292).
-# Setup is by hand, never a `prepare` script (Phase 8 plan decision #7): README's
+# Setup is by hand, never a `prepare` script (Phase 8 plan decision #7): SETUP.md's
 # "Getting started". The Gitleaks call and checks: `gitleaks-common.sh`.
 #
 # Not scanned here: `git commit --no-verify`; a clone without `core.hooksPath`; the

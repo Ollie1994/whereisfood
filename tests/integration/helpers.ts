@@ -77,7 +77,7 @@ export function fixtureEmail(userId: string): string {
   return `${FIXTURE_PREFIX}${userId}@example.test`;
 }
 
-// Every fixture user has this password, as the admin has one (README, "5. Create the admin
+// Every fixture user has this password, as the admin has one (SETUP.md, "5. Create the admin
 // user"), but signs in by the magic link (`signInByLink`): the app admits no other first
 // factor (Phase 9 plan #14). `sessionFor`'s `firstFactor: "password"` signs in with it, for
 // the tests that the app refuses that.

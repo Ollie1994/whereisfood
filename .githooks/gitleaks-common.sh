@@ -23,7 +23,7 @@ run_gitleaks() {
 # ("Secrets") bans the file.
 gitleaks_preflight() {
   if ! command -v gitleaks >/dev/null 2>&1; then
-    echo "$1: gitleaks not found on PATH. Refused. Locally: install it (README, \"Getting" >&2
+    echo "$1: gitleaks not found on PATH. Refused. Locally: install it (SETUP.md, \"Getting" >&2
     echo "started\"), or open a new shell if this one started before the install. In CI:" >&2
     echo "the job's \"Install Gitleaks\" step." >&2
     exit 1

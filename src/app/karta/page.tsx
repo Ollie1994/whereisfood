@@ -56,9 +56,9 @@ import { createSessionClient, readOnlyCookies } from "@/lib/supabase-session";
 //   gone.
 // - src/lib/supabase-session.ts: `readOnlyCookies`' marked sentence deleted, so the comment says
 //   to use it behind the proxy alone.
-// - README.md: "It redirects to `/karta`" ("4. Run") and "the app's `/` only redirects to
-//   `/karta`" ("Hosted preview database"), and their HTML-comment markers removed; and in "Get
-//   the map tiles", the `whereisfood-where-is-food.vercel.app` alias's no-origin call (IS #506)
+// - SETUP.md: "It redirects to `/karta`" ("4. Run") and "the app's `/` only redirects to
+//   `/karta`" ("Hosted preview database"), and their HTML-comment markers removed; and in "Map
+//   tiles on R2", the `whereisfood-where-is-food.vercel.app` alias's no-origin call (IS #506)
 //   taken back to the owner by the full launch's issue, since `/karta` then shows the map to
 //   anyone who reaches it: the alias gets R2's CORS origin, or the paragraph keeps none with
 //   the owner's new reasons; its marker removed either way.

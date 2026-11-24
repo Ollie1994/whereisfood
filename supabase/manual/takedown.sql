@@ -1,12 +1,12 @@
 -- The takedown (Phase 10 plan, step 6; Phase 5 plan #7): removes one truck and its whole
 -- history, to honour a removal request. Manual SQL, never app code (CLAUDE.md, "db layer").
--- How to run it, and the takedown log to keep after: README, "Takedown".
+-- How to run it, and the takedown log to keep after: RUNBOOK.md, "Takedown".
 --
 -- Its two inputs, in `input` below, keeping the quotes: TRUCK_ID, the truck's id, and
 -- TRUCK_NAME, its name exactly as `trucks.name` holds it (a quote in it doubled). Both must
 -- match one truck, so an id and a name from different trucks change nothing; two trucks with
--- the same name are told apart only by the id (README, step 1). Left as it is, TRUCK_ID
--- isn't a uuid, so the statement fails (22P02) and changes nothing.
+-- the same name are told apart only by the id (RUNBOOK.md, "Takedown", steps 1 and 2). Left
+-- as it is, TRUCK_ID isn't a uuid, so the statement fails (22P02) and changes nothing.
 --
 -- One statement, so all of it happens or none: the truck's locations deleted, each `users`
 -- row pointing at it cleared (`truck_id` set to null: the account stays, as deleting one is
