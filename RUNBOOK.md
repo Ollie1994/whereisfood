@@ -105,10 +105,9 @@ Once a week, at most 7 days after the last run, in this order:
    to answer by mail or on Instagram, both checked here, but a reply that comes back on that
    channel itself (its website form, a contact in its posts) isn't, since nothing records the
    channel; #527 settles it. A late run, or a confirmation that waits for a reply, uses more
-   of it. A reply from a truck already told
-   goes as "Telling a new truck", step 5, says; a request to be listed again as its "The two
-   private lists" says; any other removal or objection to "A takedown request", below; the
-   rest to "Other requests", below.
+   of it. A reply from a truck already told goes as "Telling a new truck", step 5, says; a
+   request to be listed again as its "The two private lists" says; any other removal or
+   objection to "A takedown request", below; the rest to "Other requests", below.
 
 The routine is also the project's weekly activity, though it may not be enough to keep a
 Free project from pausing ("A paused project", below).
