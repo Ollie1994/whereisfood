@@ -1,9 +1,10 @@
 # Runbook
 
-The operator's book, in four groups: the weekly routine and its backups (Phase 10 plan, steps
-10 and 11, #8 and #13); requests, from telling a new truck (open decision 13) to other
-requests; incidents; and checks and changes, from a marker check on the preview to a migration
-and a release (step 15b). The daily routine comes with #523.
+The operator's book, in five groups: the weekly routine and its backups (Phase 10 plan, steps
+10 and 11, #8 and #13); the yearly upkeep, the domains and the map tiles (IS #525); requests,
+from telling a new truck (open decision 13) to other requests; incidents; and checks and
+changes, from a marker check on the preview to a migration and a release (step 15b). The
+daily routine comes with #523.
 The repo is public, so nothing here is a secret. Each value a step needs lives where `CLAUDE.md`'s
 "Where secrets live" says: production's Supabase keys in its dashboard (Project Settings → API Keys)
 and in Vercel's environment variables, and its database URL in the gitignored `.env.prod-db.local`.
@@ -18,6 +19,11 @@ rows from before it name them there; the setup steps then went to [`SETUP.md`](S
 
 - [The weekly routine](#the-weekly-routine)
 - [Backups](#backups)
+
+**Yearly**
+
+- [Renewing the domains](#renewing-the-domains)
+- [Refreshing the map tiles](#refreshing-the-map-tiles)
 
 **On request**
 
@@ -48,10 +54,10 @@ rows from before it name them there; the setup steps then went to [`SETUP.md`](S
 
 ## The weekly routine
 
-Once a week, in this order:
+Once a week, at most 7 days after the last run, in this order:
 
-1. **The dump:** "Backups" → "The weekly dump", below. Step 2 runs only after `DUMP OK`; step 3
-   runs whatever the dump answered. A week with no new good dump (`DUMP FAILED`, `NO URL`, or the
+1. **The dump:** "Backups" → "The weekly dump", below. Step 2 runs only after `DUMP OK`; steps 3
+   and 4 run whatever the dump answered. A week with no new good dump (`DUMP FAILED`, `NO URL`, or the
    routine skipped) or a prune left undone (`PRUNE FAILED` until the hand deletion) keeps an old
    dump longer: check "A takedown request", step 4, for a requester whose date it moves. **While an
    incident is being investigated** (a takeover, a leaked key), first move the dumps from before it
@@ -79,10 +85,29 @@ Once a week, in this order:
      unresponsive or enter read only mode" (its Billing page, Phase 9 plan open decision 7).
    - **Vercel:** the team's Usage page, the same way. Deployment Storage was the one figure
      over 10% of its limit when Phase 9 read it (#417).
+   - **At 50% of any limit,** on either page, open an issue that decides between reducing
+     the usage (as #417 does for Deployment Storage) and the paid plan (the owner's calls on
+     #525, 2026-11-24; `project-context.md`, "Pricing and upgrade triggers"). One issue per
+     figure: a
+     figure already in an open issue needs no second one.
    - **Errors:** Vercel's Logs, filtered to 5xx. Hobby keeps runtime logs 1 hour and
      Observability 12 hours, and Supabase's logs keep 1 day (Phase 9 plan open decision 7),
      so this sees only recent errors. A 5xx between looks goes unalerted: accepted while the
      admin uses the app daily during the soft launch (open decision 7).
+4. **The request inboxes** (the owner's calls on #525, 2026-11-24):
+   - the removal mailbox `/integritet` names, its spam folder included;
+   - the app's Instagram DMs, with the message requests and the hidden requests, which
+     Instagram keeps apart from the main inbox.
+
+   `/integritet` promises a removal within a month. With runs at most 7 days apart, a
+   request in these two inboxes is seen within 7 days of its arrival, inside that month. A
+   limit: a truck told through another channel ("Telling a new truck", step 3, below) is asked
+   to answer by mail or on Instagram, both checked here, but a reply that comes back on that
+   channel itself (its website form, a contact in its posts) isn't, since nothing records the
+   channel; #527 settles it. A late run, or a confirmation that waits for a reply, uses more
+   of it. A reply from a truck already told goes as "Telling a new truck", step 5, says; a
+   request to be listed again as its "The two private lists" says; any other removal or
+   objection to "A takedown request", below; the rest to "Other requests", below.
 
 The routine is also the project's weekly activity, though it may not be enough to keep a
 Free project from pausing ("A paused project", below).
@@ -211,6 +236,64 @@ which other processes of this user can read; the variables keep them out of the 
 history only. The CLI also hands the database URL's parts to its `pg_dump` container: its
 script exports `PGPASSWORD` there (`--dry-run`), so whoever can reach Docker could read it
 while the dump runs (not seen in `docker inspect`).
+
+---
+
+## Renewing the domains
+
+`vararmaten.se` and `varärmaten.se` are registered at Oderland (IS #452), unused until Phase
+11. Oderland renews them automatically, but payment is by hand (the owner, 2026-11-24, IS
+#525), so each renewal sends an invoice to pay. They were settled as bought on 2026-11-21
+(IS #452), so the renewal comes around November each year; Oderland's account shows the exact
+date.
+
+**The first time,** before any yearly run: read the renewal date at Oderland and set a reminder
+a month ahead of it, for the domains and the map tiles' look ("Refreshing the map tiles",
+below). Nothing else prompts the first run: the first renewal comes around November 2027, so
+that reminder falls around October 2027. Then, each year at that reminder:
+
+1. Log in to Oderland, whose account has two-factor (`CLAUDE.md`, "Secrets"), and read each
+   domain's renewal date, and that automatic renewal is still on.
+2. Pay the renewal invoice for both, before its due date.
+3. Set the next reminder the same way, a month ahead of the next renewal date, wherever you
+   keep reminders, outside the repo.
+
+---
+
+## Refreshing the map tiles
+
+The basemap is one extract of a Protomaps daily build, uploaded to R2. Nothing replaces it on
+its own, so once a year, with the domains, look at production's `/karta` for streets or places
+the map lacks, signed in as the admin at `aal2` (the magic link, then the TOTP code): while the
+soft-launch gate stands, anyone else is sent to `/om` (`CLAUDE.md`, "The soft-launch gate").
+To refresh it:
+
+1. Keep the file production serves: download R2's object from the bucket's public URL
+   (`SETUP.md`, "Map tiles on R2") to a dated name outside the repo, next to the dumps. The
+   local `public/gothenburg.pmtiles` may be a different cut, and the upload replaces R2's copy.
+   Note the `etag` R2 answers for it now: `curl -sI "https://pub-<id>.r2.dev/gothenburg.pmtiles"
+   | grep -i etag`.
+2. Cut a new extract as `SETUP.md`'s "2. Get the map tiles" says.
+3. Look at `/karta` on the local stack first, with the new local file: `npm run build`, then
+   `npm start`, at the URL its `Local:` line prints (`CLAUDE.md`, "Testing"), signed in as the
+   admin at `aal2`, with an entry for today entered on the local `/admin` so a marker shows.
+   Check the basemap, the marker and its popup. A new daily build can draw differently, and
+   the `curl` checks can't see that. Then stop the server, and check that no `node` process
+   with this repo in its command line is left, and stop any that are (`CLAUDE.md`, "Testing").
+4. Upload it to the bucket under the same name, and run the two `curl` checks, both as
+   `SETUP.md`'s "Map tiles on R2" says. They pass with the old file too, so also run step 1's
+   `etag` command again: it must answer a different `etag`, or R2 still serves the old object.
+5. Look at production's `/karta` in the window already signed in: open DevTools, tick "Disable
+   cache", then reload `/karta`, so the map loads afresh, and check in the Network tab that the
+   `.pmtiles` responses don't come from the cache (`CLAUDE.md`, "Green gates don't show the map
+   renders"). Check the basemap, and a real marker's popup if there is one: make no test entry,
+   since `/api/live` publishes to anyone every entry overlapping the next 26 hours, and the
+   entry stays in the history and the dumps. With no real entry, step 3 was the check of the
+   markers and popups. A session past the time-box (12 hours until Phase 11, `CLAUDE.md`, "The
+   session time-box") or a private window needs a new login, the link and then the TOTP code;
+   production sends 2 emails an hour ("A login link that doesn't come", below). If it draws
+   wrong, upload the kept file under the same name, and run step 4's checks (its `etag` now
+   step 1's again) and this look again.
 
 ---
 

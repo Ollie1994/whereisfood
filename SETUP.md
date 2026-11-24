@@ -4,7 +4,8 @@ How to set up Väm: a local copy for development ("Getting started", "Scripts"),
 projects it runs on (the tiles on Cloudflare R2, the preview's and production's Supabase
 projects, the hosted settings checklist, Vercel's preview deploys), with the checks of that
 setup (the hosted Security Advisor, the CDN cache). Operating it (the weekly routine and
-backups, requests and takedowns, incidents, a marker check, a migration and a release) is
+backups, the yearly upkeep, requests and takedowns, incidents, a marker check, a migration and
+a release) is
 [`RUNBOOK.md`](RUNBOOK.md); the rules for working on the code are [`CLAUDE.md`](CLAUDE.md).
 
 These sections were in `README.md` until IS #264, when "Takedown" and "Backups" moved to
@@ -203,7 +204,8 @@ Cloudflare dashboard (no API token needed):
 
 - **Storage:** an R2 bucket with the Standard storage class. Upload
   `public/gothenburg.pmtiles` under the same name from the bucket's Objects tab. A new
-  extract is uploaded the same way, replacing the old one.
+  extract replaces it by `RUNBOOK.md`'s "Refreshing the map tiles", which keeps the old file
+  and checks the new one before and after the upload.
 - **Public access:** the bucket's *Public Development URL* (`https://pub-<id>.r2.dev`),
   under Settings. Deploys set `NEXT_PUBLIC_PMTILES_URL` to
   `https://pub-<id>.r2.dev/gothenburg.pmtiles`. Cloudflare rate-limits `r2.dev` and

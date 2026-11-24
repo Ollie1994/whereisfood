@@ -105,9 +105,11 @@ save-triggered cache purges, grey markers) without a concrete problem that needs
 - **Production** (Phase 10) runs on Vercel at `vararmaten.vercel.app`, built from `main`, against
   its own Supabase Free project, with the tiles on R2. `SETUP.md`'s "Production" is the one
   description of that setup, and `RUNBOOK.md` of operating it and the preview: the weekly routine
-  (a data-only dump of `public`, then `supabase/manual/retention.sql`), requests and takedowns,
-  incidents, a marker check on the preview, a migration's push, and a release (`dev` into `main`
-  by a PR, then `main` synced back into `dev`). Production runs `main`,
+  (a data-only dump of `public`, then `supabase/manual/retention.sql`, the usage look and the
+  request inboxes), the yearly upkeep (the
+  domains, the map tiles), requests and takedowns, incidents, a marker check on the preview, a
+  migration's push, and a release (`dev` into `main` by a PR, then `main` synced back into
+  `dev`). Production runs `main`,
   which trails `dev`: on 2026-11-23 it was at PR #503, before IS #511's `/integritet` text (DM
   requests, the list of trucks told and the do-not-list), which a release ships before the first
   truck is told (`RUNBOOK.md`, "Telling a new truck"; IS #517). On 2026-11-23 it held the admin and
@@ -146,7 +148,7 @@ extract` from a recent Protomaps daily build, with the bounding box from
 `src/lib/geo.ts`. Development uses the local file,
 `NEXT_PUBLIC_PMTILES_URL=/gothenburg.pmtiles`.
 
-**Deploys read the same file from Cloudflare R2** (Phase 6 plan decision #7: pulled forward from the
+**Deploys read an extract cut the same way, from Cloudflare R2** (Phase 6 plan decision #7: pulled forward from the
 launch, so a preview tests the launch tile path). The bucket is served from its `r2.dev` URL, for
 previews and production (open decision 1); Phase 11, the full launch, moves it to a custom domain
 (IS #373 (Phase 11)). Its CORS rule admits `http://localhost:3000`, a pattern for this project's
@@ -385,8 +387,8 @@ public/                           ← gothenburg.pmtiles (development; deploys r
                                     core.hooksPath, by hand)
 next.config.ts                    ← (+ test: which paths get which CSP, IS #387)
 RUNBOOK.md                        ← operating production and the preview: the weekly routine,
-                                    requests, incidents, a marker check, a migration, a release
-                                    (Phase 10 plan #8, IS #519)
+                                    the yearly upkeep, requests, incidents, a marker check, a
+                                    migration, a release (Phase 10 plan #8, IS #519, #525)
 SECURITY.md, .gitleaks.toml       ← how to report a vulnerability; Gitleaks' config
 .gitattributes                    ← the files marked `-text`, which tracked-text.test.mjs skips
 ```
@@ -907,10 +909,10 @@ where secrets live meanwhile are `CLAUDE.md`'s ("Secrets").
 
 | Service | Plan | When | ≈ per month |
 |---|---|---|---|
-| Supabase | Free, then Pro | Free since the production deploy (Phase 10, the soft launch); Pro **at the full launch** (Phase 11; Free has no backups or session timeouts: until then the weekly dump stands in for backups, "Principles and risks", and Phase 9's time-box for the timeouts, Phase 9 plan #4) | $0, then $25 |
+| Supabase | Free, then Pro | Free since the production deploy (Phase 10, the soft launch); Pro **at the full launch** (Phase 11; Free has no backups or session timeouts: until then the weekly dump stands in for backups, "Principles and risks", and Phase 9's time-box for the timeouts, Phase 9 plan #4); before it, at ~50% of any Free quota, an issue decides between reducing the usage and Pro (IS #525) | $0, then $25 |
 | Cloudflare R2 | pay as you go | since Phase 6, tiles only | $0 at expected traffic |
-| A domain | a registrar | bought in Phase 10 (`vararmaten.se`, `varärmaten.se` at Oderland, IS #452), unused until Phase 11 | a yearly fee, not priced |
-| Vercel | Pro + Spend Management (pause cap) | before a marketing push, at ~50% of any Hobby limit, or when commercial, whichever first | ~$20/member + capped usage |
+| A domain | a registrar | bought in Phase 10 (`vararmaten.se`, `varärmaten.se` at Oderland, IS #452), unused until Phase 11; renewed automatically, the invoice paid by hand each year (IS #525) | a yearly fee, not priced |
+| Vercel | Pro + Spend Management (pause cap) | before a marketing push, or when commercial, whichever first; at ~50% of any Hobby limit, an issue decides between reducing the usage and Pro (IS #525) | ~$20/member + capped usage |
 
 - **The Hobby cliff is the main availability risk, from success more than attackers.**
   Hobby has 1M CDN requests a month shared by the page, chunks, polls **and tiles**,
@@ -1189,3 +1191,7 @@ says.
 | IS #466 (PR #514), IS #513 (PR #515) | The Phase 10 retrospective's calls: the Phase 9 retrospective's eight actions kept; one new action, `post-body.mjs --closes`, required on a PR's body, which refuses a closing keyword before an issue the PR doesn't close (#513); `hosted:` lines in `claims.sh` offered and not taken | `CLAUDE.md` "Doc changes" and "Review rounds"; the process log's Phase 10 retrospective |
 | **between phases**, 2026-11-16, IS #373 (Phase 11), for Phase 11 | The full launch is a phase of its own, after Phase 10 and before the Owners phase (the owner's call). Proposed: it starts when a coverage target holds: on a typical weekday at least N trucks, entered before 11:00, held for two weeks and checked against their posts (N open; Claude's guess 5–8). It removes the gate and restores the smoke check, by the removal list and checks of the Phase 10 #5 row above, keeping `/om` and the nav link. It holds Supabase Pro, with session timeouts; the custom domain (R2's domain and CORS rule, `NEXT_PUBLIC_PMTILES_URL`, the CSP's tiles domain; and, if the app gets its own domain, Vercel's domain, Supabase Auth's Site and Redirect URLs, and HSTS: open, and Claude suggests one domain with the tiles on a subdomain); Vercel Pro + Spend Management; the acquisition plan | Part 2's Phase map (Phase 11 row); "Pricing and upgrade triggers"; Part 1 "Map tiles" |
 | **between phases**, 2026-11-24, IS #264 | The README shows off the project and holds no how-to (the owner's call): the local and hosted setup moved to `SETUP.md`, and "Takedown" and "Backups" to `RUNBOOK.md`. This narrows Phase 7 #7: the README's status parts are now its status banner, its "Project status" table and the phase sentence in "How it works" ("How it's designed to work" until IS #518); "What works today" and "What does not exist yet" are gone, Part 1 "What runs" and the Roadmap in their place | `CLAUDE.md` "Doc changes" ("What goes where", and the tracked docs); the process log's "How to use it", part 6 |
+| **between phases**, 2026-11-24, IS #525 (D1) | The weekly routine runs at most 7 days after the last run and checks the request inboxes: the removal mailbox with its spam folder, and the app's Instagram DMs with their message and hidden requests. So a request is seen within 7 days, inside the month `/integritet` promises (the owner's calls on #525, 2026-11-24). A channel a truck was told through other than Instagram isn't checked: the list of trucks told doesn't record it (the owner's call, the same day; #527) | `RUNBOOK.md` "The weekly routine", step 4 |
+| **between phases**, 2026-11-24, IS #525 (D2) | At 50% of any Supabase or Vercel limit, an issue decides between reducing the usage and the paid plan, replacing Vercel's "Pro at ~50%"; one issue per figure; Supabase's half ends with Pro at the full launch (the owner's calls on #525, 2026-11-24) | `RUNBOOK.md` "The weekly routine", step 3; "Pricing and upgrade triggers" |
+| **between phases**, 2026-11-24, IS #525 (D3) | The domains renew automatically at Oderland, and their invoice is paid by hand once a year (the owner's call) | `RUNBOOK.md` "Renewing the domains"; "Pricing and upgrade triggers" |
+| **between phases**, 2026-11-24, IS #525 (D4) | The map tiles are looked at once a year, with the domains (the owner's call on #525, 2026-11-24). The refresh's steps are RUNBOOK's | `RUNBOOK.md` "Refreshing the map tiles" |
