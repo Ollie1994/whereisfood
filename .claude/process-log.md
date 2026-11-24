@@ -124,7 +124,8 @@ quoting the one-line rule this replaced.)
    reconciliation also brings `README.md`'s status parts in line (Phase 7 plan #7), and fixes the stale
    hits and findings named in the plan's reconciliation step; its issue lists the parts
    and points to that step.** The status parts are the README's status banner, its "Project
-   status" table, and the phase sentence in "How it's designed to work" (IS #264).
+   status" table, and the phase sentence in "How it works" (IS #264; the section was "How it's
+   designed to work" until IS #518).
    **The
    reconciliation also sets CLAUDE.md's bold "Current phase plan" line to none**,
    naming the finished plan as the last one (`/create-milestone`'s step 0 sets it
